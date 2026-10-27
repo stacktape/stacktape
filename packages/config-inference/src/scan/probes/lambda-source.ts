@@ -179,63 +179,96 @@ const untypedExport = (path: string, raw: string): UntypedExport | undefined => 
 /** A field read in JavaScript (`.http`, `?.http`, `['http']`) or Python (`['http']`, `.get('http'`). */
 const field = (name: string) => `(?:\\??\\.${name}\\b|\\[\\s*['"]${name}['"]\\s*\\]|\\.get\\(\\s*['"]${name}['"])`;
 
-/**
- * The event an untyped handler is written for, read off the fields it touches. Every Python handler is untyped, and so
- * is a lot of JavaScript; without this they deploy with no trigger at all.
- *
- * Each shape is specific to one event source. Where a file reads several, the envelope that invokes the function wins:
- * an SQS handler that parses an S3 or SNS notification out of `record.body` is still invoked by the queue.
- */
-const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; patterns: readonly RegExp[] }> = [
-  {
-    family: { trigger: 'http', payloadFormat: '2.0' },
-    patterns: [new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`), new RegExp(field('rawPath'))]
-  },
-  {
-    family: { trigger: 'http', payloadFormat: '1.0' },
-    patterns: [
-      new RegExp(field('httpMethod')),
-      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('resourcePath')}`)
-    ]
-  },
-  {
-    family: { trigger: 'queue' },
-    patterns: [
-      new RegExp(`${field('Records')}[\\s\\S]*${field('body')}`),
-      /['"]aws:sqs['"]/,
-      new RegExp(field('receiptHandle')),
-      /\bbatchItemFailures\b/
-    ]
-  },
-  { family: { trigger: 'topic' }, patterns: [new RegExp(field('Sns')), /['"]aws:sns['"]/] },
-  {
-    family: { trigger: 'object-storage' },
-    patterns: [new RegExp(`${field('s3')}${field('(?:bucket|object)')}`), /['"]aws:s3['"]/]
-  },
-  // A schedule rule's event, or a literal rate beside the handler (`export const schedule = 'rate(2 minutes)'`).
-  { family: { trigger: 'schedule' }, patterns: [/['"]Scheduled Event['"]/, /['"]aws\.events['"]/, SCHEDULE_LITERAL] }
-];
+const firstMatching =
+  (patterns: readonly RegExp[]) =>
+  (raw: string): RegExp | undefined =>
+    patterns.find((pattern) => pattern.test(raw));
 
 /** Code that creates schedules (EventBridge rules, EventBridge Scheduler) holds rates that are not its own. */
 const CREATES_SCHEDULES =
   /\bScheduleExpression\b|\b(?:PutRule|CreateSchedule)Command\b|\b(?:put_rule|create_schedule)\(/;
 
+/** Names a handler gives the records it iterates: `for (const record of event.Records)`, `event.Records.map((r) =>`, `for record in event['Records']`. */
+const RECORD_ITERATIONS: readonly RegExp[] = [
+  new RegExp(`for\\s*\\(\\s*(?:const|let|var)\\s+([\\w$]+)\\s+of\\s+[\\w$.?]*${field('Records')}`, 'g'),
+  new RegExp(
+    `${field('Records')}\\s*\\??\\.\\s*(?:map|forEach|filter|flatMap|some|every|find)\\(\\s*(?:async\\s*)?\\(?\\s*([\\w$]+)`,
+    'g'
+  ),
+  new RegExp(`for\\s+(\\w+)\\s+in\\s+[\\w.]*${field('Records')}`, 'g')
+];
+
+/**
+ * The body of an SQS record: `.body` on a record the handler iterates, destructured from it, or on an indexed record.
+ * A `.body` elsewhere (an HTTP response, a fetch result) says nothing about the event.
+ */
+const sqsRecordBody = (raw: string): RegExp | undefined => {
+  const records = new Set(RECORD_ITERATIONS.flatMap((pattern) => [...raw.matchAll(pattern)].map((match) => match[1]!)));
+  const candidates = [
+    ...[...records].map((name) => new RegExp(`(?<![\\w$.])${name.replace(/\$/g, '\\$')}${field('body')}`)),
+    new RegExp(`for\\s*\\(\\s*(?:const|let|var)\\s*\\{[^}]*\\bbody\\b[^}]*\\}\\s+of\\s+[\\w$.?]*${field('Records')}`),
+    new RegExp(`${field('Records')}\\s*\\[\\s*\\d+\\s*\\]${field('body')}`)
+  ];
+  return candidates.find((candidate) => candidate.test(raw));
+};
+
+/**
+ * The event an untyped handler is written for, read off the fields it touches. Every Python handler is untyped, and so
+ * is a lot of JavaScript; without this they deploy with no trigger at all.
+ *
+ * Each shape is specific to one event source. Where a file reads several, the envelope that invokes the function wins.
+ * SNS comes before SQS because an SQS record never carries `Sns`. SQS comes before S3 because an SQS handler that
+ * parses an S3 notification out of `record.body` is still invoked by the queue.
+ */
+const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) => RegExp | undefined }> = [
+  {
+    family: { trigger: 'http', payloadFormat: '2.0' },
+    match: firstMatching([
+      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
+      new RegExp(field('rawPath'))
+    ])
+  },
+  {
+    family: { trigger: 'http', payloadFormat: '1.0' },
+    match: firstMatching([
+      new RegExp(field('httpMethod')),
+      new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('resourcePath')}`)
+    ])
+  },
+  { family: { trigger: 'topic' }, match: firstMatching([new RegExp(field('Sns')), /['"]aws:sns['"]/]) },
+  {
+    family: { trigger: 'queue' },
+    match: (raw) =>
+      sqsRecordBody(raw) ??
+      firstMatching([/['"]aws:sqs['"]/, new RegExp(field('receiptHandle')), /\bbatchItemFailures\b/])(raw)
+  },
+  {
+    family: { trigger: 'object-storage' },
+    match: firstMatching([new RegExp(`${field('s3')}${field('(?:bucket|object)')}`), /['"]aws:s3['"]/])
+  },
+  // A schedule rule's event, or a literal rate beside the handler (`export const schedule = 'rate(2 minutes)'`).
+  {
+    family: { trigger: 'schedule' },
+    match: (raw) =>
+      firstMatching([
+        /['"]Scheduled Event['"]/,
+        /['"]aws\.events['"]/,
+        ...(CREATES_SCHEDULES.test(raw) ? [] : [SCHEDULE_LITERAL])
+      ])(raw)
+  }
+];
+
 const inferEventFamily = (raw: string): { family: EventFamily; pattern: RegExp } | undefined => {
-  for (const { family, patterns } of EVENT_SHAPES) {
-    const pattern = patterns.find(
-      (candidate) => candidate.test(raw) && !(candidate === SCHEDULE_LITERAL && CREATES_SCHEDULES.test(raw))
-    );
+  for (const { family, match } of EVENT_SHAPES) {
+    const pattern = match(raw);
     if (pattern !== undefined) return { family, pattern };
   }
   return undefined;
 };
 
-/** The line that showed the event shape. A pattern spanning lines (`Records` … `body`) cites its first part. */
+/** The line that showed the event shape. */
 const citeInferred = (path: string, raw: string, pattern: RegExp | undefined): Citation | undefined =>
-  pattern === undefined
-    ? undefined
-    : (citeFirstMatchOnly(path, raw, pattern, 'functionTriggers') ??
-      citeFirstMatchOnly(path, raw, new RegExp(pattern.source.split('[\\s\\S]*')[0]!), 'functionTriggers'));
+  pattern === undefined ? undefined : citeFirstMatchOnly(path, raw, pattern, 'functionTriggers');
 
 const languageFor = (path: string): string =>
   path.endsWith('.py') ? 'python' : path.endsWith('.ts') || path.endsWith('.tsx') ? 'typescript' : 'javascript';
@@ -351,15 +384,15 @@ export const lambdaSourceProbe: Probe = {
     // `src/api.ts` exporting `default async (event: APIGatewayProxyEventV2)` is a function however its directory is
     // named, and its type says which event invokes it. An untyped one (every Python handler) qualifies when it takes
     // `(event, context)` or reads the fields of one event source, and those fields say which.
-    const elsewhere = context.files
-      .filter(
-        (path) =>
-          /\.(?:[cm]?[jt]s|tsx|py)$/.test(path) &&
-          !claimed.has(path) &&
-          !NON_APPLICATION_PATH.test(path) &&
-          !NON_APPLICATION_FILE.test(path)
-      )
-      .slice(0, MAX_TYPED_CANDIDATES);
+    const application = context.files.filter(
+      (path) => !claimed.has(path) && !NON_APPLICATION_PATH.test(path) && !NON_APPLICATION_FILE.test(path)
+    );
+    // Bounded per language, so a Python-heavy repository does not crowd out its TypeScript handlers or the reverse.
+    const bounded = new Set([
+      ...application.filter((path) => /\.(?:[cm]?[jt]s|tsx)$/.test(path)).slice(0, MAX_TYPED_CANDIDATES),
+      ...application.filter((path) => path.endsWith('.py')).slice(0, MAX_TYPED_CANDIDATES)
+    ]);
+    const elsewhere = application.filter((path) => bounded.has(path));
     for (const path of elsewhere) {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });

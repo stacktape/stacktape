@@ -638,6 +638,63 @@ export const handler = async () => {
 `
 };
 
+/**
+ * Functions that write to a resource of the same kind as the one that invokes them. A plain repository has one bucket,
+ * queue and topic, so binding these variables by name would point each function's output at its own trigger and invoke
+ * it forever. The SNS handler also reads a fetch response's `.body`, which is not an SQS record's.
+ */
+const triggerLoops: Record<string, string> = {
+  'package.json': JSON.stringify(
+    {
+      name: 'media',
+      private: true,
+      type: 'module',
+      dependencies: {
+        '@aws-sdk/client-s3': '^3.700.0',
+        '@aws-sdk/client-sns': '^3.700.0',
+        '@aws-sdk/client-sqs': '^3.700.0'
+      }
+    },
+    null,
+    2
+  ),
+  'functions/thumbnail.ts': `import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+const s3 = new S3Client({});
+
+export const handler = async (event: any) => {
+  for (const record of event.Records) {
+    const source = await s3.send(new GetObjectCommand({ Bucket: record.s3.bucket.name, Key: record.s3.object.key }));
+    const bytes = await source.Body!.transformToByteArray();
+    await s3.send(new PutObjectCommand({ Bucket: process.env.THUMBNAILS_BUCKET, Key: record.s3.object.key, Body: bytes }));
+  }
+};
+`,
+  'functions/worker.ts': `import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+
+export const handler = async (event: any) => {
+  for (const record of event.Records) {
+    const job = JSON.parse(record.body);
+    await sqs.send(new SendMessageCommand({ QueueUrl: process.env.RESULTS_QUEUE_URL, MessageBody: JSON.stringify({ id: job.id }) }));
+  }
+};
+`,
+  'functions/notify.ts': `import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
+
+const sns = new SNSClient({});
+
+export const handler = async (event: any) => {
+  for (const record of event.Records) {
+    const res = await fetch('https://hooks.example.com/notify', { method: 'POST', body: record.Sns.Message });
+    console.log(res.status, res.body);
+    await sns.send(new PublishCommand({ TopicArn: process.env.ALERTS_TOPIC_ARN, Message: record.Sns.Message }));
+  }
+};
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -645,5 +702,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'two-http-handlers': twoHttpHandlers,
   'monorepo-apis': monorepoApis,
   'r2p-files': r2pFiles,
-  'untyped-handlers': untypedHandlers
+  'untyped-handlers': untypedHandlers,
+  'trigger-loops': triggerLoops
 } as const;

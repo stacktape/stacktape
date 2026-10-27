@@ -758,6 +758,14 @@ export const assembleCandidateFacts = async ({
     for (const serviceName of hasOnlyExampleEnvironmentEvidence(dependency) ? [] : dependency.consumedBy) {
       const service = services.find((candidate) => candidate.name === serviceName);
       if (service === undefined) continue;
+      // A function's address for the queue, bucket or topic that invokes it would feed its output back into itself.
+      if (
+        (service.functionTriggers ?? []).some(
+          (trigger) => 'dependencyName' in trigger && trigger.dependencyName === dependency.name
+        )
+      ) {
+        continue;
+      }
       service.environmentVariables = mergeEnvironmentVariables(
         service.environmentVariables ?? [],
         dependency.addressedBy.map((name) => ({

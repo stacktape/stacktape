@@ -12,7 +12,7 @@
  */
 
 import type { Citation } from '../facts/citation';
-import type { DependencyFact } from '../facts/dependency';
+import { resourceKindNamedBy, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
@@ -29,7 +29,7 @@ import { monorepoPackaging } from './monorepo';
 import { normalizeScheduleExpression } from './schedule';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
 import {
-  DEFAULT_DEPLOYMENT_PREFERENCES,
+  defaultDeploymentPreferences,
   profileForPreferences,
   type DeploymentPreferences,
   type InfrastructureProfile
@@ -53,8 +53,6 @@ export type ComposedConfig = {
   /** Deploy-time migration scripts referenced from `hooks`, and the project's own seed and migrate commands. */
   scripts?: Record<string, ComposedResource>;
   hooks?: { afterDeploy: Array<{ scriptName: string }> };
-  /** Stack-wide settings. Set only when functions in the VPC need NAT to reach other services. */
-  stackConfig?: { nat: 'ec2' | 'ha-ec2' };
 };
 
 export type Provenance = {
@@ -172,6 +170,13 @@ const DEPENDENCY_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
   search: 'the search service',
   kafka: 'Kafka',
   nats: 'NATS'
+};
+
+/** The resources a function can be invoked by and also write to. */
+const SELF_TRIGGER_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
+  'object-storage': 'bucket',
+  queue: 'queue',
+  topic: 'topic'
 };
 
 const dependencyLabel = (kind: DependencyFact['kind']): string => DEPENDENCY_LABELS[kind] ?? kind;
@@ -507,7 +512,8 @@ const composeDependency = (
   projectName: string | undefined,
   engineVersions: EngineVersionCatalogue | undefined,
   privateDatabase: boolean,
-  browserUploads: boolean
+  /** Methods of presigned uploads a browser sends to this bucket; empty when none does. */
+  browserUploadMethods: ReadonlyArray<'PUT' | 'POST'>
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
   const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
@@ -566,10 +572,6 @@ const composeDependency = (
         }
       },
       reason: `Your code connects to a ${dependencyLabel(dependency.kind)} database.${
-        privateDatabase
-          ? ' It has no public address: your functions and services reach it inside the VPC, and stacktape dev runs it on your machine.'
-          : ''
-      }${
         resolved.movedOffPin
           ? ` Version ${dependency.engineVersion} is no longer offered on RDS, so ${resolved.version} is used instead.`
           : ''
@@ -597,12 +599,26 @@ const composeDependency = (
           type: 'bucket',
           properties: {
             ...(profile.bucket.versioning ? { versioning: true } : {}),
-            // The browser sends the presigned request to S3 itself, which S3 refuses cross-origin without CORS.
-            ...(browserUploads ? { cors: { enabled: true } } : {})
+            // The browser sends the presigned request to S3 itself, which S3 refuses cross-origin without CORS. Only
+            // the methods the code presigns are allowed. The origin cannot name the frontend: in stacktape dev the
+            // frontend runs locally and the dev stack cannot resolve its URL, and the URL's signature is what
+            // authorizes the upload.
+            ...(browserUploadMethods.length > 0
+              ? {
+                  cors: {
+                    enabled: true,
+                    corsRules: [
+                      { allowedOrigins: ['*'], allowedMethods: [...browserUploadMethods], allowedHeaders: ['*'] }
+                    ]
+                  }
+                }
+              : {})
           }
         },
         reason: `Your code reads and writes object storage.${
-          browserUploads ? ' Browsers upload to it with presigned URLs, so it accepts cross-origin requests.' : ''
+          browserUploadMethods.length > 0
+            ? ` Browsers upload to it with presigned URLs, so it accepts cross-origin ${browserUploadMethods.join(' and ')} requests.`
+            : ''
         }`
       };
     case 'dynamodb':
@@ -666,17 +682,6 @@ const composeDependency = (
   }
 };
 
-/** What a function in the VPC reaches without NAT: VPC resources, and S3 and DynamoDB through gateway endpoints. */
-const REACHABLE_FROM_VPC: ReadonlySet<DependencyFact['kind']> = new Set([
-  'postgres',
-  'mysql',
-  'mssql',
-  'redis',
-  'object-storage',
-  'dynamodb',
-  'sqlite'
-]);
-
 /** Resource names must read well in a config file and be unique within it. */
 const uniqueName = (preferred: string, taken: Set<string>): string => {
   const base = preferred
@@ -726,7 +731,7 @@ export const composeConfig = ({
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
-  const recommendedPreferences = DEFAULT_DEPLOYMENT_PREFERENCES;
+  const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
     ...requestedPreferences
@@ -800,8 +805,6 @@ export const composeConfig = ({
     const { resourceType } = classifyService(service);
     return resourceType === 'hosting-bucket' || resourceType.endsWith('-web');
   });
-  /** A function or SSR server in the VPC that also calls something outside it, so the stack needs NAT. */
-  let natRequiredBy: string | undefined;
   for (const dependency of dependencies) {
     // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
     // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
@@ -946,19 +949,23 @@ export const composeConfig = ({
     }
 
     const privateDatabase = preferences.databaseAccess === 'private' && RDS_ENGINE_TYPES[dependency.kind] !== undefined;
-    const browserUploads =
-      dependency.kind === 'object-storage' &&
-      hasFrontend &&
-      facts.services.some(
-        (service) => service.issuesPresignedUploads === true && dependency.consumedBy.includes(service.name)
-      );
+    const browserUploadMethods =
+      dependency.kind === 'object-storage' && hasFrontend
+        ? [
+            ...new Set(
+              facts.services
+                .filter((service) => dependency.consumedBy.includes(service.name))
+                .flatMap((service) => service.presignedUploadMethods ?? [])
+            )
+          ].toSorted()
+        : [];
     const composed = composeDependency(
       dependency,
       profile,
       projectName,
       engineVersions,
       privateDatabase,
-      browserUploads
+      browserUploadMethods
     );
     if ('unsupported' in composed) {
       gaps.push({ subject: dependency.name, message: composed.unsupported });
@@ -1172,8 +1179,31 @@ export const composeConfig = ({
         });
       }
     }
+    // A variable naming the kind of resource that invokes this function was left unbound by the scan: pointing the
+    // function's output at its own trigger would invoke it again with every write.
+    const selfTriggerVariables = new Set<string>();
+    for (const variable of service.environmentVariables) {
+      if (variable.role === 'infra-dependency' || variable.role === 'build-time') continue;
+      const kind = resourceKindNamedBy(variable.name);
+      const label = kind === undefined ? undefined : SELF_TRIGGER_LABELS[kind];
+      if (label === undefined) continue;
+      const invokedBy = service.functionTriggers.some(
+        (trigger) =>
+          'dependencyName' in trigger &&
+          facts.dependencies.some(
+            (dependency) => dependency.name === trigger.dependencyName && dependency.kind === kind
+          )
+      );
+      if (!invokedBy) continue;
+      selfTriggerVariables.add(variable.name);
+      gaps.push({
+        subject: `${service.name}.${variable.name}`,
+        message: `${variable.name} names a ${label}, and the only ${label} init found is the one that invokes ${service.name}. Pointing ${variable.name} at it would invoke ${service.name} again with every write, so init left it unset. Add a separate ${label} for it, with connectTo and ${variable.name} on ${service.name}, before deploying.`
+      });
+    }
     for (const variable of service.environmentVariables) {
       if (variable.role !== 'runtime-config' || !variable.required || variable.hasDeclaredValue) continue;
+      if (selfTriggerVariables.has(variable.name)) continue;
       if (environment.some((entry) => entry.name === variable.name) || isToolingVariable(variable)) continue;
       unsetSettings.push({
         serviceName: service.name,
@@ -1275,20 +1305,15 @@ export const composeConfig = ({
         message: `We found the ${service.name} handler but no event that invokes it. Add its HTTP, queue, topic, bucket or schedule trigger.`
       });
     }
-    // A function in the VPC reaches the database, Redis, and S3 or DynamoDB through gateway endpoints, and nothing else:
-    // publishing to SNS, sending to SQS or calling a third-party API times out. NAT gives it the way out.
     if (
       requiresVpc &&
       (classification.resourceType === 'function' || classification.resourceType.endsWith('-web')) &&
-      natRequiredBy === undefined &&
-      (facts.dependencies.some(
-        (dependency) => dependency.consumedBy.includes(service.name) && !REACHABLE_FROM_VPC.has(dependency.kind)
-      ) ||
-        service.environmentVariables.some(
-          (variable) => variable.role === 'third-party-secret' || variable.role === 'cross-service-reference'
-        ))
+      service.environmentVariables.some((variable) => variable.role === 'third-party-secret')
     ) {
-      natRequiredBy = name;
+      gaps.push({
+        subject: `${service.name}.vpc-internet-access`,
+        message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
+      });
     }
     for (const trigger of service.functionTriggers) {
       if (trigger.type !== 'unmapped') continue;
@@ -1306,11 +1331,6 @@ export const composeConfig = ({
         message: `${service.name} and another function both declare the HTTP route ${route}, which one API cannot hold twice. We left it off ${service.name}; give it its own route before deploying.`
       });
     }
-  }
-
-  if (natRequiredBy !== undefined && provenance[natRequiredBy] !== undefined) {
-    provenance[natRequiredBy]!.reason +=
-      ' It joins the VPC to reach a private resource and also calls services outside it, so the stack gets a NAT instance (about $7 a month) for its outbound traffic.';
   }
 
   for (const assumption of assumptions) {
@@ -1377,10 +1397,6 @@ export const composeConfig = ({
   return {
     config: {
       ...(projectName === undefined ? {} : { projectName }),
-      // One NAT instance (about $7 a month) by default; two with automatic failover when the user chose redundancy.
-      ...(natRequiredBy === undefined
-        ? {}
-        : { stackConfig: { nat: preferences.availability === 'redundant' ? 'ha-ec2' : 'ec2' } }),
       resources,
       ...(Object.keys(scripts).length === 0 ? {} : { scripts }),
       ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } })

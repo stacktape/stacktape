@@ -529,7 +529,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
-  it('a private database with NAT for a function that publishes, browser uploads and a seed script', () => {
+  it('a function that publishes, browser uploads and a seed script', () => {
     const config = composeFrom({
       services: [
         service({
@@ -541,7 +541,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           startCommand: undefined,
           functionEntrypoint: 'api/main.py',
           functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
-          issuesPresignedUploads: true,
+          presignedUploadMethods: ['PUT'],
           environmentVariables: [
             { name: 'DATABASE_URL', role: 'infra-dependency', dependencyName: 'mainDatabase', required: true },
             { name: 'UPLOAD_BUCKET', role: 'infra-dependency', dependencyName: 'storageBucket', required: true },
@@ -575,8 +575,10 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       ]
     });
 
-    expect(config.stackConfig).toEqual({ nat: 'ec2' });
-    expect(config.resources.storageBucket?.properties.cors).toEqual({ enabled: true });
+    expect(config.resources.storageBucket?.properties.cors).toEqual({
+      enabled: true,
+      corsRules: [{ allowedOrigins: ['*'], allowedMethods: ['PUT'], allowedHeaders: ['*'] }]
+    });
     expect(config.scripts?.seed?.type).toBe('local-script');
     expectValid(config);
   });

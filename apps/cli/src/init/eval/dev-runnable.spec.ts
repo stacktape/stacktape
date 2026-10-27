@@ -63,7 +63,14 @@ const resourcesOf = (result: GreenfieldResult): Record<string, Resource> => {
   configManager.setStackContext(stackContext);
   configManager.config = config;
   const { findings } = assessSecurityPosture({ configManager, rawConfig: config, stackContext });
-  expect(findings.filter(({ severity }) => severity === 'HIGH' || severity === 'CRITICAL')).toEqual([]);
+  // Init keeps the database public and password-protected by default (owner decision, 27 Oct 2026); `validate` rates
+  // that finding HIGH only for production stages once task T lands, so it is not part of this check.
+  expect(
+    findings.filter(
+      ({ severity, ruleId }) =>
+        (severity === 'HIGH' || severity === 'CRITICAL') && ruleId !== 'database-reachable-from-internet'
+    )
+  ).toEqual([]);
   return result.composition.config.resources as Record<string, Resource>;
 };
 
@@ -195,7 +202,6 @@ describe('init writes a config stacktape dev can run', () => {
       mainDatabase: 'relational-database',
       storageBucket: 'bucket',
       notificationsTopic: 'sns-topic',
-      databaseBastion: 'bastion',
       httpApiGateway: 'http-api-gateway',
       r2pFilesWeb: 'sveltekit-web',
       expireUploads: 'function',
@@ -240,7 +246,10 @@ describe('init writes a config stacktape dev can run', () => {
       dev: { command: 'npm run dev' }
     });
     // H6: the browser PUTs to the presigned URL the API returns.
-    expect(resources.storageBucket!.properties.cors).toEqual({ enabled: true });
+    expect(resources.storageBucket!.properties.cors).toEqual({
+      enabled: true,
+      corsRules: [{ allowedOrigins: ['*'], allowedMethods: ['PUT'], allowedHeaders: ['*'] }]
+    });
     // H9: `npm run seed`, against the database its source reads.
     expect(result.composition.config.scripts).toEqual({
       seed: {
@@ -252,16 +261,11 @@ describe('init writes a config stacktape dev can run', () => {
         }
       }
     });
-    // The database has no public address; the functions reach it from the VPC, and the API's SNS publish goes out
-    // through NAT. `stacktape dev` runs the database locally and leaves the bastion and NAT out of the dev stack.
-    expect(resources.mainDatabase!.properties.accessibility).toEqual({
-      accessibilityMode: 'vpc',
-      forceDisablePublicIp: true
-    });
+    // The database stays public and password-protected, so the functions stay out of the VPC.
+    expect(resources.mainDatabase!.properties.accessibility).toBeUndefined();
     for (const name of ['api', 'processUpload', 'expireUploads']) {
-      expect(resources[name]!.properties.joinDefaultVpc).toBe(true);
+      expect(resources[name]!.properties.joinDefaultVpc).toBeUndefined();
     }
-    expect(result.composition.config.stackConfig).toEqual({ nat: 'ec2' });
     expect(result.composition.gaps).toEqual([]);
     expect(result.composition.unsetSettings).toEqual([]);
   });
@@ -298,8 +302,35 @@ describe('init writes a config stacktape dev can run', () => {
     });
     expect(resources.api!.properties.connectTo).toEqual(expect.arrayContaining(['jobQueue', tableName]));
     expect(resources.worker!.properties.connectTo).toEqual(expect.arrayContaining([tableName]));
-    // No VPC resource, so nothing joins the VPC and no NAT is added.
-    expect(result.composition.config.stackConfig).toBeUndefined();
     expect(result.composition.gaps).toEqual([]);
+  });
+
+  // A function's output bound to its own trigger re-invokes it with every write, forever.
+  it('trigger loops: a variable naming the kind that invokes the function is left unset and reported', async () => {
+    const result = await initFixture('trigger-loops');
+    const resources = resourcesOf(result);
+
+    const variableNames = (name: string) =>
+      ((resources[name]!.properties.environment ?? []) as Array<{ name: string }>).map((variable) => variable.name);
+    expect(resources.thumbnail!.properties.events).toEqual([
+      {
+        type: 's3',
+        properties: { bucketArn: "$ResourceParam('storageBucket', 'arn')", s3EventType: 's3:ObjectCreated:*' }
+      }
+    ]);
+    expect(variableNames('thumbnail')).not.toContain('THUMBNAILS_BUCKET');
+    expect(resources.worker!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }]);
+    expect(variableNames('worker')).not.toContain('RESULTS_QUEUE_URL');
+    // Invoked by its topic only: the fetch response's `.body` is not an SQS record.
+    expect(resources.notify!.properties.events).toEqual([
+      { type: 'sns', properties: { snsTopicName: 'notificationsTopic' } }
+    ]);
+    expect(variableNames('notify')).not.toContain('ALERTS_TOPIC_ARN');
+    expect(result.composition.gaps.map((gap) => gap.subject).toSorted()).toEqual([
+      'notify.ALERTS_TOPIC_ARN',
+      'thumbnail.THUMBNAILS_BUCKET',
+      'worker.RESULTS_QUEUE_URL'
+    ]);
+    expect(result.composition.unsetSettings).toEqual([]);
   });
 });

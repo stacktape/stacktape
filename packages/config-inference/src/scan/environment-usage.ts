@@ -21,7 +21,7 @@
  *   composer deliberately does not serialize — an honest omission rather than a guessed value.
  */
 
-import type { DependencyFact, DependencyKind } from '../facts/dependency';
+import { resourceKindNamedBy, type DependencyFact, type DependencyKind } from '../facts/dependency';
 import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Citation } from '../facts/citation';
 import { posix } from 'node:path';
@@ -198,16 +198,18 @@ const importClosure = async (
 };
 
 /** A presigned upload URL, which the client then uses itself. A presigned GET is a download and needs no CORS. */
-const PRESIGNED_UPLOAD: ReadonlyArray<readonly RegExp[]> = [
-  [/\bgetSignedUrl\b/, /\bPutObjectCommand\b/],
-  [/\bcreatePresignedPost\b/],
-  [/\bgetSignedUrl(?:Promise)?\(\s*['"]putObject['"]/],
-  [/\bgenerate_presigned_url\(\s*(?:ClientMethod\s*=\s*)?['"]put_object['"]/],
-  [/\bgenerate_presigned_post\(/]
+const PRESIGNED_UPLOAD: ReadonlyArray<{ method: 'PUT' | 'POST'; patterns: readonly RegExp[] }> = [
+  { method: 'PUT', patterns: [/\bgetSignedUrl\b/, /\bPutObjectCommand\b/] },
+  { method: 'PUT', patterns: [/\bgetSignedUrl(?:Promise)?\(\s*['"]putObject['"]/] },
+  { method: 'PUT', patterns: [/\bgenerate_presigned_url\(\s*(?:ClientMethod\s*=\s*)?['"]put_object['"]/] },
+  { method: 'POST', patterns: [/\bcreatePresignedPost\b/] },
+  { method: 'POST', patterns: [/\bgenerate_presigned_post\(/] }
 ];
 
-const issuesPresignedUploads = (contents: string): boolean =>
-  PRESIGNED_UPLOAD.some((patterns) => patterns.every((pattern) => pattern.test(contents)));
+const presignedUploadMethods = (contents: string): Array<'PUT' | 'POST'> =>
+  PRESIGNED_UPLOAD.filter(({ patterns }) => patterns.every((pattern) => pattern.test(contents))).map(
+    ({ method }) => method
+  );
 
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'build-time': 0,
@@ -283,13 +285,6 @@ const collectFromFile = (path: string, contents: string, occurrences: Map<string
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
 
-const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
-  { pattern: /(?:^|_)BUCKET(?:_NAME|_ARN)?$/, kind: 'object-storage' },
-  { pattern: /(?:^|_)TOPIC(?:_NAME|_ARN)?$/, kind: 'topic' },
-  { pattern: /(?:^|_)QUEUE(?:_NAME|_URL|_ARN)?$/, kind: 'queue' },
-  { pattern: /(?:^|_)TABLE(?:_NAME|_ARN)?$/, kind: 'dynamodb' }
-];
-
 /**
  * Name the dependency a variable belongs to, only when exactly one candidate exists.
  *
@@ -297,16 +292,22 @@ const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyK
  * earned its keep: with two Postgres databases, wiring `DATABASE_URL` to either one is a guess,
  * and a wrong guess is connected-to-the-wrong-database, which is strictly worse than unwired.
  */
-const resolveDependency = (name: string, dependencies: readonly DependencyFact[]): DependencyFact | undefined => {
+const resolveDependency = (
+  name: string,
+  dependencies: readonly DependencyFact[],
+  triggers: ReadonlySet<string>
+): DependencyFact | undefined => {
+  // A name says which kind, not which instance. A plain repository has one bucket, queue or topic per kind, and it is
+  // usually the one that invokes this function: binding the function's own output to it (a thumbnailer writing to
+  // `THUMBNAILS_BUCKET`, a worker sending to `RESULTS_QUEUE_URL`) would invoke it again with every write, forever.
+  const unlessTrigger = (candidates: readonly DependencyFact[]): DependencyFact | undefined =>
+    candidates.length === 1 && !triggers.has(candidates[0]!.name) ? candidates[0] : undefined;
+
   const addressed = dependencies.filter((dependency) => dependency.addressedBy.includes(name));
-  if (addressed.length === 1) return addressed[0];
-  if (addressed.length > 1) return undefined;
+  if (addressed.length > 0) return unlessTrigger(addressed);
 
   const kind = ENV_NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
-  if (kind !== undefined) {
-    const ofKind = dependencies.filter((dependency) => dependency.kind === kind);
-    return ofKind.length === 1 ? ofKind[0] : undefined;
-  }
+  if (kind !== undefined) return unlessTrigger(dependencies.filter((dependency) => dependency.kind === kind));
 
   // `DATABASE_URL` names no engine, but when the repository holds exactly one database the other
   // probes already settled which one it means — the same reconciliation the assembler applies to
@@ -318,21 +319,21 @@ const resolveDependency = (name: string, dependencies: readonly DependencyFact[]
 
   // An application names its own bucket or topic (`UPLOAD_BUCKET`, `ORDER_EVENTS_TOPIC_ARN`). The suffix says which
   // kind; with exactly one of that kind it can only be that one. The name alone never creates a dependency.
-  const suffixKind = RESOURCE_NAME_SUFFIXES.find((entry) => entry.pattern.test(name))?.kind;
-  if (suffixKind !== undefined) {
-    const ofKind = dependencies.filter((dependency) => dependency.kind === suffixKind);
-    return ofKind.length === 1 ? ofKind[0] : undefined;
-  }
+  const suffixKind = resourceKindNamedBy(name);
+  if (suffixKind !== undefined)
+    return unlessTrigger(dependencies.filter((dependency) => dependency.kind === suffixKind));
   return undefined;
 };
 
 const classify = (
   name: string,
   occurrence: Occurrence,
-  dependencies: readonly DependencyFact[]
+  dependencies: readonly DependencyFact[],
+  /** Dependencies that invoke the services reading the variable. */
+  triggers: ReadonlySet<string> = new Set()
 ): Pick<EnvironmentVariableUse, 'role' | 'dependencyName'> => {
   if (occurrence.buildTimeRead || BUILD_TIME_PREFIX.test(name)) return { role: 'build-time' };
-  const dependency = resolveDependency(name, dependencies);
+  const dependency = resolveDependency(name, dependencies, triggers);
   if (dependency !== undefined) return { role: 'infra-dependency', dependencyName: dependency.name };
   if (SECRET_NAME.test(name)) return { role: 'third-party-secret' };
   return { role: 'runtime-config' };
@@ -419,7 +420,7 @@ export const enrichEnvironmentUsage = async ({
 
   for (const unit of units) {
     const occurrences = new Map<string, Occurrence>();
-    let presigns = false;
+    const presignMethods = new Set<'PUT' | 'POST'>();
     // Sequential on purpose: bounded work, and a deterministic file order keeps citation choice
     // reproducible run to run.
     for (const file of unit.files) {
@@ -427,15 +428,24 @@ export const enrichEnvironmentUsage = async ({
       const contents = await readContents(file);
       if (contents === undefined) continue;
       collectFromFile(file, contents, occurrences);
-      presigns ||= issuesPresignedUploads(contents);
+      for (const method of presignedUploadMethods(contents)) presignMethods.add(method);
     }
     // The same source files, read for the other thing the composer needs from them.
-    if (presigns) for (const service of unit.services) service.issuesPresignedUploads = true;
+    if (presignMethods.size > 0) {
+      for (const service of unit.services) service.presignedUploadMethods = [...presignMethods].toSorted();
+    }
     if (occurrences.size === 0) continue;
 
+    const triggers = new Set(
+      unit.services.flatMap((service) =>
+        (service.functionTriggers ?? []).flatMap((trigger) =>
+          'dependencyName' in trigger ? [trigger.dependencyName] : []
+        )
+      )
+    );
     const classified: EnvironmentVariableUse[] = [];
     for (const [name, occurrence] of occurrences) {
-      const { role, dependencyName } = classify(name, occurrence, dependencies);
+      const { role, dependencyName } = classify(name, occurrence, dependencies, triggers);
       classified.push({
         name,
         role,

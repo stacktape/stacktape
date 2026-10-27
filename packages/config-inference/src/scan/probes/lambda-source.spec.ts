@@ -278,6 +278,22 @@ describe('the lambda-source probe', () => {
       'export const handler = async (event: any) => {\n  for (const record of event.Records) {\n    const { Records } = JSON.parse(record.body);\n    console.log(Records[0].s3.object.key);\n  }\n};\n',
       { type: 'queue', dependencyName: 'jobQueue' }
     ],
+    // A `.body` that is not a record's (a fetch response) does not make an SNS or S3 handler an SQS consumer.
+    [
+      'src/notify.ts',
+      "export const handler = async (event: any) => {\n  for (const record of event.Records) {\n    const res = await fetch('https://example.com', { method: 'POST', body: record.Sns.Message });\n    console.log(res.body);\n  }\n};\n",
+      { type: 'topic', dependencyName: 'notificationsTopic' }
+    ],
+    [
+      'src/resize.js',
+      'export const handler = async (event) => {\n  const res = await fetch(event.Records[0].s3.object.key);\n  return res.body;\n};\n',
+      { type: 'object-storage', dependencyName: 'storageBucket' }
+    ],
+    [
+      'src/consume.js',
+      'export const handler = async (event) => event.Records.map((message) => JSON.parse(message.body));\n',
+      { type: 'queue', dependencyName: 'jobQueue' }
+    ],
     [
       'cleanup/main.py',
       "SCHEDULE = 'rate(5 minutes)'\n\ndef handler(event, context):\n    pass\n",
@@ -333,5 +349,23 @@ describe('the lambda-source probe', () => {
       ['functions/remind.ts', []],
       ['worker/run.py', []]
     ]);
+  });
+
+  it('reads typed TypeScript handlers however many Python files the repository has', async () => {
+    const files: Record<string, string> = {
+      'src/api.ts': [
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';",
+        'export default async (event: APIGatewayProxyEventV2) => ({ statusCode: 200, body: event.rawPath });',
+        ''
+      ].join('\n')
+    };
+    // Listed before `src/`, and more than the per-language bound.
+    for (let index = 0; index < 450; index += 1) files[`analysis/module_${index}.py`] = 'VALUE = 1\n';
+    const repo = await makeRepo(files);
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files.toSorted()));
+
+    expect(output.services?.map((service) => service.functionEntrypoint)).toEqual(['src/api.ts']);
   });
 });

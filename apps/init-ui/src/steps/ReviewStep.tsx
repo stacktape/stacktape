@@ -101,20 +101,21 @@ const PREFERENCE_COPY: {
   },
   databaseAccess: {
     title: 'Who should be able to reach the SQL database?',
-    description: 'A database without a public address is safer. In stacktape dev it runs on your machine either way.',
+    description:
+      'A database without a public address is safer. Some app types then need extra setup to reach other services.',
     options: [
       {
         value: 'private',
         title: 'Only this private network',
         description:
-          'No public address. Adds a small server (a bastion) for your local tools and migrations, and a NAT instance when functions in the network also call other services.',
-        meta: 'Adds small servers'
+          'No public address. Adds one small server (a bastion) that your local tools and migrations connect through.',
+        meta: 'Adds a small server'
       },
       {
         value: 'public',
         title: 'Internet reachable',
         description:
-          'Reachable from the internet, protected by a generated password. Anyone who learns the address can try to log in.',
+          'Reachable from the internet, protected by a generated password. The simplest setup for serverless apps.',
         meta: 'No extra server'
       }
     ]

@@ -259,8 +259,8 @@ describe('environment-usage enrichment', () => {
       RESIZE_QUEUE_URL: 'jobQueue',
       UPLOAD_BUCKET_REGION: 'runtime-config'
     });
-    expect(byName.upload!.issuesPresignedUploads).toBe(true);
-    expect(byName.notify!.issuesPresignedUploads).toBeUndefined();
+    expect(byName.upload!.presignedUploadMethods).toEqual(['PUT']);
+    expect(byName.notify!.presignedUploadMethods).toBeUndefined();
   });
 
   it("reads SvelteKit's $env modules in components", async () => {

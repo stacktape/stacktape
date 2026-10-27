@@ -7,6 +7,9 @@
  * repair agent can never rewrite them while correcting a repository fact.
  */
 
+import type { ProjectFacts } from '../facts/project-facts';
+import { classifyService } from './classify';
+
 export type CapacityPreference = 'economical' | 'balanced' | 'performance';
 export type AvailabilityPreference = 'single' | 'redundant';
 export type DataProtectionPreference = 'lean' | 'protected';
@@ -58,17 +61,45 @@ export type InfrastructureProfile = {
   bucket: { versioning: boolean };
 };
 
-/**
- * The recommended choices. A private database is the default for every repository: containers and batch jobs already
- * run in Stacktape's VPC, Lambda-backed resources join it, and the composer adds NAT when one of them also calls
- * something outside the VPC. `stacktape dev` runs the database on the developer's machine either way.
- */
 export const DEFAULT_DEPLOYMENT_PREFERENCES: DeploymentPreferences = {
   capacity: 'balanced',
   availability: 'single',
   dataProtection: 'protected',
   databaseAccess: 'private'
 };
+
+const RELATIONAL_DATABASE_KINDS = new Set(['postgres', 'mysql', 'mssql']);
+
+/**
+ * Whether a private database is a safe first-deploy default for this repository graph.
+ *
+ * Containers and batch jobs already run in Stacktape's VPC. Lambda-backed resources must join the
+ * VPC to reach a private database, which removes their direct internet access. We still let the
+ * user choose that trade-off explicitly, but we do not make it the default for a serverless graph.
+ */
+export const privateDatabaseIsSafeDefault = (facts: ProjectFacts): boolean => {
+  const relationalConsumers = new Set(
+    facts.dependencies
+      .filter((dependency) => RELATIONAL_DATABASE_KINDS.has(dependency.kind))
+      .flatMap((dependency) => dependency.consumedBy)
+  );
+  return !facts.services.some((service) => {
+    if (!relationalConsumers.has(service.name)) return false;
+    const resourceType = classifyService(service).resourceType;
+    if (resourceType !== 'function' && !resourceType.endsWith('-web')) return false;
+    // Redis is always VPC-only, so this serverless workload already has to join the VPC. Making its
+    // SQL database private does not remove internet access it would otherwise retain.
+    const alreadyRequiresVpc = facts.dependencies.some(
+      (dependency) => dependency.kind === 'redis' && dependency.consumedBy.includes(service.name)
+    );
+    return !alreadyRequiresVpc;
+  });
+};
+
+export const defaultDeploymentPreferences = (facts: ProjectFacts): DeploymentPreferences => ({
+  ...DEFAULT_DEPLOYMENT_PREFERENCES,
+  databaseAccess: privateDatabaseIsSafeDefault(facts) ? 'private' : 'public'
+});
 
 export const profileForPreferences = (preferences: DeploymentPreferences): InfrastructureProfile => {
   const capacity = {
