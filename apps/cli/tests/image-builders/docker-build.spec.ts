@@ -10,13 +10,16 @@ import {
   getDockerImageDetails,
   getLocalImageDigestReference
 } from '../../src/utils/docker';
+import { RAILPACK_FRONTEND_IMAGE } from '../../src/config/railpack';
 
 /**
  * The CLI's own Docker runner, against the real daemon: every image build of the product goes through it. The
  * scenarios in `packages/packaging` substitute their own `docker build` call, so the platform, secret and argument
  * plumbing of this runner is proven here. Nothing is pulled: the first image is `FROM scratch`, the second is built
  * on a base this test pulls once if it is not local. The `docker-container` builder one test creates, and removes,
- * runs Docker's BuildKit image, which Docker also pulls once if it is not local.
+ * runs Docker's BuildKit image, which Docker also pulls once if it is not local. The classic image store scenario runs a
+ * privileged Docker 28 daemon in a container, which pulls Railpack's frontend, BusyBox and BuildKit into its own store
+ * and is removed with them.
  */
 const BASE_IMAGE = 'node:24-slim';
 const SECRET_VALUE = `SENTINEL-build-secret-${randomUUID()}`;
@@ -25,6 +28,7 @@ const docker = (args: string[]) => execa('docker', args, { reject: false, all: t
 let root: string;
 const tags: string[] = [];
 const builders: string[] = [];
+const daemons: string[] = [];
 const tag = (label: string) => {
   const imageTag = `stp-docker-runner-${randomUUID()}:${label}`;
   tags.push(imageTag);
@@ -41,6 +45,10 @@ beforeAll(async () => {
 }, 300_000);
 
 afterAll(async () => {
+  for (const daemon of daemons) {
+    const removed = await docker(['rm', '--force', '--volumes', daemon]);
+    if (removed.exitCode !== 0) throw new Error(`Could not remove the classic store daemon ${daemon}:\n${removed.all}`);
+  }
   for (const builder of builders) {
     const removed = await docker(['buildx', 'rm', '--force', builder]);
     if (removed.exitCode !== 0) throw new Error(`Could not remove builder ${builder}:\n${removed.all}`);
@@ -160,3 +168,94 @@ test('pins a pulled image to the digest it was pulled by, and a missing image to
   // An image that is not local has none.
   expect(await getLocalImageDigestReference(`stp-docker-runner-missing-${randomUUID()}:none`)).toBeUndefined();
 }, 120_000);
+
+/** Docker 28's daemon, whose default is the classic image store, pinned like other images the tests run. */
+const CLASSIC_STORE_DAEMON_IMAGE =
+  'docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac';
+
+// Upgraded Docker installs and GitHub's hosted runners keep the classic image store, where Docker's default builder
+// refuses the merge operation Railpack's frontend uses. A plan with several step inputs needs it; a simpler plan falls
+// back to copies and would prove nothing, so the plain build must fail first.
+test('builds a Railpack plan on a Docker daemon that keeps the classic image store', async () => {
+  const daemon = `stp-classic-store-${randomUUID()}`;
+  const started = await docker([
+    'run',
+    '--detach',
+    '--rm',
+    '--privileged',
+    '--name',
+    daemon,
+    '--publish',
+    '127.0.0.1::2375',
+    '--env',
+    'DOCKER_TLS_CERTDIR=',
+    CLASSIC_STORE_DAEMON_IMAGE,
+    '--host=tcp://0.0.0.0:2375'
+  ]);
+  if (started.exitCode !== 0) throw new Error(`Could not start the classic store daemon:\n${started.all}`);
+  daemons.push(daemon);
+  const previousHost = process.env.DOCKER_HOST;
+  const previousBuildxConfig = process.env.BUILDX_CONFIG;
+  try {
+    const port = (await docker(['port', daemon, '2375/tcp'])).stdout.trim().split('\n')[0]!;
+    const host = `tcp://${port}`;
+    const deadline = Date.now() + 60_000;
+    while ((await docker(['--host', host, 'info'])).exitCode !== 0) {
+      if (Date.now() > deadline) throw new Error('The classic store daemon did not start within 60 s.');
+      await Bun.sleep(500);
+    }
+    const store = await docker(['--host', host, 'info', '--format', '{{json .DriverStatus}}']);
+    expect(store.stdout).not.toContain('io.containerd.snapshotter');
+
+    const context = join(root, 'classic-store-context');
+    await Bun.write(join(context, 'payload.txt'), 'payload');
+    const plan = join(root, 'classic-store-plan', 'railpack-plan.json');
+    await Bun.write(
+      plan,
+      JSON.stringify({
+        steps: [
+          {
+            name: 'tools',
+            inputs: [{ image: 'busybox:1.37' }],
+            commands: [{ cmd: 'mkdir -p /opt/tools && echo t > /opt/tools/t' }]
+          },
+          {
+            name: 'build',
+            inputs: [{ step: 'tools' }, { local: true, include: ['.'] }],
+            commands: [{ cmd: 'mkdir -p /app/out && echo built > /app/out/built' }]
+          }
+        ],
+        deploy: {
+          base: { image: 'busybox:1.37' },
+          inputs: [
+            { step: 'tools', include: ['/opt/tools'] },
+            { step: 'build', include: ['/app/out'] },
+            { step: 'build', include: ['.'], exclude: ['out'] }
+          ],
+          startCommand: 'cat /app/payload.txt'
+        }
+      })
+    );
+    // The CLI's own builder state stays in this test's directory, bound to this daemon.
+    process.env.DOCKER_HOST = host;
+    process.env.BUILDX_CONFIG = join(root, 'classic-store-buildx');
+    const build = {
+      buildContextPath: context,
+      dockerfilePath: plan,
+      imageTag: tag('classic-store'),
+      buildArgs: { BUILDKIT_SYNTAX: RAILPACK_FRONTEND_IMAGE }
+    };
+
+    await expect(buildDockerImage(build)).rejects.toMatchObject({ code: 'DOCKER_MERGE_OPERATION_UNSUPPORTED' });
+    const details = await buildDockerImage({ ...build, builderImages: [RAILPACK_FRONTEND_IMAGE] });
+
+    expect(details.id).toStartWith('sha256:');
+    const output = await docker(['--host', host, 'run', '--rm', '--entrypoint', 'cat', details.id, '/app/payload.txt']);
+    expect(output.stdout.trim(), output.all).toBe('payload');
+  } finally {
+    if (previousHost === undefined) delete process.env.DOCKER_HOST;
+    else process.env.DOCKER_HOST = previousHost;
+    if (previousBuildxConfig === undefined) delete process.env.BUILDX_CONFIG;
+    else process.env.BUILDX_CONFIG = previousBuildxConfig;
+  }
+}, 600_000);

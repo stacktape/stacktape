@@ -75,7 +75,8 @@ import { buildRustLambda } from '@stacktape/packaging/buildpacks/rust-lambda-bui
 import {
   buildDockerImage,
   checkDockerImageExists,
-  ensureBuildxBuilderForCache,
+  ensureStacktapeBuilder,
+  needsStacktapeBuilder,
   execDocker,
   getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
@@ -381,7 +382,7 @@ export class PackagingManager {
         // Registry cache pulls and exports authenticate at build time. Builds would otherwise coast on the credential
         // a previous deploy persisted, and ECR tokens expire after 12 hours: the first redeploy after an idle
         // half-day would fail every cache export with 403. The upload reuses this login.
-        await Promise.all([ensureBuildxBuilderForCache(), deploymentArtifactManager.loginToEcr()]);
+        await Promise.all([ensureStacktapeBuilder(), deploymentArtifactManager.loginToEcr()]);
       })
     );
 
@@ -394,23 +395,24 @@ export class PackagingManager {
   #dockerRunners = {
     buildDockerImage: async ({ baseImages, builderImages, ...options }: Parameters<BuildDockerImage>[0]) => {
       const usesRemoteCache = Boolean(options.cacheFromRef || options.cacheToRef);
+      // Stacktape's builder runs in its own container and never reads the local image store.
+      const readsLocalStore = !usesRemoteCache && !(await needsStacktapeBuilder({ builderImages }));
       await Promise.all(
         [
           options.dockerBuildOutputArchitecture && this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture),
           usesRemoteCache && this.#prepareRemoteDockerCache(),
-          // The registry-cache builder runs in its own container and never reads the local image store.
-          !usesRemoteCache &&
+          readsLocalStore &&
             (baseImages ?? []).map((reference) =>
               this.#prepareBaseImage({ reference, platform: options.dockerBuildOutputArchitecture })
             ),
           // A frontend runs on the builder's platform whatever the build targets.
-          !usesRemoteCache &&
+          readsLocalStore &&
             (builderImages ?? []).map((reference) =>
               this.#prepareBaseImage({ reference, platform: HOST_DOCKER_PLATFORM })
             )
         ].flat()
       );
-      return buildDockerImage(options);
+      return buildDockerImage({ ...options, ...(builderImages ? { builderImages } : {}) });
     },
     runDocker: async (...[commands, options]: Parameters<typeof execDocker>) => {
       await this.#prepareRequestedDockerPlatform(commands);

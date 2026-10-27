@@ -22787,6 +22787,8 @@ The `railpack` binary is downloaded on first use, like other external tools Stac
 
 Docker must be running. Both `linux/amd64` and `linux/arm64` images are supported.
 
+Railpack's build uses a BuildKit feature that Docker's own builder offers only with the [containerd image store](https://docs.docker.com/engine/storage/containerd/). That store is the default for new installs of Docker Engine 29 and Docker Desktop 4.34 and later. Older or upgraded installs and GitHub-hosted runners use the classic store. There, Stacktape builds through its own Docker Buildx builder, `stacktape-builder`, which runs in a container and needs the Buildx plugin. Its first build downloads the base images again. It keeps its own build cache, which `docker buildx prune --builder stacktape-builder` clears.
+
 ## Caching
 
 If the source files, the build plan and the build variables have not changed, Stacktape reuses the previous image and skips the build.
