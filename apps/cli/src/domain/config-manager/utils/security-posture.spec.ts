@@ -29,8 +29,14 @@ const assess = (
   {
     rawConfig,
     stage = 'dev',
-    config = {}
-  }: { rawConfig?: StacktapeConfig; stage?: string; config?: Omit<StacktapeConfig, 'resources'> } = {}
+    config = {},
+    consoleStageType
+  }: {
+    rawConfig?: StacktapeConfig;
+    stage?: string;
+    config?: Omit<StacktapeConfig, 'resources'>;
+    consoleStageType?: 'production' | 'non-production';
+  } = {}
 ) => {
   const manager = new ConfigManager();
   const context = { ...stackContext, stage };
@@ -39,7 +45,8 @@ const assess = (
   return assessSecurityPosture({
     configManager: manager,
     rawConfig: rawConfig ?? manager.config,
-    stackContext: context
+    stackContext: context,
+    consoleStageType
   });
 };
 
@@ -344,6 +351,18 @@ describe('security posture through authored configuration', () => {
       expect(urgent(assessment)).toEqual(['database-reachable-from-internet:mainDatabase']);
       expect(database(assessment)?.severity).toBe('HIGH');
     }
+    // A stage created as production in the Console is production without a config type; the config still wins.
+    const consoleProduction = assess(resources, { stage: 'main', config: rest, consoleStageType: 'production' });
+    expect(consoleProduction.stage).toEqual({ name: 'main', purpose: 'production', decidedBy: 'stacktape-console' });
+    expect(urgent(consoleProduction)).toEqual(['database-reachable-from-internet:mainDatabase']);
+    expect(
+      assess(resources, {
+        stage: 'main',
+        config: { ...rest, stackConfig: { stageType: 'non-production' } },
+        consoleStageType: 'production'
+      }).stage.decidedBy
+    ).toBe('stackConfig.stageType');
+    expect(assess(resources, { stage: 'prod2', config: rest }).stage.purpose).toBe('production');
     // An explicit non-production type wins over a production-looking name.
     expect(
       urgent(assess(resources, { stage: 'prod', config: { ...rest, stackConfig: { stageType: 'non-production' } } }))

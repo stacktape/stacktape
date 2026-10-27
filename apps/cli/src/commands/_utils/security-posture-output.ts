@@ -31,8 +31,14 @@ type Printer = { info: (message: string) => void; warn: (message: string) => voi
 
 const isUrgent = ({ severity }: { severity: string }) => severity === 'CRITICAL' || severity === 'HIGH';
 
+const DECIDED_BY_TEXT = {
+  'stackConfig.stageType': '`stackConfig.stageType`',
+  'stacktape-console': 'its type in the Stacktape Console',
+  'stage-name': 'its name'
+} as const;
+
 const describeStage = ({ stage }: SecurityPostureAssessment) =>
-  `stage \`${stage.name}\` is ${stage.purpose} by ${stage.decidedBy === 'stage-name' ? 'its name' : '`stackConfig.stageType`'}`;
+  `stage \`${stage.name}\` is ${stage.purpose} by ${DECIDED_BY_TEXT[stage.decidedBy]}`;
 
 const printFindings = (tui: Printer, findings: ReadonlyArray<StageSecurityFinding>) => {
   for (const finding of findings.slice(0, LISTED_FINDINGS_LIMIT)) {
@@ -92,7 +98,7 @@ export const assessAndPrintSecurityPosture = ({
   const lowered = findings.some(({ productionSeverity }) => productionSeverity);
   if (lowered || productionOnlyFindings.length) {
     tui.hint(
-      'Rated for a non-production stage: acceptable for dev and preview, fix before production. A stage is checked as production when `stackConfig.stageType` is `production` or, without it, when its name is `prod`, `production`, `prd` or `live`.'
+      'Rated for a non-production stage: acceptable for dev and preview, fix before production. A stage is checked as production when `stackConfig.stageType` is `production`; without it, when it was created as a production stage in the Stacktape Console or its name is `prod`, `production`, `prd` or `live` (also with a number, such as `prod2`).'
     );
   }
   if (findings.length) {

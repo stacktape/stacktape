@@ -1,3 +1,4 @@
+import type { StageType } from './stages.js';
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
 import type { RecordSecurityReportParams, RecordSecurityReportResponse, SecurityScanningLevel } from './security.js';
@@ -481,6 +482,11 @@ export type CurrentUserAndOrgDataResponse = {
     name: string;
     configPath: string | null;
     defaultRegion: string | null;
+    /**
+     * Stage types chosen when stages were created in the Console, by stage name. The CLI classifies a stage with it
+     * when the config declares no `stackConfig.stageType`; an older Console omits it.
+     */
+    consoleStageTypes?: Record<string, StageType>;
     [otherProperties: string]: unknown;
   }>;
   permissions: string[];

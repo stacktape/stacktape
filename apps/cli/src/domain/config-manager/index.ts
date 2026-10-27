@@ -166,6 +166,7 @@ export class ConfigManager {
   #stackContext: StackContext | undefined;
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #securityScanning: SecurityScanningContext = {};
+  #consoleStageType: ConfigManagerInitContext['consoleStageType'];
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
   #devNetworkPlacement: DevNetworkPlacement | undefined;
@@ -240,6 +241,7 @@ export class ConfigManager {
     candidate.#helperLambdaDetails = context.helperLambdaDetails;
     candidate.#cliRemoteResourceNames = [...(context.resolver.builtInDirectives.cliArgs.remoteResources ?? [])];
     candidate.#securityScanning = context.securityScanning ?? {};
+    candidate.#consoleStageType = context.consoleStageType;
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
     const discoveredConfig = this.#getDiscoveredConfigFor(context.resolver);
@@ -1669,7 +1671,12 @@ export class ConfigManager {
   }
 
   assessSecurityPosture = () =>
-    assessSecurityPosture({ configManager: this, rawConfig: this.rawConfig, stackContext: this.stackContext });
+    assessSecurityPosture({
+      configManager: this,
+      rawConfig: this.rawConfig,
+      stackContext: this.stackContext,
+      consoleStageType: this.#consoleStageType?.()
+    });
 
   get deploymentNotifications(): DeploymentNotificationDefinition[] {
     return this.globalConfigDeploymentNotifications || [];

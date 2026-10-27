@@ -131,6 +131,12 @@ const securityScanningAccount = (accountId: string) =>
 export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
   return {
     helperLambdaDetails: globalStateManager.helperLambdaDetails,
+    // Organization data is loaded by commands that use the Console (deploy); a plain validate decides by the config
+    // and the stage name.
+    consoleStageType: () =>
+      globalStateManager.projects?.find(({ name }) => name === stackContext.projectName)?.consoleStageTypes?.[
+        stackContext.stage
+      ],
     securityScanning: {
       awsAccount: () => {
         // Without a control plane there are no levels; with local credentials not yet matched to a connection (validate),

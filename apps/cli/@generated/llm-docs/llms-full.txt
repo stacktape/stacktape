@@ -8253,7 +8253,7 @@ How severe a finding is depends on whether the stage is production. A password-p
 
 Wide IAM statements keep their severity because dev stages often share the AWS account with production, so a role that can do anything in the account reaches production too.
 
-A stage is production when [`stackConfig.stageType`](/configuration/stages-and-environments#production-and-non-production-stages) is `production`. Without that setting, Stacktape decides from the stage name: `prod`, `production`, `prd` and `live`, alone or as a segment (`prod-eu`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`) do not. The same answer decides incident handling and the delete-production permission in the Console. Set `stageType` when your production stage has another name:
+A stage is production when [`stackConfig.stageType`](/configuration/stages-and-environments#production-and-non-production-stages) is `production`. Without that setting, `deploy` uses the type you chose when you created the stage in the Stacktape Console; `validate` does not contact the Console, so it skips this step unless you pass `--aws-account`. Otherwise the stage name decides: `prod`, `production`, `prd` and `live`, alone, as a segment (`prod-eu`) or followed by a number (`prod2`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`) do not. The same answer decides incident handling and the delete-production permission in the Console. Set `stageType` when your production stage has another name, so `validate` and `deploy` always agree:
 
 ```yaml
 stackConfig:
@@ -8270,7 +8270,7 @@ Also fix before production (not reported for this stage):
   [LOW] Production stack without termination protection
 ```
 
-With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
+With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType`, `stacktape-console` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
 
 ## When to use validate
 
@@ -12049,7 +12049,7 @@ removes only that stage's resources — other stages are unaffected.
 
 Stacktape treats production stages differently in a few places: production error groups enter the incident queue, deleting a production stack needs a stronger Console permission, and [security findings](/cli/validate#security-findings-by-stage-purpose) are rated for production. A database open to the internet, for example, is `HIGH` in production and `LOW` in a dev stage.
 
-A stage is production when `stackConfig.stageType` is `production`. Without that setting, Stacktape decides from the stage name: `prod`, `production`, `prd` and `live`, alone or as a segment (`prod-eu`, `client-a-prod`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`) do not. Set `stageType` when your production stage has another name, such as `main`:
+A stage is production when `stackConfig.stageType` is `production`. Without that setting, the type you chose when you created the stage in the Stacktape Console decides. Otherwise Stacktape decides from the stage name: `prod`, `production`, `prd` and `live`, alone, as a segment (`prod-eu`, `client-a-prod`) or followed by a number (`prod2`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`) do not. `deploy` reads the Console's type; a plain `validate` does not contact the Console and uses the config and the name. Set `stageType` when your production stage has another name, such as `main`:
 
 ```typescript
 export default defineConfig(({ stage }) => ({
@@ -15988,6 +15988,10 @@ v4 commands and flags use standard spelling: words separated by spaces, and lowe
 ## Error tracking names
 
 Use `error list`, `error ignore`, `error resolve`, and `error reopen` in place of the `issues:*` CLI commands. The `issues:*` commands still work, so existing scripts, automation and MCP command requests keep running. Replace `deploymentConfig.issues` with `deploymentConfig.errorTracking` in YAML and TypeScript configs; the old config name is rejected. Issue IDs and status values are unchanged. See [Error tracking](/observability/error-tracking) for capture settings and triage commands.
+
+## Security findings in agent output
+
+In the `--agent` result of `validate` and `deploy`, one `security` object replaces the `securityFindings` and `securityExposure` fields that `4.0.0-preview.10` returned: read `security.findings` and `security.exposure` instead. See [security findings by stage purpose](/cli/validate#security-findings-by-stage-purpose).
 
 ## Target AWS account
 
@@ -91780,10 +91784,12 @@ of security findings (a database reachable from the internet is `HIGH` in produc
 elsewhere; production-only findings such as missing deletion protection are listed by
 `stacktape validate` but not reported for other stages).
 
-When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
-(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as
-production, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)
-do not. Set it explicitly when your naming does not follow those conventions.
+When omitted, the type chosen when the stage was created in the Stacktape Console decides.
+Without either, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
+(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod` and numbered
+ones like `prod2`) count as production, while names carrying a rehearsal marker (`pre-prod`,
+`prod-test`, `staging-live`) do not. Set it explicitly when your naming does not follow those
+conventions.
 
 This is a per-stage classification: with a TypeScript config, branch on the `stage` argument
 to return different values for different stages. */
@@ -92022,10 +92028,12 @@ of security findings (a database reachable from the internet is `HIGH` in produc
 elsewhere; production-only findings such as missing deletion protection are listed by
 `stacktape validate` but not reported for other stages).
 
-When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
-(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as
-production, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)
-do not. Set it explicitly when your naming does not follow those conventions.
+When omitted, the type chosen when the stage was created in the Stacktape Console decides.
+Without either, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
+(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod` and numbered
+ones like `prod2`) count as production, while names carrying a rehearsal marker (`pre-prod`,
+`prod-test`, `staging-live`) do not. Set it explicitly when your naming does not follow those
+conventions.
 
 This is a per-stage classification: with a TypeScript config, branch on the `stage` argument
 to return different values for different stages.

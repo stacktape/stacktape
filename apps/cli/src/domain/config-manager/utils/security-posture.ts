@@ -14,7 +14,7 @@ import type { StpRelationalDatabase } from '@domain-services/config-manager/reso
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { StackContext } from '@domain-services/stack-context';
 import { getSecurityRule, SECURITY_RULES, SECURITY_SEVERITY_RANK } from '@stacktape/console-api/security';
-import { classifyStage, type StageType } from '@stacktape/console-api/stages';
+import { classifyStage, type StageClassification, type StageType } from '@stacktape/console-api/stages';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { SecurityScanningConfig, StpIamRoleStatement } from '@stacktape/config/shared';
 import type { ConfigManager } from '../index';
@@ -40,8 +40,11 @@ export type StageSecurityFinding = SecurityReportFinding & { productionSeverity?
 export type StagePurpose = {
   name: string;
   purpose: StageType;
-  /** `stackConfig.stageType` when the configuration declares it, otherwise the stage name. */
-  decidedBy: 'stackConfig.stageType' | 'stage-name';
+  /**
+   * `stackConfig.stageType` when the configuration declares it, then the type chosen when the stage was created in
+   * the Stacktape Console, otherwise the stage name.
+   */
+  decidedBy: 'stackConfig.stageType' | 'stacktape-console' | 'stage-name';
 };
 
 export type SecurityPostureAssessment = {
@@ -634,23 +637,33 @@ const atNonProductionSeverity = (finding: SecurityReportFinding): StageSecurityF
   return { ...finding, severity, productionSeverity: finding.severity };
 };
 
+const DECIDED_BY = {
+  explicit: 'stackConfig.stageType',
+  console: 'stacktape-console',
+  inferred: 'stage-name'
+} as const satisfies Record<StageClassification['source'], StagePurpose['decidedBy']>;
+
 export const assessSecurityPosture = ({
   configManager,
   rawConfig,
-  stackContext
+  stackContext,
+  consoleStageType
 }: {
   configManager: ConfigManager;
   rawConfig: StacktapeConfig | null | undefined;
   stackContext: StackContext;
+  /** The type chosen when the stage was created in the Stacktape Console, when the command knows it. */
+  consoleStageType?: StageType;
 }): SecurityPostureAssessment => {
   const { isProduction, source } = classifyStage({
     stageName: stackContext.stage,
-    explicitStageType: configManager.stackConfig?.stageType
+    explicitStageType: configManager.stackConfig?.stageType,
+    consoleStageType
   });
   const stage: StagePurpose = {
     name: stackContext.stage,
     purpose: isProduction ? 'production' : 'non-production',
-    decidedBy: source === 'explicit' ? 'stackConfig.stageType' : 'stage-name'
+    decidedBy: DECIDED_BY[source]
   };
   const context: RuleContext = { configManager, rawConfig, stackContext };
   const productionFindings = sortFindings([

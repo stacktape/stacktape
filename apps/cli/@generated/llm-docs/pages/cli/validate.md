@@ -61,7 +61,7 @@ How severe a finding is depends on whether the stage is production. A password-p
 
 Wide IAM statements keep their severity because dev stages often share the AWS account with production, so a role that can do anything in the account reaches production too.
 
-A stage is production when [`stackConfig.stageType`](/configuration/stages-and-environments#production-and-non-production-stages) is `production`. Without that setting, Stacktape decides from the stage name: `prod`, `production`, `prd` and `live`, alone or as a segment (`prod-eu`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`) do not. The same answer decides incident handling and the delete-production permission in the Console. Set `stageType` when your production stage has another name:
+A stage is production when [`stackConfig.stageType`](/configuration/stages-and-environments#production-and-non-production-stages) is `production`. Without that setting, `deploy` uses the type you chose when you created the stage in the Stacktape Console; `validate` does not contact the Console, so it skips this step unless you pass `--aws-account`. Otherwise the stage name decides: `prod`, `production`, `prd` and `live`, alone, as a segment (`prod-eu`) or followed by a number (`prod2`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`) do not. The same answer decides incident handling and the delete-production permission in the Console. Set `stageType` when your production stage has another name, so `validate` and `deploy` always agree:
 
 ```yaml
 stackConfig:
@@ -78,7 +78,7 @@ Also fix before production (not reported for this stage):
   [LOW] Production stack without termination protection
 ```
 
-With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
+With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType`, `stacktape-console` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
 
 ## When to use validate
 
