@@ -77,6 +77,10 @@ jobs:
             sudo tee "$daemon_config" >/dev/null
           sudo systemctl restart docker
           docker info --format '{{json .DriverStatus}}' | grep -q io.containerd.snapshotter
+      - name: Emulate ARM64 for cross-architecture builds
+        # Packaging builds arm64 Lambda dependencies in linux/arm64 containers; without QEMU they fail with
+        # "exec format error". The registration is the kernel's, so it survives the Docker restart above.
+        run: docker run --rm --privileged tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
       - name: Sign in to Amazon ECR Public
         # Anonymous pulls from public.ecr.aws share a monthly data limit per IP address, which GitHub's runners exceed
         # ("429 Data limit exceeded"). The role can only issue a pull token, and its credentials stay in this step.
