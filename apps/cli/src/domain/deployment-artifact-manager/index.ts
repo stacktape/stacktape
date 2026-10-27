@@ -18,7 +18,7 @@ import {
   DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS,
   STP_TEMPLATE_FILE_NAME_WITHOUT_EXT
 } from '@config';
-import { REPORTED_CLEANUP_FAILURES_S3_KEY, stackManager } from '@domain-services/cloudformation-stack-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import type { PackagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -910,14 +910,27 @@ class DeploymentArtifactManager {
     });
   };
 
+  /**
+   * Empties the whole deployment bucket. CloudFormation cannot delete a bucket that still holds anything, and not
+   * everything stored there is an artifact (bucket-sync manifests, the cleanup-failure record), so no key is kept.
+   * Listing versions also covers an unversioned bucket, whose objects list with the version "null".
+   */
   deleteAllObjects = async () => {
-    await this.deleteObjectsFromDeploymentBucket([
-      ...this.previousObjects.map((obj) => obj.s3Key),
-      ...this.#storedSourceMapKeys,
-      // Not an artifact, so the listing skips it, but CloudFormation cannot delete a bucket that still holds it.
-      // Deleting a missing key succeeds.
-      REPORTED_CLEANUP_FAILURES_S3_KEY
-    ]);
+    let versions: ObjectIdentifier[];
+    try {
+      versions = (await awsSdkManager.s3.listObjectVersions(this.deploymentBucketName)) as ObjectIdentifier[];
+    } catch (err) {
+      if (`${err}`.includes('NoSuchBucket')) return this.previousObjects;
+      throw err;
+    }
+    try {
+      await awsSdkManager.s3.deleteObjects(this.deploymentBucketName, versions);
+    } catch (err) {
+      throw new ExpectedError(
+        'AWS',
+        `Failed to empty the deployment bucket ${this.deploymentBucketName}. Error message:\n${err}`
+      );
+    }
     return this.previousObjects;
   };
 
