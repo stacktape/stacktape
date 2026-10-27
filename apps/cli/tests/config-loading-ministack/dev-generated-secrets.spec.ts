@@ -111,6 +111,28 @@ test('a deployment that is not a dev session takes a dev secret out of dev owner
   expect((await state('shop-search'))?.deleted).toBe(false);
 });
 
+// Review of #369: past 50 tags, a dev start failed. It now keeps such a secret out of dev ownership instead.
+test('a secret shared by more dev stages than its tags can record is kept, and no stage deletes it', async () => {
+  const { state } = useAccount(ministack.account());
+  referenceSecrets('shop-shared');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+
+  const tag = awsSdkManager.secrets.tag;
+  awsSdkManager.secrets.tag = async () => {
+    throw Object.assign(new Error('Number of tags exceeds the limit of 50 tags for the secret.'), {
+      name: 'ValidationException'
+    });
+  };
+  try {
+    await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  } finally {
+    awsSdkManager.secrets.tag = tag;
+  }
+  expect(await state('shop-shared')).toEqual({ deleted: false, tags: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect((await state('shop-shared'))?.deleted).toBe(false);
+});
+
 test('a deployment that may not untag a dev secret warns and goes on', async () => {
   const { state } = useAccount(ministack.account());
   referenceSecrets('shop-db');

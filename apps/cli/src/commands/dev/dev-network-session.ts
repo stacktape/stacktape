@@ -376,9 +376,12 @@ export const startDevNetworkSession = async ({
   const owner = getOwner();
   registerSessionCleanupHook();
   let stageLost = false;
+  let heldStage: { lose: () => void; release: () => Promise<void> } | undefined;
   setStageLostHandler(({ label }) => {
     if (stageLost) return;
     stageLost = true;
+    // The holder record is the new holder's now: this session neither refreshes nor deletes it.
+    heldStage?.lose();
     endSessionForLostStage({ stackName, label, agentPort });
   });
   const connection = new DevBoxConnection({
@@ -443,14 +446,15 @@ export const startDevNetworkSession = async ({
   };
   configManager.setDevNetworkPlacement(placement);
   // This session holds the stage now; its record lets the next start elsewhere refuse it at once.
-  const heldStage = await holdStage({
+  heldStage = await holdStage({
     store: holderStore,
     name: getStageHolderParameterName({ networkName: network.stackName, stackName }),
     holder: { owner: owner.id, label: owner.label, session: owner.session, since: Math.floor(Date.now() / 1000) }
   }).catch((error) => {
     tuiManager.debug(`Could not record this session as the holder of ${stackName}: ${(error as Error).message}`);
-    return { release: async () => {} };
+    return { lose: () => {}, release: async () => {} };
   });
+  if (stageLost) heldStage.lose();
   const state: { settled: boolean; error?: unknown } = { settled: false };
   ready.then(
     () => (state.settled = true),

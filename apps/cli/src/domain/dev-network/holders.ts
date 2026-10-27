@@ -75,8 +75,10 @@ export const readStageHolder = async ({
 };
 
 /**
- * Records `holder` as the session of the stage and refreshes the record until `release`, which deletes it. Once
- * another session took the stage over, the record is theirs: it is neither refreshed nor deleted any more.
+ * Records `holder` as the session of the stage and refreshes the record while the session holds the stage. SSM has no
+ * conditional write, so the relay decides who holds a stage, not this record: once the relay reports a take-over,
+ * `lose` stops the refreshes. A refresh of the replaced session that overwrote the new holder's record before that is
+ * repaired by the new holder's next refresh. `release` deletes the record unless it names another session by then.
  */
 export const holdStage = async ({
   store,
@@ -91,28 +93,29 @@ export const holdStage = async ({
 }) => {
   // Each refresh writes a new value, so the parameter's modification time moves.
   const value = () => JSON.stringify({ ...holder, refreshedAt: Math.floor(Date.now() / 1000) });
-  const isOurs = async () => {
-    const record = await store.read(name);
-    return record !== undefined && parseHolder(record.value)?.session === holder.session;
-  };
   await store.write(name, value());
   let lost = false;
   const timer = setInterval(async () => {
+    if (lost) return;
     try {
-      if (lost || !(await isOurs())) {
-        lost = true;
-        return;
-      }
       await store.write(name, value());
     } catch {
       // A failed refresh is retried with the next one; the relay stays the authority meanwhile.
     }
   }, refreshMs);
   timer.unref();
+  const lose = () => {
+    lost = true;
+    clearInterval(timer);
+  };
   return {
+    lose,
     release: async () => {
-      clearInterval(timer);
-      if (!lost && (await isOurs())) await store.delete(name);
+      const wasLost = lost;
+      lose();
+      if (wasLost) return;
+      const record = await store.read(name);
+      if (record && parseHolder(record.value)?.session === holder.session) await store.delete(name);
     }
   };
 };

@@ -139,6 +139,21 @@ const isDevOwnedSecret = (secret: TaggedSecret) =>
  * uses it leaves it. A deployment that is not a dev session takes the secret out of dev ownership: no stage's deletion
  * deletes it any more.
  */
+/** Removes the generating stage's tag and every user tag: no stage's deletion deletes the secret any more. */
+const releaseFromDevOwnership = (secret: TaggedSecret) =>
+  awsSdkManager.secrets.untag({
+    secretId: secret.ARN || secret.Name!,
+    tagKeys: [
+      tagNames.devGeneratedSecret(),
+      ...(secret.Tags ?? []).flatMap(({ Key }) => (Key?.startsWith(tagNames.devSecretUserPrefix()) ? [Key] : []))
+    ]
+  });
+
+/** Secrets Manager refuses a tag beyond the 50 a secret may have. */
+const isTagLimitError = (error: unknown) =>
+  ['ValidationException', 'InvalidParameterException', 'LimitExceededException'].includes((error as Error).name) &&
+  /tag/i.test((error as Error).message);
+
 const updateDevSecretOwnership = async ({
   secret,
   devStackName,
@@ -148,14 +163,10 @@ const updateDevSecretOwnership = async ({
   devStackName?: string;
   restored: boolean;
 }) => {
-  const secretId = secret.ARN || secret.Name!;
   const users = getDevSecretUsers(secret, { includeGenerator: !restored });
   try {
     if (!devStackName) {
-      const userTagKeys = (secret.Tags ?? []).flatMap(({ Key }) =>
-        Key?.startsWith(tagNames.devSecretUserPrefix()) ? [Key] : []
-      );
-      await awsSdkManager.secrets.untag({ secretId, tagKeys: [tagNames.devGeneratedSecret(), ...userTagKeys] });
+      await releaseFromDevOwnership(secret);
       return;
     }
     if (
@@ -165,10 +176,19 @@ const updateDevSecretOwnership = async ({
       return;
     // A secret generated before user tags existed gets the tag of the stage that generated it too.
     await awsSdkManager.secrets.tag({
-      secretId,
+      secretId: secret.ARN || secret.Name!,
       tags: [...new Set([...users, devStackName])].map((user) => ({ Key: tagNames.devSecretUser(user), Value: user }))
     });
   } catch (error) {
+    if (devStackName && isTagLimitError(error)) {
+      // Without a record of every stage that uses it, deleting one could delete it under another: it is kept for good.
+      await releaseFromDevOwnership(secret).catch(() => {});
+      tuiManager.warn(
+        `Secret ${tuiManager.makeBold(secret.Name!)} is used by more dev stages than Secrets Manager can record in its tags (50 per secret), ` +
+          `so deleting dev stages no longer deletes it. Delete it with ${tuiManager.prettyCommand('secret:delete')} once no stage uses it.`
+      );
+      return;
+    }
     if ((error as Error).name !== 'AccessDeniedException') throw error;
     tuiManager.warn(
       devStackName

@@ -180,13 +180,21 @@ describe('the stage holder record', () => {
     expect(await refuse(store, { isAlive: () => true })).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE');
   });
 
-  test("after a take-over, the replaced session neither refreshes nor deletes the new holder's record", async () => {
+  test('after a take-over, the new holder keeps the record; the replaced session neither refreshes nor deletes it', async () => {
     const { records, store } = memoryStore();
     const replaced = await holdStage({ store, name: NAME, holder: laptop, refreshMs: 5 });
-    await holdStage({ store, name: NAME, holder: { ...laptop, session: 'desktop', label: 'Alice (alice-desktop)' } });
+    const desktop = { ...laptop, session: 'desktop', label: 'Alice (alice-desktop)' };
+    const holder = await holdStage({ store, name: NAME, holder: desktop, refreshMs: 5 });
+    // Until the relay tells it, the replaced session may still refresh over the new holder's record; the new holder's
+    // next refresh writes it back.
     await new Promise((resolve) => setTimeout(resolve, 30));
+    replaced.lose();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(JSON.parse(records.get(NAME)!.value).session).toBe('desktop');
     await replaced.release();
     expect(JSON.parse(records.get(NAME)!.value).session).toBe('desktop');
+    await holder.release();
+    expect(records.has(NAME)).toBe(false);
   });
 });
 

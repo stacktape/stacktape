@@ -47,7 +47,12 @@ import { ExpectedError } from '@utils/errors';
 import { getNumericVersion } from '@utils/versioning';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { readFile } from 'node:fs/promises';
-import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
+import {
+  getDeploymentBucketObjectType,
+  parseBucketObjectS3Key,
+  parseImageTag,
+  shouldRedeployStoredFunctionCode
+} from './utils';
 import {
   keepImagesOfRunningServices,
   keepLayersOfRetainedReleases,
@@ -413,14 +418,15 @@ class DeploymentArtifactManager {
           .sort(({ version: v1 }, { version: v2 }) => v2.localeCompare(v1))
           .find(({ digest: existingArtifactDigest }) => existingArtifactDigest === digest)?.s3Key
       : undefined;
-    // The function may run other code than this build: a fast deployment or `dev` changed it without CloudFormation.
-    // Reusing a stored object the template already references would then change nothing, so it is copied instead.
-    // A dev stack is the exception: its session deploys each function's code itself right after the stack, from its own
-    // build (without shared layers), so copying would only update every such function on each dev stack update.
+    // Reusing a stored object the template already references would change nothing, so it is copied instead when the
+    // function runs other code (see `shouldRedeployStoredFunctionCode`).
     if (
       storedS3Key &&
-      globalStateManager.command !== 'dev' &&
-      this.#functionRunsOtherCode({ artifactName: name, digest })
+      shouldRedeployStoredFunctionCode({
+        devStack: globalStateManager.command === 'dev',
+        inDevSession: !configManager.devSkippedFunctionNames.has(name),
+        runsOtherCode: () => this.#functionRunsOtherCode({ artifactName: name, digest })
+      })
     ) {
       return {
         artifactName: name,
