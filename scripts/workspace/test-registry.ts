@@ -4341,6 +4341,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/local-development/container-network.spec.ts',
       'apps/cli/src/commands/dev/container/network.spec.ts',
       'apps/cli/src/commands/dev/container/build-error.spec.ts',
+      'apps/cli/src/commands/dev/container/exit-reason.spec.ts',
+      'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
+      'apps/cli/src/commands/dev/function-logs.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],

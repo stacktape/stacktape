@@ -710,11 +710,15 @@ export const pushDockerImage = async (tagWithRepositoryUrl: string) => {
   }
 };
 
-type PortMapping = { containerPort: number; hostPort: number; protocol?: string };
+/** `hostAddress` publishes the port on one address of this machine only, such as its loopback. */
+type PortMapping = { containerPort: number; hostPort: number; protocol?: string; hostAddress?: string };
 
 const getPortsArgs = (ports: PortMapping[]): string[] => {
   return (ports || [])
-    .map(({ protocol, containerPort, hostPort }) => ['-p', `${hostPort}:${containerPort}/${protocol || 'tcp'}`])
+    .map(({ protocol, containerPort, hostPort, hostAddress }) => [
+      '-p',
+      `${hostAddress ? `${hostAddress}:` : ''}${hostPort}:${containerPort}/${protocol || 'tcp'}`
+    ])
     .flat();
 };
 

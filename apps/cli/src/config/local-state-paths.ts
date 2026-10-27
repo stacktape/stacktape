@@ -24,7 +24,8 @@ import { getHomeDir } from '@utils/misc';
  * - User-persistent per project stage: the generated password that new local databases of a project's stage get, in
  *   `devStagePasswordFile`, shared by every worktree of the project on this machine. Deleting it only gives the next
  *   new data directory a new password.
- * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
+ * - Runtime coordination: dev-agent logs and lock files, when the last dev session of each stage ended in
+ *   `devSessionEndFile` (replaced by the next session's end), plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
  * - Operation-temporary: `starterArchiveFile`; its owner removes it after use.
@@ -137,6 +138,10 @@ export const localStatePaths = {
    */
   devAgentDaemonOutputFile({ port, stream }: { port: number; stream: 'stdout' | 'stderr' }) {
     return join(localStatePaths.devAgentTokenDirectory(), `${port}.daemon-${stream}.log`);
+  },
+  /** When the last dev session of `stage` in this project directory ended, in AWS time (ms), as plain text. */
+  devSessionEndFile({ workingDirectory, stage }: { workingDirectory: string; stage: string }) {
+    return join(localStatePaths.devAgentDirectory({ workingDirectory }), `${stage}.session-end`);
   },
   devAgentRegistryDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agents');

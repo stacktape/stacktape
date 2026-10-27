@@ -22,12 +22,16 @@ export type FrameworkType =
   | 'rspack'
   | 'unknown';
 
+/**
+ * What one line of a dev server's output says about its state. Errors are not read from single lines: a line that
+ * merely contains "error" marked a working server failed. The dev server's grouped log entries decide instead
+ * (`startDevServer`).
+ */
 export type ParsedOutput = {
-  status?: 'ready' | 'compiling' | 'error';
+  status?: 'ready' | 'compiling';
   url?: string;
   port?: number;
   compileTime?: string;
-  error?: string;
   hmrUpdate?: boolean;
 };
 
@@ -162,18 +166,6 @@ const parseNextOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  // "× Failed to compile"
-  // "⨯ Error:"
-  if (
-    cleanLine.includes('failed to compile') ||
-    cleanLine.match(/^[×⨯]\s*(error|failed)/i) ||
-    (cleanLine.includes('error') && cleanLine.includes('module not found'))
-  ) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   // HMR updates (turbopack)
   if (cleanLine.includes('[hmr]') || cleanLine.includes('updated modules')) {
     result.hmrUpdate = true;
@@ -240,12 +232,6 @@ const parseViteOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  if (cleanLine.includes('[error]') || cleanLine.includes('error during build') || cleanLine.match(/✘\s*\[error\]/i)) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   return result;
 };
 
@@ -291,12 +277,6 @@ const parseAstroOutput = (line: string, cleanLine: string): ParsedOutput => {
   // Building patterns
   if (cleanLine.includes('building') || cleanLine.includes('bundling')) {
     result.status = 'compiling';
-  }
-
-  // Error patterns
-  if (cleanLine.match(/^error:/i) || cleanLine.includes('build failed')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
   }
 
   return result;
@@ -365,12 +345,6 @@ const parseNuxtOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  if (cleanLine.includes('[error]') || cleanLine.includes('error:') || cleanLine.includes('build failed')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   return result;
 };
 
@@ -415,12 +389,6 @@ const parseRemixOutput = (line: string, cleanLine: string): ParsedOutput => {
   // Rebuilding pattern
   if (cleanLine.includes('rebuilding')) {
     result.status = 'compiling';
-  }
-
-  // Error patterns
-  if (cleanLine.includes('error') && !cleanLine.includes('no errors')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
   }
 
   return result;
@@ -509,21 +477,6 @@ const parseAngularOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  if (
-    cleanLine.includes('error') &&
-    !cleanLine.includes('0 errors') &&
-    !cleanLine.includes('no errors') &&
-    !cleanLine.includes('errors: 0')
-  ) {
-    // Verify it's actually an error, not "X errors" where X is 0
-    const errorCountMatch = cleanLine.match(/(\d+)\s*error/i);
-    if (!errorCountMatch || parseInt(errorCountMatch[1], 10) > 0) {
-      result.status = 'error';
-      result.error = stripAnsi(line);
-    }
-  }
-
   return result;
 };
 
@@ -557,12 +510,6 @@ const parseGatsbyOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.url = stripAnsi(localMatch[1]).replace(/[\/\s]+$/, '');
     result.port = extractPort(result.url);
     if (!result.status) result.status = 'ready';
-  }
-
-  // Error patterns
-  if (cleanLine.includes('error') && cleanLine.includes('building')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
   }
 
   return result;
@@ -604,12 +551,6 @@ const parseCRAOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  if (cleanLine.includes('failed to compile')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   return result;
 };
 
@@ -649,12 +590,6 @@ const parseWebpackOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error patterns
-  if (cleanLine.match(/^error in/i) || cleanLine.includes('failed to compile')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   return result;
 };
 
@@ -690,12 +625,6 @@ const parseParcelOutput = (line: string, cleanLine: string): ParsedOutput => {
     result.status = 'compiling';
   }
 
-  // Error
-  if (cleanLine.includes('build failed')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
-  }
-
   return result;
 };
 
@@ -729,12 +658,6 @@ const parseRspackOutput = (line: string, cleanLine: string): ParsedOutput => {
   // Compiling
   if (cleanLine.includes('compiling')) {
     result.status = 'compiling';
-  }
-
-  // Error
-  if (cleanLine.match(/^error/i) || cleanLine.includes('failed')) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
   }
 
   return result;
@@ -811,18 +734,6 @@ const parseGenericOutput = (line: string, cleanLine: string): ParsedOutput => {
     cleanLine.includes('rebuilding')
   ) {
     result.status = 'compiling';
-  }
-
-  // Generic error patterns - be careful not to match false positives
-  if (
-    (cleanLine.includes('error') || cleanLine.includes('failed')) &&
-    !cleanLine.includes('0 error') &&
-    !cleanLine.includes('no error') &&
-    !cleanLine.match(/error.*0/) &&
-    (cleanLine.includes('failed to') || cleanLine.includes('build failed') || cleanLine.match(/^error:/i))
-  ) {
-    result.status = 'error';
-    result.error = stripAnsi(line);
   }
 
   return result;
