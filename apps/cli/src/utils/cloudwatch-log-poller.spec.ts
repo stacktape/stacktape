@@ -79,7 +79,7 @@ test('throttling halves the request rate, is reported each time, and the rate re
     if (calls <= 3) throw throttled();
     return 1;
   });
-  // Each throttled read of the group also waits longer: 5, 10 and 20 s.
+  // Each throttled read of the group also waits longer: 2, 4 and 8 s.
   await clock.runUntil(40_000);
   expect(reports.length).toBe(3);
   expect(scheduler.requestsPerSecond).toBeLessThan(2);

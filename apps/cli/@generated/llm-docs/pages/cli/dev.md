@@ -39,7 +39,7 @@ stacktape dev --stage dev-john --region eu-west-1
 
 ## What it does
 
-The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally.
+The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
 
 - Runs containers, Lambda functions, and frontend workloads locally on your machine
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker

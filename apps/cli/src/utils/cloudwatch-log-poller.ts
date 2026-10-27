@@ -38,7 +38,7 @@ export const createLogPollScheduler = ({
   maxRequestsPerSecond = 2,
   minRequestsPerSecond = 0.2,
   activeIntervalMs = 1000,
-  idleIntervalMs = 5000,
+  idleIntervalMs = 2000,
   onThrottled,
   onError,
   now = () => Date.now(),

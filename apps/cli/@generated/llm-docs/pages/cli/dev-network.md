@@ -35,7 +35,7 @@ The dev network is shared by the whole AWS account and region. Every dev functio
 stacktape dev network delete --region eu-west-1
 ```
 
-Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. The next `stacktape dev` that needs a dev network creates it again.
+Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. When dev functions were deleted shortly before, it can take up to about 20 minutes: AWS releases their network interfaces with a delay, and CloudFormation waits for that before it deletes the subnets. The command reports its progress once a minute meanwhile. The next `stacktape dev` that needs a dev network creates it again.
 
 The command also refuses while someone else depends on the network:
 

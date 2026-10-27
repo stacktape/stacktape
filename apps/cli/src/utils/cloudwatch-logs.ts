@@ -88,7 +88,7 @@ export class LambdaCloudwatchLogPrinter {
   };
 
   /** Node's error records carry the error as JSON; the stack is shown with dependency frames greyed out. */
-  #formatNodeErrorRecord = (logType: string, content: string) => {
+  #formatNodeErrorRecord = (content: string) => {
     let errorString = content;
     try {
       const { errorMessage, stack } = JSON.parse(content);
@@ -205,11 +205,12 @@ export class LambdaCloudwatchLogPrinter {
               return;
             }
             const color = level === 'error' ? 'red' : level === 'warn' ? 'yellow' : 'cyan';
+            // Node's error records keep their name (`ERROR: Invoke Error`); other labels show the level (`[ERROR]`: `ERROR`).
             const label = tuiManager.colorize(
               color,
-              tuiManager.makeBold(level === 'error' ? `ERROR: ${logType}` : logType)
+              tuiManager.makeBold(line.nodeErrorRecord ? `ERROR: ${logType}` : logType.replace(/^\[(.*)\]$/, '$1'))
             );
-            const body = line.nodeErrorRecord ? this.#formatNodeErrorRecord(logType, content) : content.trim();
+            const body = line.nodeErrorRecord ? this.#formatNodeErrorRecord(content) : content.trim();
             this.#output(
               `${this.#getPrefix(requestId)} ${time} ${label} ${this.#getFormattedRequestId(requestId)}\n${body}`,
               level

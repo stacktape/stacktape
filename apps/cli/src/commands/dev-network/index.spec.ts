@@ -56,25 +56,27 @@ describe('dev network stage holders', () => {
 });
 
 // r2p dogfood: the deletion announced "about 2 minutes", took 1,207 s waiting for Lambda's network interfaces, and said
-// nothing meanwhile.
-test('a long network deletion is reported when it starts waiting for Lambda and once a minute after that', () => {
+// nothing meanwhile. In the r2r run, a normal deletion of 92 s deleted the subnets from its first seconds.
+test('a network deletion is reported once a minute, and the wait for Lambda only once it lasts', () => {
   const lines: string[] = [];
   const report = createDeletionProgressReporter({ report: (line) => lines.push(line) });
-  const waiting = (elapsedMs: number, lambda: boolean) =>
+  const waiting = (elapsedMs: number, deleting: string[]) =>
     report({
       elapsedMs,
-      deleting: lambda ? ['LambdaSecurityGroup'] : ['Box'],
-      waitingForLambdaNetworkInterfaces: lambda
+      deleting,
+      waitingForLambdaNetworkInterfaces: deleting.some((name) => /Subnet|LambdaSecurityGroup|Keeper/.test(name))
     });
-  waiting(5_000, false);
-  waiting(40_000, false);
-  waiting(45_000, true);
-  waiting(80_000, true);
-  waiting(106_000, true);
-  waiting(1_207_000, true);
+  waiting(6_000, ['Box', 'Keeper', 'PrivateSubnet0']);
+  waiting(61_000, ['Box', 'PrivateSubnet0']);
+  waiting(100_000, ['PrivateSubnet0']);
+  waiting(125_000, ['PrivateSubnet0', 'LambdaSecurityGroup']);
+  waiting(150_000, ['PrivateSubnet0', 'LambdaSecurityGroup']);
+  waiting(1_207_000, ['LambdaSecurityGroup']);
+  const lambdaWait =
+    'waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.';
   expect(lines).toEqual([
-    'Still deleting the dev network (45 s): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.',
-    'Still deleting the dev network (1 min): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.',
-    'Still deleting the dev network (20 min): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.'
+    'Still deleting the dev network (1 min): Box, PrivateSubnet0.',
+    `Still deleting the dev network (2 min): ${lambdaWait}`,
+    `Still deleting the dev network (20 min): ${lambdaWait}`
   ]);
 });

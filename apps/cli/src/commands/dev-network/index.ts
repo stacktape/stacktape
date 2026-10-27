@@ -166,24 +166,26 @@ export const commandDevNetwork = async () => {
 };
 
 /**
- * Reports a long network deletion: when CloudFormation starts waiting for Lambda's network interfaces, and once a
- * minute after that, so a deletion of 20 minutes does not look hung.
+ * Reports a long network deletion once a minute, so a deletion of 20 minutes does not look hung. The subnets and the
+ * keeper function are deleted in every run; only when they are still being deleted after `lambdaWaitAfterMs` does the
+ * report say that CloudFormation waits for Lambda to release their network interfaces, and it says so at once.
  */
 export const createDeletionProgressReporter = ({
   report = (message: string) => tuiManager.info(message),
-  intervalMs = 60_000
-}: { report?: (message: string) => void; intervalMs?: number } = {}) => {
+  intervalMs = 60_000,
+  lambdaWaitAfterMs = 120_000
+}: { report?: (message: string) => void; intervalMs?: number; lambdaWaitAfterMs?: number } = {}) => {
   let lastReportAt = 0;
-  let waitingForInterfaces = false;
+  let reportedLambdaWait = false;
   return ({ elapsedMs, deleting, waitingForLambdaNetworkInterfaces }: DevNetworkDeletionProgress) => {
-    const started = waitingForLambdaNetworkInterfaces && !waitingForInterfaces;
-    waitingForInterfaces = waitingForLambdaNetworkInterfaces;
-    if (!started && elapsedMs - lastReportAt < intervalMs) return;
+    const lambdaWait = waitingForLambdaNetworkInterfaces && elapsedMs >= lambdaWaitAfterMs;
+    const lambdaWaitStarted = lambdaWait && !reportedLambdaWait;
+    if (!lambdaWaitStarted && elapsedMs - lastReportAt < intervalMs) return;
+    reportedLambdaWait ||= lambdaWait;
     lastReportAt = elapsedMs;
-    const minutes = Math.floor(elapsedMs / 60_000);
-    const elapsed = minutes ? `${minutes} min` : `${Math.round(elapsedMs / 1000)} s`;
+    const elapsed = `${Math.floor(elapsedMs / 60_000)} min`;
     report(
-      waitingForLambdaNetworkInterfaces
+      lambdaWait
         ? `Still deleting the dev network (${elapsed}): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.`
         : `Still deleting the dev network (${elapsed})${deleting.length ? `: ${deleting.join(', ')}` : ''}.`
     );

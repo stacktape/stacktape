@@ -639,6 +639,26 @@ describe('MCP dev stop', () => {
       await stuck.close();
     }
   });
+
+  test('stop waits for the agent process, which still runs its cleanup after its HTTP server closed', async () => {
+    // A process that ends 600 ms from now stands in for the agent; its HTTP stand-in keeps answering.
+    const agentProcess = Bun.spawn(['sleep', '0.6']);
+    const agent = await daemon({ exitAfterStopMs: null, status: { pid: agentProcess.pid } });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, stopWaitMs: 5000 });
+      const started = (await handler({ action: 'start', args: { agentPort: agent.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const startedAt = Date.now();
+      expect((await handler({ action: 'stop', args: { devSessionId } })).structuredContent.message).toBe(
+        'Dev session stopped.'
+      );
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(300);
+      expect(agentProcess.exitCode).toBe(0);
+    } finally {
+      agentProcess.kill();
+      await agent.close();
+    }
+  });
 });
 
 describe('MCP dev tool arguments', () => {

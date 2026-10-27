@@ -659,6 +659,15 @@ const createSessionRegistry = ({
   };
 };
 
+const isProcessRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
 /** Why the session's agent ended itself, when it recorded a reason after this session was known to run. */
 const readStopReason = async (
   port: number,
@@ -895,14 +904,21 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const activeDevSessions = registry.active;
   const stopWaitMs = dependencies.stopWaitMs ?? STOP_WAIT_MS;
 
-  /** Whether the agent on `port` stopped answering within `stopWaitMs`, which it does once it has exited. */
-  const waitForAgentExit = async (port: number) => {
+  /**
+   * Whether the agent exited within `stopWaitMs`. Its HTTP server closes early in its cleanup, so with the process ID
+   * from its status the process itself is awaited; without one, the agent counts as exited once it stops answering.
+   */
+  const waitForAgentExit = async (port: number, pid: number | undefined) => {
     const deadline = Date.now() + stopWaitMs;
     for (;;) {
-      const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: 1000 }).catch(
-        () => undefined
-      );
-      if (!status || status.ok === false) return true;
+      if (pid !== undefined) {
+        if (!isProcessRunning(pid)) return true;
+      } else {
+        const status = await requestDevApi({ port, method: 'GET', path: '/status', timeoutMs: 1000 }).catch(
+          () => undefined
+        );
+        if (!status || status.ok === false) return true;
+      }
       if (Date.now() >= deadline) return false;
       await new Promise((resolveWait) => setTimeout(resolveWait, 250));
     }
@@ -1448,6 +1464,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     if (action === 'stop') {
+      const agentStatus = await requestDevApi({
+        port,
+        method: 'GET',
+        path: '/status',
+        timeoutMs: STATUS_CHECK_TIMEOUT_MS
+      }).catch(() => ({}) as Record<string, unknown>);
       const response = await requestDevApi({
         port,
         method: 'POST',
@@ -1466,7 +1488,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       registry.forget(sessionResult.session);
       // The agent answers before its cleanup runs. Until it has exited, its containers may still run and the dev box
       // may still list it as the stage's holder, so a start right after this call would be refused.
-      const exited = await waitForAgentExit(port);
+      const exited = await waitForAgentExit(port, typeof agentStatus.pid === 'number' ? agentStatus.pid : undefined);
       return toToolText({
         ok,
         code: 'OK',
