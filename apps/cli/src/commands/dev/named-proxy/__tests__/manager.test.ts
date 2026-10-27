@@ -3,6 +3,10 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ensureNamedProxyRoute, removeNamedProxyRoute, stopNamedProxy } from '../manager';
+import { createProxyServer } from '../proxy';
+
+/** The identity this test's sessions report: project and stage. */
+const getIdentity = () => `${globalStateManager.targetStack?.projectName ?? ''}/${globalStateManager.stage || ''}`;
 
 // Exercise the real manager and proxy together. Distinct bodies make a stale route observable.
 const backend = async (body: string, port = 0) => {
@@ -72,5 +76,36 @@ test('concurrent registration shares one proxy and routes to distinct backends',
     ]);
   } finally {
     await Promise.all(servers.map(({ server }) => close(server)));
+  }
+});
+
+test("after a take-over, the stage's proxy port is taken over too once the replaced session releases it", async () => {
+  globalStateManager.rawArgs = { stage: 'takeover1' };
+  const app = await backend('new session');
+  try {
+    const { proxyPort } = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: app.port });
+    await stopNamedProxy();
+    // The replaced session's proxy still holds the port; it stops once the new session holds the stage.
+    const replaced = createProxyServer({ getRoutes: () => [], proxyPort, identity: getIdentity() });
+    await new Promise<void>((resolve) => replaced.listen(proxyPort, '127.0.0.1', resolve));
+    setTimeout(() => replaced.close(), 600);
+    const startedAt = Date.now();
+    const route = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: app.port });
+    expect(route.proxyPort).toBe(proxyPort);
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(500);
+    expect(await (await request(route)).text()).toBe('new session');
+
+    // A proxy of another project or stage on the port is not waited for.
+    await stopNamedProxy();
+    const foreign = createProxyServer({ getRoutes: () => [], proxyPort, identity: 'other/takeover1' });
+    await new Promise<void>((resolve) => foreign.listen(proxyPort, '127.0.0.1', resolve));
+    try {
+      const moved = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: app.port });
+      expect(moved.proxyPort).not.toBe(proxyPort);
+    } finally {
+      foreign.close();
+    }
+  } finally {
+    await close(app.server);
   }
 });

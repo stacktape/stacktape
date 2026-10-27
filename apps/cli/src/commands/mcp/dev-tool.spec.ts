@@ -24,7 +24,8 @@ const daemon = async ({
   logFile,
   status = {},
   hangs = false,
-  exitAfterStopMs = 20
+  exitAfterStopMs = 20,
+  rebuildMs = 0
 }: {
   logFile?: string;
   status?: Record<string, unknown>;
@@ -32,6 +33,8 @@ const daemon = async ({
   hangs?: boolean;
   /** How long the agent's cleanup takes after `/stop`; `null` keeps it answering. */
   exitAfterStopMs?: number | null;
+  /** How long a rebuild takes before the agent answers. */
+  rebuildMs?: number;
 } = {}) => {
   const state = {
     stopped: false,
@@ -114,9 +117,16 @@ const daemon = async ({
         })
       );
       return;
-    } else if (request.method === 'POST' && path.startsWith('/rebuild/'))
+    } else if (request.method === 'POST' && path.startsWith('/rebuild/')) {
       state.rebuilt.push(decodeURIComponent(path.slice('/rebuild/'.length)));
-    else {
+      if (rebuildMs) {
+        setTimeout(() => {
+          response.setHeader('content-type', 'application/json');
+          response.end(JSON.stringify({ ok: true, code: 'OK', data }));
+        }, rebuildMs);
+        return;
+      }
+    } else {
       response.writeHead(500);
       response.end('Unexpected dev API route');
       return;
@@ -170,6 +180,44 @@ const agentReady =
 const startedDaemon = agentReady();
 
 describe('MCP dev session routing', () => {
+  // r2w: a container rebuild that waited 84 s for its port sent no progress, so a client could not tell it from a hang.
+  test('a rebuild reports what it waits for while it runs', async () => {
+    const agent = await daemon({
+      rebuildMs: 400,
+      status: {
+        workloads: [
+          {
+            name: 'ordersApi',
+            status: 'starting',
+            statusMessage: 'Waiting for the app to accept connections on port 8080...'
+          },
+          { name: 'web', status: 'running' }
+        ]
+      }
+    });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, rebuildProgressIntervalMs: 100 });
+      await handler({ action: 'start', args: { agentPort: agent.port } });
+      const progress: string[] = [];
+      const result = await handler({
+        action: 'rebuild',
+        args: { workload: 'ordersApi' },
+        onProgress: ({ message }) => void progress.push(message)
+      });
+      expect(result.structuredContent.ok).toBe(true);
+      expect(progress.length).toBeGreaterThanOrEqual(2);
+      expect(progress[0]).toMatch(
+        /^Rebuilding ordersApi: Waiting for the app to accept connections on port 8080\.\.\. \(\d+ s\)$/
+      );
+      // No progress after the answer.
+      const count = progress.length;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(progress).toHaveLength(count);
+    } finally {
+      await agent.close();
+    }
+  });
+
   test('rebuilds and stops only the daemon selected by its live session handle', async () => {
     const first = await daemon();
     let second: Awaited<ReturnType<typeof daemon>> | undefined;

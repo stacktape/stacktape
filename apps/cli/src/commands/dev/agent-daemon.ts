@@ -171,6 +171,10 @@ const isProcessRunning = (pid: number): boolean => {
   }
 };
 
+/** The other live dev sessions of this project directory, of any stage, as their lock files record them. */
+export const findOtherDevSessions = (): AgentLockFile[] =>
+  readAllAgentLockFiles().filter(({ pid }) => pid !== process.pid && isProcessRunning(pid));
+
 /**
  * Check if an agent is already running and healthy for the current project+stage.
  * Returns the lock file data if running, null otherwise.

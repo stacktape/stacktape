@@ -141,7 +141,8 @@ export const waitForTcpPort = async ({
   shouldStop = () => false,
   pollIntervalMs = 200
 }: {
-  port: number;
+  /** The port, or a function that reads it at each attempt when the program can still move to another one. */
+  port: number | (() => number);
   timeoutMs: number;
   shouldStop?: () => boolean;
   pollIntervalMs?: number;
@@ -149,7 +150,8 @@ export const waitForTcpPort = async ({
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (shouldStop()) return 'stopped';
-    const accepted = await Promise.all(LOOPBACK_HOSTS.map((host) => acceptsTcpConnection({ port, host })));
+    const currentPort = typeof port === 'number' ? port : port();
+    const accepted = await Promise.all(LOOPBACK_HOSTS.map((host) => acceptsTcpConnection({ port: currentPort, host })));
     if (accepted.includes(true)) return shouldStop() ? 'stopped' : 'ready';
     await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }

@@ -1,10 +1,11 @@
 import { afterEach, expect, test } from 'bun:test';
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { applicationManager } from '@application-services/application-manager';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { registerDevServerCleanupHook, startDevServer } from '../dev-server';
 import { stopNamedProxy } from '../named-proxy/manager';
 
@@ -62,6 +63,103 @@ test('a framework dev server is started on loopback with the allocated port and 
     expect(await connects('127.0.0.2', state.port!)).toBeFalse();
     await runCleanupHooks();
     expect(await connects('127.0.0.1', state.port!)).toBeFalse();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
+const writeExecutable = async (path: string, script: string) => {
+  await writeFile(path, script);
+  await chmod(path, 0o755);
+};
+
+test('a dev server that exits after it was ready becomes an error with its last output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    // Serves, says so, and dies shortly after, as a server whose app crashes on its first compile does.
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.1', () => {
+  console.log('  ready in 5 ms');
+  setTimeout(() => { console.error('Error: the app crashed'); process.exit(3); }, 400);
+});
+`
+    );
+    globalStateManager.rawArgs = { stage: 'exits', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const states: string[] = [];
+    let failed!: (error: string) => void;
+    const failure = new Promise<string>((resolve) => (failed = resolve));
+    const ready = await startDevServer({
+      name: 'web',
+      config: { command: './vite dev', workingDirectory: directory, framework: 'vite' },
+      callbacks: {
+        onStateChange: (state) => {
+          states.push(state.status);
+          // The framework parser reports the error line itself first; the exit follows.
+          if (state.status === 'error' && state.error?.includes('exited')) failed(state.error);
+        }
+      }
+    });
+    expect(ready.status).toBe('ready');
+    const error = await failure;
+    expect(error).toContain('The dev server exited with code 3 after it was ready.');
+    expect(error).toContain('Error: the app crashed');
+    expect(states.slice(0, 2)).toEqual(['starting', 'ready']);
+    // Nothing serves the stable URL any more.
+    const url = new URL(ready.url!);
+    expect((await fetch(`http://127.0.0.1:${url.port}`, { headers: { Host: url.hostname } })).status).toBe(404);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
+test('a second next dev in the directory fails with the session that runs the first, not as ready', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    // What Next.js 16 prints when another dev server holds the directory's lock: the other server's URL, which looks
+    // like a ready line, then the exit. Nothing listens on the port this one was given.
+    await writeExecutable(
+      join(directory, 'next'),
+      `#!/usr/bin/env node
+console.log('⨯ Another next dev server is already running.');
+console.log('- Local:        http://localhost:3001');
+console.log('- PID:          4242');
+console.log('You can access the existing server at http://localhost:3001,');
+console.log('or run kill 4242 to stop it and start a new one.');
+setTimeout(() => process.exit(1), 100);
+`
+    );
+    globalStateManager.rawArgs = { stage: 'second', currentWorkingDirectory: directory };
+    // The other session's record: a live process (this test's parent) of stage `first` with its agent on port 7399.
+    const registry = localStatePaths.devAgentRegistryDirectory({ workingDirectory: directory });
+    await mkdir(registry, { recursive: true });
+    await writeFile(
+      join(registry, 'shop-first.json'),
+      JSON.stringify({
+        pid: process.ppid,
+        port: 7399,
+        phase: 'ready',
+        projectName: 'shop',
+        stage: 'first',
+        region: 'eu-west-1',
+        startedAt: '',
+        workloads: ['web'],
+        databases: []
+      })
+    );
+    registerDevServerCleanupHook();
+    const state = await startDevServer({
+      name: 'web',
+      config: { command: './next dev', workingDirectory: directory, framework: 'next' }
+    });
+    expect(state.status).toBe('error');
+    expect(state.error).toBe(
+      `Next.js runs one dev server per app directory, and the dev session of stage first (agent port 7399, process ${process.ppid}) runs it in ${directory}. Stop that session (\`stacktape dev stop --agent-port 7399\`), or run this stage from another Git worktree.`
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

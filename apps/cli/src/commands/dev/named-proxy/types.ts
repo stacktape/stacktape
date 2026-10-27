@@ -16,4 +16,6 @@ export type ProxyServerOptions = {
   proxyPort: number;
   onError?: (message: string) => void;
   tls?: ProxyTlsOptions;
+  /** Sent in the `X-Stacktape-Dev-Proxy` header of every response, so another session can tell whose proxy holds a port. */
+  identity?: string;
 };

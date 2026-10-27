@@ -823,12 +823,13 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/cli/tests/local-development/container-cleanup.spec.ts',
       'apps/cli/tests/local-development/worktree-databases.spec.ts',
-      'apps/cli/tests/local-development/agent-databases.spec.ts'
+      'apps/cli/tests/local-development/agent-databases.spec.ts',
+      'apps/cli/tests/local-development/container-network.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; network is only for the fixture images.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; two dev containers on the bridge network listen on the same fixed port, reach a loopback-only database through the relay as host.docker.internal and each other at published ports; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -4302,6 +4303,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/local-development/container-cleanup.spec.ts',
       'apps/cli/tests/local-development/worktree-databases.spec.ts',
       'apps/cli/tests/local-development/agent-databases.spec.ts',
+      'apps/cli/tests/local-development/container-network.spec.ts',
+      'apps/cli/src/commands/dev/container/network.spec.ts',
+      'apps/cli/src/commands/dev/container/build-error.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],

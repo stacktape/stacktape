@@ -4,9 +4,10 @@ import { mkdirp, readFile } from 'fs-extra';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createCleanupHook } from '../cleanup-utils';
-import { findAvailablePort } from '../port-utils';
+import { request as httpRequest } from 'node:http';
+import { clearPortCache, findAvailablePort, isPortAvailable } from '../port-utils';
 import { ensureCerts, isCATrusted, trustCA, createSNICallback } from './certs';
-import { createProxyServer } from './proxy';
+import { createProxyServer, PROXY_IDENTITY_HEADER } from './proxy';
 import { formatUrl, parseHostname } from './utils';
 import { localStatePaths } from 'src/config/local-state-paths';
 
@@ -113,6 +114,54 @@ const ensureTlsOptions = async (): Promise<
   };
 };
 
+/** The project and stage whose workloads a proxy serves; their URLs embed its port. */
+const getProxyIdentity = () => `${globalStateManager.targetStack?.projectName ?? ''}/${globalStateManager.stage || ''}`;
+
+/** The identity a proxy on `port` reports, or `undefined` when no Stacktape dev proxy answers there. */
+const readProxyIdentity = (port: number): Promise<string | undefined> =>
+  new Promise((resolve) => {
+    // A new connection: a pooled one can still reach a proxy that stopped listening.
+    const request = httpRequest({ host: '127.0.0.1', port, path: '/', timeout: 1000, agent: false }, (response) => {
+      response.resume();
+      const identity = response.headers[PROXY_IDENTITY_HEADER.toLowerCase()];
+      resolve(typeof identity === 'string' ? identity : undefined);
+    });
+    request.on('timeout', () => request.destroy());
+    request.on('error', () => resolve(undefined));
+    request.end();
+  });
+
+/**
+ * Waits until the proxy of the session this one replaces releases this stage's port. On a take-over in the same
+ * directory, the replaced session stops only once the new one holds the stage, and its proxy still held the port when
+ * the new proxy started: the new one took the next port, and every stored URL of the stage stopped working.
+ */
+const waitForReplacedSessionProxy = async ({
+  port,
+  identity,
+  timeoutMs = REPLACED_PROXY_WAIT_MS
+}: {
+  port: number;
+  identity: string;
+  timeoutMs?: number;
+}) => {
+  clearPortCache(port);
+  if (await isPortAvailable(port)) return;
+  if ((await readProxyIdentity(port)) !== identity) return;
+  tuiManager.info(`[dev-proxy] Waiting for the replaced dev session of this stage to release port ${port}...`);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    clearPortCache(port);
+    if (await isPortAvailable(port)) return;
+  }
+  tuiManager.warn(
+    `[dev-proxy] Another dev session of this stage still holds port ${port}, so URLs of this session use another port.`
+  );
+};
+
+const REPLACED_PROXY_WAIT_MS = 30_000;
+
 const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: boolean }> => {
   if (state.server && state.proxyPort) {
     return { proxyPort: state.proxyPort, tlsEnabled: state.tlsEnabled };
@@ -124,6 +173,8 @@ const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: bo
 
   state.startupPromise = (async () => {
     const preferredPort = 1355 + getStagePortOffset();
+    const identity = getProxyIdentity();
+    await waitForReplacedSessionProxy({ port: preferredPort, identity });
     const proxyPort = await findAvailablePort(preferredPort, 200);
     if (!proxyPort) {
       throw new Error(`Failed to find available proxy port (tried ${preferredPort}-${preferredPort + 199})`);
@@ -134,6 +185,7 @@ const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: bo
       getRoutes: () => Array.from(state.routes.values()).map((r) => ({ hostname: r.hostname, port: r.port })),
       proxyPort,
       onError: (message) => tuiManager.warn(`[dev-proxy] ${message}`),
+      identity,
       ...(tlsOptions.enabled
         ? {
             tls: {

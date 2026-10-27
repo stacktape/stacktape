@@ -2,8 +2,10 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
 import type { RelayEndpoint, TunnelInfo } from '../tunnel-manager';
+import type { RebuildStep } from 'src/app/tui-manager/dev/types';
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -14,7 +16,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { dockerRun, dockerRunUsesHostNetwork, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
+import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { getResourceParamReferences } from '../resource-references';
@@ -24,7 +26,14 @@ import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
-import { prepareImage } from '../container';
+import { prepareImage, type PrepareImageResult } from '../container';
+import { summarizeDockerBuildError } from '../container/build-error';
+import {
+  ensureLoopbackRelays,
+  pointLoopbackAtDockerHost,
+  resolveDevContainerNetwork,
+  stopLoopbackRelays
+} from '../container/network';
 import { getFrontendEnvironment } from '../frontend-env';
 import { startHostingBucketDevServer } from '../hosting-bucket';
 import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
@@ -55,6 +64,7 @@ import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
+import { localStatePaths } from 'src/config/local-state-paths';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 
 type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
@@ -64,6 +74,9 @@ const AWS_ROLE_WAIT_MESSAGE =
 
 /** How long a container workload may take from its start until its port accepts connections, migrations included. */
 const CONTAINER_READY_TIMEOUT_MS = 120_000;
+
+/** A failed container build's error longer than this is cut to the failing step's output (`summarizeDockerBuildError`). */
+const MAX_BUILD_ERROR_LENGTH = 800;
 
 type WorkloadInfo = {
   name: string;
@@ -88,6 +101,8 @@ type ParallelRunnerState = {
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
+  /** The host ports published for every container workload of the session. */
+  containerHostPorts: number[];
   logPolls: Array<{ unregister: () => void }>;
 };
 
@@ -96,6 +111,7 @@ const state: ParallelRunnerState = {
   localResources: [],
   tunnels: [],
   relayTunnels: [],
+  containerHostPorts: [],
   logPolls: []
 };
 
@@ -204,6 +220,7 @@ export const runParallelWorkloads = async (
   const containerPortBindings = await allocateContainerPortBindings(
     filteredResources.filter((r) => r.category === 'container')
   );
+  state.containerHostPorts = [...containerPortBindings.values()].flatMap(({ hostPorts }) => hostPorts);
 
   const {
     envVars: localWorkloadEnvVars,
@@ -626,10 +643,11 @@ const startContainerWorkload = async (
   args: Readonly<StacktapeCliArgs>
 ): Promise<void> => {
   const useDevTui = devTuiManager.running;
+  const showStatus = (statusMessage: string) => {
+    if (useDevTui) devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage });
+  };
 
-  if (useDevTui) {
-    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Packaging...' });
-  }
+  showStatus('Packaging...');
 
   const resource = configManager.allContainerWorkloads.find(
     (r) => r.nameChain[0] === resourceName
@@ -656,13 +674,16 @@ const startContainerWorkload = async (
     name: jobName
   });
   await gracefullyStopContainer(localContainerName);
+  const network = await resolveDevContainerNetwork();
+  const hostNetwork = network.mode === 'host';
   const sessionId = randomUUID();
   const containerArgs = {
     ...args,
     dockerArgs: [
       ...(args.dockerArgs || []),
       `--label stacktape.dev-session=${sessionId}`,
-      ...getDevContainerOwnerDockerArgs()
+      ...getDevContainerOwnerDockerArgs(),
+      ...network.dockerArgs
     ]
   };
   applicationManager.registerCleanUpHook(async () => {
@@ -677,10 +698,9 @@ const startContainerWorkload = async (
   const hostPortOffset = portBinding?.hostPortOffset || 0;
   const hostPorts = ports.map((port: number) => port + hostPortOffset);
   const primaryHostPort = portBinding?.primaryHostPort || primaryPort;
-  const hostNetwork = await dockerRunUsesHostNetwork();
   const listenPort = getContainerListenPort({ containerPort: primaryPort, hostPort: primaryHostPort, hostNetwork });
   if (hostNetwork && primaryPort && listenPort !== primaryPort) {
-    const message = `Port ${primaryPort} is in use, so the container listens on PORT=${listenPort}. Docker on Linux runs dev containers on the host network, which cannot remap ports; an app that ignores PORT fails to start.`;
+    const message = `Port ${primaryPort} is in use, so the container listens on PORT=${listenPort}. This Docker (rootless) runs dev containers on the host network, which cannot remap ports; an app that ignores PORT fails to start.`;
     if (useDevTui) devTuiManager.log(resourceName, message, 'warn');
     else tuiManager.warn(`[${resourceName}] ${message}`);
   }
@@ -693,7 +713,7 @@ const startContainerWorkload = async (
   // Skip AWS credentials for locally-injected resources (not deployed to AWS)
   const skipAwsCredentials = !stackManager.existingStackDetails || isInjected;
   const getFreshEnvironment = async (onWaitingForAwsRole?: () => void) => {
-    return getWorkloadEnvironmentVars({
+    const environment = await getWorkloadEnvironmentVars({
       jobEnvironment: (containerDefinition.environment || []).concat(
         (containerDefinition.secrets || []).map(({ name, valueFrom }) => ({ name, value: valueFrom }))
       ),
@@ -711,34 +731,35 @@ const startContainerWorkload = async (
       localWorkloadAddresses,
       onWaitingForAwsRole
     });
+    if (network.mode !== 'bridge') return environment;
+    // On its own network, the container reaches this machine's local databases and SSM tunnels, which listen on
+    // loopback only, through relays, and other dev containers at their published ports.
+    const loopbackPorts = [
+      ...state.localResources.map(({ actualPort }) => actualPort),
+      ...state.tunnels.map(({ localPort }) => localPort)
+    ];
+    await ensureLoopbackRelays(network, loopbackPorts);
+    return pointLoopbackAtDockerHost(environment, [...loopbackPorts, ...state.containerHostPorts]);
   };
 
-  // Packaging and the environment (with credentials of the workload's role) are independent. On a new stage, AWS can
-  // take minutes to let the developer assume the role; the status says so instead of "Packaging...".
-  let packaged = false;
-  let waitingForRole = false;
-  const showWaitingForRole = () => {
-    if (useDevTui) devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: AWS_ROLE_WAIT_MESSAGE });
+  // A failed Docker build prints several KB of BuildKit progress. The error keeps the failing step's output, and the
+  // full output goes to a file next to the session's log.
+  const buildImage = async () => {
+    try {
+      return await prepareImage(containerDefinition);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const summary = message.length > MAX_BUILD_ERROR_LENGTH ? summarizeDockerBuildError(message) : undefined;
+      if (!summary) throw error;
+      const outputFile = join(
+        localStatePaths.devAgentDirectory({ workingDirectory: globalStateManager.workingDir }),
+        `${resourceName}-build-output.txt`
+      );
+      await mkdir(dirname(outputFile), { recursive: true });
+      await writeFile(outputFile, message);
+      throw new ExpectedError('DOCKER', `${summary}\nFull build output: ${outputFile}`);
+    }
   };
-  const [imageResult, environment] = await Promise.all([
-    prepareImage(containerDefinition).then((image) => {
-      packaged = true;
-      if (waitingForRole) showWaitingForRole();
-      return image;
-    }),
-    getFreshEnvironment(() => {
-      waitingForRole = true;
-      if (useDevTui) devTuiManager.log(resourceName, AWS_ROLE_WAIT_MESSAGE);
-      else tuiManager.info(`[${resourceName}] ${AWS_ROLE_WAIT_MESSAGE}`);
-      if (packaged) showWaitingForRole();
-    }).finally(() => {
-      waitingForRole = false;
-    })
-  ]);
-  // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
-  await resolveRunningContainersWithSamePort({ ports: hostPorts, autoStopConflicting: useDevTui });
-
-  const command = (containerDefinition.packaging as any)?.properties?.command;
 
   // `docker run` stays attached while the container runs, so its exit is the container's. Each run gets a number;
   // a rebuild advances it before stopping the old container, so only the latest run's exit that dev mode did not cause
@@ -820,24 +841,22 @@ const startContainerWorkload = async (
       updateAgentWorkloadStatus(resourceName, { status: 'running', url, error: undefined });
     });
 
-  // Start the container and wait until it serves. A container that exits or never serves reports the workload's error,
-  // and the session keeps running so that a rebuild can fix it.
-  await new Promise<void>((resolve) => {
+  /** Runs a container of `image` and waits until it serves, exits or does not serve within the timeout. */
+  const runContainer = async (image: PrepareImageResult, containerEnvironment: Record<string, any>) => {
+    const command = (containerDefinition.packaging as any)?.properties?.command;
     const output = captureContainerOutput();
     let exited = false;
     const run = ++containerRun;
-
     dockerRun({
       name: localContainerName,
-      image: imageResult.imageName,
+      image: image.imageName,
       command,
-      environment,
+      environment: containerEnvironment,
+      hostNetwork,
       portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
       // /app/dist rather than /app: the dev base image installs docker-required dependencies into
       // /app/node_modules, and a mount over /app would shadow them (the image CMD runs dist/index.js).
-      volumeMounts: imageResult.distFolderPath
-        ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app/dist' }]
-        : [],
+      volumeMounts: image.distFolderPath ? [{ hostPath: image.distFolderPath, containerPath: '/app/dist' }] : [],
       transformStdoutLine: output.transformStdoutLine,
       transformStderrLine: output.transformStderrLine,
       args: containerArgs
@@ -848,98 +867,101 @@ const startContainerWorkload = async (
         output.flush();
         reportUnexpectedExit(run, output.stderr());
       });
+    if (primaryHostPort) showStatus(`Waiting for the app to accept connections on port ${listenPort}...`);
+    const hasExited = () => exited;
+    return { result: await waitUntilServing(run, hasExited), run, hasExited, stderr: output.stderr };
+  };
 
-    void waitUntilServing(run, () => exited).then((result) => {
-      if (result === 'ready') {
-        if (useDevTui) {
-          devTuiManager.setWorkloadStatus(resourceName, 'running', {
-            port: primaryHostPort,
-            url: proxyRoute?.url || `http://localhost:${primaryHostPort}`,
-            size: imageResult.details // Image size info
-          });
-          devTuiManager.log(resourceName, `Container started on port ${primaryHostPort}`);
-        } else {
-          tuiManager.info(
-            `[${resourceName}] Container started on port${hostPorts.length > 1 ? 's' : ''} ${hostPorts.join(', ')}`
-          );
-        }
-      } else if (result === 'timeout') {
-        reportWorkloadError(notServingError);
-        watchForLateServing(run, () => exited);
+  // Packaging and the environment (with credentials of the workload's role) are independent. On a new stage, AWS can
+  // take minutes to let the developer assume the role; the status says so instead of "Packaging...".
+  let packaged = false;
+  let waitingForRole = false;
+  const showWaitingForRole = () => showStatus(AWS_ROLE_WAIT_MESSAGE);
+  // A container that fails to build, exits or never serves reports the workload's error, and the session keeps running
+  // so that a rebuild can fix it.
+  let imageResult: PrepareImageResult | undefined;
+  let environment: Record<string, any> | undefined;
+  try {
+    [imageResult, environment] = await Promise.all([
+      buildImage().then((image) => {
+        packaged = true;
+        if (waitingForRole) showWaitingForRole();
+        return image;
+      }),
+      getFreshEnvironment(() => {
+        waitingForRole = true;
+        if (useDevTui) devTuiManager.log(resourceName, AWS_ROLE_WAIT_MESSAGE);
+        else tuiManager.info(`[${resourceName}] ${AWS_ROLE_WAIT_MESSAGE}`);
+        if (packaged) showWaitingForRole();
+      }).finally(() => {
+        waitingForRole = false;
+      })
+    ]);
+  } catch (error) {
+    if (applicationManager.isInterrupted) throw error;
+    reportWorkloadError(error instanceof Error ? error.message : String(error));
+  }
+
+  if (imageResult && environment) {
+    // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
+    await resolveRunningContainersWithSamePort({ ports: hostPorts, autoStopConflicting: useDevTui });
+    const started = await runContainer(imageResult, environment);
+    if (started.result === 'ready') {
+      if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', {
+          port: primaryHostPort,
+          url: proxyRoute?.url || `http://localhost:${primaryHostPort}`,
+          size: imageResult.details // Image size info
+        });
+        devTuiManager.log(resourceName, `Container started on port ${primaryHostPort}`);
+      } else {
+        tuiManager.info(
+          `[${resourceName}] Container started on port${hostPorts.length > 1 ? 's' : ''} ${hostPorts.join(', ')}`
+        );
       }
-      // 'stopped': the container exited, which `reportUnexpectedExit` reported.
-      resolve();
-    });
-  });
+    } else if (started.result === 'timeout') {
+      reportWorkloadError(notServingError);
+      watchForLateServing(started.run, started.hasExited);
+    }
+    // 'stopped': the container exited, which `reportUnexpectedExit` reported.
+  }
 
   // Register workload for file watching
   const rebuild = async () => {
     const inRebuildPhase = devTuiManager.inRebuildPhase;
+    const showRebuildStep = (step: RebuildStep, statusMessage: string) => {
+      if (inRebuildPhase) devTuiManager.setRebuildStep(resourceName, step);
+      if (useDevTui) showStatus(statusMessage);
+      else tuiManager.info(`[${resourceName}] ${statusMessage}`);
+    };
 
-    if (inRebuildPhase) {
-      // Step 1: Stop container
-      devTuiManager.setRebuildStep(resourceName, 'stopping');
-    } else if (useDevTui) {
-      devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Rebuilding...' });
-    } else {
-      tuiManager.info(`[${resourceName}] Rebuilding...`);
-    }
-
-    // This stop is not a crash.
-    containerRun++;
-    await gracefullyStopContainer(localContainerName);
-
-    // Step 2: Package
-    if (inRebuildPhase) {
-      devTuiManager.setRebuildStep(resourceName, 'packaging');
-    }
-    const newImage = await prepareImage(containerDefinition);
-
-    // Update size info
+    // The running container serves until the new image is built: a build error leaves it running, as a function that
+    // fails to build keeps its previous code.
+    showRebuildStep('packaging', 'Building the image...');
+    const newImage = await buildImage();
     if (inRebuildPhase && newImage.details) {
       devTuiManager.setRebuildSize(resourceName, newImage.details);
-    }
-
-    // Step 3: Start container
-    if (inRebuildPhase) {
-      devTuiManager.setRebuildStep(resourceName, 'starting');
     }
 
     // Always re-fetch env (and IAM credentials) on explicit restart/rebuild.
     const rebuiltEnvironment = await getFreshEnvironment();
 
-    const run = ++containerRun;
-    const output = captureContainerOutput();
-    let exited = false;
-    dockerRun({
-      name: localContainerName,
-      image: newImage.imageName,
-      command,
-      environment: rebuiltEnvironment,
-      portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
-      volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }] : [],
-      transformStdoutLine: output.transformStdoutLine,
-      transformStderrLine: output.transformStderrLine,
-      args: containerArgs
-    })
-      .catch(() => {})
-      .then(() => {
-        exited = true;
-        output.flush();
-        reportUnexpectedExit(run, output.stderr());
-      });
+    showRebuildStep('stopping', 'Replacing the container...');
+    // This stop is not a crash.
+    containerRun++;
+    await gracefullyStopContainer(localContainerName);
 
+    if (inRebuildPhase) {
+      devTuiManager.setRebuildStep(resourceName, 'starting');
+    }
     // The rebuild succeeds once the new container serves; one that exits or never serves fails it.
-    const result = await waitUntilServing(run, () => exited);
+    const { result, run, hasExited, stderr } = await runContainer(newImage, rebuiltEnvironment);
     if (result === 'timeout') {
-      watchForLateServing(run, () => exited);
+      watchForLateServing(run, hasExited);
       throw new ExpectedError('DOCKER', notServingError);
     }
     if (result === 'stopped' && run === containerRun && !applicationManager.isInterrupted) {
-      throw new ExpectedError(
-        'DOCKER',
-        `Container "${resourceName}" exited before it served${describeExit(output.stderr())}`
-      );
+      throw new ExpectedError('DOCKER', `Container "${resourceName}" exited before it served${describeExit(stderr())}`);
     }
     if (!inRebuildPhase) {
       if (useDevTui) {
@@ -960,7 +982,7 @@ const startContainerWorkload = async (
     name: resourceName,
     type: 'container',
     resourceType,
-    sourceFiles: imageResult.sourceFiles,
+    sourceFiles: imageResult?.sourceFiles ?? [],
     envVars: environment,
     rebuild: async () => {
       const result = await rebuild();
@@ -1459,11 +1481,12 @@ applicationManager.registerCleanUpHook(async () => {
   state.logPolls = [];
   logPollScheduler.stop();
   state.workloads.clear();
+  await stopLoopbackRelays();
 });
 
-/** Rebuilds one workload; `undefined` when dev mode runs no workload of that name. */
-export const rebuildWorkload = async (name: string): Promise<RebuildResult | undefined> =>
-  state.workloads.has(name) ? rebuilder.rebuildWorkloads([name]) : undefined;
+/** Rebuilds one workload; `undefined` when dev mode runs no workload of that name (see `rebuildWorkload` of the rebuilder). */
+export const rebuildWorkload = (name: string): Promise<RebuildResult | undefined> =>
+  rebuilder.rebuildWorkload(name, state.workloads.has(name));
 
 export const rebuildAllWorkloads = (): Promise<RebuildResult> =>
   rebuilder.rebuildWorkloads([...state.workloads.keys()]);

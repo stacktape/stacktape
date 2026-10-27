@@ -6,14 +6,19 @@ import { serialize } from '@utils/misc';
 import { createCleanupHook } from './cleanup-utils';
 import { terminateDevServerProcess } from './dev-server-process';
 import { DEV_CONFIG } from './dev-config';
-import { createFrameworkParser, detectFramework, type FrameworkType } from './framework-parsers';
+import { createFrameworkParser, detectFramework, stripAnsi, type FrameworkType } from './framework-parsers';
 import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/manager';
 import { injectFrameworkFlags } from './named-proxy/utils';
-import { extractPortFromCommand, findAvailablePort, getDefaultPort, isPortAvailable } from './port-utils';
+import { findOtherDevSessions } from './agent-daemon';
+import {
+  extractPortFromCommand,
+  findAvailablePort,
+  getDefaultPort,
+  isPortAvailable,
+  waitForTcpPort
+} from './port-utils';
 
-const { readyTimeoutMs: DEV_SERVER_READY_TIMEOUT_MS, readyDelayMs: DEV_SERVER_READY_DELAY_MS } = DEV_CONFIG.devServer;
-
-// Re-export for convenience
+const { serveTimeoutMs: DEV_SERVER_SERVE_TIMEOUT_MS } = DEV_CONFIG.devServer;
 
 type DevServerConfig = {
   command: string;
@@ -50,6 +55,8 @@ type DevServerCallbacks = {
 };
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
+/** Servers dev mode stops itself (a restart, the end of the session), whose exit is no error. */
+const stoppingDevServers = new WeakSet<ChildProcess>();
 
 const overrideCommandPortArgs = (args: string[], port: number): string[] => {
   const output: string[] = [];
@@ -151,6 +158,7 @@ export const formatDevServerStatus = (state: DevServerState): string => {
 const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
   if (!proc) return;
+  stoppingDevServers.add(proc);
   await terminateDevServerProcess(proc);
   runningDevServers.delete(name);
   removeNamedProxyRoute(name);
@@ -252,21 +260,31 @@ export const startDevServer = async ({
           resolve(state);
         }
       };
+      const setState = (state: DevServerState) => {
+        currentState = state;
+        callbacks?.onStateChange?.(currentState);
+      };
 
-      let readyTimeout: ReturnType<typeof setTimeout> | null = null;
+      // A server is running once its port accepts connections, not when it prints "Ready": Next.js prints its URL
+      // also when it refuses to start because another dev server runs in the directory.
+      let serving = false;
+      let exited = false;
+      const recentLines: string[] = [];
 
       const processLine = (line: string) => {
         callbacks?.onOutput?.(line);
+        recentLines.push(stripAnsi(line).trimEnd());
+        if (recentLines.length > RECENT_OUTPUT_LINES) recentLines.shift();
 
         // Use framework-aware parser
         const parsed = parseOutput(line);
 
         // Build new state from parsed output
         const newState = { ...currentState };
-        if (parsed.status) {
+        if (parsed.status && (serving || parsed.status !== 'ready')) {
           newState.status = parsed.status;
         }
-        if (parsed.url) newState.url = parsed.url;
+        if (parsed.url) newState.url = serving ? proxyRoute.url : parsed.url;
         if (parsed.port) newState.port = parsed.port;
         if (parsed.port && parsed.port !== routedTargetPort) {
           routedTargetPort = parsed.port;
@@ -290,30 +308,11 @@ export const startDevServer = async ({
           newState.url !== currentState.url ||
           newState.lastCompileTime !== currentState.lastCompileTime;
 
-        if (stateChanged) {
-          if (newState.status === 'ready') {
-            newState.url = proxyRoute.url;
-          }
-
-          currentState = newState;
-          callbacks?.onStateChange?.(currentState);
-
-          // When ready, start a timer to allow additional info (URL, compile time) to arrive
-          if (currentState.status === 'ready' && !readyTimeout) {
-            readyTimeout = setTimeout(() => {
-              resolveOnce(currentState);
-            }, DEV_SERVER_READY_DELAY_MS);
-          }
-
-          // If we have ready + URL + compile time, resolve immediately
-          if (currentState.status === 'ready' && currentState.url && currentState.lastCompileTime) {
-            if (readyTimeout) {
-              clearTimeout(readyTimeout);
-              readyTimeout = null;
-            }
-            resolveOnce(currentState);
-          }
-        }
+        if (!stateChanged) return;
+        if (newState.status === 'ready') newState.url = proxyRoute.url;
+        if (serving) setState(newState);
+        // Before it serves, the URL and compile time wait in the state until the port accepts connections.
+        else currentState = newState;
       };
 
       proc.stdout?.on('data', (data) => {
@@ -327,39 +326,94 @@ export const startDevServer = async ({
       });
 
       proc.on('error', (err) => {
-        currentState = { status: 'error', error: err.message };
-        callbacks?.onStateChange?.(currentState);
+        exited = true;
+        setState({ status: 'error', error: err.message });
         runningDevServers.delete(name);
         removeNamedProxyRoute(name);
         resolveOnce(currentState);
       });
 
-      proc.on('exit', (code) => {
-        if (code !== 0 && code !== null && currentState.status !== 'ready') {
-          currentState = { status: 'error', error: `Process exited with code ${code}` };
-          callbacks?.onStateChange?.(currentState);
-        }
-        runningDevServers.delete(name);
+      proc.on('exit', (code, signal) => {
+        exited = true;
+        const stoppedByDevMode = stoppingDevServers.has(proc);
+        if (runningDevServers.get(name) === proc) runningDevServers.delete(name);
         removeNamedProxyRoute(name);
+        // Any exit dev mode did not cause is an error, also after the server was ready: nothing serves its URL then.
+        if (!stoppedByDevMode) {
+          setState({
+            status: 'error',
+            port: currentState.port,
+            error: describeDevServerExit({ code, signal, serving, lines: recentLines, framework, workingDir })
+          });
+        }
         resolveOnce(currentState);
       });
 
-      // Resolve after timeout if no ready signal detected (server might be silent)
-      setTimeout(() => {
-        if (!resolved) {
-          // If we got a URL but no ready signal, consider it ready
-          if (currentState.url) {
-            currentState = { ...currentState, status: 'ready' };
-            currentState.url = proxyRoute.url;
-            callbacks?.onStateChange?.(currentState);
-          }
-          resolveOnce(currentState);
-        }
-      }, DEV_SERVER_READY_TIMEOUT_MS);
+      const waitUntilServing = (timeoutMs: number) =>
+        waitForTcpPort({ port: () => routedTargetPort, timeoutMs, shouldStop: () => exited });
+      const markServing = () => {
+        serving = true;
+        setState({ ...currentState, status: 'ready', port: routedTargetPort, url: proxyRoute.url, error: undefined });
+        resolveOnce(currentState);
+      };
+      void waitUntilServing(DEV_SERVER_SERVE_TIMEOUT_MS).then((result) => {
+        if (result === 'ready') return markServing();
+        if (result !== 'timeout') return;
+        setState({
+          ...currentState,
+          status: 'error',
+          error: `The dev server runs, but nothing accepted connections on port ${routedTargetPort} within ${
+            DEV_SERVER_SERVE_TIMEOUT_MS / 1000
+          } s. Dev mode keeps checking and marks it running once it serves.`
+        });
+        resolveOnce(currentState);
+        void waitUntilServing(Number.POSITIVE_INFINITY).then((late) => late === 'ready' && markServing());
+      });
     });
   };
 
   return spawnDevServer();
+};
+
+const RECENT_OUTPUT_LINES = 30;
+/** Lines of a dev server's last output that its error quotes. */
+const EXIT_REASON_LINES = 8;
+
+/**
+ * Why a dev server exited, from its last output. Next.js 16 runs one dev server per app directory: when another dev
+ * session of this project runs it there, the error names that session.
+ */
+export const describeDevServerExit = ({
+  code,
+  signal,
+  serving,
+  lines,
+  framework,
+  workingDir,
+  findOtherSessions = findOtherDevSessions
+}: {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  serving: boolean;
+  lines: string[];
+  framework: FrameworkType;
+  workingDir: string;
+  findOtherSessions?: () => { stage: string; port: number; pid: number }[];
+}): string => {
+  const how = signal ? `was stopped by ${signal}` : `exited with code ${code}`;
+  const when = serving ? ' after it was ready' : '';
+  if (framework === 'next' && lines.some((line) => /another next dev server is already running/i.test(line))) {
+    const other = findOtherSessions()[0];
+    const holder = other
+      ? `the dev session of stage ${other.stage} (${other.port ? `agent port ${other.port}, ` : ''}process ${other.pid}) runs it`
+      : 'another process runs it';
+    const stop = other?.port
+      ? `Stop that session (\`stacktape dev stop --agent-port ${other.port}\`)`
+      : `Stop ${other ? 'that session' : 'the other one'}`;
+    return `Next.js runs one dev server per app directory, and ${holder} in ${workingDir}. ${stop}, or run this stage from another Git worktree.`;
+  }
+  const output = lines.filter((line) => line.trim()).slice(-EXIT_REASON_LINES);
+  return `The dev server ${how}${when}.${output.length ? ` Its last output:\n${output.join('\n')}` : ''}`;
 };
 
 /**
