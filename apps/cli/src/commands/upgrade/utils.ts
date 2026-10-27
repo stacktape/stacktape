@@ -1,5 +1,10 @@
-import { resolve } from 'node:path';
-import { getInstallationScript } from '@utils/bin-executable';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { getPlatform } from '@utils/bin-executable';
+import { CliError } from '@utils/errors';
+import { exec } from '@utils/exec';
+import type { SupportedPlatform } from '@utils/platform';
 import { realpath } from 'fs-extra';
 import { localStatePaths } from 'src/config/local-state-paths';
 
@@ -78,25 +83,79 @@ export const detectInstallationType = async (): Promise<InstallationDetection> =
   };
 };
 
-export const getUpgradeCommand = ({ installationType, packageManager }: InstallationDetection): string => {
-  const effectivePackageManager = packageManager || 'npm';
+const INSTALLER_SCRIPT_NAMES: { [_platform in SupportedPlatform]: string } = {
+  win: 'windows.ps1',
+  'win-arm': 'windows-arm.ps1',
+  linux: 'linux.sh',
+  'linux-arm': 'linux-arm.sh',
+  alpine: 'alpine.sh',
+  macos: 'macos.sh',
+  'macos-arm': 'macos-arm.sh'
+};
 
+export const getInstallerUrl = (installsUrl: string, platform: SupportedPlatform = getPlatform()) =>
+  `${installsUrl}/${INSTALLER_SCRIPT_NAMES[platform]}`;
+
+/** The command a person runs to install. The upgrade itself runs the same installer from a file instead. */
+export const getInstallCommand = (installerUrl: string) =>
+  installerUrl.endsWith('.ps1') ? `irm ${installerUrl} | iex` : `curl -fsSL ${installerUrl} | sh`;
+
+// An exact version also crosses a major release or the preview tag, which `npm update` would not.
+export const getUpgradeCommand = (
+  { installationType, packageManager = 'npm' }: InstallationDetection,
+  { installerUrl, version }: { installerUrl: string; version: string }
+): string => {
+  const addCommand = packageManager === 'npm' ? 'npm install' : `${packageManager} add`;
   switch (installationType) {
-    case 'native':
-      return getInstallationScript();
     case 'package-global':
-      return effectivePackageManager === 'bun'
-        ? 'bun update -g stacktape'
-        : effectivePackageManager === 'pnpm'
-          ? 'pnpm update -g stacktape'
-          : 'npm update -g stacktape';
+      return `${addCommand} -g stacktape@${version}`;
     case 'package-local':
-      return effectivePackageManager === 'bun'
-        ? 'bun update stacktape'
-        : effectivePackageManager === 'pnpm'
-          ? 'pnpm update stacktape'
-          : 'npm update stacktape';
+      return `${addCommand} stacktape@${version}`;
     default:
-      return getInstallationScript();
+      return getInstallCommand(installerUrl);
+  }
+};
+
+/**
+ * Runs the installer as a file with `STACKTAPE_VERSION` set. Windows Defender blocks a `powershell.exe` whose command
+ * line downloads and runs a script (`iwr … | iex`), so the CLI downloads it itself.
+ */
+export const runNativeInstaller = async ({ installerUrl, version }: { installerUrl: string; version: string }) => {
+  const response = await fetch(installerUrl, { signal: AbortSignal.timeout(30000) }).catch((cause) => {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_UPGRADE_DOWNLOAD_FAILED',
+      message: `Could not download the Stacktape installer from ${installerUrl}.`,
+      hints: 'Check your internet connection and run `stacktape upgrade` again.',
+      cause
+    });
+  });
+  if (!response.ok) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_UPGRADE_DOWNLOAD_FAILED',
+      message: `Could not download the Stacktape installer from ${installerUrl} (HTTP ${response.status}).`,
+      hints: 'Run `stacktape upgrade` again later.'
+    });
+  }
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-upgrade-'));
+  try {
+    const isPowerShell = installerUrl.endsWith('.ps1');
+    const scriptPath = join(directory, isPowerShell ? 'install.ps1' : 'install.sh');
+    await writeFile(scriptPath, await response.text());
+    const [command, args] = isPowerShell
+      ? ['powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]]
+      : ['sh', [scriptPath]];
+    // The installer already printed why it failed, so the error does not repeat its output.
+    await exec(command, args, { disableStdout: false, env: { STACKTAPE_VERSION: version } }).catch((error) => {
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_UPGRADE_INSTALLER_FAILED',
+        message: `The Stacktape installer failed${error?.exitCode ? ` with exit code ${error.exitCode}` : ''}.`,
+        hints: `To run the installer yourself: ${getInstallCommand(installerUrl)}`
+      });
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 };

@@ -1,3 +1,4 @@
+import { coerce, gt, valid } from 'semver';
 import { jsonFetch } from './http-client';
 
 const V1 = 'v000001';
@@ -24,7 +25,41 @@ export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define
   return STACKTAPE_VERSION;
 };
-export const getLatestStacktapeVersion = async (options?: { signal?: AbortSignal; timeoutMs?: number }) => {
-  const res = await jsonFetch('https://installs.stacktape.com/_data.json', options);
-  return res.latestVersion;
+const STABLE_INSTALLS_URL = 'https://installs.stacktape.com';
+const PREVIEW_INSTALLS_URL = 'https://installs-preview.stacktape.com';
+
+/** Each channel's installers default to its newest release, but install any version given in `STACKTAPE_VERSION`. */
+export const getInstallsUrl = (version: string) =>
+  version.includes('-preview') ? PREVIEW_INSTALLS_URL : STABLE_INSTALLS_URL;
+
+export type StacktapeRelease = { version: string; installsUrl: string };
+
+/**
+ * The newest release this build can upgrade to. Preview builds also follow the preview channel, so they get the next
+ * preview and still move to a stable release once it is newer.
+ */
+export const getLatestStacktapeRelease = async (
+  options?: { signal?: AbortSignal; timeoutMs?: number },
+  currentVersion = getStacktapeVersion()
+): Promise<StacktapeRelease> => {
+  const channels = currentVersion.includes('-preview')
+    ? [STABLE_INSTALLS_URL, PREVIEW_INSTALLS_URL]
+    : [STABLE_INSTALLS_URL];
+  const releases = await Promise.all(
+    channels.map(async (installsUrl) => {
+      const { latestVersion } = await jsonFetch(`${installsUrl}/_data.json`, options);
+      if (!valid(latestVersion)) throw new Error(`${installsUrl}/_data.json has no valid latestVersion.`);
+      return { version: latestVersion as string, installsUrl };
+    })
+  );
+  return releases.reduce((newest, release) => (gt(release.version, newest.version) ? release : newest));
+};
+
+export const getLatestStacktapeVersion = async (options?: { signal?: AbortSignal; timeoutMs?: number }) =>
+  (await getLatestStacktapeRelease(options)).version;
+
+/** Development builds carry versions like `dev-4.0.0`; they compare as their release part. */
+export const isNewerStacktapeVersion = (latestVersion: string, currentVersion: string) => {
+  const comparableVersion = valid(currentVersion) ?? coerce(currentVersion)?.version;
+  return Boolean(comparableVersion && gt(latestVersion, comparableVersion));
 };

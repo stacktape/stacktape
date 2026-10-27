@@ -68,16 +68,3 @@ export const configureNativeRuntimeForPlatform = (platform = getPlatform()) => {
     process.env.OPENTUI_LIBC = 'musl';
   }
 };
-
-export const getInstallationScript = () => {
-  const installationScripts: { [_platform in SupportedPlatform]: string } = {
-    win: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex',
-    'win-arm': 'iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex',
-    linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
-    'linux-arm': 'curl -L https://installs.stacktape.com/linux-arm.sh | sh',
-    alpine: 'curl -L https://installs.stacktape.com/alpine.sh | sh',
-    macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
-    'macos-arm': 'curl -L https://installs.stacktape.com/macos-arm.sh | sh'
-  };
-  return installationScripts[getPlatform()];
-};

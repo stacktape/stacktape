@@ -330,6 +330,25 @@ test.skipIf(process.platform === 'win32')(
   }
 );
 
+// Releases up to 3.7.1 were published without SHA256SUMS, so pinning one still installs; newer releases require it.
+test.skipIf(process.platform === 'win32')('requires checksums only for releases that publish them', async () => {
+  const { root, bin, downloads, run } = await fixture(MACHINES.linux);
+  try {
+    await rm(join(downloads, 'SHA256SUMS'));
+    const current = run();
+    expect(current.exitCode).not.toBe(0);
+    expect(current.output).toContain('Could not download the checksums of Stacktape 4.0.0-preview.17.');
+    expect(existsSync(join(bin, 'stacktape'))).toBe(false);
+
+    const pinned = run({ STACKTAPE_VERSION: '3.7.1' });
+    expect(pinned.exitCode).toBe(0);
+    expect(pinned.output).toContain('Installed stacktape 3.7.1');
+    expect(existsSync(join(bin, 'stacktape'))).toBe(true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 // An archive that unpacks but lacks the executable must not replace a working installation.
 test.skipIf(process.platform === 'win32')('a broken archive leaves the previous installation in place', async () => {
   const { root, bin, home, downloads, run } = await fixture(MACHINES.linux);

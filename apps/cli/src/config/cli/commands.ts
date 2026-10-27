@@ -824,7 +824,7 @@ Shows stack name, status, last update time, creation time, and estimated spend. 
   upgrade: {
     description: `Upgrades Stacktape to the latest version.
 
-You can also specify a version to install using the \`--version\` option.`,
+To install a specific version instead, pass it as an argument, for example \`stacktape upgrade 4.0.1\`.`,
     args: {
       newVersion: newVersion.optional()
     },
