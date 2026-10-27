@@ -9,7 +9,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { prepareEventBusIntegration } from '../../../_utils/event-bus-integration';
-import { getEventBusRuleLambdaPermission } from '../utils';
+import { getEventBusRuleLambdaPermission, getLambdaRuleTargetArn } from '../utils';
 import type { EventBusIntegration, EventBusIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -29,7 +29,10 @@ export const resolveEventBusEvents = ({
           eventDetails: event.properties,
           workloadName: name,
           eventIndex: index,
-          lambdaEndpointArn,
+          lambdaEndpointArn: getLambdaRuleTargetArn({
+            lambdaFunction,
+            ruleLogicalName: cfLogicalNames.eventBusRule(name, index)
+          }),
           configParentResourceType
         })
       });

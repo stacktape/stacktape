@@ -675,3 +675,144 @@ ${environment}          secrets:
     )
   ).rejects.toMatchObject({ code: 'CONFIG_CONTAINER_SECRET_ENVIRONMENT_CONFLICT' });
 });
+
+test('a new function connected to Aurora is created while the instances are; containers and deployed functions wait', async () => {
+  const connectedFunction = `
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+      connectTo: [orders]`;
+  await writeFile(
+    join(directory, 'stacktape.yml'),
+    `resources:
+  orders:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: synthetic-password
+      engine:
+        type: aurora-postgresql-serverless-v2
+        properties:
+          version: '16.11'
+          minCapacity: 0.5
+          maxCapacity: 1
+          serverlessReadersCount: 1
+  worker:
+    type: function
+    properties:${connectedFunction}
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 minute)
+  seedUsers:
+    type: custom-resource-definition
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      connectTo: [orders]
+  users:
+    type: custom-resource-instance
+    properties:
+      definitionName: seedUsers
+      resourceProperties:
+        role: reader
+  warm:
+    type: function
+    properties:${connectedFunction}
+      provisionedConcurrency: 1
+  api:
+    type: worker-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: public.ecr.aws/docker/library/node:22
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo: [orders]
+`
+  );
+  const synthesizeOver = (deployedTemplate: CloudFormationTemplate) =>
+    synthesizeFixture({
+      configPath: join(directory, 'stacktape.yml'),
+      workingDir: directory,
+      identity: { projectName: 'data', stage: 'test' },
+      deployedTemplate
+    });
+  const hosts = (template: CloudFormationTemplate, functionLogicalName: string) =>
+    (template.Resources[functionLogicalName] as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+      .Properties.Environment.Variables.STP_ORDERS_HOSTS;
+  const instanceAddress = (instance: string) => ({ 'Fn::GetAtt': [instance, 'Endpoint.Address'] });
+  // The address Aurora gives an instance: `<instance identifier>.<suffix of the cluster endpoint after "cluster-">`.
+  const derivedAddress = (identifier: string) => ({
+    'Fn::Join': [
+      '',
+      [
+        `${identifier}.`,
+        { 'Fn::Select': [1, { 'Fn::Split': ['.cluster-', { 'Fn::GetAtt': ['OrdersDbCluster', 'Endpoint.Address'] }] }] }
+      ]
+    ]
+  });
+  const referencesInstance = (resource: unknown) => JSON.stringify(resource).includes('"OrdersDbInstance');
+
+  const created = await synthesizeOver({ Resources: {} } as unknown as CloudFormationTemplate);
+  expect((created.Resources.OrdersDbInstance1 as { Properties: Record<string, unknown> }).Properties).toMatchObject({
+    DBInstanceIdentifier: 'data-test-orders-1'
+  });
+  expect(hosts(created, 'WorkerFunction')).toEqual({
+    'Fn::Join': [',', [derivedAddress('data-test-orders-0'), derivedAddress('data-test-orders-1')]]
+  });
+  expect(referencesInstance(created.Resources.WorkerFunction)).toBe(false);
+  // Only the function is created early: nothing that can invoke it exists before the instances do.
+  const dependencies = (resource: unknown) => [(resource as { DependsOn?: string | string[] }).DependsOn || []].flat();
+  const invokers = Object.entries(created.Resources).filter(
+    ([logicalName, resource]) =>
+      logicalName !== 'WorkerFunction' && JSON.stringify(resource.Properties).includes('"WorkerFunction"')
+  );
+  expect(invokers.map(([, { Type }]) => Type)).toContain('AWS::Lambda::Permission');
+  for (const [, resource] of invokers) {
+    expect(dependencies(resource)).toEqual(expect.arrayContaining(['OrdersDbInstance0', 'OrdersDbInstance1']));
+  }
+  const customResource = Object.values(created.Resources).find(
+    ({ Type, Properties }) =>
+      Type === 'AWS::CloudFormation::CustomResource' && JSON.stringify(Properties).includes('"role":"reader"')
+  );
+  expect(dependencies(customResource)).toEqual(expect.arrayContaining(['OrdersDbInstance0', 'OrdersDbInstance1']));
+  // The schedule rule itself is created alongside the function; its permission above waits.
+  const rule = Object.values(created.Resources).find(
+    ({ Type, Properties }) =>
+      Type === 'AWS::Events::Rule' &&
+      (Properties as { ScheduleExpression?: string }).ScheduleExpression === 'rate(1 minute)'
+  );
+  expect(JSON.stringify(rule)).not.toContain('"WorkerFunction"');
+  expect(dependencies(rule)).toEqual([]);
+  // Provisioned concurrency runs the function's initialization during the deployment; a container service starts tasks.
+  expect(hosts(created, 'WarmFunction')).toEqual({
+    'Fn::Join': [',', [instanceAddress('OrdersDbInstance0'), instanceAddress('OrdersDbInstance1')]]
+  });
+  const taskDefinition = Object.values(created.Resources).find(({ Type }) => Type === 'AWS::ECS::TaskDefinition');
+  expect(referencesInstance(taskDefinition)).toBe(true);
+
+  // A deployed function that now reaches a database being created must not run its new code before the database exists.
+  const connecting = await synthesizeOver({
+    Resources: { WorkerFunction: { Type: 'AWS::Lambda::Function', Properties: { Environment: { Variables: {} } } } }
+  } as unknown as CloudFormationTemplate);
+  expect(hosts(connecting, 'WorkerFunction')).toEqual(hosts(created, 'WarmFunction'));
+
+  // Deployed functions keep the form they were deployed with, so the change updates no deployed function.
+  expect(hosts(await synthesizeOver(connecting), 'WorkerFunction')).toEqual(hosts(connecting, 'WorkerFunction'));
+  expect(hosts(await synthesizeOver(created), 'WorkerFunction')).toEqual(hosts(created, 'WorkerFunction'));
+
+  // An instance replaced under a new identifier does not exist until CloudFormation has created the replacement.
+  const renamed = structuredClone(created);
+  (renamed.Resources.OrdersDbInstance0 as { Properties: Record<string, unknown> }).Properties.DBInstanceIdentifier =
+    'data-test-orders-old';
+  expect(hosts(await synthesizeOver(renamed), 'WorkerFunction')).toEqual({
+    'Fn::Join': [',', [instanceAddress('OrdersDbInstance0'), derivedAddress('data-test-orders-1')]]
+  });
+});
