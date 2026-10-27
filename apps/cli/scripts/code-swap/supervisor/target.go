@@ -13,15 +13,20 @@ import (
 // supervisor runs the same check on the candidate before the switch, and on the serving code after it, so a swap never
 // leaves the load balancer checking code that fails. Behind an HTTP API the path is empty and only reachability counts.
 var targetCheckPath string
-var targetCheckClient = &http.Client{Timeout: 4 * time.Second}
+var targetCheckClient = newTargetCheckClient(4 * time.Second)
 
 // A candidate may answer before it is ready, for example while it connects to a database. It gets this long to pass.
 var targetCheckBudget = 30 * time.Second
 
+// Like the load balancer, the check does not follow redirects: a 3xx response fails it.
+func newTargetCheckClient(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
 func configureTargetCheck() {
 	targetCheckPath = os.Getenv("STP_CODE_SWAP_TARGET_CHECK_PATH")
 	if n, err := strconv.Atoi(os.Getenv("STP_CODE_SWAP_TARGET_CHECK_TIMEOUT_S")); err == nil && n > 0 {
-		targetCheckClient = &http.Client{Timeout: time.Duration(n) * time.Second}
+		targetCheckClient = newTargetCheckClient(time.Duration(n) * time.Second)
 	}
 }
 

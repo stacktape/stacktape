@@ -46,6 +46,8 @@ func fixture(rev string) http.Handler {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 			io.WriteString(w, rev)
+		case "/moved":
+			http.Redirect(w, r, "/health", http.StatusFound)
 		case "/ws":
 			conn, buf, err := http.NewResponseController(w).Hijack()
 			if err != nil {

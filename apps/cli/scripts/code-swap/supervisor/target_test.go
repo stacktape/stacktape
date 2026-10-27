@@ -58,6 +58,19 @@ func TestCandidateMustPassLoadBalancerCheckBeforeSwitch(t *testing.T) {
 	}
 }
 
+func TestLoadBalancerCheckDoesNotFollowRedirects(t *testing.T) {
+	albTask(t)
+	targetCheckPath = "/moved"
+	old := startFixture(t, "old", false)
+	current.Store(old)
+	u := startFixture(t, "new", true)
+	candidate.Store(u)
+	// The load balancer counts the 302 as a failure, even though the redirect target would answer 200.
+	if err := awaitTargetCheck(u); err == nil || !strings.Contains(err.Error(), "returned 302") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
 func TestFailingLoadBalancerCheckAfterSwitchRevertsToOldCode(t *testing.T) {
 	status := albTask(t)
 	old := startFixture(t, "old", false)
