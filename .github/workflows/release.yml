@@ -94,7 +94,15 @@ jobs:
           fi
       - run: pnpm check:public
       - name: Execute packaging artifacts in real runtimes
-        run: pnpm test:packaging-e2e
+        run: |
+          # The Railpack scenarios need the pinned binary, and the E2E scripts cannot use the CLI's downloader.
+          railpack_directory="$RUNNER_TEMP/railpack"
+          mkdir -p "$railpack_directory"
+          manifest=apps/cli/src/config/external-tools.json
+          curl -fsSL --retry 3 -o "$railpack_directory/railpack.tar.gz" "$(jq -r '.railpack.assets.linux.url' "$manifest")"
+          echo "$(jq -r '.railpack.assets.linux.sha256' "$manifest")  $railpack_directory/railpack.tar.gz" | sha256sum -c -
+          tar -xzf "$railpack_directory/railpack.tar.gz" -C "$railpack_directory" railpack
+          STP_RAILPACK_BINARY="$railpack_directory/railpack" pnpm test:packaging-e2e
 
   build-binaries:
     name: Build ${{ matrix.platform }}
