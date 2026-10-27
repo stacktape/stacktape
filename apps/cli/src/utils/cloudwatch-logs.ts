@@ -67,6 +67,11 @@ export class LambdaCloudwatchLogPrinter {
   #fetchPage: FetchPage;
   #filterPattern: string | undefined;
   #printedRequestIds: { [requestId: string]: SupportedConsoleColor } = {};
+  /**
+   * The request each log stream is handling. An execution environment handles one request at a time, so a line without
+   * a request ID between its START and END (a `print`, Python's uncaught-exception record) belongs to that request.
+   */
+  #activeRequestIds: { [logStreamName: string]: string } = {};
   #colorSequence: SupportedConsoleColor[] = ['blue', 'yellow', 'magenta', 'green', 'gray'];
   #lastColor: SupportedConsoleColor;
   #onLog: LogCallback | null = null;
@@ -282,7 +287,7 @@ export class LambdaCloudwatchLogPrinter {
 
   #getPrefix = (requestId?: string) => {
     if (!requestId) {
-      return tuiManager.makeBold('?');
+      return tuiManager.makeBold('>');
     }
     const trimmedRequestId = requestId.trim();
     let color = this.#printedRequestIds[trimmedRequestId];
@@ -323,11 +328,15 @@ export class LambdaCloudwatchLogPrinter {
             return;
           }
           case 'start':
+            if (event.logStreamName) this.#activeRequestIds[event.logStreamName] = line.requestId;
             this.#output(
               `${this.#getPrefix(line.requestId)} ${time} ${tuiManager.makeBold('START')} ${this.#getFormattedRequestId(line.requestId)}`
             );
             return;
           case 'end':
+            if (event.logStreamName && this.#activeRequestIds[event.logStreamName] === line.requestId) {
+              delete this.#activeRequestIds[event.logStreamName];
+            }
             // Printed with its REPORT line, which follows it; a REPORT that comes with a later fetch prints on its own.
             endLogs[line.requestId] = (reportData, level) =>
               this.#output(
@@ -356,7 +365,8 @@ export class LambdaCloudwatchLogPrinter {
             const { level, requestId, logType, content } = line;
             if (!logType || !requestId) {
               // A plain line (`print`, `System.out`) or a runtime's own error output, without a request ID.
-              this.#output(`${this.#getPrefix()} ${time}\n${content}`, level);
+              const activeRequestId = event.logStreamName ? this.#activeRequestIds[event.logStreamName] : undefined;
+              this.#output(`${this.#getPrefix(requestId ?? activeRequestId)} ${time}\n${content}`, level);
               return;
             }
             const color = level === 'error' ? 'red' : level === 'warn' ? 'yellow' : 'cyan';

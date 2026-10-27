@@ -10,7 +10,7 @@ type PrepareImageOptions = {
   spinner?: Spinner;
 };
 
-type PrepareImageResult = {
+export type PrepareImageResult = {
   imageName: string;
   sourceFiles: string[];
   distFolderPath?: string;

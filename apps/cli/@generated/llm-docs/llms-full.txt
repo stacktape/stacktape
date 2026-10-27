@@ -3418,6 +3418,8 @@ stacktape dev network delete --region eu-west-1
 
 Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. When dev functions were deleted shortly before, it can take up to about 20 minutes: AWS releases their network interfaces with a delay, and CloudFormation waits for that before it deletes the subnets. The command reports its progress once a minute meanwhile. The next `stacktape dev` that needs a dev network creates it again.
 
+The command asks for confirmation first. With `--json`, or outside a terminal, it cannot ask: pass `--yes`.
+
 The command also refuses while someone else depends on the network:
 
 - While a `stacktape dev` session uses it. The command asks the running dev box for its sessions and lists them. A box that has just started may not answer for about a minute; the command then refuses too. `--force` deletes the network anyway, and those sessions lose their connection.
@@ -41401,7 +41403,7 @@ export const handler = async (event) => {
 
 Do not post to the connection from `$connect`: the connection does not exist until that handler succeeds. Handle `GoneException` when a connection has already closed.
 
-Other producers can send to clients too. Add `connectTo: [realtime]` to a different Lambda, container workload, batch job, or script to receive the same scoped permission and environment variables.
+Other producers can send to clients too. Add `connectTo: [realtime]` to a different Lambda, container workload, batch job, or script to receive the same scoped permission and environment variables. The permission covers `PostToConnection`, `GetConnection` and `DeleteConnection` on every connection of the gateway's stage.
 
 ## Connection storage and broadcasts
 
@@ -41485,11 +41487,13 @@ AWS does not allow one API Gateway custom domain to mix WebSocket mappings with 
 
 JSON access logs are enabled by default with connection ID, event type, route, status, source IP, request time, and integration error context. Payload data is not logged by default. Configure retention or forwarding through `logging`, or set `logging.disabled: true`.
 
+API Gateway writes WebSocket access logs with a CloudWatch Logs role that is set once per AWS account and region, in the API Gateway settings. New accounts have none, and a stage with access logs then fails to deploy. Before such a deployment, Stacktape checks the setting. When no role is set, it creates the IAM role `stacktape-api-gateway-cloudwatch-logs` with the AWS managed policy `AmazonAPIGatewayPushToCloudWatchLogs`, registers it for the region, and says so in the output. The account has one such role, used by every region. Stacktape never replaces a role that is already set; when the set role no longer exists, the deployment stops and says so. The check needs `apigateway:GET` on `/account`; without it, Stacktape warns and deploys. Creating and registering the role needs `iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy` and `iam:PassRole` on that role and `apigateway:PATCH` on `/account`. The Console's connection role has all of them.
+
 `logging.logClass: 'infrequent-access'` is available for newly created log groups when lower ingestion cost matters more than live log features. Infrequent Access logs require Logs Insights and cannot use log forwarding.
 
 ## Dev mode
 
-`stacktape dev` keeps the WebSocket gateway deployed and hot-swaps its Lambda handlers. The dev UI shows the deployed `wss://` URL. Stacktape does not emulate API Gateway's connection lifecycle locally, so test clients continue to use the deployed endpoint while code changes are updated quickly.
+`stacktape dev` keeps the WebSocket gateway deployed and hot-swaps its Lambda handlers. Dev stages have no access logs. The dev UI shows the deployed `wss://` URL. Stacktape does not emulate API Gateway's connection lifecycle locally, so test clients continue to use the deployed endpoint while code changes are updated quickly.
 
 ## AWS limits to design around
 

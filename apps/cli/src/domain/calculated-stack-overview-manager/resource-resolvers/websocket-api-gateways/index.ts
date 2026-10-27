@@ -48,7 +48,9 @@ const resolveWebsocketApiGateway = (resource: StpWebSocketApiGateway) => {
     resource: getWebsocketApi(resource)
   });
 
-  if (!resource.logging?.disabled) {
+  // Access logs need the account's API Gateway CloudWatch role. Dev stacks leave them out, so they do not depend on it.
+  const accessLogsEnabled = !resource.logging?.disabled && calculatedStackOverviewManager.context.command !== 'dev';
+  if (accessLogsEnabled) {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.websocketApiLogGroup(name),
       nameChain,
@@ -83,7 +85,7 @@ const resolveWebsocketApiGateway = (resource: StpWebSocketApiGateway) => {
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.websocketApiStage(name),
     nameChain,
-    resource: getWebsocketApiStage({ resource, routeLogicalNames })
+    resource: getWebsocketApiStage({ resource, routeLogicalNames, accessLogsEnabled })
   });
 
   const defaultUrl = getWebsocketApiDefaultClientUrl(name);

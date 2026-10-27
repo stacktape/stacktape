@@ -34,7 +34,7 @@ export type ParsedOutput = {
 /**
  * Strips ANSI escape codes from a string.
  */
-const stripAnsi = (str: string): string => {
+export const stripAnsi = (str: string): string => {
   // eslint-disable-next-line no-control-regex
   return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 };

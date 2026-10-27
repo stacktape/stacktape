@@ -3,6 +3,7 @@ import {
   getStatementsForAccessingAgentCoreResource,
   getStatementsForAccessingEmailSender,
   getStatementsForAccessingKafkaCluster,
+  getStatementsForAccessingWebsocketApiGateway,
   type StpAgentCoreConnectToTarget
 } from './role-helpers';
 
@@ -179,4 +180,38 @@ test('external EmailSender connectTo includes only an explicitly configured conf
     'arn:aws:ses:eu-west-1:123456789012:identity/Billing@example.com',
     'arn:aws:ses:eu-west-1:123456789012:configuration-set/shared-transactional'
   ]);
+});
+
+describe('WebSocket API connectTo grants managing individual connections', () => {
+  const [statement] = getStatementsForAccessingWebsocketApiGateway({
+    accountId: '123456789012',
+    region: 'eu-west-1',
+    stackName: 'app-production',
+    stacktapeResourceName: 'realtime'
+  });
+  // Substitute the API ID for its `Ref` and match like IAM does: `*` spans any characters, including `/`.
+  const allowedPatterns = (
+    statement.Resource as unknown as { 'Fn::Join': [string, (string | { Ref: string })[]] }[]
+  ).map(({ 'Fn::Join': [, parts] }) => {
+    const arn = parts.map((part) => (typeof part === 'string' ? part : 'wx3u0asd5l')).join('');
+    return new RegExp(`^${arn.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*')}$`);
+  });
+  const isAllowed = (arn: string) => allowedPatterns.some((pattern) => pattern.test(arn));
+  const connectionArn = (method: string) =>
+    `arn:aws:execute-api:eu-west-1:123456789012:wx3u0asd5l/default/${method}/@connections/Kz8b1cK5liACFkQ=`;
+
+  test('references the API by its logical ID', () => {
+    expect(JSON.stringify(statement.Resource)).toContain('{"Ref":"RealtimeWebsocketApi"}');
+    expect(statement.Action).toEqual(['execute-api:ManageConnections']);
+  });
+
+  test.each(['POST', 'GET', 'DELETE'])('allows %s on a connection', (method) => {
+    expect(isAllowed(connectionArn(method))).toBe(true);
+  });
+
+  test('denies other APIs, stages and methods', () => {
+    expect(isAllowed(connectionArn('PATCH'))).toBe(false);
+    expect(isAllowed(connectionArn('POST').replace('wx3u0asd5l', 'otherapi01'))).toBe(false);
+    expect(isAllowed(connectionArn('POST').replace('/default/', '/prod/'))).toBe(false);
+  });
 });

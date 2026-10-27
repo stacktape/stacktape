@@ -7,6 +7,7 @@ import { createServer as createTlsServer } from 'node:tls';
 import { escapeHtml, formatUrl } from './utils';
 
 const PORTLESS_HEADER = 'X-Portless';
+export const PROXY_IDENTITY_HEADER = 'X-Stacktape-Dev-Proxy';
 
 const HOP_BY_HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade']);
 
@@ -63,13 +64,14 @@ const injectHeadersIntoRawHead = (rawHead: string, tls: boolean): string => {
 export type ProxyServer = Server;
 
 export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
-  const { getRoutes, proxyPort, onError = (msg: string) => console.error(msg), tls } = options;
+  const { getRoutes, proxyPort, onError = (msg: string) => console.error(msg), tls, identity } = options;
 
   const isTls = Boolean(tls);
 
   // --- HTTP request handler (for non-upgrade requests) ---
   const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
     res.setHeader(PORTLESS_HEADER, '1');
+    if (identity) res.setHeader(PROXY_IDENTITY_HEADER, identity);
 
     const routes = getRoutes();
     const host = getRequestHost(req).split(':')[0];

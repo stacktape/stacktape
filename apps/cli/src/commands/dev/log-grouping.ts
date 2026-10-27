@@ -13,6 +13,10 @@ const MAX_ENTRY_LINES = 200;
 const ENTRY_QUIET_MS = 50;
 
 const PYTHON_EXCEPTION_LINE = /^[\w.]+(Error|Exception|Warning|Exit|Interrupt)\b/;
+/** Go's standard `log` prefix: date, time, and with `Lshortfile` the source position. */
+const GO_LOG_PREFIX = /^\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(?:\.\d+)? (?:\S+\.go:\d+: )?/;
+/** A Go program that crashes prints `panic: ...` or `fatal error: ...` and then the stacks of its goroutines. */
+const GO_CRASH_LINE = /^(panic: |fatal error: )/;
 
 /** Whether `line` continues the entry whose lines are `entry`, instead of starting a new one. */
 export const isContinuationLine = (line: string, entry: string[]): boolean => {
@@ -24,6 +28,12 @@ export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (entry[0]!.startsWith('Traceback (most recent call last)') && PYTHON_EXCEPTION_LINE.test(line)) return true;
   // Node prints the failing source line with a caret under it before the error and its stack.
   if (/^\s*\^+\s*$/.test(entry.at(-1)!)) return true;
+  // Everything after a Go crash line is its goroutine dump, also the unindented `goroutine 1 [running]:` lines.
+  if (entry.some((entryLine) => GO_CRASH_LINE.test(entryLine))) return true;
+  // `log.Panic` logs its message and then panics with it.
+  if (entry.length === 1 && line.startsWith('panic: ') && entry[0]!.replace(GO_LOG_PREFIX, '') === line.slice(7)) {
+    return true;
+  }
   return false;
 };
 
@@ -35,10 +45,13 @@ const JSON_LEVELS: Record<string, LogLevel> = {
   warning: 'warn'
 };
 
+const levelFromWord = (word: string): LogLevel =>
+  JSON_LEVELS[word.toLowerCase()] ?? (/^(err|panic|crit|alert|emerg)$/i.test(word) ? 'error' : 'info');
+
 /**
  * The level an entry's text shows: a structured `level` field, a level word at the start, an error class with its
- * message, or a stack trace. Without any, standard output is `info`, and standard error stays `warn`, since a program
- * writes both diagnostics and warnings there.
+ * message, or a stack trace. Without any, standard output and Go `log` lines are `info`, and other standard error stays
+ * `warn`, since a program writes both diagnostics and warnings there.
  */
 export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLevel => {
   const firstLine = text.split('\n', 1)[0]!.trim();
@@ -52,17 +65,32 @@ export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLe
       // Not a JSON line; the text decides.
     }
   }
-  // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`.
+  // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`,
+  // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...` or nginx's `2026/10/27 13:18:28 [crit] ...`.
   const levelWord = firstLine.match(
-    /^(?:\S*\d:\d\d\S*\s+)?\[?\s*(error|err|fatal|panic|critical|warn|warning|info|debug|trace)\b/i
+    /^(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
   )?.[1];
-  if (levelWord) return JSON_LEVELS[levelWord.toLowerCase()] ?? (/^(err|panic)$/i.test(levelWord) ? 'error' : 'info');
+  if (levelWord) return levelFromWord(levelWord);
   if (/^(uncaught|unhandled)\b/i.test(firstLine) || /^Traceback \(most recent call last\)/.test(firstLine)) {
     return 'error';
   }
   if (/^[\w.$]*(Error|Exception)\b(:|\s*\[|\s*\{|$)/.test(firstLine)) return 'error';
   if (/^\s+at\s.+(:\d+|\(native\))/m.test(text) || /^\s+File ".+", line \d+/m.test(text)) return 'error';
+  // A Go crash, possibly after the line `log.Panic` logged, and net/http's recovered handler panics.
+  if (/^(panic: |fatal error: |goroutine \d+ \[)/m.test(text)) return 'error';
+  // Go's `slog` and logrus text lines carry a logfmt field: `time=... level=ERROR msg=...`. It is read after the error
+  // formats, so `TypeError: ... level="debug"` stays an error.
+  const fieldLevel = firstLine.match(/(?:^|\s)level="?(\w+)/i)?.[1];
+  if (fieldLevel) return levelFromWord(fieldLevel);
   if (/^\(node:\d+\) \w*Warning\b/.test(firstLine)) return 'warn';
+  // Go's standard `log` writes every line to standard error with a date and a time and no level. `log.Fatal` adds no
+  // level either; its messages usually start with the failure.
+  const goMessage = firstLine.match(GO_LOG_PREFIX) && firstLine.replace(GO_LOG_PREFIX, '');
+  if (typeof goMessage === 'string') {
+    return /^(http: panic serving|panic\b|fatal\b|failed\b|unable to\b|cannot\b|can't\b|could not\b)/i.test(goMessage)
+      ? 'error'
+      : 'info';
+  }
   return stream === 'stderr' ? 'warn' : 'info';
 };
 

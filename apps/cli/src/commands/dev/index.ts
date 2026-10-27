@@ -36,7 +36,6 @@ import {
   getRunningAgent,
   requestDevAgent,
   spawnAgentDaemon,
-  stopRunningAgent,
   writeAgentLockFile,
   type AgentLockFile
 } from './agent-daemon';
@@ -484,38 +483,12 @@ export const commandDev = async () => {
       });
     }
 
-    // A function that failed to build or deploy keeps running its previous code in the dev stack, and a rebuild after
-    // the fix deploys it, so the session stays. Any other failed workload stops the session.
-    const isFunction = (name: string) =>
-      result.readyPayload?.workloads.some((workload) => workload.name === name && workload.type === 'function');
-    const failedWorkloads = (result.readyPayload?.failedWorkloads ?? []).filter(({ name }) => !isFunction(name));
-    if (failedWorkloads.length > 0) {
-      // A session with a failed workload is not usable, and leaving it running would hold its port, containers and
-      // Lambda environment changes. Stop it through its stop route so its cleanup runs, then report the failure.
-      const { port, projectName, stage, region, logFile } = result.readyPayload!;
-      await stopRunningAgent({
-        pid: result.pid ?? 0,
-        port,
-        phase: 'ready',
-        projectName,
-        stage: stage || '',
-        region: region || '',
-        startedAt: '',
-        workloads: [],
-        databases: []
-      });
-      throw new CliError({
-        category: 'CLI',
-        code: 'CLI_DEV_WORKLOAD_FAILED',
-        message: `Dev mode stopped because ${failedWorkloads.length === 1 ? 'a workload' : 'workloads'} failed to start:\n${failedWorkloads.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}`,
-        hints: logFile ? `The full output is in ${logFile}.` : undefined
-      });
-    }
-
+    // A failed workload leaves the rest of the session usable, and a rebuild after the fix starts it: a function that
+    // failed to build keeps running its previous code, and a container or dev server that failed is not running.
     if (result.readyPayload?.failedWorkloads.length) {
       throw sessionNotReadyError({
         payload: result.readyPayload,
-        message: 'Dev mode runs, but functions in it were not deployed and run their previous code'
+        message: 'Dev mode runs, but workloads in it failed to start'
       });
     }
 

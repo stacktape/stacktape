@@ -10,6 +10,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { ensureApiGatewayCloudWatchRole } from '@domain-services/api-gateway-account';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -71,6 +72,8 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
   // Shared email resources are an accepted dependency of this exact dev-stack update. Ensure them only after the
   // user approves the finalized template and before any artifact or project-stack mutation begins.
   await ensureManagedEmailSenders();
+  // Dev stacks leave WebSocket access logs out; this covers logs that `cloudformationResources` turn on.
+  await ensureApiGatewayCloudWatchRole(templateManager.getTemplate());
 
   // In dev mode, stackActionType is 'dev' not 'create', but we still need to create the initial stack
   // Check existingStackDetails to determine if this is a new stack

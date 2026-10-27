@@ -44,6 +44,7 @@ import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
 import { createSharedLayerPublication, type FastDeployPlan, performFastDeploy, planFastDeploy } from './fast-deploy';
 import { buildPreviewResourceChanges } from '../diff/utils';
+import { ensureApiGatewayCloudWatchRole } from '@domain-services/api-gateway-account';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import {
   assertDeployTargetExpectation,
@@ -360,10 +361,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   }
 
-  // A newly added or changed EmailSender changes the template, so it never takes the fast path. Existing senders were
-  // ensured by their full deployment, which keeps routine code updates free of this preflight.
+  // A newly added or changed EmailSender or API stage changes the template, so it never takes the fast path. Existing
+  // ones were ensured by their full deployment, which keeps routine code updates free of these preflights.
   if (!fastDeployPlan) {
     await ensureManagedEmailSenders();
+    await ensureApiGatewayCloudWatchRole(template.getTemplate());
   }
   if (stack.stackActionType === 'create') {
     await stack.createResourcesForArtifacts();

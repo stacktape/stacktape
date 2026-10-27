@@ -36,6 +36,18 @@ describe('MCP tool output', () => {
     });
   });
 
+  test('removes terminal color codes from script output', () => {
+    const payload = readPayload(
+      toToolText({
+        ok: true,
+        code: 'OK',
+        message: 'Ran script seed against the local databases.',
+        data: { output: ['seed-keyboard \u001B[33m201\u001B[39m', '\u001B[1m\u001B[32mdone\u001B[39m\u001B[22m'] }
+      })
+    );
+    expect(payload.data).toEqual({ output: ['seed-keyboard 201', 'done'] });
+  });
+
   test('compacts info:stack data into Stacktape and CloudFormation summaries', () => {
     const output = buildCliRunOutput({
       command: 'info:stack',

@@ -1541,16 +1541,26 @@ describe('full synthesis contract', () => {
       {
         Effect: 'Allow',
         Action: ['execute-api:ManageConnections'],
-        Resource: [
-          {
-            'Fn::Join': [
-              '',
-              ['arn:aws:execute-api:eu-west-1:123456789999:', { Ref: apiLogicalName }, '/default/POST/@connections']
+        Resource: ['POST', 'GET', 'DELETE'].map((method) => ({
+          'Fn::Join': [
+            '',
+            [
+              'arn:aws:execute-api:eu-west-1:123456789999:',
+              { Ref: apiLogicalName },
+              `/default/${method}/@connections/*`
             ]
-          }
-        ]
+          ]
+        }))
       }
     ]);
+    expect(resources[stageLogicalName].Properties.AccessLogSettings).toMatchObject({
+      DestinationArn: { 'Fn::GetAtt': [cfLogicalNames.websocketApiLogGroup('realtime'), 'Arn'] }
+    });
+    // Access logs need the account's API Gateway CloudWatch role; dev stacks leave them out.
+    const devTemplate = await synthesizeDenseFixture({ includeWebsocket: true, command: 'dev' });
+    expect(devTemplate.Resources[stageLogicalName]).toMatchObject({ Type: 'AWS::ApiGatewayV2::Stage' });
+    expect(devTemplate.Resources[stageLogicalName].Properties).not.toHaveProperty('AccessLogSettings');
+    expect(devTemplate.Resources[cfLogicalNames.websocketApiLogGroup('realtime')]).toBeUndefined();
     const iamTemplate = await synthesizeDenseFixture({ includeWebsocket: true, websocketIamConnect: true });
     expect(iamTemplate.Resources[connectRouteLogicalName]).toMatchObject({
       Type: 'AWS::ApiGatewayV2::Route',

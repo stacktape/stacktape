@@ -80,6 +80,8 @@ export type WorkloadStatus = {
   port?: number;
   error?: string;
   size?: string;
+  /** What a starting or rebuilding workload waits for. */
+  statusMessage?: string;
 };
 
 type LocalResourceStatus = {
@@ -161,7 +163,8 @@ export const mirrorDevTuiState = (state: DevTuiState) => {
       url: workload.url,
       port: workload.port,
       error: workload.error,
-      size: workload.size
+      size: workload.size,
+      ...(workload.status === 'starting' && workload.statusMessage ? { statusMessage: workload.statusMessage } : {})
     })),
     localResources: state.localResources.map((resource) => ({
       name: resource.name,
@@ -396,10 +399,14 @@ export const toRebuildResponse = (result: RebuildResult, logFile = getAgentLogFi
       hint: 'Stop dev mode and start it again; the start updates the dev stack.'
     };
   }
+  // Each workload's error is in `failedWorkloads`, and the message repeats only one-line errors: a build error of
+  // several lines would come back twice.
+  const describe = ({ name, error }: FailedWorkload) =>
+    error.includes('\n') ? `${name}: ${error.split('\n').length} lines in failedWorkloads` : `${name}: ${error}`;
   return {
     ok: false,
     code: result.code,
-    error: `Rebuild failed. ${result.message}`,
+    error: `Rebuild failed. ${result.failedWorkloads.map(describe).join('\n')}`,
     failedWorkloads: result.failedWorkloads,
     logFile,
     hint: 'The failed workloads keep the status error, and their previous code may still serve requests. Fix the error and rebuild again.'
@@ -414,6 +421,9 @@ addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
 
   const workload = agentState.workloads.find((w) => w.name === workloadName);
   if (!workload) {
+    // A workload added to the configuration after the start: the result says to restart.
+    const result = await rebuildWorkload(workloadName);
+    if (result) return toRebuildResponse(result);
     return {
       ok: false,
       error: `Workload "${workloadName}" not found`,
