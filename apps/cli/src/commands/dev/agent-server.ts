@@ -129,6 +129,12 @@ export type AgentSessionIdentity = {
   region: string;
 };
 
+/** What dev mode decided on its own while it started, such as deploying a table that a stream trigger reads. */
+let agentNotices: string[] = [];
+export const setAgentNotices = (notices: string[]) => {
+  agentNotices = [...notices];
+};
+
 let httpServer: Server | null = null;
 let agentPort: number | null = null;
 let agentSession: AgentSessionIdentity | null = null;
@@ -352,6 +358,7 @@ addRoute('GET', '/status', async ({ query }) => {
       workloads: agentState.workloads,
       localResources: agentState.localResources,
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
+      ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath(),
       ...agentSession,
@@ -371,6 +378,7 @@ addRoute('GET', '/status', async ({ query }) => {
     ready,
     failedWorkloads,
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
+    ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
     ...getDevBoxStatus(),
     ...agentSession,

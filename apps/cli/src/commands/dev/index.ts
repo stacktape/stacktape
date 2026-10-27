@@ -47,6 +47,7 @@ import {
   mirrorDevTuiState,
   getAgentSessionId,
   registerAgentCleanupHook,
+  setAgentNotices,
   setRebuildFunctions,
   startAgentServer
 } from './agent-server';
@@ -670,6 +671,7 @@ export const commandDev = async () => {
       .map(({ name }) => name)
   );
   const devStackNotices = prepareDevStackReferences({ noTunnel: Boolean(args.noTunnel), skippedFunctionNames });
+  setAgentNotices(devStackNotices);
   devStackNotices.forEach((notice, index) => {
     if (agentEnabled)
       reportDevStartup({ step: 'DEV_SESSION', key: `notice-${index}`, status: 'completed', message: notice });
