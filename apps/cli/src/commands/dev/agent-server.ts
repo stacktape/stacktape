@@ -10,6 +10,7 @@ import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -49,7 +50,8 @@ import {
   opensearchCount,
   postgresReset,
   mysqlReset,
-  dynamoDbReset
+  dynamoDbReset,
+  type DynamoDbConnectionOpts
 } from '@domain-services/debug-services/db-client';
 import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
 import { maskAgentEnvironment } from './agent-env-masking';
@@ -357,6 +359,7 @@ addRoute('GET', '/status', async ({ query }) => {
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
+      deployedDatabases: getDeployedDynamoTables(),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...getDevBoxStatus(),
@@ -853,6 +856,12 @@ addRoute('GET', '/redis/:resource/type', async ({ pathParams, query }) => {
 
 const getDynamoConn = (resource: string) => {
   const instance = findLocalResource(resource);
+  const deployed = instance ? undefined : getDeployedDynamoTables().find(({ name }) => name === resource);
+  if (deployed) {
+    return {
+      error: `"${resource}" is the deployed table ${deployed.tableName} in AWS. Dev mode reads it (query, scan, schema) and writes only to local databases.`
+    };
+  }
   if (!instance) return { error: `Resource "${resource}" not found`, available: getLocalResourceNames() };
   if (instance.type !== 'dynamodb') return { error: `Resource "${resource}" is not DynamoDB (type: ${instance.type})` };
 
@@ -865,8 +874,44 @@ const getDynamoConn = (resource: string) => {
   };
 };
 
+/**
+ * The DynamoDB tables the dev stack deploys instead of running them locally: remote resources, and tables a deployed
+ * function's stream trigger reads. Dev mode reads them in AWS (scan, query, schema) and never writes to them.
+ */
+export const getDeployedDynamoTables = (): { name: string; type: 'dynamodb'; tableName: string }[] =>
+  Object.entries(deployedStackOverviewManager.stackInfoMap?.resources ?? {}).flatMap(([name, resource]) => {
+    const tableName = (resource?.referencableParams as Record<string, { value?: unknown } | undefined>)?.name?.value;
+    return resource?.resourceType === 'dynamo-db-table' && typeof tableName === 'string' && !findLocalResource(name)
+      ? [{ name, type: 'dynamodb' as const, tableName }]
+      : [];
+  });
+
+/** A local table, or a deployed one for reading. */
+const getReadableDynamoConn = async (
+  resource: string
+): Promise<{ conn?: DynamoDbConnectionOpts; deployed?: true; error?: string; available?: string[] }> => {
+  const deployed = findLocalResource(resource)
+    ? undefined
+    : getDeployedDynamoTables().find(({ name }) => name === resource);
+  if (!deployed) return getDynamoConn(resource);
+  const { accessKeyId, secretAccessKey, sessionToken } = await getDevAgentCredentials();
+  return {
+    deployed: true,
+    conn: {
+      mode: 'deployed',
+      tableName: deployed.tableName,
+      region: globalStateManager.region,
+      credentials: { accessKeyId, secretAccessKey, sessionToken }
+    }
+  };
+};
+
+/** Marks a read of a deployed table, so a caller never mistakes AWS data for the local database. */
+const fromDeployedTable = <T extends object>(result: T, conn: DynamoDbConnectionOpts, deployed?: true) =>
+  deployed ? { ...result, deployed: true, table: conn.tableName, region: globalStateManager.region } : result;
+
 addRoute('POST', '/dynamodb/:resource/query', async ({ pathParams, body }) => {
-  const { conn, error, available } = getDynamoConn(pathParams.resource);
+  const { conn, deployed, error, available } = await getReadableDynamoConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
   const { pk, sk, index, limit } = body as {
@@ -882,15 +927,15 @@ addRoute('POST', '/dynamodb/:resource/query', async ({ pathParams, body }) => {
       hint: 'Expected: {pk: {userId: "123"}, sk?: {orderId: "456"}, index?: "gsi-name", limit?: 100}'
     };
 
-  return dynamoDbQuery(conn!, { pk, sk, index, limit });
+  return fromDeployedTable(await dynamoDbQuery(conn!, { pk, sk, index, limit }), conn!, deployed);
 });
 
 addRoute('POST', '/dynamodb/:resource/scan', async ({ pathParams, body }) => {
-  const { conn, error, available } = getDynamoConn(pathParams.resource);
+  const { conn, deployed, error, available } = await getReadableDynamoConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
   const { filter, limit } = body as { filter?: string; limit?: number };
-  return dynamoDbScan(conn!, { filter, limit });
+  return fromDeployedTable(await dynamoDbScan(conn!, { filter, limit }), conn!, deployed);
 });
 
 addRoute('POST', '/dynamodb/:resource/get', async ({ pathParams, body }) => {
@@ -939,18 +984,18 @@ addRoute('POST', '/dynamodb/:resource/delete', async ({ pathParams, body }) => {
 });
 
 addRoute('GET', '/dynamodb/:resource/schema', async ({ pathParams }) => {
-  const { conn, error, available } = getDynamoConn(pathParams.resource);
+  const { conn, deployed, error, available } = await getReadableDynamoConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
-  return dynamoDbSchema(conn!);
+  return fromDeployedTable(await dynamoDbSchema(conn!), conn!, deployed);
 });
 
 addRoute('GET', '/dynamodb/:resource/sample', async ({ pathParams, query }) => {
-  const { conn, error, available } = getDynamoConn(pathParams.resource);
+  const { conn, deployed, error, available } = await getReadableDynamoConn(pathParams.resource);
   if (error) return { ok: false, error, available };
 
   const limit = query.get('limit') ? Number(query.get('limit')) : 5;
-  return dynamoDbSample(conn!, { limit });
+  return fromDeployedTable(await dynamoDbSample(conn!, { limit }), conn!, deployed);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1102,6 +1147,16 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
 
   const all = pathParams.resource === 'all';
   const instance = all ? undefined : findLocalResource(pathParams.resource);
+  const deployedTable =
+    all || instance ? undefined : getDeployedDynamoTables().find(({ name }) => name === pathParams.resource);
+  if (deployedTable) {
+    return {
+      ok: false,
+      code: 'NOT_LOCAL_RESOURCE',
+      error: `"${deployedTable.name}" is the deployed DynamoDB table ${deployedTable.tableName} in ${globalStateManager.region}, not a local database. Reset deletes data of local databases only and never in AWS.`,
+      hint: `Read it with query (resource "${deployedTable.name}"). To delete its items, use the AWS console or \`aws dynamodb delete-item --table-name ${deployedTable.tableName} --region ${globalStateManager.region}\`.`
+    };
+  }
   if (!all && !instance) {
     return {
       ok: false,

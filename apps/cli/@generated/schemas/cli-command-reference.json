@@ -4360,6 +4360,15 @@
         "flag": "filter"
       },
       {
+        "name": "follow",
+        "description": "#### Follow\n---\nIf `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by\ndefault; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless\n`--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or\nwhen the reading end of the output closes.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "follow"
+      },
+      {
         "name": "help",
         "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
         "required": false,

@@ -34,7 +34,13 @@ stacktape logs myApi --stage prod --region eu-west-1 --since "2h" --filter "ERRO
 
 The command resolves log streams for the target log group, fetches matching events, and either formats them for terminal display or outputs JSON when `--raw` or `--agent` is set.
 
-In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits.
+In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits. `--follow=false` does the same in a terminal.
+
+`--follow` keeps following without a terminal, for example in a coding agent's shell or in CI. Each log line is written as plain text as soon as it arrives. The command ends on Ctrl+C or `SIGTERM`, and when the reading end of its output closes, as with `| head -20`: it notices on the next line it writes. `--follow` cannot be combined with `--raw`.
+
+```bash
+stacktape logs myApi --stage dev --region eu-west-1 --follow --filter "ERROR" > api-errors.log &
+```
 
 ### Insights mode
 
@@ -212,6 +218,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
+| `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -246,7 +253,7 @@ The `--since` flag controls how far back the command looks — there is no hard 
 
 ### Does stacktape logs live-tail?
 
-The `stacktape logs` command fetches a snapshot of log events for a time window — it does not live-tail. You can approximate tailing by running the command repeatedly with a short `--since` (e.g., `--since "1m"`). For log viewing in the browser, see [Logs](/observability/logs).
+Yes. In a terminal, `stacktape logs` shows the newest events and then prints new ones as they arrive until you press Ctrl+C. Without a terminal it prints the events once, unless you pass `--follow`. For log viewing in the browser, see [Logs](/observability/logs).
 
 ### How much does CloudWatch Logs cost?
 

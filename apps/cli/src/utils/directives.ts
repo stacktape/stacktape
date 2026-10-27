@@ -243,3 +243,21 @@ export const getDirectiveParams = (directiveName: string, str: string): Directiv
 
   return result;
 };
+
+/**
+ * The literal first arguments of every `$<directiveName>(...)` in a directive expression, including ones nested in
+ * another directive's parameters: `$Secret` in `$Format('redis://:{}@host', $Secret('cache.password'))` gives
+ * `cache.password`. An argument computed by another directive is not known before resolution and is left out.
+ */
+export const getNestedDirectiveReferences = (node: unknown, directiveName: string): string[] => {
+  if (!getIsDirective(node)) return [];
+  const references: string[] = [];
+  const visit = (definition: string) => {
+    const name = getDirectiveName(definition);
+    const params = getDirectiveParams(name, definition);
+    if (name === directiveName && typeof params[0]?.value === 'string') references.push(params[0].value);
+    for (const param of params) if (param.isDirective) visit(param.definition);
+  };
+  visit(node as string);
+  return references;
+};

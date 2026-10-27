@@ -54,6 +54,7 @@ export const commandLogs = async () => {
       query?: string;
       limit?: number;
       endTime?: string;
+      follow?: boolean;
     }
   >;
 
@@ -68,7 +69,7 @@ export const commandLogs = async () => {
     commandRequiresDeployedStack: true
   });
 
-  const { resourceName, raw, filter, container, query, limit = 100 } = args;
+  const { resourceName, raw, filter, container, query, limit = 100, follow } = args;
 
   // Parse time range
   const endTime = args.endTime ? new Date(args.endTime) : new Date();
@@ -161,22 +162,36 @@ export const commandLogs = async () => {
     return null;
   }
 
-  // Live tail in an interactive terminal (the default). Falls back to a one-shot
-  // window fetch when piped, redirected, --raw, --outputFormat plain|jsonl, or in
-  // CI/agent mode — so `stacktape logs ... | grep` stays append-only and exits.
-  const shouldFollow = tuiManager.mode === 'tty' && !raw;
+  // A terminal follows by default. Piped or redirected output, CI and agents get the events once, so
+  // `stacktape logs ... | grep` ends, unless `--follow` asks to keep going.
+  const shouldFollow = follow ?? (tuiManager.mode === 'tty' && !raw);
+  if (shouldFollow && raw) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_LOG_FOLLOW_RAW_UNSUPPORTED',
+      message: '`--raw` prints the events once as one JSON object, so it cannot be combined with `--follow`.',
+      hints: ['Leave out `--raw` to follow: without a terminal, each log line is printed as plain text as it arrives.']
+    });
+  }
   if (shouldFollow) {
     // The newest `limit` events of the window first, as the one-shot read shows them, then the new ones.
     const printer = new LambdaCloudwatchLogPrinter({
       fetchSince: startTime.getTime(),
       logGroupAwsResourceName: logGroupName,
       backlog: { lines: limit, until: endTime.getTime() },
-      filterPattern: filter
+      filterPattern: filter,
+      // Without a terminal every line goes straight to stdout, in arrival order. Bun's console drops a write to a closed
+      // pipe without an error; `process.stdout.write` reports it, which ends following (below).
+      onLog: tuiManager.mode === 'tty' ? undefined : (message) => void process.stdout.write(`${message}\n`)
     });
     tuiManager.info(
-      `Showing the last ${limit} log lines of ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''} and following new ones. Press Ctrl+C to stop.`
+      `Showing the last ${limit} log lines of ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''} and following new ones. ${tuiManager.mode === 'tty' ? 'Press Ctrl+C to stop.' : 'Stop with Ctrl+C or SIGTERM.'}`
     );
 
+    let stopFollowing: () => void;
+    const stopped = new Promise<void>((resolve) => {
+      stopFollowing = resolve;
+    });
     // Throttling slows the polling down instead of ending the command; other errors end it after a few attempts.
     let consecutiveFailures = 0;
     let warnedAboutThrottling = false;
@@ -201,8 +216,14 @@ export const commandLogs = async () => {
       return result;
     });
     applicationManager.registerCleanUpHook(() => scheduler.stop());
-    // Follow until the user interrupts (Ctrl+C → applicationManager exit handler).
-    await new Promise<never>(() => {});
+    // A reader that has gone away (`| head -5`, a closed agent shell) fails the next write with EPIPE. That ends
+    // following like an interrupt. The listener stays, so the final output to the closed pipe cannot crash the CLI.
+    process.stdout.on('error', () => {
+      scheduler.stop();
+      stopFollowing();
+    });
+    // Ctrl+C and SIGTERM end the process through applicationManager's exit handler.
+    await stopped;
     return null;
   }
 

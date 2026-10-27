@@ -86,3 +86,24 @@ test('a deployment that may not untag a dev secret warns and goes on', async () 
   }
   expect(await state('shop-db')).toEqual({ deleted: false, tags: devTag('shop-alice') });
 });
+
+test('a stage that uses a dev secret only inside $CfFormat restores it and keeps it', async () => {
+  const { state, value } = useAccount(ministack.account());
+  referenceSecrets('shop-queue');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+  const generated = await value('shop-queue');
+  for (const key of overridden.splice(0)) delete (configManager as unknown as Record<PropertyKey, unknown>)[key];
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual(['shop-queue']);
+
+  configManager.config = {
+    resources: {},
+    variables: { queueUrl: "$CfFormat('amqp://app:{}@queue.internal', $Secret('shop-queue.password'))" }
+  } as unknown as typeof configManager.config;
+  try {
+    await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  } finally {
+    configManager.reset();
+  }
+  expect(await state('shop-queue')).toEqual({ deleted: false, tags: [] });
+  expect(await value('shop-queue')).toBe(generated);
+});
