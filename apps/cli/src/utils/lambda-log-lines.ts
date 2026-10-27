@@ -47,6 +47,16 @@ const levelOfLabel = (label: string): LambdaLogLevel => {
   return 'info';
 };
 
+/** pino and bunyan write numeric levels: 10 trace, 20 debug, 30 info, 40 warn, 50 error, 60 fatal. */
+const NUMERIC_LEVELS: Array<[minimum: number, label: string]> = [
+  [60, 'FATAL'],
+  [50, 'ERROR'],
+  [40, 'WARN'],
+  [30, 'INFO'],
+  [20, 'DEBUG'],
+  [0, 'TRACE']
+];
+
 const UNHANDLED_EXCEPTION_WARNING = 'LAMBDA_WARNING: Unhandled exception';
 /** A JVM exception: `<message>: java.lang.IllegalStateException` or `java.lang.IllegalStateException: <message>`. */
 const JVM_EXCEPTION =
@@ -60,8 +70,10 @@ export const getPlainLambdaLogLineLevel = (message: string): LambdaLogLevel => {
     text.startsWith(UNHANDLED_EXCEPTION_WARNING) ||
     text.includes('Traceback (most recent call last)') ||
     /Task timed out after \d/.test(text) ||
-    // The .NET runtime's start-up failures, for example a missing `.deps.json`.
-    /^Error: /.test(text) ||
+    // The .NET runtime's start-up failure when the deployment lacks its `.deps.json`.
+    text.startsWith('Error: .NET binaries for Lambda function are not correctly installed') ||
+    // An error with its stack, written by the runtime or the function: `TypeError: ...\n    at ...`.
+    /^[\w$.]*(?:Error|Exception)(?::[^\n]*)?\n\s+at /.test(text) ||
     (JVM_EXCEPTION.test(text) && /\n\s*at /.test(text))
   ) {
     return 'error';
@@ -120,7 +132,8 @@ const parseJsonLine = (message: string): ParsedLambdaLogLine | undefined => {
     }
     return { kind: 'skip' };
   }
-  const label = record.level ?? record.log_level;
+  const rawLabel = record.level ?? record.log_level;
+  const label = typeof rawLabel === 'number' ? NUMERIC_LEVELS.find(([minimum]) => rawLabel >= minimum)?.[1] : rawLabel;
   if (typeof label !== 'string') return undefined;
   const body = record.message ?? record.errorMessage ?? message;
   const content =

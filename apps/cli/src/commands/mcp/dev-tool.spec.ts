@@ -1025,6 +1025,42 @@ describe('MCP dev session scope', () => {
     }
   });
 
+  // #343 review: a session of another stage started in the directory cleared the take-over answer of the replaced one.
+  test('a session of another stage started after a take-over leaves the replaced stage reported', async () => {
+    const project = await projectDirectory('taken-over-other-stage');
+    const replaced = await daemon({ status: localDatabase });
+    const other = await daemon({ status: localDatabase });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, serverDirectory: () => project });
+      await handler({ action: 'start', args: { agentPort: replaced.port, cwd: project, stage: 'r2p' } });
+      await writeFile(
+        localStatePaths.devAgentStopReasonFile({ port: replaced.port }),
+        JSON.stringify({
+          code: 'DEV_STAGE_TAKEN_OVER',
+          message:
+            'Bob (laptop, ~/shop-wt2) took over dev mode for shop-r2p, so deployed functions now reach the databases there. This session stopped so that it cannot redeploy functions over theirs.',
+          at: new Date().toISOString()
+        })
+      );
+      await replaced.close();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await handler({ action: 'start', args: { agentPort: other.port, cwd: project, stage: 'r2p2' } });
+
+      for (const action of ['status', 'rebuild'] as const) {
+        const output = (await handler({ action, args: { workload: 'api' } })).structuredContent;
+        expect(output).toMatchObject({ ok: false, code: 'DEV_STAGE_TAKEN_OVER' });
+      }
+      expect(other.state.rebuilt).toEqual([]);
+      const byStage = (await handler({ action: 'rebuild', args: { workload: 'web', stage: 'r2p2' } }))
+        .structuredContent;
+      expect(byStage).toMatchObject({ ok: true, data: { session: { agentPort: other.port, stage: 'r2p2' } } });
+      expect(other.state.rebuilt).toEqual(['web']);
+    } finally {
+      await replaced.close();
+      await other.close();
+    }
+  });
+
   test('sessions stopped elsewhere are dropped before an inferred session is chosen', async () => {
     const project = await projectDirectory('stopped');
     const kept = await daemon();

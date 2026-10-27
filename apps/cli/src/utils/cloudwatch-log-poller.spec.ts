@@ -112,6 +112,32 @@ test('a boost reads a quiet log group at once; an unregistered one is not read a
   expect(reads.length).toBe(afterUnregister);
 });
 
+test('a read with more pages continues at the request rate and leaves room for the other groups', async () => {
+  const clock = virtualClock();
+  const scheduler = createLogPollScheduler({ now: clock.now, sleep: clock.sleep, random: () => 0.5 });
+  const calls: Array<{ id: string; at: number }> = [];
+  let pages = 20;
+  scheduler.register('backlog', async () => {
+    calls.push({ id: 'backlog', at: clock.now() });
+    return { found: 0, more: --pages > 0 };
+  });
+  scheduler.register('other', async () => {
+    calls.push({ id: 'other', at: clock.now() });
+    return 0;
+  });
+  await clock.runUntil(15_000);
+  scheduler.stop();
+
+  const backlog = calls.filter(({ id }) => id === 'backlog').map(({ at }) => at);
+  // All 20 pages within about 10 s at 2 requests a second, instead of one page every second or two.
+  expect(backlog.length).toBeGreaterThanOrEqual(20);
+  expect(backlog[19]).toBeLessThanOrEqual(12_000);
+  for (let second = 0; second < 15; second++) {
+    expect(calls.filter(({ at }) => at >= second * 1000 && at < (second + 1) * 1000).length).toBeLessThanOrEqual(2);
+  }
+  expect(calls.filter(({ id, at }) => id === 'other' && at < 10_000).length).toBeGreaterThanOrEqual(3);
+});
+
 test.each([
   [throttled(), true],
   [new Error('Rate exceeded'), true],

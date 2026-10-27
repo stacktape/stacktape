@@ -98,7 +98,25 @@ const levels: Array<[runtime: string, message: string, level: 'info' | 'warn' | 
     `2026-10-25T23:47:10.100Z\t${REQUEST}\tfail\tSystem.InvalidOperationException: boom\n   at Orders.Function.Handler(Stream input)\n`,
     'error'
   ],
-  ['any', `2026-10-25T23:47:10.100Z ${REQUEST} Task timed out after 3.00 seconds\n`, 'error']
+  ['any', `2026-10-25T23:47:10.100Z ${REQUEST} Task timed out after 3.00 seconds\n`, 'error'],
+  // pino and bunyan write to stdout directly, with numeric levels (#343 review).
+  ['node pino', '{"level":60,"time":1761436030100,"pid":8,"hostname":"169.254.1.1","msg":"cannot start"}\n', 'error'],
+  ['node pino', '{"level":50,"time":1761436030100,"pid":8,"hostname":"169.254.1.1","msg":"payment failed"}\n', 'error'],
+  ['node pino', '{"level":40,"time":1761436030100,"pid":8,"hostname":"169.254.1.1","msg":"slow query"}\n', 'warn'],
+  ['node pino', '{"level":30,"time":1761436030100,"pid":8,"hostname":"169.254.1.1","msg":"order 42"}\n', 'info'],
+  [
+    'node bunyan',
+    '{"name":"orders","hostname":"169.254.1.1","pid":8,"level":50,"msg":"database down","time":"2026-10-25T23:47:10.100Z","v":0}\n',
+    'error'
+  ],
+  // A line the function prints that only mentions an error is not one (#343 review); an error with its stack is.
+  ['python', 'Error: payment provider unreachable, retrying in 2 s\n', 'info'],
+  ['node', 'Error: config value missing, using the default\n', 'info'],
+  [
+    'node',
+    "TypeError: Cannot read properties of undefined (reading 'id')\n    at handler (/var/task/index.js:3:20)\n",
+    'error'
+  ]
 ];
 
 describe('Lambda log line levels', () => {

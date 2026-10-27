@@ -8,18 +8,61 @@ import { getAwsSynchronizedTime } from '@utils/time';
 import { formatIsoLocalTime } from '@utils/formatting';
 import { getPlainLambdaLogLineLevel, parseLambdaLogLine, type LambdaLogLevel } from '@utils/lambda-log-lines';
 
-/** `timestamp` is the CloudWatch event time in milliseconds, when the line comes from one event. */
 /** How far each fetch reaches back for events that reached CloudWatch after newer ones of another log stream. */
 const LATE_EVENT_WINDOW_MS = 10_000;
+/** The backlog search narrows a window that holds too many events down to this, and reads a window this short whole. */
+const BACKLOG_MIN_WINDOW_MS = 1000;
+/** The backlog search gives up after this many requests and shows what it found: a few seconds within the budget. */
+const BACKLOG_MAX_REQUESTS = 12;
 
+const byTime = (a: FilteredLogEvent, b: FilteredLogEvent) =>
+  (a.timestamp ?? 0) - (b.timestamp ?? 0) || (a.ingestionTime ?? 0) - (b.ingestionTime ?? 0);
+
+/** `timestamp` is the CloudWatch event time in milliseconds, when the line comes from one event. */
 type LogCallback = (message: string, level: 'info' | 'warn' | 'error', timestamp?: number) => void;
+
+type FetchPage = (params: {
+  logGroupName: string;
+  startTime: number;
+  endTime?: number;
+  limit?: number;
+  nextToken?: string;
+  filterPattern?: string;
+}) => Promise<{ events: FilteredLogEvent[]; nextToken?: string }>;
+
+/**
+ * The search for the newest `lines` events between `since` and `until`. It reads one request at a time, from the newest
+ * window backwards. `FilterLogEvents` returns the oldest events of a range first; a window that holds more events than
+ * are needed is narrowed to its newest part instead of being read to its end.
+ */
+type BacklogSearch = {
+  until: number;
+  lines: number;
+  /** The range not read yet: from `lowest` to `cursor`, both inclusive. */
+  lowest: number;
+  cursor: number;
+  span: number;
+  /** Every event newer than `cursor`, oldest first. */
+  found: FilteredLogEvent[];
+  /** Every event of a range right below `lowest`, from a window that held too many: older than all unread ones. */
+  below: FilteredLogEvent[];
+  /** The window being read page by page. */
+  partial?: { events: FilteredLogEvent[]; nextToken: string };
+  requests: number;
+};
 
 export class LambdaCloudwatchLogPrinter {
   logGroupName: string;
   fetchSince: number;
   /** Events older than this are not shown: they belong to an earlier session or an earlier deployment. */
   #notBefore: number;
-  #handledEvents = new Set<string>();
+  /** Shown events by ID, with their time: only events within the late-event window can be fetched again. */
+  #handledEvents = new Map<string, number>();
+  /** A read whose next page is still to come; the next poll fetches it. */
+  #query: { startTime: number; nextToken: string } | undefined;
+  #backlog: BacklogSearch | undefined;
+  #fetchPage: FetchPage;
+  #filterPattern: string | undefined;
   #printedRequestIds: { [requestId: string]: SupportedConsoleColor } = {};
   #colorSequence: SupportedConsoleColor[] = ['blue', 'yellow', 'magenta', 'green', 'gray'];
   #lastColor: SupportedConsoleColor;
@@ -29,16 +72,38 @@ export class LambdaCloudwatchLogPrinter {
   constructor({
     fetchSince,
     logGroupAwsResourceName,
-    onLog
+    onLog,
+    backlog,
+    filterPattern,
+    fetchPage = (params) => awsSdkManager.observability.filterLogEventsPage(params)
   }: {
     fetchSince: number;
     logGroupAwsResourceName: string;
     onLog?: LogCallback;
+    /** Shows the newest `lines` events between `fetchSince` and `until` first, then follows from `until`. */
+    backlog?: { lines: number; until: number };
+    /** A CloudWatch Logs filter pattern: only matching events are read. */
+    filterPattern?: string;
+    fetchPage?: FetchPage;
   }) {
     this.fetchSince = fetchSince;
     this.#notBefore = fetchSince + 1;
     this.logGroupName = logGroupAwsResourceName;
     this.#onLog = onLog || null;
+    this.#fetchPage = fetchPage;
+    this.#filterPattern = filterPattern;
+    if (backlog && backlog.lines > 0 && backlog.until > fetchSince) {
+      this.#backlog = {
+        until: backlog.until,
+        lines: backlog.lines,
+        lowest: fetchSince + 1,
+        cursor: backlog.until,
+        span: backlog.until - fetchSince,
+        found: [],
+        below: [],
+        requests: 0
+      };
+    }
   }
 
   #output(message: string, level: 'info' | 'warn' | 'error' = 'info') {
@@ -54,35 +119,111 @@ export class LambdaCloudwatchLogPrinter {
   /**
    * Fetches the log group's events since the last fetch, from every log stream: concurrent invocations write to
    * several. Events can reach CloudWatch out of order across streams, so each fetch reaches back a little and skips
-   * events it has already shown. Returns how many new events it printed. One call is one `FilterLogEvents` request (or
-   * one per page).
+   * events it has already shown. One call is one `FilterLogEvents` request; `more` says that the next page is waiting.
    */
-  printLogs = async (): Promise<number> => {
-    const events = await awsSdkManager.observability.getLogEvents({
+  printLogs = async (): Promise<{ found: number; more: boolean }> => {
+    if (this.#backlog) return this.#readBacklog(this.#backlog);
+    const query = this.#query ?? {
+      startTime: Math.max(this.#notBefore, this.fetchSince - LATE_EVENT_WINDOW_MS),
+      nextToken: undefined
+    };
+    const { events, nextToken } = await this.#fetchPage({
       logGroupName: this.logGroupName,
-      startTime: Math.max(this.#notBefore, this.fetchSince - LATE_EVENT_WINDOW_MS)
+      startTime: query.startTime,
+      nextToken: query.nextToken,
+      filterPattern: this.#filterPattern
     });
-    if (!events.length) return 0;
-    this.fetchSince = Math.max(this.fetchSince, ...events.map((event) => event.timestamp ?? 0));
+    this.#query = nextToken ? { startTime: query.startTime, nextToken } : undefined;
+    return { found: this.#printNewEvents(events), more: Boolean(nextToken) };
+  };
+
+  #printNewEvents = (events: FilteredLogEvent[]) => {
+    if (events.length) this.fetchSince = Math.max(this.fetchSince, ...events.map((event) => event.timestamp ?? 0));
     const unhandledEvents = events
       .filter((event) => (event.timestamp ?? 0) >= this.#notBefore && !this.#handledEvents.has(event.eventId))
-      .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0) || (a.ingestionTime ?? 0) - (b.ingestionTime ?? 0));
+      .sort(byTime);
     this.#printLambdaLogEvents(unhandledEvents);
     this.#currentEventTimestamp = undefined;
     for (const event of unhandledEvents) {
-      this.#handledEvents.add(event.eventId);
+      this.#handledEvents.set(event.eventId, event.timestamp ?? 0);
     }
-    // Prevent unbounded memory growth - keep only recent event IDs
-    if (this.#handledEvents.size > 10000) {
-      const eventsArray = Array.from(this.#handledEvents);
-      this.#handledEvents = new Set(eventsArray.slice(-5000));
+    // No later read returns an event older than where it starts, so its ID is no longer needed.
+    const oldestReadable = Math.min(
+      this.#query?.startTime ?? Infinity,
+      Math.max(this.#notBefore, this.fetchSince - LATE_EVENT_WINDOW_MS)
+    );
+    for (const [eventId, timestamp] of this.#handledEvents) {
+      if (timestamp < oldestReadable) this.#handledEvents.delete(eventId);
     }
     return unhandledEvents.length;
+  };
+
+  #readBacklog = async (search: BacklogSearch): Promise<{ found: number; more: boolean }> => {
+    const need = search.lines - search.found.length;
+    const startTime = Math.max(search.lowest, search.cursor - search.span + 1);
+    // A window of a second is read whole, at the most events `FilterLogEvents` returns at once, and its newest events
+    // kept: a narrower one would cost a request for every few events.
+    const whole = search.cursor - startTime + 1 <= BACKLOG_MIN_WINDOW_MS;
+    const page = await this.#fetchPage({
+      logGroupName: this.logGroupName,
+      startTime,
+      endTime: search.cursor,
+      limit: whole ? 10_000 : Math.min(need, 10_000),
+      nextToken: search.partial?.nextToken,
+      filterPattern: this.#filterPattern
+    });
+    search.requests++;
+    const events = [...(search.partial?.events ?? []), ...page.events];
+    search.partial = undefined;
+    const lastRequest = search.requests >= BACKLOG_MAX_REQUESTS;
+    // CloudWatch also returns a token after the last page of a range; the next page is then empty.
+    if (page.nextToken && !lastRequest && (whole || events.length < need)) {
+      search.partial = { events, nextToken: page.nextToken };
+      return { found: 0, more: true };
+    }
+    if (page.nextToken && !whole && !lastRequest) {
+      // More events than are needed. The page holds every event of the window older than its newest one, so the
+      // search goes on above that event, in a narrower window.
+      const newest = Math.max(...events.map((event) => event.timestamp ?? 0));
+      search.below = events.filter((event) => (event.timestamp ?? 0) < newest);
+      search.lowest = newest;
+      search.span = Math.max(BACKLOG_MIN_WINDOW_MS, Math.floor((search.cursor - search.lowest + 1) / 10));
+      return { found: 0, more: true };
+    }
+    if (page.nextToken) {
+      // Out of requests in the middle of a window: the events read so far are its oldest.
+      return this.#finishBacklog(search, [...events, ...search.found]);
+    }
+    search.found = [...events, ...search.found];
+    search.cursor = startTime - 1;
+    if (search.found.length >= search.lines) return this.#finishBacklog(search, search.found);
+    if (startTime <= search.lowest) return this.#finishBacklog(search, [...search.below, ...search.found]);
+    if (lastRequest) return this.#finishBacklog(search, search.found);
+    // The rest of the range, which a window that held too many events has already made smaller.
+    search.span = search.cursor - search.lowest + 1;
+    return { found: 0, more: true };
+  };
+
+  /**
+   * Prints the backlog. Following then shows no event older than the backlog's oldest fully read window, nor older than
+   * the oldest event it showed: a window can hold more events than were shown.
+   */
+  #finishBacklog = (search: BacklogSearch, events: FilteredLogEvent[]) => {
+    this.#backlog = undefined;
+    const shown = [...events].sort(byTime).slice(-search.lines);
+    this.#notBefore = Math.max(search.cursor + 1, shown[0]?.timestamp ?? 0);
+    this.fetchSince = search.until;
+    this.#printLambdaLogEvents(shown);
+    this.#currentEventTimestamp = undefined;
+    for (const event of shown) this.#handledEvents.set(event.eventId, event.timestamp ?? 0);
+    return { found: shown.length, more: false };
   };
 
   /** Shows only events written from now on, for example after the function was redeployed. */
   skipEarlierEvents = async () => {
     const now = (await getAwsSynchronizedTime()).getTime();
+    this.#backlog = undefined;
+    this.#query = undefined;
     this.#notBefore = now + 1;
     this.fetchSince = now;
   };

@@ -12,8 +12,11 @@
  * minutes a month), which a dev session left running all day would turn into a real cost.
  */
 
-/** Polls once and returns how many new events it found. */
-type PollFn = () => Promise<number>;
+/**
+ * Polls once (one request) and returns how many new events it found; `more` asks for the next page as soon as the
+ * budget allows.
+ */
+type PollFn = () => Promise<number | { found: number; more: boolean }>;
 
 type Target = { poll: PollFn; nextPollAt: number; intervalMs: number; failures: number };
 
@@ -79,8 +82,11 @@ export const createLogPollScheduler = ({
       }
       if (!id || !target) continue;
       nextRequestAt = now() + 1000 / rate;
+      let more = false;
       try {
-        const found = await target.poll();
+        const result = await target.poll();
+        const found = typeof result === 'number' ? result : result.found;
+        more = typeof result !== 'number' && result.more;
         target.failures = 0;
         target.intervalMs = found > 0 ? activeIntervalMs : Math.min(idleIntervalMs, target.intervalMs * 1.5);
         if (++successesSinceThrottle >= 5 && rate < maxRequestsPerSecond) {
@@ -98,7 +104,7 @@ export const createLogPollScheduler = ({
         }
         target.intervalMs = Math.min(idleIntervalMs * 6, idleIntervalMs * 2 ** Math.min(target.failures - 1, 3));
       }
-      if (targets.get(id) === target) target.nextPollAt = now() + jitter(target.intervalMs);
+      if (targets.get(id) === target) target.nextPollAt = more ? now() : now() + jitter(target.intervalMs);
     }
   };
 

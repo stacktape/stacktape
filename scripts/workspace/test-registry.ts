@@ -4387,6 +4387,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/src/utils/lambda-log-lines.spec.ts',
       'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
+      'apps/cli/src/utils/cloudwatch-logs.spec.ts',
       'apps/cli/tests/characterization/aws-cost-management.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
       'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',

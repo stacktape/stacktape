@@ -166,12 +166,15 @@ export const commandLogs = async () => {
   // CI/agent mode — so `stacktape logs ... | grep` stays append-only and exits.
   const shouldFollow = tuiManager.mode === 'tty' && !raw;
   if (shouldFollow) {
+    // The newest `limit` events of the window first, as the one-shot read shows them, then the new ones.
     const printer = new LambdaCloudwatchLogPrinter({
       fetchSince: startTime.getTime(),
-      logGroupAwsResourceName: logGroupName
+      logGroupAwsResourceName: logGroupName,
+      backlog: { lines: limit, until: endTime.getTime() },
+      filterPattern: filter
     });
     tuiManager.info(
-      `Following logs for ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''}. Press Ctrl+C to stop.`
+      `Showing the last ${limit} log lines of ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''} and following new ones. Press Ctrl+C to stop.`
     );
 
     // Throttling slows the polling down instead of ending the command; other errors end it after a few attempts.
@@ -193,9 +196,9 @@ export const commandLogs = async () => {
       }
     });
     scheduler.register(logGroupName, async () => {
-      const printed = await printer.printLogs();
+      const result = await printer.printLogs();
       consecutiveFailures = 0;
-      return printed;
+      return result;
     });
     applicationManager.registerCleanUpHook(() => scheduler.stop());
     // Follow until the user interrupts (Ctrl+C → applicationManager exit handler).
