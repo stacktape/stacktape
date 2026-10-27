@@ -1188,7 +1188,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   } catch (error) {
     if (applicationManager.isInterrupted) throw error;
     startError = error instanceof Error ? error.message : String(error);
-    attemptedSourceFiles = packagingManager.getAttemptedSourceFiles(resourceName);
+    attemptedSourceFiles = packagingManager.takeAttemptedSourceFiles(resourceName);
   } finally {
     packagingManager.clearPackagedJobs();
   }

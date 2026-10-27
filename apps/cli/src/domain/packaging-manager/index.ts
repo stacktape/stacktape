@@ -438,7 +438,6 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
-    this.#attemptedSourceFiles.clear();
     this.#deployedFunctions.clear();
     this.#deployedFunctionZips.clear();
     this.#deployedLayerZips.clear();
@@ -448,9 +447,14 @@ export class PackagingManager {
     this.#nativeBinaryLayerByLambda.clear();
   }
 
-  /** The files the last build of the job reads, when its build reported them; also after a failed build. */
-  getAttemptedSourceFiles(jobName: string) {
-    return this.#attemptedSourceFiles.get(jobName);
+  /**
+   * The files the last build of the job reads, when its build reported them; also after a failed build. Taking them
+   * removes them. `clearPackagedJobs` leaves them, because `dev` starts functions in parallel and each clears the jobs.
+   */
+  takeAttemptedSourceFiles(jobName: string) {
+    const sourceFiles = this.#attemptedSourceFiles.get(jobName);
+    this.#attemptedSourceFiles.delete(jobName);
+    return sourceFiles;
   }
 
   getPackagingOutputForJob(jobName: string) {
