@@ -1,9 +1,9 @@
 import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
-import { BucketAlreadyExists, S3 } from '@aws-sdk/client-s3';
+import { BucketAlreadyExists, BucketAlreadyOwnedByYou, S3 } from '@aws-sdk/client-s3';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
-import { chunkArray } from '@utils/misc';
+import { chunkArray, wait } from '@utils/misc';
 
 const s3Api = new S3({ region: 'us-east-1' });
 
@@ -19,9 +19,8 @@ export const edgeLambdaBucket: ServiceLambdaResolver<StpServiceCustomResourcePro
   // check existence of deployment bucket
   const deploymentBucketExists = await bucketExists(EDGE_DEPLOYMENT_BUCKET_NAME);
   if (operation === 'Create' || operation === 'Update') {
-    // if non-existent and there are newEdgeFunctions create bucket
     if (!deploymentBucketExists) {
-      await createDeploymentBucket(EDGE_DEPLOYMENT_BUCKET_NAME);
+      await ensureEdgeDeploymentBucket(EDGE_DEPLOYMENT_BUCKET_NAME);
     }
     return { data: { name: EDGE_DEPLOYMENT_BUCKET_NAME }, physicalResourceId: EDGE_DEPLOYMENT_BUCKET_NAME };
   }
@@ -93,12 +92,34 @@ const bucketExists = async (bucketName: string) => {
   return true;
 };
 
+/**
+ * Creates the us-east-1 bucket that edge Lambda code is deployed from, unless it exists. The bucket resource and every
+ * edge Lambda of a stack can run this at the same time, so a concurrent create is retried.
+ */
+export const ensureEdgeDeploymentBucket = async (bucketName: string) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      if (!(await bucketExists(bucketName))) {
+        await createDeploymentBucket(bucketName);
+      }
+      return;
+    } catch (err) {
+      // S3 answers OperationAborted while another request is creating or configuring the same bucket.
+      if ((err as Error).name !== 'OperationAborted' || attempt >= 10) {
+        throw err;
+      }
+      console.info(`Edge deployment bucket is being changed by another request. Retrying (${attempt})...`);
+      await wait(1000);
+    }
+  }
+};
+
 const createDeploymentBucket = async (bucketName: string) => {
   console.info('Creating edge deployment bucket...');
   try {
     await s3Api.createBucket({ Bucket: bucketName });
   } catch (err) {
-    if (err instanceof BucketAlreadyExists) {
+    if (err instanceof BucketAlreadyExists || err instanceof BucketAlreadyOwnedByYou) {
       console.info('Bucket already exists - SKIPPING');
     } else {
       throw err;

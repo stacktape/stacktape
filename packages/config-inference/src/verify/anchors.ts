@@ -86,6 +86,14 @@ export const DEPENDENCY_ANCHORS: Record<DependencyKind, AnchorRule> = {
   nats: {
     patterns: [/\bnats\b/i, /nats\.go/i, /async-nats/i, /NATS_/],
     expectation: 'a NATS client, server URL, or NATS_* variable'
+  },
+  'event-bus': {
+    patterns: [/eventbridge/i, /PutEvents/i, /put_events/i, /event.?bus/i],
+    expectation: 'an EventBridge PutEvents call or an event bus reference'
+  },
+  'websocket-api': {
+    patterns: [/websocket/i, /ApiGatewayManagementApi/i, /PostToConnection/i, /connectionId/i, /routeKey/i],
+    expectation: 'a WebSocket API handler or a PostToConnection call'
   }
 };
 
@@ -117,6 +125,9 @@ const TRIGGER_PATTERNS: Record<FunctionTrigger['type'], readonly RegExp[]> = {
   topic: [/Type:\s*SNS\b/i, /SNSEvent|SNSHandler/i],
   'object-storage': [/Type:\s*S3\b/i, /S3Event|S3Handler|ObjectCreated/i],
   schedule: [/Type:\s*Schedule\b/i, /ScheduledEvent|scheduleRate|\brate\s*\(|\bcron\s*\(/i],
+  websocket: [/Type:\s*WebSocket\b/i, /APIGatewayProxyWebsocket|routeKey|route_key|connectionId|\$connect/i],
+  'dynamodb-stream': [/Type:\s*DynamoDB\b/i, /DynamoDBStream|\bdynamodb\b|NewImage|OldImage|aws:dynamodb/i],
+  'event-bus': [/Type:\s*EventBridgeRule\b/i, /EventBridge(?:Event|Handler)|detail-type|detailType|detail_type/i],
   unmapped: [/events?\s*:|addEventSource|authorizer|websocket|stream/i]
 };
 

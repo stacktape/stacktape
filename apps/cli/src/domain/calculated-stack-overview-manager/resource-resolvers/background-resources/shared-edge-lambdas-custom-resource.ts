@@ -6,7 +6,12 @@ import { getEdgeLambdaBucketCustomResource, getEdgeLambdaCustomResource } from '
 
 export const resolveDefaultEdgeLambdas = () => {
   if (configManager.configContainsCdnDistribution) {
-    [configManager.stacktapeOriginRequestLambdaProps, configManager.stacktapeOriginResponseLambdaProps]
+    [
+      configManager.stacktapeOriginRequestLambdaProps,
+      ...(configManager.configNeedsStacktapeOriginResponseLambda
+        ? [configManager.stacktapeOriginResponseLambdaProps]
+        : [])
+    ]
       .map(getEdgeLambdaCustomResource)
       .forEach(({ cfLogicalName, resource, nameChain }) =>
         calculatedStackOverviewManager.addCfChildResource({

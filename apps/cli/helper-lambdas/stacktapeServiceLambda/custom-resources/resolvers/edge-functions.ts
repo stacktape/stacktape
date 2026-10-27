@@ -21,6 +21,7 @@ import { tagNames } from '@stacktape/naming/tag-names';
 import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from 'src/config/constants';
 import { wait } from '@utils/misc';
 import { getAssumeRolePolicyDocumentForFunctionRole } from 'src/aws/iam';
+import { ensureEdgeDeploymentBucket } from './edge-lambda-bucket';
 
 const configurationChangeDetectionParameters: (keyof StpServiceCustomResourceEdgeFunctionProps)[] = [
   'packaging',
@@ -94,44 +95,59 @@ export const edgeFunctions: ServiceLambdaResolver<StpServiceCustomResourceProper
     functionsRequiringPublish
   } = getDesiredOperations(newEdgeFunctions, oldEdgeFunctions);
 
+  // The edge deployment bucket resource may still be creating the bucket, so whichever comes first creates it.
+  let edgeBucketReady: Promise<void> | undefined;
+  const ensureEdgeBucket = () => (edgeBucketReady ??= ensureEdgeDeploymentBucket(EDGE_DEPLOYMENT_BUCKET_NAME));
+
   // dealing with completely new functions
   await Promise.all(
     newFunctions.map(async (lambdaProps) => {
       const lambdaResourceName = lambdaProps.resourceName;
       const lambdaRoleResourceName = lambdaProps.lambdaRoleResourceName;
-      // setup logging
-      await setupLogGroupsInAllRegions({ lambdaProps });
-      const existingFunction = await functionExists(lambdaResourceName);
-      let existingRole = await roleExists(lambdaRoleResourceName);
-      if (!existingRole) {
-        console.info(`Creating role for ${lambdaResourceName} edge lambda...`);
-        existingRole = await createRole(lambdaProps);
-        console.info(`Creating role for ${lambdaResourceName} edge lambda - SUCCESS`);
-        // after creation for new role wait few seconds. Roles often need to propagate first
-        // otherwise we might get InvalidParameterValueException, when associating with lambda
-        await wait(10000);
-        modifiedRoleFunctions.push(lambdaProps);
-      }
-      // function can already exist even though it is "new" in the customResource.
-      // This is due to leftovers after deletion of the stack which had same name.
-      // in these cases, we rather update the function and release new version
-      if (existingFunction) {
-        console.info(`Function ${lambdaResourceName} already exists. Function and its policies will get updated...`);
-        modifiedConfigurationFunctions.push(lambdaProps);
-        modifiedCodeFunctions.push(lambdaProps);
-        modifiedRoleFunctions.push(lambdaProps);
-      } else {
-        console.info(`Copying artifact for edge lambda ${lambdaResourceName}...`);
-        await copyBetweenBuckets(
-          lambdaProps.artifactBucketName,
-          EDGE_DEPLOYMENT_BUCKET_NAME,
-          lambdaProps.artifactS3Key
-        );
-        console.info(`Copying artifact for edge lambda ${lambdaResourceName} - SUCCESS`);
+      const createFunctionAndRole = async () => {
+        const [existingFunction, existingRole] = await Promise.all([
+          functionExists(lambdaResourceName),
+          roleExists(lambdaRoleResourceName)
+        ]);
+        const getRoleArn = async () => {
+          if (existingRole) {
+            return existingRole.Arn;
+          }
+          console.info(`Creating role for ${lambdaResourceName} edge lambda...`);
+          const createdRole = await createRole(lambdaProps);
+          console.info(`Creating role for ${lambdaResourceName} edge lambda - SUCCESS`);
+          modifiedRoleFunctions.push(lambdaProps);
+          return createdRole.Arn;
+        };
+        // function can already exist even though it is "new" in the customResource.
+        // This is due to leftovers after deletion of the stack which had same name.
+        // in these cases, we rather update the function and release new version
+        if (existingFunction) {
+          await getRoleArn();
+          console.info(`Function ${lambdaResourceName} already exists. Function and its policies will get updated...`);
+          modifiedConfigurationFunctions.push(lambdaProps);
+          modifiedCodeFunctions.push(lambdaProps);
+          modifiedRoleFunctions.push(lambdaProps);
+          return;
+        }
+        const [roleArn] = await Promise.all([
+          getRoleArn(),
+          (async () => {
+            await ensureEdgeBucket();
+            console.info(`Copying artifact for edge lambda ${lambdaResourceName}...`);
+            await copyBetweenBuckets(
+              lambdaProps.artifactBucketName,
+              EDGE_DEPLOYMENT_BUCKET_NAME,
+              lambdaProps.artifactS3Key
+            );
+            console.info(`Copying artifact for edge lambda ${lambdaResourceName} - SUCCESS`);
+          })()
+        ]);
         console.info(`Creating lambda ${lambdaResourceName}...`);
-        await createFunction(lambdaProps, existingRole.Arn, EDGE_DEPLOYMENT_BUCKET_NAME, lambdaResourceName);
+        await createFunction(lambdaProps, roleArn, EDGE_DEPLOYMENT_BUCKET_NAME, lambdaResourceName);
         console.info(`Creating lambda ${lambdaResourceName} - SUCCESS`);
-      }
+      };
+      await Promise.all([setupLogGroupsInAllRegions({ lambdaProps }), createFunctionAndRole()]);
       return lambdaResourceName;
     })
   );
@@ -152,6 +168,7 @@ export const edgeFunctions: ServiceLambdaResolver<StpServiceCustomResourceProper
   await Promise.all(
     modifiedCodeFunctions.map(async (lambdaProps) => {
       const lambdaResourceName = lambdaProps.resourceName;
+      await ensureEdgeBucket();
       console.info(`Copying artifact for edge lambda ${lambdaResourceName}...`);
       await copyBetweenBuckets(lambdaProps.artifactBucketName, EDGE_DEPLOYMENT_BUCKET_NAME, lambdaProps.artifactS3Key);
       console.info(`Copying artifact for edge lambda ${lambdaResourceName} - SUCCESS`);
@@ -336,15 +353,29 @@ const getDesiredOperations = (
   };
 };
 
+/**
+ * Older CLIs put the artifact's local path, which differs on every command, into `packaging`. Its content is already
+ * covered by `artifactS3Key`, so the path never counts as a change.
+ */
+const comparableParam = (lambdaProps: StpServiceCustomResourceEdgeFunctionProps, paramName: string) => {
+  if (paramName !== 'packaging' || !lambdaProps.packaging?.properties) {
+    return lambdaProps[paramName];
+  }
+  const { artifactPath: _artifactPath, ...properties } = lambdaProps.packaging.properties as Record<string, unknown>;
+  return { ...lambdaProps.packaging, properties };
+};
+
 const paramHasChanged = (
   lambdaProps: StpServiceCustomResourceEdgeFunctionProps,
   oldLambdaProps: StpServiceCustomResourceEdgeFunctionProps,
   paramName: string
 ) => {
-  if (typeof lambdaProps[paramName] === 'string') {
-    return lambdaProps[paramName] !== oldLambdaProps[paramName];
+  const value = comparableParam(lambdaProps, paramName);
+  const oldValue = comparableParam(oldLambdaProps, paramName);
+  if (typeof value === 'string') {
+    return value !== oldValue;
   }
-  return JSON.stringify(lambdaProps[paramName]) !== JSON.stringify(oldLambdaProps[paramName]);
+  return JSON.stringify(value) !== JSON.stringify(oldValue);
 };
 
 const createRole = async (lambdaProps: StpServiceCustomResourceEdgeFunctionProps) => {
@@ -447,26 +478,58 @@ const modifyFunctionCode = async (
   });
 };
 
+/** How long `createFunction` retries while a new role is not yet assumable by Lambda (IAM propagation). */
+const ROLE_PROPAGATION_TIMEOUT_MS = 60_000;
+const ROLE_PROPAGATION_RETRY_MS = 1000;
+
 const createFunction = async (
   lambdaProps: StpServiceCustomResourceEdgeFunctionProps,
   roleArn: string,
   artifactBucketName: string,
   lambdaResourceName: string
 ) => {
-  await lambdaApi.createFunction({
-    MemorySize: Number(lambdaProps.memory),
-    Code: { S3Bucket: artifactBucketName, S3Key: lambdaProps.artifactS3Key },
-    FunctionName: lambdaResourceName,
-    Handler: lambdaProps.handler,
-    Role: roleArn,
-    Runtime: lambdaProps.runtime as unknown as Runtime,
-    Timeout: Number(lambdaProps.timeout)
-  });
+  const startedAt = Date.now();
+  for (;;) {
+    try {
+      await lambdaApi.createFunction({
+        MemorySize: Number(lambdaProps.memory),
+        Code: { S3Bucket: artifactBucketName, S3Key: lambdaProps.artifactS3Key },
+        FunctionName: lambdaResourceName,
+        Handler: lambdaProps.handler,
+        Role: roleArn,
+        Runtime: lambdaProps.runtime as unknown as Runtime,
+        Timeout: Number(lambdaProps.timeout)
+      });
+      return;
+    } catch (err) {
+      // A role created moments ago is not assumable until IAM has propagated it, usually within seconds.
+      const roleNotReady = err instanceof InvalidParameterValueException && /cannot be assumed/i.test(err.message);
+      if (!roleNotReady || Date.now() - startedAt > ROLE_PROPAGATION_TIMEOUT_MS) {
+        throw err;
+      }
+      console.info(`Role of ${lambdaResourceName} is not assumable yet. Retrying...`);
+      await wait(ROLE_PROPAGATION_RETRY_MS);
+    }
+  }
 };
 
+const publishedFields = ['CodeSha256', 'Handler', 'Runtime', 'MemorySize', 'Timeout', 'Role'] as const;
+
+/**
+ * Publishes the function's current code and configuration as a new version, unless the latest version already has
+ * both. A new version changes the distribution's association, and CloudFront then redeploys it (minutes).
+ */
 const publishFunction = async (lambdaResourceName: string) => {
   // wait for lambda to be active/inactive (to be prepared for publishing)
   await waitForFunctionToBeReadyForOperation(lambdaResourceName);
+  const [current, latest] = await Promise.all([
+    lambdaApi.getFunctionConfiguration({ FunctionName: lambdaResourceName }),
+    getLatestVersionOfFunction(lambdaResourceName)
+  ]);
+  if (latest.Version !== '$LATEST' && publishedFields.every((field) => current[field] === latest[field])) {
+    console.info(`Version ${latest.Version} of ${lambdaResourceName} already has its code and configuration.`);
+    return latest;
+  }
   return lambdaApi.publishVersion({
     FunctionName: lambdaResourceName
   });

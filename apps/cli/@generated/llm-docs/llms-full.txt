@@ -5538,7 +5538,13 @@ stacktape logs myApi --stage prod --region eu-west-1 --since "2h" --filter "ERRO
 
 The command resolves log streams for the target log group, fetches matching events, and either formats them for terminal display or outputs JSON when `--raw` or `--agent` is set.
 
-In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits.
+In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits. `--follow=false` does the same in a terminal.
+
+`--follow` keeps following without a terminal, for example in a coding agent's shell or in CI. Each log line is written as plain text as soon as it arrives. The command ends on Ctrl+C or `SIGTERM`, and when the reading end of its output closes, as with `| head -20`: it notices on the next line it writes. `--follow` cannot be combined with `--raw`.
+
+```bash
+stacktape logs myApi --stage dev --region eu-west-1 --follow --filter "ERROR" > api-errors.log &
+```
 
 ### Insights mode
 
@@ -5716,6 +5722,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
+| `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -5750,7 +5757,7 @@ The `--since` flag controls how far back the command looks — there is no hard 
 
 ### Does stacktape logs live-tail?
 
-The `stacktape logs` command fetches a snapshot of log events for a time window — it does not live-tail. You can approximate tailing by running the command repeatedly with a short `--since` (e.g., `--since "1m"`). For log viewing in the browser, see [Logs](/observability/logs).
+Yes. In a terminal, `stacktape logs` shows the newest events and then prints new ones as they arrive until you press Ctrl+C. Without a terminal it prints the events once, unless you pass `--follow`. For log viewing in the browser, see [Logs](/observability/logs).
 
 ### How much does CloudWatch Logs cost?
 
@@ -8278,6 +8285,16 @@ Also fix before production (not reported for this stage):
 ```
 
 With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType`, `stacktape-console` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
+
+## Missing secrets
+
+A `$Secret` whose secret does not exist yet in the region is a finding, not a failure: `validate` reports it and checks the rest of the configuration, with a placeholder reference in the template. This is the normal state after [`init`](/cli/init), which keeps a generated database or Redis password in a secret it does not create.
+
+```text
+[!] Secret my-app-cache does not exist in eu-west-1 yet. It holds a generated database password: stacktape dev creates it when it starts, and stacktape deploy creates it before it deploys (in a terminal it asks first). To create it yourself, run stacktape secret set my-app-cache with a JSON value that has a `password` key.
+```
+
+Any other missing secret, such as an API key, has to be created with [`secret set`](/cli/secret-set) before `deploy` or `dev` can run; both stop until it exists. With `--agent`, the result lists them in `missingSecrets`, each with its `name`, the `jsonKeys` the configuration reads and whether Stacktape `generated` its value.
 
 ## When to use validate
 
@@ -13241,7 +13258,7 @@ Stacktape uploads packaged artifacts to an S3 deployment bucket and pushes conta
 
 For new stacks, Stacktape creates the CloudFormation stack. For existing stacks, Stacktape submits the updated template and CloudFormation determines which resources need to be created, updated, or deleted. CloudFormation handles dependency ordering and parallelizes independent resource operations. When only code changed, Stacktape updates the changed Lambda functions and container workloads directly through the AWS APIs instead (see [Fast deployments](#fast-deployments)).
 
-An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished, and reports any old resource AWS could not delete, because that resource then stays in your account.
+An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished. The first of them to see an old resource AWS could not delete reports it once, because that resource then stays in your account.
 
 ### Post-deploy
 
@@ -15986,7 +16003,7 @@ Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names
 
 Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis clusters, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
 
-The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
+The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag. On stacks with a CDN, it deletes Stacktape's origin-response Lambda@Edge function unless a bucket sets custom metadata headers, the only case that uses it. Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
 
 Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
 
@@ -18683,6 +18700,8 @@ dev function (dev network, private subnet) ──► dev box ──► Systems M
 Nothing is published on the internet. Your machine opens the connection to the box, through an AWS Systems Manager session authenticated by your AWS credentials and encrypted. On the box, the relay port of each database admits only dev functions.
 
 The AWS account is the trust boundary. Every dev function in the account's dev network can reach every developer's relay ports, not only the functions of that developer's stage. Local DynamoDB and OpenSearch have no password, and local Redis has one only when its `defaultUserPassword` is set; Postgres and MySQL always have one. The passwords of local databases, including the ones Stacktape generates, are written into the dev functions' environment variables, so they appear in the dev stack's Lambda configuration and CloudFormation template. They are valid only for the databases on your machine. Use a separate AWS account for people who must not reach each other's local databases.
+
+A database's relay port stays open for 2 minutes after its session ends, so a session that restarts finds it open. A function that connects while no session holds the port, for example a schedule that fires during a restart, waits up to 30 seconds for the next session of the stage and then reaches its database. When no session comes back in time, the box closes the connection, and the database client reports a closed connection. A connection is refused when no session has opened the port since the box started, or when the last session ended more than 2 minutes before.
 
 A query takes your machine's round trip to the region plus a few milliseconds; about 45 ms from Central Europe to `eu-west-1`. Bulk transfers are limited to about 0.7 MB/s per developer by Systems Manager, so a query that returns 5 MB takes about 7 s. Seeding or exporting large amounts of data is faster from your machine directly.
 
@@ -22394,7 +22413,7 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch, it caps the `aws/spans` log group's retention at 90 days once X-Ray creates the group — but only when no retention was set before. An already-enabled Transaction Search setup is left exactly as found.
+- X-Ray creates the `aws/spans` log group with a 30-day retention, so spans are kept for 30 days. Stacktape does not change a retention that is already set; you can change it in CloudWatch Logs. Should X-Ray create the group without a retention, Stacktape sets the same 30 days instead of CloudWatch's default of keeping logs forever. An already-enabled Transaction Search setup is left exactly as found.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 - AWS takes several minutes to activate Transaction Search. The first deploy does not wait for it, so spans sent in those first minutes are not stored.
 
@@ -48801,7 +48820,7 @@ Yes. The startup message confirms local database data is stored in `.stacktape/d
 
 ### Are destructive database operations safe during AI sessions?
 
-The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally.
+The PostgreSQL, MySQL, and Redis query/command endpoints accept an optional `confirm` field. The startup documentation warns that destructive operations require `{"confirm": true}` — without it, the request is rejected. `/reset` always requires it. DynamoDB and OpenSearch delete handlers do not accept a `confirm` parameter; they require the key or document identifier fields directly. All of these endpoints reach only the databases dev mode runs locally, except that the DynamoDB `query`, `scan`, `schema` and `sample` endpoints also read a table the dev stack deploys (a remote resource). Their answer then has `deployed: true`, and the write endpoints refuse that table.
 
 ### What happens if a workload fails?
 
@@ -49131,7 +49150,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`env`** returns the environment of a `workload` with secret values masked. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region`) with the dev agent's credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does.
 - **`stop`** terminates the active session.
 
-`query`, `tables` and `reset_db` reach only databases that dev mode runs on your machine. A database connected to its deployed instance with `remoteResources`, or any other deployed resource, returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
+`query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
 
 `args` is typed in the tool's input schema, with a description of every argument, so an assistant does not have to guess names such as `freshDb` or `awsAccount`.
 

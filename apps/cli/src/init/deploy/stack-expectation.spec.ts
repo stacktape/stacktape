@@ -27,6 +27,7 @@ const stack = (overrides: Partial<Stack> = {}): Stack => {
     StackStatus: 'UPDATE_COMPLETE',
     CreationTime: new Date('2026-01-01T00:00:00.000Z'),
     Description: 'STP-stack_orders_dev_hash',
+    Outputs: [{ OutputKey: 'StpDeploymentVersion', OutputValue: 'v000001' }],
     Tags: [
       { Key: 'stp:project-name', Value: 'orders' },
       { Key: 'stp:stage', Value: 'dev' }
@@ -54,6 +55,24 @@ describe('classifying an init deploy target', () => {
       status: 'updateable',
       stackId: STACK_ID,
       stackStatus: 'UPDATE_COMPLETE'
+    });
+  });
+
+  // A first deploy creates the artifact resources while the workloads build. When the build or the full update then
+  // fails, the retry is still the stage's first deploy.
+  it('treats a stack no deploy has completed as absent', () => {
+    expect(observation(stack({ StackStatus: 'CREATE_COMPLETE', Outputs: [] }))).toEqual({
+      ...target,
+      status: 'absent'
+    });
+    expect(observation(stack({ StackStatus: 'UPDATE_ROLLBACK_COMPLETE', Outputs: undefined }))).toEqual({
+      ...target,
+      status: 'absent'
+    });
+    // A stack that has to be deleted or fixed first stays blocked.
+    expect(observation(stack({ StackStatus: 'ROLLBACK_COMPLETE', Outputs: [] }))).toMatchObject({
+      status: 'blocked',
+      reason: 'unsafe-status'
     });
   });
 

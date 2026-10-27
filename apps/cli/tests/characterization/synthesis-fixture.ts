@@ -16,6 +16,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { assertLocalAwsEndpoint, type MiniStackClientConfig } from '@stacktape/ministack/fixture';
 import type { StackContext } from '@domain-services/stack-context';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 import type { CompiledStacktapeConfig } from '@stacktape/config-authoring';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -55,7 +56,8 @@ export const synthesizeFixture = async ({
   deployedTemplate,
   localAws,
   devNetwork,
-  devSkippedFunctions
+  devSkippedFunctions,
+  existingStackResources
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
   compiledConfig?: CompiledStacktapeConfig;
@@ -75,6 +77,8 @@ export const synthesizeFixture = async ({
   devNetwork?: DevNetworkPlacement;
   /** The functions a dev session leaves out; the dev stack keeps them without triggers. */
   devSkippedFunctions?: string[];
+  /** The resources of the stack as deployed, for an update of an existing stack. */
+  existingStackResources?: EnrichedStackResourceInfo[];
 }) => {
   if (!compiledConfig === !configPath) {
     throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
@@ -197,6 +201,7 @@ export const synthesizeFixture = async ({
       commandModifiesStack: false,
       commandRequiresDeployedStack: false
     });
+    if (existingStackResources) stackManager.existingStackResources = existingStackResources;
 
     await Promise.all([
       templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),

@@ -11,7 +11,8 @@
  * (`resource-resolvers/*`): `connectionString`/`host`/`port`/`dbName`/`jdbcConnectionString` for
  * databases, `connectionString`/`host`/`port` for Redis, `name`/`arn` for buckets and tables,
  * `url`/`name`/`arn` for queues, `arn`/`name` for topics, `connectionString` for Atlas,
- * `domainEndpoint` for OpenSearch. Inventing a parameter name here fails at deploy time, so add
+ * `domainEndpoint` for OpenSearch, `arn` for event buses, `url`/`managementEndpoint` for WebSocket
+ * APIs. Inventing a parameter name here fails at deploy time, so add
  * one only after reading the resolver that publishes it.
  */
 
@@ -56,6 +57,14 @@ const PRIMARY_HANDLE: Partial<Record<DependencyKind, string>> = {
  */
 export const wiringFor = (kind: DependencyKind, variableName: string): EnvironmentWiring => {
   const name = variableName.toUpperCase();
+
+  // An event bus publishes only its ARN, which `PutEvents` accepts as `EventBusName`.
+  if (kind === 'event-bus') return { kind: 'param', param: 'arn' };
+  // A WebSocket API has two addresses: the `wss://` URL clients connect to, and the HTTPS endpoint the backend posts
+  // to connections through.
+  if (kind === 'websocket-api') {
+    return { kind: 'param', param: /MANAGEMENT|CALLBACK|CONNECTIONS/.test(name) ? 'managementEndpoint' : 'url' };
+  }
 
   // Framework mode/configuration switches can contain the dependency name while asking for a
   // literal such as `phpredis`, `default`, a prefix, or a retry count. They are never addresses.

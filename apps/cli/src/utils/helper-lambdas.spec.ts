@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { cp, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { HELPER_LAMBDA_NAMES } from '@config';
+import {
+  DIST_FOLDER_PATH,
+  LAMBDA_TRACING_RUNTIME_DIST_PATH,
+  SOURCE_MAP_INSTALL_DIST_PATH
+} from 'src/config/project-paths';
 import { loadHelperLambdaDetailsFromDir, writeHelperLambdaManifest } from './helper-lambdas';
 
 const tempDirs: string[] = [];
@@ -105,4 +110,17 @@ describe('loadHelperLambdaDetailsFromDir', () => {
       code: 'HELPER_LAMBDA_MANIFEST_INVALID'
     });
   });
+});
+
+// `pnpm dev:cli` runs `build:dev-artifacts` through Turbo. A cache hit restores only the declared outputs, so an asset
+// missing from them disappears from a clean checkout, and traced deploys from source failed without the runtime.
+test('the cached dev-artifacts build restores every asset the source CLI reads from the dist folder', async () => {
+  const turboConfig = JSON.parse(await readFile(join(import.meta.dir, '..', '..', 'turbo.json'), 'utf8')) as {
+    tasks: Record<string, { outputs?: string[] }>;
+  };
+  const outputs = turboConfig.tasks['build:dev-artifacts']?.outputs ?? [];
+  const cliRoot = dirname(DIST_FOLDER_PATH);
+  for (const asset of [SOURCE_MAP_INSTALL_DIST_PATH, LAMBDA_TRACING_RUNTIME_DIST_PATH]) {
+    expect(outputs).toContain(relative(cliRoot, asset).replaceAll('\\', '/'));
+  }
 });

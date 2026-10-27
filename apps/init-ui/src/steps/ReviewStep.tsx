@@ -335,7 +335,9 @@ export const summarise = (state: WizardState): string => {
     sqlite: 'a SQLite database',
     amqp: 'a RabbitMQ broker',
     nats: 'a NATS server',
-    topic: 'a notification topic'
+    topic: 'a notification topic',
+    'event-bus': 'an event bus',
+    'websocket-api': 'a WebSocket API'
   };
   // Composition creates nothing for these kinds (see composeDependency), so the sentence that says
   // what will exist on AWS cannot list them as part of it; they get their own sentence instead.

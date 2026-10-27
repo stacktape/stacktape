@@ -85,7 +85,7 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch, it caps the `aws/spans` log group's retention at 90 days once X-Ray creates the group — but only when no retention was set before. An already-enabled Transaction Search setup is left exactly as found.
+- X-Ray creates the `aws/spans` log group with a 30-day retention, so spans are kept for 30 days. Stacktape does not change a retention that is already set; you can change it in CloudWatch Logs. Should X-Ray create the group without a retention, Stacktape sets the same 30 days instead of CloudWatch's default of keeping logs forever. An already-enabled Transaction Search setup is left exactly as found.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 - AWS takes several minutes to activate Transaction Search. The first deploy does not wait for it, so spans sent in those first minutes are not stored.
 

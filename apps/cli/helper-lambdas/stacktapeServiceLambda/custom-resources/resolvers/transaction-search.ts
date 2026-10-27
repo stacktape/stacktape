@@ -10,8 +10,12 @@ const logsApi = new CloudWatchLogs({});
 
 const RESOURCE_POLICY_NAME = 'StacktapeTransactionSearchXRayAccess';
 const SPANS_LOG_GROUP = 'aws/spans';
-/** Applied only when Stacktape itself enables Transaction Search; an external setup is never touched. */
-const SPANS_RETENTION_DAYS = 90;
+/**
+ * X-Ray creates `aws/spans` with this retention, and Stacktape keeps it: span storage is billed for every workload in
+ * the account, not only Stacktape's. The same value is set only when the group has no retention (CloudWatch's default
+ * keeps logs forever), and only when Stacktape itself enables Transaction Search; an external setup is never touched.
+ */
+const SPANS_RETENTION_DAYS = 30;
 /** X-Ray creates `aws/spans` within seconds of the switch, long before activation finishes. */
 const LOG_GROUP_WAIT_MS = 2 * 60_000;
 const LOG_GROUP_POLL_INTERVAL_MS = 5_000;
@@ -22,7 +26,7 @@ const getPartition = (region: string | undefined) =>
 /**
  * The `aws/` log-group prefix is reserved — only X-Ray itself can create `aws/spans`, which it does
  * as part of enabling the destination. Retention is therefore applied after the fact, and only when
- * the group has no retention yet, so an externally chosen retention is never overwritten.
+ * the group has no retention yet, so X-Ray's or an externally chosen retention is never overwritten.
  */
 const applyRetentionIfUnset = async (): Promise<boolean> => {
   const { logGroups } = await logsApi.describeLogGroups({ logGroupNamePrefix: SPANS_LOG_GROUP, limit: 5 });
@@ -56,8 +60,8 @@ const boundRetentionOnceGroupExists = async () => {
  *   activating): nothing to do — an external enablement is adopted as-is and never reconfigured
  *   (including its retention);
  * - classic segment mode: grant X-Ray the log-group write policy and switch the destination; X-Ray
- *   then creates `aws/spans` itself, and its retention is bounded afterwards (CloudWatch's default
- *   is keep-forever) unless one was already chosen;
+ *   then creates `aws/spans` itself with a 30-day retention; a group without retention (CloudWatch's
+ *   default is keep-forever) gets the same 30 days;
  * - Delete: deliberately a no-op. Other stacks (or non-Stacktape workloads) may rely on it, and
  *   disabling would silently change how the whole account's X-Ray traffic is stored.
  */

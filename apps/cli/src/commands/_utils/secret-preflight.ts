@@ -81,6 +81,33 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
   }
 };
 
+/** `$Secret` references whose secret does not exist in the target region, with the JSON keys the config reads. */
+const findMissingSecretReferences = async (): Promise<[string, Set<string>][]> => {
+  const secretRefs = configManager.allSecretReferencesUsedInConfig;
+  if (!secretRefs.size) {
+    return [];
+  }
+  const existingSecrets = await awsSdkManager.secrets.list();
+  const existingSecretNames = new Set(existingSecrets.map(({ Name }) => Name));
+  return [...secretRefs.entries()].filter(([name]) => !existingSecretNames.has(name));
+};
+
+export type MissingSecret = {
+  name: string;
+  jsonKeys: string[];
+  /** A database password `dev` and `deploy` generate on their own; anything else needs a value from the user. */
+  generated: boolean;
+};
+
+export const findMissingSecrets = async (): Promise<MissingSecret[]> => {
+  const autoGenerableNames = configManager.autoGenerableSecretNames;
+  return (await findMissingSecretReferences()).map(([name, jsonKeys]) => ({
+    name,
+    jsonKeys: [...jsonKeys],
+    generated: autoGenerableNames.has(name)
+  }));
+};
+
 /**
  * Checks all `$Secret` references in the config against existing secrets in the region.
  *

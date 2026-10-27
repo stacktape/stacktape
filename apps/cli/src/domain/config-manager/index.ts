@@ -64,7 +64,7 @@ import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getDirectiveParams, getIsDirective } from '@utils/directives';
+import { getDirectiveParams, getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
 import { startTiming } from '@utils/timings';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
@@ -171,6 +171,8 @@ export class ConfigManager {
   #cliRemoteResourceNames: readonly string[] = [];
   #devAutoRemoteResourceNames: readonly string[] = [];
   #devSkippedFunctionNames: ReadonlySet<string> = new Set();
+  /** Secrets `validate` reported as missing, so their references resolve to placeholders and the other checks run. */
+  #secretsReportedMissing = new Set<string>();
   #devNetworkPlacement: DevNetworkPlacement | undefined;
   #devTrustStatement: DeveloperTrustStatement | undefined;
 
@@ -327,6 +329,7 @@ export class ConfigManager {
     this.#cliRemoteResourceNames = [];
     this.#devAutoRemoteResourceNames = [];
     this.#devSkippedFunctionNames = new Set();
+    this.#secretsReportedMissing = new Set();
     this.#devNetworkPlacement = undefined;
     this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
@@ -1861,7 +1864,10 @@ export class ConfigManager {
       res.push(this.batchJobs[0]._nestedResources.triggerFunction);
     }
     if (this.configContainsCdnDistribution) {
-      res.push(this.stacktapeOriginRequestLambdaProps, this.stacktapeOriginResponseLambdaProps);
+      res.push(this.stacktapeOriginRequestLambdaProps);
+    }
+    if (this.configNeedsStacktapeOriginResponseLambda) {
+      res.push(this.stacktapeOriginResponseLambdaProps);
     }
     return res;
   }
@@ -2083,10 +2089,9 @@ export class ConfigManager {
     const secretNames: string[] = [];
     processAllNodesSync(this.allAlarms, (node) => {
       if (typeof node === 'string') {
-        // if secret is referenced using $Secret directive
-        if (getIsDirective(node) && node.startsWith('$Secret')) {
-          const [secretName] = getDirectiveParams('Secret', node)[0].value.split('.') as string[];
-          secretNames.push(secretName);
+        // if secret is referenced using $Secret directive, on its own or inside another directive
+        if (getIsDirective(node)) {
+          secretNames.push(...getNestedDirectiveReferences(node, 'Secret').map((reference) => reference.split('.')[0]));
           return;
         }
         // secret referenced using dynamic reference
@@ -2099,11 +2104,16 @@ export class ConfigManager {
     return Array.from(new Set(secretNames));
   }
 
+  reportSecretsMissing = (secretNames: Iterable<string>) => {
+    for (const secretName of secretNames) this.#secretsReportedMissing.add(secretName);
+  };
+
+  isSecretReportedMissing = (secretName: string) => this.#secretsReportedMissing.has(secretName);
+
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();
     const visit = (node: unknown) => {
-      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$Secret')) {
-        const fullRef = getDirectiveParams('Secret', node)[0].value as string;
+      for (const fullRef of getNestedDirectiveReferences(node, 'Secret')) {
         const [secretName, jsonKey] = fullRef.split('.');
         if (!secretRefs.has(secretName)) {
           secretRefs.set(secretName, new Set());
@@ -2175,10 +2185,7 @@ export class ConfigManager {
   get allSsmParamReferencesUsedInConfig() {
     const paramNames = new Set<string>();
     processAllNodesSync(this.config, (node) => {
-      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$SsmParam')) {
-        const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
-        paramNames.add(paramName);
-      }
+      for (const paramName of getNestedDirectiveReferences(node, 'SsmParam')) paramNames.add(paramName);
     });
     return paramNames;
   }
@@ -2187,10 +2194,9 @@ export class ConfigManager {
     const paramNames: string[] = [];
     processAllNodesSync(this.allAlarms, (node) => {
       if (typeof node === 'string') {
-        // $SsmParam directive
-        if (getIsDirective(node) && node.startsWith('$SsmParam')) {
-          const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
-          paramNames.push(paramName);
+        // $SsmParam directive, on its own or inside another directive
+        if (getIsDirective(node)) {
+          paramNames.push(...getNestedDirectiveReferences(node, 'SsmParam'));
           return;
         }
         // SSM dynamic reference
@@ -2586,7 +2592,9 @@ export class ConfigManager {
     return {
       stacktapeServiceLambda: this.stacktapeServiceLambdaProps,
       cdnOriginRequestLambda: this.configContainsCdnDistribution ? this.stacktapeOriginRequestLambdaProps : undefined,
-      cdnOriginResponseLambda: this.configContainsCdnDistribution ? this.stacktapeOriginResponseLambdaProps : undefined
+      cdnOriginResponseLambda: this.configNeedsStacktapeOriginResponseLambda
+        ? this.stacktapeOriginResponseLambdaProps
+        : undefined
     };
   }
 
@@ -2618,6 +2626,15 @@ export class ConfigManager {
     return [...this.allBuckets, ...this.allHttpApiGateways, ...this.allApplicationLoadBalancers].some(
       (resource) => resource.cdn?.enabled
     );
+  }
+
+  /**
+   * The origin-response edge Lambda only adds the custom metadata headers of bucket files, so a CDN gets it only when
+   * some bucket uses such headers. It has no CloudFront replicas without an association, so an existing stack that
+   * drops it deletes it at once.
+   */
+  get configNeedsStacktapeOriginResponseLambda(): boolean {
+    return this.configContainsCdnDistribution && this.allBucketsUsingCustomMetadataHeaders.length > 0;
   }
 
   get allVpcPeeringConnections() {

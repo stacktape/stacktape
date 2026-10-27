@@ -10,6 +10,7 @@ import { TemplateManager } from '@domain-services/template-manager';
 import { startMiniStack, type MiniStack, type MiniStackAccount } from '@stacktape/ministack/fixture';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { ensureMissingSecretsCreated, findMissingSecrets } from '../../src/commands/_utils/secret-preflight';
 import {
   escapeCloudformationSecretDynamicReference,
   locallyResolveSensitiveValue
@@ -31,7 +32,12 @@ afterAll(async () => {
   await ministack?.stop();
 });
 
-const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: Record<string, string> = {}) => {
+const loadConfig = async (
+  account: MiniStackAccount,
+  yaml: string,
+  stackOutput: Record<string, string> = {},
+  command: 'dev' | 'deploy' | 'validate' = 'dev'
+) => {
   const workingDir = await mkdtemp(join(tmpdir(), 'stacktape-secret-config-'));
   directories.push(workingDir);
   const configPath = join(workingDir, 'stacktape.yml');
@@ -40,7 +46,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
   const context: ConfigResolverContext = {
     configPath,
     workingDir,
-    authoringParams: { stage: 'test', region: 'eu-west-1', cliArgs: {}, command: 'dev', awsProfile: '' },
+    authoringParams: { stage: 'test', region: 'eu-west-1', cliArgs: {}, command, awsProfile: '' },
     builtInDirectives: {
       runtime: {
         calculatedStackOverviewManager,
@@ -56,7 +62,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
       additionalArgs: {},
       awsProfile: '',
       cliArgs: {},
-      command: 'dev',
+      command,
       disableEmulation: false,
       region: 'eu-west-1',
       stage: 'test',
@@ -251,5 +257,59 @@ test.each([
     }
   } finally {
     secrets.destroy();
+  }
+});
+
+test('validate checks a template around a secret it reported missing, and deploy still fails on it', async () => {
+  const account = ministack.account();
+  const yaml =
+    "resources: {}\nvariables:\n  password: $Secret('app-cache.password')\n  container: $ContainerSecret('app-cache.password')\n";
+  configManager.reportSecretsMissing(['app-cache']);
+  try {
+    expect(await (await loadConfig(account, yaml, {}, 'validate')).resolve(false)).toEqual({
+      password: '{{resolve:secretsmanager:app-cache:SecretString:password::}}',
+      container: `arn:aws:secretsmanager:eu-west-1:${account.accountId}:secret:app-cache:password::`
+    });
+    await expect((await loadConfig(account, yaml, {}, 'deploy')).resolve(false)).rejects.toMatchObject({
+      code: 'DIRECTIVE_SECRET_UNRESOLVED'
+    });
+  } finally {
+    configManager.reset();
+  }
+  // A secret validate did not report is looked up as before.
+  await expect((await loadConfig(account, yaml, {}, 'validate')).resolve(false)).rejects.toMatchObject({
+    code: 'DIRECTIVE_SECRET_UNRESOLVED'
+  });
+});
+
+test('validate and the deploy preflight find a $Secret nested in $CfFormat', async () => {
+  const account = ministack.account();
+  const yaml =
+    "resources: {}\nvariables:\n  url: $CfFormat('https://{}@api.example', $Secret('app-token.token'))\n  plain: $Secret('app-db')\n";
+  const loaded = await loadConfig(account, yaml, {}, 'validate');
+  configManager.config = loaded.resolver.rawConfig;
+  try {
+    const missing = await findMissingSecrets();
+    expect(missing).toEqual([
+      { name: 'app-token', jsonKeys: ['token'], generated: false },
+      { name: 'app-db', jsonKeys: [], generated: false }
+    ]);
+    // Validate checks the template around both, instead of stopping at the nested one.
+    configManager.reportSecretsMissing(missing.map(({ name }) => name));
+    expect((await loaded.resolve(false)) as Record<string, unknown>).toEqual({
+      url: {
+        'Fn::Sub': [
+          'https://${sub0}@api.example',
+          { sub0: '{{resolve:secretsmanager:app-token:SecretString:token::}}' }
+        ]
+      },
+      plain: '{{resolve:secretsmanager:app-db:SecretString:::}}'
+    });
+    // Deploy asks for both before it does any work, and without a terminal it stops and names them.
+    await expect(ensureMissingSecretsCreated()).rejects.toMatchObject({
+      message: 'Missing 2 secret(s): app-token, app-db'
+    });
+  } finally {
+    configManager.reset();
   }
 });

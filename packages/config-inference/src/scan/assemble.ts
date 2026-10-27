@@ -20,7 +20,7 @@ import {
   type PackageManager,
   type ProjectFacts
 } from '../facts/project-facts';
-import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
+import { invokingDependencyName, type EnvironmentVariableUse, type ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
@@ -538,7 +538,12 @@ const attributeDependencies = (
           consumedBy: services.map((service) => service.name)
         };
       }
-      const evidenceRoots = new Set(dependency.evidence.map((citation) => posix.dirname(citation.file)));
+      // A handler's event type proves what invokes it, not that the code beside it uses the resource.
+      const evidenceRoots = new Set(
+        dependency.evidence
+          .filter((citation) => citation.field !== 'functionTriggers')
+          .map((citation) => posix.dirname(citation.file))
+      );
       const colocatedServices = services.filter((service) => evidenceRoots.has(service.path));
       if (known.length === 0 && colocatedServices.length > 0) {
         return {
@@ -553,6 +558,14 @@ const attributeDependencies = (
       // may additionally point at a shared library package, which is not independently deployable.
       // Once at least one real service is known, retain only real services for that concrete resource.
       return { ...dependency, consumedBy: [...new Set(known)] };
+    }
+    // A resource only a handler's trigger proves (the table whose stream invokes it, the bus code publishes to) is used
+    // by whoever reads its address; the env scan finds them. Sharing a directory with the handler says nothing.
+    if (
+      dependency.evidence.length > 0 &&
+      dependency.evidence.every((citation) => citation.field === 'functionTriggers')
+    ) {
+      return dependency;
     }
     if (services.length === 1) return { ...dependency, consumedBy: [services[0]!.name] };
     if (oneCodebase)
@@ -664,6 +677,44 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void =
   }
 };
 
+const ADDRESS_ROLE_WORD = /_(?:API|SERVICE|SVC|SERVER|BACKEND)$/;
+
+/** `orders-api`, `ordersApi` and `ORDERS_API` all name the same service: `ORDERS` once the role word is gone. */
+const serviceWords = (name: string): string =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .replace(ADDRESS_ROLE_WORD, '');
+
+const SERVICE_ADDRESS_VARIABLE =
+  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?([A-Z0-9_]+?)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
+
+/**
+ * Point a variable that spells another service's name at that service's URL: `ORDERS_API_URL` read by a Next.js
+ * server component, or `NEXT_PUBLIC_ORDERS_URL` read in the browser, addresses the `orders-api` container.
+ *
+ * Only a container that serves HTTP has a URL of its own to give, and only one service may match the name.
+ */
+const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
+  const targets = services.filter(
+    (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
+  );
+  for (const service of services) {
+    for (const variable of service.environmentVariables ?? []) {
+      if (variable.targetServiceName !== undefined || variable.dependencyName !== undefined) continue;
+      if (variable.role !== 'runtime-config' && variable.role !== 'build-time') continue;
+      const words = SERVICE_ADDRESS_VARIABLE.exec(variable.name)?.[1]?.replace(ADDRESS_ROLE_WORD, '');
+      if (words === undefined || words === '') continue;
+      const matches = targets.filter((target) => target !== service && serviceWords(target.name) === words);
+      if (matches.length !== 1) continue;
+      variable.targetServiceName = matches[0]!.name;
+      if (variable.role === 'runtime-config') variable.role = 'cross-service-reference';
+    }
+  }
+};
+
 export type CandidateFactsResult = {
   facts: ProjectFacts;
   /** Files the walk found, reused by the agent tooling so it never walks the tree twice. */
@@ -759,11 +810,7 @@ export const assembleCandidateFacts = async ({
       const service = services.find((candidate) => candidate.name === serviceName);
       if (service === undefined) continue;
       // A function's address for the queue, bucket or topic that invokes it would feed its output back into itself.
-      if (
-        (service.functionTriggers ?? []).some(
-          (trigger) => 'dependencyName' in trigger && trigger.dependencyName === dependency.name
-        )
-      ) {
+      if ((service.functionTriggers ?? []).some((trigger) => invokingDependencyName(trigger) === dependency.name)) {
         continue;
       }
       service.environmentVariables = mergeEnvironmentVariables(
@@ -883,6 +930,7 @@ export const assembleCandidateFacts = async ({
 
   applyStacktapeReferences({ services, dependencies });
   linkFrontendApiAddresses(services);
+  linkServiceAddresses(services);
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

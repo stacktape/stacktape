@@ -20,10 +20,15 @@
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
  * - `{"Hello": port}` and `{"Accept": id}` are bore's own messages.
  *
+ * A leased port keeps listening for a while after its tunnel ends (a session that restarts, or lost its SSM session,
+ * leases the same port again). A connection that arrives then waits for the next tunnel of the same lease key and is
+ * handed to it, so a function invoked during a restart reaches the database once the session is back instead of
+ * getting `Connection refused`. When no tunnel comes back in time, the connection is closed.
+ *
  * The box stops itself: once no tunnel and no presence connection has been open for the idle time, the relay runs the
  * shutdown command, and `InstanceInitiatedShutdownBehavior: stop` turns that into an EC2 stop.
  */
-export const DEV_BOX_RELAY_VERSION = 2;
+export const DEV_BOX_RELAY_VERSION = 3;
 
 export const DEV_BOX_RELAY_SOURCE = String.raw`#!/usr/bin/env python3
 import asyncio
@@ -42,9 +47,14 @@ IDLE_SECONDS = int(os.environ.get('STACKTAPE_RELAY_IDLE_SECONDS', '1800'))
 SHUTDOWN_COMMAND = os.environ.get('STACKTAPE_RELAY_SHUTDOWN_COMMAND', 'shutdown -h now')
 HEARTBEAT_SECONDS = float(os.environ.get('STACKTAPE_RELAY_HEARTBEAT_SECONDS', '1'))
 PENDING_SECONDS = 10
+# How long a leased port keeps listening after its tunnel ended, and how long a connection to it waits for a tunnel.
+PARK_SECONDS = float(os.environ.get('STACKTAPE_RELAY_PARK_SECONDS', '120'))
+WAIT_SECONDS = float(os.environ.get('STACKTAPE_RELAY_WAIT_SECONDS', '30'))
 
 pending = {}
 tunnels = {}
+# The listening socket of each leased port, kept apart from its tunnel so a restarted session finds the port open.
+listeners = {}
 presences = {}
 idle_since = time.monotonic()
 
@@ -103,15 +113,79 @@ async def hold(reader, writer):
 
 
 async def close_tunnel(tunnel):
-    """Closes the tunnel's port, its control connection and every connection it carries: a pooled database
-    connection of a warm function must not keep reaching the replaced session."""
+    """Closes the tunnel's control connection and every connection it carries: a pooled database connection of a warm
+    function must not keep reaching the replaced session. A leased port stays open for the next tunnel."""
     tunnel['writer'].close()
     for conn_writer in list(tunnel['connections']):
         conn_writer.close()
     tunnel['connections'].clear()
-    if tunnel['server']:
+    if tunnel['server'] and not tunnel['key']:
         tunnel['server'].close()
         await tunnel['server'].wait_closed()
+
+
+async def close_listener(port, listener):
+    if listeners.get(port) is listener:
+        del listeners[port]
+    if listener['closer']:
+        listener['closer'].cancel()
+    listener['server'].close()
+    await listener['server'].wait_closed()
+
+
+async def close_when_unused(port, listener):
+    await asyncio.sleep(PARK_SECONDS)
+    if listeners.get(port) is listener and port not in tunnels:
+        listener['closer'] = None
+        log('port %d closed: no session leased it again within %d s' % (port, PARK_SECONDS))
+        await close_listener(port, listener)
+
+
+def reuse_listener(port, key):
+    listener = listeners.get(port)
+    if not listener or listener['key'] != key:
+        return None
+    if listener['closer']:
+        listener['closer'].cancel()
+        listener['closer'] = None
+    return listener['server']
+
+
+async def open_listener(port, key, on_connection):
+    """The listening socket of a tunnel: a leased port's own, kept between its tunnels, or a new one."""
+    if not (port and key):
+        return await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
+    server = reuse_listener(port, key)
+    if server:
+        return server
+    if port in listeners:
+        # The port was leased under another key before: its waiting connections must not reach this lease.
+        await close_listener(port, listeners[port])
+    try:
+        server = await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
+    except OSError:
+        # Another tunnel of this lease opened the port meanwhile.
+        server = reuse_listener(port, key)
+        if server:
+            return server
+        raise
+    if port in listeners:
+        server.close()
+        return reuse_listener(port, key) or listeners[port]['server']
+    listeners[port] = {'server': server, 'key': key, 'closer': None}
+    return server
+
+
+async def tunnel_for(port, key):
+    """The tunnel of this lease, waiting for it when its session is restarting."""
+    deadline = time.monotonic() + WAIT_SECONDS
+    while True:
+        tunnel = tunnels.get(port)
+        if tunnel and tunnel['key'] == key:
+            return tunnel
+        if time.monotonic() >= deadline or port not in listeners:
+            return None
+        await asyncio.sleep(0.1)
 
 
 def stack_of(key):
@@ -152,18 +226,24 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
         await close_tunnel(held)
 
     async def on_connection(conn_reader, conn_writer):
+        # A leased port serves whichever tunnel holds its lease now; one without a lease serves only this tunnel.
+        current = await tunnel_for(actual_port, key) if key else tunnel
+        if current is None or current['writer'].is_closing():
+            log('connection to port %d closed: no dev session holds it' % actual_port)
+            conn_writer.close()
+            return
         connection_id = str(uuid.uuid4())
-        pending[connection_id] = (conn_reader, conn_writer, tunnel)
-        tunnel['connections'].add(conn_writer)
-        writer.write(frame({'Connection': connection_id}))
+        pending[connection_id] = (conn_reader, conn_writer, current)
+        current['connections'].add(conn_writer)
+        current['writer'].write(frame({'Connection': connection_id}))
         await asyncio.sleep(PENDING_SECONDS)
         stale = pending.pop(connection_id, None)
         if stale:
-            tunnel['connections'].discard(conn_writer)
+            current['connections'].discard(conn_writer)
             stale[1].close()
 
     try:
-        server = await asyncio.start_server(on_connection, TUNNEL_HOST, port, reuse_address=True)
+        server = await open_listener(port, key, on_connection)
     except OSError as error:
         if tunnels.get(port) is tunnel:
             del tunnels[port]
@@ -183,10 +263,14 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
     try:
         await hold(reader, writer)
     finally:
-        server.close()
         if tunnels.get(actual_port) is tunnel:
             del tunnels[actual_port]
             log('tunnel %d closed' % actual_port)
+        listener = listeners.get(actual_port)
+        if listener is None:
+            server.close()
+        elif actual_port not in tunnels and not listener['closer']:
+            listener['closer'] = asyncio.ensure_future(close_when_unused(actual_port, listener))
         touch()
         writer.close()
 

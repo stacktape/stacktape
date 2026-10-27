@@ -3,7 +3,7 @@ import { cfnResource, type CloudFormationTemplate } from '@stacktape/cloudformat
 import { getDevBoxUserData } from './boot-script';
 
 /** Increment when the template changes: an older network is updated on the next `stacktape dev` that uses it. */
-export const DEV_NETWORK_CONTRACT_VERSION = 3;
+export const DEV_NETWORK_CONTRACT_VERSION = 4;
 export const DEV_NETWORK_KIND = 'dev-network';
 export const DEV_BOX_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
 export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';

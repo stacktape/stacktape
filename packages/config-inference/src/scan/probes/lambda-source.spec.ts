@@ -141,10 +141,12 @@ describe('the lambda-source probe', () => {
       'src/worker.ts': [{ type: 'queue', dependencyName: 'jobQueue' }],
       'src/thumbnails.ts': [{ type: 'object-storage', dependencyName: 'storageBucket' }],
       'src/report.ts': [{ type: 'schedule', rate: 'rate(2 hours)' }],
-      'src/stream.ts': [{ type: 'unmapped', sourceType: 'a DynamoDB stream' }]
+      // It reads no image, so the stream keeps both.
+      'src/stream.ts': [{ type: 'dynamodb-stream', dependencyName: 'mainTable', streamType: 'NEW_AND_OLD_IMAGES' }]
     });
-    // A trigger names a queue and a bucket, so both exist for the merge to fold into.
+    // A trigger names a queue, a bucket and a table, so they exist for the merge to fold into.
     expect((output.dependencies ?? []).map((dependency) => dependency.kind).toSorted()).toEqual([
+      'dynamodb',
       'object-storage',
       'queue'
     ]);
@@ -367,5 +369,193 @@ describe('the lambda-source probe', () => {
     const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files.toSorted()));
 
     expect(output.services?.map((service) => service.functionEntrypoint)).toEqual(['src/api.ts']);
+  });
+
+  it('serves the WebSocket routes a handler compares its route key against', async () => {
+    const repo = await makeRepo({
+      // `$default` for the branch every other message takes.
+      'functions/ws.ts': [
+        "import type { APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';",
+        'export default async (event: APIGatewayProxyWebsocketEventV2) => {',
+        '  const { routeKey, connectionId } = event.requestContext;',
+        "  if (routeKey === '$connect') await save(connectionId);",
+        "  else if (routeKey === '$disconnect') await forget(connectionId);",
+        '  else console.log(event.body);',
+        '  return { statusCode: 200 };',
+        '};',
+        ''
+      ].join('\n'),
+      'src/chat.ts': [
+        "import type { APIGatewayProxyWebsocketHandlerV2 } from 'aws-lambda';",
+        'export const handler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {',
+        '  switch (event.requestContext.routeKey) {',
+        "    case 'sendMessage':",
+        '      return { statusCode: 200 };',
+        "    case 'join':",
+        '      return { statusCode: 200 };',
+        '  }',
+        '  return { statusCode: 400 };',
+        '};',
+        ''
+      ].join('\n'),
+      // Untyped: `connectionId` and a lifecycle route are only on a WebSocket event.
+      'functions/relay.py': [
+        'def handler(event, context):',
+        "    route_key = event['requestContext']['routeKey']",
+        "    connection = event['requestContext']['connectionId']",
+        "    if route_key == '$connect':",
+        '        save(connection)',
+        "    return {'statusCode': 200}",
+        ''
+      ].join('\n'),
+      'functions/presence.js': [
+        'exports.handler = async (event) => {',
+        '  const { eventType, connectionId } = event.requestContext;',
+        "  if (eventType === 'CONNECT') await join(connectionId);",
+        "  if (eventType === 'DISCONNECT') await leave(connectionId);",
+        '};',
+        ''
+      ].join('\n'),
+      // An HTTP API route that posts to WebSocket connections: `routeKey` is `POST /broadcast`, not a WebSocket route.
+      'functions/broadcast.js': [
+        'exports.handler = async (event) => {',
+        "  if (event.requestContext.http.method !== 'POST' || event.routeKey !== 'POST /broadcast') return { statusCode: 404 };",
+        '  for (const c of await connections()) await post(c.connectionId, event.body);',
+        '  return { statusCode: 200 };',
+        '};',
+        ''
+      ].join('\n'),
+      // No lifecycle route and no event type: nothing says this is a WebSocket route.
+      'functions/audit.py': [
+        'def handler(event, context):',
+        "    log(event['requestContext']['routeKey'], event['requestContext']['connectionId'])",
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+    const triggers = Object.fromEntries(
+      (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
+    );
+
+    expect(triggers).toEqual({
+      'functions/ws.ts': [
+        { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect', '$default'] }
+      ],
+      'src/chat.ts': [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['sendMessage', 'join'] }],
+      'functions/relay.py': [{ type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect'] }],
+      'functions/presence.js': [
+        { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect'] }
+      ],
+      'functions/broadcast.js': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+      'functions/audit.py': []
+    });
+    expect(output.dependencies?.map((dependency) => [dependency.name, dependency.kind])).toEqual([
+      ['websocketApi', 'websocket-api']
+    ]);
+  });
+
+  it('reads a DynamoDB stream handler from the records it reads, with the images it needs', async () => {
+    const repo = await makeRepo({
+      'functions/audit.js': [
+        'exports.handler = async (event) => {',
+        '  for (const record of event.Records) console.log(record.dynamodb.OldImage);',
+        '};',
+        ''
+      ].join('\n'),
+      'functions/index_orders.py': [
+        'def handler(event, context):',
+        "    for record in event['Records']:",
+        "        index(record['dynamodb']['NewImage'])",
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services?.map((service) => [service.functionEntrypoint, service.functionTriggers])).toEqual([
+      ['functions/audit.js', [{ type: 'dynamodb-stream', dependencyName: 'mainTable', streamType: 'OLD_IMAGE' }]],
+      ['functions/index_orders.py', [{ type: 'dynamodb-stream', dependencyName: 'mainTable', streamType: 'NEW_IMAGE' }]]
+    ]);
+  });
+
+  it('subscribes an EventBridge handler to the bus that code in the repository publishes its detail type to', async () => {
+    const repo = await makeRepo({
+      'functions/notify.ts': [
+        "import type { EventBridgeEvent } from 'aws-lambda';",
+        "export default async (event: EventBridgeEvent<'OrderCreated', { id: string }>) => event.detail.id;",
+        ''
+      ].join('\n'),
+      // Nothing here publishes `InvoicePaid`: the events come from somewhere init cannot see.
+      'functions/invoice.ts': [
+        "import type { EventBridgeHandler } from 'aws-lambda';",
+        "export const handler: EventBridgeHandler<'InvoicePaid', unknown, void> = async () => {};",
+        ''
+      ].join('\n'),
+      'src/orders.ts': [
+        "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        "import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';",
+        // Another call's `Source` is not the events' source.
+        "export const confirm = (to: string) => new SESClient({}).send(new SendEmailCommand({ Source: 'noreply@shop.test', Destination: { ToAddresses: [to] } } as never));",
+        'const busName = process.env.ORDER_EVENTS;',
+        'export const announce = (id: string) =>',
+        '  new EventBridgeClient({}).send(',
+        "    new PutEventsCommand({ Entries: [{ EventBusName: busName, Source: 'shop.orders', DetailType: 'OrderCreated', Detail: id }] })",
+        '  );',
+        ''
+      ].join('\n'),
+      // A source the code computes is unknown, so the rule matches the detail type alone.
+      'functions/refund.ts': [
+        "import type { EventBridgeEvent } from 'aws-lambda';",
+        "export default async (event: EventBridgeEvent<'OrderRefunded', { id: string }>) => event.detail.id;",
+        ''
+      ].join('\n'),
+      'src/refunds.ts': [
+        "import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';",
+        'const SOURCE = `shop.${process.env.STAGE}`;',
+        'export const refund = (id: string) =>',
+        "  new EventBridgeClient({}).send(new PutEventsCommand({ Entries: [{ EventBusName: process.env.ORDER_EVENTS, Source: SOURCE, DetailType: 'OrderRefunded', Detail: id }] }));",
+        ''
+      ].join('\n'),
+      // Python on both sides, through `event['detail-type']`.
+      'functions/ship.py': [
+        'def handler(event, context):',
+        "    if event['detail-type'] == 'OrderPaid':",
+        "        ship(event['detail'])",
+        ''
+      ].join('\n'),
+      'billing/pay.py': [
+        'import os, boto3',
+        'def pay(order):',
+        "    boto3.client('events').put_events(Entries=[{",
+        "        'EventBusName': os.environ['ORDER_EVENTS'],",
+        "        'Source': 'shop.billing',",
+        "        'DetailType': 'OrderPaid',",
+        "        'Detail': order,",
+        '    }])',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+    const triggers = Object.fromEntries(
+      (output.services ?? []).map((service) => [service.functionEntrypoint, service.functionTriggers])
+    );
+
+    expect(triggers).toEqual({
+      'functions/notify.ts': [
+        { type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderCreated'], sources: ['shop.orders'] }
+      ],
+      'functions/invoice.ts': [{ type: 'unmapped', sourceType: 'an EventBridge rule' }],
+      'functions/refund.ts': [{ type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderRefunded'] }],
+      'functions/ship.py': [
+        { type: 'event-bus', dependencyName: 'eventBus', detailTypes: ['OrderPaid'], sources: ['shop.billing'] }
+      ]
+    });
+    // The bus is the one the publishers read from `ORDER_EVENTS`, so that variable gets its address.
+    expect(output.dependencies).toMatchObject([{ name: 'eventBus', kind: 'event-bus', addressedBy: ['ORDER_EVENTS'] }]);
   });
 });

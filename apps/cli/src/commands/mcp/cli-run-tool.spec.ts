@@ -228,6 +228,34 @@ describe('stacktape_cli action=run', () => {
     expect(runs).toHaveLength(1);
   });
 
+  // Review of #364: `follow` keeps logs running until stopped, so the call would hang until the runner's timeout.
+  test('keeps follow out of logs and refuses it with the dev tool as the way to watch logs', async () => {
+    const { call, runs } = await connect();
+
+    const description = await call({ action: 'describe', command: 'logs' });
+    expect(description.data?.allowedArgs).not.toContain('follow');
+    expect(Object.keys(description.data?.args ?? {})).not.toContain('follow');
+
+    const output = await call({
+      action: 'run',
+      command: 'logs',
+      args: {
+        projectName: 'shop-api',
+        stage: 'production',
+        region: 'eu-west-1',
+        resourceName: 'ordersApi',
+        follow: true
+      }
+    });
+    expect(output).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: expect.stringContaining('stacktape_dev tool with action "logs"'),
+      data: { refusedArg: 'follow' }
+    });
+    expect(runs).toHaveLength(0);
+  });
+
   test('keeps output-mode arguments out of describe and rejects them on run', async () => {
     const { call, runs } = await connect();
 

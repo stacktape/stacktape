@@ -49,6 +49,10 @@ jobs:
     if: inputs.recovery_run_id == '' && !inputs.bytecode_qualification
     name: Verify public workspace
     runs-on: ubuntu-latest
+    environment: release-registry
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,17 +77,35 @@ jobs:
             sudo tee "$daemon_config" >/dev/null
           sudo systemctl restart docker
           docker info --format '{{json .DriverStatus}}' | grep -q io.containerd.snapshotter
-      - name: Seed official base images from Docker Hub
+      - name: Emulate ARM64 for cross-architecture builds
+        # Packaging builds arm64 Lambda dependencies in linux/arm64 containers; without QEMU they fail with
+        # "exec format error". The registration is the kernel's, so it survives the Docker restart above.
+        run: docker run --rm --privileged tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
+      - name: Sign in to Amazon ECR Public
         # Anonymous pulls from public.ecr.aws share a monthly data limit per IP address, which GitHub's runners exceed
-        # ("429 Data limit exceeded"). Docker Hub serves the same official images, and a build uses a local image as is.
+        # ("429 Data limit exceeded"). The role can only issue a pull token, and its credentials stay in this step.
+        env:
+          ROLE_ARN: ${{ vars.STACKTAPE_RELEASE_REGISTRY_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          web_identity_token=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          echo "::add-mask::$web_identity_token"
+          read -r AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN < <(
+            aws sts assume-role-with-web-identity --role-arn "$ROLE_ARN" --role-session-name "release-verify-$GITHUB_RUN_ID" \
+              --web-identity-token "$web_identity_token" --duration-seconds 900 \
+              --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text
+          )
+          echo "::add-mask::$AWS_SECRET_ACCESS_KEY"
+          echo "::add-mask::$AWS_SESSION_TOKEN"
+          export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+          aws ecr-public get-login-password --region us-east-1 |
+            docker login --username AWS --password-stdin public.ecr.aws
+      - name: Pull the base images that isolated CLI runs need
+        # Tests that run the CLI with their own HOME pull without this sign-in; a build uses a local image as it is.
         run: |
           for tag in node:24-alpine node:22-alpine alpine:3 python:3.13.16-slim python:3.11.14-slim; do
-            # A tag Docker Hub cannot serve is left to the build's own pull, as before.
-            if docker pull --quiet "$tag"; then
-              docker tag "$tag" "public.ecr.aws/docker/library/$tag"
-            else
-              echo "::warning::Could not seed $tag from Docker Hub."
-            fi
+            docker pull --quiet "public.ecr.aws/docker/library/$tag"
           done
       - run: pnpm install --frozen-lockfile
       - name: Validate release input

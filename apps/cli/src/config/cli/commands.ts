@@ -31,6 +31,7 @@ import {
   dockerArgs,
   env,
   filter,
+  follow,
   headersPreset,
   fullDeploy,
   recoverOperation,
@@ -468,6 +469,7 @@ Examples:
       endTime: endTime.optional(),
       filter: filter.optional(),
       raw: raw.optional(),
+      follow: follow.optional(),
       query: logsQuery.optional(),
       limit: limit.optional()
     },

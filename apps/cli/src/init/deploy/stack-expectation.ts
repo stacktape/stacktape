@@ -9,6 +9,7 @@ import type { Stack } from '@aws-sdk/client-cloudformation';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { CliError } from '@utils/errors';
+import { isFirstDeployOfStack } from '@domain-services/cloudformation-stack-manager/first-deploy';
 import { getStackName, getStacktapeStackInfoFromTemplateDescription } from '@stacktape/naming/stacks';
 import { tagNames } from '@stacktape/naming/tag-names';
 
@@ -116,6 +117,9 @@ export const classifyDeployTarget = ({
   if (!UPDATEABLE_STATUSES.has(stackStatus)) {
     return { ...identity, status: 'blocked', reason: 'unsafe-status', stackId, stackStatus };
   }
+  // An earlier first deploy that failed after creating the artifact resources leaves a stack that holds nothing of the
+  // application. Deploying is the stage's first deploy, so the user approves creating it, not updating it.
+  if (isFirstDeployOfStack(stack)) return { ...identity, status: 'absent' };
   return {
     ...identity,
     status: 'updateable',
