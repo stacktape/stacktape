@@ -2,6 +2,7 @@
  * Port management utilities for dev servers.
  * Handles port conflicts, process cleanup, and port allocation.
  */
+import { request as httpRequest } from 'node:http';
 import { connect, createServer } from 'node:net';
 import { DEV_CONFIG } from './dev-config';
 
@@ -229,3 +230,21 @@ export const getDefaultPort = (framework: string): number => {
   };
   return defaults[framework] || 3000;
 };
+
+/**
+ * The status of a `GET /` to a local port, or `undefined` when no HTTP answer came: refused, closed or timed out. A
+ * process manager that accepts connections while its app fails to load closes them without an answer.
+ */
+export const getHttpStatus = ({ port, timeoutMs = 5000 }: { port: number; timeoutMs?: number }) =>
+  new Promise<number | undefined>((resolve) => {
+    const request = httpRequest(
+      { host: '127.0.0.1', port, path: '/', method: 'GET', timeout: timeoutMs, headers: { connection: 'close' } },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode);
+      }
+    );
+    request.on('timeout', () => request.destroy());
+    request.on('error', () => resolve(undefined));
+    request.end();
+  });

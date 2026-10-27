@@ -29,6 +29,7 @@ import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage, type PrepareImageResult } from '../container';
 import { summarizeDockerBuildError } from '../container/build-error';
 import { describeContainerExit } from '../container/exit-reason';
+import { startCommandMayChangeData, waitUntilRunServes } from '../container/run-readiness';
 import {
   DOCKER_HOST_NAME,
   ensureLoopbackRelays,
@@ -49,7 +50,7 @@ import { startTunnel } from '../tunnel-manager';
 import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
 import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
-import { getContainerListenPort, isPortAvailable, reservePorts, waitForTcpPort } from '../port-utils';
+import { getContainerListenPort, isPortAvailable, reservePorts } from '../port-utils';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -78,8 +79,6 @@ const AWS_ROLE_WAIT_MESSAGE =
 
 /** How long a container workload may take from its start until its port accepts connections, migrations included. */
 const CONTAINER_READY_TIMEOUT_MS = 120_000;
-/** How long a rebuilt container without a port must run before it replaces the previous one. */
-const CONTAINER_SETTLE_MS = 2000;
 
 /** A failed container build's error longer than this is cut to the failing step's output (`summarizeDockerBuildError`). */
 const MAX_BUILD_ERROR_LENGTH = 800;
@@ -708,6 +707,11 @@ const startContainerWorkload = async (
   const switched = !hostNetwork && ports.length > 0;
   // Two runs can run side by side unless both would listen on one port of the host network.
   const sideBySide = !hostNetwork || !ports.length;
+  // A port behind a load balancer or an HTTP API serves HTTP; a rebuilt run must answer a request before it takes over.
+  const servesHttp = ['application-load-balancer', 'http-api-gateway'].includes(containerDefinition.events?.[0]?.type);
+  const packagingProperties = (containerDefinition.packaging as any)?.properties ?? {};
+  const startCommand = [packagingProperties.startCommand, packagingProperties.command].flat().filter(Boolean).join(' ');
+  const startupChangesData = startCommandMayChangeData(startCommand);
   const portSwitches: Awaited<ReturnType<typeof startPortSwitch>>[] = [];
 
   applicationManager.registerCleanUpHook(async () => {
@@ -899,41 +903,50 @@ const startContainerWorkload = async (
     return run;
   };
 
-  /** Makes `run` the one the stable ports lead to; on the host network it listens on them itself. */
-  const routeTo = async (run: ContainerRun) => {
-    current = run;
-    if (!switched) return;
-    if (portSwitches.length) {
-      portSwitches.forEach((portSwitch, index) => portSwitch.setTarget(run.publishedPorts[index]!));
-      return;
-    }
-    for (const [index, port] of hostPorts.entries()) {
-      portSwitches.push(await startPortSwitch({ port, targetPort: run.publishedPorts[index]! }));
+  /**
+   * Opens the stable ports before a run starts. When another program took one after the session allocated it, the
+   * workload fails with the port's name, and no container runs unreachable.
+   */
+  const openPortSwitches = async () => {
+    if (!switched || portSwitches.length) return;
+    for (const port of hostPorts) {
+      try {
+        portSwitches.push(await startPortSwitch({ port }));
+      } catch (error) {
+        await Promise.all(portSwitches.splice(0).map((portSwitch) => portSwitch.close()));
+        if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+        throw new ExpectedError(
+          'DOCKER',
+          `Port ${port} on this machine is in use by another program, so dev mode cannot serve ${resourceName} there. Stop the program that listens on it (\`lsof -iTCP:${port} -sTCP:LISTEN\` shows it), then rebuild ${resourceName}.`
+        );
+      }
     }
     // Other dev containers reach the stable ports through `host.docker.internal`.
     await ensureLoopbackRelays(network, hostPorts);
   };
+  /** Makes `run` the one the stable ports lead to; on the host network it listens on them itself. */
+  const routeTo = async (run: ContainerRun) => {
+    await openPortSwitches();
+    current = run;
+    portSwitches.forEach((portSwitch, index) => portSwitch.setTarget(run.publishedPorts[index]!));
+  };
 
-  // `docker run` starts the container long before the app in it listens: a test sent on `ready` got 502 from the dev
-  // proxy. A container with a port counts as running once that port accepts connections. One without (a worker) counts
-  // at once on the first start; a rebuilt one once it has run for `settleMs` without exiting, since an interpreted app
-  // that cannot load its code exits within that time.
+  /** Waits until `run` serves (see `waitUntilRunServes`); a rebuilt run must also confirm it (`confirm`). */
   const waitUntilServing = async (
     run: ContainerRun,
-    { timeoutMs = CONTAINER_READY_TIMEOUT_MS, settleMs = 0 } = {}
+    { timeoutMs = CONTAINER_READY_TIMEOUT_MS, confirm = false } = {}
   ): Promise<'ready' | 'timeout' | 'stopped'> => {
-    const shouldStop = () => run.exited || run.stopping || applicationManager.isInterrupted;
-    let result: 'ready' | 'timeout' | 'stopped';
-    if (primaryHostPort) {
-      result = await waitForTcpPort({ port: run.publishedPorts[0]!, timeoutMs, shouldStop });
-    } else {
-      const deadline = Date.now() + settleMs;
-      while (Date.now() < deadline && !shouldStop()) await new Promise((resolve) => setTimeout(resolve, 100));
-      result = shouldStop() ? 'stopped' : 'ready';
-    }
+    const result = await waitUntilRunServes({
+      port: primaryHostPort ? run.publishedPorts[0]! : undefined,
+      servesHttp,
+      confirm,
+      timeoutMs,
+      shouldStop: () => run.exited || run.stopping || applicationManager.isInterrupted
+    });
     if (result === 'ready') run.served = true;
     return result;
   };
+
   const notServingError = `The container runs, but nothing accepted connections on port ${primaryHostPort} within ${
     CONTAINER_READY_TIMEOUT_MS / 1000
   } s. Make the app listen on the port in the PORT variable (${listenPort}). Dev mode keeps checking and marks it running once it serves.`;
@@ -992,6 +1005,7 @@ const startContainerWorkload = async (
     if (imageResult && environment) {
       // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
       await resolveRunningContainersWithSamePort({ ports: hostPorts, autoStopConflicting: useDevTui });
+      await openPortSwitches();
       const run = await launchContainer(imageResult, environment, localContainerName);
       await routeTo(run);
       const result = await waitUntilServing(run);
@@ -1014,20 +1028,61 @@ const startContainerWorkload = async (
     reportWorkloadError(error instanceof Error ? error.message : String(error));
   }
 
+  /** What a failed rebuild adds when the new run started its command: a migration in it may have run already. */
+  const startupNote = startupChangesData ? ' Its startup command may already have changed the database.' : '';
+
+  /**
+   * Starts the previous build again after the new run failed once the previous one was stopped, and fails the rebuild
+   * with `failure` and the outcome.
+   */
+  const restartPrevious = async (
+    previous: ContainerRun,
+    previousImageId: string | undefined,
+    containerEnvironment: Record<string, any>,
+    failure: string
+  ): Promise<never> => {
+    if (!previousImageId || applicationManager.isInterrupted) throw new ExpectedError('DOCKER', failure);
+    await gracefullyStopContainer(previous.name);
+    const restored = await launchContainer(
+      { ...previous.image, imageName: previousImageId },
+      containerEnvironment,
+      previous.name
+    );
+    await routeTo(restored);
+    const restoredResult = await waitUntilServing(restored);
+    if (restoredResult === 'timeout') watchForLateServing(restored);
+    throw new ExpectedError(
+      'DOCKER',
+      `${failure}\n${
+        restoredResult === 'stopped'
+          ? 'The previous build was started again, and it exited too.'
+          : 'The previous build was started again and serves requests.'
+      }${startupNote}`
+    );
+  };
+
   /**
    * On its own network, the new container starts next to the running one and takes the stable ports over once it
-   * serves; the previous one stops then. When the new one exits first, or does not serve in time, the previous one
-   * keeps serving. The two runs alternate between two container names.
+   * serves and keeps running (see `waitUntilServing`); the previous one stops then. When the new one exits first, or
+   * does not serve in time, the previous one keeps serving. When it exits while the previous one stops, the previous
+   * build starts again. The two runs alternate between two container names.
    */
   const replaceBesideCurrent = async (image: PrepareImageResult, containerEnvironment: Record<string, any>) => {
+    await openPortSwitches();
     const previous = current && !current.exited ? current : undefined;
+    const previousImageId = previous && (await inspectDockerContainer(previous.name)).Image;
     const name = previous?.name === localContainerName ? nextContainerName : localContainerName;
     await gracefullyStopContainer(name);
     const run = await launchContainer(image, containerEnvironment, name);
-    const result = await waitUntilServing(run, { settleMs: CONTAINER_SETTLE_MS });
+    const result = await waitUntilServing(run, { confirm: true });
     if (result === 'ready' || (result === 'timeout' && !previous?.served)) {
       await routeTo(run);
       if (previous) await stopRun(previous);
+      if (run.exited && !applicationManager.isInterrupted) {
+        const failure = `Container "${resourceName}" exited right after it started serving${describeExit(run.stderr())}`;
+        if (previous) await restartPrevious(previous, previousImageId, containerEnvironment, failure);
+        throw new ExpectedError('DOCKER', failure);
+      }
       if (result === 'timeout') {
         watchForLateServing(run);
         throw new ExpectedError('DOCKER', notServingError);
@@ -1035,12 +1090,13 @@ const startContainerWorkload = async (
       return;
     }
     if (applicationManager.isInterrupted) return;
-    const stillServes = previous?.served && !previous.exited ? '\nThe previous build still serves requests.' : '';
+    const stillServes =
+      previous?.served && !previous.exited ? `\nThe previous build still serves requests.${startupNote}` : '';
     if (result === 'timeout') {
       await stopRun(run);
       throw new ExpectedError(
         'DOCKER',
-        `The new container ran, but nothing accepted connections on port ${listenPort} within ${
+        `The new container ran, but it did not ${servesHttp ? 'answer an HTTP request' : 'accept connections'} on port ${listenPort} within ${
           CONTAINER_READY_TIMEOUT_MS / 1000
         } s, so dev mode stopped it. Make the app listen on the port in the PORT variable.${stillServes}`
       );
@@ -1053,14 +1109,14 @@ const startContainerWorkload = async (
 
   /**
    * On the host network, two runs cannot listen on one port: the previous container stops first. When the new one exits
-   * before it serves, the previous image starts again.
+   * before it serves, or right after, the previous image starts again.
    */
   const replaceInPlace = async (image: PrepareImageResult, containerEnvironment: Record<string, any>) => {
     const previous = current && !current.exited ? current : undefined;
     const previousImageId = previous && (await inspectDockerContainer(previous.name)).Image;
     if (previous) await stopRun(previous);
     const run = await launchContainer(image, containerEnvironment, localContainerName);
-    const result = await waitUntilServing(run, { settleMs: CONTAINER_SETTLE_MS });
+    const result = await waitUntilServing(run, { confirm: true });
     if (result === 'ready' || result === 'timeout') {
       await routeTo(run);
       if (result === 'timeout') {
@@ -1071,23 +1127,8 @@ const startContainerWorkload = async (
     }
     if (applicationManager.isInterrupted) return;
     const exitError = `Container "${resourceName}" exited before it served${describeExit(run.stderr())}`;
-    if (!previous || !previousImageId) throw new ExpectedError('DOCKER', exitError);
-    const restored = await launchContainer(
-      { ...previous.image, imageName: previousImageId },
-      containerEnvironment,
-      localContainerName
-    );
-    await routeTo(restored);
-    const restoredResult = await waitUntilServing(restored);
-    if (restoredResult === 'timeout') watchForLateServing(restored);
-    throw new ExpectedError(
-      'DOCKER',
-      `${exitError}\n${
-        restoredResult === 'stopped'
-          ? 'The previous build was started again, and it exited too.'
-          : 'The previous build was started again and serves requests.'
-      }`
-    );
+    if (!previous) throw new ExpectedError('DOCKER', exitError);
+    await restartPrevious(previous, previousImageId, containerEnvironment, exitError);
   };
 
   // Register workload for file watching
@@ -1117,6 +1158,14 @@ const startContainerWorkload = async (
     // The rebuild succeeds once the new container serves; one that exits or never serves fails it.
     if (sideBySide) await replaceBesideCurrent(newImage, rebuiltEnvironment);
     else await replaceInPlace(newImage, rebuiltEnvironment);
+    // A run that exited during the rebuild fails it, even when it had served: the status set after a successful
+    // rebuild would otherwise hide the crash. Nothing runs between this check and that status.
+    if (current?.exited && !applicationManager.isInterrupted) {
+      throw new ExpectedError(
+        'DOCKER',
+        `Container "${resourceName}" stopped during the rebuild${describeExit(current.stderr())}`
+      );
+    }
 
     // Also after a failed start: the status gets the address the workload serves at.
     if (useDevTui && primaryHostPort) {
@@ -1457,22 +1506,18 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
       stackName: stackContext.stackName,
       stackResources: stackManager.existingStackResources
     }).PhysicalResourceId,
-    onLog: useDevTui
-      ? (message, level, timestamp) => {
-          const text = mapLambdaTaskPaths({
-            message,
-            sourceFiles: state.workloads.get(resourceName)?.sourceFiles ?? [],
-            workingDirectory: globalStateManager.workingDir
-          });
-          const beforeReady = fetchSince < now && timestamp !== undefined && timestamp <= now;
-          devTuiManager.log(
-            resourceName,
-            beforeReady ? `${BEFORE_READY_LABEL} ${text}` : text,
-            level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info',
-            timestamp
-          );
-        }
-      : undefined
+    onLog: (message, level, timestamp) => {
+      const mapped = mapLambdaTaskPaths({
+        message,
+        sourceFiles: state.workloads.get(resourceName)?.sourceFiles ?? [],
+        workingDirectory: globalStateManager.workingDir
+      });
+      const beforeReady = fetchSince < now && timestamp !== undefined && timestamp <= now;
+      const text = beforeReady ? `${BEFORE_READY_LABEL} ${mapped}` : mapped;
+      if (useDevTui) devTuiManager.log(resourceName, text, level, timestamp);
+      else if (level === 'error') console.error(text);
+      else console.info(text);
+    }
   });
 
   const logPoll = logPollScheduler.register(resourceName, () => cloudwatchLogPrinter.printLogs());

@@ -65,7 +65,7 @@ export const startNextjsWebDevServer = async ({
             }
           } else if (useDevTui) {
             // Normal operation - update workload status
-            devTuiManager.setWorkloadStatus(name, 'running', { url: newState.url, size: sizeInfo });
+            devTuiManager.setWorkloadStatus(name, 'running', { url: newState.url, size: sizeInfo, error: undefined });
             devTuiManager.log(name, status);
           } else {
             tuiManager.info(`[${name}] ${status}`);
@@ -75,8 +75,9 @@ export const startNextjsWebDevServer = async ({
           if (inRebuildPhase) devTuiManager.setRebuildError(name, newState.error || 'Build failed');
           if (useDevTui) {
             devTuiManager.setWorkloadStatus(name, 'error', { error: newState.error });
-            devTuiManager.log(name, status, 'error');
-          } else {
+            // An error the server printed is in the log already, as its own entry.
+            if (!newState.errorFromOutput) devTuiManager.log(name, status, 'error');
+          } else if (!newState.errorFromOutput) {
             tuiManager.error(`[${name}] ${status}`);
           }
         }

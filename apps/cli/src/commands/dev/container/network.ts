@@ -1,6 +1,7 @@
 import type { AddressInfo, Server, Socket } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { connect, createServer } from 'node:net';
+import { tuiManager } from '@application-services/tui-manager';
 import { execDocker, getDockerHostAddress } from '@utils/docker';
 
 /** The name a dev container uses for this machine, on every platform. */
@@ -69,7 +70,9 @@ type Forwarder = { close: () => Promise<void> };
 
 /**
  * Listens on `bindAddress:port` and passes each connection it accepts to `targetPort()` on this machine's loopback. A
- * connection the target refuses is closed, as Docker's port proxy closes one to a container that does not listen yet.
+ * connection the target refuses, or that arrives before there is a target, is closed, as Docker's port proxy closes
+ * one to a container that does not listen yet. An error after the listener started (too many open files) is reported
+ * once per kind and the listener goes on: an unhandled one ended the dev session.
  */
 const startForwarder = ({
   bindAddress,
@@ -79,7 +82,7 @@ const startForwarder = ({
 }: {
   bindAddress: string;
   port: number;
-  targetPort: () => number;
+  targetPort: () => number | undefined;
   accepts?: (client: Socket) => boolean;
 }): Promise<Forwarder> => {
   const sockets = new Set<Socket>();
@@ -89,28 +92,38 @@ const startForwarder = ({
   };
   // Half-open: a client that has sent everything can still read the answer, and each side's end passes through.
   const server: Server = createServer({ allowHalfOpen: true }, (client) => {
-    if (!accepts(client)) {
+    const target = targetPort();
+    if (target === undefined || !accepts(client)) {
       client.destroy();
       return;
     }
-    const upstream = connect({ port: targetPort(), host: '127.0.0.1', allowHalfOpen: true });
+    const upstream = connect({ port: target, host: '127.0.0.1', allowHalfOpen: true });
     track(client);
     track(upstream);
     client.pipe(upstream).pipe(client);
     client.on('error', () => upstream.destroy());
     upstream.on('error', () => client.destroy());
   });
+  const reported = new Set<string>();
+  const reportError = (error: NodeJS.ErrnoException) => {
+    const kind = error.code ?? error.message;
+    if (reported.has(kind)) return;
+    reported.add(kind);
+    tuiManager.warn(`Forwarding connections on ${bindAddress}:${port} failed: ${error.message}`);
+  };
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, bindAddress, () =>
+    server.listen(port, bindAddress, () => {
+      server.off('error', reject);
+      server.on('error', reportError);
       resolve({
         close: () =>
           new Promise<void>((done) => {
             server.close(() => done());
             for (const socket of sockets) socket.destroy();
           })
-      })
-    );
+      });
+    });
   });
 };
 
@@ -145,7 +158,7 @@ export const startLoopbackRelay = async ({
  * on start leaves the previous one serving. Local databases, other containers (through `ensureLoopbackRelays`),
  * frontends and the dev proxy keep using the stable port.
  */
-export const startPortSwitch = async ({ port, targetPort }: { port: number; targetPort: number }) => {
+export const startPortSwitch = async ({ port, targetPort }: { port: number; targetPort?: number }) => {
   let target = targetPort;
   const listeners = [await startForwarder({ bindAddress: '127.0.0.1', port, targetPort: () => target })];
   // A client that resolves `localhost` to ::1 first. A machine without IPv6 loopback has no such client.

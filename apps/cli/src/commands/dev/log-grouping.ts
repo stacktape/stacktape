@@ -22,6 +22,11 @@ const GO_CRASH_LINE = /^(panic: |fatal error: )/;
 const NEXT_MESSAGE_LINE = /^\s?[✓○⨯⚠▲] /;
 /** An access log line of a dev server: ` GET /orders 500 in 280ms`. */
 const ACCESS_LOG_LINE = /^\s?(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) \S+ (\d{3}) in /;
+/** Whether a dev server's access log line reports a request it answered without an error (status below 400). */
+export const isSuccessfulRequestLine = (text: string) => {
+  const status = Number(text.match(ACCESS_LOG_LINE)?.[1]);
+  return status > 0 && status < 400;
+};
 /** SvelteKit's line before a server error: `[500] GET /orders`. */
 const SVELTEKIT_ERROR_HEADER = /^\[(\d{3})\] [A-Z]+ \S+$/;
 
@@ -85,6 +90,8 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
   )?.[1];
   if (levelWord) return levelFromWord(levelWord);
   if (firstLine.startsWith('⨯')) return 'error';
+  // Vite's failed request or transform (`7:08:55 PM [vite] Internal server error: ...`) and esbuild's `✘ [ERROR]`.
+  if (/\[vite\] (?:internal server )?error\b/i.test(firstLine) || /^✘ \[ERROR\]/.test(firstLine)) return 'error';
   if (firstLine.startsWith('⚠')) return 'warn';
   const status = Number(firstLine.match(SVELTEKIT_ERROR_HEADER)?.[1] ?? firstLine.match(ACCESS_LOG_LINE)?.[1]);
   if (status >= 500) return 'error';

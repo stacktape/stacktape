@@ -10,6 +10,7 @@ import {
   startPortSwitch,
   stopLoopbackRelays
 } from '../../src/commands/dev/container/network';
+import { waitUntilRunServes } from '../../src/commands/dev/container/run-readiness';
 import { findAvailablePort } from '../../src/commands/dev/port-utils';
 import { pointLoopbackAtHost } from '../../src/commands/dev/utils';
 
@@ -17,7 +18,7 @@ import { pointLoopbackAtHost } from '../../src/commands/dev/utils';
 // port 9090. On a bridge network every container has its own ports, and a relay keeps loopback-only services (local
 // databases, SSM tunnels) reachable as host.docker.internal. Real Docker; the containers are owned by this test.
 const owner = randomUUID().slice(0, 8);
-const names = ['first', 'second', 'rebuilt'].map((stage) => `stp-r2z-${owner}-${stage}`);
+const names = ['first', 'second', 'rebuilt', 'crashing'].map((stage) => `stp-r2z-${owner}-${stage}`);
 const switches: Awaited<ReturnType<typeof startPortSwitch>>[] = [];
 // Asynchronous: the relays run in this process and must answer while a container connects.
 const docker = (args: string[]) =>
@@ -134,3 +135,38 @@ test('two dev containers listen on the same fixed port and reach a loopback-only
     database.close();
   }
 }, 120_000);
+
+// #367 review: a process manager accepts connections before its app loads, and exits when the app fails. Through
+// Docker's published port, a rebuilt run like that must not count as serving, so it never replaces the previous one.
+test('a rebuilt container that accepts connections and then exits is not ready', async () => {
+  expect(Bun.which('docker'), 'Docker is required for this explicit change lane').toBeTruthy();
+  const network = await resolveDevContainerNetwork();
+  if (process.platform !== 'linux') return;
+  const name = names[3]!;
+  const publishedPort = await findSpareLoopbackPort();
+  const started = await docker([
+    'run',
+    '-d',
+    '--name',
+    name,
+    ...network.dockerArgs.flatMap((arg) => arg.split(' ')),
+    '-p',
+    `127.0.0.1:${publishedPort}:8080`,
+    'alpine:3',
+    'sh',
+    '-c',
+    // Accepts and holds connections without answering, as gunicorn's master does, and exits 1.5 s later.
+    'sleep 600 | nc -lk -p 8080 >/dev/null & sleep 1.5; echo "Worker failed to boot." >&2; exit 3'
+  ]);
+  expect(started.status, started.stderr).toBe(0);
+  let exited = false;
+  void docker(['wait', name]).then(() => (exited = true));
+  const result = await waitUntilRunServes({
+    port: publishedPort,
+    servesHttp: true,
+    confirm: true,
+    timeoutMs: 30_000,
+    shouldStop: () => exited
+  });
+  expect(result).toBe('stopped');
+}, 60_000);

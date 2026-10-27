@@ -12,7 +12,7 @@ import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/mana
 import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
 import type { LogLevel } from './agent-logger';
-import { createLogLineGrouper } from './log-grouping';
+import { createLogLineGrouper, isSuccessfulRequestLine } from './log-grouping';
 import {
   extractPortFromCommand,
   findAvailablePort,
@@ -50,6 +50,11 @@ export type DevServerState = {
   port?: number;
   lastCompileTime?: string;
   error?: string;
+  /**
+   * The error is an entry the running server printed at level error (a failed request, a failed compile), already in
+   * the log. The next successful compile, code update or request clears it.
+   */
+  errorFromOutput?: boolean;
 };
 
 type DevServerCallbacks = {
@@ -288,7 +293,23 @@ export const startDevServer = async ({
 
       // A server error printed over many lines (a stack trace, a code frame) is one entry with its level, as for a
       // container; logged line by line at `info`, an agent filtering by level never saw a frontend's server fail.
-      const onEntry = (message: string, level: LogLevel) => callbacks?.onOutput?.(message, level);
+      const onEntry = (message: string, level: LogLevel) => {
+        callbacks?.onOutput?.(message, level);
+        if (!serving) return;
+        if (level === 'error') {
+          const lines = stripAnsi(message)
+            .split('\n')
+            .filter((line) => line.trim())
+            .slice(0, SERVER_ERROR_LINES);
+          setState({ ...currentState, status: 'error', error: lines.join('\n'), errorFromOutput: true });
+        } else if (isSuccessfulRequestLine(stripAnsi(message))) {
+          clearServerError();
+        }
+      };
+      const clearServerError = () => {
+        if (!currentState.errorFromOutput) return;
+        setState({ ...currentState, status: 'ready', url: proxyRoute.url, error: undefined, errorFromOutput: false });
+      };
       const outputGroupers = {
         stdout: createLogLineGrouper({ stream: 'stdout', onEntry }),
         stderr: createLogLineGrouper({ stream: 'stderr', onEntry })
@@ -300,6 +321,8 @@ export const startDevServer = async ({
 
         // Use framework-aware parser
         const parsed = parseOutput(line);
+        // A compile or code update after a server error: the next request runs the new code.
+        if (serving && (parsed.status === 'ready' || parsed.hmrUpdate)) clearServerError();
 
         // Build new state from parsed output
         const newState = { ...currentState };
@@ -320,9 +343,6 @@ export const startDevServer = async ({
         }
         if (parsed.compileTime) {
           newState.lastCompileTime = parsed.compileTime;
-        }
-        if (parsed.error) {
-          newState.error = parsed.error;
         }
 
         const stateChanged =
@@ -399,6 +419,8 @@ export const startDevServer = async ({
 };
 
 const RECENT_OUTPUT_LINES = 30;
+/** Lines of a server error entry that the workload's error quotes; the whole entry is in the log. */
+const SERVER_ERROR_LINES = 3;
 /** Lines of a dev server's last output that its error quotes. */
 const EXIT_REASON_LINES = 8;
 

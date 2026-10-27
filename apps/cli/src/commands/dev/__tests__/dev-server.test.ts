@@ -162,6 +162,57 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
   }
 }, 30_000);
 
+// #367 review: the framework parsers marked a frontend failed on any line with the word "error" (Remix, Nuxt, Next's
+// `⨯ Error`), and it stayed failed. The status follows the level of the server's grouped entries instead, and the next
+// code update or successful request clears it.
+test("a frontend's error status follows its error entries and clears on the next update or successful request", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+const steps = [
+  () => console.log('errorHandler registered, 0 errors'),
+  () => console.error(['Error: orders service is down', '    at load (src/routes/+page.server.js:7:19)'].join('\\n')),
+  () => console.log('7:08:55 PM [vite] hmr update /src/routes/+page.svelte'),
+  () => console.error(['[500] GET /orders', 'TypeError: fetch failed'].join('\\n')),
+  () => console.log(' GET /orders 200 in 12ms')
+];
+require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.1', () => {
+  console.log('  ready in 5 ms');
+  steps.forEach((step, index) => setTimeout(step, 300 * (index + 1)));
+});
+`
+    );
+    globalStateManager.rawArgs = { stage: 'status', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const states: { status: string; error?: string }[] = [];
+    let serving = false;
+    const ready = await startDevServer({
+      name: 'web',
+      config: { command: './vite dev', workingDirectory: directory, framework: 'vite' },
+      callbacks: {
+        onStateChange: ({ status, error }) => {
+          if (serving) states.push({ status, error });
+        }
+      }
+    });
+    serving = true;
+    expect(ready.status).toBe('ready');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    expect(states).toEqual([
+      { status: 'error', error: 'Error: orders service is down\n    at load (src/routes/+page.server.js:7:19)' },
+      { status: 'ready', error: undefined },
+      { status: 'error', error: '[500] GET /orders\nTypeError: fetch failed' },
+      { status: 'ready', error: undefined }
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test('a second next dev in the directory fails with the session that runs the first, not as ready', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
   try {
