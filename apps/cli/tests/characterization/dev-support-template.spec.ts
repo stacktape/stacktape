@@ -187,11 +187,12 @@ test('dev stacks leave out alarms, and their schedule rules do not wait for the 
       awsProfile: '',
       cliArgs: {}
     });
-  const synthesize = (command: 'dev' | 'synth') =>
+  const synthesize = (command: 'dev' | 'synth', deployedTemplate?: Awaited<ReturnType<typeof synthesizeFixture>>) =>
     synthesizeFixture({
       compiledConfig: compile(command),
       command,
-      workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
+      deployedTemplate
     });
   const scheduleRuleTarget = (template: Awaited<ReturnType<typeof synthesize>>) =>
     Object.values(template.Resources)
@@ -203,7 +204,20 @@ test('dev stacks leave out alarms, and their schedule rules do not wait for the 
   const deployedTypes = Object.values(deployed.Resources).map(({ Type }) => Type);
   expect(deployedTypes).toContain('AWS::CloudWatch::Alarm');
   expect(deployedTypes.filter((type) => type === 'AWS::Events::Rule')).toHaveLength(2);
-  expect(scheduleRuleTarget(deployed)).toEqual({ 'Fn::GetAtt': ['WorkerFunction', 'Arn'] });
+  const byArn = {
+    'Fn::Sub': 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:characterization-baseline-worker'
+  };
+  // A new stack's rule names the function by ARN too; a rule deployed with a reference keeps it, so it is not updated.
+  expect(scheduleRuleTarget(deployed)).toEqual(byArn);
+  const referenced = structuredClone(deployed);
+  const referencedRule = Object.values(referenced.Resources).find(
+    ({ Properties }) => (Properties as { ScheduleExpression?: string })?.ScheduleExpression === 'rate(2 minutes)'
+  )!.Properties as { Targets: Array<{ Arn: unknown }> };
+  referencedRule.Targets[0].Arn = { 'Fn::GetAtt': ['WorkerFunction', 'Arn'] };
+  expect(scheduleRuleTarget(await synthesize('synth', referenced))).toEqual({
+    'Fn::GetAtt': ['WorkerFunction', 'Arn']
+  });
+  expect(scheduleRuleTarget(await synthesize('synth', deployed))).toEqual(byArn);
 
   // The r2p dogfood run: each alarm's notification rule took 61 s at the end of every new dev stage, and the alarms
   // would have notified about errors an agent caused on purpose.
@@ -213,7 +227,5 @@ test('dev stacks leave out alarms, and their schedule rules do not wait for the 
   expect(devTypes.filter((type) => type === 'AWS::Events::Rule')).toHaveLength(1);
   expect(JSON.stringify(dev)).not.toContain('AlarmNotification');
   // The rule names the function by ARN, so CloudFormation creates it while it creates the function.
-  expect(scheduleRuleTarget(dev)).toEqual({
-    'Fn::Sub': 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:characterization-baseline-worker'
-  });
+  expect(scheduleRuleTarget(dev)).toEqual(byArn);
 });

@@ -17,6 +17,7 @@ import { shouldExcludeResourceInDevMode } from '@domain-services/config-manager/
 import { templateManager } from '.';
 import { applyResourceOverride } from './resource-overrides';
 import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
+import { deriveAuroraInstanceAddressesForNewFunctions } from './aurora-instance-addresses';
 
 const throwTransformFailure = ({
   code,
@@ -221,6 +222,10 @@ export const finalizeTemplate = async () => {
   templateManager.template = await configManager.resolveDirectives<CloudFormationTemplate>({
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
+  });
+  deriveAuroraInstanceAddressesForNewFunctions({
+    template: templateManager.template,
+    deployedTemplate: templateManager.oldTemplate
   });
   // Last, so that each version publisher sees its function exactly as it will be deployed.
   await codeSwapIntegration.template(templateManager.template);

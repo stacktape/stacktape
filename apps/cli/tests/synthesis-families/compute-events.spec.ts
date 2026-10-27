@@ -204,15 +204,24 @@ describe('Batch and Step Functions family', () => {
     const rule = resourcesOfType(template, 'AWS::Events::Rule').find(
       ([, resource]) => resource.Properties?.ScheduleExpression === 'rate(1 hour)'
     )!;
+    // A new rule names the function by ARN, so CloudFormation creates it (about a minute) alongside the function. Its
+    // permission still references both, so nothing invokes the function before it exists.
     expect(rule[1].Properties).toMatchObject({
       ScheduleExpression: 'rate(1 hour)',
       Targets: [
         expect.objectContaining({
-          Arn: { 'Fn::GetAtt': [trigger[0], 'Arn'] },
+          Arn: {
+            'Fn::Sub': `arn:\${AWS::Partition}:lambda:\${AWS::Region}:\${AWS::AccountId}:function:${literal(trigger[1].Properties.FunctionName)}`
+          },
           Input: { 'Fn::Sub': '{"report":"daily"}' }
         })
       ]
     });
+    expect(
+      resourcesOfType(template, 'AWS::Lambda::Permission').find(
+        ([, resource]) => json(resource.Properties?.SourceArn) === json({ 'Fn::GetAtt': [rule[0], 'Arn'] })
+      )?.[1].Properties?.FunctionName
+    ).toEqual({ 'Fn::GetAtt': [trigger[0], 'Arn'] });
     expect(
       roleStatements(template, trigger[1].Properties?.Role['Fn::GetAtt'][0]).filter(({ actions }) =>
         actions.includes('states:StartExecution')

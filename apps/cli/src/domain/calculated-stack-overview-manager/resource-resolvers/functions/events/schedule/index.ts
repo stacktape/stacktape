@@ -1,7 +1,7 @@
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { InputTransformer, RuleProperties, Target } from '@stacktape/cloudformation/resources/aws-events-rule';
-import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
@@ -14,7 +14,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isValidJson } from '@utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { CliError } from '@utils/errors';
-import { getEventBusRuleLambdaPermission, validateScheduleSyntax } from '../utils';
+import { getEventBusRuleLambdaPermission, getLambdaRuleTargetArn, validateScheduleSyntax } from '../utils';
 import type { ScheduleIntegration, ScheduleIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -23,15 +23,8 @@ export const resolveScheduledEvents = ({
 }: {
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
-  const { name, cfLogicalName, aliasLogicalName, events, nameChain, resourceName } = lambdaFunction;
+  const { name, cfLogicalName, aliasLogicalName, events, nameChain } = lambdaFunction;
   const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
-  // In a dev stack the rule names the function by its ARN instead of referencing it, so CloudFormation creates the rule
-  // (about a minute) while it creates or updates the function, not after it. EventBridge accepts a target that does not
-  // exist yet. Other stacks keep the reference, so their deployed rules do not change.
-  const ruleTargetArn =
-    calculatedStackOverviewManager.context.command === 'dev' && !aliasLogicalName && resourceName
-      ? sub(`arn:\${AWS::Partition}:lambda:\${AWS::Region}:\${AWS::AccountId}:function:${resourceName}`)
-      : lambdaEndpointArn;
 
   (events || []).forEach((event: ScheduleIntegration, index) => {
     if (event.type === 'schedule') {
@@ -42,7 +35,10 @@ export const resolveScheduledEvents = ({
           eventDetails: event.properties,
           workloadName: name,
           eventIndex: index,
-          lambdaEndpointArn: ruleTargetArn
+          lambdaEndpointArn: getLambdaRuleTargetArn({
+            lambdaFunction,
+            ruleLogicalName: cfLogicalNames.eventBusRule(name, index)
+          })
         })
       });
       calculatedStackOverviewManager.addCfChildResource({
