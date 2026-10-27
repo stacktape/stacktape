@@ -171,10 +171,6 @@
       "type": "AWS::Cognito::UserPoolDomain",
       "dependencies": ["AuthPoolUserPool"]
     },
-    "CdnOriginRequestLambdaEdgeLambdaCustomResource": {
-      "type": "AWS::CloudFormation::CustomResource",
-      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
-    },
     "DatabaseDbInstance": {
       "type": "AWS::RDS::DBInstance",
       "deletionPolicy": "Delete",
@@ -384,10 +380,6 @@
     "StpEcsExecutionRole": {
       "type": "AWS::IAM::Role",
       "dependencies": []
-    },
-    "StpEdgeLambdaBucketCustomResource": {
-      "type": "AWS::CloudFormation::CustomResource",
-      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
     },
     "StpInternetGateway": {
       "type": "AWS::EC2::InternetGateway",

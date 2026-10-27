@@ -72,6 +72,7 @@ import { getAuthoredOverrides } from './normalized-resource';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
 import { normalizeCustomDomains } from './utils/custom-domains';
+import { cdnNeedsOriginRequestLambda } from './utils/cdn';
 import { buildConvexNestedResources, getConvexSecretName } from './utils/convex';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import {
@@ -1863,7 +1864,7 @@ export class ConfigManager {
     if (this.batchJobs.length) {
       res.push(this.batchJobs[0]._nestedResources.triggerFunction);
     }
-    if (this.configContainsCdnDistribution) {
+    if (this.configNeedsStacktapeOriginRequestLambda) {
       res.push(this.stacktapeOriginRequestLambdaProps);
     }
     if (this.configNeedsStacktapeOriginResponseLambda) {
@@ -1982,14 +1983,7 @@ export class ConfigManager {
       function: {}
     };
     // going through buckets and checking for associated cdns
-    [
-      ...this.allBuckets,
-      ...this.allApplicationLoadBalancers,
-      ...this.allHttpApiGateways,
-      ...this.functions,
-      ...this.allNextjsLambdaFunctions,
-      ...this.allSsrWebLambdaFunctions
-    ].forEach((resource) => {
+    this.cdnCompatibleResources.forEach((resource) => {
       if (resource.cdn?.enabled) {
         cdnAssociations[resource.type][resource.name] = (cdnAssociations[resource.type][resource.name] || []).concat({
           cdnAttachedResource: resource,
@@ -2591,7 +2585,9 @@ export class ConfigManager {
   get sharedGlobalNestedResources() {
     return {
       stacktapeServiceLambda: this.stacktapeServiceLambdaProps,
-      cdnOriginRequestLambda: this.configContainsCdnDistribution ? this.stacktapeOriginRequestLambdaProps : undefined,
+      cdnOriginRequestLambda: this.configNeedsStacktapeOriginRequestLambda
+        ? this.stacktapeOriginRequestLambdaProps
+        : undefined,
       cdnOriginResponseLambda: this.configNeedsStacktapeOriginResponseLambda
         ? this.stacktapeOriginResponseLambdaProps
         : undefined
@@ -2622,10 +2618,23 @@ export class ConfigManager {
     return res;
   }
 
+  get cdnCompatibleResources(): StpCdnCompatibleResource[] {
+    return [
+      ...this.allBuckets,
+      ...this.allApplicationLoadBalancers,
+      ...this.allHttpApiGateways,
+      ...this.functions,
+      ...this.allNextjsLambdaFunctions,
+      ...this.allSsrWebLambdaFunctions
+    ];
+  }
+
   get configContainsCdnDistribution(): boolean {
-    return [...this.allBuckets, ...this.allHttpApiGateways, ...this.allApplicationLoadBalancers].some(
-      (resource) => resource.cdn?.enabled
-    );
+    return this.cdnCompatibleResources.some((resource) => resource.cdn?.enabled);
+  }
+
+  get configNeedsStacktapeOriginRequestLambda(): boolean {
+    return this.cdnCompatibleResources.some(cdnNeedsOriginRequestLambda);
   }
 
   /**

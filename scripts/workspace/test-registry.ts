@@ -525,6 +525,8 @@ export const lanes: readonly Lane[] = [
       'bun',
       'test',
       'src/domain/deployment-change-plan/index.spec.ts',
+      'src/domain/config-manager/utils/cdn.spec.ts',
+      'tests/characterization/cdn-edge-lambdas.spec.ts',
       'src/utils/stack-info-map-diff.spec.ts',
       'src/commands/deploy/ec2-runner-config-path.spec.ts',
       'src/commands/deploy/fast-deploy.spec.ts',
@@ -546,6 +548,8 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
+      'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
@@ -4248,12 +4252,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-lambda-bucket.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/edge-lambdas.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/cdn.ts',
+      'apps/cli/src/domain/config-manager/utils/cdn.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/shared-edge-lambdas-custom-resource.ts'
     ],
     tests: [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
     lanes: [
