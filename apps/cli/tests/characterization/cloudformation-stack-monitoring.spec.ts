@@ -311,15 +311,24 @@ describe('reporting failed cleanup deletions', () => {
     });
   });
 
-  // The listing skips the record because it is not an artifact; a bucket that still holds it cannot be deleted.
-  test('deleting the stack removes the record from the deployment bucket', async () => {
+  // Not everything in the deployment bucket is an artifact; a bucket that still holds anything cannot be deleted.
+  test('deleting the stack empties the whole deployment bucket, the record included', async () => {
+    const stored = [
+      { Key: REPORTED_CLEANUP_FAILURES_S3_KEY, VersionId: 'null' },
+      { Key: 'bucket-sync-manifest/v000002.json', VersionId: 'null' },
+      { Key: 'cf-templates/v000002-abc.yml', VersionId: 'null' }
+    ];
+    const listed = spyOn(awsSdkManager.s3, 'listObjectVersions').mockResolvedValue(
+      stored as Awaited<ReturnType<typeof awsSdkManager.s3.listObjectVersions>>
+    );
     const deleted = spyOn(awsSdkManager.s3, 'deleteObjects').mockResolvedValue(
       {} as Awaited<ReturnType<typeof awsSdkManager.s3.deleteObjects>>
     );
     try {
       await deploymentArtifactManager.deleteAllObjects();
-      expect(deleted.mock.calls[0]?.[1]).toContainEqual({ Key: REPORTED_CLEANUP_FAILURES_S3_KEY });
+      expect(deleted.mock.calls[0]?.[1]).toEqual(stored);
     } finally {
+      listed.mockRestore();
       deleted.mockRestore();
     }
   });

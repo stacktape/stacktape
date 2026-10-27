@@ -539,6 +539,7 @@ export const lanes: readonly Lane[] = [
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'tests/characterization/cloudformation-stack-delete.spec.ts',
       'tests/characterization/stack-event-pagination.spec.ts'
     ],
     level: 'focused',
@@ -559,6 +560,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts'
     ],
     requires: [],
@@ -2544,6 +2546,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/config-derived-metadata.spec.ts',
       'apps/cli/tests/characterization/config-error-modernization.spec.ts',
@@ -4237,13 +4240,19 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
-      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts'
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-lambda-bucket.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/edge-lambdas.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/shared-edge-lambdas-custom-resource.ts'
     ],
     tests: [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
+      'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
     lanes: [
+      'deployment-rules',
       'cli-stack-operations',
       'cli-test-helper-lambdas',
       'static-site-live',

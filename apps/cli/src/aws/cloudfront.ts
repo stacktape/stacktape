@@ -1,8 +1,10 @@
 import type { CloudFrontClient, DistributionSummary } from '@aws-sdk/client-cloudfront';
 import {
   CreateInvalidationCommand,
+  GetDistributionConfigCommand,
   GetInvalidationCommand,
-  ListDistributionsCommand
+  ListDistributionsCommand,
+  UpdateDistributionCommand
 } from '@aws-sdk/client-cloudfront';
 import type { SupportedAWSRegion } from '@stacktape/config/aws-regions';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
@@ -59,6 +61,26 @@ export class AwsCloudFront {
       .send(new GetInvalidationCommand({ DistributionId: distributionId, Id }))
       .catch(errorHandler);
     return distributionId;
+  };
+
+  /**
+   * Turns a distribution on or off. Resolves to false when it already was in that state, so nothing changed.
+   * CloudFront applies the change at every edge location over the next minutes (the distribution reads InProgress).
+   */
+  setDistributionEnabled = async ({ distributionId, enabled }: { distributionId: string; enabled: boolean }) => {
+    const client = this.#createClient();
+    const { DistributionConfig, ETag } = await client.send(new GetDistributionConfigCommand({ Id: distributionId }));
+    if (!DistributionConfig || DistributionConfig.Enabled === enabled) {
+      return false;
+    }
+    await client.send(
+      new UpdateDistributionCommand({
+        Id: distributionId,
+        IfMatch: ETag,
+        DistributionConfig: { ...DistributionConfig, Enabled: enabled }
+      })
+    );
+    return true;
   };
 
   findDistributionsForBucket = async ({ bucketName }: { bucketName: string }) => {

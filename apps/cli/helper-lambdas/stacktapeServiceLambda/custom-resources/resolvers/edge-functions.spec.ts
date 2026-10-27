@@ -1,10 +1,16 @@
 import type { StpServiceCustomResourceEdgeFunctionProps } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { CloudWatchLogs } from '@aws-sdk/client-cloudwatch-logs';
-import { IAM } from '@aws-sdk/client-iam';
-import { InvalidParameterValueException, Lambda } from '@aws-sdk/client-lambda';
+import { IAM, NoSuchEntityException } from '@aws-sdk/client-iam';
+import {
+  InvalidParameterValueException,
+  Lambda,
+  ResourceNotFoundException as LambdaNotFoundException
+} from '@aws-sdk/client-lambda';
+import { S3 } from '@aws-sdk/client-s3';
 import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from 'src/config/constants';
 import { edgeFunctions } from './edge-functions';
+import { ensureEdgeDeploymentBucket } from './edge-lambda-bucket';
 
 const edgeFunction = {
   name: 'cdnOriginRequestLambda',
@@ -95,5 +101,244 @@ describe('edge functions custom resource deletion', () => {
     });
 
     await expect(edgeFunctions([edgeFunction], undefined, 'Delete')).rejects.toThrow('AccessDeniedException');
+  });
+});
+
+const newEdgeFunction = {
+  ...edgeFunction,
+  artifactBucketName: 'shop-production-deployment-bucket',
+  artifactS3Key: 'cdnOriginRequestLambda/abc.zip',
+  handler: 'index.default',
+  memory: 256,
+  timeout: 10,
+  runtime: 'nodejs22.x',
+  logging: { retentionDays: 3 },
+  preprocessedRolePolicies: [{ PolicyName: 'access', PolicyDocument: { Statement: [] } }]
+} as unknown as StpServiceCustomResourceEdgeFunctionProps;
+
+/**
+ * Answers every request of a new edge function's creation. `createFunction` and `createBucket` can be given extra
+ * behaviour; every request is recorded as `<service>:<command>`.
+ */
+const stubCreation = ({
+  createFunction = async () => ({}),
+  headBucket = async () => {
+    throw Object.assign(new Error('NotFound'), { name: 'NotFound' });
+  },
+  createBucket = async () => ({})
+}: {
+  createFunction?: () => Promise<unknown>;
+  headBucket?: () => Promise<unknown>;
+  createBucket?: () => Promise<unknown>;
+}) => {
+  const requests: string[] = [];
+  const record = (service: string, command: { constructor: { name: string } }) =>
+    requests.push(`${service}:${command.constructor.name.replace(/Command$/, '')}`);
+  const spies = [
+    spyOn(CloudWatchLogs.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+      record('logs', command);
+      return command.constructor.name === 'DescribeLogGroupsCommand' ? { logGroups: [] } : {};
+    }) as never),
+    spyOn(IAM.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+      record('iam', command);
+      switch (command.constructor.name) {
+        case 'GetRoleCommand':
+          throw new NoSuchEntityException({ message: 'no role', $metadata: {} });
+        case 'CreateRoleCommand':
+          return { Role: { Arn: `arn:aws:iam::123456789012:role/${edgeFunction.lambdaRoleResourceName}` } };
+        case 'ListRolePoliciesCommand':
+          return { PolicyNames: [] };
+        default:
+          return {};
+      }
+    }) as never),
+    spyOn(S3.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+      record('s3', command);
+      switch (command.constructor.name) {
+        case 'HeadBucketCommand':
+          return headBucket();
+        case 'CreateBucketCommand':
+          return createBucket();
+        default:
+          return {};
+      }
+    }) as never),
+    spyOn(Lambda.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+      record('lambda', command);
+      switch (command.constructor.name) {
+        case 'GetFunctionCommand':
+          throw new LambdaNotFoundException({ message: 'no function', $metadata: {} });
+        case 'CreateFunctionCommand':
+          return createFunction();
+        case 'GetFunctionConfigurationCommand':
+          return { State: 'Active', LastUpdateStatus: 'Successful' };
+        case 'PublishVersionCommand':
+          return { FunctionArn: `arn:aws:lambda:us-east-1:123456789012:function:${edgeFunction.resourceName}:1` };
+        case 'ListVersionsByFunctionCommand':
+          return { Versions: [{ Version: '$LATEST' }] };
+        default:
+          return {};
+      }
+    }) as never)
+  ];
+  return { requests, restore: () => spies.forEach((spy) => spy.mockRestore()) };
+};
+
+describe('edge functions custom resource creation', () => {
+  test('creates the bucket when missing and retries while the new role propagates, without a fixed wait', async () => {
+    let attempts = 0;
+    const { requests, restore } = stubCreation({
+      createFunction: async () => {
+        attempts++;
+        if (attempts === 1) {
+          throw new InvalidParameterValueException({
+            message: 'The role defined for the function cannot be assumed by Lambda.',
+            $metadata: {}
+          });
+        }
+        return {};
+      }
+    });
+    try {
+      const startedAt = Date.now();
+      const { data } = await edgeFunctions([newEdgeFunction], undefined, 'Create');
+      // One retry interval, not the former fixed 10-second wait after creating the role.
+      expect(Date.now() - startedAt).toBeLessThan(6000);
+      expect(attempts).toBe(2);
+      expect(data[edgeFunction.resourceName]).toEndWith(':1');
+      const index = (request: string) => requests.indexOf(request);
+      expect(index('s3:CreateBucket')).toBeGreaterThan(-1);
+      expect(index('s3:CreateBucket')).toBeLessThan(index('s3:CopyObject'));
+      expect(index('s3:CopyObject')).toBeLessThan(index('lambda:CreateFunction'));
+      expect(index('iam:CreateRole')).toBeLessThan(index('lambda:CreateFunction'));
+      expect(requests.filter((request) => request === 'logs:CreateLogGroup')).toHaveLength(
+        REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION.length
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test('any other create error fails the resource', async () => {
+    const { restore } = stubCreation({
+      createFunction: async () => {
+        throw new InvalidParameterValueException({ message: 'Unzipped size must be smaller than 1 MB', $metadata: {} });
+      }
+    });
+    try {
+      await expect(edgeFunctions([newEdgeFunction], undefined, 'Create')).rejects.toThrow('Unzipped size');
+    } finally {
+      restore();
+    }
+  });
+
+  test('a bucket that another request is creating at the same time is retried, not failed', async () => {
+    let heads = 0;
+    const { requests, restore } = stubCreation({
+      headBucket: async () => {
+        heads++;
+        if (heads === 1) throw Object.assign(new Error('NotFound'), { name: 'NotFound' });
+        return {};
+      },
+      createBucket: async () => {
+        throw Object.assign(new Error('A conflicting conditional operation is currently in progress'), {
+          name: 'OperationAborted'
+        });
+      }
+    });
+    try {
+      await ensureEdgeDeploymentBucket('shop-production-edge-bucket');
+      expect(requests.filter((request) => request.startsWith('s3:'))).toEqual([
+        's3:HeadBucket',
+        's3:CreateBucket',
+        's3:HeadBucket'
+      ]);
+    } finally {
+      restore();
+    }
+  });
+});
+
+describe('edge functions custom resource update', () => {
+  const published = {
+    CodeSha256: 'code-hash',
+    Handler: 'index.default',
+    Runtime: 'nodejs22.x',
+    MemorySize: 256,
+    Timeout: 10,
+    Role: 'arn:aws:iam::123456789012:role/edge'
+  };
+  const latestArn = `arn:aws:lambda:us-east-1:123456789012:function:${edgeFunction.resourceName}:3`;
+
+  /** A deployed function whose latest version 3 has `published`; `$LATEST` has `current`. */
+  const stubDeployed = (current: Partial<typeof published>) => {
+    const writes: string[] = [];
+    const spies = [
+      spyOn(CloudWatchLogs.prototype, 'send').mockImplementation((async () => ({ logGroups: [] })) as never),
+      spyOn(IAM.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        if (command.constructor.name !== 'ListRolePoliciesCommand') writes.push(`iam:${command.constructor.name}`);
+        return { PolicyNames: [] };
+      }) as never),
+      spyOn(S3.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        if (command.constructor.name !== 'HeadBucketCommand') writes.push(`s3:${command.constructor.name}`);
+        return {};
+      }) as never),
+      spyOn(Lambda.prototype, 'send').mockImplementation((async (command: { constructor: { name: string } }) => {
+        switch (command.constructor.name) {
+          case 'GetFunctionConfigurationCommand':
+            return { State: 'Active', LastUpdateStatus: 'Successful', ...published, ...current };
+          case 'ListVersionsByFunctionCommand':
+            return {
+              Versions: [
+                { Version: '$LATEST', ...published, ...current },
+                { Version: '3', FunctionArn: latestArn, ...published }
+              ]
+            };
+          case 'PublishVersionCommand':
+            writes.push('lambda:PublishVersion');
+            return { FunctionArn: latestArn.replace(/:3$/, ':4') };
+          default:
+            writes.push(`lambda:${command.constructor.name}`);
+            return {};
+        }
+      }) as never)
+    ];
+    return { writes, restore: () => spies.forEach((spy) => spy.mockRestore()) };
+  };
+
+  test('a redeploy that differs only in local artifact paths changes and publishes nothing', async () => {
+    const withPath = (artifactPath: string) =>
+      ({
+        ...newEdgeFunction,
+        artifactPath,
+        packaging: { type: 'helper-lambda', properties: { digest: 'd1', handler: 'index.default', artifactPath } }
+      }) as unknown as StpServiceCustomResourceEdgeFunctionProps;
+    const { writes, restore } = stubDeployed({});
+    try {
+      const { data } = await edgeFunctions(
+        [withPath('/tmp/run-2/helper.zip')],
+        [withPath('/tmp/run-1/helper.zip')],
+        'Update'
+      );
+      expect(data[edgeFunction.resourceName]).toBe(latestArn);
+      expect(writes.filter((write) => !write.endsWith('TagResourceCommand'))).toEqual([]);
+    } finally {
+      restore();
+    }
+  });
+
+  test('new code is published as a new version', async () => {
+    const { writes, restore } = stubDeployed({ CodeSha256: 'new-code-hash' });
+    try {
+      const { data } = await edgeFunctions(
+        [{ ...newEdgeFunction, artifactS3Key: 'cdnOriginRequestLambda/new.zip' }],
+        [newEdgeFunction],
+        'Update'
+      );
+      expect(writes).toContain('lambda:PublishVersion');
+      expect(data[edgeFunction.resourceName]).toEndWith(':4');
+    } finally {
+      restore();
+    }
   });
 });

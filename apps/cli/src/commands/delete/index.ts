@@ -49,7 +49,7 @@ type DeleteExecutionOperation = {
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
   progress: Pick<DeleteOperation['progress'], 'setPhase'>;
   stack: {
-    deleteStack: () => Promise<unknown>;
+    deleteStack: (options: { beforeDelete: () => Promise<unknown> }) => Promise<unknown>;
     existingStackDetails: { EnableTerminationProtection?: boolean };
   };
   stackName: string;
@@ -180,8 +180,9 @@ export const executeDeleteOperation = async ({
     await lifecycle.processHooks({ captureType: 'START' });
   }
   codeSwapBeginMutation();
-  await deploymentArtifacts.deleteAllArtifacts();
-  await stack.deleteStack();
+  // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
+  // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
+  await stack.deleteStack({ beforeDelete: deploymentArtifacts.deleteAllArtifacts });
 
   if (retainedSharedResources?.length) {
     tui.info(

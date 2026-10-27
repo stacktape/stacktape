@@ -394,15 +394,27 @@ const getAutoscalingGroup = (azIndex: number) => {
       PauseTime: INSTANCE_READY_TIMEOUT
     }
   };
-  // Zones are created and replaced one after another so a bad image never takes both down at once.
+  // Zones are replaced one after another so a bad image never takes both down at once. While the previous zone's group
+  // does not exist yet (a first deploy, or a switch from gateways, where the routes still point elsewhere) there is
+  // nothing to protect, and the zones launch in parallel. The order is a DependsOn only: adding it later updates no
+  // resource.
   resource.DependsOn = [
     cfLogicalNames.vpcGatewayAttachment(),
     cfLogicalNames.internetGatewayRoute(azIndex),
     cfLogicalNames.natInstanceHeartbeatParameter(azIndex),
-    ...(azIndex > 0 ? [cfLogicalNames.natInstanceAutoscalingGroup(azIndex - 1)] : [])
+    ...(azIndex > 0 && isNatInstanceZoneDeployed(azIndex - 1)
+      ? [cfLogicalNames.natInstanceAutoscalingGroup(azIndex - 1)]
+      : [])
   ];
   return resource;
 };
+
+const isNatInstanceZoneDeployed = (azIndex: number) =>
+  !!stackManager.existingStackResources?.some(
+    ({ LogicalResourceId, ResourceType }) =>
+      LogicalResourceId === cfLogicalNames.natInstanceAutoscalingGroup(azIndex) &&
+      ResourceType === 'AWS::AutoScaling::AutoScalingGroup'
+  );
 
 const getTerminationLifecycleHook = (azIndex: number) =>
   cfnResource('AWS::AutoScaling::LifecycleHook', {
