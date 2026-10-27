@@ -56,6 +56,12 @@ export type SecurityRuleDefinition = {
   defaultSeverity: SecurityFindingSeverity;
   /** Rules that only matter once real users depend on the stack are reported for production stages only. */
   productionOnly?: boolean;
+  /**
+   * The severity in a non-production stage, when the risk is lower there. A password-protected database open to the
+   * internet is a reasonable default for a dev or preview stage but a real exposure in production. Rules without it
+   * report the same severity in every stage.
+   */
+  nonProductionSeverity?: SecurityFindingSeverity;
   /** The organization guardrail that blocks deployments violating this rule, when one exists. */
   guardrailType?: GuardrailType;
 };
@@ -64,7 +70,7 @@ export type SecurityRuleDefinition = {
  * Bumped when a rule is added, removed, or changes what it reports. Each report records the version it was
  * produced with, so a stack last scanned by an older CLI is visibly behind the catalog.
  */
-export const SECURITY_RULE_CATALOG_VERSION = 1;
+export const SECURITY_RULE_CATALOG_VERSION = 2;
 
 export const SECURITY_RULES = {
   'database-reachable-from-internet': {
@@ -74,6 +80,7 @@ export const SECURITY_RULES = {
     category: 'network-exposure',
     kind: 'POSTURE',
     defaultSeverity: 'HIGH',
+    nonProductionSeverity: 'LOW',
     guardrailType: 'require-vpc-databases'
   },
   'database-deletion-protection-disabled': {
@@ -103,6 +110,7 @@ export const SECURITY_RULES = {
     category: 'network-exposure',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM',
+    nonProductionSeverity: 'LOW',
     guardrailType: 'require-waf'
   },
   'bucket-publicly-accessible': {
@@ -156,6 +164,7 @@ export const SECURITY_RULES = {
     category: 'resilience',
     kind: 'POSTURE',
     defaultSeverity: 'LOW',
+    nonProductionSeverity: 'INFO',
     guardrailType: 'require-dead-letter-queue'
   },
   'secret-in-environment-variable': {

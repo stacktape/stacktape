@@ -21,7 +21,7 @@ export const commandValidate = async () => {
   const shouldPackage = Boolean(withPackage || thorough);
 
   config.validateGuardrails({ hasConfig: true });
-  const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
+  const securityAssessment = assessAndPrintSecurityPosture({ config, tui, command: 'validate' });
 
   let packagedWorkloads: PackageWorkloadOutput[] | undefined;
   if (shouldPackage) {
@@ -74,9 +74,7 @@ export const commandValidate = async () => {
       packaging: shouldPackage,
       cloudformation: cloudformationChecked
     },
-    ...(securityAssessment
-      ? { securityFindings: securityAssessment.findings, securityExposure: securityAssessment.exposure }
-      : {}),
+    ...(securityAssessment ? { security: securityAssessment } : {}),
     ...(packagedWorkloads ? { packagedWorkloads } : {})
   };
 };

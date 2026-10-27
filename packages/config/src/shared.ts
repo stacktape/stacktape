@@ -2995,7 +2995,10 @@ export interface StackConfig {
    *
    * The classification drives everything that treats production differently: error-tracking
    * incidents (every production error group enters the incident queue), the stricter
-   * delete-production permission, deploy gates, and AI remediation autonomy limits.
+   * delete-production permission, deploy gates, AI remediation autonomy limits, and the severity
+   * of security findings (a database reachable from the internet is `HIGH` in production and `LOW`
+   * elsewhere; production-only findings such as missing deletion protection are listed by
+   * `stacktape validate` but not reported for other stages).
    *
    * When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
    * (case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as

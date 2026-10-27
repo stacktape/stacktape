@@ -2,6 +2,8 @@ import type { StackContext } from '@domain-services/stack-context';
 import { describe, expect, test } from 'bun:test';
 import { ConfigManager } from '../index';
 import type { StacktapeConfig } from '@stacktape/config';
+import { composeConfig } from '@stacktape/config-inference/compose';
+import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import {
   assessSecurityPosture,
   detectSecretLikeValue,
@@ -134,16 +136,46 @@ describe('security posture through authored configuration', () => {
       stage: 'production',
       config: { stackConfig: { stageType: 'non-production' } }
     });
-    expect(development.isProduction).toBe(false);
+    expect(development.stage).toEqual({
+      name: 'production',
+      purpose: 'non-production',
+      decidedBy: 'stackConfig.stageType'
+    });
     expect(ruleIds(development)).not.toContain('database-deletion-protection-disabled');
     expect(ruleIds(development)).toContain('database-reachable-from-internet');
+    // Production-only rules are not reported for the stage, but the developer still learns about them.
+    expect(development.productionOnlyFindings.map(({ ruleId }) => ruleId).toSorted()).toEqual([
+      'database-backups-disabled',
+      'database-backups-disabled',
+      'database-backups-disabled',
+      'database-deletion-protection-disabled',
+      'stack-termination-protection-disabled'
+    ]);
     expect(development.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
       ruleId: 'queue-without-dead-letter-queue',
       fingerprint: 'queue-without-dead-letter-queue:jobs'
     });
     expect(development.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
     const namedDevelopment = assess(resources);
-    expect(namedDevelopment.isProduction).toBe(false);
+    expect(namedDevelopment.stage).toEqual({ name: 'dev', purpose: 'non-production', decidedBy: 'stage-name' });
+    // Each finding at its stage severity, with the production severity where production rates it higher. Exposure
+    // of data (public buckets) keeps its severity in every stage.
+    expect(
+      namedDevelopment.findings.map(({ resourceName, severity, productionSeverity }) => [
+        resourceName,
+        severity,
+        productionSeverity
+      ])
+    ).toEqual([
+      ['uploads', 'HIGH', undefined],
+      ['assets', 'MEDIUM', undefined],
+      ['orders', 'LOW', 'HIGH'],
+      ['search', 'LOW', 'HIGH'],
+      ['edge', 'LOW', 'MEDIUM'],
+      ['jobs', 'INFO', 'LOW']
+    ]);
+    expect(production.findings.some((finding) => 'productionSeverity' in finding)).toBe(false);
+    expect(production.productionOnlyFindings).toEqual([]);
     expect(namedDevelopment.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
       ruleId: 'queue-without-dead-letter-queue',
       fingerprint: 'queue-without-dead-letter-queue:jobs'
@@ -173,9 +205,11 @@ describe('security posture through authored configuration', () => {
       ['orders', 'vpc'],
       ['search', 'scoping-workloads-in-vpc']
     ]);
-    expect(assess({}, { stage: 'client-a', config: { stackConfig: { stageType: 'production' } } }).isProduction).toBe(
-      true
-    );
+    expect(assess({}, { stage: 'client-a', config: { stackConfig: { stageType: 'production' } } }).stage).toEqual({
+      name: 'client-a',
+      purpose: 'production',
+      decidedBy: 'stackConfig.stageType'
+    });
     const iam = [
       { Effect: 'Allow' as const, Action: ['*'], Resource: ['*'] },
       { Effect: 'Allow' as const, Action: ['s3:*'], Resource: ['*'] },
@@ -250,6 +284,70 @@ describe('security posture through authored configuration', () => {
     expect(roles.exposure.map(({ resourceName }) => resourceName)).toEqual(
       expect.arrayContaining(['gateway', 'hosted'])
     );
+  });
+  test('a fresh init configuration with a public database has no high finding outside production', () => {
+    // The configuration `stacktape init` writes for a web app with Postgres, when the database stays public.
+    const { config } = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          {
+            name: 'web',
+            path: '.',
+            language: 'javascript',
+            exposesHttp: true,
+            port: 3000,
+            executionModel: 'long-running',
+            startCommand: 'npm run start',
+            environmentVariables: [],
+            evidence: [{ file: 'package.json', line: 3, quote: '"start"' }],
+            source: 'probe'
+          }
+        ],
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'shop',
+      preferences: { databaseAccess: 'public' }
+    });
+    const { resources, ...rest } = config as StacktapeConfig;
+    const urgent = (assessment: ReturnType<typeof assess>) =>
+      assessment.findings
+        .filter(({ severity }) => severity === 'CRITICAL' || severity === 'HIGH')
+        .map(({ ruleId, resourceName }) => `${ruleId}:${resourceName}`);
+    const database = (assessment: ReturnType<typeof assess>) =>
+      assessment.findings.find(({ ruleId }) => ruleId === 'database-reachable-from-internet');
+
+    for (const stage of ['dev', 'staging', 'preview-42', 'prod-test']) {
+      const assessment = assess(resources, { stage, config: rest });
+      expect(assessment.stage.purpose).toBe('non-production');
+      expect(urgent(assessment)).toEqual([]);
+      expect(database(assessment)).toMatchObject({
+        resourceName: 'mainDatabase',
+        severity: 'LOW',
+        productionSeverity: 'HIGH'
+      });
+    }
+    for (const assessment of [
+      assess(resources, { stage: 'production', config: rest }),
+      assess(resources, { stage: 'main', config: { ...rest, stackConfig: { stageType: 'production' } } })
+    ]) {
+      expect(assessment.stage.purpose).toBe('production');
+      expect(urgent(assessment)).toEqual(['database-reachable-from-internet:mainDatabase']);
+      expect(database(assessment)?.severity).toBe('HIGH');
+    }
+    // An explicit non-production type wins over a production-looking name.
+    expect(
+      urgent(assess(resources, { stage: 'prod', config: { ...rest, stackConfig: { stageType: 'non-production' } } }))
+    ).toEqual([]);
   });
   test('Convex fixed topology avoids unactionable posture warnings while its public endpoint remains visible', () => {
     const convex = assess(

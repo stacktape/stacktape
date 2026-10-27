@@ -1,4 +1,7 @@
-import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
+import type {
+  SecurityPostureAssessment,
+  StageSecurityFinding
+} from '@domain-services/config-manager/utils/security-posture';
 import type { ConfigManager } from '@domain-services/config-manager';
 import type { RecordSecurityReportResponse } from '@stacktape/console-api/security';
 import { summarizeSecurityFindings } from '@domain-services/config-manager/utils/security-posture';
@@ -26,17 +29,40 @@ export const describeSecurityReportRejection = (reason: RecordSecurityReportResp
 
 type Printer = { info: (message: string) => void; warn: (message: string) => void; hint: (message: string) => void };
 
+const isUrgent = ({ severity }: { severity: string }) => severity === 'CRITICAL' || severity === 'HIGH';
+
+const describeStage = ({ stage }: SecurityPostureAssessment) =>
+  `stage \`${stage.name}\` is ${stage.purpose} by ${stage.decidedBy === 'stage-name' ? 'its name' : '`stackConfig.stageType`'}`;
+
+const printFindings = (tui: Printer, findings: ReadonlyArray<StageSecurityFinding>) => {
+  for (const finding of findings.slice(0, LISTED_FINDINGS_LIMIT)) {
+    const subject = finding.resourceName ? `${finding.resourceName}: ` : '';
+    const raised = finding.productionSeverity ? ` (${finding.productionSeverity} in production)` : '';
+    const line = `  [${finding.severity}] ${subject}${finding.title}${raised}`;
+    if (isUrgent(finding)) tui.warn(line);
+    else tui.info(line);
+  }
+  if (findings.length > LISTED_FINDINGS_LIMIT) {
+    tui.info(`  ...and ${findings.length - LISTED_FINDINGS_LIMIT} more.`);
+  }
+};
+
 /**
  * Evaluates the security posture when the stack's policy allows it, prints the result the way a developer reads
  * deploy output (one summary line, the most severe findings, a pointer to the rest) and hands the assessment back
  * for reporting. Returns null when scanning is off, after saying why in one line.
+ *
+ * A non-production stage also says what production would add. `validate` lists those findings; `deploy`, which a
+ * developer runs many times a day, only counts them.
  */
 export const assessAndPrintSecurityPosture = ({
   config,
-  tui
+  tui,
+  command
 }: {
   config: ConfigManager;
   tui: Printer;
+  command: 'deploy' | 'validate';
 }): SecurityPostureAssessment | null => {
   const policy = config.securityScanningPolicy;
   if (!policy.enabled) {
@@ -47,23 +73,34 @@ export const assessAndPrintSecurityPosture = ({
     tui.info('Dependency checks: off (this AWS account is set to configuration checks only in the Stacktape Console).');
   }
   const assessment = config.assessSecurityPosture();
-  const { findings } = assessment;
-  if (!findings.length) {
-    tui.info('Security posture: no findings.');
-    return assessment;
-  }
-  const summary = `Security posture: ${summarizeSecurityFindings(findings)}.`;
-  if (findings.some(({ severity }) => severity === 'CRITICAL' || severity === 'HIGH')) tui.warn(summary);
+  const { findings, productionOnlyFindings } = assessment;
+  const summary = `Security posture: ${summarizeSecurityFindings(findings)} (${describeStage(assessment)}).`;
+  if (findings.some(isUrgent)) tui.warn(summary);
   else tui.info(summary);
-  for (const finding of findings.slice(0, LISTED_FINDINGS_LIMIT)) {
-    const subject = finding.resourceName ? `${finding.resourceName}: ` : '';
-    const line = `  [${finding.severity}] ${subject}${finding.title}`;
-    if (finding.severity === 'CRITICAL' || finding.severity === 'HIGH') tui.warn(line);
-    else tui.info(line);
+  printFindings(tui, findings);
+  if (productionOnlyFindings.length) {
+    if (command === 'validate') {
+      tui.info('Also fix before production (not reported for this stage):');
+      printFindings(tui, productionOnlyFindings);
+    } else {
+      const count = productionOnlyFindings.length;
+      tui.info(
+        `Before production, also fix ${count} production-only finding${count === 1 ? '' : 's'} (${summarizeSecurityFindings(productionOnlyFindings)}); \`stacktape validate\` lists them.`
+      );
+    }
   }
-  if (findings.length > LISTED_FINDINGS_LIMIT) {
-    tui.info(`  ...and ${findings.length - LISTED_FINDINGS_LIMIT} more.`);
+  const lowered = findings.some(({ productionSeverity }) => productionSeverity);
+  if (lowered || productionOnlyFindings.length) {
+    tui.hint(
+      'Rated for a non-production stage: acceptable for dev and preview, fix before production. A stage is checked as production when `stackConfig.stageType` is `production` or, without it, when its name is `prod`, `production`, `prd` or `live`.'
+    );
   }
-  tui.hint('Details and remediation for every finding are in the Stacktape Console under Security > Posture.');
+  if (findings.length) {
+    tui.hint(
+      command === 'deploy'
+        ? 'Details and remediation for every finding are in the Stacktape Console under Security > Posture.'
+        : "Each finding's message and remediation are in the `--agent` output, and in the Stacktape Console under Security > Posture after you deploy."
+    );
+  }
   return assessment;
 };
