@@ -701,9 +701,8 @@ class StackManager {
       if (finishWhenCleanupStarts) {
         this.#deployedTemplateResources = new Set(Object.keys(templateManager.template.Resources));
       }
-      if (stackParams.StackPolicyBody) {
-        await awsSdkManager.cloudFormation.setPolicy(stackParams);
-      }
+      // UpdateStack has already set the stack policy from `StackPolicyBody`. SetStackPolicy would fail while
+      // CloudFormation still deletes old resources. Termination protection can be changed in any state.
       await awsSdkManager.cloudFormation.setTerminationProtection(
         !!stackParams.EnableTerminationProtection,
         stackParams.StackName
