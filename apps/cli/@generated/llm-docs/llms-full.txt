@@ -12799,9 +12799,9 @@ Deploy as usual with `stacktape deploy --stage production --region eu-west-1`. T
 
 ## Supported services
 
-Supports several opted-in web services per stack on x86 Fargate, behind the default HTTP API Gateway. Node.js uses `js-bundle` packaging. Dependencies are bundled or kept in an independent generated install in the image; a change to that installed image uses an image deploy. Python uses the standard `buildpack` path with a complete transitive `requirements.txt` lock: every dependency must use `==` and SHA-256 hashes. Generate it with `uv pip compile requirements.in --generate-hashes --output-file requirements.txt`. The build enforces `--require-hashes`; an incomplete lock falls back to an image deploy with a CLI explanation. Python swap identity includes a hash of the installed virtualenv, interpreter and system libraries, so a changed installed environment requires an image deploy. Python source swaps run without local/URL dependencies, custom build/install commands or custom Railpack configuration. The startup command must directly run `uvicorn`, `gunicorn` or `python`, without shell command chains or an absolute `/app` source path. Other Python dependency managers and packaging paths use images. Python and Node.js with installed dependencies currently require local Docker caching; a registry-cache builder uses images. The app must listen on `PORT`, allow a writable working directory, and keep child processes under its process tree. State that must survive a deploy belongs outside the process and its local release directory.
+Supports several opted-in web services per stack on x86 Fargate, behind the default HTTP API Gateway or an application load balancer (`loadBalancing.type: application-load-balancer`). Behind the default HTTP API Gateway, WebSocket connections are not possible and SSE responses are buffered; use an application load balancer for them. Node.js uses `js-bundle` packaging. Dependencies are bundled or kept in an independent generated install in the image; a change to that installed image uses an image deploy. Python uses the standard `buildpack` path with a complete transitive `requirements.txt` lock: every dependency must use `==` and SHA-256 hashes. Generate it with `uv pip compile requirements.in --generate-hashes --output-file requirements.txt`. The build enforces `--require-hashes`; an incomplete lock falls back to an image deploy with a CLI explanation. Python swap identity includes a hash of the installed virtualenv, interpreter and system libraries, so a changed installed environment requires an image deploy. Python source swaps run without local/URL dependencies, custom build/install commands or custom Railpack configuration. The startup command must directly run `uvicorn`, `gunicorn` or `python`, without shell command chains or an absolute `/app` source path. Other Python dependency managers and packaging paths use images. Python and Node.js with installed dependencies currently require local Docker caching; a registry-cache builder uses images. The app must listen on `PORT`, allow a writable working directory, and keep child processes under its process tree. State that must survive a deploy belongs outside the process and its local release directory.
 
-Configured `internalHealthCheck`, ALB/NLB, blue/green deployments, side containers, tracing sidecars, remote sessions, EC2, arm64, source-dependent dependency installs, custom Dockerfiles, prebuilt images, Bun and Deno use image deploys. Remove the opt-in if you only need image deploys. Unsupported combinations do not inherit the qualified runtime's guarantees.
+Configured `internalHealthCheck`, network load balancers, blue/green deployments, side containers, tracing sidecars, remote sessions, EC2, arm64, source-dependent dependency installs, custom Dockerfiles, prebuilt images, Bun and Deno use image deploys. Remove the opt-in if you only need image deploys. Unsupported combinations do not inherit the qualified runtime's guarantees.
 
 Each service's autoscaling maximum, scheduled overrides and deployment surge must fit within **10 simultaneous tasks**. Unknown bounds use images. `minimumHealthyPercent` must be 100, and surge must allow at least one replacement. With the default 200% maximum, use `maxInstances: 5` or fewer. A ten-task desired count with no room for a replacement uses images, even before the first swap. No coordinator admits larger fleets. A custom CloudFormation transform that invalidates the protected role or capacity checks is refused before deployment; correct it or remove the opt-in.
 
@@ -12821,7 +12821,9 @@ An unknown or unreadable peak, an unsupported memory layout, or a failed screen 
 
 ## Completion and fallback
 
-A small supervisor owns the HTTP port, starts the candidate, verifies proxy reachability, switches new requests, then waits for the old process to drain and exit. The old process gets up to **65 seconds** to finish requests that were already in flight, the same time an image deploy allows (35 s routing drain plus the 30 s default stop timeout). It receives `SIGTERM` as soon as its last request finishes, so a swap with no open requests does not wait. Requests still open after 65 seconds are closed. The application then has its `stopTimeout` (default 2 s) to exit before it is killed. Without an authored application check, **any complete HTTP response, including 500, counts as reachability**. There is no default application health check and no fixed observation window.
+A small supervisor owns the HTTP port, starts the candidate, verifies proxy reachability, switches new requests, then waits for the old process to drain and exit. The old process gets up to **65 seconds** to finish requests that were already in flight, about the time an image deploy allows (a 35 s HTTP API routing drain or a 30 s load balancer deregistration delay, plus the 30 s default stop timeout). It receives `SIGTERM` as soon as its last request finishes, so a swap with no open requests does not wait. Requests still open after 65 seconds are closed. The application then has its `stopTimeout` (default 2 s) to exit before it is killed. Without an authored application check, **any complete HTTP response, including 500, counts as reachability**. There is no default application health check and no fixed observation window.
+
+Behind an application load balancer, the supervisor also runs the target group's health check. Before the switch, the candidate must answer `GET` on `loadBalancing.properties.healthcheckPath` (default `/`) with status 200 within `healthcheckTimeout` (default 4 s); it gets up to 30 seconds to pass. The same check runs on the new code right after the switch, every second while the old process drains, and once more before completion. The load balancer's own checks reach whichever process serves, with no gap during the switch. If a check fails, the task switches back to the old process and the deploy uses an image, which the load balancer and ECS then check as usual.
 
 The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit (except one that only holds long-lived connections), and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. If candidate cleanup cannot be confirmed, the command fails and keeps the operation lock; use the recovery procedure below. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
 
@@ -31702,7 +31704,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## In-place code swap
 
-Set `properties.codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js on x86 Fargate behind an HTTP API within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys.
+Set `properties.codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js and Python on x86 Fargate behind an HTTP API or an application load balancer within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys.
 
 ---
 
@@ -128377,8 +128379,9 @@ type WebServiceProps = {
   cdn?: CdnConfiguration;
   /** Update code inside running containers when eligible. Off by default, including production.
 
-Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
-without configured health checks or side containers. The application must honor PORT.
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API
+or an application load balancer, without configured health checks or side containers. The application must honor
+PORT. Behind a load balancer, new code must pass its health check path before and after the switch.
 Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
 All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
 or custom build/install steps; other Python packaging uses images.
@@ -128695,8 +128698,9 @@ export default defineConfig(() => {
 
 Update code inside running containers when eligible. Off by default, including production.
 
-Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
-without configured health checks or side containers. The application must honor PORT.
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API
+or an application load balancer, without configured health checks or side containers. The application must honor
+PORT. Behind a load balancer, new code must pass its health check path before and after the switch.
 Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
 All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
 or custom build/install steps; other Python packaging uses images.
