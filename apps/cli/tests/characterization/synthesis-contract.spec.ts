@@ -1004,7 +1004,9 @@ describe('full synthesis contract', () => {
 
     // A stack that has them as resources keeps them with the settings the CLI gives new ones, and keeps referencing the
     // bucket resource.
-    const existing = await synthesizeDenseFixture({ existingStackResources: existingResourcesOf(created, artifactStore) });
+    const existing = await synthesizeDenseFixture({
+      existingStackResources: existingResourcesOf(created, artifactStore)
+    });
     const resources = existing.Resources as Record<string, any>;
     expect(resources.StpDeploymentBucket.Properties).toEqual({
       BucketName: bucketName,
