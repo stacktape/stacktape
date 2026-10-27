@@ -156,12 +156,6 @@ export const getBatchInstanceRole = () =>
     ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role']
   });
 
-export const getBatchInstanceProfile = () =>
-  cfnResource('AWS::IAM::InstanceProfile', {
-    Path: '/',
-    Roles: [ref(cfLogicalNames.batchInstanceRole())]
-  });
-
 export const getBatchInstanceDefaultSecurityGroup = () =>
   cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),

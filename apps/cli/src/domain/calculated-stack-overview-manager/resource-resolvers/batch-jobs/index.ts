@@ -20,6 +20,7 @@ import {
   getResolvedConnectToEnvironmentVariables,
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
+import { addInstanceProfile } from '../_utils/instance-profile';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
 import { resolveFunction } from '../functions';
@@ -27,7 +28,6 @@ import {
   getBachJobLogGroup,
   getBatchComputeEnvironment,
   getBatchInstanceDefaultSecurityGroup,
-  getBatchInstanceProfile,
   getBatchInstanceRole,
   getBatchJobDefinition,
   getBatchJobExecutionRole,
@@ -58,10 +58,12 @@ export const resolveBatchJobs = async () => {
       resource: getBatchInstanceRole(),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
     });
-    calculatedStackOverviewManager.addCfChildResource({
+    addInstanceProfile({
       cfLogicalName: cfLogicalNames.batchInstanceProfile(),
-      resource: getBatchInstanceProfile(),
-      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      roleCfLogicalName: cfLogicalNames.batchInstanceRole(),
+      purpose: 'batch-instance',
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+      cloudformationProperties: { Path: '/', Roles: [ref(cfLogicalNames.batchInstanceRole())] }
     });
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.batchStateMachineExecutionRole(),

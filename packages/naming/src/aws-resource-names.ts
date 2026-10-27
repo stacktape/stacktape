@@ -437,6 +437,14 @@ export const awsResourceNames = {
       lengthLimit: 255
     });
   },
+  // max 128 chars. IAM names are global to the account, so the region is part of the name.
+  // https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateInstanceProfile.html
+  instanceProfile({ stackName, region, purpose }: { stackName: string; region: string; purpose: string }) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${purpose}-${region}`,
+      lengthLimit: 128
+    });
+  },
   // max 126 chars
   // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-as-group.html#cfn-autoscaling-autoscalinggroup-autoscalinggroupname
   bastionEc2AutoscalingGroup(stpResourceName: string, stackName: string) {

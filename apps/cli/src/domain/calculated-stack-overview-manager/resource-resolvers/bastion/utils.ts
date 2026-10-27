@@ -218,12 +218,6 @@ export const getEc2InstanceRole = () =>
     // ]
   });
 
-export const getEc2InstanceProfile = ({ definition }: { definition: StpBastion }) =>
-  cfnResource('AWS::IAM::InstanceProfile', {
-    Path: '/',
-    Roles: [ref(cfLogicalNames.bastionRole(definition.name))]
-  });
-
 export const getSsmAgentAutoUpdateSsmAssociation = ({ definition }: { definition: StpBastion }) => {
   return cfnResource('AWS::SSM::Association', {
     Name: 'AWS-UpdateSSMAgent',
