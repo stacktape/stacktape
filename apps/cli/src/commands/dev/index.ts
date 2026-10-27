@@ -26,6 +26,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
+  muteDaemonConsole,
   buildAgentReadyPayload,
   deleteAgentLockFile,
   findOrphanedDevBoxSession,
@@ -909,7 +910,9 @@ export const commandDev = async () => {
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
                 .map((w) => ({ name: w.name, error: w.error || 'unknown error' }))
-            })}\n`
+            })}\n`,
+            // Nobody reads the daemon's console once it reported ready (see `muteDaemonConsole`).
+            () => muteDaemonConsole()
           );
           tuiManager.printLines(['']);
 

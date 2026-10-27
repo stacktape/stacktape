@@ -2,12 +2,12 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
+import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printFormattedLogs } from '../_utils/debug-formatters';
 import {
@@ -174,21 +174,30 @@ export const commandLogs = async () => {
       `Following logs for ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''}. Press Ctrl+C to stop.`
     );
 
+    // Throttling slows the polling down instead of ending the command; other errors end it after a few attempts.
     let consecutiveFailures = 0;
-    const interval = setInterval(async () => {
-      try {
-        await printer.printLogs();
-        consecutiveFailures = 0;
-      } catch (err) {
+    let warnedAboutThrottling = false;
+    const scheduler = createLogPollScheduler({
+      onThrottled: () => {
+        if (warnedAboutThrottling) return;
+        warnedAboutThrottling = true;
+        tuiManager.warn(
+          'CloudWatch is throttling log reads in this AWS account and region; new log lines arrive late.'
+        );
+      },
+      onError: (_name, err) => {
         if (++consecutiveFailures > 3) {
-          clearInterval(interval);
-          await applicationManager.handleError(err);
+          scheduler.stop();
+          void applicationManager.handleError(err);
         }
       }
-    }, PRINT_LOGS_INTERVAL);
-    applicationManager.registerCleanUpHook(() => clearInterval(interval));
-
-    await printer.printLogs().catch(() => {});
+    });
+    scheduler.register(logGroupName, async () => {
+      const printed = await printer.printLogs();
+      consecutiveFailures = 0;
+      return printed;
+    });
+    applicationManager.registerCleanUpHook(() => scheduler.stop());
     // Follow until the user interrupts (Ctrl+C → applicationManager exit handler).
     await new Promise<never>(() => {});
     return null;

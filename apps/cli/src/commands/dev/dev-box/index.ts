@@ -32,6 +32,13 @@ export type DevBoxDependencies = {
     stack?: string;
     signal: AbortSignal;
   }) => Promise<void>;
+  /** Lists the relay's sessions of a stack; `stop` waits with it until the relay has let go of this session. */
+  listSessions?: (
+    relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>,
+    stack: string
+  ) => Promise<Array<{ session: string }>>;
+  /** How long `stop` waits for the relay to let go of this session before it ends the SSM session anyway. */
+  releaseTimeoutMs?: number;
   /** Called with every new server-side session, so a later start can end one a killed CLI left open. */
   onSession?: (sessionId: string | undefined) => void;
   /** How long the relay may take to answer after the session opens: a first boot installs it. */
@@ -131,6 +138,7 @@ export class DevBoxConnection {
   readonly #stopped = new AbortController();
   #ready: Promise<RelayEndpoint> | undefined;
   #session: RelaySession | undefined;
+  #presence: AbortController | undefined;
   #localPort: number | undefined;
   #status: DevBoxStatus | undefined;
   #onStatus: ((status: DevBoxStatus) => void) | undefined;
@@ -188,10 +196,30 @@ export class DevBoxConnection {
     this.#onStatus?.(status);
   };
 
+  /**
+   * Ends the presence connection, waits until the relay no longer lists this session, and only then ends the SSM
+   * session. Killing the SSM session first left the relay holding the session's connections until SSM noticed, and a
+   * start right after the stop was refused because the stopped session still seemed to hold the stage. The tunnels
+   * close at the same time, in their own cleanup.
+   */
   stop = async () => {
+    const wasReady = this.#status?.phase === 'ready';
     this.#stopped.abort();
+    this.#presence?.abort();
+    if (wasReady && this.#session) await this.#waitUntilReleased();
     await this.#session?.kill().catch(() => {});
     this.#session = undefined;
+  };
+
+  #waitUntilReleased = async () => {
+    const { listSessions, releaseTimeoutMs = 5000, pollMs = 1000 } = this.#deps;
+    if (!listSessions || !this.#stackName || this.#localPort === undefined) return;
+    const deadline = Date.now() + releaseTimeoutMs;
+    while (Date.now() < deadline) {
+      const sessions = await listSessions(this.#endpoint(), this.#stackName).catch(() => undefined);
+      if (!sessions?.some(({ session }) => session === this.#owner.session)) return;
+      await delay(Math.min(200, pollMs));
+    }
   };
 
   #endpoint = (): RelayEndpoint => ({
@@ -235,6 +263,7 @@ export class DevBoxConnection {
   /** Holds the presence connection until the session or the presence ends. */
   #hold = async (session: RelaySession) => {
     const presence = new AbortController();
+    this.#presence = presence;
     const presenceEnded = this.#deps
       .holdPresence({ relay: this.#endpoint(), owner: this.#owner, stack: this.#stackName, signal: presence.signal })
       .catch(() => {});

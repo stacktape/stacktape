@@ -131,6 +131,13 @@ export const localStatePaths = {
   devAgentStopReasonFile({ port }: { port: number }) {
     return join(localStatePaths.devAgentTokenDirectory(), `${port}.stopped.json`);
   },
+  /**
+   * The standard output or error of the dev agent daemon on `port`. The daemon writes to these files instead of pipes,
+   * so its writes never fail once the process that started it has exited; that process reads them until it is ready.
+   */
+  devAgentDaemonOutputFile({ port, stream }: { port: number; stream: 'stdout' | 'stderr' }) {
+    return join(localStatePaths.devAgentTokenDirectory(), `${port}.daemon-${stream}.log`);
+  },
   devAgentRegistryDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agents');
   },

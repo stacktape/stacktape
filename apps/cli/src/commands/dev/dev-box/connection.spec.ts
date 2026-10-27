@@ -165,3 +165,68 @@ test('a connection that never succeeds rejects only when the session stops', asy
   await connection.stop();
   await expect(connected).rejects.toThrow('The dev session stopped.');
 });
+
+// r2p dogfood, finding 10: the SSM session was ended first, so the relay kept listing the stopped session as the stage's
+// holder until SSM noticed, and a start 3 s after the stop was refused.
+test('stop ends the presence, waits until the relay no longer lists the session, then ends the SSM session', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  const events: string[] = [];
+  let listedAfterPresenceEnds = 2;
+  let presenceOpen = false;
+  const owner = { id: 'u', label: 'U', session: '4242.s' };
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      holdPresence: ({ signal }) =>
+        new Promise<void>((resolve) => {
+          presenceOpen = true;
+          signal.addEventListener(
+            'abort',
+            () => {
+              presenceOpen = false;
+              events.push('presence closed');
+              resolve();
+            },
+            { once: true }
+          );
+        }),
+      // The relay notices the closed connection after a couple of listings.
+      listSessions: async (_relay, stack) => {
+        expect(stack).toBe('shop-dev');
+        const listed = presenceOpen || listedAfterPresenceEnds-- > 0;
+        events.push(listed ? 'listed' : 'released');
+        return listed ? [{ session: owner.session }] : [];
+      }
+    },
+    network,
+    owner,
+    stackName: 'shop-dev'
+  });
+  await connection.connect();
+  await waitFor('the presence connection', () => presenceOpen);
+  const session = world.sessions[0];
+  const kill = session.kill;
+  session.kill = async () => {
+    events.push('ssm session ended');
+    await kill();
+  };
+  await connection.stop();
+  expect(events).toEqual(['presence closed', 'listed', 'listed', 'released', 'ssm session ended']);
+});
+
+test('stop ends the SSM session after the release timeout when the relay keeps listing the session', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  const connection = new DevBoxConnection({
+    deps: { ...deps, releaseTimeoutMs: 100, listSessions: async () => [{ session: 's' }] },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' },
+    stackName: 'shop-dev'
+  });
+  await connection.connect();
+  const startedAt = Date.now();
+  await connection.stop();
+  expect(Date.now() - startedAt).toBeLessThan(1000);
+  expect(world.sessions.every(({ killed }) => killed)).toBe(true);
+});

@@ -15,6 +15,7 @@ import {
 import { createConfigChangeDetector } from '../config-change';
 import { getRunningAgentReadyPayload } from '../index';
 import { createWorkloadRebuilder } from '../workload-rebuild';
+import { CliError } from '@utils/errors';
 
 const freePort = async () => {
   const probe = createServer();
@@ -23,6 +24,10 @@ const freePort = async () => {
   await new Promise<void>((resolve) => probe.close(() => resolve()));
   return port;
 };
+
+/** How the packager reports a build that fails: a `CliError`, which a rebuild does not try again. */
+const buildError = () =>
+  new CliError({ category: 'PACKAGING', code: 'PACKAGING_FAILED', message: 'Build failed: Unexpected ;' });
 
 type AgentResponse = { ok: boolean; code: string; message: string; data: Record<string, any> };
 const cleanups: (() => Promise<void>)[] = [];
@@ -96,7 +101,7 @@ test('a failed rebuild or a changed configuration is reported, and the session i
   const { directory, port, config, rebuilder, call, writeConfig } = await startSession({
     workloads: ['api'],
     build: async (name) => {
-      if (source.includes('(;')) throw new Error('Build failed: Unexpected ;');
+      if (source.includes('(;')) throw buildError();
       deployed.push(`${name}:${source}`);
     }
   });
@@ -196,7 +201,7 @@ test('a rebuild requested while the workload builds runs after it, and the newes
       if (name === 'f1') maxConcurrentF1 = Math.max(maxConcurrentF1, ++concurrent);
       try {
         // Builds that read the broken handler fail at once; the others take a while.
-        if (name === 'f1' && read['handler.ts'].includes('(;')) throw new Error('Build failed: Unexpected ;');
+        if (name === 'f1' && read['handler.ts'].includes('(;')) throw buildError();
         await new Promise<void>((resolve) => gates.push(resolve));
       } finally {
         if (name === 'f1') concurrent--;
@@ -235,4 +240,29 @@ test('a rebuild requested while the workload builds runs after it, and the newes
   for (const release of gates.splice(0)) release();
   expect(await fixed).toMatchObject({ ok: true });
   expect((await call('GET', '/status')).data).toMatchObject({ ready: true });
+});
+
+// r2p dogfood, finding 4: a `--watch` rebuild failed once with "EPIPE: broken pipe, write", left the function in
+// `error` and never deployed the edit.
+test('a rebuild that fails for a reason other than the build is tried once more; a build error is not', async () => {
+  const attempts: string[] = [];
+  let failNext: Error | undefined;
+  const { call } = await startSession({
+    workloads: ['api'],
+    build: async (name) => {
+      attempts.push(name);
+      const error = failNext;
+      failNext = undefined;
+      if (error) throw error;
+    }
+  });
+  failNext = Object.assign(new Error('EPIPE: broken pipe, write'), { code: 'EPIPE' });
+  expect(await call('POST', '/rebuild/api')).toMatchObject({ ok: true, data: { rebuilt: ['api'] } });
+  expect(attempts).toEqual(['api', 'api']);
+  expect((await call('GET', '/status')).data).toMatchObject({ ready: true, failedWorkloads: [] });
+
+  attempts.length = 0;
+  failNext = buildError();
+  expect(await call('POST', '/rebuild/api')).toMatchObject({ ok: false, code: 'REBUILD_FAILED' });
+  expect(attempts).toEqual(['api']);
 });

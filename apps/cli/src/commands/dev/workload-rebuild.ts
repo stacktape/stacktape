@@ -1,7 +1,16 @@
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
+import { CliError } from '@utils/errors';
 import { updateAgentState, type RebuildResult } from './agent-server';
 import type { ConfigChange } from './config-change';
 import { clearCredentialExpiryTimer } from './utils';
+
+/**
+ * A rebuild that failed for a reason other than the code or the configuration is tried once more: a dropped connection,
+ * a failed AWS request (throttled, or the function still updating) or a failed write. Other failures Stacktape reports
+ * itself (`CliError`: a build error, invalid configuration, a Docker build that failed) would fail the same way again.
+ */
+export const isRetryableRebuildError = (error: unknown) =>
+  error instanceof Error && (!(error instanceof CliError) || error.category === 'AWS');
 
 type WorkloadQueue = {
   /** The build that runs now. */
@@ -40,10 +49,16 @@ export const createWorkloadRebuilder = ({
     // The rebuild fetches fresh credentials and registers their expiry again.
     clearCredentialExpiryTimer(name);
     let error: string | undefined;
-    try {
-      await rebuild(name);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await rebuild(name);
+        error = undefined;
+        break;
+      } catch (err) {
+        error = err instanceof Error ? err.message : String(err);
+        if (attempt > 1 || !isRetryableRebuildError(err)) break;
+        devTuiManager.log(name, `Rebuild failed (${error}); trying once more.`, 'warn');
+      }
     }
     if (queue.queued) return error;
     if (error === undefined) {

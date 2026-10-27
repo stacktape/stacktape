@@ -45,6 +45,38 @@ describe('the stage check before a dev session deploys', () => {
     expect(await check({ listSessions: async () => [{ ...laptop, session: owner.session }] })).toBe('started');
   });
 
+  // r2p dogfood, finding 10: a start right after `stop` was refused because the relay still listed the stopped session.
+  test('a holder from this user and directory whose process has exited is replaced, not reported', async () => {
+    const ended: RelaySessionInfo = { ...laptop, session: '999999.old', label: owner.label };
+    const replaced = await assertStageNotRunningElsewhere({
+      boxState: 'running',
+      relay,
+      listSessions: async () => [ended],
+      stackName: 'shop-alice',
+      owner,
+      takeOver: false,
+      isAlive: () => false
+    });
+    expect(replaced).toEqual({ replacesStaleSession: true });
+    // A holder whose process still runs, one in another directory or of another user is a real holder.
+    expect(await check({ listSessions: async () => [ended], isAlive: () => true })).toStartWith(
+      'DEV_STAGE_RUNNING_ELSEWHERE: '
+    );
+    expect(
+      await check({
+        listSessions: async () => [{ ...ended, label: 'Alice (alice-desktop, ~/shop-wt2)' }],
+        isAlive: () => false
+      })
+    ).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: ');
+    expect(
+      await check({ listSessions: async () => [{ ...ended, owner: 'user-bob' }], isAlive: () => false })
+    ).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: ');
+    // A session ID without a process ID (an older CLI) cannot be judged.
+    expect(
+      await check({ listSessions: async () => [{ ...ended, session: 'old-format' }], isAlive: () => false })
+    ).toStartWith('DEV_STAGE_RUNNING_ELSEWHERE: ');
+  });
+
   test('a box that does not run has no session to ask, and an unreachable relay leaves the decision to the tunnels', async () => {
     let asked = false;
     const listSessions = async () => {
