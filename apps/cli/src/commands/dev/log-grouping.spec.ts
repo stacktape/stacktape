@@ -83,7 +83,17 @@ test.each([
   ['Unhandled promise rejection', 'stdout', 'error'],
   ['errorHandler registered', 'stdout', 'info'],
   ['GET /notes 200 3 ms', 'stdout', 'info'],
-  ['npm notice New version available', 'stderr', 'warn']
+  ['npm notice New version available', 'stderr', 'warn'],
+  ['2026/10/27 13:18:28 ERROR scan orders: AccessDeniedException', 'stderr', 'error'],
+  ['2026/10/27 13:18:28.123456 WARN slow scan', 'stderr', 'warn'],
+  ['2026/10/27 13:18:28 main.go:42: ERROR scan orders', 'stderr', 'error'],
+  ['2026/10/27 13:18:28 order created: 42', 'stderr', 'info'],
+  ['2026/10/27 13:18:28.123456 listening on :8080', 'stderr', 'info'],
+  ['time=2026-10-27T13:18:28.123+01:00 level=ERROR msg="scan orders" err="AccessDeniedException"', 'stderr', 'error'],
+  ['time=2026-10-27T13:18:28.123+01:00 level=WARN msg="slow scan"', 'stderr', 'warn'],
+  ['time=2026-10-27T13:18:28.123+01:00 level=INFO msg="order created"', 'stderr', 'info'],
+  ['time="2026-10-27T13:18:28+01:00" level=error msg="scan orders"', 'stdout', 'error'],
+  ['panic: runtime error: index out of range', 'stderr', 'error']
 ] as const)('%s on %s is %s', (line, stream, level) => {
   expect(detectLogLevel(line, stream)).toBe(level);
 });

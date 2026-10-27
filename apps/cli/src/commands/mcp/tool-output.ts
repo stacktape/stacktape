@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from 'node:util';
 import { publicCommandName } from '../../config/cli/public-names';
 import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
 
@@ -50,7 +51,9 @@ const shouldMaskValueForKey = (key: string): boolean => {
 
 export const maskSensitiveValues = (input: unknown, parentKey = ''): unknown => {
   if (typeof input === 'string') {
-    const maskedText = maskSensitiveText(input);
+    // Script and CLI output keeps terminal colors; an MCP client gets them as `\u001b[33m` noise, and they split text
+    // that masking must recognize.
+    const maskedText = maskSensitiveText(stripVTControlCharacters(input));
     if (shouldMaskValueForKey(parentKey)) {
       return maskSecretString(maskedText);
     }

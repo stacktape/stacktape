@@ -300,17 +300,19 @@ const getStatementsForAccessingKinesisStream = (statementProps: StatementProps):
   }
 ];
 
+// PostToConnection, GetConnection and DeleteConnection authorize against `<stage>/<method>/@connections/<connectionId>`.
 export const getStatementsForAccessingWebsocketApiGateway = (statementProps: StatementProps): StpIamRoleStatement[] => [
   {
     Effect: 'Allow',
     Action: ['execute-api:ManageConnections'],
-    Resource: [
-      join('', [
-        `arn:aws:execute-api:${statementProps.region}:${statementProps.accountId}:`,
-        ref(cfLogicalNames.websocketApi(statementProps.stacktapeResourceName)),
-        `/${WEBSOCKET_API_STAGE_NAME}/POST/@connections`
-      ]) as unknown as string
-    ]
+    Resource: (['POST', 'GET', 'DELETE'] as const).map(
+      (method) =>
+        join('', [
+          `arn:aws:execute-api:${statementProps.region}:${statementProps.accountId}:`,
+          ref(cfLogicalNames.websocketApi(statementProps.stacktapeResourceName)),
+          `/${WEBSOCKET_API_STAGE_NAME}/${method}/@connections/*`
+        ]) as unknown as string
+    )
   }
 ];
 

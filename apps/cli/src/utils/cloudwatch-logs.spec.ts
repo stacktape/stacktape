@@ -1,5 +1,7 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { describe, expect, test } from 'bun:test';
+import kleur from 'kleur';
+import { isTextStylingEnabled, setTextStylingEnabled } from '../app/tui-manager/format/text';
 import { LambdaCloudwatchLogPrinter } from './cloudwatch-logs';
 
 const HOUR = 3_600_000;
@@ -246,4 +248,44 @@ describe('following a log group', () => {
     ]);
     expect(printed).toHaveLength(120);
   });
+});
+
+// r2w: Python's uncaught-exception record has no request ID, and dev output started it with `?`.
+test('a line without a request ID gets the prefix of the request its log stream is handling', async () => {
+  const request = '0f3c1b52-6d1e-4c1f-9a43-5b6f1e2d3c4a';
+  const messages: string[] = [];
+  const events: FilteredLogEvent[] = [
+    `START RequestId: ${request} Version: $LATEST`,
+    '[ERROR] ConnectionError: Error 111 connecting to 10.0.0.1:6379. Connection refused.\nTraceback (most recent call last):\n  File "/var/task/handler.py", line 12, in handler',
+    `END RequestId: ${request}`,
+    `REPORT RequestId: ${request}\tDuration: 3.00 ms\tBilled Duration: 4 ms\tMemory Size: 128 MB\tMax Memory Used: 40 MB`,
+    'print after the request'
+  ].map((message, index) => ({
+    eventId: `e${index}`,
+    timestamp: UNTIL + 1 + index,
+    message,
+    logStreamName: '2026/10/27/[$LATEST]abc'
+  }));
+  const printer = new LambdaCloudwatchLogPrinter({
+    fetchSince: UNTIL,
+    logGroupAwsResourceName: '/aws/lambda/heartbeat',
+    fetchPage: async () => ({ events }),
+    onLog: (message) => void messages.push(message)
+  });
+  // Colors tell requests apart, so the prefixes are compared with colors on.
+  const styling = [isTextStylingEnabled(), kleur.enabled] as const;
+  setTextStylingEnabled(true);
+  kleur.enabled = true;
+  try {
+    await printer.printLogs();
+  } finally {
+    setTextStylingEnabled(styling[0]);
+    kleur.enabled = styling[1];
+  }
+
+  const prefix = (message: string) => message.split(' ', 1)[0];
+  const errorLine = messages.find((message) => message.includes('ConnectionError'))!;
+  expect(prefix(errorLine)).toBe(prefix(messages[0]!));
+  expect(prefix(errorLine)).not.toBe(prefix(messages.at(-1)!));
+  expect(messages.every((message) => prefix(message).includes('>'))).toBe(true);
 });

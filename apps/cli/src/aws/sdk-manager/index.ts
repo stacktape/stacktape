@@ -1,5 +1,6 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import { ACMClient } from '@aws-sdk/client-acm';
+import { APIGatewayClient } from '@aws-sdk/client-api-gateway';
 import { AutoScaling } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
@@ -55,6 +56,7 @@ import { AwsAutoScaling } from '../auto-scaling';
 import { AwsOpenSearch } from '../open-search';
 import { AwsRds } from '../rds';
 import { AwsEmail } from '../email';
+import { AwsApiGatewayAccount } from '../api-gateway-account';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -79,6 +81,7 @@ export class AwsSdkManager {
   #openSearch?: AwsOpenSearch;
   #rds?: AwsRds;
   #email?: AwsEmail;
+  #apiGatewayAccount?: AwsApiGatewayAccount;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -191,6 +194,10 @@ export class AwsSdkManager {
       getErrorHandler: this.#getErrorHandler
     });
     this.#email = new AwsEmail({ createClient: () => this.#sesv2(), getErrorHandler: this.#getErrorHandler });
+    this.#apiGatewayAccount = new AwsApiGatewayAccount({
+      createClient: () => this.#applyPlugins(new APIGatewayClient(this.#getClientArgs())),
+      getErrorHandler: this.#getErrorHandler
+    });
   }
 
   get isInitialized() {
@@ -365,6 +372,12 @@ export class AwsSdkManager {
     this.#getContext();
     if (!this.#email) throw new Error('AWS SES has not been initialized.');
     return this.#email;
+  }
+
+  get apiGatewayAccount() {
+    this.#getContext();
+    if (!this.#apiGatewayAccount) throw new Error('AWS API Gateway has not been initialized.');
+    return this.#apiGatewayAccount;
   }
 
   #getContext() {

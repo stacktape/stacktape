@@ -35,10 +35,13 @@ const JSON_LEVELS: Record<string, LogLevel> = {
   warning: 'warn'
 };
 
+const levelFromWord = (word: string): LogLevel =>
+  JSON_LEVELS[word.toLowerCase()] ?? (/^(err|panic)$/i.test(word) ? 'error' : 'info');
+
 /**
  * The level an entry's text shows: a structured `level` field, a level word at the start, an error class with its
- * message, or a stack trace. Without any, standard output is `info`, and standard error stays `warn`, since a program
- * writes both diagnostics and warnings there.
+ * message, or a stack trace. Without any, standard output and Go `log` lines are `info`, and other standard error stays
+ * `warn`, since a program writes both diagnostics and warnings there.
  */
 export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLevel => {
   const firstLine = text.split('\n', 1)[0]!.trim();
@@ -52,17 +55,23 @@ export const detectLogLevel = (text: string, stream: 'stdout' | 'stderr'): LogLe
       // Not a JSON line; the text decides.
     }
   }
-  // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`.
+  // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`, or
+  // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...`.
   const levelWord = firstLine.match(
-    /^(?:\S*\d:\d\d\S*\s+)?\[?\s*(error|err|fatal|panic|critical|warn|warning|info|debug|trace)\b/i
+    /^(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|warn|warning|info|debug|trace)\b/i
   )?.[1];
-  if (levelWord) return JSON_LEVELS[levelWord.toLowerCase()] ?? (/^(err|panic)$/i.test(levelWord) ? 'error' : 'info');
+  if (levelWord) return levelFromWord(levelWord);
+  // Go's `slog` and logrus text lines carry a logfmt field: `time=... level=ERROR msg=...`.
+  const fieldLevel = firstLine.match(/(?:^|\s)level="?(\w+)/i)?.[1];
+  if (fieldLevel) return levelFromWord(fieldLevel);
   if (/^(uncaught|unhandled)\b/i.test(firstLine) || /^Traceback \(most recent call last\)/.test(firstLine)) {
     return 'error';
   }
   if (/^[\w.$]*(Error|Exception)\b(:|\s*\[|\s*\{|$)/.test(firstLine)) return 'error';
   if (/^\s+at\s.+(:\d+|\(native\))/m.test(text) || /^\s+File ".+", line \d+/m.test(text)) return 'error';
   if (/^\(node:\d+\) \w*Warning\b/.test(firstLine)) return 'warn';
+  // Go's standard `log` writes every line to standard error with a date and a time and no level.
+  if (/^\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(\.\d+)?\s/.test(firstLine)) return 'info';
   return stream === 'stderr' ? 'warn' : 'info';
 };
 
