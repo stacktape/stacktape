@@ -110,7 +110,8 @@ export const recordSecurityReport = async ({
     catalogVersion: SECURITY_RULE_CATALOG_VERSION,
     stacktapeVersion: getStacktapeVersion(),
     coveredKinds: ['POSTURE', 'SECRET'],
-    findings,
+    // The Console stores the severity this stage reports; the production one is for the CLI's own output.
+    findings: findings.map(({ productionSeverity: _productionSeverity, ...finding }) => finding),
     exposure,
     ...(inventory ? { inventory } : {})
   });

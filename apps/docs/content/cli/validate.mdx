@@ -51,6 +51,42 @@ stacktape validate --stage dev --region eu-west-1 --thorough
 The `--thorough` flag implies `--with-package`. You do not need to pass both.
 </Info>
 
+## Security findings by stage purpose
+
+`validate` also checks the configuration for security findings, the same ones [`deploy`](/cli/deploy) reports to the Stacktape Console: a database reachable from the internet, a public bucket, an IAM statement that allows every action, a credential pasted into an environment variable, and similar. A finding never fails validation.
+
+How severe a finding is depends on whether the stage is production. A password-protected database open to the internet is a reasonable default for a dev or preview stage, so it is `LOW` there and `HIGH` in production. Rules that only matter once real users depend on the stack, such as deletion protection, backups, termination protection and running two container instances, are not reported for other stages; `validate` lists them separately so you know what to fix before production.
+
+| Finding | Production | Other stages |
+|---------|------------|--------------|
+| Database or OpenSearch domain reachable from the internet | `HIGH` | `LOW` |
+| Public load balancer without a web application firewall | `MEDIUM` | `LOW` |
+| Queue without a dead-letter queue | `LOW` | `INFO` |
+| Database without deletion protection, data store without backups | `MEDIUM` | listed under "before production" |
+| Stack without termination protection, container service with one instance | `LOW` | listed under "before production" |
+| Public bucket, wide IAM statement, secret in an environment variable | same in every stage | same in every stage |
+
+Wide IAM statements keep their severity because dev stages often share the AWS account with production, so a role that can do anything in the account reaches production too.
+
+A stage is production when [`stackConfig.stageType`](/configuration/stages-and-environments#production-and-non-production-stages) is `production`. Without that setting, `deploy` uses the type you chose when you created the stage in the Stacktape Console; `validate` does not contact the Console, so it skips this step unless you pass `--aws-account`. Otherwise the stage name decides: `prod`, `production`, `prd` and `live`, alone, as a segment (`prod-eu`) or followed by a number (`prod2`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`) do not. The same answer decides incident handling and the delete-production permission in the Console. Set `stageType` when your production stage has another name, so `validate` and `deploy` always agree:
+
+```yaml
+stackConfig:
+  stageType: production
+```
+
+For a non-production stage, the output looks like this:
+
+```text
+Security posture: 1 low (stage `dev` is non-production by its name).
+  [LOW] mainDatabase: Database reachable from the internet (HIGH in production)
+Also fix before production (not reported for this stage):
+  [LOW] web: Production container service runs a single instance
+  [LOW] Production stack without termination protection
+```
+
+With `--agent`, the result's `security` object carries `stage` (`name`, `purpose` and `decidedBy`: `stackConfig.stageType`, `stacktape-console` or `stage-name`), `findings` with each finding's `severity` for this stage and, when production rates it higher, its `productionSeverity`, `productionOnlyFindings`, and `exposure`. `deploy` returns the same object, reports the stage's `findings` to the Console, and only counts the production-only findings in its output.
+
 ## When to use validate
 
 The `validate` command is a fast pre-deploy check that confirms your configuration synthesizes correctly. Use it when you want a validation gate instead of a written template file.

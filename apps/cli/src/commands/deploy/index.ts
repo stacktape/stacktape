@@ -198,7 +198,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   config.validateGuardrails({ hasConfig: true });
   // Evaluated before the build so the findings sit next to the other pre-deploy notes; reported only after the
   // deployment succeeds, because they describe the configuration that is then actually running.
-  const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
+  const securityAssessment = assessAndPrintSecurityPosture({ config, tui, command: 'deploy' });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
   tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
@@ -597,9 +597,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     stackInfo: detailedStackInfoSensitive,
     packagedWorkloads,
     ...(changePlan ? { changePlan } : {}),
-    ...(securityAssessment
-      ? { securityFindings: securityAssessment.findings, securityExposure: securityAssessment.exposure }
-      : {})
+    ...(securityAssessment ? { security: securityAssessment } : {})
   };
 };
 

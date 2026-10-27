@@ -13,8 +13,8 @@ import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolv
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { StackContext } from '@domain-services/stack-context';
-import { SECURITY_RULES, SECURITY_SEVERITY_RANK } from '@stacktape/console-api/security';
-import { classifyStage } from '@stacktape/console-api/stages';
+import { getSecurityRule, SECURITY_RULES, SECURITY_SEVERITY_RANK } from '@stacktape/console-api/security';
+import { classifyStage, type StageClassification, type StageType } from '@stacktape/console-api/stages';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { SecurityScanningConfig, StpIamRoleStatement } from '@stacktape/config/shared';
 import type { ConfigManager } from '../index';
@@ -28,19 +28,38 @@ import { getDeadLetterQueueNames } from './sqs-queues';
  * stopping at the first one, and never throws. The CLI prints the findings and, after a successful deployment,
  * reports them to the Console. Secret detection is the one rule that reads the raw configuration: after directive
  * resolution a `$Secret()` reference and a pasted credential look the same.
+ *
+ * The rules always evaluate the configuration as if it ran in production. A non-production stage then reports the
+ * same findings at the rule's non-production severity, without the production-only rules; those are kept apart so
+ * the developer still sees what to fix before the configuration reaches production.
  */
 
+/** A finding at the severity it has in this stage. `productionSeverity` is set when production rates it higher. */
+export type StageSecurityFinding = SecurityReportFinding & { productionSeverity?: SecurityFindingSeverity };
+
+export type StagePurpose = {
+  name: string;
+  purpose: StageType;
+  /**
+   * `stackConfig.stageType` when the configuration declares it, then the type chosen when the stage was created in
+   * the Stacktape Console, otherwise the stage name.
+   */
+  decidedBy: 'stackConfig.stageType' | 'stacktape-console' | 'stage-name';
+};
+
 export type SecurityPostureAssessment = {
-  findings: SecurityReportFinding[];
+  stage: StagePurpose;
+  /** What this stage reports, to the developer and to the Console. */
+  findings: StageSecurityFinding[];
+  /** Non-production stages only: findings of the production-only rules, which this stage does not report. */
+  productionOnlyFindings: SecurityReportFinding[];
   exposure: SecurityExposureEntry[];
-  isProduction: boolean;
 };
 
 type RuleContext = {
   configManager: ConfigManager;
   rawConfig: StacktapeConfig | null | undefined;
   stackContext: StackContext;
-  isProduction: boolean;
 };
 
 type FindingParams = {
@@ -89,7 +108,7 @@ const configResourceOf = (resource: NamedResource, fallback: string) =>
     ? { name: resource.nameChain[0], type: 'convex' }
     : { name: resource.name, type: resourceTypeOf(resource, fallback) };
 
-const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityReportFinding[] => {
+const databaseRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
   for (const db of configManager.databases as (StpRelationalDatabase & NamedResource)[]) {
     const { name, type } = configResourceOf(db, 'relational-database');
@@ -104,7 +123,7 @@ const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityRe
         })
       );
     }
-    if (isProduction && !db.deletionProtection) {
+    if (!db.deletionProtection) {
       findings.push(
         createFinding('database-deletion-protection-disabled', {
           resourceName: name,
@@ -114,7 +133,7 @@ const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityRe
         })
       );
     }
-    if (isProduction && db.automatedBackupRetentionDays === 0) {
+    if (db.automatedBackupRetentionDays === 0) {
       findings.push(
         createFinding('database-backups-disabled', {
           resourceName: name,
@@ -139,7 +158,7 @@ const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityRe
     }
   }
   for (const db of configManager.dsqlDatabases as ({ deletionProtection?: boolean } & NamedResource)[]) {
-    if (isProduction && !db.deletionProtection) {
+    if (!db.deletionProtection) {
       findings.push(
         createFinding('database-deletion-protection-disabled', {
           resourceName: db.name,
@@ -150,30 +169,28 @@ const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityRe
       );
     }
   }
-  if (isProduction) {
-    for (const table of configManager.dynamoDbTables as (StpDynamoTable & NamedResource)[]) {
-      if (!table.enablePointInTimeRecovery) {
-        findings.push(
-          createFinding('database-backups-disabled', {
-            resourceName: table.name,
-            resourceType: resourceTypeOf(table, 'dynamo-db-table'),
-            message: `Production DynamoDB table \`${table.name}\` has no point-in-time recovery, so a bad write cannot be undone.`,
-            remediation: `Set \`enablePointInTimeRecovery: true\` on \`${table.name}\`.`
-          })
-        );
-      }
+  for (const table of configManager.dynamoDbTables as (StpDynamoTable & NamedResource)[]) {
+    if (!table.enablePointInTimeRecovery) {
+      findings.push(
+        createFinding('database-backups-disabled', {
+          resourceName: table.name,
+          resourceType: resourceTypeOf(table, 'dynamo-db-table'),
+          message: `Production DynamoDB table \`${table.name}\` has no point-in-time recovery, so a bad write cannot be undone.`,
+          remediation: `Set \`enablePointInTimeRecovery: true\` on \`${table.name}\`.`
+        })
+      );
     }
-    for (const filesystem of configManager.efsFilesystems as (StpEfsFilesystem & NamedResource)[]) {
-      if (!filesystem.backupEnabled) {
-        findings.push(
-          createFinding('database-backups-disabled', {
-            resourceName: filesystem.name,
-            resourceType: resourceTypeOf(filesystem, 'efs-filesystem'),
-            message: `Production EFS filesystem \`${filesystem.name}\` is not backed up.`,
-            remediation: `Set \`backupEnabled: true\` on \`${filesystem.name}\`.`
-          })
-        );
-      }
+  }
+  for (const filesystem of configManager.efsFilesystems as (StpEfsFilesystem & NamedResource)[]) {
+    if (!filesystem.backupEnabled) {
+      findings.push(
+        createFinding('database-backups-disabled', {
+          resourceName: filesystem.name,
+          resourceType: resourceTypeOf(filesystem, 'efs-filesystem'),
+          message: `Production EFS filesystem \`${filesystem.name}\` is not backed up.`,
+          remediation: `Set \`backupEnabled: true\` on \`${filesystem.name}\`.`
+        })
+      );
     }
   }
   return findings;
@@ -346,9 +363,9 @@ const iamRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
   return findings;
 };
 
-const resilienceRules = ({ configManager, isProduction }: RuleContext): SecurityReportFinding[] => {
+const resilienceRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
-  if (isProduction && !configManager.deploymentConfig.terminationProtection) {
+  if (!configManager.deploymentConfig.terminationProtection) {
     findings.push(
       createFinding('stack-termination-protection-disabled', {
         message: 'The production stack can be deleted in one step, with every resource in it.',
@@ -356,24 +373,22 @@ const resilienceRules = ({ configManager, isProduction }: RuleContext): Security
       })
     );
   }
-  if (isProduction) {
-    const workloads = (
-      configManager.allContainerWorkloads as ({
-        configParentResourceType?: string;
-        scaling: { minInstances: number };
-      } & NamedResource)[]
-    ).filter(({ configParentResourceType }) => configParentResourceType !== 'convex');
-    for (const workload of workloads) {
-      if (workload.scaling.minInstances < 2) {
-        findings.push(
-          createFinding('container-single-instance-in-production', {
-            resourceName: workload.name,
-            resourceType: resourceTypeOf(workload, 'multi-container-workload'),
-            message: `Production container service \`${workload.name}\` runs \`${workload.scaling.minInstances}\` instance, so one failure or one deployment interrupts it.`,
-            remediation: `Set \`scaling.minInstances\` on \`${workload.name}\` to at least \`2\`.`
-          })
-        );
-      }
+  const workloads = (
+    configManager.allContainerWorkloads as ({
+      configParentResourceType?: string;
+      scaling: { minInstances: number };
+    } & NamedResource)[]
+  ).filter(({ configParentResourceType }) => configParentResourceType !== 'convex');
+  for (const workload of workloads) {
+    if (workload.scaling.minInstances < 2) {
+      findings.push(
+        createFinding('container-single-instance-in-production', {
+          resourceName: workload.name,
+          resourceType: resourceTypeOf(workload, 'multi-container-workload'),
+          message: `Production container service \`${workload.name}\` runs \`${workload.scaling.minInstances}\` instance, so one failure or one deployment interrupts it.`,
+          remediation: `Set \`scaling.minInstances\` on \`${workload.name}\` to at least \`2\`.`
+        })
+      );
     }
   }
   const deadLetterQueues = getDeadLetterQueueNames(configManager.sqsQueues as StpSqsQueue[]);
@@ -568,7 +583,7 @@ const exposureEntries = ({ configManager }: RuleContext): SecurityExposureEntry[
   return entries;
 };
 
-const sortFindings = (findings: SecurityReportFinding[]) =>
+const sortFindings = <Finding extends SecurityReportFinding>(findings: Finding[]) =>
   findings.toSorted(
     (a, b) =>
       SECURITY_SEVERITY_RANK[a.severity] - SECURITY_SEVERITY_RANK[b.severity] ||
@@ -615,21 +630,43 @@ export const resolveSecurityScanningPolicy = ({
   };
 };
 
+/** A non-production stage reports the rule's lower non-production severity and remembers the production one. */
+const atNonProductionSeverity = (finding: SecurityReportFinding): StageSecurityFinding => {
+  const severity = getSecurityRule(finding.ruleId)?.nonProductionSeverity;
+  if (!severity || SECURITY_SEVERITY_RANK[severity] <= SECURITY_SEVERITY_RANK[finding.severity]) return finding;
+  return { ...finding, severity, productionSeverity: finding.severity };
+};
+
+const DECIDED_BY = {
+  explicit: 'stackConfig.stageType',
+  console: 'stacktape-console',
+  inferred: 'stage-name'
+} as const satisfies Record<StageClassification['source'], StagePurpose['decidedBy']>;
+
 export const assessSecurityPosture = ({
   configManager,
   rawConfig,
-  stackContext
+  stackContext,
+  consoleStageType
 }: {
   configManager: ConfigManager;
   rawConfig: StacktapeConfig | null | undefined;
   stackContext: StackContext;
+  /** The type chosen when the stage was created in the Stacktape Console, when the command knows it. */
+  consoleStageType?: StageType;
 }): SecurityPostureAssessment => {
-  const { isProduction } = classifyStage({
+  const { isProduction, source } = classifyStage({
     stageName: stackContext.stage,
-    explicitStageType: configManager.stackConfig?.stageType
+    explicitStageType: configManager.stackConfig?.stageType,
+    consoleStageType
   });
-  const context: RuleContext = { configManager, rawConfig, stackContext, isProduction };
-  const findings = sortFindings([
+  const stage: StagePurpose = {
+    name: stackContext.stage,
+    purpose: isProduction ? 'production' : 'non-production',
+    decidedBy: DECIDED_BY[source]
+  };
+  const context: RuleContext = { configManager, rawConfig, stackContext };
+  const productionFindings = sortFindings([
     ...databaseRules(context),
     ...loadBalancerRules(context),
     ...bucketRules(context),
@@ -637,7 +674,17 @@ export const assessSecurityPosture = ({
     ...resilienceRules(context),
     ...secretRules(context)
   ]);
-  return { findings, exposure: exposureEntries(context), isProduction };
+  const exposure = exposureEntries(context);
+  if (isProduction) return { stage, findings: productionFindings, productionOnlyFindings: [], exposure };
+  const productionOnly = (finding: SecurityReportFinding) => getSecurityRule(finding.ruleId)?.productionOnly;
+  return {
+    stage,
+    findings: sortFindings(
+      productionFindings.filter((finding) => !productionOnly(finding)).map(atNonProductionSeverity)
+    ),
+    productionOnlyFindings: productionFindings.filter(productionOnly),
+    exposure
+  };
 };
 
 /** `1 critical, 2 high, 1 low` or `no findings`, for the deploy output. */

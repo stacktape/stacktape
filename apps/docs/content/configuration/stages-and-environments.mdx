@@ -64,6 +64,21 @@ stacktape deploy --stage production --region eu-west-1
 Each command creates (or updates) a completely separate CloudFormation stack with its own resources. Deleting a stage
 removes only that stage's resources — other stages are unaffected.
 
+## Production and non-production stages
+
+Stacktape treats production stages differently in a few places: production error groups enter the incident queue, deleting a production stack needs a stronger Console permission, and [security findings](/cli/validate#security-findings-by-stage-purpose) are rated for production. A database open to the internet, for example, is `HIGH` in production and `LOW` in a dev stage.
+
+A stage is production when `stackConfig.stageType` is `production`. Without that setting, the type you chose when you created the stage in the Stacktape Console decides. Otherwise Stacktape decides from the stage name: `prod`, `production`, `prd` and `live`, alone, as a segment (`prod-eu`, `client-a-prod`) or followed by a number (`prod2`), count as production, and names with a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`) do not. `deploy` reads the Console's type; a plain `validate` does not contact the Console and uses the config and the name. Set `stageType` when your production stage has another name, such as `main`:
+
+```typescript
+export default defineConfig(({ stage }) => ({
+  stackConfig: { stageType: stage === 'main' ? 'production' : 'non-production' },
+  resources: {
+    // ...
+  }
+}));
+```
+
 ## Stage-aware configuration
 
 The `defineConfig` callback receives a `stage` parameter. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.

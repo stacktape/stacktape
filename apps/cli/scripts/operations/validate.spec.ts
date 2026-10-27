@@ -8,6 +8,20 @@ import { buildOperationsCli, createOperationsFixture, targetArgs } from './cli-p
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 
 let cli: Awaited<ReturnType<typeof buildOperationsCli>>;
+
+const prepareValidation = async (fixture: Awaited<ReturnType<typeof createOperationsFixture>>) => {
+  const inventory = new AdmZip();
+  inventory.addFile('index.js', Buffer.from('exports.default = async () => {};'));
+  inventory.writeZip(join(fixture.directory, '__stacktape-dist/dev/helper-lambdas/stacktapeServiceLambda-fixture.zip'));
+  await writeHelperLambdaManifest({
+    helperLambdasDir: join(fixture.directory, '__stacktape-dist/dev/helper-lambdas'),
+    artifacts: { stacktapeServiceLambda: 'stacktapeServiceLambda-fixture.zip' }
+  });
+  // MiniStack has no Cost Explorer/Budgets or resource-tag key enumeration.
+  fixture.aws.on('ce.GetTags', () => ({ kind: 'json', body: { Tags: [] } }));
+  fixture.aws.on('budgets.DescribeBudgets', () => ({ kind: 'json', body: { Budgets: [] } }));
+  fixture.aws.on('tagging.GetTagKeys', () => ({ kind: 'json', body: { TagKeys: [] } }));
+};
 beforeAll(async () => {
   cli = await buildOperationsCli();
 }, 60_000);
@@ -37,19 +51,7 @@ test('thorough validation checks at 51,200 bytes, skips larger UTF-8 templates, 
     return { run, result: parseCliJsonl(run.stdout, 'validate').result };
   };
   try {
-    const inventory = new AdmZip();
-    inventory.addFile('index.js', Buffer.from('exports.default = async () => {};'));
-    inventory.writeZip(
-      join(fixture.directory, '__stacktape-dist/dev/helper-lambdas/stacktapeServiceLambda-fixture.zip')
-    );
-    await writeHelperLambdaManifest({
-      helperLambdasDir: join(fixture.directory, '__stacktape-dist/dev/helper-lambdas'),
-      artifacts: { stacktapeServiceLambda: 'stacktapeServiceLambda-fixture.zip' }
-    });
-    // MiniStack has no Cost Explorer/Budgets or resource-tag key enumeration.
-    fixture.aws.on('ce.GetTags', () => ({ kind: 'json', body: { Tags: [] } }));
-    fixture.aws.on('budgets.DescribeBudgets', () => ({ kind: 'json', body: { Budgets: [] } }));
-    fixture.aws.on('tagging.GetTagKeys', () => ({ kind: 'json', body: { TagKeys: [] } }));
+    await prepareValidation(fixture);
     const configured = await validate('', false, false);
     expect(configured.run.exitCode, configured.result.message).toBe(0);
     expect(await readFile(out, 'utf8')).toContain('configured-project-test');
@@ -85,6 +87,78 @@ test('thorough validation checks at 51,200 bytes, skips larger UTF-8 templates, 
     expect(rejected.run.exitCode).toBe(1);
     expect(rejected.result.ok).toBe(false);
     expect(rejected.result.message).toContain('Injected invalid template');
+    expect(fixture.api.calls).toEqual([]);
+    expect(fixture.aws.unexpected).toEqual([]);
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+type SecurityResult = {
+  stage: { name: string; purpose: string; decidedBy: string };
+  findings: Array<{ ruleId: string; resourceName?: string; severity: string; productionSeverity?: string }>;
+  productionOnlyFindings: Array<{ ruleId: string; resourceName?: string; severity: string }>;
+};
+
+test('validate rates a public database by the stage purpose and says what to fix before production', async () => {
+  const fixture = await createOperationsFixture(cli.path);
+  const database = {
+    type: 'relational-database',
+    properties: {
+      credentials: { masterUserPassword: 'not-a-real-password' },
+      engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+    }
+  };
+  const validate = async (stackConfig?: Record<string, unknown>) => {
+    await writeFile(
+      join(fixture.directory, 'stacktape.yml'),
+      JSON.stringify({ resources: { database }, ...(stackConfig ? { stackConfig } : {}) })
+    );
+    const run = await fixture.run(['validate', ...targetArgs, '--agent']);
+    const result = parseCliJsonl(run.stdout, 'validate').result;
+    expect(run.exitCode, result.message).toBe(0);
+    return { stdout: run.stdout, security: (result.data.result as { security: SecurityResult }).security };
+  };
+  try {
+    await prepareValidation(fixture);
+    // `test` is not a production name, so the public database is acceptable for this stage.
+    const development = await validate();
+    expect(development.security.stage).toEqual({ name: 'test', purpose: 'non-production', decidedBy: 'stage-name' });
+    expect(development.security.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'database-reachable-from-internet',
+        resourceName: 'database',
+        severity: 'LOW',
+        productionSeverity: 'HIGH'
+      })
+    ]);
+    expect(development.security.productionOnlyFindings.map(({ ruleId }) => ruleId)).toEqual([
+      'database-deletion-protection-disabled',
+      'stack-termination-protection-disabled'
+    ]);
+    expect(development.stdout).toContain('Security posture: 1 low (stage `test` is non-production by its name).');
+    expect(development.stdout).toContain('[LOW] database: Database reachable from the internet (HIGH in production)');
+    expect(development.stdout).toContain('Also fix before production (not reported for this stage):');
+    expect(development.stdout).toContain('[MEDIUM] database: Production database without deletion protection');
+    expect(development.stdout).toContain('Rated for a non-production stage: acceptable for dev and preview');
+
+    const production = await validate({ stageType: 'production' });
+    expect(production.security.stage).toEqual({
+      name: 'test',
+      purpose: 'production',
+      decidedBy: 'stackConfig.stageType'
+    });
+    expect(production.security.findings.map(({ ruleId, severity }) => [ruleId, severity])).toEqual([
+      ['database-reachable-from-internet', 'HIGH'],
+      ['database-deletion-protection-disabled', 'MEDIUM'],
+      ['stack-termination-protection-disabled', 'LOW']
+    ]);
+    expect(production.security.productionOnlyFindings).toEqual([]);
+    expect(production.stdout).toContain(
+      'Security posture: 1 high, 1 medium, 1 low (stage `test` is production by `stackConfig.stageType`).'
+    );
+    expect(production.stdout).not.toContain('in production)');
+    expect(production.stdout).not.toContain('Rated for a non-production stage');
     expect(fixture.api.calls).toEqual([]);
     expect(fixture.aws.unexpected).toEqual([]);
   } finally {
