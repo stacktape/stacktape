@@ -35,7 +35,7 @@ export function Inline({ text }: { text: string }) {
 }
 
 /**
- * One application's bars: a row per tool, in the comparison's fixed tool order. Stacktape's bar is
+ * One application's bars: a row per tool, fastest first. Stacktape's bar is
  * the brand colour and every other tool is the same muted grey, so the eye finds one bar and reads
  * the rest against it. The value sits at the bar's tip; the fastest tool in the group says so, which
  * is how a loss shows without a second colour.
@@ -53,7 +53,8 @@ export function BenchmarkGroup({
   max: number;
   compact?: boolean;
 }) {
-  const best = Math.min(...group.values.map((value) => value.median));
+  const values = group.values.toSorted((a, b) => a.median - b.median);
+  const best = values[0]?.median;
   return (
     <div className={compact ? 'rm-bench__group rm-bench__group--compact' : 'rm-bench__group'}>
       {!compact && (
@@ -63,7 +64,7 @@ export function BenchmarkGroup({
         </h4>
       )}
       <ul className="rm-bench__rows" aria-label={compact ? undefined : `${group.app}: ${group.label}`}>
-        {group.values.map((value) => {
+        {values.map((value) => {
           const name = toolName(data, value.tool);
           const fastest = value.median === best;
           const range =
