@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 // v3 places functions in the shared dev network and deploys them with the relay addresses of local databases.
 // v4 keeps source maps in dev function packages and runs the functions with `--enable-source-maps`.
 // v5 records a digest of each input separately, so an update can name what changed.
-const FINGERPRINT_VERSION = 5;
+// v6 leaves alarms out of dev stacks and lets schedule rules name their function by ARN.
+const FINGERPRINT_VERSION = 6;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;

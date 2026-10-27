@@ -169,3 +169,51 @@ test('dev functions that need the dev box run in the shared dev network with rel
   expect(types.filter((type) => type.startsWith('AWS::EC2::'))).toEqual([]);
   expect(JSON.stringify(template)).not.toContain('"Ref":"StpVpc"');
 });
+
+test('dev stacks leave out alarms, and their schedule rules do not wait for the function', async () => {
+  const compile = (command: 'dev' | 'synth') =>
+    defineConfig(() => {
+      const worker = new LambdaFunction({
+        packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+        events: [{ type: 'schedule', properties: { scheduleRate: 'rate(2 minutes)' } }],
+        alarms: [{ trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } } }]
+      });
+      return { resources: { worker } };
+    })({
+      projectName: 'characterization',
+      stage: 'baseline',
+      region: 'eu-west-1',
+      command,
+      awsProfile: '',
+      cliArgs: {}
+    });
+  const synthesize = (command: 'dev' | 'synth') =>
+    synthesizeFixture({
+      compiledConfig: compile(command),
+      command,
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+    });
+  const scheduleRuleTarget = (template: Awaited<ReturnType<typeof synthesize>>) =>
+    Object.values(template.Resources)
+      .filter(({ Type }) => Type === 'AWS::Events::Rule')
+      .map(({ Properties }) => Properties as { ScheduleExpression?: string; Targets: Array<{ Arn: unknown }> })
+      .find(({ ScheduleExpression }) => ScheduleExpression === 'rate(2 minutes)')?.Targets[0].Arn;
+
+  const deployed = await synthesize('synth');
+  const deployedTypes = Object.values(deployed.Resources).map(({ Type }) => Type);
+  expect(deployedTypes).toContain('AWS::CloudWatch::Alarm');
+  expect(deployedTypes.filter((type) => type === 'AWS::Events::Rule')).toHaveLength(2);
+  expect(scheduleRuleTarget(deployed)).toEqual({ 'Fn::GetAtt': ['WorkerFunction', 'Arn'] });
+
+  // The r2p dogfood run: each alarm's notification rule took 61 s at the end of every new dev stage, and the alarms
+  // would have notified about errors an agent caused on purpose.
+  const dev = await synthesize('dev');
+  const devTypes = Object.values(dev.Resources).map(({ Type }) => Type);
+  expect(devTypes).not.toContain('AWS::CloudWatch::Alarm');
+  expect(devTypes.filter((type) => type === 'AWS::Events::Rule')).toHaveLength(1);
+  expect(JSON.stringify(dev)).not.toContain('AlarmNotification');
+  // The rule names the function by ARN, so CloudFormation creates it while it creates the function.
+  expect(scheduleRuleTarget(dev)).toEqual({
+    'Fn::Sub': 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:characterization-baseline-worker'
+  });
+});

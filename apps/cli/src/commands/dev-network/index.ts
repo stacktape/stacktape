@@ -1,4 +1,5 @@
 import type { RelaySessionInfo } from '../dev/tunnel-manager';
+import type { DevNetworkDeletionProgress } from '@domain-services/dev-network';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import {
@@ -164,6 +165,33 @@ export const commandDevNetwork = async () => {
   return result;
 };
 
+/**
+ * Reports a long network deletion once a minute, so a deletion of 20 minutes does not look hung. The subnets and the
+ * keeper function are deleted in every run; only when they are still being deleted after `lambdaWaitAfterMs` does the
+ * report say that CloudFormation waits for Lambda to release their network interfaces, and it says so at once.
+ */
+export const createDeletionProgressReporter = ({
+  report = (message: string) => tuiManager.info(message),
+  intervalMs = 60_000,
+  lambdaWaitAfterMs = 120_000
+}: { report?: (message: string) => void; intervalMs?: number; lambdaWaitAfterMs?: number } = {}) => {
+  let lastReportAt = 0;
+  let reportedLambdaWait = false;
+  return ({ elapsedMs, deleting, waitingForLambdaNetworkInterfaces }: DevNetworkDeletionProgress) => {
+    const lambdaWait = waitingForLambdaNetworkInterfaces && elapsedMs >= lambdaWaitAfterMs;
+    const lambdaWaitStarted = lambdaWait && !reportedLambdaWait;
+    if (!lambdaWaitStarted && elapsedMs - lastReportAt < intervalMs) return;
+    reportedLambdaWait ||= lambdaWait;
+    lastReportAt = elapsedMs;
+    const elapsed = `${Math.floor(elapsedMs / 60_000)} min`;
+    report(
+      lambdaWait
+        ? `Still deleting the dev network (${elapsed}): waiting for AWS to release the network interfaces of deleted Lambda functions, which can take up to about 20 minutes.`
+        : `Still deleting the dev network (${elapsed})${deleting.length ? `: ${deleting.join(', ')}` : ''}.`
+    );
+  };
+};
+
 /** Deletes the dev network of the account and region, after its dev stages are deleted. */
 export const commandDevNetworkDelete = async () => {
   const { args } = await loadUserCredentials();
@@ -201,11 +229,14 @@ export const commandDevNetworkDelete = async () => {
     return { deleted: false };
   }
   if (!(await confirm(network.stackName))) return { deleted: false };
-  tuiManager.info(`Deleting the dev network ${network.stackName}. This takes about 2 minutes.`);
+  tuiManager.info(
+    `Deleting the dev network ${network.stackName}. This takes about 2 minutes, or up to about 20 minutes when dev functions were deleted shortly before: AWS releases their network interfaces with a delay.`
+  );
   const { deletedLeases, recreated } = await deleteDevNetwork({
     aws,
     network,
     force: Boolean(args.force),
+    onWaiting: createDeletionProgressReporter(),
     findLiveSessions: (target) =>
       queryDevBoxRelay({ aws, network: target, request: (relay) => listRelaySessions(relay) })
   });
