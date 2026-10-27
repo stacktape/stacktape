@@ -269,14 +269,16 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Console delivers to, before the template is built. Fails with every unresolvable name at once.
   await resolveSlackAppChannels({ rawConfig: config.config, apiClient: stacktapeApi.apiClient });
 
-  // The stack action type is derived from the current stack details, which the post-deploy refetch replaces.
-  const isFirstDeployment = stack.stackActionType === 'create';
+  // Both are derived from the current stack details, which the post-deploy refetch replaces. A stack an earlier first
+  // deploy left with only its artifact resources is updated, but this is still the stage's first deploy.
+  const createsStack = stack.stackActionType === 'create';
+  const isFirstDeployment = stack.isFirstDeploy;
 
   progress.setPhase('BUILD_AND_PACKAGE');
   // A new stack starts as the deployment bucket, image repository and service log group. Their names are known before
   // the build, so they are created while it runs; the upload waits for them. A first deploy asks no confirmation. When
-  // the build fails, the stack keeps only these resources, and the next deploy updates it like any other stack.
-  const artifactStackCreation = isFirstDeployment
+  // the build fails, the stack keeps only these resources, and the next deploy updates it, still as the first deploy.
+  const artifactStackCreation = createsStack
     ? stack.createResourcesForArtifacts(getArtifactStackTemplate())
     : undefined;
   // A build failure is the error to report; this one is reported where the upload waits for it.

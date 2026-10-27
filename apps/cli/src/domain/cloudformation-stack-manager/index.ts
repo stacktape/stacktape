@@ -66,6 +66,7 @@ import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
+import { isFirstDeployOfStack } from './first-deploy';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
 import type { CloudformationTag } from '@stacktape/config/shared';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -368,6 +369,14 @@ class StackManager {
     if (command === 'diff') {
       return 'update';
     }
+  }
+
+  /**
+   * Whether this deploy is the stage's first. Unlike `stackActionType`, it is also true for a stack an earlier first
+   * deploy left with only its artifact resources (see {@link isFirstDeployOfStack}).
+   */
+  get isFirstDeploy() {
+    return isFirstDeployOfStack(this.existingStackDetails);
   }
 
   get isAutoRollbackEnabled() {
