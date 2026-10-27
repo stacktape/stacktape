@@ -6,6 +6,7 @@ import { globalStateManager } from '../../src/app/global-state-manager';
 import { operationReporter } from '../../src/app/operation-manager';
 import { configManager } from '../../src/domain/config-manager';
 import { deployedStackOverviewManager } from '../../src/domain/deployed-stack-overview-manager';
+import { templateManager } from '../../src/domain/template-manager';
 import { awsSdkManager } from '../../src/utils/aws-sdk-manager';
 import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 
@@ -42,7 +43,8 @@ const settle = async () => {
 
 const withDeleteFixture = async (
   resources: EnrichedStackResourceInfo[],
-  run: (fixture: { calls: string[]; runCleanUpHooks: () => Promise<void> }) => Promise<void>
+  run: (fixture: { calls: string[]; runCleanUpHooks: () => Promise<void> }) => Promise<void>,
+  { deletionPolicies = {} }: { deletionPolicies?: Record<string, string> } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
     operationReporter.setSilentMode(true);
@@ -81,6 +83,18 @@ const withDeleteFixture = async (
     Object.defineProperty(configManager, 'deploymentConfig', { configurable: true, get: () => undefined });
     spies.push(spyOn(deployedStackOverviewManager, 'getStackMetadata').mockReturnValue(undefined));
     stackManager.existingStackResources = resources;
+    // The deployed template: CloudFormation deletes each resource with the stack unless a DeletionPolicy says otherwise.
+    templateManager.oldTemplate = {
+      Resources: Object.fromEntries(
+        resources.map(({ LogicalResourceId, ResourceType }) => [
+          LogicalResourceId,
+          {
+            Type: ResourceType,
+            ...(deletionPolicies[LogicalResourceId] ? { DeletionPolicy: deletionPolicies[LogicalResourceId] } : {})
+          }
+        ])
+      )
+    } as typeof templateManager.oldTemplate;
     stackManager.existingStackDetails = {
       StackName: stackName,
       StackId: stackName,
@@ -99,6 +113,7 @@ const withDeleteFixture = async (
       for (const spy of spies) spy.mockRestore();
       delete (configManager as { deploymentConfig?: unknown }).deploymentConfig;
       stackManager.existingStackResources = [];
+      templateManager.oldTemplate = undefined;
     }
   });
 };
@@ -177,6 +192,37 @@ describe('stack delete', () => {
         expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /), 'cloudformation:monitor']);
         await runCleanUpHooks();
         expect(calls).toHaveLength(2);
+      }
+    );
+  });
+  test('a distribution or service the stack retains keeps running', async () => {
+    const service = resource('AWS::ECS::Service', serviceArn);
+    const distribution = resource('AWS::CloudFront::Distribution', distributionId);
+    await withDeleteFixture(
+      [service, distribution],
+      async ({ calls }) => {
+        await stackManager.deleteStack();
+        expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /), 'cloudformation:monitor']);
+      },
+      {
+        deletionPolicies: {
+          [service.LogicalResourceId]: 'Retain',
+          [distribution.LogicalResourceId]: 'RetainExceptOnCreate'
+        }
+      }
+    );
+  });
+
+  test('a failed DeleteStack request enables the distribution again', async () => {
+    await withDeleteFixture(
+      [resource('AWS::CloudFront::Distribution', distributionId)],
+      async ({ calls, runCleanUpHooks }) => {
+        (awsSdkManager.cloudFormation.delete as unknown as ReturnType<typeof spyOn>).mockImplementation(async () => {
+          throw new Error('Stack is in UPDATE_IN_PROGRESS state and can not be deleted');
+        });
+        await expect(stackManager.deleteStack()).rejects.toThrow('can not be deleted');
+        await runCleanUpHooks();
+        expect(calls).toEqual([`cloudfront:disable ${distributionId}`, `cloudfront:enable ${distributionId}`]);
       }
     );
   });

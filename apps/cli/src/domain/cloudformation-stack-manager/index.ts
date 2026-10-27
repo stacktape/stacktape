@@ -832,27 +832,42 @@ class StackManager {
       (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
 
     const disabledDistributionIds: string[] = [];
+    const scaledDownServiceArns: string[] = [];
+    let disabling: Promise<unknown> | undefined;
     let deleteRequested = false;
     // When the delete never reaches CloudFormation (an error or Ctrl+C before that), the stack stays and its
     // distributions are enabled again, so the site comes back.
     applicationManager.registerCleanUpHook(async () => {
+      await disabling;
       if (!deleteRequested && disabledDistributionIds.length) {
         await this.#enableDistributionsAfterAbortedDelete(disabledDistributionIds);
       }
+      if (!deleteRequested && scaledDownServiceArns.length) {
+        tuiManager.warn(
+          `The stack delete did not start, but these ECS services were already scaled to 0 tasks: ${scaledDownServiceArns.join(', ')}. Set their desired count again in the AWS console, or run the delete again.`
+        );
+      }
     });
+    disabling = this.#disableDistributionsBeforeDelete(disabledDistributionIds);
     const [beforeDeleteResult] = await Promise.allSettled([
       beforeDelete?.(),
-      this.#scaleDownEcsServicesBeforeDelete(),
-      this.#disableDistributionsBeforeDelete(disabledDistributionIds)
+      this.#scaleDownEcsServicesBeforeDelete(scaledDownServiceArns),
+      disabling
     ]);
     if (beforeDeleteResult.status === 'rejected') {
       throw beforeDeleteResult.reason;
     }
 
-    await awsSdkManager.cloudFormation.delete(this.#stackName, {
-      roleArn
-    });
+    // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
+    try {
+      await awsSdkManager.cloudFormation.delete(this.#stackName, {
+        roleArn
+      });
+    } catch (err) {
+      deleteRequested = false;
+      throw err;
+    }
     codeSwapIntegration.teardownAccepted(this.#stackName);
     const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
       operationReporter.updateEvent({
@@ -866,19 +881,29 @@ class StackManager {
   };
 
   /**
+   * Physical IDs of the deployed resources of these types that CloudFormation deletes with the stack. A resource whose
+   * deployed template sets another DeletionPolicy (possible in `cloudformationResources`) outlives the stack and must
+   * keep working, so the delete leaves it alone. Without the deployed template nothing is known to be deleted.
+   */
+  #resourcesDeletedWithStack = (resourceTypes: string[]) =>
+    (this.existingStackResources || [])
+      .filter(({ ResourceType, PhysicalResourceId, LogicalResourceId }) => {
+        if (!resourceTypes.includes(ResourceType) || !PhysicalResourceId) return false;
+        const deployed = templateManager.oldTemplate?.Resources?.[LogicalResourceId] as
+          | { DeletionPolicy?: unknown }
+          | undefined;
+        return !!deployed && (deployed.DeletionPolicy === undefined || deployed.DeletionPolicy === 'Delete');
+      })
+      .map(({ PhysicalResourceId }) => PhysicalResourceId);
+
+  /**
    * Asks ECS to stop every service's tasks, without waiting for them. CloudFormation's own service delete waits for the
    * drain, in parallel with the stack's other long deletes (CloudFront, databases, NAT gateways) instead of before all
    * of them. Starting the drain here shortens that wait, which once ran into CloudFormation's "Resource timed out
    * waiting for completion" when tasks drained slowly. Best effort: a failure leaves the work to CloudFormation.
    */
-  #scaleDownEcsServicesBeforeDelete = async () => {
-    const ecsServiceArns = (this.existingStackResources || [])
-      .filter(
-        ({ ResourceType, PhysicalResourceId }) =>
-          (ResourceType === 'AWS::ECS::Service' || ResourceType === 'Stacktape::ECSBlueGreenV1::Service') &&
-          PhysicalResourceId
-      )
-      .map(({ PhysicalResourceId }) => PhysicalResourceId);
+  #scaleDownEcsServicesBeforeDelete = async (scaledDownServiceArns: string[]) => {
+    const ecsServiceArns = this.#resourcesDeletedWithStack(['AWS::ECS::Service', 'Stacktape::ECSBlueGreenV1::Service']);
 
     if (!ecsServiceArns.length) {
       return;
@@ -893,9 +918,12 @@ class StackManager {
       ecsServiceArns.map(async (ecsServiceArn) => {
         const cluster = ecsServiceArn.split('/')[1];
         if (!cluster) return;
-        await awsSdkManager.ecs
-          .startRollingUpdate({ service: ecsServiceArn, cluster, desiredCount: 0 })
-          .catch((err) => tuiManager.debug(`Could not scale down ECS service ${ecsServiceArn} before delete: ${err}`));
+        try {
+          await awsSdkManager.ecs.startRollingUpdate({ service: ecsServiceArn, cluster, desiredCount: 0 });
+          scaledDownServiceArns.push(ecsServiceArn);
+        } catch (err) {
+          tuiManager.debug(`Could not scale down ECS service ${ecsServiceArn} before delete: ${err}`);
+        }
       })
     );
   };
@@ -907,11 +935,7 @@ class StackManager {
    * the delete, so the site stops serving a little earlier. Best effort: a failure leaves the work to CloudFormation.
    */
   #disableDistributionsBeforeDelete = async (disabledDistributionIds: string[]) => {
-    const distributionIds = (this.existingStackResources || [])
-      .filter(
-        ({ ResourceType, PhysicalResourceId }) => ResourceType === 'AWS::CloudFront::Distribution' && PhysicalResourceId
-      )
-      .map(({ PhysicalResourceId }) => PhysicalResourceId);
+    const distributionIds = this.#resourcesDeletedWithStack(['AWS::CloudFront::Distribution']);
     await Promise.all(
       distributionIds.map(async (distributionId) => {
         try {
