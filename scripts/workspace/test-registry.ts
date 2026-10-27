@@ -4010,6 +4010,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/utils/kafka-events.spec.ts',
       'apps/cli/src/domain/config-manager/utils/synthetic-tests.spec.ts',
       'apps/cli/src/domain/config-manager/utils/tracing.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/transaction-search.test.ts',
       'apps/cli/src/domain/email-sender-manager/bindings-fingerprint.spec.ts',
       'apps/cli/src/domain/email-sender-manager/identity.spec.ts',
       'apps/cli/src/domain/email-sender-manager/template.spec.ts',
