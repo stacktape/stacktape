@@ -93,6 +93,16 @@ jobs:
             exit 1
           fi
       - run: pnpm check:public
+      - name: Use Docker's containerd image store
+        # Railpack builds use BuildKit's merge operation, which Docker offers only with this store. It is the default from
+        # Docker Engine 29, but GitHub's runners still use the classic store.
+        run: |
+          daemon_config=/etc/docker/daemon.json
+          current=$(sudo cat "$daemon_config" 2>/dev/null || echo '{}')
+          printf '%s' "$current" | jq '.features = ((.features // {}) + {"containerd-snapshotter": true})' |
+            sudo tee "$daemon_config" >/dev/null
+          sudo systemctl restart docker
+          docker info --format '{{json .DriverStatus}}' | grep -q io.containerd.snapshotter
       - name: Execute packaging artifacts in real runtimes
         run: |
           # The Railpack scenarios need the pinned binary, and the E2E scripts cannot use the CLI's downloader.
