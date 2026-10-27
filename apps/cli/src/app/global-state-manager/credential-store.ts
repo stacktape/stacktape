@@ -3,8 +3,8 @@ import { STACKTAPE_TRPC_API_ENDPOINT } from '../../config/params';
 import { getPersistedApiKey, normalizeEndpoint, withPersistedApiKey } from './api-key-storage';
 
 /**
- * The CLI keeps its Stacktape API key in the operating system's credential store (macOS Keychain, Windows Credential
- * Manager, Linux Secret Service), one entry per API endpoint. Where that store is unavailable (common in WSL, SSH
+ * The CLI keeps its Stacktape API key in the operating system's credential store (Windows Credential Manager, Linux
+ * Secret Service), one entry per API endpoint. On macOS, and where that store is unavailable (common in WSL, SSH
  * sessions and containers, where every call throws) the key stays in the state file, which only the user can read.
  * `STACKTAPE_CREDENTIAL_STORE=file` forces the file, for tests and for machines whose store prompts.
  */
@@ -19,7 +19,14 @@ export type CredentialStore = {
 };
 
 export const getSystemCredentialStore = (): CredentialStore | undefined => {
-  if (process.env.STACKTAPE_CREDENTIAL_STORE === 'file' || typeof Bun === 'undefined') {
+  // macOS ties a Keychain item to the code signature of the binary that created it. Released CLI binaries are not
+  // signed with a stable identity, so every update would ask the user to allow access again and block unattended runs
+  // (the MCP server, `stacktape dev`) until someone answers. The file is used there until the binaries are signed.
+  if (
+    process.env.STACKTAPE_CREDENTIAL_STORE === 'file' ||
+    typeof Bun === 'undefined' ||
+    process.platform === 'darwin'
+  ) {
     return undefined;
   }
   return Bun.secrets;

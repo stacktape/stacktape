@@ -144,7 +144,8 @@ describe('CLI session storage', () => {
       process.env.STACKTAPE_CREDENTIAL_STORE = 'file';
       expect(getSystemCredentialStore()).toBeUndefined();
       delete process.env.STACKTAPE_CREDENTIAL_STORE;
-      expect(getSystemCredentialStore()).toBe(Bun.secrets);
+      // macOS keeps the file: Keychain would ask again after every update of the unsigned binary.
+      expect(getSystemCredentialStore()).toBe(process.platform === 'darwin' ? undefined : Bun.secrets);
     } finally {
       restoreStoreSetting(previous);
     }
