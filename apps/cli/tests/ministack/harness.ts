@@ -19,6 +19,8 @@ import {
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { MiniStack } from '@stacktape/ministack/fixture';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { installMarker } from '../../scripts/packaging-archives/split-project-fixture';
 import { buildOfflineQualificationEnvironment } from '../../scripts/qualification/offline-aws';
 import { startControlPlaneFake, type ControlPlaneFake } from '../cli-process/control-plane-fake';
@@ -57,6 +59,9 @@ export type CliStepResult = {
 export type FamilyProject = {
   projectName: string;
   stackName: string;
+  /** The stack's deployment bucket and image repository, which the CLI creates before a new stack. */
+  deploymentBucket: string;
+  deploymentRepository: string;
   directory: string;
   home: string;
   controlPlane: ControlPlaneFake;
@@ -95,9 +100,17 @@ export const createFamilyProject = async ({
     await controlPlane.close();
     throw error;
   });
+  const stackName = `${projectName}-${STAGE}`;
+  const stackHash = getGloballyUniqueStackHash({
+    region: ministack.region,
+    stackName,
+    accountId: ministack.defaultAccount.accountId
+  });
   return {
     projectName,
-    stackName: `${projectName}-${STAGE}`,
+    stackName,
+    deploymentBucket: awsResourceNames.deploymentBucket(stackHash),
+    deploymentRepository: awsResourceNames.deploymentEcrRepo(stackHash),
     directory,
     home,
     controlPlane,

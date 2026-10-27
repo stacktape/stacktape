@@ -561,7 +561,9 @@ class StackManager {
     };
   };
 
-  createResourcesForArtifacts = async (template: CloudFormationTemplate = templateManager.initialTemplate) => {
+  /** Creates a dev stack's first version: the deployment bucket, image repository and service log group. */
+  createResourcesForArtifacts = async () => {
+    const template = templateManager.initialTemplate;
     await operationReporter.startEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       description: 'Creating AWS resources for deployment artifacts (S3, ECR...)'
@@ -635,6 +637,8 @@ class StackManager {
         await wait(4000);
         stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
       }
+      // A failed first deploy deletes its stack. Once that finishes, the stack no longer exists.
+      if (!stackDetails) return { stackDetails };
       // check state after stack was stabilized
       const stackIsNotReadyForOperation =
         ((command === 'deploy' || command === 'dev' || command === 'deployment-script:run' || command === 'rollback') &&
@@ -737,6 +741,41 @@ class StackManager {
         ]),
       (el) => el.Key
     );
+  };
+
+  /**
+   * Creates a new stack with its whole template in one operation. Its deployment bucket and image repository exist
+   * before it (see `deploymentArtifactManager.createArtifactStore`). With automatic rollback, a failed creation deletes
+   * the stack.
+   */
+  createStack = async (templateUrl: string) => {
+    await this.validateTemplate({ templateUrl });
+    const stackParams = this.getStackParams();
+    await operationReporter.startEvent({
+      eventType: 'UPDATE_STACK',
+      description: 'Deploying infrastructure resources'
+    });
+    const { StackId } = await awsSdkManager.cloudFormation.createFromUrl(templateUrl, {
+      ...stackParams,
+      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+    });
+    const result = await this.monitorStack(
+      'create',
+      StackId,
+      (progress) => {
+        operationReporter.updateEvent({
+          eventType: 'UPDATE_STACK',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
+      },
+      { createdTemplate: templateManager.template }
+    );
+    await operationReporter.finishEvent({
+      eventType: 'UPDATE_STACK',
+      finalMessage: 'Deployment successful.'
+    });
+    return result;
   };
 
   deployStack = async (templateUrl: string, { finishWhenCleanupStarts = false } = {}) => {

@@ -65,6 +65,11 @@ import {
   sharedLayerNumberOf
 } from './shared-layers';
 import { templateManager } from '@domain-services/template-manager';
+import {
+  DEPLOYMENT_BUCKET_CORS_RULES,
+  getDeploymentBucketPolicy
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/background-resources/deployment-bucket/utils';
+import { DEPLOYMENT_REPOSITORY_LIFECYCLE_POLICY_TEXT } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/background-resources/deployment-image-repository/utils';
 import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
 import { SOURCE_MAP_KEY_PREFIX } from '@stacktape/console-api/source-maps';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
@@ -209,6 +214,71 @@ class DeploymentArtifactManager {
         instanceId: parentEventType ? 'previous-artifacts' : undefined
       });
     }
+  };
+
+  /**
+   * Whether the deployment bucket and image repository are resources of the stack. Stacks created before
+   * `createArtifactStore` existed and dev stacks keep them in the template, so no deploy replaces or removes them. A
+   * stack `deploy` creates gets them from the CLI before the stack exists, and `delete` removes them after the stack.
+   */
+  get artifactStoreIsStackResource() {
+    const { existingStackResources } = stackManager;
+    if (existingStackResources.length) {
+      return existingStackResources.some(
+        ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.deploymentBucket()
+      );
+    }
+    return globalStateManager.command === 'dev';
+  }
+
+  /**
+   * Creates the deployment bucket and image repository of a stack that does not exist yet, with the settings the
+   * CloudFormation resources of older stacks have. This takes about a second; CloudFormation needs about 20 seconds for
+   * the bucket. The calls are idempotent, so a deploy that failed before creating the stack can run again.
+   */
+  createArtifactStore = async () => {
+    await operationReporter.startEvent({
+      eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
+      description: 'Creating the deployment bucket and image repository'
+    });
+    const region = globalStateManager.region;
+    const tags = stackManager.getTags();
+    await Promise.all([
+      awsSdkManager.s3.createBucket({
+        bucketName: this.deploymentBucketName,
+        region,
+        corsRules: DEPLOYMENT_BUCKET_CORS_RULES,
+        policy: getDeploymentBucketPolicy({ bucketName: this.deploymentBucketName, region }),
+        enableTransferAcceleration: configManager.isS3TransferAccelerationAvailableInDeploymentRegion,
+        tags
+      }),
+      awsSdkManager.ecr.createRepository({
+        repositoryName: this.repositoryName,
+        scanOnPush: true,
+        lifecyclePolicyText: DEPLOYMENT_REPOSITORY_LIFECYCLE_POLICY_TEXT,
+        tags
+      })
+    ]);
+    await operationReporter.finishEvent({ eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS' });
+  };
+
+  /** Deletes the deployment bucket and image repository with their contents. Missing ones count as deleted. */
+  deleteArtifactStore = async () => {
+    await Promise.all([
+      awsSdkManager.s3.deleteBucket({ bucketName: this.deploymentBucketName }),
+      awsSdkManager.ecr.deleteRepository(this.repositoryName)
+    ]);
+  };
+
+  /**
+   * After a first deploy failed: deletes the bucket and repository `createArtifactStore` made, unless the stack exists
+   * and uses them. A stack that rolls back its creation is being deleted and no longer needs them. A stack whose
+   * creation failed without rollback keeps them for the next deploy, which updates it.
+   */
+  deleteArtifactStoreOfFailedFirstDeploy = async (stackName: string) => {
+    const stack = await awsSdkManager.cloudFormation.getDetails(stackName);
+    if (stack && stack.StackStatus !== 'DELETE_IN_PROGRESS' && stack.StackStatus !== 'DELETE_COMPLETE') return;
+    await this.deleteArtifactStore();
   };
 
   get baseS3Endpoint() {

@@ -44,6 +44,30 @@ export const defaultSynthesisIdentity: SynthesisIdentity = {
   stage: 'baseline'
 };
 
+/**
+ * The resources a stack deployed from `template` lists, as `stackManager` holds them; all of them, or `logicalIds`.
+ * Databases report the engine version their template names.
+ */
+export const existingResourcesOf = (
+  template: CloudFormationTemplate,
+  logicalIds: string[] = Object.keys(template.Resources ?? {})
+): EnrichedStackResourceInfo[] =>
+  logicalIds.map((logicalId) => {
+    const deployed = template.Resources?.[logicalId] as
+      | { Type: string; Properties?: { EngineVersion?: string } }
+      | undefined;
+    const engineDetail = { EngineVersion: deployed?.Properties?.EngineVersion };
+    return {
+      LogicalResourceId: logicalId,
+      PhysicalResourceId: logicalId,
+      ResourceType: deployed?.Type ?? 'AWS::CloudFormation::CustomResource',
+      ResourceStatus: 'CREATE_COMPLETE',
+      LastUpdatedTimestamp: new Date(0),
+      ...(deployed?.Type === 'AWS::RDS::DBInstance' && { rdsInstanceDetail: engineDetail }),
+      ...(deployed?.Type === 'AWS::RDS::DBCluster' && { auroraClusterDetail: engineDetail })
+    } as EnrichedStackResourceInfo;
+  });
+
 export const synthesizeFixture = async ({
   compiledConfig,
   configPath,
@@ -57,7 +81,7 @@ export const synthesizeFixture = async ({
   localAws,
   devNetwork,
   devSkippedFunctions,
-  existingStackResources
+  existingStackResources = deployedTemplate && existingResourcesOf(deployedTemplate)
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
   compiledConfig?: CompiledStacktapeConfig;
@@ -77,7 +101,7 @@ export const synthesizeFixture = async ({
   devNetwork?: DevNetworkPlacement;
   /** The functions a dev session leaves out; the dev stack keeps them without triggers. */
   devSkippedFunctions?: string[];
-  /** The resources of the stack as deployed, for an update of an existing stack. */
+  /** The resources of the stack as deployed, for an update of an existing stack. Defaults to `deployedTemplate`'s. */
   existingStackResources?: EnrichedStackResourceInfo[];
 }) => {
   if (!compiledConfig === !configPath) {

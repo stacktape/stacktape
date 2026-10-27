@@ -6,7 +6,6 @@ import {
   deleteUndeployedStage
 } from '@application-services/stacktape-trpc-api-manager/operation-recording';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
-import { getArtifactStackTemplate } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/background-resources/artifact-stack';
 import { createHash } from 'node:crypto';
 import { CliError, type ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
@@ -70,12 +69,16 @@ type FullDeployOperation = {
     deleteArtifactsRollbackedDeploy: () => Promise<unknown>;
   };
   stack: {
+    createStack: (
+      templateUrl: string
+    ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     deployStack: (
       templateUrl: string,
       options: { finishWhenCleanupStarts: boolean }
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     existingStackDetails?: { StackStatus?: string };
     isAutoRollbackEnabled: boolean;
+    stackActionType: string;
   };
   tui: Pick<DeployOperation['tui'], 'info' | 'warn'>;
 };
@@ -279,14 +282,17 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const isFirstDeployment = stack.isFirstDeploy;
 
   progress.setPhase('BUILD_AND_PACKAGE');
-  // A new stack starts as the deployment bucket, image repository and service log group. Their names are known before
-  // the build, so they are created while it runs; the upload waits for them. A first deploy asks no confirmation. When
-  // the build fails, the stack keeps only these resources, and the next deploy updates it, still as the first deploy.
-  const artifactStackCreation = createsStack
-    ? stack.createResourcesForArtifacts(getArtifactStackTemplate())
-    : undefined;
-  // A build failure is the error to report; this one is reported where the upload waits for it.
-  artifactStackCreation?.catch(() => {});
+  // A new stack's deployment bucket and image repository are created directly, while the workloads build; the upload
+  // waits for them. The stack is then created in one CloudFormation operation. When the deploy fails and leaves no
+  // stack, they are deleted again.
+  const artifactStoreCreation = createsStack ? deploymentArtifacts.createArtifactStore() : undefined;
+  if (artifactStoreCreation) {
+    // A build failure is the error to report; this one is reported where the upload waits for it.
+    artifactStoreCreation.catch(() => {});
+    application.registerCleanUpHook(async ({ success }) => {
+      if (!success) await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName);
+    });
+  }
   // The registry login does not depend on the build, so it runs while the images are built. The upload waits for it
   // and reports its failure.
   if (config.allContainersRequiringPackaging.length || config.agentCoreRuntimesRequiringPackaging.length) {
@@ -385,7 +391,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await ensureManagedEmailSenders();
     await ensureApiGatewayCloudWatchRole(template.getTemplate());
   }
-  await artifactStackCreation;
+  await artifactStoreCreation;
 
   progress.setPhase('UPLOAD');
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
@@ -651,10 +657,10 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
   try {
     // The deploy is done once CloudFormation starts deleting the resources it removed or replaced. The next command
     // that modifies the stack waits for that cleanup and reports deletions that failed.
-    const { warningMessages, resourcesDeletedInBackground } = await stack.deployStack(
-      deploymentArtifacts.cloudformationTemplateUrl,
-      { finishWhenCleanupStarts: true }
-    );
+    const { warningMessages, resourcesDeletedInBackground } =
+      stack.stackActionType === 'create'
+        ? await stack.createStack(deploymentArtifacts.cloudformationTemplateUrl)
+        : await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl, { finishWhenCleanupStarts: true });
     warningMessages?.forEach((msg) => {
       tui.warn(msg);
     });

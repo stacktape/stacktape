@@ -1342,6 +1342,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: [
+      'apps/cli/tests/ministack/artifact-store.spec.ts',
       'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
@@ -1350,7 +1351,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'On MiniStack, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates.',
+      "On MiniStack, a new stack's deployment bucket and image repository are created before the stack and deleted only when no stack uses them, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates.",
     selections: ['ministack-deploy']
   },
   {
@@ -4213,6 +4214,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
+      'apps/cli/tests/ministack/artifact-store.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',

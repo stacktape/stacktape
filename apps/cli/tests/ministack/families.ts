@@ -92,6 +92,8 @@ export type EffectContext = {
   version: Version;
   endpoint: string;
   stackName: string;
+  /** The stack's deployment bucket; a new stack has it outside its resources. */
+  deploymentBucket: string;
   resources: StackResourceSummary[];
   clients: EffectClients;
   /** The physical ID of the stack resource with this logical ID. */
@@ -341,7 +343,7 @@ export const families: Family[] = [
         const templates = (
           (
             await context.clients.s3.send(
-              new ListObjectsV2Command({ Bucket: context.physical('StpDeploymentBucket'), Prefix: 'cf-template/' })
+              new ListObjectsV2Command({ Bucket: context.deploymentBucket, Prefix: 'cf-template/' })
             )
           ).Contents ?? []
         )

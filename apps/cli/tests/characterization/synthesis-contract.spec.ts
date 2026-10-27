@@ -1,5 +1,6 @@
 import { settleResourceResolvers } from '@domain-services/calculated-stack-overview-manager/resolver-lifecycle';
-import { synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
+import { existingResourcesOf, synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
 import http from 'node:http';
 import https from 'node:https';
 import type {
@@ -386,7 +387,8 @@ export const synthesizeDenseFixture = async ({
   webConnectsToRecords,
   scopedDatabase,
   remoteResources,
-  devSkippedFunctions
+  devSkippedFunctions,
+  existingStackResources
 }: {
   synthesisContext?: Partial<StackContext>;
   beforeFinalize?: () => void;
@@ -407,6 +409,7 @@ export const synthesizeDenseFixture = async ({
   scopedDatabase?: boolean;
   remoteResources?: string[];
   devSkippedFunctions?: string[];
+  existingStackResources?: EnrichedStackResourceInfo[];
 } = {}) => {
   return synthesizeFixture({
     compiledConfig: createDenseConfig({
@@ -430,7 +433,8 @@ export const synthesizeDenseFixture = async ({
     beforeFinalize,
     command,
     remoteResources,
-    devSkippedFunctions
+    devSkippedFunctions,
+    existingStackResources
   });
 };
 
@@ -983,16 +987,58 @@ describe('full synthesis contract', () => {
     expect(devTemplate.Resources[cfLogicalNames.syntheticCanary('homepageFlow')]).toBeUndefined();
   });
 
-  test('a first deploy creates its artifact stack from resources known before the build', async () => {
-    const { templateManager } = await import('../../src/domain/template-manager');
-    const { getArtifactStackTemplate } =
-      await import('../../src/domain/calculated-stack-overview-manager/resource-resolvers/background-resources/artifact-stack');
-    await synthesizeDenseFixture({ includeTracing: true });
-    // The early stack must be exactly what the full synthesis marks as the stack's initial resources, so the first
-    // update does not change or replace the bucket, the repository or the log group.
-    expect(JSON.parse(JSON.stringify(getArtifactStackTemplate()))).toEqual(
-      JSON.parse(JSON.stringify(templateManager.initialTemplate))
+  test('a new stack leaves its deployment bucket and image repository to the CLI; an older stack keeps them', async () => {
+    const artifactStore = [
+      cfLogicalNames.deploymentBucket(),
+      cfLogicalNames.deploymentBucketPolicy(),
+      cfLogicalNames.ecrRepo()
+    ];
+    const bucketName = 'stp-deployment-bucket-xxxxxxxx';
+
+    // A stack `deploy` creates: the CLI creates the bucket and repository before the stack, so the template neither
+    // contains nor references them.
+    const created = await synthesizeDenseFixture();
+    for (const logicalId of artifactStore) expect(created.Resources[logicalId]).toBeUndefined();
+    expect([...findReferencedLogicalIds(created, new Set(artifactStore))]).toEqual([]);
+    expect(JSON.stringify(created)).toContain(bucketName);
+
+    // A stack that has them as resources keeps them with the settings the CLI gives new ones, and keeps referencing the
+    // bucket resource.
+    const existing = await synthesizeDenseFixture({ existingStackResources: existingResourcesOf(created, artifactStore) });
+    const resources = existing.Resources as Record<string, any>;
+    expect(resources.StpDeploymentBucket.Properties).toEqual({
+      BucketName: bucketName,
+      AccelerateConfiguration: { AccelerationStatus: 'Enabled' },
+      BucketEncryption: {
+        ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }]
+      },
+      CorsConfiguration: { CorsRules: [{ AllowedHeaders: ['*'], AllowedMethods: ['GET'], AllowedOrigins: ['*'] }] }
+    });
+    expect(resources.StpDeploymentBucketPolicy.Properties.PolicyDocument.Statement.map(normalizeIamStatement)).toEqual([
+      {
+        effect: 'Deny',
+        actions: ['s3:*'],
+        principal: '*',
+        condition: { Bool: { 'aws:SecureTransport': false } },
+        resources: [
+          { 'Fn::Join': ['', ['arn:', { Ref: 'AWS::Partition' }, ':s3:::', { Ref: 'StpDeploymentBucket' }, '/*']] }
+        ]
+      }
+    ]);
+    expect(resources.StpContainerRepository.Properties).toMatchObject({
+      RepositoryName: 'xxxxxxxx-stp-multi-container-workload-repo',
+      ImageScanningConfiguration: { ScanOnPush: true }
+    });
+    expect(Object.keys(existing.Resources).toSorted()).toEqual(
+      [...Object.keys(created.Resources), ...artifactStore].toSorted()
     );
+    expect([...findReferencedLogicalIds(existing, new Set(artifactStore))]).toContain(
+      cfLogicalNames.deploymentBucket()
+    );
+
+    // A dev stack is created with them, as before.
+    const dev = await synthesizeDenseFixture({ command: 'dev' });
+    for (const logicalId of artifactStore) expect(dev.Resources[logicalId]).toBeDefined();
   });
 
   test('synthesizes tracing: layers and env for functions, sidecar and IAM for containers', async () => {
@@ -1935,44 +1981,16 @@ describe('full synthesis contract', () => {
   });
 
   test('preserves IAM principals, effects, actions, resources, and conditions', async () => {
-    const resources = synthesizedTemplate.Resources as Record<string, any>;
     const expectedIamManifest = await Bun.file(
       new URL('./fixtures/dense-application.iam.json', import.meta.url)
     ).json();
 
     expect(createNormalizedIamManifest(synthesizedTemplate)).toEqual(expectedIamManifest);
-
-    expect(resources.StpDeploymentBucketPolicy.Properties.PolicyDocument.Statement.map(normalizeIamStatement)).toEqual([
-      {
-        effect: 'Deny',
-        actions: ['s3:*'],
-        principal: '*',
-        condition: {
-          Bool: {
-            'aws:SecureTransport': false
-          }
-        },
-        resources: [
-          {
-            'Fn::Join': ['', ['arn:', { Ref: 'AWS::Partition' }, ':s3:::', { Ref: 'StpDeploymentBucket' }, '/*']]
-          }
-        ]
-      }
-    ]);
   });
 
   test('characterizes selected encryption and public/network access controls', () => {
     const resources = synthesizedTemplate.Resources as Record<string, any>;
 
-    expect(resources.StpDeploymentBucket.Properties.BucketEncryption).toEqual({
-      ServerSideEncryptionConfiguration: [
-        {
-          ServerSideEncryptionByDefault: {
-            SSEAlgorithm: 'AES256'
-          }
-        }
-      ]
-    });
     expect(resources.FilesBucket.Properties.PublicAccessBlockConfiguration).toEqual({
       BlockPublicAcls: false,
       BlockPublicPolicy: false,

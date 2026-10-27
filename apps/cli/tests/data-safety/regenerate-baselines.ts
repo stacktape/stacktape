@@ -228,13 +228,14 @@ const stripOrganizationAlarms = (template: Record<string, unknown>) => {
   return [...removed].sort();
 };
 
+// The deployment bucket's name derives from the stack identity. A v3 template has the bucket as a resource; a current
+// one names it in the stack metadata and permissions, because the CLI creates the bucket before the stack.
 const assertBaselineIdentity = (caseName: string, template: Record<string, unknown>) => {
-  const resources = template.Resources as Record<string, { Properties?: { BucketName?: string } }> | undefined;
-  const bucketName = resources?.StpDeploymentBucket?.Properties?.BucketName;
   const expected = `stp-deployment-bucket-${baselineStackHash}`;
-  if (bucketName !== expected) {
+  const named = JSON.stringify(template).match(/stp-deployment-bucket-[0-9a-f]+/g) ?? [];
+  if (!named.length || named.some((bucketName) => bucketName !== expected)) {
     throw new Error(
-      `${caseName}: the compiled template carries deployment bucket ${bucketName}, expected ${expected}. The CLI compiled under a different account, region, project or stage than the committed baseline identity.`
+      `${caseName}: the compiled template names deployment bucket ${[...new Set(named)].join(', ') || 'none'}, expected ${expected}. The CLI compiled under a different account, region, project or stage than the committed baseline identity.`
     );
   }
 };

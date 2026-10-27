@@ -1,85 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
   "Resources": {
-    "StpDeploymentBucket": {
-      "Type": "AWS::S3::Bucket",
-      "Properties": {
-        "BucketName": "stp-deployment-bucket-932f0975",
-        "AccelerateConfiguration": {
-          "AccelerationStatus": "Enabled"
-        },
-        "BucketEncryption": {
-          "ServerSideEncryptionConfiguration": [
-            {
-              "ServerSideEncryptionByDefault": {
-                "SSEAlgorithm": "AES256"
-              }
-            }
-          ]
-        },
-        "CorsConfiguration": {
-          "CorsRules": [
-            {
-              "AllowedHeaders": ["*"],
-              "AllowedMethods": ["GET"],
-              "AllowedOrigins": ["*"]
-            }
-          ]
-        }
-      }
-    },
-    "StpDeploymentBucketPolicy": {
-      "Type": "AWS::S3::BucketPolicy",
-      "Properties": {
-        "Bucket": {
-          "Ref": "StpDeploymentBucket"
-        },
-        "PolicyDocument": {
-          "Statement": [
-            {
-              "Action": "s3:*",
-              "Effect": "Deny",
-              "Principal": "*",
-              "Resource": [
-                {
-                  "Fn::Join": [
-                    "",
-                    [
-                      "arn:",
-                      {
-                        "Ref": "AWS::Partition"
-                      },
-                      ":s3:::",
-                      {
-                        "Ref": "StpDeploymentBucket"
-                      },
-                      "/*"
-                    ]
-                  ]
-                }
-              ],
-              "Condition": {
-                "Bool": {
-                  "aws:SecureTransport": false
-                }
-              }
-            }
-          ]
-        }
-      }
-    },
-    "StpContainerRepository": {
-      "Type": "AWS::ECR::Repository",
-      "Properties": {
-        "RepositoryName": "932f0975-stp-multi-container-workload-repo",
-        "ImageScanningConfiguration": {
-          "ScanOnPush": true
-        },
-        "LifecyclePolicy": {
-          "LifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Remove untagged images\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"
-        }
-      }
-    },
     "StpVpc": {
       "Type": "AWS::EC2::VPC",
       "Properties": {
@@ -378,9 +299,7 @@
                 },
                 {
                   "Resource": [
-                    {
-                      "Fn::GetAtt": ["StacktapeServiceLambdaLogGroup", "Arn"]
-                    }
+                    "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/j2-v3-baseline-j2base-stpService-CR:*"
                   ],
                   "Effect": "Deny",
                   "Action": ["logs:CreateLogGroup"]
@@ -2326,7 +2245,7 @@
     "StpStackInfoMap": {
       "Value": {
         "Fn::Sub": [
-          "{\"metadata\":{\"deploymentBucket\":{\"showDuringPrint\":false,\"value\":\"stp-deployment-bucket-932f0975\"},\"devAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"},\"debugAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"}},\"resources\":{\"SHARED_GLOBAL\":{\"resourceType\":\"SHARED_GLOBAL\",\"referencableParams\":{},\"links\":{\"deployment-bucket-contents\":\"${sub0}\"},\"cloudformationChildResources\":{\"StpDeploymentBucket\":{\"cloudformationResourceType\":\"AWS::S3::Bucket\"},\"StpDeploymentBucketPolicy\":{\"cloudformationResourceType\":\"AWS::S3::BucketPolicy\"},\"StpContainerRepository\":{\"cloudformationResourceType\":\"AWS::ECR::Repository\"},\"StpVpc\":{\"cloudformationResourceType\":\"AWS::EC2::VPC\"},\"StpInternetGateway\":{\"cloudformationResourceType\":\"AWS::EC2::InternetGateway\"},\"StpVpcGatewayAttachment\":{\"cloudformationResourceType\":\"AWS::EC2::VPCGatewayAttachment\"},\"StpPublicSubnet0\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet0RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute0\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet0SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpPublicSubnet1\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet1RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute1\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet1SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpPublicSubnet2\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet2RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute2\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet2SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpSensitiveDataCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"},\"StpDevAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StpDebugAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"}},\"outputs\":{},\"_nestedResources\":{\"stacktapeServiceLambda\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub1}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub2}\"}},\"links\":{\"logs\":\"${sub3}\",\"metrics\":\"${sub4}\",\"console\":\"${sub5}\"},\"cloudformationChildResources\":{\"StacktapeServiceLambdaRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StacktapeServiceLambdaLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"StacktapeServiceLambdaCustomResourceFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"},\"StpStpCustomTaggingScheduleRule\":{\"cloudformationResourceType\":\"AWS::Events::Rule\"},\"StpStpCustomTaggingScheduleRulePermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpCloudwatchAlarmNotificationSharedPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpIssueDetectionLogsPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"}},\"outputs\":{}}}},\"processor\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub6}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub7}\"}},\"links\":{\"logs\":\"${sub8}\",\"metrics\":\"${sub9}\",\"console\":\"${sub10}\"},\"cloudformationChildResources\":{\"ProcessorEvent0EventSourceMapping\":{\"cloudformationResourceType\":\"AWS::Lambda::EventSourceMapping\"},\"ProcessorRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"ProcessorLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"ProcessorIssueDetectionSubscriptionFilter\":{\"cloudformationResourceType\":\"AWS::Logs::SubscriptionFilter\"},\"ProcessorFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"}},\"outputs\":{}},\"aurora\":{\"resourceType\":\"relational-database\",\"referencableParams\":{\"host\":{\"showDuringPrint\":false,\"value\":\"${sub11}\"},\"connectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/connectionString\"},\"jdbcConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/jdbcConnectionString\"},\"hosts\":{\"showDuringPrint\":false,\"value\":\"${sub12}\"},\"readerHost\":{\"showDuringPrint\":false,\"value\":\"${sub13}\"},\"readerConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/readerConnectionString\"},\"readerPort\":{\"showDuringPrint\":false,\"value\":5432},\"readerJdbcConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/readerJdbcConnectionString\"},\"port\":{\"showDuringPrint\":false,\"value\":5432},\"dbName\":{\"showDuringPrint\":false,\"value\":\"defdb\"}},\"links\":{\"metrics\":\"${sub14}\",\"logs-postgresql\":\"${sub15}\"},\"cloudformationChildResources\":{\"AuroraDbSubnetGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBSubnetGroup\"},\"AuroraSecurityGroup\":{\"cloudformationResourceType\":\"AWS::EC2::SecurityGroup\"},\"AuroraDbCluster\":{\"cloudformationResourceType\":\"AWS::RDS::DBCluster\"},\"AuroraDbClusterParameterGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBClusterParameterGroup\"},\"AuroraClusterPostgresqlLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"AuroraDbInstance0\":{\"cloudformationResourceType\":\"AWS::RDS::DBInstance\"},\"AuroraInstanceDbParameterGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBParameterGroup\"}},\"outputs\":{}},\"search\":{\"resourceType\":\"open-search-domain\",\"referencableParams\":{\"domainEndpoint\":{\"showDuringPrint\":true,\"value\":\"${sub16}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub17}\"}},\"links\":{},\"cloudformationChildResources\":{\"SearchDomain\":{\"cloudformationResourceType\":\"AWS::OpenSearchService::Domain\"},\"SearchInstanceErrorLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchInstanceSearchSlowLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchInstanceIndexSlowLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchOpenSearchCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"}},\"outputs\":{}},\"events\":{\"resourceType\":\"kinesis-stream\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub18}\"},\"name\":{\"showDuringPrint\":true,\"value\":\"j2-v3-baseline-j2base-events\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/kinesis/home?region=eu-west-1#streams/j2-v3-baseline-j2base-events/streamDetails\"},\"cloudformationChildResources\":{\"EventsStream\":{\"cloudformationResourceType\":\"AWS::Kinesis::Stream\"}},\"outputs\":{}}},\"customOutputs\":{\"DevAgentRoleArn\":\"${sub19}\",\"DebugAgentRoleArn\":\"${sub20}\"}}",
+          "{\"metadata\":{\"deploymentBucket\":{\"showDuringPrint\":false,\"value\":\"stp-deployment-bucket-932f0975\"},\"devAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"},\"debugAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"}},\"resources\":{\"SHARED_GLOBAL\":{\"resourceType\":\"SHARED_GLOBAL\",\"referencableParams\":{},\"links\":{\"deployment-bucket-contents\":\"${sub0}\"},\"cloudformationChildResources\":{\"StpVpc\":{\"cloudformationResourceType\":\"AWS::EC2::VPC\"},\"StpInternetGateway\":{\"cloudformationResourceType\":\"AWS::EC2::InternetGateway\"},\"StpVpcGatewayAttachment\":{\"cloudformationResourceType\":\"AWS::EC2::VPCGatewayAttachment\"},\"StpPublicSubnet0\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet0RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute0\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet0SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpPublicSubnet1\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet1RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute1\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet1SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpPublicSubnet2\":{\"cloudformationResourceType\":\"AWS::EC2::Subnet\"},\"StpPublicSubnet2RouteTable\":{\"cloudformationResourceType\":\"AWS::EC2::RouteTable\"},\"StpInternetGatewayRoute2\":{\"cloudformationResourceType\":\"AWS::EC2::Route\"},\"StpPublicSubnet2SubnetRouteTableAssociation\":{\"cloudformationResourceType\":\"AWS::EC2::SubnetRouteTableAssociation\"},\"StpSensitiveDataCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"},\"StpDevAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StpDebugAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"}},\"outputs\":{},\"_nestedResources\":{\"stacktapeServiceLambda\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub1}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub2}\"}},\"links\":{\"logs\":\"${sub3}\",\"metrics\":\"${sub4}\",\"console\":\"${sub5}\"},\"cloudformationChildResources\":{\"StacktapeServiceLambdaRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StacktapeServiceLambdaLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"StacktapeServiceLambdaCustomResourceFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"},\"StpStpCustomTaggingScheduleRule\":{\"cloudformationResourceType\":\"AWS::Events::Rule\"},\"StpStpCustomTaggingScheduleRulePermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpCloudwatchAlarmNotificationSharedPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpIssueDetectionLogsPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"}},\"outputs\":{}}}},\"processor\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub6}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub7}\"}},\"links\":{\"logs\":\"${sub8}\",\"metrics\":\"${sub9}\",\"console\":\"${sub10}\"},\"cloudformationChildResources\":{\"ProcessorEvent0EventSourceMapping\":{\"cloudformationResourceType\":\"AWS::Lambda::EventSourceMapping\"},\"ProcessorRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"ProcessorLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"ProcessorIssueDetectionSubscriptionFilter\":{\"cloudformationResourceType\":\"AWS::Logs::SubscriptionFilter\"},\"ProcessorFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"}},\"outputs\":{}},\"aurora\":{\"resourceType\":\"relational-database\",\"referencableParams\":{\"host\":{\"showDuringPrint\":false,\"value\":\"${sub11}\"},\"connectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/connectionString\"},\"jdbcConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/jdbcConnectionString\"},\"hosts\":{\"showDuringPrint\":false,\"value\":\"${sub12}\"},\"readerHost\":{\"showDuringPrint\":false,\"value\":\"${sub13}\"},\"readerConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/readerConnectionString\"},\"readerPort\":{\"showDuringPrint\":false,\"value\":5432},\"readerJdbcConnectionString\":{\"showDuringPrint\":false,\"value\":\"<<OMITTED>>\",\"ssmParameterName\":\"/stp/eu-west-1/j2-v3-baseline-j2base/aurora/readerJdbcConnectionString\"},\"port\":{\"showDuringPrint\":false,\"value\":5432},\"dbName\":{\"showDuringPrint\":false,\"value\":\"defdb\"}},\"links\":{\"metrics\":\"${sub14}\",\"logs-postgresql\":\"${sub15}\"},\"cloudformationChildResources\":{\"AuroraDbSubnetGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBSubnetGroup\"},\"AuroraSecurityGroup\":{\"cloudformationResourceType\":\"AWS::EC2::SecurityGroup\"},\"AuroraDbCluster\":{\"cloudformationResourceType\":\"AWS::RDS::DBCluster\"},\"AuroraDbClusterParameterGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBClusterParameterGroup\"},\"AuroraClusterPostgresqlLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"AuroraDbInstance0\":{\"cloudformationResourceType\":\"AWS::RDS::DBInstance\"},\"AuroraInstanceDbParameterGroup\":{\"cloudformationResourceType\":\"AWS::RDS::DBParameterGroup\"}},\"outputs\":{}},\"search\":{\"resourceType\":\"open-search-domain\",\"referencableParams\":{\"domainEndpoint\":{\"showDuringPrint\":true,\"value\":\"${sub16}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub17}\"}},\"links\":{},\"cloudformationChildResources\":{\"SearchDomain\":{\"cloudformationResourceType\":\"AWS::OpenSearchService::Domain\"},\"SearchInstanceErrorLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchInstanceSearchSlowLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchInstanceIndexSlowLogsLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"SearchOpenSearchCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"}},\"outputs\":{}},\"events\":{\"resourceType\":\"kinesis-stream\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub18}\"},\"name\":{\"showDuringPrint\":true,\"value\":\"j2-v3-baseline-j2base-events\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/kinesis/home?region=eu-west-1#streams/j2-v3-baseline-j2base-events/streamDetails\"},\"cloudformationChildResources\":{\"EventsStream\":{\"cloudformationResourceType\":\"AWS::Kinesis::Stream\"}},\"outputs\":{}}},\"customOutputs\":{\"DevAgentRoleArn\":\"${sub19}\",\"DebugAgentRoleArn\":\"${sub20}\"}}",
           {
             "sub0": {
               "Fn::Sub": [
@@ -2335,9 +2254,7 @@
                   "region": {
                     "Ref": "AWS::Region"
                   },
-                  "bucketName": {
-                    "Ref": "StpDeploymentBucket"
-                  }
+                  "bucketName": "stp-deployment-bucket-932f0975"
                 }
               ]
             },

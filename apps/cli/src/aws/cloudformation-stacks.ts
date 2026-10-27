@@ -105,6 +105,14 @@ export class AwsCloudFormationStacks {
       .catch(handleError);
   };
 
+  /** For templates too large to send in the request: CloudFormation reads them from S3. */
+  createFromUrl = (templateUrl: string, stackParams: CreateStackInput) => {
+    const handleError = this.#getErrorHandler('Failed to initiate stack creation.');
+    return this.#createClient()
+      .send(new CreateStackCommand({ ...stackParams, TemplateURL: templateUrl }))
+      .catch(handleError);
+  };
+
   /** Shared-resource orchestration handles CloudFormation races itself, so errors intentionally remain unwrapped. */
   createSharedStack = (template: CloudFormationTemplate, stackParams: CreateStackInput) =>
     this.#createClient().send(new CreateStackCommand({ ...stackParams, TemplateBody: JSON.stringify(template) }));
