@@ -133,7 +133,7 @@ const TRIGGER_PATTERNS: Record<FunctionTrigger['type'], readonly RegExp[]> = {
   'dynamodb-stream': [/Type:\s*DynamoDB\b/i, /DynamoDBStream|\bdynamodb\b|NewImage|OldImage|aws:dynamodb/i],
   url: [/FunctionUrlConfig|AWS::Lambda::Url/i, /LambdaFunctionU(?:RL|rl)(?:Event|Handler|Resolver)/],
   'event-bus': [/Type:\s*EventBridgeRule\b/i, /EventBridge(?:Event|Handler)|detail-type|detailType|detail_type/i],
-  unmapped: [/events?\s*:|addEventSource|authorizer|websocket|stream/i]
+  unmapped: [/events?\s*:|addEventSource|authorizer|websocket|stream|Invoke(?:Command)?\b|\.invoke\(/i]
 };
 
 export type AnchorOutcome = { satisfied: true } | { satisfied: false; expectation: string };

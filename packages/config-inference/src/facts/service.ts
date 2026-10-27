@@ -242,6 +242,9 @@ export const invokingDependencyName = (trigger: FunctionTrigger): string | undef
  */
 export const UNROUTED_HTTP_SOURCE = 'HTTP requests on a route the code does not name';
 
+/** The `unmapped` source of a function the repository's own code invokes with the Lambda `Invoke` API. */
+export const DIRECT_INVOCATION_SOURCE = 'a direct Lambda invocation from your code';
+
 const containerEntrypointSchema = z
   .string()
   .min(1)

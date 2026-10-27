@@ -3,7 +3,12 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact } from '../../facts/dependency';
-import { UNROUTED_HTTP_SOURCE, type FunctionTrigger, type ServiceFactInput } from '../../facts/service';
+import {
+  DIRECT_INVOCATION_SOURCE,
+  UNROUTED_HTTP_SOURCE,
+  type FunctionTrigger,
+  type ServiceFactInput
+} from '../../facts/service';
 import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
@@ -28,10 +33,18 @@ const HANDLER_PATTERN =
   /(?:export\s+(?:const\s+handler|async\s+function\s+handler|function\s+handler)|def\s+(?:lambda_handler|handler)\s*\(|(?:module\.)?exports\.handler\s*=)/;
 
 /**
- * An async default export in a functions directory: `export default async (input: ScoreInput) =>`. Its siblings there
- * are handlers, and a step a state machine invokes takes the input it is given rather than an AWS event type.
+ * An async default export in a functions directory: `export default async (input: ScoreInput) =>`. A step a state
+ * machine invokes takes the input it is given rather than an AWS event type, so nothing in the file says Lambda. Such a
+ * file becomes a function only when a workflow the code starts runs it (see `orderWorkflowSteps`).
  */
 const ASYNC_DEFAULT_EXPORT = /export\s+default\s+async\s+(?:function\s*[\w$]*\s*)?\(/;
+/**
+ * Default exports that run on another platform or in a browser: Netlify functions (`netlify/functions`, `(req,
+ * context)`), Appwrite functions (`({ req, res, log })`), and frontend modules (React, Vue, Svelte, `'use client'`).
+ */
+const OTHER_PLATFORM_PATH = /(?:^|\/)(?:netlify|appwrite)\//i;
+const OTHER_PLATFORM_SOURCE =
+  /@netlify\/functions|node-appwrite|['"](?:react|react-dom|vue|svelte|solid-js|@angular\/core|next\/[\w/-]+)['"]|['"]use (?:client|server)['"]|export\s+default\s+async\s+(?:function\s*[\w$]*\s*)?\(\s*(?:\{[^}]*\b(?:req|res)\b|(?:req|request)\b)/;
 
 /** Entry files a single-function project keeps at its top level. */
 const ENTRY_FILE = /^(?:src\/)?(?:index|handler|lambda|main|app)\.(?:[cm]?js|tsx?|py)$/;
@@ -141,8 +154,12 @@ const TYPED_EXPORT = /export\s+(?:default\b|const\s+handler\b|(?:async\s+)?funct
 const SCHEDULED_EVENTBRIDGE = /EventBridge(?:Event|Handler)\s*<\s*['"`]Scheduled Event['"`]/;
 /** A literal schedule expression next to the handler, the only rate the source itself can state. */
 const SCHEDULE_LITERAL = /['"`]((?:rate|cron)\([^'"`)]+\))['"`]/;
-/** A Python module docstring that states the handler's schedule: `"""Runs every minute. Schedule: rate(1 minute)"""`. */
-const DOCSTRING_SCHEDULE = /^(?:\s*#[^\n]*\n)*\s*[rRuU]?("""|''')(?:(?!\1)[\s\S])*?\b((?:rate|cron)\([^)\n]+\))/;
+/**
+ * A Python module docstring that states the handler's schedule on a line of its own: `Schedule: rate(1 minute)`, or
+ * the bare expression. Prose that mentions one (`ran on rate(1 hour) before the move`) states nothing.
+ */
+const DOCSTRING_SCHEDULE =
+  /(?<![\s\S])(?:\s*#[^\n]*\n)*\s*[rRuU]?("""|''')(?:(?!\1)[\s\S])*?(?:^|(?<=["']{3}))[ \t]*(?:[Ss]chedule[ \t]*:[ \t]*)?((?:rate|cron)\([^)\n]+\))[ \t]*\.?[ \t]*(?:$|(?=\1))/m;
 /** The schedule the source states next to its handler: a quoted literal, or a Python module docstring. */
 const scheduleIn = (raw: string): string | undefined =>
   SCHEDULE_LITERAL.exec(raw)?.[1] ?? DOCSTRING_SCHEDULE.exec(raw)?.[2];
@@ -494,6 +511,44 @@ const workflowStartsIn = (path: string, raw: string): WorkflowStart[] => {
   return starts;
 };
 
+/**
+ * A Lambda `Invoke` call: `new InvokeCommand({ FunctionName })`, `lambda.invoke({ FunctionName })`, boto3's
+ * `client.invoke(FunctionName=...)`. A bare `.invoke(` is not one (LangChain chains, RPC clients).
+ */
+const DIRECT_INVOKE =
+  /\bInvoke(?:Async|WithResponseStream)?Command\s*\(|\.invoke(?:_async|Async)?\s*\(\s*\{?\s*FunctionName\b/g;
+
+/** What an `Invoke` call names: the variable holding the function's name or ARN, or a literal; undefined if neither. */
+type DirectInvoke = { path: string; target: string | undefined };
+
+const directInvokesIn = (path: string, raw: string): DirectInvoke[] =>
+  [...raw.matchAll(DIRECT_INVOKE)].map((match) => {
+    const value = /\bFunctionName\s*[:=]\s*([^,)}\n]+)/.exec(raw.slice(match.index, match.index + 600))?.[1]?.trim();
+    const literal = value === undefined ? undefined : new RegExp(`^${QUOTED}$`).exec(value)?.[1];
+    return { path, target: value === undefined ? undefined : (environmentVariableIn(value, raw) ?? literal) };
+  });
+
+const nameWords = (name: string): string =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+/**
+ * The function an `Invoke` call reaches: `SEND_EMAIL_FUNCTION_NAME` and `SEND_EMAIL_ARN` name `send-email` or
+ * `sendEmail`, and a literal `shop-dev-sendEmail` ends with it. Only a single match counts.
+ */
+const invokeTargetName = (target: string | undefined, names: readonly string[]): string | undefined => {
+  if (target === undefined) return undefined;
+  const variable = /^[A-Z][A-Z0-9_]*$/.test(target)
+    ? nameWords(target.replace(/(?:_(?:NAME|ARN))+$/, '').replace(/_(?:FUNCTION|LAMBDA|FN)$/, ''))
+    : undefined;
+  const matches = names.filter((name) =>
+    variable === undefined ? nameWords(target).endsWith(nameWords(name)) : variable === nameWords(name)
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
 /** The detail types code publishes, for the loop check on a handler that also publishes. */
 export const publishedDetailTypes = (raw: string): string[] =>
   PUBLISHES_EVENTS.test(raw) ? [...raw.matchAll(DETAIL_TYPE)].map((match) => match[1]!) : [];
@@ -604,12 +659,15 @@ export const lambdaSourceProbe: Probe = {
     const claimed = new Set<string>();
     const publishers = new Map<string, Publisher>();
     const workflowStarts: WorkflowStart[] = [];
+    const directInvokes: DirectInvoke[] = [];
+    const stepCandidates: Array<{ path: string; raw: string; entryEvidence: Citation | undefined }> = [];
     const notePublisher = (path: string, raw: string) => {
       const publisher = publisherIn(path, raw);
       if (publisher !== undefined) publishers.set(path, publisher);
       for (const start of workflowStartsIn(path, raw)) {
         if (!workflowStarts.some((known) => known.variable === start.variable)) workflowStarts.push(start);
       }
+      directInvokes.push(...directInvokesIn(path, raw));
     };
 
     // Files under a handlers directory, and top-level entry files that name Lambda, are functions by their `handler`
@@ -622,8 +680,22 @@ export const lambdaSourceProbe: Probe = {
       const raw = await readText(context, path, { fullFile: true });
       if (raw !== undefined) notePublisher(path, raw);
       if (raw === undefined) continue;
-      const defaultExport = HANDLER_DIRECTORY.test(path) && ASYNC_DEFAULT_EXPORT.test(raw);
-      if (!HANDLER_PATTERN.test(raw) && !defaultExport) continue;
+      if (
+        HANDLER_DIRECTORY.test(path) &&
+        !HANDLER_PATTERN.test(raw) &&
+        ASYNC_DEFAULT_EXPORT.test(raw) &&
+        !/\.[jt]sx$/.test(path) &&
+        !OTHER_PLATFORM_PATH.test(path) &&
+        !OTHER_PLATFORM_SOURCE.test(raw)
+      ) {
+        // Left unclaimed: the scan below still takes it when it is an untyped Lambda handler (`(event, context)`).
+        stepCandidates.push({
+          path,
+          raw,
+          entryEvidence: citeFirstMatch(path, raw, ASYNC_DEFAULT_EXPORT, 'functionEntrypoint')
+        });
+      }
+      if (!HANDLER_PATTERN.test(raw)) continue;
       // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
       // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
       if (!HANDLER_DIRECTORY.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
@@ -635,12 +707,7 @@ export const lambdaSourceProbe: Probe = {
         raw,
         family: typed?.family ?? inferred?.family,
         triggerEvidence: typed?.citation ?? citeInferred(path, raw, inferred?.pattern),
-        entryEvidence: citeFirstMatch(
-          path,
-          raw,
-          HANDLER_PATTERN.test(raw) ? HANDLER_PATTERN : ASYNC_DEFAULT_EXPORT,
-          'functionEntrypoint'
-        ),
+        entryEvidence: citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint'),
         pythonHandler: untypedExport(path, raw)?.pythonHandler
       });
     }
@@ -828,7 +895,14 @@ export const lambdaSourceProbe: Probe = {
       });
     }
 
-    const finalNames = uniqueHandlerNames(services.map((service) => service.functionEntrypoint!));
+    // A step candidate the scan above already took as a Lambda handler is that handler.
+    const candidates = stepCandidates.filter(
+      (candidate) => !handlers.some((handler) => handler.path === candidate.path)
+    );
+    const finalNames = uniqueHandlerNames([
+      ...services.map((service) => service.functionEntrypoint!),
+      ...candidates.map((candidate) => candidate.path)
+    ]);
     for (const service of services) {
       const name = finalNames.get(service.functionEntrypoint!)!;
       for (const uncertainty of uncertainties) {
@@ -843,6 +917,24 @@ export const lambdaSourceProbe: Probe = {
       service.name = name;
     }
 
+    // A function the code invokes directly (`InvokeCommand`, boto3 `invoke`) has an invoker, so it is no workflow
+    // step. An invocation whose target init cannot name could be any of them, so no order is trusted then.
+    const candidateNames = new Map(candidates.map((candidate) => [candidate.path, finalNames.get(candidate.path)!]));
+    const invokedNames = new Set<string>();
+    let unattributedInvoke = false;
+    for (const invoke of directInvokes) {
+      const target = invokeTargetName(invoke.target, [
+        ...services.map((service) => service.name),
+        ...candidateNames.values()
+      ]);
+      if (target === undefined) unattributedInvoke = true;
+      else invokedNames.add(target);
+    }
+    for (const service of services) {
+      if ((service.functionTriggers ?? []).length > 0 || !invokedNames.has(service.name)) continue;
+      service.functionTriggers = [{ type: 'unmapped', sourceType: DIRECT_INVOCATION_SOURCE }];
+    }
+
     // A state machine for each variable code starts executions with. Its steps are the functions nothing else invokes,
     // and only when there is one machine and the data flow orders them.
     const untriggered = services.filter(
@@ -852,24 +944,68 @@ export const lambdaSourceProbe: Probe = {
           (uncertainty) => uncertainty.kind === 'schedule-unknown' && uncertainty.serviceName === service.name
         )
     );
+    const steps = (start: WorkflowStart) =>
+      workflowStarts.length === 1 && !unattributedInvoke
+        ? orderWorkflowSteps(start.inputKeys, [
+            ...untriggered.map((service) => {
+              const handler = handlers.find((candidate) => candidate.path === service.functionEntrypoint)!;
+              return { name: service.name, path: handler.path, shape: stepShapeOf(handler.path, handler.raw) };
+            }),
+            ...candidates
+              .filter((candidate) => !invokedNames.has(candidateNames.get(candidate.path)!))
+              .map((candidate) => ({
+                name: candidateNames.get(candidate.path)!,
+                path: candidate.path,
+                shape: stepShapeOf(candidate.path, candidate.raw)
+              }))
+          ])
+        : undefined;
+    // A default export the code invokes with the Lambda API is a function, invoked directly.
+    for (const candidate of candidates) {
+      const name = candidateNames.get(candidate.path)!;
+      if (!invokedNames.has(name)) continue;
+      services.push({
+        name,
+        path: posix.dirname(candidate.path) === '.' ? '.' : posix.dirname(candidate.path),
+        processType: candidate.path,
+        language: languageFor(candidate.path),
+        exposesHttp: false,
+        executionModel: 'per-request',
+        functionEntrypoint: candidate.path,
+        functionTriggers: [{ type: 'unmapped', sourceType: DIRECT_INVOCATION_SOURCE }],
+        environmentVariables: [],
+        evidence: candidate.entryEvidence === undefined ? [] : [candidate.entryEvidence],
+        source: 'probe'
+      });
+    }
     for (const start of workflowStarts) {
-      const steps =
-        workflowStarts.length === 1
-          ? orderWorkflowSteps(
-              start.inputKeys,
-              untriggered.map((service) => {
-                const handler = handlers.find((candidate) => candidate.path === service.functionEntrypoint)!;
-                return { name: service.name, shape: stepShapeOf(handler.path, handler.raw) };
-              })
-            )
-          : undefined;
+      const ordered = steps(start);
+      // A default export with no Lambda signature is a function only as a step of this workflow.
+      for (const step of ordered ?? []) {
+        const candidate = candidates.find((entry) => entry.path === step.path);
+        if (candidate === undefined) continue;
+        services.push({
+          name: step.name,
+          path: posix.dirname(candidate.path) === '.' ? '.' : posix.dirname(candidate.path),
+          processType: candidate.path,
+          language: languageFor(candidate.path),
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: candidate.path,
+          functionTriggers: [],
+          environmentVariables: [],
+          evidence: candidate.entryEvidence === undefined ? [] : [candidate.entryEvidence],
+          source: 'probe'
+        });
+      }
+      const workflowSteps = ordered?.map((step) => step.name);
       dependencies.push({
         name: stateMachineNameFor(start.variable),
         kind: 'state-machine',
         extensions: [],
         consumedBy: [],
         addressedBy: [start.variable],
-        ...(steps === undefined ? {} : { workflowSteps: steps.map((step) => step.name) }),
+        ...(workflowSteps === undefined ? {} : { workflowSteps }),
         evidence: start.evidence === undefined ? [] : [start.evidence],
         source: 'probe'
       });

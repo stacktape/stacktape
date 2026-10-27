@@ -308,7 +308,7 @@ describe('the Procfile probe', () => {
       {
         subject: 'api.migrations',
         message:
-          'api depends on Alembic, but nothing we found runs "alembic upgrade head". Run it before the server starts (at the start of the start command), or add it as a script and an afterDeploy hook.'
+          'api depends on Alembic, but nothing we found runs "alembic upgrade head". Run it before the server starts (at the start of api\'s start command), or add it as a script and an afterDeploy hook.'
       }
     ]);
   });
@@ -375,5 +375,67 @@ describe('the Procfile probe', () => {
 
     expect(facts.migrations).toEqual([expect.objectContaining({ tool: 'rails', runsAt: 'manual' })]);
     expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
+  });
+
+  // #368 review: deploy hooks run from the project root, where `manage.py` is not.
+  it("runs a service directory's release migration from that directory", async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'Django==5.0\ngunicorn==22.0\npsycopg2==2.9\n',
+      'api/manage.py': 'import django\n',
+      'api/Procfile': 'web: gunicorn api.wsgi\nrelease: python manage.py migrate\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, procfileProbe] });
+    const { config } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({
+        serviceName: 'api',
+        runsAt: 'ci',
+        command: 'python manage.py migrate',
+        directory: 'api'
+      })
+    ]);
+    expect(config.scripts?.migrateDatabase).toEqual({
+      type: 'local-script',
+      properties: { executeCommand: 'python manage.py migrate', cwd: 'api' }
+    });
+    expect(config.hooks).toEqual({ afterDeploy: [{ scriptName: 'migrateDatabase' }] });
+  });
+
+  it('names two service directories with the same basename apart', async () => {
+    root = await makeRepo({
+      'apps/a/api/requirements.txt': 'flask==3.0\n',
+      'apps/a/api/Procfile': 'web: gunicorn app:app\nworker: python worker.py\n',
+      'apps/b/api/requirements.txt': 'flask==3.0\n',
+      'apps/b/api/Procfile': 'web: gunicorn app:app\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [procfileProbe] });
+
+    expect(facts.services.map((service) => [service.name, service.path]).toSorted()).toEqual([
+      ['apps-a-api', 'apps/a/api'],
+      ['apps-a-api-worker', 'apps/a/api'],
+      ['apps-b-api', 'apps/b/api']
+    ]);
+  });
+
+  it('still reports the migration when the container only starts through tini, or another package has a migrate script', async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'fastapi==0.115\nuvicorn==0.32\nalembic==1.14\n',
+      'api/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+      'api/Dockerfile': 'FROM python:3.13\nENTRYPOINT ["/usr/bin/tini", "--"]\nCMD ["uvicorn", "main:app"]\n',
+      // The frontend's own `migrate` script runs its own tool, not the API's Alembic.
+      'web/package.json': JSON.stringify({ name: 'web', scripts: { 'db:migrate': 'prisma migrate deploy' } })
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, languageManifestProbe, serverEntrypointProbe, procfileProbe]
+    });
+    const { gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([expect.objectContaining({ serviceName: 'api', runsAt: 'unknown' })]);
+    expect(gaps.map((gap) => gap.subject)).toContain('api.migrations');
   });
 });

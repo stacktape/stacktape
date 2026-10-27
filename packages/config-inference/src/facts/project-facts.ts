@@ -42,6 +42,11 @@ export const migrationFactSchema = z.object({
   tool: z.string().min(1),
   command: z.string().min(1),
   /**
+   * The directory the command runs from, when it is not the repository root: `api/Procfile`'s `release: python
+   * manage.py migrate` needs `api/manage.py`. A deploy hook runs from the project root otherwise.
+   */
+  directory: repositoryPathSchema.optional(),
+  /**
    * When migrations run today.
    *
    * Decides whether we need to build anything at all. An application that migrates in its own

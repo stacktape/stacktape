@@ -459,6 +459,7 @@ const nestedMigrations = async (context: ProbeContext): Promise<NonNullable<Prob
       migration: {
         tool: tool.tool,
         command: tool.command,
+        directory,
         runsAt: 'unknown',
         evidence: citation === undefined ? [] : [citation]
       }

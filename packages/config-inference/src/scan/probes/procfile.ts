@@ -165,7 +165,9 @@ const startupMigrationOf = (command: string): { clause: string; tool: string } |
 
 const readProcfile = async (
   context: ProbeContext,
-  path: string
+  path: string,
+  /** The name this directory's web process gets: its basename, or its whole path when another directory shares it. */
+  directoryName: string
 ): Promise<{ services: ServiceFactInput[]; migrations: MigrationFact[] }> => {
   const services: ServiceFactInput[] = [];
   const migrations: MigrationFact[] = [];
@@ -178,7 +180,7 @@ const readProcfile = async (
   // A root Procfile names its processes `web` and `worker`. In `api/Procfile` the web process is the `api` service and
   // a worker is `api-worker`, so two service directories never declare two services called `web`.
   const serviceNameFor = (name: string) =>
-    directory === '.' ? name : name === 'web' ? posix.basename(directory) : `${posix.basename(directory)}-${name}`;
+    directory === '.' ? name : name === 'web' ? directoryName : `${directoryName}-${name}`;
   let webService: string | undefined;
 
   for (const [index, line] of lines.entries()) {
@@ -215,6 +217,7 @@ const readProcfile = async (
         // isolated, only that argv-like command reaches the deploy hook. Otherwise the original
         // remains as evidence and composition raises a review gap instead of executing it.
         command: migrationCommand ?? command,
+        ...(directory === '.' ? {} : { directory }),
         // Release/migration process declarations run as part of deployment, not forever.
         runsAt: 'ci',
         evidence: [
@@ -264,6 +267,7 @@ const readProcfile = async (
         serviceName,
         tool: startupMigration.tool,
         command: startupMigration.clause,
+        ...(directory === '.' ? {} : { directory }),
         runsAt: 'service-startup',
         evidence: [{ ...commandCitation, field: undefined }]
       });
@@ -298,9 +302,15 @@ export const procfileProbe: Probe = {
       .slice(0, MAX_PROCFILES);
     const services: ServiceFactInput[] = [];
     const migrations: MigrationFact[] = [];
+    // `apps/a/api` and `apps/b/api` are two services: shared basenames fall back to the whole path (`apps-a-api`).
+    const basenames = paths.map((path) => posix.basename(posix.dirname(path)));
     for (const path of paths) {
+      const directory = posix.dirname(path);
+      const basename = posix.basename(directory);
+      const directoryName =
+        basenames.filter((name) => name === basename).length > 1 ? directory.replaceAll('/', '-') : basename;
       // oxlint-disable-next-line no-await-in-loop -- a handful of small files, read in a stable order.
-      const found = await readProcfile(context, path);
+      const found = await readProcfile(context, path, directoryName);
       services.push(...found.services);
       migrations.push(...found.migrations);
     }

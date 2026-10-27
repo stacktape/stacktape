@@ -1015,7 +1015,7 @@ export const assembleCandidateFacts = async ({
     const key = `${owners[0]!.name}:${migration.tool}`;
     if (!migrationsByKey.has(key)) migrationsByKey.set(key, { ...migration, serviceName: owners[0]!.name });
   }
-  await markMigrationsRunElsewhere(context, migrationsByKey.values());
+  await markMigrationsRunElsewhere(context, migrationsByKey.values(), services);
   const migrations = [...migrationsByKey.values()];
 
   const workspaceGlobs = [...new Set(outputs.flatMap((output) => output.workspaceGlobs ?? []))];

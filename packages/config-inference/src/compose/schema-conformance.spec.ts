@@ -16,7 +16,7 @@ import { describe, expect, it } from 'bun:test';
 import Ajv from 'ajv';
 import configSchema from '@stacktape/config/config-schema.json' with { type: 'json' };
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema, type ProjectFactsInput } from '../facts/project-facts';
-import type { ServiceFactInput } from '../facts/service';
+import { DIRECT_INVOCATION_SOURCE, type ServiceFactInput } from '../facts/service';
 import { composeConfig } from './compose';
 
 // Ajv 6: unknown documentation keywords (`x-stp-focus`, `markdownDescription`) are ignored rather
@@ -836,5 +836,67 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     // One item for the workflow instead of a "no event invokes it" item for each function.
     expect(result.gaps.map((gap) => gap.subject)).toEqual(['approvalWorkflow.definition']);
     expect(result.gaps[0]!.message).toContain('may be its Task states: score, audit.');
+  });
+
+  it('a function URL a browser calls gets CORS, says it is public, and a directly invoked function says how to wire it', () => {
+    const fn = (name: string, overrides: Partial<ServiceFactInput> = {}) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`,
+        ...overrides
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          fn('stats', { functionTriggers: [{ type: 'url' }] }),
+          fn('report', { functionTriggers: [{ type: 'url' }] }),
+          fn('send-email', { functionTriggers: [{ type: 'unmapped', sourceType: DIRECT_INVOCATION_SOURCE }] }),
+          service({
+            name: 'web',
+            path: 'web',
+            framework: 'nextjs',
+            devCommand: 'npm run dev',
+            environmentVariables: [
+              // Read in the browser: the browser calls the URL itself.
+              {
+                name: 'NEXT_PUBLIC_STATS_URL',
+                role: 'build-time',
+                targetServiceName: 'stats',
+                required: true,
+                evidence: []
+              },
+              // Read on the server only.
+              {
+                name: 'REPORT_URL',
+                role: 'cross-service-reference',
+                targetServiceName: 'report',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.stats?.properties.url).toEqual({ enabled: true, cors: { enabled: true } });
+    expect(resources.report?.properties.url).toEqual({ enabled: true });
+    expect(result.provenance.stats?.reason).toContain('Its function URL is public (authMode NONE)');
+    expect(result.gaps).toEqual([
+      {
+        subject: 'send-email',
+        message:
+          "Your code invokes send-email directly with the Lambda Invoke API. Before deploying, give the workload that calls it connectTo: [sendEmail] and pass it the function's ARN with $ResourceParam('sendEmail', 'arn')."
+      }
+    ]);
   });
 });

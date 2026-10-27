@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { createProbeContext } from '../assemble';
-import { UNROUTED_HTTP_SOURCE } from '../../facts/service';
+import { DIRECT_INVOCATION_SOURCE, UNROUTED_HTTP_SOURCE } from '../../facts/service';
 import { lambdaSourceProbe } from './lambda-source';
 
 let root: string;
@@ -606,6 +606,13 @@ describe('the lambda-source probe', () => {
         '    pass',
         ''
       ].join('\n'),
+      // A rate in prose is not a statement of the schedule.
+      'workers/digest.py': [
+        '"""Sends the digest. It ran on rate(1 hour) before the move to the queue."""',
+        'def handler(event, context):',
+        '    pass',
+        ''
+      ].join('\n'),
       // A rate in a comment further down is not the module's statement.
       'workers/report.py': [
         '"""Builds the nightly report."""',
@@ -624,6 +631,7 @@ describe('the lambda-source probe', () => {
 
     expect(triggers).toEqual({
       'workers/cleanup.py': [{ type: 'schedule', rate: 'rate(1 minute)' }],
+      'workers/digest.py': [],
       'workers/report.py': []
     });
   });
@@ -663,10 +671,10 @@ describe('the lambda-source probe', () => {
 
     const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
 
-    // The default export in `functions/` is a function even without an aws-lambda type: a state machine invokes it.
+    // The default export in `functions/` has no Lambda signature; it is a function because the workflow runs it.
     expect((output.services ?? []).map((service) => [service.name, service.functionTriggers])).toEqual([
-      ['score', []],
-      ['mark_decision', []]
+      ['mark_decision', []],
+      ['score', []]
     ]);
     expect(output.dependencies).toEqual([
       expect.objectContaining({
@@ -703,6 +711,99 @@ describe('the lambda-source probe', () => {
         addressedBy: ['APPROVAL_WORKFLOW_ARN']
       })
     ]);
+    expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
+    // Neither default export has a Lambda signature, and no workflow runs them, so neither is a function.
+    expect((output.services ?? []).map((service) => service.name)).toEqual(['mark_decision']);
+  });
+
+  // #368 review: an async default export in a functions directory is not a Lambda handler by itself.
+  it('takes no frontend helper or Netlify function under a functions directory for a Lambda handler', async () => {
+    const repo = await makeRepo({
+      'package.json': JSON.stringify({ name: 'shop', dependencies: { react: '^19.0.0' } }),
+      'src/functions/fetchUser.ts': [
+        'export default async (id: string) => {',
+        '  const response = await fetch(`/api/users/${id}`);',
+        '  return response.json();',
+        '};',
+        ''
+      ].join('\n'),
+      'netlify/functions/hello.mts': [
+        "import type { Context } from '@netlify/functions';",
+        'export default async (req: Request, context: Context) => new Response(`hello ${context.geo.city}`);',
+        ''
+      ].join('\n'),
+      // Even beside a workflow whose input it would accept, a Netlify function is never one of its steps.
+      'api/start.ts': [
+        "import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';",
+        'const sfn = new SFNClient({});',
+        'export const start = (id: string) =>',
+        '  sfn.send(new StartExecutionCommand({ stateMachineArn: process.env.USER_WORKFLOW_ARN, input: JSON.stringify({ id }) }));',
+        ''
+      ].join('\n'),
+      'functions/greet.ts': [
+        "import type { Context } from '@netlify/functions';",
+        'export default async (req: Request, context: Context) => new Response(String(req.url));',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.services ?? []).toEqual([]);
+    expect(output.dependencies).toEqual([expect.objectContaining({ name: 'userWorkflow', kind: 'state-machine' })]);
+    expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
+  });
+
+  it('never makes a function the code invokes directly a step of the workflow it starts', async () => {
+    const repo = await makeRepo({
+      'api/orders.ts': [
+        "import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';",
+        "import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';",
+        'const sfn = new SFNClient({});',
+        'const lambda = new LambdaClient({});',
+        'export const placeOrder = async (orderId: string) => {',
+        '  await sfn.send(new StartExecutionCommand({ stateMachineArn: process.env.ORDER_WORKFLOW_ARN, input: JSON.stringify({ orderId }) }));',
+        '  await lambda.send(new InvokeCommand({ FunctionName: process.env.SEND_EMAIL_FUNCTION_NAME, Payload: JSON.stringify({ orderId }) }));',
+        '};',
+        ''
+      ].join('\n'),
+      // Reads exactly what the execution starts with, so the data flow alone would make it the workflow's only state.
+      'functions/send-email.ts': [
+        'export default async (input: { orderId: string }) => {',
+        '  console.log(`emailing about ${input.orderId}`);',
+        '  return { sent: true };',
+        '};',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect((output.services ?? []).map((service) => [service.name, service.functionTriggers])).toEqual([
+      ['send-email', [{ type: 'unmapped', sourceType: DIRECT_INVOCATION_SOURCE }]]
+    ]);
+    expect(output.dependencies).toEqual([expect.objectContaining({ name: 'orderWorkflow', kind: 'state-machine' })]);
+    expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
+  });
+
+  it('trusts no step order when the code invokes a function it does not name', async () => {
+    const repo = await makeRepo({
+      ...approvalWorkflow,
+      'api/notify.py': [
+        'import boto3',
+        'client = boto3.client("lambda")',
+        'def notify(target):',
+        '    client.invoke(FunctionName=target, InvocationType="Event")',
+        ''
+      ].join('\n')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(output.dependencies).toEqual([expect.objectContaining({ name: 'approvalWorkflow', kind: 'state-machine' })]);
     expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
   });
 });
