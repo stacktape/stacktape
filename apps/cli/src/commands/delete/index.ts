@@ -12,6 +12,12 @@ import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { SHARED_LAYER_NUMBERS } from '@domain-services/deployment-artifact-manager/shared-layers';
 import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
+import {
+  findDeletionProtectedResources,
+  getDeletionProtectionError
+} from '@domain-services/cloudformation-stack-manager/deletion-protection';
 
 type DeleteOperation = Awaited<ReturnType<typeof initializeDeleteOperation>>;
 type RetainedSharedResource = { kind: string; identity: string; stackName: string };
@@ -45,12 +51,15 @@ const parseRetainedSharedResources = (serialized: string): RetainedSharedResourc
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
   deploymentArtifacts: { deleteAllArtifacts: () => Promise<unknown> };
+  /** The template CloudFormation would delete. */
+  deployedTemplate: Pick<CloudFormationTemplate, 'Resources'> | undefined;
   lifecycle: Pick<DeleteOperation['lifecycle'], 'processHooks' | 'registerHooks'>;
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
   progress: Pick<DeleteOperation['progress'], 'setPhase'>;
   stack: {
     deleteStack: (options: { beforeDelete: () => Promise<unknown> }) => Promise<unknown>;
-    existingStackDetails: { EnableTerminationProtection?: boolean };
+    existingStackDetails: { EnableTerminationProtection?: boolean; StackStatus?: string };
+    existingStackResources: EnrichedStackResourceInfo[];
   };
   stackName: string;
   tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'setPendingCompletion'>;
@@ -96,6 +105,7 @@ export const commandDelete = async () => {
   const result = await executeDeleteOperation({
     config,
     deploymentArtifacts,
+    deployedTemplate: template.oldTemplate,
     lifecycle,
     notification,
     progress,
@@ -150,6 +160,7 @@ export const commandDelete = async () => {
 export const executeDeleteOperation = async ({
   config,
   deploymentArtifacts,
+  deployedTemplate,
   lifecycle,
   notification,
   progress,
@@ -169,6 +180,20 @@ export const executeDeleteOperation = async ({
         'terminationProtection'
       )} property set to false.`
     );
+  }
+
+  // CloudFormation cannot delete a protected resource, and Stacktape must not turn the protection off on its way out.
+  // Refusing here, before hooks, artifact deletion and the stack delete, keeps the whole stack as it was.
+  const protectedResources = findDeletionProtectedResources({
+    resources: stack.existingStackResources,
+    template: deployedTemplate
+  });
+  if (protectedResources.length) {
+    throw getDeletionProtectionError({
+      stackName,
+      stackStatus: stack.existingStackDetails.StackStatus,
+      resources: protectedResources
+    });
   }
 
   await notification.sendDeploymentNotification({

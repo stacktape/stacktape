@@ -13,6 +13,8 @@ import { templateManager } from '../../src/domain/template-manager';
 import { awsSdkManager } from '../../src/utils/aws-sdk-manager';
 import { tuiManager } from '../../src/app/tui-manager';
 import { planEarlyDataStoreDeletes } from '../../src/domain/cloudformation-stack-manager/early-data-store-deletes';
+import { findDeletionProtectedResources } from '../../src/domain/cloudformation-stack-manager/deletion-protection';
+import { executeDeleteOperation } from '../../src/commands/delete';
 import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 
 /**
@@ -665,5 +667,141 @@ describe('early database and cache deletes', () => {
       },
       { ...available, deletionPolicies }
     );
+  });
+});
+
+describe('deletion protection', () => {
+  const db = (overrides: Partial<EnrichedStackResourceInfo> = {}) =>
+    ({
+      ...resource('AWS::RDS::DBInstance', 'project-prod-db', 'DatabaseDbInstance'),
+      ...overrides
+    }) as EnrichedStackResourceInfo;
+  const protectionCustomResource = (target: Record<string, unknown>) => ({
+    Type: 'AWS::CloudFormation::CustomResource',
+    Properties: { ServiceToken: 'arn', setDatabaseDeletionProtection: target }
+  });
+
+  test.each<{
+    name: string;
+    resources: EnrichedStackResourceInfo[];
+    template: Record<string, unknown>;
+    expected: string[];
+  }>([
+    {
+      name: 'AWS reports protection on an RDS instance',
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: true } })],
+      template: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } },
+      expected: ['DatabaseDbInstance']
+    },
+    {
+      name: 'AWS reports protection on an Aurora cluster',
+      resources: [
+        {
+          ...resource('AWS::RDS::DBCluster', 'project-prod-aurora', 'AuroraDbCluster'),
+          auroraClusterDetail: { DeletionProtection: true }
+        } as EnrichedStackResourceInfo
+      ],
+      template: { AuroraDbCluster: { Type: 'AWS::RDS::DBCluster' } },
+      expected: ['AuroraDbCluster']
+    },
+    {
+      name: "Stacktape's custom resource protects a database whose details could not be read",
+      resources: [db()],
+      template: {
+        DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' },
+        DatabaseDeletionProtectionCustomResource: protectionCustomResource({
+          instanceId: { Ref: 'DatabaseDbInstance' }
+        })
+      },
+      expected: ['DatabaseDbInstance']
+    },
+    {
+      name: 'a DSQL cluster with DeletionProtectionEnabled',
+      resources: [resource('AWS::DSQL::Cluster', 'abc123', 'LedgerDsqlCluster')],
+      template: { LedgerDsqlCluster: { Type: 'AWS::DSQL::Cluster', Properties: { DeletionProtectionEnabled: true } } },
+      expected: ['LedgerDsqlCluster']
+    },
+    {
+      name: 'a DSQL cluster without protection',
+      resources: [resource('AWS::DSQL::Cluster', 'abc123', 'LedgerDsqlCluster')],
+      template: { LedgerDsqlCluster: { Type: 'AWS::DSQL::Cluster', Properties: { DeletionProtectionEnabled: false } } },
+      expected: []
+    },
+    {
+      name: 'an unprotected database',
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: false } })],
+      template: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } },
+      expected: []
+    },
+    {
+      name: 'a protected database that CloudFormation retains',
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: true } })],
+      template: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance', DeletionPolicy: 'Retain' } },
+      expected: []
+    }
+  ])('$name', ({ resources, template, expected }) => {
+    expect(
+      findDeletionProtectedResources({ resources, template: { Resources: template } as never }).map(
+        ({ logicalId }) => logicalId
+      )
+    ).toEqual(expected);
+  });
+
+  const runDelete = async ({
+    resources,
+    stackStatus = 'UPDATE_COMPLETE'
+  }: {
+    resources: EnrichedStackResourceInfo[];
+    stackStatus?: string;
+  }) => {
+    const calls: string[] = [];
+    const error = await executeDeleteOperation({
+      config: { config: {}, hooks: [] } as never,
+      deploymentArtifacts: { deleteAllArtifacts: async () => calls.push('artifacts:delete') },
+      deployedTemplate: { Resources: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } } } as never,
+      lifecycle: {
+        registerHooks: async () => {
+          calls.push('hooks:register');
+        },
+        processHooks: async () => {
+          calls.push('hooks:run');
+        }
+      } as never,
+      notification: { sendDeploymentNotification: async () => calls.push('notify') } as never,
+      progress: { setPhase: () => {} } as never,
+      stack: {
+        deleteStack: async () => calls.push('stack:delete'),
+        existingStackDetails: { StackStatus: stackStatus },
+        existingStackResources: resources
+      },
+      stackName: 'project-prod',
+      tui: { colorize: (_color: string, text: string) => text, info: () => {}, setPendingCompletion: () => {} } as never
+    }).then(
+      () => undefined,
+      (err: Error) => err
+    );
+    return { calls, error };
+  };
+
+  test('delete refuses before anything runs or is deleted, and says how to turn protection off', async () => {
+    const { calls, error } = await runDelete({ resources: [db({ rdsInstanceDetail: { DeletionProtection: true } })] });
+    expect(calls).toEqual([]);
+    expect(error?.message).toContain('DatabaseDbInstance');
+    expect(String((error as { hints?: unknown })?.hints)).toContain('deletionProtection: false');
+  });
+
+  test('a stack that failed to delete is told to turn protection off in AWS, since it cannot be deployed', async () => {
+    const { calls, error } = await runDelete({
+      resources: [db({ rdsInstanceDetail: { DeletionProtection: true } })],
+      stackStatus: 'DELETE_FAILED'
+    });
+    expect(calls).toEqual([]);
+    expect(String((error as { hints?: unknown })?.hints)).toContain('--no-deletion-protection');
+  });
+
+  test('an unprotected stack is deleted', async () => {
+    const { calls, error } = await runDelete({ resources: [db({ rdsInstanceDetail: { DeletionProtection: false } })] });
+    expect(error).toBeUndefined();
+    expect(calls).toContain('stack:delete');
   });
 });
