@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -144,5 +145,73 @@ func TestProxyForwardsClientHeadersUnchanged(t *testing.T) {
 	get(t, "/")
 	if r := <-seen; r.header.Get("X-Forwarded-For") != "" {
 		t.Fatalf("proxy added X-Forwarded-For %q", r.header.Get("X-Forwarded-For"))
+	}
+}
+
+// stopTask stops the task as ECS does (SIGTERM) with the routing hold ending holdLeft from now. The channel closes when
+// the supervisor has stopped the task.
+func stopTask(t *testing.T, holdLeft time.Duration) chan struct{} {
+	t.Helper()
+	at := time.Now().Add(holdLeft - 30*time.Second)
+	stopAt.Store(&at)
+	t.Cleanup(func() {
+		stopAt.Store(nil)
+		stopping.Store(false)
+	})
+	done := make(chan struct{})
+	go func() { shutdown(&http.Server{}); close(done) }()
+	return done
+}
+
+func TestTaskStopBehindLoadBalancerSkipsRoutingHold(t *testing.T) {
+	albTask(t)
+	u := startFixture(t, "app", false)
+	current.Store(u)
+	// The load balancer has finished its deregistration delay, so no request is in flight: the stop does not wait.
+	select {
+	case <-stopTask(t, 2*time.Second):
+	case <-time.After(time.Second):
+		t.Fatal("task stop waited for the routing hold behind a load balancer")
+	}
+	if !u.exited.Load() {
+		t.Fatal("application not stopped")
+	}
+}
+
+func TestTaskStopBehindLoadBalancerWaitsForInflightRequest(t *testing.T) {
+	albTask(t)
+	u := startFixture(t, "app", false)
+	current.Store(u)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", proxied("/wait"), nil)
+	go http.DefaultClient.Do(req)
+	waitFor(t, 2*time.Second, func() bool { return u.inflight.Load() == 1 })
+	done := stopTask(t, 5*time.Second)
+	select {
+	case <-done:
+		t.Fatal("task stop cut a request in flight")
+	case <-time.After(300 * time.Millisecond):
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("task stop kept waiting after the last request finished")
+	}
+}
+
+func TestTaskStopBehindHttpApiKeepsRoutingHold(t *testing.T) {
+	swapTask(t, 5*time.Second)
+	u := startFixture(t, "app", false)
+	current.Store(u)
+	// Cloud Map can still route requests to the task, so the proxy keeps serving until the hold ends.
+	started := time.Now()
+	<-stopTask(t, time.Second)
+	if elapsed := time.Since(started); elapsed < 900*time.Millisecond {
+		t.Fatalf("task stop ended the routing hold after %v", elapsed)
+	}
+	if !u.exited.Load() {
+		t.Fatal("application not stopped")
 	}
 }

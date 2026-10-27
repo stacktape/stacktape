@@ -207,10 +207,6 @@ func TestTraceDeniedBootKeepsImageOnly(t *testing.T) {
 }
 
 func TestIdleLeaderExitRetainsLateOrphan(t *testing.T) {
-	_, _, e := syscall.Syscall6(syscall.SYS_PRCTL, 36, 1, 0, 0, 0, 0)
-	if e != 0 {
-		t.Fatal(e)
-	}
 	cmd := exec.Command("sh", "-c", "read x <&3; sleep 30 & exit 0")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	u := &generation{cmd: cmd, membership: map[int]string{}}
