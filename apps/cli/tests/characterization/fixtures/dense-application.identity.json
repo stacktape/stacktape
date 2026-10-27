@@ -173,11 +173,7 @@
     },
     "CdnOriginRequestLambdaEdgeLambdaCustomResource": {
       "type": "AWS::CloudFormation::CustomResource",
-      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "StpEdgeLambdaBucketCustomResource"]
-    },
-    "CdnOriginResponseLambdaEdgeLambdaCustomResource": {
-      "type": "AWS::CloudFormation::CustomResource",
-      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction", "StpEdgeLambdaBucketCustomResource"]
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
     },
     "DatabaseDbInstance": {
       "type": "AWS::RDS::DBInstance",

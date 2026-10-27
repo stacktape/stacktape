@@ -15,6 +15,8 @@ export const expectedV3UpgradeChanges: Record<string, Record<string, ResourceImp
   // registers a new revision and the service rolls to it, exactly as for a code change.
   'container-platform': {
     WebTaskDefinition: ResourceImpact.WILL_REPLACE,
-    WorkerTaskDefinition: ResourceImpact.WILL_REPLACE
+    WorkerTaskDefinition: ResourceImpact.WILL_REPLACE,
+    // A CDN gets the origin-response edge Lambda only when a bucket sets custom metadata headers, its only use.
+    CdnOriginResponseLambdaEdgeLambdaCustomResource: ResourceImpact.WILL_DESTROY
   }
 };
