@@ -11,6 +11,7 @@ import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
+import { ElastiCacheClient } from '@aws-sdk/client-elasticache';
 import { ElasticLoadBalancingV2Client } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
@@ -55,6 +56,7 @@ import { AwsEc2 } from '../ec2';
 import { AwsAutoScaling } from '../auto-scaling';
 import { AwsOpenSearch } from '../open-search';
 import { AwsRds } from '../rds';
+import { AwsElastiCache } from '../elasticache';
 import { AwsEmail } from '../email';
 import { AwsApiGatewayAccount } from '../api-gateway-account';
 import { defaultGetErrorFunction } from './utils';
@@ -80,6 +82,7 @@ export class AwsSdkManager {
   #autoScaling?: AwsAutoScaling;
   #openSearch?: AwsOpenSearch;
   #rds?: AwsRds;
+  #elastiCache?: AwsElastiCache;
   #email?: AwsEmail;
   #apiGatewayAccount?: AwsApiGatewayAccount;
   printer?: Printer;
@@ -192,6 +195,9 @@ export class AwsSdkManager {
     this.#rds = new AwsRds({
       createClient: () => this.#rdsClient(),
       getErrorHandler: this.#getErrorHandler
+    });
+    this.#elastiCache = new AwsElastiCache({
+      createClient: () => this.#applyPlugins(new ElastiCacheClient(this.#getClientArgs()))
     });
     this.#email = new AwsEmail({ createClient: () => this.#sesv2(), getErrorHandler: this.#getErrorHandler });
     this.#apiGatewayAccount = new AwsApiGatewayAccount({
@@ -365,6 +371,14 @@ export class AwsSdkManager {
       throw new Error('AWS RDS has not been initialized.');
     }
     return this.#rds;
+  }
+
+  get elastiCache() {
+    this.#getContext();
+    if (!this.#elastiCache) {
+      throw new Error('AWS ElastiCache has not been initialized.');
+    }
+    return this.#elastiCache;
   }
 
   get email() {
