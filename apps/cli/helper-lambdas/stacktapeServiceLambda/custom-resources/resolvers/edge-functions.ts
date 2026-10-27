@@ -466,7 +466,7 @@ const modifyFunctionCode = async (
 
 /** How long `createFunction` retries while a new role is not yet assumable by Lambda (IAM propagation). */
 const ROLE_PROPAGATION_TIMEOUT_MS = 60_000;
-const ROLE_PROPAGATION_RETRY_MS = 2000;
+const ROLE_PROPAGATION_RETRY_MS = 1000;
 
 const createFunction = async (
   lambdaProps: StpServiceCustomResourceEdgeFunctionProps,
