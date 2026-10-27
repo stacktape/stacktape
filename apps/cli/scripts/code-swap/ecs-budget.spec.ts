@@ -151,6 +151,76 @@ test('customer workload eligibility keeps unqualified platforms and checks on im
   ).toContain('configured health');
 });
 
+test('code swap runs behind an HTTP API or one application load balancer, with its health check', async () => {
+  const { unsupportedReason, codeSwapRouting } = await import('../../src/domain/code-swap/eligibility');
+  type Workload = Parameters<typeof unsupportedReason>[0];
+  type Container = Workload['containers'][number];
+  const withContainer = (container: Partial<Container>) =>
+    ({
+      name: 'orders',
+      codeSwap: true,
+      resources: { memory: 1024 },
+      scaling: { maxInstances: 2 },
+      containers: [{ name: 'server', packaging: { type: 'js-bundle', properties: {} }, ...container }]
+    }) as Workload;
+  const alb = { type: 'application-load-balancer', properties: { loadBalancerName: 'lb', priority: 3 } };
+  const nlb = { type: 'network-load-balancer', properties: { loadBalancerName: 'lb', listenerPort: 443 } };
+  const httpApi = { type: 'http-api-gateway', properties: { httpApiGatewayName: 'api', path: '/{proxy+}' } };
+
+  const defaultCheck = withContainer({ events: [alb] as Container['events'] });
+  expect(unsupportedReason(defaultCheck, 1)).toBeUndefined();
+  expect(codeSwapRouting(defaultCheck)).toEqual({ type: 'application-load-balancer', checkPath: '/', checkTimeout: 4 });
+  const authoredCheck = withContainer({
+    events: [alb] as Container['events'],
+    loadBalancerHealthCheck: { healthcheckPath: '/health?deep=1', healthcheckTimeout: 10 }
+  });
+  expect(codeSwapRouting(authoredCheck)).toEqual({
+    type: 'application-load-balancer',
+    checkPath: '/health?deep=1',
+    checkTimeout: 10
+  });
+  expect(codeSwapRouting(withContainer({ events: [httpApi] as Container['events'] }))).toEqual({
+    type: 'http-api-gateway'
+  });
+
+  for (const events of [[], [nlb], [alb, alb], [alb, httpApi]])
+    expect(unsupportedReason(withContainer({ events: events as Container['events'] }), 1)).toContain(
+      'only HTTP API and application load balancer routing'
+    );
+  for (const healthcheckPath of ['/health check', '/$HOME', 'health', '/"quoted"'])
+    expect(
+      unsupportedReason(
+        withContainer({ events: [alb] as Container['events'], loadBalancerHealthCheck: { healthcheckPath } }),
+        1
+      )
+    ).toContain('plain URL path');
+});
+
+test('a task behind a load balancer routes only while its own address and port is a healthy target', async () => {
+  const { tasksAreHealthyTargets } = await import('../../src/domain/code-swap/service-runtime');
+  const task = (ip: string) => ({
+    attachments: [{ type: 'ElasticNetworkInterface', details: [{ name: 'privateIPv4Address', value: ip }] }]
+  });
+  const target = (Id: string, Port: number, State: 'healthy' | 'unhealthy' | 'draining' | 'initial') => ({
+    Target: { Id, Port },
+    TargetHealth: { State }
+  });
+  const tasks = [task('10.0.0.1'), task('10.0.0.2')];
+  expect(
+    tasksAreHealthyTargets(tasks, 3000, [target('10.0.0.1', 3000, 'healthy'), target('10.0.0.2', 3000, 'healthy')])
+  ).toBe(true);
+  expect(
+    tasksAreHealthyTargets(tasks, 3000, [target('10.0.0.1', 3000, 'healthy'), target('10.0.0.2', 3000, 'unhealthy')])
+  ).toBe(false);
+  expect(
+    tasksAreHealthyTargets(tasks, 3000, [target('10.0.0.1', 3000, 'healthy'), target('10.0.0.2', 8080, 'healthy')])
+  ).toBe(false);
+  expect(
+    tasksAreHealthyTargets(tasks, 3000, [target('10.0.0.1', 3000, 'healthy'), target('10.0.0.3', 3000, 'healthy')])
+  ).toBe(false);
+  expect(tasksAreHealthyTargets([{ attachments: [] }], 3000, [target('10.0.0.1', 3000, 'healthy')])).toBe(false);
+});
+
 test('memory fallback explains the measured requirement and a supported remedy', async () => {
   const { memoryFallbackReason } = await import('../../src/domain/code-swap/ecs-budget');
   const memory = {

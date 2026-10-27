@@ -78983,8 +78983,9 @@ type WebServiceProps = {
   cdn?: CdnConfiguration;
   /** Update code inside running containers when eligible. Off by default, including production.
 
-Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
-without configured health checks or side containers. The application must honor PORT.
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API
+or an application load balancer, without configured health checks or side containers. The application must honor
+PORT. Behind a load balancer, new code must pass its health check path before and after the switch.
 Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
 All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
 or custom build/install steps; other Python packaging uses images.
@@ -79301,8 +79302,9 @@ export default defineConfig(() => {
 
 Update code inside running containers when eligible. Off by default, including production.
 
-Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API,
-without configured health checks or side containers. The application must honor PORT.
+Supports Node.js js-bundle and Python requirements.txt buildpack web services, on x86 Fargate behind an HTTP API
+or an application load balancer, without configured health checks or side containers. The application must honor
+PORT. Behind a load balancer, new code must pass its health check path before and after the switch.
 Each service opts in separately. Autoscaling maximum plus deployment surge must fit within 10 tasks per service.
 All changed services use images if any cannot swap. Python requires hash-locked requirements without local dependencies
 or custom build/install steps; other Python packaging uses images.

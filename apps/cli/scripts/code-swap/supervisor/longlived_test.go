@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-// fixture serves an ordinary route, an endless event stream, an endless text/plain stream, a request that never sends
+// fixture serves an ordinary route, a health check path, an endless event stream, an endless text/plain stream, a request that never sends
 // headers and a WebSocket upgrade that stays open.
 func fixture(rev string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,6 +40,14 @@ func fixture(rev string) http.Handler {
 			}
 		case "/wait":
 			<-r.Context().Done()
+		case "/health":
+			// A load balancer health check path; an "unhealthy" file in the working directory makes it fail.
+			if _, err := os.Stat("unhealthy"); err == nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			io.WriteString(w, rev)
+		case "/moved":
+			http.Redirect(w, r, "/health", http.StatusFound)
 		case "/ws":
 			conn, buf, err := http.NewResponseController(w).Hijack()
 			if err != nil {

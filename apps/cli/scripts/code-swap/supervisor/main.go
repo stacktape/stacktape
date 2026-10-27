@@ -299,9 +299,21 @@ exec "$@"
 
 func (u *generation) useProxy(address string) {
 	target, _ := url.Parse(address)
-	u.proxy = httputil.NewSingleHostReverseProxy(target)
+	// The application receives the client's Host and forwarded headers exactly as the load balancer or API sent them,
+	// as it would without the supervisor. The proxy adds no X-Forwarded-For hop of its own.
+	u.proxy = &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) {
+		r.SetURL(target)
+		r.Out.Host = r.In.Host
+		for _, name := range []string{"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
+			if values, ok := r.In.Header[name]; ok {
+				r.Out.Header[name] = values
+			}
+		}
+	}}
 	u.proxy.FlushInterval = -1
-	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second, ResponseHeaderTimeout: 30 * time.Second}
+	// No response header timeout: the load balancer's or API's own timeout limits a request, as without the supervisor.
+	// A client that gives up cancels its upstream request, and a swap's drain deadline bounds an old process.
+	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second}
 	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		fmt.Printf("{\"benchmarkEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), u.revision)
 		http.Error(w, "upstream unavailable", 502)
@@ -468,6 +480,11 @@ func prepare(r record, t map[string]any) (*generation, error) {
 	if current.Load() != nil && !health(proxyPort, r.Revision, true) {
 		return u, fmt.Errorf("prepare proxy check failed")
 	}
+	if current.Load() != nil {
+		if err := awaitTargetCheck(u); err != nil {
+			return u, err
+		}
+	}
 	t["prepareHealthMs"] = ms(started)
 	t["preparedAtMs"] = now()
 	return u, nil
@@ -533,6 +550,9 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	if !health(proxyPort, u.revision, false) {
 		return fmt.Errorf("post-switch check failed")
 	}
+	if err := targetCheck(u.revision, false); err != nil {
+		return fmt.Errorf("post-switch %w", err)
+	}
 	t["postHealthMs"] = ms(started)
 	t["postHealthAtMs"] = now()
 	started = time.Now()
@@ -544,6 +564,9 @@ func activate(u *generation, t map[string]any, oom int64) error {
 		if time.Now().After(nextCheck) {
 			if !health(proxyPort, u.revision, false) {
 				return fmt.Errorf("drain check failed")
+			}
+			if err := targetCheck(u.revision, false); err != nil {
+				return fmt.Errorf("drain %w", err)
 			}
 			nextCheck = time.Now().Add(time.Second)
 		}
@@ -576,6 +599,9 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	}
 	if !health(proxyPort, u.revision, false) {
 		return fmt.Errorf("final proxy check failed")
+	}
+	if err := targetCheck(u.revision, false); err != nil {
+		return fmt.Errorf("final %w", err)
 	}
 	if err := u.protect(); err != nil {
 		return err
@@ -849,6 +875,7 @@ func main() {
 		grace = time.Duration(n) * time.Second
 	}
 	drain = grace
+	configureTargetCheck()
 	if grace < 0 || grace > 59*time.Second {
 		panic("unsupported task stop budget")
 	}
