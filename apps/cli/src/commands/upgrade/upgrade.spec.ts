@@ -54,6 +54,13 @@ describe('stacktape upgrade', () => {
     const stableRequests = serveChannels({ 'installs.stacktape.com': '4.0.1' });
     expect((await getLatestStacktapeRelease(undefined, '4.0.0')).version).toBe('4.0.1');
     expect(stableRequests).toEqual(['https://installs.stacktape.com/_data.json']);
+
+    serveChannels({ 'installs-preview.stacktape.com': '4.0.0-preview.11' });
+    expect((await getLatestStacktapeRelease(undefined, '4.0.0-preview.10')).version).toBe('4.0.0-preview.11');
+    serveChannels({});
+    await expect(getLatestStacktapeRelease(undefined, '4.0.0-preview.10')).rejects.toThrow(
+      'has no valid latestVersion'
+    );
   });
 
   test('prints exact-version commands, so a major release or a preview is not skipped', () => {
@@ -62,11 +69,11 @@ describe('stacktape upgrade', () => {
       version: '4.0.0-preview.11'
     };
     expect(getUpgradeCommand({ installationType: 'unknown' }, target)).toBe(
-      'curl -fsSL https://installs-preview.stacktape.com/macos-arm.sh | sh'
+      'curl -fsSL https://installs-preview.stacktape.com/macos-arm.sh | STACKTAPE_VERSION=4.0.0-preview.11 sh'
     );
     expect(
       getUpgradeCommand({ installationType: 'unknown' }, { ...target, installerUrl: getInstallerUrl('x', 'win') })
-    ).toBe('irm x/windows.ps1 | iex');
+    ).toBe("$env:STACKTAPE_VERSION='4.0.0-preview.11'; irm x/windows.ps1 | iex");
     expect(getUpgradeCommand({ installationType: 'package-global' }, target)).toBe(
       'npm install -g stacktape@4.0.0-preview.11'
     );

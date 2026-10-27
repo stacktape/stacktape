@@ -45,13 +45,16 @@ export const getLatestStacktapeRelease = async (
   const channels = currentVersion.includes('-preview')
     ? [STABLE_INSTALLS_URL, PREVIEW_INSTALLS_URL]
     : [STABLE_INSTALLS_URL];
-  const releases = await Promise.all(
+  // A channel that cannot be read leaves the other one; only both failing is an error.
+  const results = await Promise.allSettled(
     channels.map(async (installsUrl) => {
       const { latestVersion } = await jsonFetch(`${installsUrl}/_data.json`, options);
       if (!valid(latestVersion)) throw new Error(`${installsUrl}/_data.json has no valid latestVersion.`);
       return { version: latestVersion as string, installsUrl };
     })
   );
+  const releases = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
+  if (!releases.length) throw (results[0] as PromiseRejectedResult).reason;
   return releases.reduce((newest, release) => (gt(release.version, newest.version) ? release : newest));
 };
 

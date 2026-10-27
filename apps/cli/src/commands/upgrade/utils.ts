@@ -97,8 +97,10 @@ export const getInstallerUrl = (installsUrl: string, platform: SupportedPlatform
   `${installsUrl}/${INSTALLER_SCRIPT_NAMES[platform]}`;
 
 /** The command a person runs to install. The upgrade itself runs the same installer from a file instead. */
-export const getInstallCommand = (installerUrl: string) =>
-  installerUrl.endsWith('.ps1') ? `irm ${installerUrl} | iex` : `curl -fsSL ${installerUrl} | sh`;
+export const getInstallCommand = ({ installerUrl, version }: { installerUrl: string; version: string }) =>
+  installerUrl.endsWith('.ps1')
+    ? `$env:STACKTAPE_VERSION='${version}'; irm ${installerUrl} | iex`
+    : `curl -fsSL ${installerUrl} | STACKTAPE_VERSION=${version} sh`;
 
 // An exact version also crosses a major release or the preview tag, which `npm update` would not.
 export const getUpgradeCommand = (
@@ -112,7 +114,7 @@ export const getUpgradeCommand = (
     case 'package-local':
       return `${addCommand} stacktape@${version}`;
     default:
-      return getInstallCommand(installerUrl);
+      return getInstallCommand({ installerUrl, version });
   }
 };
 
@@ -152,7 +154,8 @@ export const runNativeInstaller = async ({ installerUrl, version }: { installerU
         category: 'CLI',
         code: 'CLI_UPGRADE_INSTALLER_FAILED',
         message: `The Stacktape installer failed${error?.exitCode ? ` with exit code ${error.exitCode}` : ''}.`,
-        hints: `To run the installer yourself: ${getInstallCommand(installerUrl)}`
+        // `-ExecutionPolicy Bypass` cannot override a policy set by Group Policy; the printed command is not affected.
+        hints: `${isPowerShell ? 'If PowerShell refused to run the script, run' : 'Run'} the installer yourself: ${getInstallCommand({ installerUrl, version })}`
       });
     });
   } finally {
