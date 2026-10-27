@@ -272,6 +272,82 @@ describe('Batch and Step Functions family', () => {
     expect(literal(job.resource.Properties.ContainerProperties).LinuxParameters).toEqual({ InitProcessEnabled: true });
   });
 
+  describe('compute environment images', () => {
+    const jobs = defineConfig(() => ({
+      resources: {
+        report: new BatchJob({
+          container: {
+            packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/reports:v1' } }
+          },
+          resources: { cpu: 1, memory: 2048 }
+        }),
+        train: new BatchJob({
+          container: {
+            packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/train:v1' } }
+          },
+          resources: { cpu: 8, memory: 30720, gpu: 1 }
+        })
+      }
+    }));
+    const synthesize = (deployedTemplate?: CloudFormationTemplate) =>
+      synthesizeFixture({ compiledConfig: jobs(authoringParams), workingDir: fixturesDir, deployedTemplate });
+    const imageTypes = (template: CloudFormationTemplate) =>
+      Object.fromEntries(
+        resourcesOfType(template, 'AWS::Batch::ComputeEnvironment').map(([logicalId, resource]) => [
+          logicalId,
+          json(literal(resource.Properties.ComputeResources).Ec2Configuration)
+        ])
+      );
+    /** The template as a stack deployed before Batch stopped creating Amazon Linux 2 environments has it. */
+    const deployedWithAmazonLinux2 = (template: CloudFormationTemplate) => {
+      const deployed = structuredClone(template);
+      for (const [, resource] of resourcesOfType(deployed, 'AWS::Batch::ComputeEnvironment')) {
+        const computeResources = literal(resource.Properties.ComputeResources);
+        const [{ ImageType }] = literal(computeResources.Ec2Configuration) as [{ ImageType: string }];
+        computeResources.Ec2Configuration = [{ ImageType: ImageType.replace('AL2023', 'AL2') }];
+      }
+      return deployed;
+    };
+
+    test('new compute environments use Amazon Linux 2023, with the NVIDIA image for GPU jobs', async () => {
+      const template = await synthesize();
+      expect(imageTypes(template)).toEqual({
+        StpBatchOnDemandComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchSpotComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchOnDemandGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2023_NVIDIA' }]),
+        StpBatchSpotGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2023_NVIDIA' }])
+      });
+      // The launch template enlarges the root volume, which every Amazon Linux 2023 ECS image names /dev/xvda.
+      const launchTemplate = onlyResourceOfType(template, 'AWS::EC2::LaunchTemplate');
+      expect(json(launchTemplate.resource.Properties.LaunchTemplateData)).toContain('"DeviceName":"/dev/xvda"');
+    });
+
+    test('deployed Amazon Linux 2 compute environments are not replaced while nothing else changes', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      const template = await synthesize(deployed);
+      for (const [logicalId, resource] of resourcesOfType(template, 'AWS::Batch::ComputeEnvironment')) {
+        expect(resource.Properties).toEqual(deployed.Resources[logicalId].Properties as never);
+      }
+      expect(imageTypes(template).StpBatchSpotGpuComputeEnvironment).toBe(json([{ ImageType: 'ECS_AL2_NVIDIA' }]));
+    });
+
+    test('a deployed compute environment that is replaced anyway moves to Amazon Linux 2023', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      // Changed stack tags replace a compute environment; AWS would reject the replacement with Amazon Linux 2.
+      literal(
+        literal(deployed.Resources.StpBatchOnDemandComputeEnvironment.Properties as { Tags: Record<string, string> })
+          .Tags
+      ).team = 'data';
+      const template = await synthesize(deployed);
+      expect(imageTypes(template)).toEqual({
+        StpBatchOnDemandComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchSpotComputeEnvironment: json([{ ImageType: 'ECS_AL2' }]),
+        StpBatchOnDemandGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2_NVIDIA' }]),
+        StpBatchSpotGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2_NVIDIA' }])
+      });
+    });
+  });
+
   test('rejects a scheduled Batch trigger with competing input and inputPath', async () => {
     await expect(synthesizeFamily('invalid-batch-schedule', config(true))).rejects.toMatchObject({
       code: 'CONFIG_SCHEDULE_INPUT_CONFLICT'

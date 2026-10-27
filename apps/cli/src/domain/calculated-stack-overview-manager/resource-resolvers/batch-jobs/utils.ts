@@ -1,4 +1,6 @@
+import { isDeepStrictEqual } from 'node:util';
 import type { ContainerProperties, Secret } from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
+import type { ComputeEnvironmentProperties } from '@stacktape/cloudformation/resources/aws-batch-computeenvironment';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
@@ -6,6 +8,7 @@ import type { StpResourceScopableByConnectToAffectingRole } from '@domain-servic
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { templateManager } from '@domain-services/template-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -194,7 +197,7 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
     SpotIamFleetRole: getAtt(cfLogicalNames.batchSpotFleetRole(), 'Arn'),
     MinvCpus: 0,
     MaxvCpus: 1000,
-    Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2_NVIDIA' : 'ECS_AL2' }],
+    Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2023_NVIDIA' : 'ECS_AL2023' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
     Subnets: vpcManager.getPublicSubnetIds().slice(0, 2),
     AllocationStrategy: 'BEST_FIT',
@@ -206,11 +209,50 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
   };
 };
 
+/**
+ * Keeps the image configuration a deployed compute environment was created with, typically Amazon Linux 2
+ * (`ECS_AL2`, `ECS_AL2_NVIDIA`), while nothing else in it changes.
+ *
+ * AWS Batch has refused to create compute environments with its Amazon Linux 2 images since 30 June 2026, so new ones
+ * use Amazon Linux 2023. Existing ones keep working. With the `BEST_FIT` allocation strategy, CloudFormation replaces a
+ * compute environment for any image change, and deleting the old one can interrupt the jobs running on it. When another
+ * change replaces the compute environment anyway, it gets the new image: AWS would reject an Amazon Linux 2 replacement.
+ */
+const keepDeployedEc2Configuration = (cfLogicalName: string) => {
+  templateManager.addFinalTemplateOverrideFn(async (template) => {
+    const properties = template.Resources[cfLogicalName]?.Properties as ComputeEnvironmentProperties | undefined;
+    const deployedProperties = templateManager.oldTemplate.Resources?.[cfLogicalName]?.Properties as
+      | ComputeEnvironmentProperties
+      | undefined;
+    const computeResources = properties?.ComputeResources as Record<string, unknown> | undefined;
+    const deployedComputeResources = deployedProperties?.ComputeResources as Record<string, unknown> | undefined;
+    if (!computeResources || !deployedComputeResources) {
+      return;
+    }
+    const deployedEc2Configuration = deployedComputeResources.Ec2Configuration;
+    const keptProperties = {
+      ...properties,
+      ComputeResources: { ...computeResources, Ec2Configuration: deployedEc2Configuration }
+    };
+    if (isDeepStrictEqual(asTemplateJson(keptProperties), asTemplateJson(deployedProperties))) {
+      if (deployedEc2Configuration === undefined) {
+        delete computeResources.Ec2Configuration;
+      } else {
+        computeResources.Ec2Configuration = deployedEc2Configuration;
+      }
+    }
+  });
+};
+
+/** The value as CloudFormation stores it, without `undefined` properties. */
+const asTemplateJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
+
 export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: boolean }) => {
   const tagObject = {};
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
+  keepDeployedEc2Configuration(cfLogicalNames.batchComputeEnvironment(spot, gpu));
   return cfnResource('AWS::Batch::ComputeEnvironment', {
     // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(calculatedStackOverviewManager.context.stackName, spot, gpu),
     ServiceRole: getAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
