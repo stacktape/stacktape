@@ -10,6 +10,7 @@ import {
   takeUnreportedCleanupFailures
 } from '../../src/domain/cloudformation-stack-manager';
 import { templateManager } from '../../src/domain/template-manager';
+import { deploymentArtifactManager } from '../../src/domain/deployment-artifact-manager';
 import { globalStateManager } from '../../src/app/global-state-manager';
 import { operationReporter } from '../../src/app/operation-manager';
 import { awsSdkManager } from '../../src/utils/aws-sdk-manager';
@@ -308,6 +309,19 @@ describe('reporting failed cleanup deletions', () => {
       expect(await report([oldDatabase])).toEqual(['OldDatabase-DELETE_FAILED-300']);
       expect(await report([oldDatabase])).toEqual([]);
     });
+  });
+
+  // The listing skips the record because it is not an artifact; a bucket that still holds it cannot be deleted.
+  test('deleting the stack removes the record from the deployment bucket', async () => {
+    const deleted = spyOn(awsSdkManager.s3, 'deleteObjects').mockResolvedValue(
+      {} as Awaited<ReturnType<typeof awsSdkManager.s3.deleteObjects>>
+    );
+    try {
+      await deploymentArtifactManager.deleteAllObjects();
+      expect(deleted.mock.calls[0]?.[1]).toContainEqual({ Key: REPORTED_CLEANUP_FAILURES_S3_KEY });
+    } finally {
+      deleted.mockRestore();
+    }
   });
 
   test('reports every failure when the record cannot be read or there is no deployment bucket', async () => {

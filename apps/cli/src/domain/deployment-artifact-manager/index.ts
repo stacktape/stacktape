@@ -18,7 +18,7 @@ import {
   DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS,
   STP_TEMPLATE_FILE_NAME_WITHOUT_EXT
 } from '@config';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { REPORTED_CLEANUP_FAILURES_S3_KEY, stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import type { PackagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -913,7 +913,10 @@ class DeploymentArtifactManager {
   deleteAllObjects = async () => {
     await this.deleteObjectsFromDeploymentBucket([
       ...this.previousObjects.map((obj) => obj.s3Key),
-      ...this.#storedSourceMapKeys
+      ...this.#storedSourceMapKeys,
+      // Not an artifact, so the listing skips it, but CloudFormation cannot delete a bucket that still holds it.
+      // Deleting a missing key succeeds.
+      REPORTED_CLEANUP_FAILURES_S3_KEY
     ]);
     return this.previousObjects;
   };

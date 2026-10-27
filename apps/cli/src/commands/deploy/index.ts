@@ -183,6 +183,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     // name for deterministic resource naming/tags, but send the approved ARN for stack mutations so
     // a same-name replacement after this check fails instead of receiving the update.
     stack.bindExistingStackMutationsToId(initTargetExpectation.stackId);
+  } else if (initTargetExpectation && stack.existingStackDetails?.StackId) {
+    // An approved first deploy over the artifact-only stack an earlier attempt left updates exactly the stack just
+    // checked.
+    stack.bindExistingStackMutationsToId(stack.existingStackDetails.StackId);
   }
 
   // Check if trying to deploy to an existing dev stack. A dev stack rolled back to its bootstrap template has only its
