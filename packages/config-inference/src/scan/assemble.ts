@@ -678,6 +678,8 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void =
   }
 };
 
+type VariableInput = NonNullable<ServiceFactInput['environmentVariables']>[number];
+
 const ADDRESS_ROLE_WORD = /_(?:API|SERVICE|SVC|SERVER|BACKEND)$/;
 
 /** `orders-api`, `ordersApi` and `ORDERS_API` all name the same service: `ORDERS` once the role word is gone. */
@@ -700,7 +702,8 @@ const SERVICE_ADDRESS_VARIABLE =
  * Only a container that serves HTTP or a function with a function URL has a URL of its own to give, and only one
  * service may match the name.
  */
-const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
+const linkServiceAddresses = (services: readonly ServiceFactInput[]): Set<VariableInput> => {
+  const linked = new Set<VariableInput>();
   const targets = services.filter(
     (service) =>
       (service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)) ||
@@ -716,8 +719,10 @@ const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
       if (matches.length !== 1) continue;
       variable.targetServiceName = matches[0]!.name;
       if (variable.role === 'runtime-config') variable.role = 'cross-service-reference';
+      linked.add(variable);
     }
   }
+  return linked;
 };
 
 /** `TAX_FUNCTION_NAME`, `TAX_LAMBDA_ARN`, `TAX_FN`, `TAX_ARN`: the name or ARN of the `tax` function. */
@@ -748,18 +753,27 @@ const linkFunctionReferences = (services: readonly ServiceFactInput[]): void => 
  * Mark an HTTP container that only the project's other containers call: a container that serves HTTP itself reads its
  * address, and no frontend or function does. A private service is reachable only from containers in the stack, and a
  * worker that reads an API's address is no evidence that the API is internal: the API still serves someone else.
+ *
+ * Only addresses the code reads count (`linked`). A deployment manifest that hands one service another's address
+ * (Render's `RENDER_EXTERNAL_URL`) states how that platform exposes it, which is often publicly.
  */
-const markInternalServices = (services: readonly ServiceFactInput[]): void => {
+const markInternalServices = (services: readonly ServiceFactInput[], linked: ReadonlySet<VariableInput>): void => {
   const isContainer = (service: ServiceFactInput) =>
     service.functionEntrypoint === undefined && !isFrontend(service) && service.executionModel === 'long-running';
   for (const target of services) {
     if (!target.exposesHttp || !isContainer(target)) continue;
-    const callers = services.filter(
-      (service) =>
-        service !== target &&
-        (service.environmentVariables ?? []).some((variable) => variable.targetServiceName === target.name)
+    const references = services.flatMap((service) =>
+      service === target
+        ? []
+        : (service.environmentVariables ?? [])
+            .filter((variable) => variable.targetServiceName === target.name)
+            .map((variable) => ({ service, variable }))
     );
-    if (callers.length === 0 || !callers.every(isContainer) || !callers.some((caller) => caller.exposesHttp)) continue;
+    if (references.length === 0 || !references.every(({ variable }) => linked.has(variable))) {
+      continue;
+    }
+    const callers = references.map(({ service }) => service);
+    if (!callers.every(isContainer) || !callers.some((caller) => caller.exposesHttp)) continue;
     target.internalOnly = true;
   }
 };
@@ -979,9 +993,9 @@ export const assembleCandidateFacts = async ({
 
   applyStacktapeReferences({ services, dependencies });
   linkFrontendApiAddresses(services);
-  linkServiceAddresses(services);
+  const linkedAddresses = linkServiceAddresses(services);
   linkFunctionReferences(services);
-  markInternalServices(services);
+  markInternalServices(services, linkedAddresses);
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager
