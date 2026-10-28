@@ -522,7 +522,7 @@ describe('init writes a config stacktape dev can run', () => {
       { type: 'schedule', properties: { scheduleRate: 'rate(1 minute)' } }
     ]);
     // H6: the S3 trigger grants no access to the object the handler reads.
-    expect(resources.onUpload!.properties.connectTo).toEqual(['jobQueue', 'storageBucket']);
+    expect(resources.onUpload!.properties.connectTo).toEqual(['storageBucket', 'jobQueue']);
     expect(result.composition.gaps).toEqual([]);
     expect(result.composition.unsetSettings).toEqual([]);
   });

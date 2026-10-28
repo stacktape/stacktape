@@ -9,6 +9,7 @@ import { dockerfileProbe } from './probes/dockerfile';
 import { lambdaSourceProbe } from './probes/lambda-source';
 import { languageManifestProbe } from './probes/language-manifests';
 import { manifestProbe } from './probes/manifest';
+import { messagingCallsProbe } from './probes/messaging-calls';
 import { staticSiteProbe } from './probes/static-site';
 
 const PROBES = [manifestProbe, environmentProbe];
@@ -760,7 +761,8 @@ describe('assembleCandidateFacts', () => {
     };
     const repoRoot = await makeRepo(files);
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    // The send call proves the queue; the SQS client in package.json does not.
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [...PROBES, messagingCallsProbe] });
 
     const shapes = Object.fromEntries(
       facts.services.map((service) => [service.name, [service.executionModel, service.functionTriggers]])

@@ -16,6 +16,7 @@ import { environmentProbe } from './probes/environment';
 import { languageManifestProbe } from './probes/language-manifests';
 import { lambdaSourceProbe } from './probes/lambda-source';
 import { manifestProbe } from './probes/manifest';
+import { messagingCallsProbe } from './probes/messaging-calls';
 import { serverEntrypointProbe } from './probes/server-entrypoint';
 
 const PROBES = [manifestProbe, environmentProbe];
@@ -272,17 +273,26 @@ describe('environment-usage enrichment', () => {
         'export const handler = async () => getSignedUrl(new S3Client({}), command);',
         ''
       ].join('\n'),
+      // The SNS and SQS clients in package.json prove no topic or queue; the publish and send calls do.
       'functions/notify.ts': [
+        "import { PublishCommand } from '@aws-sdk/client-sns';",
+        "import { SendMessageCommand } from '@aws-sdk/client-sqs';",
         'const topic = process.env.UPLOAD_EVENTS_TOPIC_ARN;',
         'const queue = process.env.RESIZE_QUEUE_URL;',
         // A suffix that names no kind stays configuration.
         'const region = process.env.UPLOAD_BUCKET_REGION;',
-        'export const handler = async () => [topic, queue, region];',
+        'export const handler = async () => {',
+        "  await sns.send(new PublishCommand({ TopicArn: topic, Message: 'resized' }));",
+        "  await sqs.send(new SendMessageCommand({ QueueUrl: queue, MessageBody: region ?? '' }));",
+        '};',
         ''
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, lambdaSourceProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, lambdaSourceProbe, messagingCallsProbe]
+    });
     const byName = Object.fromEntries(facts.services.map((service) => [service.name, service]));
     const roles = (name: string) =>
       Object.fromEntries(

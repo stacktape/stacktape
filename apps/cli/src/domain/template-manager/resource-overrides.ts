@@ -65,15 +65,25 @@ const isCustomResourceType = (resourceType: string) =>
   resourceType === 'AWS::CloudFormation::CustomResource' || resourceType.startsWith('Custom::');
 
 /**
- * The path an override means when it starts with `Properties.`, or `undefined` when it is fine. Override paths are
- * applied to the child resource's `Properties` already: the r2ll dogfood followed an example with
+ * What an override that starts with `Properties` means, or `undefined` when it is fine. Override paths are applied to
+ * the child resource's `Properties` already: the r2ll dogfood followed an example with
  * `Properties.TimeToLiveSpecification` and got `Properties.Properties.TimeToLiveSpecification`, which CloudFormation
- * rejected during the deployment. A key `Properties` by itself is left alone, and so are custom resources, whose
- * properties their provider defines.
+ * rejected during the deployment. A TypeScript override `{ Properties: { ... } }` did the same (r2pp). `intended` holds
+ * the paths meant: the rest of a `Properties.` path, or the keys of the object under a bare `Properties` key. Custom
+ * resources are left alone, as their provider defines their properties.
  */
-export const getPropertiesPrefixMistake = ({ resourceType, path }: { resourceType: string; path: string }) => {
-  if (!path.startsWith('Properties.')) return undefined;
+export const getPropertiesPrefixMistake = ({
+  resourceType,
+  path,
+  value
+}: {
+  resourceType: string;
+  path: string;
+  value: unknown;
+}): { intended: string[] } | undefined => {
+  if (path !== 'Properties' && !path.startsWith('Properties.')) return undefined;
   if (RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY.has(resourceType) || isCustomResourceType(resourceType))
     return undefined;
-  return { intended: path.slice('Properties.'.length) };
+  if (path !== 'Properties') return { intended: [path.slice('Properties.'.length)] };
+  return { intended: value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [] };
 };

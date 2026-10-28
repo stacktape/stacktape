@@ -136,11 +136,28 @@ if (!skipLoadingEnv) {
   config({ path: join(CLI_SOURCE_ROOT, '.env.local'), quiet: true });
 }
 
-const buildSource = async () => {
+/**
+ * Builds the dev CLI bundle, which then runs in this process. The OpenTUI plugin compiles TSX with Babel, and Babel
+ * replaces `Error.prepareStackTrace` process-wide with a wrapper that rejects anything but an error. mysql2 calls
+ * `Error.captureStackTrace` on a plain object for every connection and query, so each MySQL call of the dev agent
+ * failed with "First argument must be an Error object". The release CLI never loads Babel; restoring both globals
+ * makes this process match it.
+ */
+export const buildSource = async ({ outdir = DEV_TMP_FOLDER_PATH }: { outdir?: string } = {}) => {
+  const { prepareStackTrace, stackTraceLimit } = Error;
+  try {
+    return await bundleCli(outdir);
+  } finally {
+    Error.prepareStackTrace = prepareStackTrace;
+    Error.stackTraceLimit = stackTraceLimit;
+  }
+};
+
+const bundleCli = async (outdir: string) => {
   const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
   const result = await Bun.build({
     entrypoints: [CLI_SOURCE_PATH],
-    outdir: DEV_TMP_FOLDER_PATH,
+    outdir,
     target: 'bun',
     minify: false,
     sourcemap: 'inline',
@@ -183,7 +200,9 @@ export const runDev = async () => {
     }
 
     const cliDistPath =
-      reuseDevBuild && existsSync(devBuildOutputPath) ? devBuildOutputPath : await withDevBuildLock(buildSource);
+      reuseDevBuild && existsSync(devBuildOutputPath)
+        ? devBuildOutputPath
+        : await withDevBuildLock(() => buildSource());
 
     if (!isSilentMode) {
       logInfo('----- RUN -----');

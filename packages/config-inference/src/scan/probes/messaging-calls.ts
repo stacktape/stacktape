@@ -3,10 +3,11 @@
  * `publish(topic_arn: ENV.fetch('PARCEL_TOPIC_ARN'), ...)`, `new PublishCommand({ TopicArn: process.env.TOPIC_ARN })`,
  * `sqs.send_message(QueueUrl=os.environ['JOBS_QUEUE_URL'])`.
  *
- * The call proves the resource exists, in every language. A package manifest proves it only for JavaScript, and only
- * at the root or a workspace member: a Rails service in `api/` with `aws-sdk-sns` in its own Gemfile otherwise
- * produced no topic at all. The variable is not claimed as the resource's address: the source scan binds it to the
- * services that read it, where `addressedBy` would hand it to every service near the resource as well.
+ * The call proves the resource exists, in every language; a package manifest proves nothing. Each variable a call
+ * takes its target from is one resource. One variable is the project's topic (or queue), which every other probe calls
+ * by the same default name, and the source scan binds it to the services that read it. Several variables get a
+ * resource each, named after the variable and addressed by it. Before, a root `@aws-sdk/client-sns` gave both of two
+ * `*_TOPIC_ARN` variables the same topic.
  */
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
@@ -160,6 +161,20 @@ const targetVariable = (raw: string, valueStart: number): string | undefined => 
   return assignment === null ? undefined : variableIn(assignment[1]!);
 };
 
+/** Words of a variable name that say what it holds rather than which resource: `SNS`, `TOPIC`, `ARN`, `URL`. */
+const ADDRESS_WORDS = /^(?:sns|sqs|topic|queue|arn|url|name)$/;
+
+/** `ORDER_EVENTS_TOPIC_ARN` → `orderEventsTopic`, `JOBS_QUEUE_URL` → `jobsQueue`; `SNS_TOPIC_ARN` names nothing. */
+const nameFromVariable = (kind: 'topic' | 'queue', variable: string): string | undefined => {
+  const words = variable
+    .toLowerCase()
+    .split('_')
+    .filter((word) => word !== '' && !ADDRESS_WORDS.test(word));
+  if (words.length === 0) return undefined;
+  const base = words.map((word, index) => (index === 0 ? word : word[0]!.toUpperCase() + word.slice(1))).join('');
+  return `${base}${kind === 'topic' ? 'Topic' : 'Queue'}`;
+};
+
 export const messagingCallsProbe: Probe = {
   name: 'messaging-calls',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -197,23 +212,23 @@ export const messagingCallsProbe: Probe = {
         found.set(kind, variables);
       }
     }
-    // One variable names the project's one topic (or queue), which every other probe calls by the same default name.
-    // Two variables can be two resources or one, and the source scan could bind neither, so neither is claimed.
     const dependencies: DependencyFact[] = [...found].flatMap(([kind, variables]) => {
-      const [only, ...others] = variables;
-      if (only === undefined || others.length > 0) return [];
-      const [, evidence] = only;
-      return [
-        {
-          name: defaultDependencyName(kind),
+      const several = variables.size > 1;
+      const names = new Set<string>();
+      return [...variables].map(([variable, evidence]) => {
+        let name = (several ? nameFromVariable(kind, variable) : undefined) ?? defaultDependencyName(kind);
+        for (let suffix = 2; names.has(name); suffix += 1) name = `${defaultDependencyName(kind)}${suffix}`;
+        names.add(name);
+        return {
+          name,
           kind,
           extensions: [],
           consumedBy: [],
-          addressedBy: [],
+          addressedBy: several ? [variable] : [],
           evidence,
           source: 'probe' as const
-        }
-      ];
+        };
+      });
     });
     return dependencies.length === 0 ? {} : { dependencies };
   }

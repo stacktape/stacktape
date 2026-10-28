@@ -187,6 +187,16 @@ const SELF_TRIGGER_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
   'event-bus': 'event bus'
 };
 
+const SNS_SQS_ADDRESS = /(?:^|_)(?:TOPIC_ARN|QUEUE_URL|QUEUE_ARN)$/;
+
+/** The resources only a publish or send call proves, as a gap names them. */
+const MESSAGING_VARIABLE_LABELS: Partial<
+  Record<DependencyFact['kind'], { kind: 'topic' | 'queue'; label: string; call: string; resourceType: string }>
+> = {
+  topic: { kind: 'topic', label: 'an SNS topic', call: 'publish', resourceType: 'sns-topic' },
+  queue: { kind: 'queue', label: 'an SQS queue', call: 'send', resourceType: 'sqs-queue' }
+};
+
 type StreamType = Extract<FunctionTrigger, { type: 'dynamodb-stream' }>['streamType'];
 
 /** The stream view a table needs so every handler on its stream gets the images it reads. */
@@ -1465,6 +1475,21 @@ export const composeConfig = ({
       if (variable.role !== 'runtime-config' || !variable.required || variable.hasDeclaredValue) continue;
       if (selfTriggerVariables.has(variable.name)) continue;
       if (environment.some((entry) => entry.name === variable.name) || isToolingVariable(variable)) continue;
+      // A topic or queue only a publish or send call proves (`messaging-calls.ts`). Without one, the variable can name
+      // the app's own resource or another project's, so init creates none and says what to add. Only an ARN or a queue
+      // URL is surely SNS or SQS: `SST_TOPIC` is an IoT topic, `JOBS_QUEUE` can be a BullMQ queue.
+      const namedKind = SNS_SQS_ADDRESS.test(variable.name) ? resourceKindNamedBy(variable.name) : undefined;
+      const messaging = namedKind === undefined ? undefined : MESSAGING_VARIABLE_LABELS[namedKind];
+      if (messaging !== undefined) {
+        const param = wiringFor(messaging.kind, variable.name);
+        const address =
+          param.kind === 'param' ? `$ResourceParam('<${messaging.kind} name>', '${param.param}')` : 'its address';
+        gaps.push({
+          subject: `${service.name}.${variable.name}`,
+          message: `${variable.name} names ${messaging.label}, but no ${messaging.call} call in the code takes its target from it, so init created none. If the app owns it, add an ${messaging.resourceType}, list it in connectTo on ${name} and set ${variable.name} to ${address}. If it belongs to another project, set ${variable.name} to its address. Do this before deploying.`
+        });
+        continue;
+      }
       unsetSettings.push({
         serviceName: service.name,
         resourceName: name,

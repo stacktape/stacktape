@@ -35,8 +35,10 @@ import {
   getCustomArgsSuffix,
   type ForwardedChildRecord,
   getRunningAgent,
+  markOwnAgentLockStopping,
   requestDevAgent,
   spawnAgentDaemon,
+  waitForStoppingSession,
   writeAgentLockFile,
   type AgentLockFile
 } from './agent-daemon';
@@ -442,6 +444,9 @@ export const reportRunningAgent = async (agent: AgentLockFile) => {
   return readyPayload;
 };
 
+/** How long a start waits for the stopping previous session of its stage; MCP's stop waits as long for an agent. */
+const STOPPING_SESSION_WAIT_MS = 30_000;
+
 export const commandDev = async () => {
   const initialArgs = captureCommandArgs();
   const agentPortArg = initialArgs.agentPort;
@@ -451,6 +456,19 @@ export const commandDev = async () => {
   // Handle --agent (without --agent-child): spawn daemon and exit
   // The daemon child will have --agent-child flag set
   if (agentEnabled && !isAgentChild) {
+    const stillStopping = await waitForStoppingSession({
+      timeoutMs: STOPPING_SESSION_WAIT_MS,
+      onWait: ({ pid }) =>
+        tuiManager.info(`Waiting for the previous dev session of this stage (process ${pid}) to finish stopping.`)
+    });
+    if (stillStopping) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'DEV_SESSION_STILL_STOPPING',
+        message: `The previous dev session of this stage (process ${stillStopping.pid}) is still stopping after ${STOPPING_SESSION_WAIT_MS / 1000} s.`,
+        hints: 'Start dev mode again once it has exited. `stacktape dev stop` ends it if it does not.'
+      });
+    }
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
     if (runningAgent) return reportRunningAgent(runningAgent);
@@ -642,7 +660,10 @@ export const commandDev = async () => {
     pid: process.pid,
     stage: stackContext.stage
   });
-  applicationManager.registerCleanUpHook(async () => {
+  // The lock file goes last. A start of this stage while the cleanup runs (right after a `/stop`) finds it marked as
+  // stopping and waits, instead of starting a second session next to this one.
+  applicationManager.registerCleanUpHook(async () => markOwnAgentLockStopping());
+  applicationManager.finalCleanUpHooks.push(async () => {
     deleteAgentLockFile(stackContext.projectName, stackContext.stage);
   });
 
@@ -966,6 +987,8 @@ export const commandDev = async () => {
     stageName,
     onReady: agentEnabled
       ? () => {
+          // A stop during the start cancels it: the daemon reports the interruption once its cleanup ends, not ready.
+          if (applicationManager.isInterrupted) return;
           const port = getAgentPort();
 
           // Write lock file for discovery by other processes

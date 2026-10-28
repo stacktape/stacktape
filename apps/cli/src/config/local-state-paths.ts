@@ -152,11 +152,12 @@ export const localStatePaths = {
     return join(localStatePaths.devAgentTokenDirectory(), `${port}.stopped.json`);
   },
   /**
-   * The standard output or error of the dev agent daemon on `port`. The daemon writes to these files instead of pipes,
-   * so its writes never fail once the process that started it has exited; that process reads them until it is ready.
+   * The standard output or error of one start (`startId`) of the dev agent daemon on `port`. The daemon writes to these
+   * files instead of pipes, so its writes never fail once the process that started it has exited; that process reads
+   * them until it is ready. Each start has its own files: a stopping daemon on the same port still appends to its own.
    */
-  devAgentDaemonOutputFile({ port, stream }: { port: number; stream: 'stdout' | 'stderr' }) {
-    return join(localStatePaths.devAgentTokenDirectory(), `${port}.daemon-${stream}.log`);
+  devAgentDaemonOutputFile({ port, startId, stream }: { port: number; startId: string; stream: 'stdout' | 'stderr' }) {
+    return join(localStatePaths.devAgentTokenDirectory(), `${port}.${startId}.daemon-${stream}.log`);
   },
   /** When the last dev session of `stage` in this project directory ended, in AWS time (ms), as plain text. */
   devSessionEndFile({ workingDirectory, stage }: { workingDirectory: string; stage: string }) {

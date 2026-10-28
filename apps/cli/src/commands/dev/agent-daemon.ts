@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
 import { closeSync, copyFileSync, fstatSync, openSync, readSync, truncateSync } from 'node:fs';
@@ -121,6 +122,9 @@ const readAllAgentLockFiles = (): AgentLockFile[] => {
   }
 };
 
+/** The project and stage of this process's own lock file, and whether this session has begun to stop. */
+let ownLock: { projectName: string; stage: string; stopping: boolean } | undefined;
+
 export const writeAgentLockFile = (data: AgentLockFile): void => {
   const lockPath = getLockFilePath(data.projectName, data.stage);
   const dir = dirname(lockPath);
@@ -129,7 +133,53 @@ export const writeAgentLockFile = (data: AgentLockFile): void => {
     mkdirSync(dir, { recursive: true });
   }
 
-  writeFileSync(lockPath, JSON.stringify({ ...data, ...(devBoxSessionId && { devBoxSessionId }) }, null, 2));
+  let phase = data.phase;
+  if (data.pid === process.pid) {
+    ownLock = { projectName: data.projectName, stage: data.stage, stopping: ownLock?.stopping ?? false };
+    // A start that finishes after a stop began must not record the session as ready again.
+    if (ownLock.stopping) phase = 'stopping';
+  }
+  writeFileSync(lockPath, JSON.stringify({ ...data, phase, ...(devBoxSessionId && { devBoxSessionId }) }, null, 2));
+};
+
+/**
+ * Records in this process's lock file that its session stops. The lock file is deleted only when the cleanup has
+ * finished, so a start of the same stage meanwhile waits for this process (`waitForStoppingSession`) instead of
+ * starting a second session next to it.
+ */
+export const markOwnAgentLockStopping = (): void => {
+  if (!ownLock || ownLock.stopping) return;
+  ownLock.stopping = true;
+  const lock = readAgentLockFile(ownLock.projectName, ownLock.stage);
+  if (lock?.pid === process.pid) writeAgentLockFile(lock);
+};
+
+/**
+ * Waits up to `timeoutMs` for the session of this project and stage that is stopping to exit. Returns its lock file
+ * if it still runs then, otherwise null. r2mm dogfood: a start right after a `/stop` ran next to the stopping session.
+ */
+export const waitForStoppingSession = async ({
+  projectName,
+  stage,
+  timeoutMs,
+  onWait
+}: {
+  projectName?: string;
+  stage?: string;
+  timeoutMs: number;
+  /** Called once, when there is a session to wait for. */
+  onWait?: (lock: AgentLockFile) => void;
+}): Promise<AgentLockFile | null> => {
+  const deadline = Date.now() + timeoutMs;
+  let waiting = false;
+  for (;;) {
+    const lock = readAgentLockFile(projectName, stage);
+    if (!lock || lock.phase !== 'stopping' || lock.pid === process.pid || !isProcessRunning(lock.pid)) return null;
+    if (Date.now() >= deadline) return lock;
+    if (!waiting) onWait?.(lock);
+    waiting = true;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
 };
 
 /** Records this session's current SSM session to the dev box in its lock file. */
@@ -616,6 +666,22 @@ export const capDaemonOutputFiles = ({
 };
 
 /**
+ * Deletes the output files of earlier daemons on `port`, so they do not pile up. A daemon that still runs keeps writing
+ * to its deleted file; where the system refuses to delete an open file (Windows), the file stays until a later start.
+ */
+const removeEarlierDaemonOutputFiles = (port: number) => {
+  const directory = localStatePaths.devAgentTokenDirectory();
+  for (const file of readdirSync(directory)) {
+    if (!file.startsWith(`${port}.`) || !file.includes('.daemon-')) continue;
+    try {
+      unlinkSync(join(directory, file));
+    } catch {
+      // Only debugging output.
+    }
+  }
+};
+
+/**
  * Spawn the dev agent as a background daemon process.
  *
  * The daemon's stdout and stderr are files (see `followFile`). This process reads them until the AGENT_READY message,
@@ -653,11 +719,15 @@ export const spawnAgentDaemon = async (args: {
   // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
   const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
 
+  // r2mm dogfood: a start right after a `/stop` reused the stopping daemon's files on the same port. That daemon still
+  // appended to them, and its final USER_INTERRUPTION result was read as the new daemon's failure.
+  const startId = randomBytes(4).toString('hex');
   const outputFiles = {
-    stdout: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, stream: 'stdout' }),
-    stderr: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, stream: 'stderr' })
+    stdout: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, startId, stream: 'stdout' }),
+    stderr: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, startId, stream: 'stderr' })
   };
   mkdirSync(dirname(outputFiles.stdout), { recursive: true, mode: 0o700 });
+  removeEarlierDaemonOutputFiles(agentPort);
   // Emptied, then opened for appending: the daemon empties a file that grew too large while it and its children keep
   // writing to it (see `capDaemonOutputFiles`).
   for (const file of Object.values(outputFiles)) writeFileSync(file, '', { mode: 0o600 });
