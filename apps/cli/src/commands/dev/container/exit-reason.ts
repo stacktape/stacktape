@@ -167,3 +167,22 @@ export const describeMaskedContainerExit = (stderr: string, mask: (text: string)
   const described = describeContainerExit(mask(stderr));
   return described && mask(described);
 };
+
+/**
+ * The last part of a container run's standard error, which `describeContainerExit` reads once the run exits. A chatty
+ * server writes to it for as long as it runs; only the latest `maxChars` characters are kept, as whole lines. A line cut
+ * in the middle is dropped: a secret value cut with it would no longer match the masker.
+ */
+export const createOutputTail = (maxChars = 64 * 1024) => {
+  let text = '';
+  return {
+    push: (line: string) => {
+      text += `${line}\n`;
+      if (text.length <= maxChars * 2) return;
+      const tail = text.slice(-maxChars);
+      const lineStart = tail.indexOf('\n') + 1;
+      text = lineStart > 0 ? tail.slice(lineStart) : '';
+    },
+    text: () => text
+  };
+};

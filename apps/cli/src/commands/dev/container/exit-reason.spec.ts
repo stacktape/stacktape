@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { describeContainerExit } from './exit-reason';
+import { createOutputTail, describeContainerExit } from './exit-reason';
 
 // r2cc: a FastAPI container rebuilt with a syntax error in main.py failed with only `SyntaxError: invalid syntax`; the
 // location was in the log alone. Uvicorn imports the app through importlib, whose frames come last.
@@ -286,4 +286,20 @@ test.each([
   ]
 ])("Rake's abort quotes the cause and the app's first frame: %s", (_, stderr, summary) => {
   expect(describeContainerExit(stderr.join('\n'))).toBe(summary.join('\n'));
+});
+
+// r2rr bug hunt: every standard-error line of a container run was kept for as long as it ran.
+test('a long-running chatty container keeps only the end of its standard error, which still explains the exit', () => {
+  const tail = createOutputTail(4096);
+  for (let request = 0; request < 100_000; request++) tail.push(`GET /health 200 ${request}`);
+  tail.push('Error: Cannot find module "./routes"');
+  tail.push('    at Module._resolveFilename (node:internal/modules/cjs/loader:1145:15)');
+  expect(tail.text().length).toBeLessThanOrEqual(2 * 4096);
+  expect(tail.text()).toStartWith('GET /health 200 ');
+  expect(describeContainerExit(tail.text())).toContain('Cannot find module');
+  // A line cut by the limit is dropped, not kept in part, so a secret in it cannot escape the masker half cut.
+  tail.push(`DATABASE_URL=${'x'.repeat(10_000)}`);
+  tail.push('Error: connection refused');
+  expect(tail.text().length).toBeLessThanOrEqual(2 * 4096);
+  expect(tail.text()).not.toContain('xxx');
 });
