@@ -220,6 +220,8 @@ const isDockerNotRunningError = (err: Error) => {
 };
 
 const handleDockerError = (err: Error, message?: string) => {
+  // A caller handing on an error this function already classified keeps that classification.
+  if (err instanceof CliError && err.code !== 'DOCKER_COMMAND_FAILED') throw err;
   if (isDockerNotInstalledError(err)) {
     throw dockerNotInstalledError(err);
   }
@@ -236,6 +238,20 @@ const handleDockerError = (err: Error, message?: string) => {
             ? 'If Docker is installed, start Docker Desktop from Applications.'
             : 'If Docker is installed, run `sudo systemctl start docker`.',
         'To install Docker, visit https://www.docker.com/products/docker-desktop/.'
+      ],
+      cause: err
+    });
+  }
+  // Railpack's frontend on Docker's default builder with the classic image store. Stacktape routes such builds through
+  // its own builder (`needsStacktapeBuilder`), so this remains only where that was not possible.
+  if (/feature mergeop .*disabled/.test(err.message)) {
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_MERGE_OPERATION_UNSUPPORTED',
+      message:
+        "Docker's builder refused this build: it supports BuildKit's merge operation, which Railpack uses, only with the containerd image store.",
+      hints: [
+        'Turn on the containerd image store: in Docker Desktop, Settings > General > "Use containerd for pulling and storing images"; for Docker Engine, see https://docs.docker.com/engine/storage/containerd/.'
       ],
       cause: err
     });
@@ -819,7 +835,8 @@ export const buildDockerImage = async ({
   dockerBuildOutputArchitecture,
   cacheFromRef,
   cacheToRef,
-  secrets
+  secrets,
+  builderImages
 }: {
   buildContextPath: string;
   dockerfilePath?: string;
@@ -832,6 +849,8 @@ export const buildDockerImage = async ({
   cacheToRef?: string;
   /** BuildKit secrets by id; see `toBuildSecretsPassthrough`. */
   secrets?: Record<string, string>;
+  /** The build's own frontend, such as Railpack's; see `needsStacktapeBuilder`. */
+  builderImages?: string[];
 }) => {
   const start = Date.now();
   const contextPath = buildContextPath
@@ -840,7 +859,9 @@ export const buildDockerImage = async ({
       : join(process.cwd(), buildContextPath)
     : process.cwd();
 
-  const useRemoteCache = cacheFromRef || cacheToRef;
+  const useRemoteCache = Boolean(cacheFromRef || cacheToRef);
+  const useStacktapeBuilder = useRemoteCache || (await needsStacktapeBuilder({ builderImages }));
+  if (useStacktapeBuilder) await ensureStacktapeBuilder();
 
   // Only the names go on the command line; Docker reads the values out of its own environment. See
   // `toDockerEnvPassthrough`.
@@ -864,9 +885,9 @@ export const buildDockerImage = async ({
   const iidDirectory = await mkdtemp(join(tmpdir(), 'stp-image-id-'));
   const iidFilePath = join(iidDirectory, 'id');
   const command = [
-    // The registry cache needs the docker-container builder. Every build loads its image into the local image store,
-    // whichever builder runs it.
-    ...(useRemoteCache ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME] : ['build']),
+    // The registry cache and a frontend on the classic image store need the docker-container builder. Every build
+    // loads its image into the local image store, whichever builder runs it.
+    ...(useStacktapeBuilder ? ['buildx', 'build', '--builder', STACKTAPE_BUILDER_NAME] : ['build']),
     '--load',
     '--iidfile',
     iidFilePath,
@@ -977,24 +998,91 @@ export const isDockerRunning = async (): Promise<boolean> => {
   }
 };
 
-/** Ensures a buildx builder with docker-container driver exists (required for cache export) */
-export const ensureBuildxBuilderForCache = async (): Promise<void> => {
-  try {
-    // Check if our builder already exists
-    const { stdout } = await execDocker(['buildx', 'ls']);
-    if (stdout.includes(STACKTAPE_BUILDER_NAME)) {
-      return;
-    }
-  } catch {
-    // buildx ls failed, try to create builder anyway
-  }
+/** The daemon and buildx state a probe answered for; a process that switches either asks again. */
+const dockerEndpointKey = () =>
+  [process.env.DOCKER_HOST, process.env.DOCKER_CONTEXT, process.env.BUILDX_CONFIG]
+    .map((value) => value ?? '')
+    .join('|');
 
-  try {
-    // Create a new builder with docker-container driver (supports cache export)
-    await execDocker(['buildx', 'create', '--name', STACKTAPE_BUILDER_NAME, '--driver', 'docker-container']);
-  } catch {
-    // Builder might already exist, ignore error
+const containerdImageStore = new Map<string, Promise<boolean>>();
+
+/**
+ * Whether Docker keeps images in containerd. It is the default for new installs from Docker Engine 29 and Docker
+ * Desktop 4.34; upgraded installs and GitHub's hosted runners keep the classic store. Asked once per endpoint. An
+ * unanswered question counts as containerd, so the build runs as before and reports Docker's own error.
+ */
+const usesContainerdImageStore = () => {
+  const key = dockerEndpointKey();
+  let answer = containerdImageStore.get(key);
+  if (!answer) {
+    answer = execDocker(['info', '--format', '{{json .DriverStatus}}'], { timeoutMs: 10_000 }).then(
+      ({ stdout }) => stdout.includes('io.containerd.snapshotter'),
+      () => {
+        // A Docker that is still starting is asked again by the next build.
+        containerdImageStore.delete(key);
+        return true;
+      }
+    );
+    containerdImageStore.set(key, answer);
   }
+  return answer;
+};
+
+/**
+ * Whether a build has to run on Stacktape's docker-container builder although it uses no registry cache. A build with
+ * its own BuildKit frontend (Railpack's) uses BuildKit's merge operation, which Docker's default builder refuses on the
+ * classic image store: "requested experimental feature mergeop has been disabled on the build server". That builder
+ * cannot read the local image store, so the caller should not prepare base images there.
+ */
+export const needsStacktapeBuilder = async ({ builderImages }: { builderImages?: string[] | undefined }) =>
+  Boolean(builderImages?.length) && !(await usesContainerdImageStore());
+
+const stacktapeBuilders = new Map<string, Promise<void>>();
+
+/** Ensures Stacktape's buildx builder exists and uses the docker-container driver, once per endpoint. */
+export const ensureStacktapeBuilder = () => {
+  const key = dockerEndpointKey();
+  const existing = stacktapeBuilders.get(key);
+  if (existing) return existing;
+  const ensured = (async () => {
+    const driverOf = async () => {
+      try {
+        const { stdout } = await execDocker(['buildx', 'inspect', STACKTAPE_BUILDER_NAME], { skipHandleError: true });
+        return /^Driver:\s*(\S+)/m.exec(stdout)?.[1] ?? 'unknown';
+      } catch {
+        return undefined;
+      }
+    };
+    const driver = await driverOf();
+    if (driver === 'docker-container') return;
+    // A builder of that name with another driver would build with the default builder's limits again.
+    if (driver !== undefined) {
+      await execDocker(['buildx', 'rm', STACKTAPE_BUILDER_NAME], { skipHandleError: true }).catch(() => {});
+    }
+    try {
+      await execDocker(['buildx', 'create', '--name', STACKTAPE_BUILDER_NAME, '--driver', 'docker-container'], {
+        skipHandleError: true
+      });
+    } catch (error) {
+      if (isDockerNotInstalledError(error) || isDockerNotRunningError(error)) handleDockerError(error);
+      // Another Stacktape process may have created it meanwhile.
+      if ((await driverOf()) === 'docker-container') return;
+      throw new CliError({
+        category: 'DOCKER',
+        code: 'DOCKER_BUILDER_UNAVAILABLE',
+        message: `Could not create the Docker buildx builder "${STACKTAPE_BUILDER_NAME}" (docker-container driver): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        hints: [
+          "Stacktape needs it for registry-cached builds, and for Railpack builds on Docker's classic image store.",
+          'Install Docker Buildx, or turn on the containerd image store: https://docs.docker.com/engine/storage/containerd/'
+        ]
+      });
+    }
+  })();
+  stacktapeBuilders.set(key, ensured);
+  ensured.catch(() => stacktapeBuilders.delete(key));
+  return ensured;
 };
 
 /**
