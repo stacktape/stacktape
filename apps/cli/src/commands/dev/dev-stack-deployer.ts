@@ -20,10 +20,42 @@ import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 
 /**
+ * Builds the images that AWS pulls for the dev stack (batch jobs, AgentCore runtimes) and returns the resources whose
+ * image the deployed dev stack does not run yet. A start skips the dev stack update when the configuration is unchanged,
+ * so a changed image is what makes it update: the update pushes the image and points the job definition at it.
+ * `deployDevStack` reuses these builds.
+ */
+export const packageDevStackImages = async (): Promise<string[]> => {
+  const images = [
+    ...configManager.containersToPackage.map(({ jobName, workloadName }) => ({ jobName, workloadName })),
+    ...configManager.agentCoreRuntimesRequiringPackaging.map(({ jobName, name }) => ({ jobName, workloadName: name }))
+  ];
+  if (!images.length) return [];
+  if (stackManager.existingStackDetails) {
+    await deploymentArtifactManager.loadPreviousImages(deploymentArtifactManager.repositoryName, 'dev');
+  }
+  await packagingManager.packageAllWorkloads({
+    commandCanUseCache: true,
+    onlyWorkloads: images.map(({ workloadName }) => workloadName)
+  });
+  const deployedTemplate = JSON.stringify(templateManager.oldTemplate ?? {});
+  return [
+    ...new Set(
+      images
+        .filter(({ jobName }) => {
+          const image = deploymentArtifactManager.getImageUploadInfoForJob({ jobName })?.imageTagWithUrl;
+          return !image || !deployedTemplate.includes(JSON.stringify(image));
+        })
+        .map(({ workloadName }) => workloadName)
+    )
+  ];
+};
+
+/**
  * Deploy a stripped-down dev stack.
  * This is similar to the regular deploy but:
  * 1. Excludes locally emulated resources (databases, redis, dynamodb)
- * 2. Excludes locally run resources (containers, frontends)
+ * 2. Excludes locally run resources (services, frontends); batch jobs and AgentCore runtimes run in AWS
  * 3. Marks the stack as a dev stack in metadata
  */
 export const deployDevStack = async ({ configFingerprint }: { configFingerprint: string }): Promise<void> => {
@@ -50,7 +82,8 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
     await deploymentArtifactManager.loadPreviousBucketObjects(deploymentArtifactManager.deploymentBucketName, 'dev');
   }
 
-  // Package workloads (only functions will actually be packaged since containers are excluded)
+  // Functions, and the images of what the dev stack deploys that `packageDevStackImages` has not built. Local services
+  // and frontends are built by the session itself.
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
 
   // Resolve resources (the config-manager should filter based on dev mode)

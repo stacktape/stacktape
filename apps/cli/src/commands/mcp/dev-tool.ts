@@ -851,8 +851,19 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
     projectName
   });
   const deployContext = matchedDeployScript?.parsedArgs || {};
+  // Every start setting of the request reaches the returned start call unchanged (a profile, noTunnel, resources): the
+  // plan promises a complete call, and a client that runs it must get the session it asked for. Only what concerns the
+  // plan itself stays out, and `takeOver`, which moves another session's stage and is chosen at start.
+  const {
+    cwd: _cwd,
+    devSessionId: _devSessionId,
+    waitSeconds: _waitSeconds,
+    takeOver: _takeOver,
+    ...requestedStartArgs
+  } = toolArgs;
   const startArgs = {
     ...deployContext,
+    ...requestedStartArgs,
     stage: typeof toolArgs.stage === 'string' ? toolArgs.stage : 'dev',
     ...(typeof toolArgs.region === 'string'
       ? { region: toolArgs.region }
@@ -873,13 +884,7 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
       typeof toolArgs.currentWorkingDirectory === 'string'
         ? toolArgs.currentWorkingDirectory
         : scan.suggestedDefaults.currentWorkingDirectory,
-    configPath: typeof toolArgs.configPath === 'string' ? toolArgs.configPath : scan.suggestedDefaults.configPath,
-    ...(typeof toolArgs.agentPort === 'number' ? { agentPort: toolArgs.agentPort } : {}),
-    ...(toolArgs.resources !== undefined ? { resources: toolArgs.resources } : {}),
-    ...(toolArgs.skipResources !== undefined ? { skipResources: toolArgs.skipResources } : {}),
-    ...(toolArgs.watch !== undefined ? { watch: toolArgs.watch } : {}),
-    ...(toolArgs.remoteResources !== undefined ? { remoteResources: toolArgs.remoteResources } : {}),
-    ...(toolArgs.freshDb !== undefined ? { freshDb: toolArgs.freshDb } : {})
+    configPath: typeof toolArgs.configPath === 'string' ? toolArgs.configPath : scan.suggestedDefaults.configPath
   };
   if (typeof startArgs.currentWorkingDirectory === 'string' && !isAbsolute(startArgs.currentWorkingDirectory)) {
     startArgs.currentWorkingDirectory = resolve(scan.cwd, startArgs.currentWorkingDirectory);

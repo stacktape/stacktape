@@ -970,6 +970,35 @@ describe('MCP dev tool arguments', () => {
     }
   });
 
+  // Seventh dogfood (r2ll): plan dropped the requested AWS profile from its start call, so a client running that call
+  // started the session with whatever profile its environment named.
+  test('plan returns every start setting it was given, except a take-over', async () => {
+    const project = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-plan-settings-'));
+    try {
+      const settings = {
+        stage: 'r2mm',
+        region: 'eu-west-3',
+        projectName: 'shelf',
+        profile: 'stacktape-e2e',
+        awsAccount: 'e2e',
+        configPath: 'stacktape.yml',
+        noTunnel: true,
+        watch: true,
+        resources: ['api', 'web'],
+        skipResources: 'recs',
+        remoteResources: ['mainDatabase'],
+        agentPort: 7400
+      };
+      const planned = (
+        await createDevToolHandler()({ action: 'plan', args: { cwd: project, ...settings, takeOver: true } })
+      ).structuredContent;
+      const startCall = (planned.data?.stacktapeDevStart as { arguments: { args: Record<string, unknown> } }).arguments;
+      expect(startCall.args).toEqual({ ...settings, currentWorkingDirectory: project, cwd: project });
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  });
+
   // Fifth dogfood (r2cc): a wrapper started the MCP server in the CLI's own directory, and plan without cwd scanned it
   // instead of the client's project.
   test('plan and start without cwd use the client root when the server runs outside it', async () => {

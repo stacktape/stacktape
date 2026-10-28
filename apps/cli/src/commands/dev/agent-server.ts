@@ -14,6 +14,10 @@ import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { configManager } from '@domain-services/config-manager';
+import { templateManager } from '@domain-services/template-manager';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
   postgresQuery,
@@ -373,6 +377,7 @@ addRoute('GET', '/status', async ({ query }) => {
       localResources: agentState.localResources,
       deployedDatabases: getDeployedDynamoTables(),
       deployedResources: getDeployedResources(),
+      ...(configManager.batchJobs.length ? { batchJobs: await getDeployedBatchJobs() } : {}),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...getDevBoxStatus(),
@@ -472,6 +477,14 @@ addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   if (workloadName === 'all') return toRebuildResponse(await rebuildAllWorkloads());
 
   const workload = agentState.workloads.find((w) => w.name === workloadName);
+  if (!workload && configManager.batchJobs.some(({ name }) => name === workloadName)) {
+    return {
+      ok: false,
+      code: 'DEV_BATCH_JOB_NEEDS_RESTART',
+      error: `"${workloadName}" is a batch job. It runs in AWS Batch, not on this machine, so a rebuild does not deploy its code; watch mode does not either.`,
+      hint: 'Stop dev mode and start it again: the start builds the job image, pushes it when it changed and points the job definition at it. status lists the job and its last run.'
+    };
+  }
   if (!workload) {
     // A workload added to the configuration after the start: the result says to restart.
     const result = await rebuildWorkload(workloadName);
@@ -957,6 +970,108 @@ export const getDeployedResources = (
     if (!address.awsName && !address.arn && !address.url) return [];
     return [{ name, type, ...Object.fromEntries(Object.entries(address).filter(([, value]) => value !== undefined)) }];
   });
+
+/** How long status waits for the last run of a batch job; status must answer even when AWS is slow. */
+const BATCH_JOB_LOOKUP_TIMEOUT_MS = 3000;
+
+type BatchJobRun = { status?: string; startedAt?: string; stoppedAt?: string; error?: string; cause?: string };
+
+/** The latest execution of the job's state machine, which submits the job to AWS Batch and waits for it. */
+const getLastBatchJobRun = async (stateMachineArn: string): Promise<BatchJobRun | { lookupError: string } | null> => {
+  const credentials = await getDevAgentCredentials();
+  if (!credentials?.accessKeyId || !credentials?.secretAccessKey)
+    return { lookupError: 'AWS credentials not available' };
+  const context = {
+    region: globalStateManager.region,
+    credentials: {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken
+    }
+  };
+  const listed = await executeAwsSdkCommand('sfn', 'ListExecutions', { stateMachineArn, maxResults: 1 }, context);
+  if (listed.ok === false) return { lookupError: listed.error };
+  const [execution] = ((listed.data as { executions?: Record<string, unknown>[] })?.executions ?? []) as {
+    executionArn: string;
+    status?: string;
+    startDate?: Date | string;
+    stopDate?: Date | string;
+  }[];
+  if (!execution) return null;
+  const time = (value: Date | string | undefined) => (value ? new Date(value).toISOString() : undefined);
+  const run: BatchJobRun = {
+    status: execution.status,
+    startedAt: time(execution.startDate),
+    stoppedAt: time(execution.stopDate)
+  };
+  if (execution.status !== 'FAILED') return run;
+  const described = await executeAwsSdkCommand(
+    'sfn',
+    'DescribeExecution',
+    { executionArn: execution.executionArn },
+    context
+  );
+  if (!described.ok) return run;
+  const { error, cause } = described.data as { error?: string; cause?: string };
+  return { ...run, error, cause: cause && describeBatchFailureCause(cause) };
+};
+
+/** The reason AWS Batch gives in a failed execution's cause, which is the job description as JSON. */
+export const describeBatchFailureCause = (cause: string) => {
+  try {
+    const job = JSON.parse(cause) as { StatusReason?: string; Container?: { Reason?: string; ExitCode?: number } };
+    const reasons = [job.StatusReason, job.Container?.Reason].filter(Boolean);
+    if (job.Container?.ExitCode !== undefined) reasons.push(`exit code ${job.Container.ExitCode}`);
+    if (reasons.length) return [...new Set(reasons)].join('; ');
+  } catch {
+    // Not the job description.
+  }
+  return cause.slice(0, 500);
+};
+
+/**
+ * The batch jobs of the dev stack. They run in AWS Batch, not on this machine: a message on their queue or a schedule
+ * submits them. Each entry names the job definition, queue and log group an agent reads with `aws` and `logs`, and how
+ * the last run went. The image is the one the session's start built and pushed.
+ */
+export const getDeployedBatchJobs = async () => {
+  const { stackName } = globalStateManager.targetStack;
+  const deployed = deployedStackOverviewManager.stackInfoMap?.resources ?? {};
+  return Promise.all(
+    configManager.batchJobs.map(async ({ name, useSpotInstances, resources }) => {
+      const params = (deployed[name]?.referencableParams ?? {}) as Record<string, { value?: unknown } | undefined>;
+      const param = (key: string) =>
+        typeof params[key]?.value === 'string' ? (params[key]!.value as string) : undefined;
+      const stateMachineArn = param('stateMachineArn');
+      const jobDefinition = templateManager.oldTemplate?.Resources?.[cfLogicalNames.batchJobDefinition(name)] as
+        | { Properties?: { ContainerProperties?: { Image?: unknown } } }
+        | undefined;
+      const image = jobDefinition?.Properties?.ContainerProperties?.Image;
+      const lastRun = stateMachineArn
+        ? await Promise.race([
+            getLastBatchJobRun(stateMachineArn).catch((error: Error) => ({ lookupError: error.message })),
+            new Promise<{ lookupError: string }>((resolve) =>
+              setTimeout(
+                () => resolve({ lookupError: `AWS did not answer within ${BATCH_JOB_LOOKUP_TIMEOUT_MS / 1000} s` }),
+                BATCH_JOB_LOOKUP_TIMEOUT_MS
+              ).unref()
+            )
+          ])
+        : undefined;
+      return {
+        name,
+        runsIn: 'AWS Batch',
+        jobDefinitionArn: param('jobDefinitionArn'),
+        jobQueue: awsResourceNames.batchJobQueue(stackName, Boolean(useSpotInstances), Boolean(resources.gpu)),
+        stateMachineArn,
+        logGroup: awsResourceNames.batchJobLogGroup({ stackName, stpResourceName: name }),
+        ...(typeof image === 'string' ? { image } : {}),
+        lastRun: lastRun ?? 'not run yet',
+        codeChanges: 'deployed by the next start of dev mode; rebuild and watch do not deploy batch jobs'
+      };
+    })
+  );
+};
 
 /** A local table, or a deployed one for reading. */
 const getReadableDynamoConn = async (

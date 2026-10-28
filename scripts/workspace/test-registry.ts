@@ -4058,6 +4058,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/template-finalization-idempotence.spec.ts',
       'apps/cli/tests/synthesis-families/families.spec.ts',
       'apps/cli/tests/synthesis-families/compute-events.spec.ts',
+      'apps/cli/tests/synthesis-families/documented-overrides.spec.ts',
       'apps/cli/tests/characterization/service-lambda-environment.spec.ts'
     ],
     lanes: [

@@ -14,7 +14,9 @@ import {
   MultiContainerWorkload,
   JsBundleImagePackaging,
   BuildpackImagePackaging,
+  BatchJob,
   Bucket,
+  RdsEngineMysql,
   LocalScript,
   SvelteKitWeb,
   PrivateService,
@@ -23,6 +25,9 @@ import {
   type CompiledStacktapeConfig
 } from '@stacktape/config-authoring';
 import { configManager } from '../../src/domain/config-manager';
+import { deploymentArtifactManager } from '../../src/domain/deployment-artifact-manager';
+import { packagingManager } from '../../src/domain/packaging-manager';
+import { assertNoUnresolvedPlaceholders, findUnresolvedPlaceholders } from '../../src/domain/template-manager/finalize';
 import { getDevNetworkDemand } from '../../src/commands/dev/dev-network-session';
 import { getDevStackConfigFingerprint } from '../../src/commands/dev/dev-stack-config-fingerprint';
 import { synthesizeFixture } from './synthesis-fixture';
@@ -168,8 +173,16 @@ test('dev functions that need the dev box run in the shared dev network with rel
   });
   // The placement above is what `stacktape dev` derives from this config: the VPC function and the function that uses
   // local databases join, the plain one does not; without tunnels only the VPC function does.
-  expect(getDevNetworkDemand({ noTunnel: false })).toEqual({ functions: devNetwork.functions, unreachable: [] });
-  expect(getDevNetworkDemand({ noTunnel: true })).toEqual({ functions: { egress: [] }, unreachable: [] });
+  expect(getDevNetworkDemand({ noTunnel: false })).toEqual({
+    functions: devNetwork.functions,
+    batchJobs: undefined,
+    unreachable: []
+  });
+  expect(getDevNetworkDemand({ noTunnel: true })).toEqual({
+    functions: { egress: [] },
+    batchJobs: undefined,
+    unreachable: []
+  });
   // No VPC, NAT or per-function security group of the stack's own: the dev network has them.
   const types = Object.values(template.Resources).map(({ Type }) => Type);
   expect(types.filter((type) => type.startsWith('AWS::EC2::'))).toEqual([]);
@@ -302,4 +315,170 @@ test('only changes that reach the dev stack template change its fingerprint', as
     expect({ needed, sameTemplate: changed.template === base.template }).toEqual({ needed, sameTemplate: false });
     expect(changed.fingerprint).not.toBe(base.fingerprint);
   }
+});
+
+// Seventh dogfood (r2ll): `stacktape dev` skipped every container build, so the dev stack deployed the report job's
+// definition with `Image: <<not-yet-known>>` and AWS Batch rejected the job. Its compute environments also ran in a VPC
+// of the stack, from which the job could not have reached the local MySQL database through the dev box.
+test('a dev stack builds the image of its batch job and runs the job in the dev network with relay addresses', async () => {
+  const relayHost = '10.230.0.10';
+  const relayed = `mysql://stacktape:<password>@${relayHost}:20321/app`;
+  const devNetwork = {
+    subnetIds: ['subnet-private-a', 'subnet-private-b'],
+    securityGroupId: 'sg-dev-lambdas',
+    functions: { quote: ['db'] },
+    batchJobs: { report: ['db'] },
+    localResources: {
+      db: { params: { host: relayHost, port: '20321', connectionString: relayed }, environment: {} }
+    }
+  };
+  const compiledConfig = defineConfig(() => {
+    const db = new RelationalDatabase({
+      credentials: { masterUserPassword: 'deployed-only' },
+      engine: new RdsEngineMysql({ version: '8.4.8', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    });
+    const reports = new Bucket({});
+    const report = new BatchJob({
+      container: {
+        packaging: new BuildpackImagePackaging({ sourceDirectoryPath: './src', startCommand: 'node report.js' }),
+        environment: { DATABASE_URL: $ResourceParam('db', 'connectionString') }
+      },
+      resources: { cpu: 1, memory: 512 },
+      connectTo: [db, reports]
+    });
+    const quote = new LambdaFunction({
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+      connectTo: [db]
+    });
+    // Runs on the developer's machine: dev mode builds its image there, not for AWS.
+    const api = new WebService({
+      packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
+      resources: { cpu: 0.25, memory: 512 },
+      connectTo: [db]
+    });
+    return { resources: { db, reports, report, quote, api } };
+  })({
+    projectName: 'characterization',
+    stage: 'baseline',
+    region: 'eu-west-1',
+    command: 'dev',
+    awsProfile: '',
+    cliArgs: {}
+  });
+  const synthesize = (imageBuilt: boolean) =>
+    synthesizeFixture({
+      compiledConfig,
+      command: 'dev',
+      devNetwork,
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
+      beforeFinalize: () => {
+        if (!imageBuilt) return;
+        // What a build of the report image records; the image is pushed under the tag derived from its digest.
+        deploymentArtifactManager.setPackagingSource({
+          getPackagingOutputForJob: (jobName: string) =>
+            jobName === reportJob ? { jobName, digest: 'reportdigest', skipped: false, size: 1 } : null,
+          getPendingSharedLayer: () => packagingManager.getPendingSharedLayer(),
+          getLayerArtifacts: () => packagingManager.getLayerArtifacts(),
+          getLayerArtifact: (...args: Parameters<typeof packagingManager.getLayerArtifact>) =>
+            packagingManager.getLayerArtifact(...args),
+          getLayerNumbersForLambda: (...args: Parameters<typeof packagingManager.getLayerNumbersForLambda>) =>
+            packagingManager.getLayerNumbersForLambda(...args),
+          publishSharedLayer: (...args: Parameters<typeof packagingManager.publishSharedLayer>) =>
+            packagingManager.publishSharedLayer(...args)
+        } as Parameters<typeof deploymentArtifactManager.setPackagingSource>[0]);
+      }
+    });
+  const reportJob = 'report-default';
+
+  const template = await synthesize(true);
+  // `stacktape dev` derives the placement above from this config, and builds only the image AWS pulls.
+  expect(getDevNetworkDemand({ noTunnel: false })).toEqual({
+    functions: devNetwork.functions,
+    batchJobs: devNetwork.batchJobs,
+    unreachable: []
+  });
+  expect(configManager.imageJobNamesToPackage).toEqual([configManager.allBatchJobContainers[0]!.jobName]);
+  expect(configManager.allBatchJobContainers[0]!.jobName).toBe(reportJob);
+
+  const resourcesOfType = (type: string) =>
+    Object.entries(template.Resources).filter(([, resource]) => resource.Type === type) as [
+      string,
+      { Properties: Record<string, any>; DependsOn?: unknown }
+    ][];
+  const computeEnvironments = resourcesOfType('AWS::Batch::ComputeEnvironment');
+  expect(computeEnvironments.length).toBeGreaterThan(0);
+  for (const [, environment] of computeEnvironments) {
+    expect(environment.Properties.ComputeResources.Subnets).toEqual(devNetwork.subnetIds);
+    expect(environment.Properties.ComputeResources.SecurityGroupIds).toEqual([devNetwork.securityGroupId]);
+    expect(environment.DependsOn).toBeUndefined();
+  }
+  // The dev network replaces the VPC the stack would create for its batch jobs.
+  expect(resourcesOfType('AWS::EC2::SecurityGroup')).toEqual([]);
+  expect(JSON.stringify(template)).not.toContain('"Ref":"StpVpc"');
+
+  const [[, jobDefinition]] = resourcesOfType('AWS::Batch::JobDefinition');
+  const container = jobDefinition.Properties.ContainerProperties;
+  expect(container.Image).toStartWith(`${deploymentArtifactManager.repositoryUrl}:report-default`);
+  expect(container.Image).toContain('reportdigest');
+  const environment = Object.fromEntries(
+    (container.Environment as { Name: string; Value: string }[]).map(({ Name, Value }) => [Name, Value])
+  );
+  expect(environment).toMatchObject({
+    DATABASE_URL: relayed,
+    STP_DB_CONNECTION_STRING: relayed,
+    STP_DB_HOST: relayHost,
+    STP_DB_PORT: '20321'
+  });
+  expect(environment.STP_REPORTS_NAME).toBeDefined();
+  expect(findUnresolvedPlaceholders(template)).toEqual([]);
+
+  // Without the build the placeholder stays, and the deploy refuses the template before CloudFormation sees it.
+  const unbuilt = await synthesize(false);
+  const [[jobDefinitionId]] = Object.entries(unbuilt.Resources).filter(
+    ([, resource]) => resource.Type === 'AWS::Batch::JobDefinition'
+  );
+  expect(findUnresolvedPlaceholders(unbuilt)).toEqual([
+    `Resources.${jobDefinitionId}.Properties.ContainerProperties.Image`
+  ]);
+  expect(() => assertNoUnresolvedPlaceholders(unbuilt)).toThrow(
+    expect.objectContaining({ code: 'TEMPLATE_UNRESOLVED_PLACEHOLDER' })
+  );
+});
+
+test('batch jobs stay in the stack VPC when the dev stack deploys VPC resources of its own', async () => {
+  const compiledConfig = defineConfig(() => {
+    const db = new RelationalDatabase({
+      credentials: { masterUserPassword: 'deployed-only' },
+      engine: new RdsEngineMysql({ version: '8.4.8', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+      accessibility: { accessibilityMode: 'vpc' }
+    });
+    const cache = new RedisCluster({ instanceSize: 'cache.t3.micro', defaultUserPassword: 'deployed-only-password' });
+    const report = new BatchJob({
+      container: {
+        packaging: new BuildpackImagePackaging({ sourceDirectoryPath: './src', startCommand: 'node report.js' })
+      },
+      resources: { cpu: 1, memory: 512 },
+      connectTo: [db, cache]
+    });
+    return { resources: { db, cache, report } };
+  })({
+    projectName: 'characterization',
+    stage: 'baseline',
+    region: 'eu-west-1',
+    command: 'dev',
+    awsProfile: '',
+    cliArgs: {}
+  });
+  await synthesizeFixture({
+    compiledConfig,
+    command: 'dev',
+    remoteResources: ['db'],
+    workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+  });
+  // The remote database is in the stack's VPC, so the job stays there and cannot reach the local Redis.
+  expect(getDevNetworkDemand({ noTunnel: false })).toEqual({
+    functions: {},
+    batchJobs: undefined,
+    unreachable: [{ kind: 'Batch job', name: 'report', resources: ['cache'] }]
+  });
 });

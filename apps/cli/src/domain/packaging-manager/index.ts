@@ -1235,8 +1235,10 @@ export class PackagingManager {
       return !isJsEntryFileExtension(ext);
     });
 
-    // In dev mode, skip container and hosting bucket builds (they run locally)
+    // Dev mode runs services and frontends locally and builds them itself; it builds only the images AWS pulls.
     const skipContainersAndHosting = configManager.deploymentContext.command === 'dev';
+    // `dev` builds those images before it decides whether the dev stack needs an update (`packageDevStackImages`).
+    const isNotPackagedYet = (jobName: string) => !skipContainersAndHosting || !this.getPackagingOutputForJob(jobName);
 
     // Hosting bucket builds (skip in dev mode, filter by onlyWorkloads)
     const hostingBucketBuildJobs = skipContainersAndHosting
@@ -1271,51 +1273,47 @@ export class PackagingManager {
             };
           });
 
-    // Container packaging jobs (skip in dev mode, filter by onlyWorkloads)
-    const containerPackagingJobs = skipContainersAndHosting
-      ? []
-      : configManager.allContainersRequiringPackaging
-          .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
-          .map((container) => {
-            const { jobName, packaging, workloadName, resources } = container;
-            return () => {
-              // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
-              // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
-              this.#prepareDockerOnce('supported platforms', getDockerBuildxSupportedPlatforms).catch(() => {});
-              return this.packageWorkload({
-                commandCanUseCache,
-                packageAnalysisCache,
-                jobName,
-                packaging,
-                workloadName,
-                target: 'container',
-                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
-                imageRuntimeTools: getImageRuntimeTools({
-                  healthCheckCommand:
-                    'internalHealthCheck' in container ? container.internalHealthCheck?.healthCheckCommand : undefined
-                })
-              });
-            };
+    // Container packaging jobs (in dev mode only the deployed ones, filter by onlyWorkloads)
+    const containerPackagingJobs = configManager.containersToPackage
+      .filter(({ workloadName, jobName }) => shouldPackageWorkload(workloadName) && isNotPackagedYet(jobName))
+      .map((container) => {
+        const { jobName, packaging, workloadName, resources } = container;
+        return () => {
+          // Asking Docker which platforms it builds for takes about 0.1 s and does not depend on the build, so it
+          // runs while the code is bundled. A failure here is reported, if it matters, by the build that needs it.
+          this.#prepareDockerOnce('supported platforms', getDockerBuildxSupportedPlatforms).catch(() => {});
+          return this.packageWorkload({
+            commandCanUseCache,
+            packageAnalysisCache,
+            jobName,
+            packaging,
+            workloadName,
+            target: 'container',
+            dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
+            imageRuntimeTools: getImageRuntimeTools({
+              healthCheckCommand:
+                'internalHealthCheck' in container ? container.internalHealthCheck?.healthCheckCommand : undefined
+            })
           });
+        };
+      });
 
-    const agentCoreRuntimePackagingJobs = skipContainersAndHosting
-      ? []
-      : configManager.agentCoreRuntimesRequiringPackaging
-          .filter(({ name }) => shouldPackageWorkload(name))
-          .map(({ name, jobName, packaging }) => {
-            return () =>
-              this.packageWorkload({
-                commandCanUseCache,
-                packageAnalysisCache,
-                jobName,
-                packaging,
-                workloadName: name,
-                workloadType: 'agentcore-runtime',
-                target: 'container',
-                dockerBuildOutputArchitecture: 'linux/arm64',
-                imageRuntimeTools: getImageRuntimeTools({ workloadType: 'agentcore-runtime' })
-              });
+    const agentCoreRuntimePackagingJobs = configManager.agentCoreRuntimesRequiringPackaging
+      .filter(({ name, jobName }) => shouldPackageWorkload(name) && isNotPackagedYet(jobName))
+      .map(({ name, jobName, packaging }) => {
+        return () =>
+          this.packageWorkload({
+            commandCanUseCache,
+            packageAnalysisCache,
+            jobName,
+            packaging,
+            workloadName: name,
+            workloadType: 'agentcore-runtime',
+            target: 'container',
+            dockerBuildOutputArchitecture: 'linux/arm64',
+            imageRuntimeTools: getImageRuntimeTools({ workloadType: 'agentcore-runtime' })
           });
+      });
 
     // NextJS packaging jobs (skip in dev mode, filter by onlyWorkloads)
     const nextjsPackagingJobs = skipContainersAndHosting

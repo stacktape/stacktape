@@ -49,6 +49,8 @@ export const getConnectToReferencesForResource = ({
     ) {
       return;
     }
+    // Batch jobs in the dev network use the network's security group, which admits nothing of the stack's.
+    if (type === 'batch-job' && activeConfig.batchJobsInDevNetwork) return;
     if (type === 'function') {
       getAdmittedLambdaSecurityGroups({ lambda: scopingResource, activeConfig, admittingCfLogicalName }).forEach(
         (scopingCfLogicalNameOfSecurityGroup) => result.push({ scopingResource, scopingCfLogicalNameOfSecurityGroup })

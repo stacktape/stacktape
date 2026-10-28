@@ -44,3 +44,32 @@ export const applyResourceOverride = (resourceProperties: Record<string, any>, p
 
   set(resourceProperties, pathToProp, value);
 };
+
+/**
+ * The CloudFormation resource types that have a property named `Properties` themselves (from the generated types in
+ * `@stacktape/cloudformation`). For every other type, an override path that starts with `Properties` is a mistake.
+ */
+export const RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY = new Set([
+  'AWS::AmplifyUIBuilder::Component',
+  'AWS::ApiGateway::DocumentationPart',
+  'AWS::ElastiCache::ParameterGroup',
+  'AWS::LicenseManager::LicenseAssetGroup',
+  'AWS::SageMaker::Action',
+  'AWS::SageMaker::Artifact',
+  'AWS::SageMaker::Context',
+  'AWS::ServiceDiscovery::PrivateDnsNamespace',
+  'AWS::ServiceDiscovery::PublicDnsNamespace'
+]);
+
+/**
+ * The path an override means when it starts with `Properties`, or `undefined` when it is fine. Override paths are
+ * applied to the child resource's `Properties` already: the r2ll dogfood followed an example with
+ * `Properties.TimeToLiveSpecification` and got `Properties.Properties.TimeToLiveSpecification`, which CloudFormation
+ * rejected during the deployment.
+ */
+export const getPropertiesPrefixMistake = ({ resourceType, path }: { resourceType: string; path: string }) => {
+  if (RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY.has(resourceType)) return undefined;
+  if (path === 'Properties') return { intended: undefined };
+  if (path.startsWith('Properties.')) return { intended: path.slice('Properties.'.length) };
+  return undefined;
+};

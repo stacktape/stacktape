@@ -9,7 +9,8 @@ import { LOCALLY_RUN_RESOURCE_TYPES } from '@domain-services/config-manager/dev-
 // v6 leaves alarms out of dev stacks and lets schedule rules name their function by ARN.
 // v7 grants connectTo access to remote resources and records the remote resources and the functions without triggers.
 // v8 leaves out what only the local session uses: container packaging, frontend dev commands and local scripts.
-const FINGERPRINT_VERSION = 8;
+// v9 pushes the images of batch jobs and AgentCore runtimes and runs batch jobs in the dev network.
+const FINGERPRINT_VERSION = 9;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;

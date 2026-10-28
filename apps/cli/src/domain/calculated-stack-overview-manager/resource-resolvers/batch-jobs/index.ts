@@ -17,6 +17,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import {
+  getDevNetworkEnvironmentVariables,
   getResolvedConnectToEnvironmentVariables,
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
@@ -76,11 +77,14 @@ export const resolveBatchJobs = async () => {
       resource: getIncreasedDiskSizeLaunchTemplate(),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
     });
-    calculatedStackOverviewManager.addCfChildResource({
-      cfLogicalName: cfLogicalNames.batchInstanceDefaultSecurityGroup(),
-      resource: getBatchInstanceDefaultSecurityGroup(),
-      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
-    });
+    // In the dev network, the instances use the network's security group.
+    if (!configManager.batchJobsInDevNetwork) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.batchInstanceDefaultSecurityGroup(),
+        resource: getBatchInstanceDefaultSecurityGroup(),
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
+    }
     if (batchJobs.some(({ resources: { gpu } }) => !gpu)) {
       // onDemand NON-gpu
       calculatedStackOverviewManager.addCfChildResource({
@@ -309,10 +313,20 @@ const getJobDefinitionTemplateOverrideFns = ({
       const currentVars = ((templateResourceProps.ContainerProperties as ContainerProperties).Environment ||
         []) as Environment[];
 
-      const variablesToInject = getResolvedConnectToEnvironmentVariables({
-        connectTo: resource.connectTo,
-        localResolve: hotSwapDeploy
-      });
+      const devNetwork = configManager.deploymentContext.devNetwork;
+      const variablesToInject = [
+        ...getResolvedConnectToEnvironmentVariables({
+          connectTo: resource.connectTo,
+          localResolve: hotSwapDeploy
+        }),
+        // A local database is not in the dev stack; the job reaches it through the dev box.
+        ...(devNetwork?.batchJobs
+          ? getDevNetworkEnvironmentVariables({
+              placement: devNetwork,
+              resourceNames: devNetwork.batchJobs[resource.name]
+            })
+          : [])
+      ];
 
       (templateResourceProps.ContainerProperties as ContainerProperties).Environment =
         mergeConnectToEnvironmentVariables(currentVars, variablesToInject);

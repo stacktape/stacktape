@@ -7,6 +7,7 @@ import { createConnection, createServer, type AddressInfo } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  describeBatchFailureCause,
   getAgentTokenFile,
   getDeployedResources,
   startAgentServer,
@@ -350,4 +351,23 @@ test('status lists the deployed resources by AWS name, ARN and URL, and never a 
     },
     { name: 'stats', type: 'function', arn: 'arn:aws:lambda:us-west-1:123456789012:function:shop-dev-stats' }
   ]);
+});
+
+// Seventh dogfood (r2ll): the report job failed in AWS Batch before its container ran, and status said nothing about it.
+// A failed run's cause is the job description as JSON; status shows the reason AWS Batch gives.
+test('status explains why the last batch job run failed', () => {
+  expect(
+    describeBatchFailureCause(
+      JSON.stringify({ JobName: 'report', StatusReason: 'Container.image contains invalid characters.', Container: {} })
+    )
+  ).toBe('Container.image contains invalid characters.');
+  expect(
+    describeBatchFailureCause(
+      JSON.stringify({
+        StatusReason: 'Essential container in task exited',
+        Container: { Reason: 'CannotPullContainerError: pull access denied', ExitCode: 1 }
+      })
+    )
+  ).toBe('Essential container in task exited; CannotPullContainerError: pull access denied; exit code 1');
+  expect(describeBatchFailureCause('States.Timeout')).toBe('States.Timeout');
 });

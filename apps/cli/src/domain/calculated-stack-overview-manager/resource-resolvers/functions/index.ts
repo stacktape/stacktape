@@ -664,7 +664,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     // resolving injecting env variables
     const variablesToInject = [
       ...getResolvedConnectToEnvironmentVariables({ connectTo: effectiveConnectTo, localResolve: false }),
-      ...(inDevNetwork ? getDevNetworkEnvironmentVariables({ placement: devNetwork!, functionName: name }) : [])
+      ...(inDevNetwork
+        ? getDevNetworkEnvironmentVariables({ placement: devNetwork!, resourceNames: devNetwork!.functions[name] })
+        : [])
     ];
     if (variablesToInject.length) {
       const templateResourceProps = template.Resources[cfLogicalName].Properties as FunctionProperties;
