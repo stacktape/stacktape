@@ -2,7 +2,7 @@ import { statSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { devTuiState } from 'src/app/tui-manager/dev/state';
-import { CliError } from '@utils/errors';
+import { CliError, getErrorHints, withHintLines } from '@utils/errors';
 import { updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
 import type { ConfigChange } from './config-change';
 import { clearCredentialExpiryTimer } from './utils';
@@ -87,6 +87,8 @@ export const createWorkloadRebuilder = ({
   const refused = new Set<string>();
   /** When the last successful build of each workload started. */
   const builtAt = new Map<string, number>();
+  /** How to fix the last failed build of each workload, when its error says. */
+  const errorHints = new Map<string, string[]>();
 
   const checkConfig = async (): Promise<ConfigChange> => {
     const change = await detectConfigChange();
@@ -104,10 +106,14 @@ export const createWorkloadRebuilder = ({
       try {
         await rebuild(name);
         error = undefined;
+        errorHints.delete(name);
         builtAt.set(name, startedAt);
         break;
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
+        const hints = getErrorHints(err);
+        if (hints) errorHints.set(name, hints);
+        else errorHints.delete(name);
         // A newer build waits: it builds the current files anyway, and its result is the one reported.
         if (attempt > 1 || !isRetryableRebuildError(err) || queue.queued) break;
         devTuiManager.log(name, `Rebuild failed (${error}); trying once more.`, 'warn');
@@ -120,9 +126,10 @@ export const createWorkloadRebuilder = ({
       devTuiManager.setRebuildDone(name);
       devTuiManager.setWorkloadStatus(name, 'running', { error: undefined });
     } else {
-      devTuiManager.setRebuildError(name, error);
-      devTuiManager.setWorkloadStatus(name, 'error', { error });
-      devTuiManager.log(name, `Rebuild failed: ${error}`, 'error');
+      const hints = errorHints.get(name);
+      devTuiManager.setRebuildError(name, withHintLines(error, hints));
+      devTuiManager.setWorkloadStatus(name, 'error', { error, hints });
+      devTuiManager.log(name, withHintLines(`Rebuild failed: ${error}`, hints), 'error');
     }
     return error;
   };
@@ -183,9 +190,11 @@ export const createWorkloadRebuilder = ({
     const errors = await Promise.all(names.map(enqueue));
     await devTuiManager.finishRebuild();
 
-    const failedWorkloads = names.flatMap((name, index) =>
-      errors[index] === undefined ? [] : [{ name, error: errors[index] }]
-    );
+    const failedWorkloads = names.flatMap((name, index) => {
+      if (errors[index] === undefined) return [];
+      const hints = errorHints.get(name);
+      return [{ name, error: errors[index], ...(hints ? { hints } : {}) }];
+    });
     const staleWorkloads = findStaleWorkloads({
       rebuilt: names.filter((_, index) => errors[index] === undefined),
       sourceFiles: getSourceFiles(),
@@ -196,7 +205,7 @@ export const createWorkloadRebuilder = ({
     return {
       ok: false,
       code: 'REBUILD_FAILED',
-      message: failedWorkloads.map(({ name, error }) => `${name}: ${error}`).join('\n'),
+      message: failedWorkloads.map(({ name, error, hints }) => withHintLines(`${name}: ${error}`, hints)).join('\n'),
       failedWorkloads,
       ...stale
     };

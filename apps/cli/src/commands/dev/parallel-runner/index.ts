@@ -1,3 +1,4 @@
+import { getRelayedLocalResourceNames } from '@domain-services/dev-network/placement';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
@@ -20,7 +21,7 @@ import { dockerRun, execDocker, getDockerHostAddress, inspectDockerContainer } f
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { getResourceParamReferences } from '../resource-references';
-import { ExpectedError } from '@utils/errors';
+import { ExpectedError, getErrorHints, withHintLines } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
@@ -28,7 +29,7 @@ import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage, type PrepareImageResult } from '../container';
 import { summarizeDockerBuildError } from '../container/build-error';
-import { describeContainerExit } from '../container/exit-reason';
+import { describeMaskedContainerExit } from '../container/exit-reason';
 import { startCommandMayChangeData, waitUntilRunServes } from '../container/run-readiness';
 import {
   DOCKER_HOST_NAME,
@@ -73,7 +74,7 @@ import {
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
-import { getSecretSourcedEnvNames, maskEnvironmentValuesInText } from '../agent-env-masking';
+import { createEnvironmentMasker, getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
@@ -185,9 +186,10 @@ export const runParallelWorkloads = async (
     envVarRefs.forEach((ref) => allReferencedResources.add(ref));
   }
 
-  // Databases that deployed dev functions reach through the dev box run locally too, even when no selected workload
-  // references them: the functions are deployed either way.
-  for (const resourceName of Object.values(getDevNetworkSession()?.placement.functions ?? {}).flat()) {
+  // Databases that deployed dev functions and batch jobs reach through the dev box run locally too, even when no
+  // selected workload references them: the functions and jobs are deployed either way.
+  const devNetworkPlacement = getDevNetworkSession()?.placement;
+  for (const resourceName of devNetworkPlacement ? getRelayedLocalResourceNames(devNetworkPlacement) : []) {
     allReferencedResources.add(resourceName);
   }
 
@@ -437,13 +439,13 @@ const openRelayTunnels = async ({
   stackName: string;
   useDevTui: boolean;
 }) => {
-  const relayed = [...new Set(Object.values(placement.functions).flat())];
+  const relayed = getRelayedLocalResourceNames(placement);
   const opened: string[] = [];
   await Promise.all(
     relayed.map(async (resourceName) => {
       const localResource = state.localResources.find(({ name }) => name === resourceName);
       if (!localResource) {
-        tuiManager.warn(`Local ${resourceName} is not running, so deployed functions can't reach it.`);
+        tuiManager.warn(`Local ${resourceName} is not running, so deployed functions and batch jobs can't reach it.`);
         return;
       }
       try {
@@ -796,7 +798,7 @@ const startContainerWorkload = async (
       );
       await mkdir(dirname(outputFile), { recursive: true });
       await writeFile(outputFile, message);
-      throw new ExpectedError('DOCKER', `${summary}\nFull build output: ${outputFile}`);
+      throw new ExpectedError('DOCKER', `${summary}\nFull build output: ${outputFile}`, getErrorHints(error));
     }
   };
 
@@ -819,23 +821,24 @@ const startContainerWorkload = async (
   let current: ContainerRun | undefined;
   /** Why `run` exited, with the secret values it received masked: the summary reaches the status, MCP and the log. */
   const describeExit = (run: ContainerRun) => {
-    const described = describeContainerExit(run.stderr());
-    const reason =
-      described && maskEnvironmentValuesInText(described, run.environment, getWorkloadSecretEnvNames(resourceName));
+    const reason = describeMaskedContainerExit(
+      run.stderr(),
+      createEnvironmentMasker(run.environment, getWorkloadSecretEnvNames(resourceName))
+    );
     return reason ? `:${reason.includes('\n') ? '\n' : ' '}${reason}` : '.';
   };
   const reportUnexpectedExit = (run: ContainerRun) => {
     if (run !== current || run.stopping || applicationManager.isInterrupted) return;
     reportWorkloadError(`Container stopped unexpectedly${describeExit(run)}`);
   };
-  const reportWorkloadError = (error: string) => {
+  const reportWorkloadError = (error: string, hints?: string[]) => {
     if (useDevTui) {
-      devTuiManager.setWorkloadStatus(resourceName, 'error', { error });
-      devTuiManager.log(resourceName, error, 'error');
+      devTuiManager.setWorkloadStatus(resourceName, 'error', { error, hints });
+      devTuiManager.log(resourceName, withHintLines(error, hints), 'error');
     } else {
-      tuiManager.error(`[${resourceName}] ${error}`);
+      tuiManager.error(`[${resourceName}] ${withHintLines(error, hints)}`);
     }
-    updateAgentWorkloadStatus(resourceName, { status: 'error', error });
+    updateAgentWorkloadStatus(resourceName, { status: 'error', error, hints });
   };
   const stopRun = async (run: ContainerRun) => {
     run.stopping = true;
@@ -1050,7 +1053,7 @@ const startContainerWorkload = async (
     }
   } catch (error) {
     if (applicationManager.isInterrupted) throw error;
-    reportWorkloadError(error instanceof Error ? error.message : String(error));
+    reportWorkloadError(error instanceof Error ? error.message : String(error), getErrorHints(error));
   }
 
   /** What a failed rebuild adds when the new run started its command: a migration in it may have run already. */
@@ -1503,6 +1506,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   let packagingOutput: PackagingOutput | undefined;
   let codeUnchanged = false;
   let startError: string | undefined;
+  let startErrorHints: string[] | undefined;
   // The files a failed build reads: the watcher rebuilds the function when one of them changes, as after a success.
   let attemptedSourceFiles: string[] | undefined;
   try {
@@ -1513,6 +1517,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   } catch (error) {
     if (applicationManager.isInterrupted) throw error;
     startError = error instanceof Error ? error.message : String(error);
+    startErrorHints = getErrorHints(error);
   } finally {
     attemptedSourceFiles = packagingManager.takeAttemptedSourceFiles(resourceName);
     packagingManager.clearPackagedJobs();
@@ -1525,14 +1530,18 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   const packageSize = packagingOutput?.zippedSize ? `${packagingOutput.zippedSize} MB zipped` : undefined;
 
   if (startError !== undefined) {
-    const message = `Not deployed, the function runs its previous code: ${startError}`;
+    const message = withHintLines(`Not deployed, the function runs its previous code: ${startError}`, startErrorHints);
     if (useDevTui) {
-      devTuiManager.setWorkloadStatus(resourceName, 'error', { ...integrationInfo, error: startError });
+      devTuiManager.setWorkloadStatus(resourceName, 'error', {
+        ...integrationInfo,
+        error: startError,
+        hints: startErrorHints
+      });
       devTuiManager.log(resourceName, message, 'error');
     } else {
       tuiManager.error(`[${resourceName}] ${message}`);
     }
-    updateAgentWorkloadStatus(resourceName, { status: 'error', error: startError });
+    updateAgentWorkloadStatus(resourceName, { status: 'error', error: startError, hints: startErrorHints });
   } else if (useDevTui) {
     devTuiManager.setWorkloadStatus(resourceName, 'running', { ...integrationInfo, size: packageSize });
     devTuiManager.log(resourceName, codeUnchanged ? 'Function code unchanged, already deployed' : 'Function deployed');

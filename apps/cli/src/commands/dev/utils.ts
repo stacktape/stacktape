@@ -25,6 +25,7 @@ import {
   SESSION_DURATION_SECONDS
 } from '../_utils/assume-role';
 import type { EnvironmentVar } from '@stacktape/config/shared';
+import { assertEnvironmentResolved } from './unresolved-environment';
 
 // Track credential expiry timers per workload so they can be cleared on rebuild
 const credentialExpiryTimers = new Map<string, NodeJS.Timeout>();
@@ -178,6 +179,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   const preSubstitutedEnvVars = substituteLocalWorkloadDirectives(envVars, localWorkloadAddresses);
 
   const resolvedEnvVars = await resolveEnvironmentDirectives(preSubstitutedEnvVars);
+  assertEnvironmentResolved({ owner: workloadName, environment: resolvedEnvVars, configured: preSubstitutedEnvVars });
   // A `$ResourceParam` of a local database resolves to its loopback host or URL. Other directives (`$Secret`) and
   // literal values are the developer's and stay.
   for (const [name, configured] of Object.entries(preSubstitutedEnvVars)) {

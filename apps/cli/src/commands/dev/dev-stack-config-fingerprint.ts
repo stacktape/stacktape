@@ -10,7 +10,8 @@ import { LOCALLY_RUN_RESOURCE_TYPES } from '@domain-services/config-manager/dev-
 // v7 grants connectTo access to remote resources and records the remote resources and the functions without triggers.
 // v8 leaves out what only the local session uses: container packaging, frontend dev commands and local scripts.
 // v9 pushes the images of batch jobs and AgentCore runtimes and runs batch jobs in the dev network.
-const FINGERPRINT_VERSION = 9;
+// v10 lets the dev agent read Batch jobs and outputs what local workloads read of raw CloudFormation resources.
+const FINGERPRINT_VERSION = 10;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;
@@ -41,7 +42,7 @@ const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown =>
 /** Container workloads run locally; the dev stack deploys only their roles (see `resolveDevContainerWorkloadRoles`). */
 const LOCAL_CONTAINER_TYPES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 /** Scripts that run on this machine or through a bastion; a `deployment-script` is a function in the stack. */
-const LOCAL_SCRIPT_TYPES = new Set(['local-script', 'local-script-with-bastion-tunneling', 'bastion-script']);
+export const LOCAL_SCRIPT_TYPES = new Set(['local-script', 'local-script-with-bastion-tunneling', 'bastion-script']);
 
 type ConfigResource = { type?: unknown; properties?: Record<string, unknown> };
 

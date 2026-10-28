@@ -3,6 +3,7 @@ import type { Script, StpResourceType } from './resolved-types/resources';
 import { VALID_CONFIG_PATHS } from 'src/config/random';
 import { CliError } from '@utils/errors';
 import type { Subtype } from '@utils/type-helpers';
+import { isCustomResourceType } from '@utils/referenceable-types';
 
 const inlineCode = (value: unknown) => `\`${String(value)}\``;
 
@@ -46,6 +47,35 @@ export const configErrors = {
       code: 'DIRECTIVE_RESOURCE_NOT_DEPLOYED',
       message: `Resource ${inlineCode(resourceName)} referenced by ${inlineCode(directiveType)} is not deployed yet.`,
       hints: `Deploy the stack, then run the command again.`
+    });
+  },
+  /** A credential of a raw CloudFormation resource, which Stacktape never publishes as a stack output. */
+  cfResourceParamSecret({
+    resourceName,
+    referencedParam,
+    resourceType,
+    location
+  }: {
+    resourceName: string;
+    referencedParam: string;
+    resourceType: string;
+    /** Where the reference is, when known, such as `scripts.migrate.properties.environment[0].value`. */
+    location?: string;
+  }): CliError {
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_CF_RESOURCE_PARAM_SECRET',
+      message: `${inlineCode(referencedParam)} of ${inlineCode(resourceName)} (${resourceType}) ${
+        isCustomResourceType(resourceType)
+          ? 'is a custom resource attribute other than an ARN, ID or name, so it can hold a credential'
+          : 'is a credential'
+      }${
+        location ? `, referenced at ${inlineCode(location)}` : ''
+      }. Stacktape does not publish credentials as stack outputs, so it cannot resolve this outside the deployed stack.`,
+      hints: [
+        `Store the value in Secrets Manager (for example an \`AWS::SecretsManager::Secret\` whose \`SecretString\` is \`$CfResourceParam('${resourceName}', '${referencedParam}')\`) and read it with \`$Secret\`.`,
+        'Local containers and scripts can also assume a role (`assumeRoleOfResource`) instead of using long-lived keys.'
+      ]
     });
   },
   directiveResourceParameterInvalid({

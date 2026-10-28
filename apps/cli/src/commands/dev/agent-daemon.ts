@@ -618,7 +618,7 @@ type AgentReadyPayload = {
   tokenFile?: string;
   sessionId?: string;
   /** Workloads that failed while dev mode started; a non-empty list means the start failed. */
-  failedWorkloads?: { name: string; error: string }[];
+  failedWorkloads?: { name: string; error: string; hints?: string[] }[];
   /** What dev mode decided on its own, such as deploying a table that a stream trigger reads. */
   notices?: string[];
 };
@@ -1068,7 +1068,7 @@ export const buildAgentReadyPayload = (data: {
   databases: { name: string; type: string; port?: number }[];
   logFile: string;
   sessionId?: string;
-  failedWorkloads?: { name: string; error: string }[];
+  failedWorkloads?: { name: string; error: string; hints?: string[] }[];
   notices?: string[];
 }): AgentReadyPayload => ({
   port: data.port,

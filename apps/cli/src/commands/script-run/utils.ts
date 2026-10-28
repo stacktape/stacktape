@@ -18,6 +18,7 @@ import {
 import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 import { resolveScriptStdioMode } from './stdio';
+import { assertEnvironmentResolved } from '../dev/unresolved-environment';
 import type {
   BastionScript,
   EnvironmentVar,
@@ -49,6 +50,20 @@ export const getExecutableScriptFunction = (props: {
   });
 };
 
+/** A script must not run with the placeholder of a stack output that the deployed stack does not have. */
+const assertScriptEnvironmentResolved = (
+  configured: { scriptName: string; properties: { environment?: EnvironmentVar[] } },
+  resolved: { properties: { environment?: EnvironmentVar[] } }
+) => {
+  const toRecord = (environment: EnvironmentVar[] = []) =>
+    Object.fromEntries(environment.map(({ name, value }) => [name, value]));
+  assertEnvironmentResolved({
+    owner: `script ${configured.scriptName}`,
+    environment: toRecord(resolved.properties.environment),
+    configured: toRecord(configured.properties.environment)
+  });
+};
+
 const getBastionScriptExecutionFn = ({
   scriptDefinition,
   hookTrigger
@@ -64,6 +79,7 @@ const getBastionScriptExecutionFn = ({
     })) as BastionScript & {
       scriptName: string;
     };
+    assertScriptEnvironmentResolved(scriptDefinition, resolvedScriptDefinition);
 
     const executeSequence = [
       resolvedScriptDefinition.properties.executeCommand,
@@ -164,6 +180,7 @@ const getLocalScriptExecutionFn = ({
       resolveRuntime: true,
       useLocalResolve: true
     })) as (LocalScript | LocalScriptWithBastionTunneling) & { scriptName: string };
+    assertScriptEnvironmentResolved(scriptDefinition, resolvedScriptDefinition);
     const commandOrScript =
       resolvedScriptDefinition.properties.executeCommand || resolvedScriptDefinition.properties.executeCommands
         ? 'command'

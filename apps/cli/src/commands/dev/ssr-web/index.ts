@@ -12,6 +12,7 @@ import { configManager } from '@domain-services/config-manager';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
 import { prepareFrontendEnvironment } from '../frontend-env';
+import { getSecretSourcedEnvNames } from '../agent-env-masking';
 import {
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
@@ -76,6 +77,7 @@ export const startSsrWebDevServer = async ({
     command: ssrWeb.dev?.command || frameworkConfig.defaultDevCommand,
     workingDirectory: ssrWeb.appDirectory || '.',
     environment: injectedEnvironment,
+    secretEnvNames: getSecretSourcedEnvNames(ssrWeb),
     withheldEnvNames
   };
 

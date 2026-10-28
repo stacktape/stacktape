@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { pathExists, readFile, remove, writeFile } from 'fs-extra';
+import { assertEnvironmentResolved } from './unresolved-environment';
 
 export const ENV_FILE_NAME = '.env.local';
 const BLOCK_START = '# >>> stacktape dev: managed block, rewritten on every dev start >>>';
@@ -69,6 +70,11 @@ export const prepareFrontendEnvironment = async ({
       itemToResolve: environment,
       resolveRuntime: true,
       useLocalResolve: true
+    });
+    assertEnvironmentResolved({
+      owner: name,
+      environment: Object.fromEntries(resolved.map(({ name: varName, value }) => [varName, value])),
+      configured: Object.fromEntries(environment.map(({ name: varName, value }) => [varName, value]))
     });
     for (const { name: varName, value } of resolved) envVars[varName] = String(value);
   }

@@ -10,6 +10,7 @@ import {
   describeBatchFailureCause,
   getAgentTokenFile,
   getDeployedResources,
+  getNotReadyReasons,
   startAgentServer,
   stopAgentServer,
   updateAgentState,
@@ -370,4 +371,84 @@ test('status explains why the last batch job run failed', () => {
     )
   ).toBe('Essential container in task exited; CannotPullContainerError: pull access denied; exit code 1');
   expect(describeBatchFailureCause('States.Timeout')).toBe('States.Timeout');
+});
+
+// r2rr: status said ready while a local database had failed, or while deployed functions could not reach the databases.
+test('a failed local database or an unconnected dev box makes the session not ready, with the reason', () => {
+  const running: WorkloadStatus = { name: 'api', type: 'container', status: 'running' };
+  const base = { phase: 'ready' as const, workloads: [running], localResources: [] };
+  expect(getNotReadyReasons(base)).toEqual([]);
+  expect(
+    getNotReadyReasons({
+      ...base,
+      localResources: [{ name: 'db', type: 'postgres', status: 'error', error: 'port 5432 is in use' }]
+    })
+  ).toEqual(['local database db is error: port 5432 is in use']);
+  expect(
+    getNotReadyReasons({ ...base, localResources: [{ name: 'db', type: 'postgres', status: 'starting' }] })
+  ).toEqual(['local database db is starting']);
+  expect(getNotReadyReasons({ ...base, devBox: { phase: 'reconnecting', reason: 'SSM is unavailable' } })).toEqual([
+    'deployed functions cannot reach the local databases yet: the dev box connection is reconnecting (SSM is unavailable)'
+  ]);
+  expect(
+    getNotReadyReasons({
+      ...base,
+      devBox: { phase: 'ready', relay: { controlHost: '127.0.0.1', controlPort: 1, relayHost: '10.0.0.5' } }
+    })
+  ).toEqual([]);
+  expect(getNotReadyReasons({ ...base, phase: 'starting' })).toEqual(['dev mode is starting']);
+});
+
+test('a malformed percent-encoded route parameter is a validation error, not an unhandled exception', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-encoding-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const port = await freePort();
+  await startAgentServer(port, directory);
+  try {
+    const token = await readFile(getAgentTokenFile()!, 'utf8');
+    const response = await fetch(`http://127.0.0.1:${port}/env/%ZZ`, { headers: { authorization: `Bearer ${token}` } });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+    // The agent keeps answering.
+    const status = await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` } });
+    expect(status.status).toBe(200);
+  } finally {
+    stopAgentServer();
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// #386 re-review: an aws call with another region read resources of that region, outside the session's stack.
+test("the dev agent's AWS reads stay in the session's region", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-region-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const { globalStateManager } = await import('@application-services/global-state-manager');
+  const originalArgs = globalStateManager.rawArgs;
+  globalStateManager.rawArgs = { ...originalArgs, region: 'eu-north-1' };
+  const port = await freePort();
+  await startAgentServer(port, directory);
+  try {
+    const token = await readFile(getAgentTokenFile()!, 'utf8');
+    const response = await fetch(`http://127.0.0.1:${port}/aws/sdk`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        service: 'batch',
+        command: 'ListJobs',
+        input: { jobQueue: 'shelf-dev-batch-onDemand--job-queue' },
+        region: 'us-east-1'
+      })
+    });
+    expect(await response.json()).toMatchObject({ ok: false, code: 'OPERATION_NOT_ALLOWED' });
+  } finally {
+    stopAgentServer();
+    globalStateManager.rawArgs = originalArgs;
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
 });

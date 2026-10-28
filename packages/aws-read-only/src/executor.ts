@@ -82,6 +82,7 @@ const SERVICE_MAP: Record<AwsReadOnlyService, ClientConfig> = {
     clientClass: 'ElasticLoadBalancingV2Client'
   },
   autoscaling: { load: () => import('@aws-sdk/client-auto-scaling'), clientClass: 'AutoScalingClient' },
+  batch: { load: () => import('@aws-sdk/client-batch'), clientClass: 'BatchClient' },
   budgets: { load: () => import('@aws-sdk/client-budgets'), clientClass: 'BudgetsClient' },
   costexplorer: { load: () => import('@aws-sdk/client-cost-explorer'), clientClass: 'CostExplorerClient' },
   codedeploy: { load: () => import('@aws-sdk/client-codedeploy'), clientClass: 'CodeDeployClient' },
@@ -176,12 +177,14 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * Environment variable values where AWS returns them as structured data: Lambda function configurations
- * (`GetFunction`, `GetFunctionConfiguration`, `ListFunctions`, `ListVersionsByFunction`) and ECS container environments
- * (`DescribeTaskDefinition`, and the task overrides in `DescribeTasks`). Applications keep secrets there, so every
+ * (`GetFunction`, `GetFunctionConfiguration`, `ListFunctions`, `ListVersionsByFunction`), ECS container environments
+ * (`DescribeTaskDefinition`, and the task overrides in `DescribeTasks`) and Batch container environments
+ * (`DescribeJobDefinitions`, `DescribeJobs`): `environment` of ECS-style containers, multi-node ranges and overrides, and
+ * `env` of EKS pod containers. Secrets given by reference (`secrets[].valueFrom`) are ARNs and stay. Applications keep secrets there, so every
  * caller gets the variable names and the rest of the metadata, never the values. Other content reads are not touched.
  */
 const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown): unknown => {
-  if (service !== 'lambda' && service !== 'ecs') return response;
+  if (service !== 'lambda' && service !== 'ecs' && service !== 'batch') return response;
   const visit = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(visit);
     if (!isPlainObject(node)) return node;
@@ -191,7 +194,8 @@ const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown)
           const names = Object.keys(value.Variables);
           return [key, { ...value, Variables: Object.fromEntries(names.map((name) => [name, REDACTED_VALUE])) }];
         }
-        if (service === 'ecs' && key === 'environment' && Array.isArray(value)) {
+        const isContainerEnvironment = key === 'environment' || (service === 'batch' && key === 'env');
+        if ((service === 'ecs' || service === 'batch') && isContainerEnvironment && Array.isArray(value)) {
           return [key, value.map((entry) => (isPlainObject(entry) ? { ...entry, value: REDACTED_VALUE } : entry))];
         }
         return [key, visit(value)];

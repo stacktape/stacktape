@@ -9,12 +9,13 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { isResourceTypeExcludedInDevMode } from '@domain-services/config-manager/dev-mode';
-import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
+import { AWS_READ_ONLY_OPERATIONS, resolveAwsServiceName } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { markOwnAgentLockStopping } from './agent-daemon';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -62,9 +63,18 @@ import {
   type DynamoDbConnectionOpts
 } from '@domain-services/debug-services/db-client';
 import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
-import { maskAgentEnvironment } from './agent-env-masking';
+import { getSecretSourcedEnvNames, maskAgentEnvironment } from './agent-env-masking';
+import {
+  describeBatchJob,
+  findSubmittedBatchJobId,
+  getBatchJobEnvVars,
+  getBatchScope,
+  scopeBatchCall,
+  type BatchJobDetails
+} from './deployed-batch-job';
 import { getLambdaEnvVars } from './deployed-function-environment';
 import { getDevNetworkSession } from './dev-network-session';
+import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 import { runSeedScript } from './seed-script';
@@ -89,6 +99,8 @@ export type WorkloadStatus = {
   url?: string;
   port?: number;
   error?: string;
+  /** How to fix `error`: a packaging failure's hint, for example. */
+  hints?: string[];
   size?: string;
   /** What a starting or rebuilding workload waits for. */
   statusMessage?: string;
@@ -188,6 +200,7 @@ export const mirrorDevTuiState = (state: DevTuiState) => {
       url: workload.url,
       port: workload.port,
       error: workload.error,
+      ...(workload.status === 'error' && workload.hints?.length ? { hints: workload.hints } : {}),
       size: workload.size,
       ...(workload.status === 'starting' && workload.statusMessage ? { statusMessage: workload.statusMessage } : {})
     })),
@@ -218,22 +231,51 @@ const getLocalResourceNames = (): string[] => {
   return getRunningLocalInstances().map((r) => r.name);
 };
 
-export type FailedWorkload = { name: string; error: string };
+export type FailedWorkload = { name: string; error: string; hints?: string[] };
 
 export const getFailedWorkloads = (workloads: WorkloadStatus[] = agentState.workloads): FailedWorkload[] =>
   workloads
     .filter((workload) => workload.status === 'error')
-    .map(({ name, error }) => ({ name, error: error || 'unknown error' }));
+    .map(({ name, error, hints }) => ({ name, error: error || 'unknown error', ...(hints?.length ? { hints } : {}) }));
 
 /**
- * Ready means dev mode finished starting, every selected workload is running and the configuration file still matches
- * the session. A failed workload or a pending restart makes the session not ready: an assistant that waits for
- * readiness must not start testing against a workload that is down or runs outdated code or configuration.
+ * Why the session is not ready, or none when it is. Ready means dev mode finished starting, every selected workload and
+ * local database runs, deployed functions reach the local databases through the dev box, and the configuration file
+ * still matches the session. An assistant that waits for readiness must not start testing against a workload or
+ * database that is down, or one that runs outdated code or configuration.
  */
-const areAllWorkloadsReady = (): boolean =>
-  agentState.phase === 'ready' &&
-  !agentState.restartRequired &&
-  agentState.workloads.every((workload) => workload.status === 'running');
+export const getNotReadyReasons = ({
+  phase,
+  restartRequired,
+  workloads,
+  localResources,
+  devBox
+}: Pick<AgentStatus, 'phase' | 'restartRequired' | 'workloads' | 'localResources'> & {
+  /** The dev box connection, when deployed functions reach local databases through it. */
+  devBox?: DevBoxStatus;
+}): string[] => {
+  if (phase !== 'ready') return [`dev mode is ${phase}`];
+  return [
+    ...(restartRequired ? [restartRequired] : []),
+    ...workloads
+      .filter(({ status }) => status !== 'running')
+      .map(({ name, status }) => `workload ${name} is ${status}`),
+    // A database that is still `pending` once dev mode started is one this session does not run.
+    ...localResources
+      .filter(({ status }) => status !== 'running' && status !== 'pending')
+      .map(({ name, status, error }) => `local database ${name} is ${status}${error ? `: ${error}` : ''}`),
+    ...(devBox && devBox.phase !== 'ready'
+      ? [
+          `deployed functions cannot reach the local databases yet: the dev box connection is ${
+            devBox.phase === 'reconnecting' ? `reconnecting (${devBox.reason})` : devBox.phase
+          }`
+        ]
+      : [])
+  ];
+};
+
+const getSessionNotReadyReasons = () =>
+  getNotReadyReasons({ ...agentState, devBox: getDevNetworkSession()?.connection.status });
 
 const safeJsonParse = (str: string): unknown => {
   try {
@@ -365,13 +407,15 @@ const getDevBoxStatus = () => {
 
 addRoute('GET', '/status', async ({ query }) => {
   const verbose = query.get('verbose') === 'true';
-  const ready = areAllWorkloadsReady();
+  const notReadyReasons = getSessionNotReadyReasons();
+  const ready = !notReadyReasons.length;
   const failedWorkloads = getFailedWorkloads();
 
   if (verbose) {
     return {
       phase: agentState.phase,
       ready,
+      ...(ready ? {} : { notReadyReasons }),
       failedWorkloads,
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
@@ -398,6 +442,7 @@ addRoute('GET', '/status', async ({ query }) => {
   return {
     phase: agentState.phase,
     ready,
+    ...(ready ? {} : { notReadyReasons }),
     failedWorkloads,
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
@@ -560,16 +605,66 @@ addRoute('GET', '/health/:resource', async ({ pathParams }) => {
 const ENV_MASKING_NOTE =
   'Secret values are masked: variables read from $Secret/$SsmParam, variables with secret names (password, token, key, ...) and passwords inside connection strings.';
 
+/**
+ * A batch job runs in AWS Batch, so its environment is its deployed job definition's. Secret-sourced values are masked
+ * as for every other workload; the variables Batch reads from `secrets` are not in the definition's environment.
+ */
+const getBatchJobEnvironment = async (batchJob: ReturnType<typeof getConfiguredBatchJobs>[number]) => {
+  const { name } = batchJob;
+  const jobDefinitionArn =
+    deployedStackOverviewManager.stackInfoMap?.resources?.[name]?.referencableParams?.jobDefinitionArn?.value;
+  if (typeof jobDefinitionArn !== 'string') {
+    return {
+      ok: false,
+      code: 'NOT_FOUND',
+      error: `Batch job "${name}" is not deployed in the dev stack yet.`,
+      hint: 'Start dev mode again to deploy it.'
+    };
+  }
+  const credentials = await getDevAgentCredentials();
+  if (!credentials?.accessKeyId || !credentials?.secretAccessKey) {
+    return { ok: false, error: 'AWS credentials not available' };
+  }
+  try {
+    const envVars = await getBatchJobEnvVars({ jobDefinitionArn, region: globalStateManager.region, credentials });
+    if (!envVars) {
+      return { ok: false, code: 'NOT_FOUND', error: `The job definition of batch job "${name}" was not found in AWS.` };
+    }
+    const { environment, secrets } = batchJob.container as { environment?: unknown; secrets?: unknown };
+    return {
+      ok: true,
+      workload: name,
+      type: 'batch-job',
+      source: 'aws',
+      jobDefinitionArn,
+      envVars: maskAgentEnvironment(envVars, getSecretSourcedEnvNames({ environment })),
+      count: Object.keys(envVars).length,
+      ...(Array.isArray(secrets) && secrets.length
+        ? { secretEnvNames: secrets.map((secret: { name?: string }) => secret.name).filter(Boolean) }
+        : {}),
+      note: `${ENV_MASKING_NOTE} Variables listed in secretEnvNames come from Secrets Manager or SSM when the job starts.`
+    };
+  } catch (err: unknown) {
+    return {
+      ok: false,
+      error: `Failed to read the job definition of batch job "${name}": ${err instanceof Error ? err.message : 'Unknown error'}`,
+      hint: 'Check AWS credentials and permissions'
+    };
+  }
+};
+
 addRoute('GET', '/env/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
 
   // Check if workload exists in agent state
   const workloadState = agentState.workloads.find((w) => w.name === workloadName);
+  const batchJob = workloadState ? undefined : getConfiguredBatchJobs().find(({ name }) => name === workloadName);
+  if (batchJob) return getBatchJobEnvironment(batchJob);
   if (!workloadState) {
     return {
       ok: false,
       error: `Workload "${workloadName}" not found`,
-      available: agentState.workloads.map((w) => w.name),
+      available: [...agentState.workloads.map((w) => w.name), ...getConfiguredBatchJobs().map(({ name }) => name)],
       hint: 'Use /status to see available workloads'
     };
   }
@@ -980,7 +1075,35 @@ const getConfiguredBatchJobs = () => (configManager.config?.resources ? configMa
 /** How long status waits for the last run of a batch job; status must answer even when AWS is slow. */
 const BATCH_JOB_LOOKUP_TIMEOUT_MS = 8000;
 
-type BatchJobRun = { status?: string; startedAt?: string; stoppedAt?: string; error?: string; cause?: string };
+type BatchJobRun = {
+  status?: string;
+  startedAt?: string;
+  stoppedAt?: string;
+  error?: string;
+  cause?: string;
+  /** The AWS Batch job the run submitted: whether it waits for capacity, starts or runs, and its log stream. */
+  job?: BatchJobDetails | { jobId?: string; lookupError: string };
+};
+
+/** The Batch job an execution submitted last; `undefined` before it submitted one. */
+const getSubmittedBatchJob = async (
+  executionArn: string,
+  context: Parameters<typeof executeAwsSdkCommand>[3]
+): Promise<BatchJobRun['job'] | undefined> => {
+  const history = await executeAwsSdkCommand(
+    'sfn',
+    'GetExecutionHistory',
+    { executionArn, reverseOrder: true, maxResults: 50 },
+    context
+  );
+  if (history.ok === false) return { lookupError: history.error };
+  const jobId = findSubmittedBatchJobId((history.data as { events?: [] })?.events ?? []);
+  if (!jobId) return undefined;
+  const described = await executeAwsSdkCommand('batch', 'DescribeJobs', { jobs: [jobId] }, context);
+  if (described.ok === false) return { jobId, lookupError: described.error };
+  const [job] = (described.data as { jobs?: Record<string, unknown>[] })?.jobs ?? [];
+  return job ? describeBatchJob(job) : undefined;
+};
 
 /** The latest execution of the job's state machine, which submits the job to AWS Batch and waits for it. */
 const getLastBatchJobRun = async (stateMachineArn: string): Promise<BatchJobRun | { lookupError: string } | null> => {
@@ -1005,10 +1128,12 @@ const getLastBatchJobRun = async (stateMachineArn: string): Promise<BatchJobRun 
   }[];
   if (!execution) return null;
   const time = (value: Date | string | undefined) => (value ? new Date(value).toISOString() : undefined);
+  const job = await getSubmittedBatchJob(execution.executionArn, context);
   const run: BatchJobRun = {
     status: execution.status,
     startedAt: time(execution.startDate),
-    stoppedAt: time(execution.stopDate)
+    stoppedAt: time(execution.stopDate),
+    ...(job ? { job } : {})
   };
   if (execution.status !== 'FAILED') return run;
   const described = await executeAwsSdkCommand(
@@ -1072,6 +1197,7 @@ export const getDeployedBatchJobs = async () => {
         stateMachineArn,
         logGroup: awsResourceNames.batchJobLogGroup({ stackName, stpResourceName: name }),
         ...(typeof image === 'string' ? { image } : {}),
+        // `lastRun.status` is the state machine's; `lastRun.job` is the AWS Batch job it submitted.
         lastRun: lastRun ?? 'not run yet',
         codeChanges: 'deployed by the next start of dev mode; rebuild and watch do not deploy batch jobs'
       };
@@ -1420,7 +1546,17 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     };
   }
 
-  const awsRegion = region || globalStateManager.region;
+  // The dev agent reads the session's stack. Its role allows resources by the stack's name in any region, so a stack of
+  // the same name elsewhere, or a resource another region gives the same name, is outside the session.
+  const awsRegion = globalStateManager.region;
+  if (region && region !== awsRegion) {
+    return {
+      ok: false,
+      code: 'OPERATION_NOT_ALLOWED',
+      error: `This dev session reads its stack in ${awsRegion}, not ${region}.`,
+      hint: 'Leave out region. For another region, use `stacktape aws:call` with that stage and region.'
+    };
+  }
 
   // Use dev agent role credentials (scoped to stack) or fall back to user credentials
   const credentials = await getDevAgentCredentials();
@@ -1428,7 +1564,21 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     return { ok: false, error: 'AWS credentials not available' };
   }
 
-  return executeAwsSdkCommand(service, command, input || {}, {
+  // Batch reads are scoped by the stack's own resources, which IAM cannot do for them; the scope also fixes the region.
+  const batchScope =
+    resolveAwsServiceName(service) === 'batch'
+      ? scopeBatchCall({
+          command,
+          input: input || {},
+          region: awsRegion,
+          scope: getBatchScope(stackManager.existingStackResources)
+        })
+      : { input: input || {} };
+  if ('refusal' in batchScope) {
+    return { ok: false, code: 'OPERATION_NOT_ALLOWED', error: batchScope.refusal };
+  }
+
+  const result = await executeAwsSdkCommand(service, command, batchScope.input, {
     region: awsRegion,
     credentials: {
       accessKeyId: credentials.accessKeyId,
@@ -1436,6 +1586,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
       sessionToken: credentials.sessionToken
     }
   });
+  return result.ok && batchScope.filterResponse ? { ...result, data: batchScope.filterResponse(result.data) } : result;
 });
 
 addRoute('GET', '/aws/sdk/services', async () => {
@@ -1543,11 +1694,24 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     const match = pathname.match(route.pattern);
     if (!match) continue;
 
-    // Extract path params
+    // Extract path params. A malformed escape (`%ZZ`) is the request's mistake, not an error of the agent.
     const pathParams: Record<string, string> = {};
-    route.paramNames.forEach((name, i) => {
-      pathParams[name] = decodeURIComponent(match[i + 1]);
-    });
+    try {
+      route.paramNames.forEach((name, i) => {
+        pathParams[name] = decodeURIComponent(match[i + 1]);
+      });
+    } catch {
+      res.statusCode = 400;
+      res.end(
+        JSON.stringify({
+          v: '1.0',
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: `The path ${pathname} has a malformed percent-encoded character.`
+        } as DevAgentEnvelope)
+      );
+      return;
+    }
 
     // Parse body for POST
     let body: unknown = {};

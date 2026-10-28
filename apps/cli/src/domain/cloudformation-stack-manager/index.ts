@@ -74,6 +74,7 @@ import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFirstDeployOfStack } from './first-deploy';
+import { getPlannedResources } from './progress-plan';
 import {
   cfFailedEventHandlers,
   formatPreDeploymentValidationErrors,
@@ -1280,16 +1281,7 @@ class StackManager {
 
       // Agent mode: simplified progress output
       if (isAgentMode()) {
-        const plannedSet =
-          updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
-            ? new Set(updatedResourceLogicalNames)
-            : changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
-              ? new Set([
-                  ...changeSummary.lists.created,
-                  ...changeSummary.lists.updated,
-                  ...changeSummary.lists.deleted
-                ])
-              : undefined;
+        const plannedSet = getPlannedResources({ updatedResourceLogicalNames, changeLists: changeSummary.lists });
         const completedCount = plannedSet
           ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
           : completeResources.size;
@@ -1358,15 +1350,7 @@ class StackManager {
         startTime: lastStackActionTimestamp,
         now: new Date()
       });
-      const plannedResources =
-        updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
-          ? new Set(updatedResourceLogicalNames)
-          : undefined;
-      const plannedFromDiff =
-        changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
-          ? new Set([...changeSummary.lists.created, ...changeSummary.lists.updated, ...changeSummary.lists.deleted])
-          : undefined;
-      const plannedSet = plannedResources || plannedFromDiff;
+      const plannedSet = getPlannedResources({ updatedResourceLogicalNames, changeLists: changeSummary.lists });
       const completedCount = plannedSet
         ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
         : completeResources.size;

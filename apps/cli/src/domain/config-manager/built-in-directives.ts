@@ -16,10 +16,59 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
-import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
+import { getAllReferencableParams, isSecretCfAttribute, referenceableTypes } from '@utils/referenceable-types';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { configErrors } from './errors';
+
+/**
+ * The intrinsic `$CfResourceParam(resourceName, property)` stands for: `Fn::GetAtt` of an attribute, or `Ref` when
+ * `property` names the value `Ref` returns for the type (`FunctionName` of a Lambda function). Custom resources accept
+ * any attribute; other names fail with the accepted ones.
+ */
+export const getCfResourceParamIntrinsic = ({
+  resources,
+  resourceName,
+  property
+}: {
+  resources: Record<string, { Type: string }>;
+  resourceName: string;
+  property: string;
+}): Intrinsic => {
+  const cfResource = resources[resourceName];
+  if (!cfResource) {
+    throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
+  }
+  const { Ref: RefAttributes, GetAtt: GetAttAttributes } = referenceableTypes[cfResource.Type] || {
+    GetAtt: [],
+    Ref: []
+  };
+  if (GetAttAttributes.includes(property)) return getAtt(resourceName, property);
+  if (RefAttributes.includes(property)) return ref(resourceName);
+  // The attributes of a custom resource are whatever it returns.
+  if (cfResource.Type === 'AWS::CloudFormation::CustomResource') return getAtt(resourceName, property);
+  throw configErrors.directiveResourceParameterInvalid({
+    resourceName,
+    referencedParam: property,
+    referencableParams: getAllReferencableParams(cfResource.Type),
+    directiveType: '$CfResourceParam'
+  });
+};
+
+/** The stack output a `$CfResourceParam` adds, which local resolution (`stacktape dev`, scripts) reads. */
+export const getCfResourceParamOutput = ({
+  resourceName,
+  property,
+  value
+}: {
+  resourceName: string;
+  property: string;
+  value: Intrinsic;
+}) => ({
+  cfOutputName: getStackOutputName(resourceName, property),
+  value,
+  description: `Added by $CfResourceParam('${resourceName}', '${property}') directive`
+});
 
 // @note !!! BE CAREFUL !!! with using services in directives... some of them might not be initialized yet
 
@@ -260,46 +309,32 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       requiredParams: { resourceName: 'string', property: 'string' },
       isRuntime: true,
       resolveFunction: () => (resourceName: string, property: string) => {
-        const cfResource = templateManager.template.Resources[resourceName];
-        if (!cfResource) {
-          throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
-        }
-        const { Ref: RefAttributes, GetAtt: GetAttAttributes } = referenceableTypes[cfResource.Type] || {
-          GetAtt: [],
-          Ref: []
-        };
-        let intrinsicFn: Intrinsic;
-        if (GetAttAttributes.includes(property)) {
-          intrinsicFn = getAtt(resourceName, property);
-        } else if (RefAttributes.includes(property)) {
-          intrinsicFn = ref(resourceName);
-        } else if (cfResource.Type === 'AWS::CloudFormation::CustomResource') {
-          // for custom resources we do not know what output is, therefore we allow everything
-          // this assignment is same as in above "else if" branch, but we handle it in separate branch to understand the situation
-          intrinsicFn = getAtt(resourceName, property);
-        } else {
-          throw configErrors.directiveResourceParameterInvalid({
-            resourceName,
-            referencedParam: property,
-            referencableParams: getAllReferencableParams(cfResource.Type),
-            directiveType: '$CfResourceParam'
-          });
-        }
-        templateManager.addFinalTemplateOverrideFn(async () => {
-          templateManager.addStackOutput({
-            cfOutputName: getStackOutputName(resourceName, property),
-            value: intrinsicFn,
-            description: `Added by $CfResourceParam('${resourceName}', '${property}') directive`
-          });
+        const intrinsicFn = getCfResourceParamIntrinsic({
+          resources: templateManager.template.Resources,
+          resourceName,
+          property
         });
+        // A credential stays in the template, where only the resources that need it read it, never in an output.
+        if (!isSecretCfAttribute(templateManager.template.Resources[resourceName].Type, property)) {
+          templateManager.addFinalTemplateOverrideFn(async () => {
+            templateManager.addStackOutput(getCfResourceParamOutput({ resourceName, property, value: intrinsicFn }));
+          });
+        }
         return intrinsicFn;
       },
       localResolveFunction: () => (resourceName: string, property: string) => {
-        const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
+        const deployedResource = stackManager.getExistingResourceDetails(resourceName);
         // The logical IDs of the resources Stacktape creates are known only once the template is built, so a name that
         // is not deployed may be one of them.
-        if (!isResourceDeployed) {
+        if (!deployedResource) {
           throw configErrors.directiveResourceNotDeployed({ resourceName, directiveType: '$CfResourceParam' });
+        }
+        if (deployedResource.ResourceType && isSecretCfAttribute(deployedResource.ResourceType, property)) {
+          throw configErrors.cfResourceParamSecret({
+            resourceName,
+            referencedParam: property,
+            resourceType: deployedResource.ResourceType
+          });
         }
         const outputName = getStackOutputName(resourceName, property);
         const output = stackManager.existingStackDetails?.stackOutput[outputName];

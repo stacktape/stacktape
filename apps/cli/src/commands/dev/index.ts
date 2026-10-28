@@ -1,3 +1,4 @@
+import { getRelayedLocalResourceNames } from '@domain-services/dev-network/placement';
 import { randomUUID } from 'node:crypto';
 import { publicFlag } from '../../config/cli/public-names';
 import { operationReporter } from '@application-services/operation-manager';
@@ -11,7 +12,7 @@ import { isResourceTypeExcludedInDevMode } from '@domain-services/config-manager
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { assertExistingDevStack } from './dev-stack-safety';
-import { CliError } from '@utils/errors';
+import { CliError, withHintLines } from '@utils/errors';
 import { getDeveloperTrustStatement } from 'src/aws/iam';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -23,7 +24,11 @@ import {
   initializeStackServicesForDevPhase2
 } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
-import { prepareDevStackReferences } from './dev-stack-references';
+import {
+  findLocalCfResourceReferences,
+  findMissingLocalCfResourceOutputs,
+  prepareDevStackReferences
+} from './dev-stack-references';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
@@ -55,7 +60,8 @@ import {
   registerAgentCleanupHook,
   setAgentNotices,
   setRebuildFunctions,
-  startAgentServer
+  startAgentServer,
+  type FailedWorkload
 } from './agent-server';
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
@@ -355,7 +361,8 @@ type ReportedAgentStatus = {
   restartRequired?: string;
   workloads?: { name: string; type: string; url?: string }[];
   localResources?: { name: string; type: string; port?: number }[];
-  failedWorkloads?: { name: string; error: string }[];
+  failedWorkloads?: FailedWorkload[];
+  notReadyReasons?: string[];
   logFile?: string | null;
 };
 
@@ -385,6 +392,9 @@ export const getRunningAgentReadyPayload = async (agent: AgentLockFile) => {
   return {
     ...payload,
     ready: status?.ready === true,
+    ...(Array.isArray(status?.notReadyReasons) && status.notReadyReasons.length
+      ? { notReadyReasons: status.notReadyReasons }
+      : {}),
     ...(status?.restartRequired ? { restartRequired: status.restartRequired } : {})
   };
 };
@@ -398,7 +408,7 @@ const sessionNotReadyError = ({
   payload,
   message
 }: {
-  payload: { port: number; failedWorkloads?: { name: string; error: string }[] };
+  payload: { port: number; failedWorkloads?: FailedWorkload[] };
   message: string;
 }) => {
   const failedWorkloads = payload.failedWorkloads ?? [];
@@ -407,7 +417,7 @@ const sessionNotReadyError = ({
     category: 'CLI',
     code: failedWorkloads.length ? 'DEV_STARTED_WITH_FAILURES' : 'DEV_SESSION_NOT_READY',
     message: failedWorkloads.length
-      ? `${message}:\n${failedWorkloads.map(({ name, error }) => `  ${name}: ${error}`).join('\n')}`
+      ? `${message}:\n${failedWorkloads.map(({ name, error, hints }) => withHintLines(`  ${name}: ${error}`, hints)).join('\n')}`
       : message,
     hints: failedWorkloads.length
       ? [
@@ -441,7 +451,9 @@ export const reportRunningAgent = async (agent: AgentLockFile) => {
       payload: readyPayload,
       message: readyPayload.failedWorkloads?.length
         ? `The dev session on port ${readyPayload.port} runs, but workloads in it failed`
-        : `The dev session on port ${readyPayload.port} runs, but is still starting.`
+        : `The dev session on port ${readyPayload.port} runs, but is not ready: ${
+            readyPayload.notReadyReasons?.join('; ') || 'it is still starting'
+          }.`
     });
   }
   process.stdout.write(`AGENT_READY ${JSON.stringify(readyPayload)}\n`);
@@ -995,6 +1007,15 @@ export const commandDev = async () => {
     desiredFingerprint: desiredDevStackConfigFingerprint
   });
   const devStackConfigChanged = devStackUpdateCause !== undefined;
+  // Local scripts are not in the fingerprint, and a dev stack deployed before it added outputs for local workloads has
+  // none: an update adds the outputs that local workloads read.
+  const missingLocalOutputs = stackManager.existingStackDetails
+    ? findMissingLocalCfResourceOutputs({
+        references: findLocalCfResourceReferences(configManager.config),
+        isDeployed: (resourceName) => Boolean(stackManager.getExistingResourceDetails(resourceName)),
+        outputs: stackManager.lastDeploymentStackOutput
+      })
+    : [];
   // Batch jobs and AgentCore runtimes run images that AWS pulls from the stack's registry. Their code is not in the
   // fingerprint, so an existing stack is updated when an image changed; a new stack builds them while it deploys.
   let changedImages: string[] = [];
@@ -1035,9 +1056,17 @@ export const commandDev = async () => {
 
   // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
-  if (!stackManager.existingStackDetails || devStackConfigChanged || changedImages.length) {
+  if (
+    !stackManager.existingStackDetails ||
+    devStackConfigChanged ||
+    changedImages.length ||
+    missingLocalOutputs.length
+  ) {
     const updateReasons = [
       devStackUpdateCause && describeDevStackUpdateCause(devStackUpdateCause, { takeOver: Boolean(args.takeOver) }),
+      !devStackUpdateCause &&
+        missingLocalOutputs.length &&
+        `local workloads read ${missingLocalOutputs.map((name) => `\`${name}\``).join(', ')}, which the dev stack does not output yet`,
       changedImages.length &&
         `the image of ${changedImages.map((name) => `\`${name}\``).join(', ')} changed and is pushed to AWS`
     ].filter(Boolean);
@@ -1183,7 +1212,11 @@ export const commandDev = async () => {
               sessionId: getAgentSessionId(),
               failedWorkloads: state.workloads
                 .filter((w) => w.status === 'error')
-                .map((w) => ({ name: w.name, error: w.error || 'unknown error' })),
+                .map((w) => ({
+                  name: w.name,
+                  error: w.error || 'unknown error',
+                  ...(w.hints?.length ? { hints: w.hints } : {})
+                })),
               notices: devStackNotices
             })}\n`,
             // The process that started the daemon reads its output only until now; from here the files are capped.
@@ -1290,8 +1323,8 @@ export const commandDev = async () => {
   const hasLocalResources = emulateableResources.some((r) => !remoteResourceNames.has(r.name));
   if (devNetworkSession) {
     devTuiManager.addSetupStep('dev-box', 'Dev box');
-    if (Object.values(devNetworkSession.placement.functions).some((resources) => resources.length)) {
-      devTuiManager.addSetupStep('tunnels', 'Lambda tunnels');
+    if (getRelayedLocalResourceNames(devNetworkSession.placement).length) {
+      devTuiManager.addSetupStep('tunnels', 'Relay tunnels');
     }
   }
   if (hasLocalResources) {

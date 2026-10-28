@@ -22,6 +22,8 @@ export type Workload = {
   port?: number;
   statusMessage?: string;
   error?: string;
+  /** How to fix `error`, kept apart from it: a packaging failure's hint, for example. */
+  hints?: string[];
   hostingContentType?: string;
   size?: string;
 };

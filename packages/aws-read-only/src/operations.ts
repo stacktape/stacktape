@@ -12,7 +12,7 @@
  * The explicit secret-value reads are left out as well, because the caller is often a coding agent whose context and
  * transcript would keep them: Secrets Manager `GetSecretValue` and the SSM Parameter Store value reads (`GetParameter`,
  * `GetParameters`, `GetParametersByPath`, `GetParameterHistory`). Their metadata operations stay. The executor also
- * redacts environment variable values in Lambda function configurations and ECS container environments. Other accepted
+ * redacts environment variable values in Lambda function configurations and ECS and Batch container environments. Other accepted
  * reads, such as log events, S3 objects and DynamoDB items, return application data as it is.
  *
  * Reviewed means "returns information and changes nothing an observer would notice". A verb prefix does not decide
@@ -54,6 +54,8 @@ export const AWS_READ_ONLY_OPERATIONS = {
     'DescribePolicies',
     'DescribeScalingActivities'
   ],
+  // Jobs and job definitions; the executor redacts their container environment values, as for ECS.
+  batch: ['DescribeJobDefinitions', 'DescribeJobs', 'ListJobs'],
   budgets: ['DescribeBudget', 'DescribeBudgets'],
   cloudformation: [
     'DescribeChangeSet',

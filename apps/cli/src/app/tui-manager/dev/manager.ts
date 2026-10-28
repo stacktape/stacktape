@@ -20,6 +20,7 @@ import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
 import { reportDevStartup } from 'src/commands/dev/startup-progress';
 import { formatIsoLocalTime } from '@utils/formatting';
+import { withHintLines } from '@utils/errors';
 
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
@@ -476,12 +477,20 @@ class DevTuiManager {
   setWorkloadStatus(
     name: string,
     status: ResourceStatus,
-    extras?: { url?: string; port?: number; statusMessage?: string; error?: string; size?: string }
+    extras?: {
+      url?: string;
+      port?: number;
+      statusMessage?: string;
+      error?: string;
+      hints?: string[];
+      size?: string;
+    }
   ) {
     const signature = JSON.stringify({ status, extras: extras || null });
     if (this.workloadStatusSignatures.get(name) === signature) return;
     this.workloadStatusSignatures.set(name, signature);
-    devTuiState.setWorkloadStatus(name, status, extras);
+    // Hints belong to the error they come with; a status without them clears the previous error's.
+    devTuiState.setWorkloadStatus(name, status, { hints: undefined, ...extras });
     this.reportResourceStatus('DEV_WORKLOAD', `Workload ${name}`, name, status, extras);
 
     if (status === 'running') {
@@ -563,7 +572,7 @@ class DevTuiManager {
     label: string,
     name: string,
     status: ResourceStatus,
-    extras?: { url?: string; statusMessage?: string; error?: string }
+    extras?: { url?: string; statusMessage?: string; error?: string; hints?: string[] }
   ) {
     if (status === 'starting') {
       const detail = extras?.statusMessage ? `: ${extras.statusMessage}` : '';
@@ -577,7 +586,7 @@ class DevTuiManager {
         status: 'completed',
         resource: name,
         level: 'error',
-        message: `${label} failed: ${extras?.error || 'unknown error'}`
+        message: `${label} failed: ${withHintLines(extras?.error || 'unknown error', extras?.hints)}`
       });
     }
   }
