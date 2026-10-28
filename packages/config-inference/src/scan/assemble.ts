@@ -678,6 +678,8 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void =
   }
 };
 
+type VariableInput = NonNullable<ServiceFactInput['environmentVariables']>[number];
+
 const ADDRESS_ROLE_WORD = /_(?:API|SERVICE|SVC|SERVER|BACKEND)$/;
 
 /** `orders-api`, `ordersApi` and `ORDERS_API` all name the same service: `ORDERS` once the role word is gone. */
@@ -700,11 +702,12 @@ const SERVICE_ADDRESS_VARIABLE =
  * Only a container that serves HTTP or a function with a function URL has a URL of its own to give, and only one
  * service may match the name.
  */
-const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
+const linkServiceAddresses = (services: readonly ServiceFactInput[]): Set<VariableInput> => {
+  const linked = new Set<VariableInput>();
   const targets = services.filter(
     (service) =>
       (service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)) ||
-      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'url')
+      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'url' || trigger.type === 'http')
   );
   for (const service of services) {
     for (const variable of service.environmentVariables ?? []) {
@@ -716,6 +719,118 @@ const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
       if (matches.length !== 1) continue;
       variable.targetServiceName = matches[0]!.name;
       if (variable.role === 'runtime-config') variable.role = 'cross-service-reference';
+      linked.add(variable);
+    }
+  }
+  return linked;
+};
+
+/** `TAX_FUNCTION_NAME`, `TAX_LAMBDA_ARN`, `TAX_FN`, `TAX_ARN`: the name or ARN of the `tax` function. */
+const FUNCTION_REFERENCE_VARIABLE = /^([A-Z0-9_]+?)(?:_(?:FUNCTION|LAMBDA|FN)(?:_(?:NAME|ARN))?|_ARN)$/;
+
+/**
+ * Point a variable that names a function of the project at that function: code passes `TAX_FUNCTION_NAME` to the
+ * Lambda `Invoke` API. Only one function may match the name.
+ */
+const linkFunctionReferences = (services: readonly ServiceFactInput[]): void => {
+  const functions = services.filter((service) => service.functionEntrypoint !== undefined);
+  for (const service of services) {
+    for (const variable of service.environmentVariables ?? []) {
+      if (variable.targetServiceName !== undefined || variable.dependencyName !== undefined) continue;
+      if (variable.role !== 'runtime-config') continue;
+      const words = FUNCTION_REFERENCE_VARIABLE.exec(variable.name)?.[1];
+      if (words === undefined) continue;
+      const matches = functions.filter((target) => target !== service && serviceWords(target.name) === words);
+      if (matches.length !== 1) continue;
+      variable.role = 'cross-service-reference';
+      variable.targetServiceName = matches[0]!.name;
+      variable.targetServiceProperty = 'arn';
+    }
+  }
+};
+
+/** The service or its README says other services are its only callers: `Internal service: only the API calls it.` */
+const INTERNAL_STATEMENT =
+  /\binternal(?:[- ]only)?\s+(?:[\w-]+\s+)?(?:service|api|endpoint)\b|\bonly (?:the )?[\w-]+ (?:service )?(?:calls|uses|reaches) (?:it|this)\b|\bnot (?:publicly )?exposed\b|\bprivate (?:service|api)\b/i;
+/** A route someone outside the stack calls: a webhook, an OAuth callback, a login. */
+const PUBLIC_ROUTE = /['"`][^'"`\n]*\/(?:webhooks?|callbacks?|oauth2?|auth|login|signin|sso)\b/i;
+const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|py|rb|go|java|kt|cs|php|rs)$/;
+const MAX_INTERNAL_SOURCES = 40;
+
+/**
+ * Mark an HTTP container the project states is internal, and that only other containers call: a container that serves
+ * HTTP itself reads its address, and no frontend or function does (a private service is reachable only from containers
+ * in the stack). Its source or README has to say it is internal, and it must serve no webhook, callback or login route:
+ * being called by another service is no evidence that nobody else calls it.
+ *
+ * Only addresses the code reads count (`linked`). A deployment manifest that hands one service another's address
+ * (Render's `RENDER_EXTERNAL_URL`) states how that platform exposes it, which is often publicly.
+ */
+const markInternalServices = async ({
+  services,
+  linked,
+  files,
+  read
+}: {
+  services: readonly ServiceFactInput[];
+  linked: ReadonlySet<VariableInput>;
+  files: readonly string[];
+  read: (path: string) => Promise<string | undefined>;
+}): Promise<void> => {
+  const isContainer = (service: ServiceFactInput) =>
+    service.functionEntrypoint === undefined && !isFrontend(service) && service.executionModel === 'long-running';
+  const rootReadme = files.includes('README.md') ? await read('README.md') : undefined;
+  for (const target of services) {
+    if (!target.exposesHttp || !isContainer(target)) continue;
+    const references = services.flatMap((service) =>
+      service === target
+        ? []
+        : (service.environmentVariables ?? [])
+            .filter((variable) => variable.targetServiceName === target.name)
+            .map((variable) => ({ service, variable }))
+    );
+    if (references.length === 0 || !references.every(({ variable }) => linked.has(variable))) continue;
+    const callers = references.map(({ service }) => service);
+    if (!callers.every(isContainer) || !callers.some((caller) => caller.exposesHttp)) continue;
+    if (target.path === '.') continue;
+    const prefix = `${target.path}/`;
+    const sources = files
+      .filter(
+        (file) => file.startsWith(prefix) && SOURCE_FILE.test(file) && !/(?:^|\/)(?:tests?|node_modules)\//.test(file)
+      )
+      .slice(0, MAX_INTERNAL_SOURCES);
+    // oxlint-disable-next-line no-await-in-loop -- bounded reads, only for a service other containers call.
+    const texts = await Promise.all([...sources, `${target.path}/README.md`].map(read));
+    if (texts.some((text) => text !== undefined && PUBLIC_ROUTE.test(text))) continue;
+    const readmeLines = (rootReadme ?? '').split('\n').filter((line) => line.includes(target.path));
+    if (![...texts, ...readmeLines].some((text) => text !== undefined && INTERNAL_STATEMENT.test(text))) continue;
+    target.internalOnly = true;
+  }
+};
+
+/**
+ * Bind a job that each queue message starts to the project's queue, when there is exactly one queue and one such job.
+ * Otherwise which queue is a guess: the binding is dropped, and a job only a queue binding made a job runs as the
+ * worker it was before, which at least runs.
+ */
+const settleJobQueues = (services: readonly ServiceFactInput[], dependencies: readonly DependencyFact[]): void => {
+  const queues = dependencies.filter((dependency) => dependency.kind === 'queue');
+  const jobs = services.filter(
+    (service) =>
+      service.executionModel === 'one-shot' &&
+      service.functionEntrypoint === undefined &&
+      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'queue')
+  );
+  for (const job of jobs) {
+    if (queues.length === 1 && jobs.length === 1) {
+      for (const trigger of job.functionTriggers ?? []) {
+        if (trigger.type === 'queue') trigger.dependencyName = queues[0]!.name;
+      }
+      continue;
+    }
+    job.functionTriggers = (job.functionTriggers ?? []).filter((trigger) => trigger.type !== 'queue');
+    if (!(job.evidence ?? []).some((citation) => citation.field === 'executionModel')) {
+      job.executionModel = 'long-running';
     }
   }
 };
@@ -935,7 +1050,19 @@ export const assembleCandidateFacts = async ({
 
   applyStacktapeReferences({ services, dependencies });
   linkFrontendApiAddresses(services);
-  linkServiceAddresses(services);
+  const linkedAddresses = linkServiceAddresses(services);
+  linkFunctionReferences(services);
+  await markInternalServices({
+    services,
+    linked: linkedAddresses,
+    files: listing.files,
+    read: async (path) => {
+      if (!listing.files.includes(path)) return undefined;
+      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+      return result.kind === 'contents' ? result.contents : undefined;
+    }
+  });
+  settleJobQueues(services, dependencies);
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager
@@ -1042,6 +1169,7 @@ export const assembleCandidateFacts = async ({
     existingDeployments,
     migrations,
     localScripts,
+    handlerFindings: outputs.flatMap((output) => output.handlerFindings ?? []),
     uncertainties: [...uncertainties.values()],
     notes
   });

@@ -31,6 +31,13 @@ const makeRepo = async (files: Record<string, string>): Promise<{ root: string; 
   return { root: directory, files: Object.keys(files) };
 };
 
+const typedHandler = (body: string) => `import type { APIGatewayProxyEventV2 } from 'aws-lambda';\n${body}\n`;
+const catchAll = (pathParameters?: string[]) => ({
+  method: '*',
+  path: '/{proxy+}',
+  ...(pathParameters === undefined ? {} : { pathParameters })
+});
+
 describe('the lambda-source probe', () => {
   it('recognizes named handler exports', async () => {
     const repo = await makeRepo({
@@ -448,7 +455,8 @@ describe('the lambda-source probe', () => {
       'functions/presence.js': [
         { type: 'websocket', dependencyName: 'websocketApi', routeKeys: ['$connect', '$disconnect'] }
       ],
-      'functions/broadcast.js': [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }],
+      // The route it compares `routeKey` with is the only one it serves.
+      'functions/broadcast.js': [{ type: 'http', method: 'POST', path: '/broadcast', payloadFormat: '2.0' }],
       'functions/audit.py': []
     });
     expect(output.dependencies?.map((dependency) => [dependency.name, dependency.kind])).toEqual([
@@ -805,5 +813,215 @@ describe('the lambda-source probe', () => {
 
     expect(output.dependencies).toEqual([expect.objectContaining({ name: 'approvalWorkflow', kind: 'state-machine' })]);
     expect(output.dependencies![0]!.workflowSteps).toBeUndefined();
+  });
+
+  // The r2gg dogfood (28 Oct 2026): a Maven function with no Lambda config got no resource and no warning.
+  it('reads Java and .NET handlers with the handler name the runtime calls, and reports the ones it cannot map', async () => {
+    const repo = await makeRepo({
+      'functions/tax/pom.xml':
+        '<project><properties><maven.compiler.release>21</maven.compiler.release></properties></project>\n',
+      'functions/tax/src/main/java/shelf/TaxHandler.java': [
+        'package shelf;',
+        'import com.amazonaws.services.lambda.runtime.RequestHandler;',
+        'public class TaxHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {',
+        '  public Map<String, Object> handleRequest(Map<String, Object> input, Context context) { return input; }',
+        '}',
+        ''
+      ].join('\n'),
+      'workers/build.gradle.kts': 'java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }\n',
+      'workers/src/main/java/com/acme/Resize.java': [
+        'package com.acme;',
+        'public class Resize implements RequestHandler<SQSEvent, Void> {',
+        '  public Void handleRequest(SQSEvent event, Context context) { return null; }',
+        '}',
+        ''
+      ].join('\n'),
+      'dotnet/Orders/Orders.csproj':
+        '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><AssemblyName>OrdersFn</AssemblyName></PropertyGroup></Project>\n',
+      'dotnet/Orders/Function.cs': [
+        'using Amazon.Lambda.Core;',
+        'namespace Acme.Orders;',
+        'public class Function',
+        '{',
+        '    public async Task<APIGatewayHttpApiV2ProxyResponse> FunctionHandler(APIGatewayHttpApiV2ProxyRequest request, ILambdaContext context)',
+        '    {',
+        '        var id = request.PathParameters["id"];',
+        '        return new APIGatewayHttpApiV2ProxyResponse { StatusCode = 200 };',
+        '    }',
+        '}',
+        ''
+      ].join('\n'),
+      // No Maven or Gradle build to compile it, and languages init does not package.
+      'loose/Handler.java': 'public class Handler implements RequestStreamHandler { }\n',
+      'go/main.go': 'package main\nfunc main() { lambda.Start(handle) }\n',
+      'ruby/app.rb': 'def handler(event:, context:)\n  { statusCode: 200 }\nend\n'
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(
+      (output.services ?? []).map((service) => ({
+        name: service.name,
+        path: service.path,
+        language: service.language,
+        runtimeVersion: service.runtimeVersion,
+        functionHandler: service.functionHandler,
+        functionTriggers: service.functionTriggers
+      }))
+    ).toEqual([
+      {
+        name: 'tax',
+        path: 'functions/tax',
+        language: 'java',
+        runtimeVersion: '21',
+        functionHandler: 'TaxHandler::handleRequest',
+        functionTriggers: []
+      },
+      {
+        name: 'workers',
+        path: 'workers',
+        language: 'java',
+        runtimeVersion: '17',
+        functionHandler: 'Resize::handleRequest',
+        functionTriggers: [{ type: 'queue', dependencyName: 'jobQueue' }]
+      },
+      {
+        name: 'Orders',
+        path: 'dotnet/Orders',
+        language: 'dotnet',
+        runtimeVersion: '8',
+        functionHandler: 'OrdersFn::Acme.Orders.Function::FunctionHandler',
+        // The only HTTP handler, with no stated route: the catch-all, and the parameter it reads for the gap.
+        functionTriggers: [
+          { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0', pathParameters: ['id'] }
+        ]
+      }
+    ]);
+    expect(output.handlerFindings).toEqual([
+      // Stacktape would load `acme.Resize::handleRequest` for a class in `com.acme`.
+      {
+        path: 'workers/src/main/java/com/acme/Resize.java',
+        language: 'Java',
+        reason: 'java-package',
+        packageName: 'com.acme'
+      },
+      { path: 'loose/Handler.java', language: 'Java', reason: 'no-build-file' },
+      { path: 'go/main.go', language: 'Go', reason: 'unsupported-language' },
+      { path: 'ruby/app.rb', language: 'Ruby', reason: 'unsupported-language' }
+    ]);
+  });
+
+  it('routes an HTTP handler only where its code or comment leaves no doubt, and falls back to the catch-all', async () => {
+    const cases: Array<{ name: string; file: string; source: string; route: Record<string, unknown> }> = [
+      {
+        name: 'a comment route holding the parameter it reads; no guard, so every method',
+        file: 'functions/quote/src/handler.ts',
+        source: typedHandler(
+          '// GET /quote/{sku}?quantity=12 -> price\nexport const handler = async (event: APIGatewayProxyEventV2) => event.pathParameters?.sku;'
+        ),
+        route: { method: '*', path: '/quote/{sku}' }
+      },
+      {
+        name: 'a guard that turns other methods away pins the method',
+        file: 'functions/users.ts',
+        source: typedHandler(
+          "// GET /users/{id}\nexport const handler = async (event: APIGatewayProxyEventV2) => {\n  if (event.requestContext.http.method !== 'GET') {\n    return { statusCode: 405 };\n  }\n  const { id } = event.pathParameters ?? {};\n  return id;\n};"
+        ),
+        route: { method: 'GET', path: '/users/{id}' }
+      },
+      {
+        name: 'a CORS branch is one method of several',
+        file: 'functions/quote.ts',
+        source: typedHandler(
+          "// GET /quote/{sku}\nexport const handler = async (event: APIGatewayProxyEventV2) => {\n  if (event.requestContext.http.method === 'OPTIONS') return { statusCode: 204 };\n  return event.pathParameters?.sku;\n};"
+        ),
+        route: { method: '*', path: '/quote/{sku}' }
+      },
+      {
+        name: 'a POST branch with an else serves both',
+        file: 'functions/items.ts',
+        source: typedHandler(
+          "// /items/{id}: GET /items/{id} loads, POST /items/{id} saves\nexport const handler = async (event: APIGatewayProxyEventV2) => {\n  if (event.requestContext.http.method === 'POST') save(event.pathParameters?.id); else load(event.pathParameters?.id);\n};"
+        ),
+        route: { method: '*', path: '/items/{id}' }
+      },
+      {
+        name: 'a router on rawPath keeps the catch-all whatever its comments say',
+        file: 'functions/api.ts',
+        source: typedHandler(
+          "// GET /health is used by the uptime check\nexport const handler = async (event: APIGatewayProxyEventV2) => {\n  if (event.rawPath === '/health') return { statusCode: 200 };\n  return order(event.pathParameters?.id);\n};"
+        ),
+        route: catchAll(['id'])
+      },
+      {
+        name: 'a curl example in a comment states nothing about a handler that reads no parameter',
+        file: 'functions/orders.ts',
+        source: typedHandler(
+          '// Try it: curl -X POST /orders\nexport const handler = async (event: APIGatewayProxyEventV2) => ({ statusCode: 201, body: event.body });'
+        ),
+        route: catchAll()
+      },
+      {
+        name: 'a file name is no route',
+        file: 'functions/getUser.ts',
+        source: typedHandler(
+          'export const handler = async (event: APIGatewayProxyEventV2) => event.pathParameters?.id;'
+        ),
+        route: catchAll(['id'])
+      },
+      {
+        name: 'a proxy parameter routes on its own',
+        file: 'functions/api.ts',
+        source: typedHandler(
+          'export const handler = async (event: APIGatewayProxyEventV2) => route(event.pathParameters?.proxy);'
+        ),
+        route: catchAll()
+      },
+      {
+        name: 'a Python guard and a docstring route',
+        file: 'functions/orders.py',
+        source:
+          "\"\"\"DELETE /orders/{orderId}\"\"\"\ndef handler(event, context):\n    if event['httpMethod'] != 'DELETE':\n        return {'statusCode': 405}\n    order_id = event['pathParameters']['orderId']\n    return {'statusCode': 200, 'body': order_id}\n",
+        route: { method: 'DELETE', path: '/orders/{orderId}' }
+      },
+      {
+        name: 'a handler comparing the request path routes on its own',
+        file: 'src/api.js',
+        source:
+          "export const handler = async (event, context) => {\n  if (event.httpMethod === 'POST' && event.path === '/orders') return create(event);\n  return get(event.pathParameters?.id);\n};\n",
+        route: catchAll(['id'])
+      }
+    ];
+    for (const { name, file, source, route } of cases) {
+      // oxlint-disable-next-line no-await-in-loop -- one repository per case.
+      const repo = await makeRepo({ [file]: source });
+      // oxlint-disable-next-line no-await-in-loop -- one repository per case.
+      const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+      // oxlint-disable-next-line no-await-in-loop -- one repository per case.
+      await rm(repo.root, { recursive: true, force: true });
+      const [trigger] = output.services?.[0]?.functionTriggers ?? [];
+      const { payloadFormat: _payloadFormat, ...observed } = (trigger ?? {}) as Record<string, unknown>;
+      expect([name, observed]).toEqual([name, { type: 'http', ...route }]);
+    }
+  });
+
+  it('routes one of several HTTP handlers only from the route its source states', async () => {
+    const repo = await makeRepo({
+      'functions/quote.ts':
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';\n// GET /quote/{sku}\nexport const handler = async (event: APIGatewayProxyEventV2) => event.pathParameters?.sku;\n",
+      'functions/getUser.ts':
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';\nexport const handler = async (event: APIGatewayProxyEventV2) => event.pathParameters?.id;\n"
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(
+      Object.fromEntries((output.services ?? []).map((service) => [service.name, service.functionTriggers]))
+    ).toEqual({
+      quote: [{ type: 'http', method: '*', path: '/quote/{sku}', payloadFormat: '2.0' }],
+      getUser: [{ type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }]
+    });
   });
 });

@@ -60,10 +60,18 @@ const resourcesOf = (result: GreenfieldResult): Record<string, Resource> => {
       stage,
       workingDir: '/project'
     };
+    // A batch job's trigger function is built from the helper Lambda artifacts, which only a CLI command loads. Init
+    // writes no IAM statements on a job, so the posture rules have nothing on it to rate.
+    const assessed = {
+      ...config,
+      resources: Object.fromEntries(
+        Object.entries(config.resources ?? {}).filter(([, resource]) => resource.type !== 'batch-job')
+      )
+    } as StacktapeConfig;
     const configManager = new ConfigManager();
     configManager.setStackContext(stackContext);
-    configManager.config = config;
-    return assessSecurityPosture({ configManager, rawConfig: config, stackContext });
+    configManager.config = assessed;
+    return assessSecurityPosture({ configManager, rawConfig: assessed, stackContext });
   };
   // Init keeps the database public and password-protected by default (owner decision, 27 Oct 2026). That is fine for
   // a dev stage, so nothing there is HIGH; a production stage rates every public database HIGH.
@@ -317,7 +325,8 @@ describe('init writes a config stacktape dev can run', () => {
     });
     expect(resources.api!.properties.connectTo).toEqual(expect.arrayContaining(['jobQueue', tableName]));
     expect(resources.worker!.properties.connectTo).toEqual(expect.arrayContaining([tableName]));
-    expect(result.composition.gaps).toEqual([]);
+    // The API routes on its own, but reads `pathParameters.id`, which the catch-all route never fills.
+    expect(result.composition.gaps.map((gap) => gap.subject)).toEqual(['api.route']);
   });
 
   // The r2w dogfood run needed ten hand edits to this app's init output (round2/r2w/report.md, "Hand edits"). H1–H6 are
@@ -514,6 +523,82 @@ describe('init writes a config stacktape dev can run', () => {
     ]);
     // H6: the S3 trigger grants no access to the object the handler reads.
     expect(resources.onUpload!.properties.connectTo).toEqual(['jobQueue', 'storageBucket']);
+    expect(result.composition.gaps).toEqual([]);
+    expect(result.composition.unsetSettings).toEqual([]);
+  });
+
+  // The r2gg dogfood (28 Oct 2026) needed five config edits after init for init gaps, H1-H5; each is asserted here. Its
+  // other edits worked around product bugs fixed elsewhere: Batch's Amazon Linux 2 compute environment (the job ran as a
+  // function instead), the MySQL database name, and the Java handler format.
+  it('r2gg shelf monorepo: Java function, private service, job per queue message, routes and function addresses', async () => {
+    const result = await initFixture('r2gg-shelf');
+    const resources = resourcesOf(result);
+
+    // The shared package is built into its consumers, never a service.
+    expect(typesOf(resources)).toEqual({
+      mainDatabase: 'relational-database',
+      jobQueue: 'sqs-queue',
+      storageBucket: 'bucket',
+      httpApiGateway: 'http-api-gateway',
+      api: 'web-service',
+      web: 'astro-web',
+      report: 'batch-job',
+      quote: 'function',
+      tax: 'function',
+      recs: 'private-service'
+    });
+    // H1: the Java function, with the handler the runtime loads, and the API invoking it by name.
+    expect(resources.tax!.properties).toMatchObject({
+      packaging: {
+        type: 'buildpack',
+        properties: {
+          entryfilePath: 'functions/tax/src/main/java/shelf/TaxHandler.java',
+          handlerFunction: 'TaxHandler::handleRequest'
+        }
+      },
+      runtime: 'java21'
+    });
+    expect(resources.tax!.properties.events).toBeUndefined();
+    // H1, H3: the API's addresses for the Java function and for the private service, with the scheme its fetch needs.
+    expect(resources.api!.properties).toMatchObject({
+      environment: [
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'REPORT_QUEUE_URL', value: "$ResourceParam('jobQueue', 'url')" },
+        { name: 'RECS_URL', value: "$CfFormat('http://{}', $ResourceParam('recs', 'address'))" },
+        { name: 'TAX_FUNCTION_NAME', value: "$ResourceParam('tax', 'arn')" }
+      ],
+      connectTo: ['mainDatabase', 'jobQueue', 'recs', 'tax']
+    });
+    // H2: the report script runs once per queue message, from the repository root so its workspace import resolves.
+    expect(resources.report!.properties).toMatchObject({
+      container: {
+        packaging: {
+          type: 'buildpack',
+          properties: { sourceDirectoryPath: '.', startCommand: 'pnpm --filter @shelf/report start' }
+        },
+        environment: [
+          { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+          { name: 'REPORTS_BUCKET', value: "$ResourceParam('storageBucket', 'name')" }
+        ]
+      },
+      resources: { cpu: 1 },
+      events: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }],
+      connectTo: ['mainDatabase', 'storageBucket']
+    });
+    // H4: the path from the comment above the handler, which holds the `pathParameters.sku` it reads. Nothing turns
+    // other methods away, so every method reaches it.
+    expect(resources.quote!.properties.events).toEqual([
+      {
+        type: 'http-api-gateway',
+        properties: { httpApiGatewayName: 'httpApiGateway', method: '*', path: '/quote/{sku}', payloadFormat: '2.0' }
+      }
+    ]);
+    // H5: the Astro server's quote address is the HTTP API in front of the function.
+    expect(resources.web!.properties.environment).toEqual([
+      { name: 'API_URL', value: "$ResourceParam('api', 'url')" },
+      { name: 'QUOTE_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+    ]);
+    expect(resources.recs!.properties).toMatchObject({ port: 5000 });
     expect(result.composition.gaps).toEqual([]);
     expect(result.composition.unsetSettings).toEqual([]);
   });

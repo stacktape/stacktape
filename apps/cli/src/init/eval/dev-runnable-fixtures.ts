@@ -1541,6 +1541,567 @@ with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
 `
 };
 
+/** The r2gg part B monorepo (28 Oct 2026): pnpm + Turborepo, a shared TypeScript package, Hono on Bun, a gunicorn
+ * service only the API calls, a Java function, a TypeScript function behind the HTTP API, MySQL, SQS, a job per queue
+ * message and Astro SSR. Its lockfile is a stub: init only reads that it exists. */
+const r2ggShelf: Record<string, string> = {
+  'README.md': `# Shelf
+
+Inventory app in a pnpm + Turborepo monorepo. Every TypeScript workload imports the shared rules in \`packages/shared\`.
+
+- \`apps/api\`: Hono API on Bun (\`bun src/index.ts\`). Items and reports live in MySQL (\`DATABASE_URL\`); the API applies
+  its schema on start, then warms its price cache for a few seconds before it listens. Creating an item invokes the tax
+  function (\`TAX_FUNCTION_NAME\`) and asks the recommendations service for tags (\`RECS_URL\`). \`POST /reports\` puts a
+  message on the report queue (\`REPORT_QUEUE_URL\`).
+- \`apps/recs\`: internal Flask service under gunicorn that suggests tags for an item name. Only the API calls it.
+- \`functions/quote\`: HTTP endpoint \`GET /quote/{sku}?quantity=N\` with the bulk discount from the shared package. Reads
+  MySQL (\`DATABASE_URL\`).
+- \`functions/tax\`: Java 21 (Maven) function with the tax rate per category.
+- \`jobs/report\`: batch job that runs for each report-queue message. It writes the report to the reports bucket
+  (\`REPORTS_BUCKET\`) and records it in MySQL.
+- \`apps/web\`: Astro SSR app. The server calls the API (\`API_URL\`) and the quote endpoint (\`QUOTE_URL\`).
+- \`pnpm seed\`: inserts three sample items. \`pnpm test:e2e\`: Playwright test with \`WEB_URL\`.
+`,
+  'apps/api/package.json': `{
+  "name": "@shelf/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.700.0",
+    "@shelf/shared": "workspace:*",
+    "hono": "^4.6.0",
+    "mysql2": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0"
+  }
+}
+`,
+  'apps/api/src/db.ts': `import mysql from 'mysql2/promise';
+
+export const pool = mysql.createPool({ uri: process.env.DATABASE_URL!, connectionLimit: 5 });
+
+// Schema migrations, applied in order when the API starts.
+const MIGRATIONS = [
+  \`create table if not exists items (
+     id varchar(36) primary key,
+     sku varchar(32) not null unique,
+     name varchar(200) not null,
+     category varchar(20) not null,
+     price_cents int not null,
+     tax_cents int not null,
+     tags varchar(255) not null default '',
+     created_at timestamp not null default current_timestamp
+   )\`,
+  \`create table if not exists reports (
+     id varchar(36) primary key,
+     item_count int not null,
+     total_cents bigint not null,
+     s3_key varchar(255) not null,
+     shared_version varchar(40) not null,
+     created_at timestamp not null default current_timestamp
+   )\`
+];
+
+export async function migrate() {
+  for (const sql of MIGRATIONS) await pool.query(sql);
+}
+`,
+  'apps/api/src/index.ts': `import { Hono } from 'hono';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import { SHARED_VERSION, formatPrice, validateItem } from '@shelf/shared';
+import { migrate, pool } from './db';
+
+const lambda = new LambdaClient({});
+const sqs = new SQSClient({});
+const app = new Hono();
+
+// The tax rules live in the Java function \`tax\` (functions/tax).
+async function taxFor(category: string, priceCents: number): Promise<number> {
+  const out = await lambda.send(
+    new InvokeCommand({
+      FunctionName: process.env.TAX_FUNCTION_NAME,
+      Payload: Buffer.from(JSON.stringify({ category, priceCents }))
+    })
+  );
+  const body = JSON.parse(Buffer.from(out.Payload ?? []).toString() || 'null');
+  if (out.FunctionError) throw new Error(\`tax function failed: \${out.FunctionError}\`);
+  return body.taxCents;
+}
+
+// Tag suggestions come from the recommendations service (apps/recs).
+async function tagsFor(name: string): Promise<string[]> {
+  const res = await fetch(\`\${process.env.RECS_URL}/tags?name=\${encodeURIComponent(name)}\`);
+  if (!res.ok) throw new Error(\`recs answered \${res.status}\`);
+  return ((await res.json()) as { tags: string[] }).tags;
+}
+
+app.get('/health', (c) => c.json({ ok: true, shared: SHARED_VERSION }));
+
+app.get('/items', async (c) => {
+  const [rows] = await pool.query('select * from items order by created_at desc, sku limit 100');
+  return c.json(
+    (rows as any[]).map((r) => ({
+      id: r.id,
+      sku: r.sku,
+      name: r.name,
+      category: r.category,
+      priceCents: r.price_cents,
+      taxCents: r.tax_cents,
+      price: formatPrice(r.price_cents),
+      tax: formatPrice(r.tax_cents),
+      tags: r.tags ? r.tags.split(',') : []
+    }))
+  );
+});
+
+app.post('/items', async (c) => {
+  const parsed = validateItem(await c.req.json().catch(() => null));
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+  const { sku, name, category, priceCents } = parsed.item;
+  try {
+    const [taxCents, tags] = await Promise.all([taxFor(category, priceCents), tagsFor(name)]);
+    const id = crypto.randomUUID();
+    await pool.query(
+      'insert into items (id, sku, name, category, price_cents, tax_cents, tags) values (?, ?, ?, ?, ?, ?, ?)',
+      [id, sku, name, category, priceCents, taxCents, tags.join(',')]
+    );
+    return c.json({ id, sku, taxCents, tags }, 201);
+  } catch (error) {
+    console.error('could not create item', sku, error);
+    return c.json({ error: 'internal error' }, 500);
+  }
+});
+
+// Reports are built by the batch job in jobs/report, which reads the report queue.
+app.post('/reports', async (c) => {
+  const requestId = crypto.randomUUID();
+  await sqs.send(
+    new SendMessageCommand({ QueueUrl: process.env.REPORT_QUEUE_URL, MessageBody: JSON.stringify({ requestId }) })
+  );
+  return c.json({ requestId }, 202);
+});
+
+app.get('/reports', async (c) => {
+  const [rows] = await pool.query('select * from reports order by created_at desc limit 20');
+  return c.json(rows);
+});
+
+// Warming the price cache takes a few seconds; the API listens only after it.
+const warmupMs = Number(process.env.WARMUP_MS ?? 5000);
+await migrate();
+console.log(\`warming the price cache for \${warmupMs} ms\`);
+await Bun.sleep(warmupMs);
+
+const port = Number(process.env.PORT ?? 3000);
+Bun.serve({ port, fetch: app.fetch });
+console.log(\`shelf api listening on \${port} (\${SHARED_VERSION})\`);
+`,
+  'apps/recs/Procfile': `web: gunicorn app:app --bind 0.0.0.0:\${PORT:-5000} --workers 2 --timeout 30
+`,
+  'apps/recs/app.py': `"""Tag suggestions for new items. Internal service: only the API calls it."""
+import re
+
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+KEYWORDS = {
+    "guide": "reference",
+    "atlas": "reference",
+    "chess": "strategy",
+    "puzzle": "puzzle",
+    "hammer": "hardware",
+    "drill": "hardware",
+    "vinyl": "collector",
+}
+
+
+@app.get("/health")
+def health():
+    return jsonify(ok=True)
+
+
+@app.get("/tags")
+def tags():
+    words = re.findall(r"[a-z]+", request.args.get("name", "").lower())
+    found = sorted({KEYWORDS[w] for w in words if w in KEYWORDS})
+    return jsonify(tags=found or ["general"])
+`,
+  'apps/recs/requirements.txt': `flask==3.1.0
+gunicorn==23.0.0
+`,
+  'apps/web/astro.config.mjs': `import node from '@astrojs/node';
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  output: 'server',
+  adapter: node({ mode: 'standalone' })
+});
+`,
+  'apps/web/package.json': `{
+  "name": "@shelf/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.1.0",
+    "@shelf/shared": "workspace:*",
+    "astro": "^5.2.0"
+  }
+}
+`,
+  'apps/web/src/env.ts': `// Server-side configuration: the Shelf API and the quote endpoint (HTTP API in front of the quote function).
+export const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+export const QUOTE_URL = process.env.QUOTE_URL ?? '';
+`,
+  'apps/web/src/pages/index.astro': `---
+import { CATEGORIES, SHARED_VERSION, formatPrice } from '@shelf/shared';
+import { API_URL, QUOTE_URL } from '../env';
+
+type Item = { sku: string; name: string; category: string; priceCents: number; tax: string; tags: string[] };
+
+const [health, items, reports] = await Promise.all([
+  fetch(\`\${API_URL}/health\`).then((r) => r.json()),
+  fetch(\`\${API_URL}/items\`).then((r) => {
+    if (!r.ok) throw new Error(\`API /items answered \${r.status}\`);
+    return r.json() as Promise<Item[]>;
+  }),
+  fetch(\`\${API_URL}/reports\`).then((r) => r.json() as Promise<any[]>)
+]);
+
+let quoteShared = 'n/a';
+const quotes = await Promise.all(
+  items.slice(0, 10).map(async (item) => {
+    const res = await fetch(\`\${QUOTE_URL}/quote/\${item.sku}?quantity=10\`);
+    if (!res.ok) {
+      console.error(\`quote for \${item.sku} failed with \${res.status}\`);
+      return [item.sku, 'unavailable'];
+    }
+    const quote = await res.json();
+    quoteShared = quote.shared;
+    return [item.sku, quote.total];
+  })
+);
+const quoteBySku = Object.fromEntries(quotes);
+const error = Astro.url.searchParams.get('error');
+---
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Shelf</title></head>
+  <body>
+    <h1>Shelf inventory</h1>
+    {error && <p role="alert" data-testid="error">{error}</p>}
+    <form method="post" action="/items/new">
+      <input name="sku" placeholder="SKU" required />
+      <input name="name" placeholder="Name" required />
+      <select name="category">{CATEGORIES.map((c) => <option value={c}>{c}</option>)}</select>
+      <input name="price" placeholder="Price (USD)" required />
+      <button type="submit">Add item</button>
+    </form>
+    <table>
+      <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Tax</th><th>10 units</th><th>Tags</th></tr></thead>
+      <tbody>
+        {items.map((item) => (
+          <tr data-sku={item.sku}>
+            <td>{item.sku}</td><td>{item.name}</td><td class="price">{formatPrice(item.priceCents)}</td>
+            <td class="tax">{item.tax}</td><td class="quote">{quoteBySku[item.sku] ?? '-'}</td><td class="tags">{item.tags.join(', ')}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <h2>Reports</h2>
+    <form method="post" action="/reports/new"><button type="submit">Request report</button></form>
+    <ul data-testid="reports">
+      {reports.map((r) => <li>{r.item_count} items, {formatPrice(Number(r.total_cents))} ({r.shared_version})</li>)}
+    </ul>
+    <footer data-testid="versions">web: {SHARED_VERSION}; api: {health.shared}; quote: {quoteShared}</footer>
+  </body>
+</html>
+`,
+  'apps/web/src/pages/items/new.ts': `import type { APIRoute } from 'astro';
+import { API_URL } from '../../env';
+
+export const POST: APIRoute = async ({ request, redirect }) => {
+  const form = await request.formData();
+  const res = await fetch(\`\${API_URL}/items\`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      sku: form.get('sku'),
+      name: form.get('name'),
+      category: form.get('category'),
+      priceCents: Math.round(Number(form.get('price')) * 100)
+    })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.error(\`creating an item failed: \${res.status} \${JSON.stringify(body)}\`);
+    return redirect(\`/?error=\${encodeURIComponent(body.error ?? \`API answered \${res.status}\`)}\`, 303);
+  }
+  return redirect('/', 303);
+};
+`,
+  'apps/web/src/pages/reports/new.ts': `import type { APIRoute } from 'astro';
+import { API_URL } from '../../env';
+
+export const POST: APIRoute = async ({ redirect }) => {
+  const res = await fetch(\`\${API_URL}/reports\`, { method: 'POST' });
+  if (!res.ok) return redirect(\`/?error=report request failed (\${res.status})\`, 303);
+  return redirect('/', 303);
+};
+`,
+  'functions/quote/package.json': `{
+  "name": "@shelf/quote",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc -p ." },
+  "dependencies": { "@shelf/shared": "workspace:*", "mysql2": "^3.11.0" },
+  "devDependencies": { "@types/aws-lambda": "^8.10.145" }
+}
+`,
+  'functions/quote/src/handler.ts': `import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
+import mysql from 'mysql2/promise';
+import { SHARED_VERSION, normalizeSku, quoteFor } from '@shelf/shared';
+
+let pool: mysql.Pool | undefined;
+
+// GET /quote/{sku}?quantity=12 -> price for that many units, with the bulk discount.
+export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+  pool ??= mysql.createPool({ uri: process.env.DATABASE_URL!, connectionLimit: 2 });
+  const sku = normalizeSku(event.pathParameters?.sku ?? '');
+  const quantity = Number(event.queryStringParameters?.quantity ?? 1);
+  const delayMs = Number(event.queryStringParameters?.delayMs ?? 0);
+  if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 25000)));
+  const [rows] = await pool.query('select price_cents from items where sku = ?', [sku]);
+  const item = (rows as any[])[0];
+  if (!item) return { statusCode: 404, body: JSON.stringify({ error: \`no item \${sku}\` }) };
+  console.log(\`quote \${sku} x\${quantity}\`);
+  return {
+    statusCode: 200,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sku, ...quoteFor(item.price_cents, quantity), shared: SHARED_VERSION })
+  };
+};
+`,
+  'functions/tax/pom.xml': `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>shelf</groupId>
+  <artifactId>tax</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-lambda-java-core</artifactId>
+      <version>1.2.3</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+`,
+  'functions/tax/src/main/java/shelf/TaxHandler.java': `package shelf;
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import java.util.Map;
+
+/** Sales tax per category, in basis points. The API invokes this function directly when an item is created. */
+public class TaxHandler implements RequestHandler<Map<String, Object>, Map<String, Object>> {
+  private static final Map<String, Integer> RATES_BP = Map.of("books", 0, "games", 2000, "tools", 1500, "music", 1000);
+
+  @Override
+  public Map<String, Object> handleRequest(Map<String, Object> input, Context context) {
+    String category = String.valueOf(input.get("category"));
+    int priceCents = ((Number) input.get("priceCents")).intValue();
+    int rateBp = RATES_BP.getOrDefault(category, 1000);
+    int taxCents = Math.round(priceCents * rateBp / 10000f);
+    context.getLogger().log("tax " + category + " " + priceCents + " -> " + taxCents);
+    return Map.of("taxCents", taxCents, "rateBp", rateBp);
+  }
+}
+`,
+  'jobs/report/package.json': `{
+  "name": "@shelf/report",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --experimental-strip-types src/report.ts", "typecheck": "tsc -p ." },
+  "dependencies": { "@aws-sdk/client-s3": "^3.700.0", "@shelf/shared": "workspace:*", "mysql2": "^3.11.0" }
+}
+`,
+  'jobs/report/src/report.ts': `// Batch job: builds an inventory report from MySQL, stores it in the reports bucket (REPORTS_BUCKET) and records it in
+// the reports table. It runs for every message on the report queue, which the API fills on POST /reports.
+import { randomUUID } from 'node:crypto';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import mysql from 'mysql2/promise';
+import { SHARED_VERSION, formatPrice } from '@shelf/shared';
+
+const conn = await mysql.createConnection({ uri: process.env.DATABASE_URL! });
+const [rows] = await conn.query('select sku, name, category, price_cents from items order by sku');
+const items = rows as { sku: string; name: string; category: string; price_cents: number }[];
+const totalCents = items.reduce((sum, item) => sum + item.price_cents, 0);
+const id = randomUUID();
+const key = \`reports/\${new Date().toISOString().slice(0, 10)}/\${id}.json\`;
+const report = { id, generatedAt: new Date().toISOString(), itemCount: items.length, total: formatPrice(totalCents), items };
+
+await new S3Client({}).send(
+  new PutObjectCommand({ Bucket: process.env.REPORTS_BUCKET, Key: key, Body: JSON.stringify(report, null, 2), ContentType: 'application/json' })
+);
+await conn.query('insert into reports (id, item_count, total_cents, s3_key, shared_version) values (?, ?, ?, ?, ?)', [
+  id,
+  items.length,
+  totalCents,
+  key,
+  SHARED_VERSION
+]);
+console.log(\`report \${id}: \${items.length} items, \${formatPrice(totalCents)} -> s3://\${process.env.REPORTS_BUCKET}/\${key}\`);
+await conn.end();
+`,
+  'package.json': `{
+  "name": "shelf",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "seed": "bun scripts/seed.ts",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^22.10.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  }
+}
+`,
+  'packages/shared/package.json': `{
+  "name": "@shelf/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p ." }
+}
+`,
+  'packages/shared/src/index.ts': `// Shared rules for every Shelf workload: the API, the quote function, the report job and the web app all import
+// this package, so a change here must reach all of them.
+
+export const SHARED_VERSION = 'shelf-shared 1';
+
+export const CATEGORIES = ['books', 'games', 'tools', 'music'] as const;
+export type Category = (typeof CATEGORIES)[number];
+
+export type NewItem = { sku: string; name: string; category: Category; priceCents: number };
+
+export function normalizeSku(raw: string): string {
+  return raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+}
+
+export function formatPrice(cents: number): string {
+  return \`$\${(cents / 100).toFixed(2)}\`;
+}
+
+export function validateItem(input: unknown): { ok: true; item: NewItem } | { ok: false; error: string } {
+  if (!input || typeof input !== 'object') return { ok: false, error: 'body must be an object' };
+  const { sku, name, category, priceCents } = input as Record<string, unknown>;
+  if (typeof sku !== 'string' || normalizeSku(sku).length < 3) return { ok: false, error: 'sku needs 3+ characters' };
+  if (typeof name !== 'string' || !name.trim()) return { ok: false, error: 'name is required' };
+  if (typeof category !== 'string' || !CATEGORIES.includes(category as Category)) {
+    return { ok: false, error: \`category must be one of \${CATEGORIES.join(', ')}\` };
+  }
+  const price = Number(priceCents);
+  if (!Number.isInteger(price) || price <= 0) return { ok: false, error: 'priceCents must be a positive integer' };
+  return { ok: true, item: { sku: normalizeSku(sku), name: name.trim(), category: category as Category, priceCents: price } };
+}
+
+// Bulk discount: 5% from 10 units, 10% from 50 units.
+export function quoteFor(unitCents: number, quantity: number) {
+  const discountPct = quantity >= 50 ? 10 : quantity >= 10 ? 5 : 0;
+  const totalCents = Math.round(unitCents * quantity * (1 - discountPct / 100));
+  return { unitCents, quantity, discountPct, totalCents, total: formatPrice(totalCents) };
+}
+`,
+  'pnpm-workspace.yaml': `packages:
+  - apps/*
+  - packages/*
+  - functions/*
+  - jobs/*
+allowBuilds:
+  esbuild: true
+  sharp: true
+`,
+  'scripts/seed.ts': `// Inserts sample items into the database named by DATABASE_URL (run: pnpm seed).
+import mysql from 'mysql2/promise';
+
+const conn = await mysql.createConnection({ uri: process.env.DATABASE_URL! });
+const samples = [
+  ['SEED-ATLAS', 'World atlas', 'books', 4500, 0, 'reference'],
+  ['SEED-CHESS', 'Travel chess set', 'games', 2999, 600, 'strategy'],
+  ['SEED-DRILL', 'Cordless drill', 'tools', 8900, 1335, 'hardware']
+];
+for (const [sku, name, category, price, tax, tags] of samples) {
+  await conn.query(
+    'insert into items (id, sku, name, category, price_cents, tax_cents, tags) values (uuid(), ?, ?, ?, ?, ?, ?) on duplicate key update name = values(name)',
+    [sku, name, category, price, tax, tags]
+  );
+  console.log(\`seeded \${sku}\`);
+}
+await conn.end();
+`,
+  'turbo.json': `{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "typecheck": { "dependsOn": ["^typecheck"] },
+    "dev": { "cache": false, "persistent": true }
+  }
+}
+`,
+  'pnpm-lock.yaml': `lockfileVersion: '9.0'
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -1552,5 +2113,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'trigger-loops': triggerLoops,
   'r2w-shop': r2wShop,
   'r2w-python': r2wPython,
-  'r2cc-receipts': r2ccReceipts
+  'r2cc-receipts': r2ccReceipts,
+  'r2gg-shelf': r2ggShelf
 } as const;

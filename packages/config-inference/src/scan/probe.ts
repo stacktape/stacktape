@@ -15,7 +15,7 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { ExistingDeploymentFact } from '../facts/existing-deployment';
-import type { MigrationFact, PackageManager } from '../facts/project-facts';
+import type { MigrationFact, PackageManager, HandlerFinding } from '../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import type { ReadSourceFileOptions, SourceRead } from './read-source';
@@ -78,6 +78,7 @@ export type ProbeOutput = {
   uncertainties?: Uncertainty[];
   packageManager?: PackageManager;
   workspaceGlobs?: string[];
+  handlerFindings?: HandlerFinding[];
   notes?: string[];
 };
 

@@ -198,7 +198,10 @@ type ParsedManifest = {
   raw: string;
   name?: string;
   scripts: Record<string, string>;
+  /** `dependencies` and `devDependencies` together. */
   dependencies: Record<string, string>;
+  /** `dependencies` only: what the package needs when it runs. */
+  runtimeDependencies: Record<string, string>;
   workspaces?: string[];
   engines?: Record<string, string>;
   private?: boolean;
@@ -232,6 +235,7 @@ const parseManifest = (path: string, raw: string): ParsedManifest | undefined =>
       ...((parsed.dependencies ?? {}) as Record<string, string>),
       ...((parsed.devDependencies ?? {}) as Record<string, string>)
     },
+    runtimeDependencies: (parsed.dependencies ?? {}) as Record<string, string>,
     ...(workspaces === undefined ? {} : { workspaces }),
     ...(parsed.engines === undefined ? {} : { engines: parsed.engines as Record<string, string> }),
     ...(typeof parsed.private === 'boolean' ? { private: parsed.private } : {})
@@ -253,6 +257,55 @@ const runCommand = (manager: PackageManager | undefined, script: string): string
   const runner = manager === 'bun' ? 'bun run' : manager === 'pnpm' ? 'pnpm' : manager === 'yarn' ? 'yarn' : 'npm run';
   return `${runner} ${script}`;
 };
+
+/** A start script that runs one file: `node --experimental-strip-types src/report.ts`, `bun src/job.ts`, `tsx job.ts`. */
+const SCRIPT_FILE =
+  /^(?:node|bun(?:\s+run)?|tsx|ts-node|deno\s+run)(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:\.\/)?([\w./-]+\.[cm]?[jt]s)\s*$/;
+/** Code that keeps a process alive: a server, a timer, a loop, a consumer or a subscription. */
+const KEEPS_RUNNING =
+  /\.listen\s*\(|\bserve\s*\(|createServer\s*\(|setInterval\s*\(|\bwhile\s*\(|for\s*\(\s*;\s*;\s*\)|\bfor\s+await\b|\bReceiveMessage(?:Command)?\b|\.(?:subscribe|consume|process|run)\s*\(\s*(?:\{\s*each|['"`\w]+\s*,\s*(?:async\s*)?\()|\bnew\s+Worker\s*\(|\bWorker\.create\s*\(|\bworker\.run\s*\(|Consumer\.create\s*\(|\.on\s*\(\s*['"](?:message|data|job)['"]|\bcron\.schedule\s*\(|\bnew\s+CronJob\b/;
+/** The file says it runs once: `// Batch job: ...`, `runs once`, `one-off`. */
+const ONE_SHOT_STATEMENT = /^\s*(?:\/\/|\/?\*|#)[^\n]*\b(?:batch job|one-?(?:shot|off)|runs? once|cron job)\b/im;
+/** A statement that each queue message starts the job: `runs for every message on the report queue`. */
+const RUNS_PER_MESSAGE = /\b(?:for |per )?(?:each|every)\b[^.\n]{0,40}\bmessage\b|\bper\b[^.\n]{0,20}\bmessage\b/i;
+
+/**
+ * A package whose start script runs one file that says it is a job, or that each queue message starts it, and that
+ * nothing in the file keeps alive (no server, timer, loop or consumer). Kept running, such a process would exit and be
+ * restarted forever. Without that statement the process stays a worker: a job nothing starts never runs.
+ */
+const oneShotScript = async (
+  context: ProbeContext,
+  manifest: ParsedManifest
+): Promise<{ evidence: Citation | undefined; perMessage: Citation | undefined } | undefined> => {
+  const start = manifest.scripts.start;
+  if (typeof start !== 'string') return undefined;
+  const file = SCRIPT_FILE.exec(start.trim())?.[1];
+  if (file === undefined) return undefined;
+  const path = manifest.directory === '.' ? file : `${manifest.directory}/${file}`;
+  if (!context.files.includes(path)) return undefined;
+  const raw = await readText(context, path, { fullFile: true });
+  if (raw === undefined || KEEPS_RUNNING.test(raw)) return undefined;
+  const evidence = citeFirstMatchOnly(path, raw, ONE_SHOT_STATEMENT, 'executionModel');
+  // Which queue the code does not say. The comment beside the code, or the README line about this package, can say
+  // that each message starts it; the assembler binds it when the project has exactly one queue.
+  const readme = context.files.includes('README.md') ? await readText(context, 'README.md') : undefined;
+  const readmeLine = readme
+    ?.split('\n')
+    .find((line) => line.includes(manifest.directory) && /\bqueue\b/i.test(line) && RUNS_PER_MESSAGE.test(line));
+  const commentLine = raw
+    .split('\n')
+    .find((line) => /^\s*(?:\/\/|\/?\*|#)/.test(line) && /\bqueue\b/i.test(line) && RUNS_PER_MESSAGE.test(line));
+  const perMessage =
+    commentLine !== undefined
+      ? citeFirstMatchOnly(path, raw, new RegExp(escapeRegExp(commentLine.trim())), 'functionTriggers')
+      : readmeLine !== undefined && readme !== undefined
+        ? citeFirstMatchOnly('README.md', readme, new RegExp(escapeRegExp(readmeLine.trim())), 'functionTriggers')
+        : undefined;
+  return evidence === undefined && perMessage === undefined ? undefined : { evidence, perMessage };
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&');
 
 /**
  * Which engine a Prisma project uses.
@@ -355,6 +408,17 @@ export const manifestProbe: Probe = {
       };
     };
 
+    const importedMembers = new Set(
+      isMonorepo
+        ? manifests.flatMap((manifest) =>
+            // A test package's `devDependencies` on the app it tests do not make the app a library.
+            Object.keys(manifest.runtimeDependencies).filter(
+              (name) => name !== manifest.name && memberPackageNames.has(name)
+            )
+          )
+        : []
+    );
+
     const services: ServiceFactInput[] = [];
     const dependencyConsumers = new Map<
       DependencyKind,
@@ -401,7 +465,18 @@ export const manifestProbe: Probe = {
       // positive signal keeps a monorepo from producing a phantom service at its root.
       const isWorkspaceRoot =
         (manifest.workspaces?.length ?? 0) > 0 || (manifest.directory === '.' && pnpmGlobs.length > 0);
-      const runnable = staticSite !== undefined || hasStart || exposesHttp;
+      // A workspace library other members import (`@acme/shared`, `@acme/ui`) is built into its consumers: a library
+      // build (`vite build`) does not make it a static site. A member with a server framework stays a candidate: a
+      // frontend imports a Hono or tRPC API's types from it.
+      const sharedLibrary =
+        manifest.name !== undefined &&
+        importedMembers.has(manifest.name) &&
+        !hasStart &&
+        !exposesHttp &&
+        // A static site's own entry page: an app, whatever imports it.
+        !context.files.includes(`${manifestPrefix}index.html`) &&
+        !context.files.includes(`${manifestPrefix}public/index.html`);
+      const runnable = !sharedLibrary && (staticSite !== undefined || hasStart || exposesHttp);
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
       const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
@@ -439,6 +514,10 @@ export const manifestProbe: Probe = {
         }
 
         const nodeEngine = manifest.engines?.node?.replace(/[^\d.]/g, '');
+        // oxlint-disable-next-line no-await-in-loop -- one entry file per package that starts a script.
+        const oneShot = exposesHttp || staticSite !== undefined ? undefined : await oneShotScript(context, manifest);
+        if (oneShot?.evidence !== undefined) evidence.push(oneShot.evidence);
+        if (oneShot?.perMessage !== undefined) evidence.push(oneShot.perMessage);
 
         services.push({
           name: serviceNameFor(manifest),
@@ -454,7 +533,11 @@ export const manifestProbe: Probe = {
           exposesHttp: staticSite === undefined && exposesHttp,
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
-          executionModel: 'long-running',
+          executionModel: oneShot === undefined ? 'long-running' : 'one-shot',
+          // Bound to a real queue by the assembler, which sees the project's queues.
+          ...(oneShot?.perMessage === undefined
+            ? {}
+            : { functionTriggers: [{ type: 'queue' as const, dependencyName: defaultDependencyName('queue') }] }),
           ...(hasBuild ? { buildCommand: runCommand(packageManager, 'build') } : {}),
           ...(staticSite === undefined && hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
           ...(typeof manifest.scripts.dev === 'string' ? { devCommand: runCommand(packageManager, 'dev') } : {}),

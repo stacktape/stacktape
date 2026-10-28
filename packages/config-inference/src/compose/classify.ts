@@ -123,6 +123,14 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
   }
 
   // Serves HTTP. Everything from here is about what it needs to keep working.
+  if (service.internalOnly === true) {
+    return {
+      resourceType: 'private-service',
+      reason: 'Only your other services call this, so it gets an address inside the stack and no public load balancer.',
+      evidence: service.evidence.slice(0, 2)
+    };
+  }
+
   if (service.longLivedConnections !== 'none') {
     return {
       resourceType: 'web-service',

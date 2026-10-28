@@ -13,6 +13,9 @@ import { staticSiteProbe } from './probes/static-site';
 
 const PROBES = [manifestProbe, environmentProbe];
 
+const pkg = (name: string, start: string, dependencies: Record<string, string> = {}) =>
+  JSON.stringify({ name, scripts: { start }, dependencies });
+
 let root: string;
 
 const makeRepo = async (files: Record<string, string>): Promise<string> => {
@@ -29,6 +32,20 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
 
 afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
+});
+
+const packagedJob = (name: string, source: string) => ({
+  [`jobs/${name}/package.json`]: JSON.stringify({
+    name: `@shelf/${name}`,
+    scripts: { start: `node src/${name}.js` },
+    dependencies: { '@shelf/shared': 'workspace:*' }
+  }),
+  [`jobs/${name}/src/${name}.js`]: source
+});
+
+const queueJob = (name: string) => ({
+  [`jobs/${name}/package.json`]: JSON.stringify({ name, scripts: { start: `node src/${name}.js` } }),
+  [`jobs/${name}/src/${name}.js`]: `// Batch job: runs for every message on the ${name} queue.\nawait work();\n`
 });
 
 describe('assembleCandidateFacts', () => {
@@ -663,6 +680,151 @@ describe('assembleCandidateFacts', () => {
       tool: 'prisma',
       runsAt: 'unknown'
     });
+  });
+
+  // r2gg part B: what makes a service private, a script a job, and a workspace package a library. When the evidence is
+  // short of that, each stays what it was before: a web service, a worker, a package.
+  it('makes a service private only when it says it is internal, other containers call it, and it takes no webhooks', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'shop', workspaces: ['apps/*'] }),
+      'package-lock.json': '{}',
+      'apps/api/package.json': pkg('api', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/api/src/index.js': [
+        'fetch(`${process.env.PRICING_URL}/price`);',
+        'fetch(`${process.env.LEDGER_URL}/entries`);',
+        'fetch(`${process.env.PAYMENTS_URL}/charge`);',
+        'app.listen(3000);',
+        ''
+      ].join('\n'),
+      'apps/pricing/package.json': pkg('pricing', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/pricing/src/index.js': '// Internal service: only the API calls it.\napp.listen(3001);\n',
+      // Called only by the API, but nothing says nobody else does.
+      'apps/ledger/package.json': pkg('ledger', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/ledger/src/index.js': 'app.listen(3003);\n',
+      // Says it is internal, but Stripe calls its webhook.
+      'apps/payments/package.json': pkg('payments', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/payments/src/index.js':
+        "// Internal service: only the API calls it.\napp.post('/webhooks/stripe', onEvent);\napp.listen(3004);\n",
+      'apps/worker/package.json': pkg('worker', 'node src/index.js'),
+      'apps/worker/src/index.js': 'setInterval(() => fetch(`${process.env.API_URL}/tick`), 1000);\n',
+      // A function reads its address: a private service would be out of its reach.
+      'apps/search/package.json': pkg('search', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/search/src/index.js': '// Internal service.\napp.listen(3002);\n',
+      'apps/api/src/search.js': 'fetch(`${process.env.SEARCH_URL}/q`);\n',
+      'functions/suggest.ts':
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';\nexport const handler = async (event: APIGatewayProxyEventV2) => fetch(`${process.env.SEARCH_URL}/q?${event.rawQueryString}`);\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [...PROBES, lambdaSourceProbe] });
+    const result = composeConfig({ facts, projectName: 'shop' });
+
+    expect(
+      Object.fromEntries(Object.entries(result.config.resources).map(([name, resource]) => [name, resource.type]))
+    ).toMatchObject({
+      api: 'web-service',
+      pricing: 'private-service',
+      ledger: 'web-service',
+      payments: 'web-service',
+      search: 'web-service',
+      suggest: 'function',
+      worker: 'worker-service'
+    });
+  });
+
+  it('makes a script a job only when it says so, binds it to the one queue, and leaves libraries out', async () => {
+    const files = {
+      'package.json': JSON.stringify({ name: 'shelf', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - jobs/*\n  - packages/*\n',
+      'pnpm-lock.yaml': '',
+      'apps/api/package.json': JSON.stringify({
+        name: '@shelf/api',
+        scripts: { start: 'node src/index.js' },
+        dependencies: { express: '^5.0.0', '@aws-sdk/client-sqs': '^3.700.0' }
+      }),
+      'apps/api/src/index.js':
+        'sqs.send(new SendMessageCommand({ QueueUrl: process.env.REPORT_QUEUE_URL }));\napp.listen(3000);\n',
+      ...packagedJob(
+        'report',
+        '// Batch job: builds a report. It runs for every message on the report queue.\nconst rows = await load();\nawait save(rows);\n'
+      ),
+      // Runs once and exits, but nothing says it is a job: a worker, as before.
+      ...packagedJob('export', 'const rows = await load();\nawait upload(rows);\n'),
+      // Each says it is a job, and each keeps running.
+      ...packagedJob('stream', '// Batch job.\nfor await (const event of subscription) await handle(event);\n'),
+      ...packagedJob('poll', '// Batch job.\nlet running = true;\nwhile (running) await poll();\n'),
+      ...packagedJob(
+        'temporal',
+        "// Batch job.\nconst worker = await Worker.create({ taskQueue: 'reports' });\nawait worker.run();\n"
+      ),
+      'packages/shared/package.json': JSON.stringify({ name: '@shelf/shared', exports: { '.': './src/index.ts' } })
+    };
+    const repoRoot = await makeRepo(files);
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    const shapes = Object.fromEntries(
+      facts.services.map((service) => [service.name, [service.executionModel, service.functionTriggers]])
+    );
+    expect(shapes).toEqual({
+      api: ['long-running', []],
+      report: ['one-shot', [{ type: 'queue', dependencyName: 'jobQueue' }]],
+      export: ['long-running', []],
+      stream: ['long-running', []],
+      poll: ['long-running', []],
+      temporal: ['long-running', []]
+    });
+  });
+
+  it('binds no queue when two jobs could each mean a different one', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'jobs', private: true, workspaces: ['jobs/*'] }),
+      'package-lock.json': '{}',
+      ...queueJob('invoices'),
+      ...queueJob('emails'),
+      'jobs/invoices/src/enqueue.js': 'sqs.send({ QueueUrl: process.env.INVOICES_QUEUE_URL });\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => [service.name, service.executionModel, service.functionTriggers])).toEqual([
+      ['emails', 'one-shot', []],
+      ['invoices', 'one-shot', []]
+    ]);
+  });
+
+  it('keeps a workspace package a frontend imports only in tests', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'm', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - apps/*\n  - packages/*\n',
+      'pnpm-lock.yaml': '',
+      'apps/web/package.json': JSON.stringify({
+        name: '@m/web',
+        scripts: { build: 'vite build', dev: 'vite' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^6.0.0' }
+      }),
+      'apps/web/index.html': '<div id="root"></div>\n',
+      'apps/e2e/package.json': JSON.stringify({
+        name: '@m/e2e',
+        devDependencies: { '@m/web': 'workspace:*', '@playwright/test': '^1.50.0' }
+      }),
+      // A library build that the web app imports at runtime is no static site.
+      'packages/ui/package.json': JSON.stringify({
+        name: '@m/ui',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^6.0.0' }
+      }),
+      'apps/admin/package.json': JSON.stringify({
+        name: '@m/admin',
+        scripts: { build: 'vite build' },
+        dependencies: { '@m/ui': 'workspace:*', react: '^19.0.0', vite: '^6.0.0' }
+      }),
+      'apps/admin/index.html': '<div id="root"></div>\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => service.name).toSorted()).toEqual(['admin', 'web']);
   });
 
   it('produces an empty but valid document for a repository with nothing to deploy', async () => {
