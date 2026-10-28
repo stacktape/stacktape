@@ -240,7 +240,8 @@ export const resolveBatchJobs = async () => {
           accessToResourcesRequiringRoleChanges,
           iamRoleStatements: definition.iamRoleStatements,
           accessToAwsServices,
-          containerSecretValueFroms: (definition.container.secrets || []).map(({ valueFrom }) => valueFrom)
+          containerSecretValueFroms: (definition.container.secrets || []).map(({ valueFrom }) => valueFrom),
+          logGroupCfLogicalName: definition.logging?.disabled ? undefined : cfLogicalNames.batchJobLogGroup(name)
         }),
         nameChain
       });
