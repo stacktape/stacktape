@@ -60,10 +60,33 @@ export const postgresIdentitySql = ({ dbName, username, password }: LocalDataIde
     ''
   ].join('\n');
 
-type RunInContainer = (args: string[], stdinInput: string) => Promise<void>;
+type RunInContainer = (args: string[], stdinInput: string, secret: string) => Promise<void>;
 
-const runInContainer: RunInContainer = async (args, stdinInput) => {
-  await execDocker(args, { stdinInput, skipHandleError: true });
+const runInContainer: RunInContainer = async (args, stdinInput, secret) => {
+  await execDocker(args, { stdinInput, skipHandleError: true, redactedValues: [secret] });
+};
+
+/**
+ * Why the client in the container failed, from its standard error: `ERROR 1045 (28000): Access denied for user 'root'…`
+ * or `psql: error: … role "app" does not exist`. The command line (`docker exec …`) says nothing about it. The password
+ * is replaced in case a client repeats its input.
+ */
+export const describeClientFailure = (error: unknown, secret: string): string | undefined => {
+  const { stderr, message } = (error ?? {}) as { stderr?: unknown; message?: unknown };
+  const lines = (typeof stderr === 'string' ? stderr : '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/\[Warning\]/.test(line));
+  const line =
+    lines.findLast((candidate) => /error|denied|fatal|does not exist|refused/i.test(candidate)) ??
+    lines.at(-1) ??
+    (typeof message === 'string'
+      ? message
+          .split('\n')
+          .find((candidate) => candidate.trim())
+          ?.trim()
+      : undefined);
+  return secret && line ? line.split(secret).join('[redacted]') : line;
 };
 
 /**
@@ -93,7 +116,7 @@ const createIdentity = async ({
     for (const superuser of superusers) {
       try {
         const psql = ['psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-U', superuser, '-d', 'postgres'];
-        await run(['exec', '-i', containerName, ...psql], postgresIdentitySql(identity));
+        await run(['exec', '-i', containerName, ...psql], postgresIdentitySql(identity), identity.password);
         return;
       } catch (error) {
         lastError = error;
@@ -103,7 +126,11 @@ const createIdentity = async ({
   }
   // MariaDB 11 images ship the client as `mariadb` only.
   const client = 'client=$(command -v mariadb || command -v mysql); MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec "$client"';
-  await run(['exec', '-i', containerName, 'sh', '-c', `${client} -h127.0.0.1 -uroot`], mysqlIdentitySql(identity));
+  await run(
+    ['exec', '-i', containerName, 'sh', '-c', `${client} -h127.0.0.1 -uroot`],
+    mysqlIdentitySql(identity),
+    identity.password
+  );
 };
 
 const describeIdentity = ({ dbName, username }: LocalDataIdentity) => `database "${dbName}" and user "${username}"`;
@@ -137,13 +164,13 @@ export const reconcileLocalDataIdentity = async ({
   try {
     await createIdentity({ config, containerName, recorded, run });
   } catch (error) {
-    const reason = error instanceof Error ? error.message.split('\n').find((line) => line.trim()) : undefined;
+    const reason = describeClientFailure(error, config.credentials!.password);
     const createdFor = recorded
       ? `was created for ${describeIdentity(recorded)}`
       : `has no ${describeIdentity(wanted)}`;
     throw new Error(
       `The local data of "${config.name}" ${createdFor}, and creating ${describeIdentity(wanted)} in it failed` +
-        `${reason ? ` (${reason.trim()})` : ''}. Start with freshDb (--fresh-db) to recreate it; this deletes its local data.`
+        `${reason ? ` (${reason})` : ''}. Start with freshDb (--fresh-db) to recreate it; this deletes its local data.`
     );
   }
   writeLocalDataIdentity(identityFile, wanted);

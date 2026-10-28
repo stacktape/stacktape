@@ -69,6 +69,9 @@ const JSON_LEVELS: Record<string, LogLevel> = {
   warning: 'warn'
 };
 
+/** How far into a line a level word is looked for; gunicorn's timestamp and process ID take about 40 characters. */
+const LEVEL_WORD_SCAN_CHARS = 200;
+
 const levelFromWord = (word: string): LogLevel =>
   JSON_LEVELS[word.toLowerCase()] ?? (/^(err|panic|crit|alert|emerg)$/i.test(word) ? 'error' : 'info');
 
@@ -93,9 +96,13 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
   // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`,
   // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...`, nginx's `2026/10/27 13:18:28 [crit] ...` or, after a
   // bracketed timestamp and process ID, gunicorn's `[2026-10-28 00:17:51 +0000] [1] [INFO] ...`.
-  const levelWord = firstLine.match(
-    /^(?:\[[^\][]*\d[^\][]*\]\s*)*(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
-  )?.[1];
+  // Only the line's start is read: on a long line without the expected separators, the optional prefixes would try
+  // every split point (a 100 000-character line took 1.6 s).
+  const levelWord = firstLine
+    .slice(0, LEVEL_WORD_SCAN_CHARS)
+    .match(
+      /^(?:\[[^\][\d]{0,64}\d[^\][]{0,64}\]\s*){0,4}(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
+    )?.[1];
   if (levelWord) return levelFromWord(levelWord);
   if (firstLine.startsWith('⨯')) return 'error';
   // Vite's failed request or transform (`7:08:55 PM [vite] Internal server error: ...`) and esbuild's `✘ [ERROR]`.
@@ -134,11 +141,22 @@ const FAILURE_MESSAGE =
   /\b(?:fail(?:s|ed|ure)?|errors?|exception|denied|refused|timed out|unable to|cannot|can't|could not)\b/i;
 
 /**
+ * A summary that counts no failures: `Found 0 errors.`, `no errors`, `0 failed`, `errors: 0`. Type checkers and test
+ * runners in watch mode print these to standard error.
+ */
+const ZERO_COUNT_SUMMARY =
+  /\b(?:0|no|zero)\s+(?:\w+\s+){0,2}?(?:errors?|failures?|failed|exceptions?)\b|\b(?:errors?|failures?|failed|exceptions?)\s*[:=]\s*0\b/gi;
+/** How much of a line the failure words are looked for in. */
+const FAILURE_SCAN_CHARS = 500;
+
+/**
  * A frontend's server code reports a failed request with `console.error`, which reaches standard error without a
  * level word, as do the dev server's own notes. Standard error that reads like a failure is an error there.
  */
 export const isFrontendServerFailure = (coloredText: string): boolean =>
-  FAILURE_MESSAGE.test(stripAnsi(coloredText).split('\n', 1)[0]!);
+  FAILURE_MESSAGE.test(
+    stripAnsi(coloredText).split('\n', 1)[0]!.slice(0, FAILURE_SCAN_CHARS).replace(ZERO_COUNT_SUMMARY, '')
+  );
 
 /**
  * Joins the lines of one stream into entries and passes each complete entry on. Call `flush` when the stream ends, so

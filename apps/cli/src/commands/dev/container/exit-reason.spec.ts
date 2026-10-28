@@ -208,3 +208,28 @@ test('a Bun error thrown with a code frame quotes the failing source line and ca
     ].join('\n')
   );
 });
+
+// #380 review: an app that logged a handled exception from its own code and then crashed in a library must be summarized
+// by the crash, the last traceback; only a server wrapper at the end sends the summary to an earlier one.
+test('the traceback that ended the process is quoted, also after an earlier handled one from the app', () => {
+  const stderr = [
+    'ERROR:app:could not warm the cache, continuing',
+    'Traceback (most recent call last):',
+    '  File "/app/app.py", line 14, in warm_cache',
+    '    prices = load_prices()',
+    'ValueError: prices.json is empty',
+    'Traceback (most recent call last):',
+    '  File "/app/.venv/lib/python3.13/site-packages/boto3/__init__.py", line 92, in client',
+    '    return _get_default_session().client(*args, **kwargs)',
+    '  File "/app/.venv/lib/python3.13/site-packages/botocore/regions.py", line 278, in _endpoint_for_partition',
+    '    raise NoRegionError()',
+    'botocore.exceptions.NoRegionError: You must specify a region.'
+  ].join('\n');
+  expect(describeContainerExit(stderr)).toBe(
+    [
+      '  File "/app/.venv/lib/python3.13/site-packages/botocore/regions.py", line 278, in _endpoint_for_partition',
+      '    raise NoRegionError()',
+      'botocore.exceptions.NoRegionError: You must specify a region.'
+    ].join('\n')
+  );
+});

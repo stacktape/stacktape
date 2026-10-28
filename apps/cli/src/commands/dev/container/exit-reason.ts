@@ -33,16 +33,22 @@ const findPythonTracebacks = (lines: string[]): PythonTraceback[] =>
 const isAppFrame = (line: string) => !PYTHON_LIBRARY_FILE.test(line.match(PYTHON_FRAME)![1]!);
 
 /**
- * The traceback to quote: the last one raised in the app's own code by something other than a server wrapper, else the
- * last one that is not a wrapper, else the last one.
+ * The traceback to quote: the last one, which ended the process. When that one is a server wrapper, the app's error is
+ * in an earlier one: the last raised in the app's own code by something other than a wrapper, else the last that is
+ * not a wrapper.
  */
 const describePythonTraceback = (lines: string[]): string | undefined => {
   const tracebacks = findPythonTracebacks(lines);
   const isWrapper = ({ exceptionIndex }: PythonTraceback) => PYTHON_WRAPPER_EXCEPTION.test(lines[exceptionIndex]!);
+  const last = tracebacks.at(-1);
   const traceback =
-    tracebacks.findLast((candidate) => !isWrapper(candidate) && candidate.frames.some((i) => isAppFrame(lines[i]!))) ??
-    tracebacks.findLast((candidate) => !isWrapper(candidate)) ??
-    tracebacks.at(-1);
+    last && isWrapper(last)
+      ? (tracebacks.findLast(
+          (candidate) => !isWrapper(candidate) && candidate.frames.some((i) => isAppFrame(lines[i]!))
+        ) ??
+        tracebacks.findLast((candidate) => !isWrapper(candidate)) ??
+        last)
+      : last;
   if (!traceback) return undefined;
   const { frames, exceptionIndex } = traceback;
   const frameIndex = frames.findLast((index) => isAppFrame(lines[index]!)) ?? frames.at(-1);

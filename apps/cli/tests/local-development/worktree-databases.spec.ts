@@ -515,6 +515,11 @@ test('local databases serve one database name to every consumer and follow a cha
       'The local data of "mydb" was created for database "shelf" and user "stacktape", and creating database "other" and user "stacktape" in it failed'
     );
     expect((failure as Error).message).toContain('Start with freshDb (--fresh-db) to recreate it');
+    // The cause is the client's own error, not the `docker exec` command line; the password is not in it.
+    expect((failure as Error).message).toContain(
+      "(ERROR 1045 (28000): Access denied for user 'root'@'127.0.0.1' (using password: YES))"
+    );
+    expect((failure as Error).message).not.toContain('not-the-data-password');
   } finally {
     const named = docker(['ps', '-a', '--filter', `name=^stp-${projectName}-`, '--format', '{{.Names}}']);
     for (const name of named.stdout.split('\n').filter(Boolean)) owned.add(name);

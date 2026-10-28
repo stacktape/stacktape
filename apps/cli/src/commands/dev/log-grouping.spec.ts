@@ -222,7 +222,28 @@ test.each([
   ['quote for sku-1 failed with 502', true],
   ['could not reach the API: connect ECONNREFUSED 127.0.0.1:3000', true],
   ['\u001b[33mwatching for file changes...\u001b[0m', false],
-  ['  ➜  Local:   http://localhost:4321/', false]
+  ['  ➜  Local:   http://localhost:4321/', false],
+  // #380 review: summaries that count no failures are no failure.
+  ['Found 0 errors. Watching for file changes.', false],
+  ['[types] no type errors', false],
+  ['Tests: 12 passed, 0 failed', false],
+  ['errors: 0, warnings: 2', false],
+  ['Found 2 errors. Watching for file changes.', true],
+  ['0 tests ran, then the build failed: missing entry', true]
 ] as const)('frontend standard error %s is a failure: %s', (line, failure) => {
   expect(isFrontendServerFailure(line)).toBe(failure);
+});
+
+// #380 review: the level pattern's optional prefixes tried every split point of a long line without separators, which
+// took 1.6 s on the main thread for a 100 000-character line that starts with `[`.
+test.each([
+  ['an unclosed bracket', `[${'1'.repeat(100_000)}`],
+  ['brackets and digits', `[${'a1'.repeat(50_000)}`],
+  ['no spaces', '1:00'.repeat(25_000)],
+  ['many bracketed numbers', `${'[1] '.repeat(25_000)}x`]
+])('a 100 000-character line with %s gets its level in linear time', (_, line) => {
+  const started = performance.now();
+  for (const stream of ['stdout', 'stderr'] as const) detectLogLevel(line, stream);
+  isFrontendServerFailure(line);
+  expect(performance.now() - started).toBeLessThan(50);
 });
