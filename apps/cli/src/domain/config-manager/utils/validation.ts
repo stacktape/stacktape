@@ -43,7 +43,7 @@ import { validateSsrWebConfig } from './ssr-webs';
 import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
 import { validateEmailSenderConfig, validateEmailSenderIdentityUniqueness } from './email-senders';
-import { getDeadLetterQueueNames, validateSqsQueueConfig } from './sqs-queues';
+import { getDeadLetterQueueNames, validateSqsQueueConfig, validateSqsTriggerTimeouts } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import type { StacktapeConfig } from '@stacktape/config';
 import type {
@@ -861,6 +861,11 @@ export const runInitialValidations = ({
       secrets: definition.container.secrets,
       workloadName: definition.name
     });
+    // Batch jobs run on EC2 compute environments, where `Vcpus` is an integer. CloudFormation rejected a fraction
+    // only after the deployment had started.
+    if (!Number.isInteger(definition.resources.cpu)) {
+      throw configErrors.batchJobCpuNotWholeNumber({ stpResourceName: definition.name, cpu: definition.resources.cpu });
+    }
   });
   // multi container workload
   configManager.allContainerWorkloads.forEach((definition) => {
@@ -878,6 +883,7 @@ export const runInitialValidations = ({
   configManager.sqsQueues.forEach((resource) => {
     validateSqsQueueConfig({ resource });
   });
+  validateSqsTriggerTimeouts({ functions: configManager.functions, sqsQueues: configManager.sqsQueues });
   // nextjs-webs
   configManager.nextjsWebs.forEach((resource) => {
     validateNextjsWebConfig({ resource, workingDir: stackContext.workingDir });

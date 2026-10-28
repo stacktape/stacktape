@@ -27,7 +27,8 @@ export type AwsQualificationScenario = {
     | 'dev-mode'
     | 'container-fast-deploy'
     | 'scoped-access'
-    | 'static-site';
+    | 'static-site'
+    | 'batch-job';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -124,6 +125,15 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['hosting-bucket', 'cloudfront', 'cdn-invalidation', 'content-update', 'edge-functions', 'cleanup'],
     reason:
       'Only a real distribution shows that a redeploy invalidates cached pages and that deletion removes edge functions.'
+  },
+  {
+    id: 'batch-job-sqs-run',
+    runner: 'batch-job',
+    policy: 'routine',
+    costClass: 'low',
+    coverage: ['batch-job', 'compute-environment', 'sqs-trigger', 'pre-deployment-validation', 'cleanup'],
+    reason:
+      'Only AWS Batch shows which compute environment images it still accepts; it refused Amazon Linux 2 with no change on our side.'
   },
   {
     id: 'init-static-site',

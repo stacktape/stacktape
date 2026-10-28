@@ -16,12 +16,6 @@ export const getBaseName = (filePath: string) => {
   return basename(filePath);
 };
 
-export const getContainingFolderName = (filePath: string) => {
-  const unixPathDirname = dirname(transformToUnixPath(filePath));
-  const folderName = unixPathDirname.slice(unixPathDirname.lastIndexOf('/') + 1, unixPathDirname.length);
-  return folderName === 'java' ? '' : folderName;
-};
-
 export const getFileNameWithoutExtension = (filePath: string) => {
   const baseName = getBaseName(filePath);
   return baseName.slice(0, baseName.lastIndexOf('.'));

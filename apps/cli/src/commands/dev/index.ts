@@ -247,6 +247,19 @@ const getSelectedResources = async (
   const validateNames = (names: Set<string>, argName: string) => {
     for (const name of names) {
       if (name !== 'all' && !allNames.has(name)) {
+        const configuredType = configManager.config?.resources?.[name]?.type;
+        if (configuredType) {
+          const selectableNames = `Resources you can select: ${allNamesArray.join(', ')}.`;
+          throw new CliError({
+            category: 'CLI',
+            code: 'CLI_DEV_RESOURCE_NOT_SELECTABLE',
+            message:
+              configuredType === 'batch-job'
+                ? `\`${name}\` is a batch job, which dev mode does not run on your machine. The dev stack deploys it to AWS Batch, where it runs when triggered, as in a deployed stage. \`--${publicFlag(argName)}\` selects only functions, containers, frontends and databases.`
+                : `\`${name}\` is a \`${configuredType}\`, which dev mode does not run on your machine. The dev stack deploys it to AWS when the selected workloads use it. \`--${publicFlag(argName)}\` selects only functions, containers, frontends and databases.`,
+            hints: selectableNames
+          });
+        }
         // Find similar names for better error message
         const similar = findSimilarNames(name, allNamesArray, 3);
         const hint =

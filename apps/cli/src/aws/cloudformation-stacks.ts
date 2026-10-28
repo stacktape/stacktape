@@ -4,6 +4,7 @@ import type {
   CreateChangeSetInput,
   CreateStackInput,
   ListStackResourcesCommandOutput,
+  OperationEvent,
   Stack,
   StackEvent,
   StackResourceSummary,
@@ -18,6 +19,7 @@ import {
   CreateStackCommand,
   DeleteStackCommand,
   DescribeChangeSetCommand,
+  DescribeEventsCommand,
   DescribeStackEventsCommand,
   DescribeStacksCommand,
   GetTemplateCommand,
@@ -195,6 +197,36 @@ export class AwsCloudFormationStacks {
     } while (nextToken);
 
     return result.flat();
+  };
+
+  /**
+   * The findings of CloudFormation's pre-deployment validation for one stack operation. A stack event only says
+   * "Validation failed with N error(s). Call DescribeEvents…"; the resource, property path and reason are here.
+   */
+  getValidationErrors = async ({
+    stackName,
+    operationId
+  }: {
+    stackName: string;
+    operationId: string;
+  }): Promise<OperationEvent[]> => {
+    const handleError = this.#getErrorHandler('Failed to fetch the validation errors of the stack operation.');
+    const result: OperationEvent[] = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(
+          new DescribeEventsCommand({
+            StackName: stackName,
+            OperationId: operationId,
+            ...(nextToken ? { NextToken: nextToken } : {})
+          })
+        )
+        .catch(handleError);
+      result.push(...(page.OperationEvents ?? []).filter(({ EventType }) => EventType === 'VALIDATION_ERROR'));
+      nextToken = page.NextToken;
+    } while (nextToken);
+    return result;
   };
 
   getResources = async (stackName: string): Promise<StackResourceSummary[]> => {

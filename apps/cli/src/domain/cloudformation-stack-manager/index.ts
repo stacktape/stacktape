@@ -74,7 +74,12 @@ import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFirstDeployOfStack } from './first-deploy';
-import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+import {
+  cfFailedEventHandlers,
+  formatPreDeploymentValidationErrors,
+  getHintsAfterStackFailureOperation,
+  isPreDeploymentValidationFailure
+} from './utils';
 import type { CloudformationTag } from '@stacktape/config/shared';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
@@ -1827,7 +1832,7 @@ class StackManager {
     );
   };
 
-  #handleFailedEvents = ({
+  #handleFailedEvents = async ({
     // cfStackOperation,
     potentialErrorCausingEvents
   }: {
@@ -1843,15 +1848,27 @@ class StackManager {
       }
       return true;
     });
-    return Promise.all(
+    const handled = await Promise.all(
       relevantErrorEvents.map(async (event) => {
+        if (isPreDeploymentValidationFailure(event) && event.OperationId) {
+          const validationErrors = await awsSdkManager.cloudFormation
+            .getValidationErrors({ stackName: event.StackId ?? this.#stackName, operationId: event.OperationId })
+            .catch((error) => {
+              tuiManager.debug(`Could not fetch the validation errors: ${error}`);
+              return [];
+            });
+          if (validationErrors.length) return formatPreDeploymentValidationErrors(validationErrors);
+        }
         const { handlerFunction } = cfFailedEventHandlers.find(({ eventMatchFunction }) => eventMatchFunction(event));
-        return handlerFunction(event, {
-          ecsDeploymentStatusPollers: this.#ecsDeploymentStatusPoller,
-          lambdaProvisionedConcurrencyPollers: this.#lambdaProvisionedConcurrencyPoller
-        });
+        return [
+          await handlerFunction(event, {
+            ecsDeploymentStatusPollers: this.#ecsDeploymentStatusPoller,
+            lambdaProvisionedConcurrencyPollers: this.#lambdaProvisionedConcurrencyPoller
+          })
+        ];
       })
     );
+    return handled.flat();
   };
 
   #getDetailOfSelectedResources = (resources: StackResourceSummary[]): Promise<EnrichedStackResourceInfo[]> => {

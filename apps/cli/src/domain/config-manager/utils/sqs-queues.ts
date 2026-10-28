@@ -1,6 +1,7 @@
 import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { ConfigManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
@@ -40,6 +41,42 @@ export const validateSqsQueueConfig = ({ resource }: { resource: StpSqsQueue }) 
       throw configErrors.sqsRedriveTargetAmbiguous({
         sqsQueueReferencerStpName: resource.name
       });
+    }
+  }
+};
+
+/** The visibility timeout AWS gives a queue that sets none. */
+const DEFAULT_VISIBILITY_TIMEOUT_SECONDS = 30;
+/** The timeout a function gets when it sets none. */
+const DEFAULT_LAMBDA_TIMEOUT_SECONDS = 10;
+
+/**
+ * AWS refuses an SQS trigger whose function may run longer than the queue's visibility timeout, but only when
+ * CloudFormation creates the trigger, minutes into a deployment. Queues given by ARN are outside the config.
+ */
+export const validateSqsTriggerTimeouts = ({
+  functions,
+  sqsQueues
+}: {
+  functions: ReadonlyArray<StpLambdaFunction>;
+  sqsQueues: ReadonlyArray<StpSqsQueue>;
+}) => {
+  for (const lambdaFunction of functions) {
+    const timeout = lambdaFunction.timeout ?? DEFAULT_LAMBDA_TIMEOUT_SECONDS;
+    for (const event of lambdaFunction.events ?? []) {
+      if (event.type !== 'sqs' || !event.properties.sqsQueueName) continue;
+      const queue = sqsQueues.find(({ name }) => name === event.properties.sqsQueueName);
+      if (!queue) continue;
+      const visibilityTimeout = queue.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_TIMEOUT_SECONDS;
+      if (timeout > visibilityTimeout) {
+        throw configErrors.lambdaTimeoutExceedsQueueVisibilityTimeout({
+          lambdaStpResourceName: lambdaFunction.name,
+          sqsQueueName: queue.name,
+          timeout,
+          visibilityTimeout,
+          visibilityTimeoutIsDefault: queue.visibilityTimeoutSeconds === undefined
+        });
+      }
     }
   }
 };

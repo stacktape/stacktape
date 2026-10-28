@@ -1,3 +1,7 @@
+import { randomBytes } from 'node:crypto';
+import { chmodSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir, userInfo } from 'node:os';
+import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { publicCommandName } from '../../config/cli/public-names';
 import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
@@ -73,6 +77,43 @@ export const maskSensitiveValues = (input: unknown, parentKey = ''): unknown => 
   }
 
   return input;
+};
+
+/**
+ * Keeps the CLI's raw output of a failure that its result already explains in a log file instead of the tool result.
+ * The message names what failed; the output (a progress log, sometimes a whole template) only fills the agent's
+ * context. Returns the file's path, or undefined when it cannot be written.
+ */
+/**
+ * This user's directory for MCP output logs in the shared temp directory, readable by the user only. A path another
+ * user created first, or a symlink, is refused: the logs hold project output.
+ */
+const getOutputLogDirectory = () => {
+  const uid = process.getuid?.();
+  const directory = join(tmpdir(), `stacktape-mcp-${uid ?? userInfo().username.replace(/[^\w-]/g, '-')}`);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(directory);
+  if (stat.isSymbolicLink() || !stat.isDirectory() || (uid !== undefined && stat.uid !== uid)) return undefined;
+  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) chmodSync(directory, 0o700);
+  return directory;
+};
+
+/**
+ * Keeps the CLI's raw output of a failure that its result already explains in a log file instead of the tool result.
+ * The message names what failed; the output (a progress log, sometimes a whole template) only fills the agent's
+ * context. The file gets a random name and is created exclusively, so an existing file or symlink is never written
+ * through. Returns the file's path, or undefined when it cannot be written.
+ */
+export const keepRawTailInLogFile = ({ command, rawTail }: { command: string; rawTail: string }) => {
+  try {
+    const directory = getOutputLogDirectory();
+    if (!directory) return undefined;
+    const file = join(directory, `${command.replace(/[^\w-]/g, '-')}-${randomBytes(8).toString('hex')}.log`);
+    writeFileSync(file, `${maskSensitiveText(stripVTControlCharacters(rawTail))}\n`, { flag: 'wx', mode: 0o600 });
+    return file;
+  } catch {
+    return undefined;
+  }
 };
 
 const extractJsonLogPayload = (rawTail?: string): Record<string, unknown> | undefined => {
@@ -441,6 +482,7 @@ export const buildCliRunOutput = ({
     message: string;
     data?: Record<string, unknown>;
     rawTail?: string;
+    cliReportedResult?: boolean;
     resolvedContext?: {
       cwd: string;
       currentWorkingDirectory?: string;
@@ -454,7 +496,11 @@ export const buildCliRunOutput = ({
     // A sensitive command's printed payload holds the value itself (secret:get); it never reaches the agent.
     data: policy.sensitiveOutput ? result.data : withLogPayload(result.data, result.rawTail)
   });
-  let rawTail = result.ok && data ? undefined : result.rawTail;
+  const outputLog =
+    !result.ok && result.cliReportedResult && result.rawTail && !policy.sensitiveOutput
+      ? keepRawTailInLogFile({ command, rawTail: result.rawTail })
+      : undefined;
+  let rawTail = (result.ok && data) || outputLog ? undefined : result.rawTail;
 
   if (policy.sensitiveOutput) {
     data = maskSensitiveValues(data || {}) as Record<string, unknown>;
@@ -471,7 +517,9 @@ export const buildCliRunOutput = ({
         `Do not retry stacktape ${publicCommandName(command)} through Bash/shell. The MCP result above is the canonical execution result.`,
         rawTail
           ? 'Use rawTail to explain the failure, then ask the user for the missing input or auth step if needed.'
-          : 'If the CLI produced no raw output, report that limitation and ask the user for the missing input or auth step if needed.',
+          : outputLog
+            ? `The message explains the failure; the CLI's last output lines are in ${outputLog} if you need more.`
+            : 'If the CLI produced no raw output, report that limitation and ask the user for the missing input or auth step if needed.',
         GENERIC_AWS_MCP_BOUNDARY,
         'Never read ~/.stacktape, ~/.aws, ~/.ssh, or persisted credential files to recover from this failure.'
       ];
@@ -484,7 +532,8 @@ export const buildCliRunOutput = ({
       command,
       policy,
       ...(result.resolvedContext ? { resolvedContext: result.resolvedContext } : {}),
-      ...(data ? { cli: data } : {})
+      ...(data ? { cli: data } : {}),
+      ...(outputLog ? { outputLog } : {})
     },
     ...(rawTail ? { rawTail } : {}),
     ...(!result.ok

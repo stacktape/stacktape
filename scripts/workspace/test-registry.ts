@@ -935,6 +935,17 @@ export const lanes: readonly Lane[] = [
       "CloudFront serves a redeployed hosting bucket's new page on the first request after the deploy, and the stack deletion removes its distribution, buckets, default domain, the us-east-1 edge deployment bucket and the Lambda@Edge roles and log groups in every edge region; a replicated edge function is deferred to --cleanup-only."
   },
   {
+    id: 'batch-job-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=batch-job-sqs-run'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/batch-job-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      "A batch job deploys on Amazon Linux 2023 compute environments that AWS Batch accepts, runs for a message of its SQS queue with the launch template's 100 GB root volume, a deploy that CloudFormation's pre-deployment validation rejects names the resource, property path and reason, and deletion leaves no compute environment, job queue or other resource."
+  },
+  {
     id: 'container-fast-deploy-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=container-fast-deploy-serving'],
     level: 'live-aws',
@@ -2847,6 +2858,8 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
+      'packages/packaging/src/buildpacks/dotnet-lambda-buildpack.test.ts',
+      'packages/packaging/src/buildpacks/java-lambda-buildpack.test.ts',
       'packages/packaging/src/buildpacks/js-bundle-image.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
@@ -4054,7 +4067,8 @@ export const slices: readonly Slice[] = [
       'cli',
       'cli-2',
       'cli-3',
-      'live-aws'
+      'live-aws',
+      'batch-job-live'
     ]
   },
   {
@@ -4668,7 +4682,11 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/fixtures/java-*/**',
       'packages/packaging/src/bundlers/java/**'
     ],
-    tests: ['packages/packaging/scripts/lambda-e2e/java.test.ts', 'packages/packaging/src/bundlers/java/index.test.ts'],
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/java.test.ts',
+      'packages/packaging/src/buildpacks/java-lambda-buildpack.test.ts',
+      'packages/packaging/src/bundlers/java/index.test.ts'
+    ],
     lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
@@ -4681,7 +4699,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/bundlers/dotnet/**',
       'packages/packaging/src/buildpacks/dotnet-lambda-buildpack.ts'
     ],
-    tests: [],
+    tests: ['packages/packaging/src/buildpacks/dotnet-lambda-buildpack.test.ts'],
     lanes: [
       'packaging-test',
       'packaging-images',

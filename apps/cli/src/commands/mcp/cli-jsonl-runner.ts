@@ -21,6 +21,8 @@ type RunStacktapeResult = {
   message: string;
   data?: Record<string, unknown>;
   rawTail?: string;
+  /** Whether the CLI ended with its own result, whose message explains the outcome without the raw output. */
+  cliReportedResult?: boolean;
   events: JsonlEventEvent[];
   logEvents: JsonlLogEvent[];
   outputEvents: JsonlOutputEvent[];
@@ -461,6 +463,7 @@ export const runStacktapeCommandJsonl = async ({
       message: resultEvent.message,
       data: resultEvent.data,
       rawTail: tailLines.length > 0 ? tailLines.join('\n') : undefined,
+      cliReportedResult: true,
       events,
       logEvents,
       outputEvents,

@@ -6,6 +6,7 @@ import type { StpResourceScopableByConnectToAffectingRole } from '@domain-servic
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -32,6 +33,9 @@ import {
 } from '@domain-services/config-manager/container-secrets';
 
 type BatchJobInstanceKind = 'spot' | 'onDemand';
+
+/** The public subnets compute environments launch instances into. */
+const BATCH_SUBNET_INDEXES = [0, 1];
 
 /**
  * Generates the IAM Service Role Object to be used by the Batch Compute Environment
@@ -193,7 +197,8 @@ export const getBatchInstanceDefaultSecurityGroup = () =>
     GroupDescription: `Stacktape generated security group for batch ec2 instances in stack ${calculatedStackOverviewManager.context.stackName}`
   });
 /**
- * Generates Launch Template used by compute environments. This launch template increases disk size for every instance spawned into compute environment
+ * Generates Launch Template used by compute environments. This launch template increases disk size for every instance spawned into compute environment.
+ * `/dev/xvda` is the root device of the Amazon Linux 2023 ECS-optimized AMIs as well.
  */
 export const getIncreasedDiskSizeLaunchTemplate = () =>
   cfnResource('AWS::EC2::LaunchTemplate', {
@@ -226,7 +231,7 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
     MaxvCpus: 1000,
     Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2023_NVIDIA' : 'ECS_AL2023' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
-    Subnets: vpcManager.getPublicSubnetIds().slice(0, 2),
+    Subnets: vpcManager.getPublicSubnetIds().slice(0, BATCH_SUBNET_INDEXES.length),
     AllocationStrategy: 'BEST_FIT',
     SecurityGroupIds: [ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())],
     LaunchTemplate: {
@@ -241,7 +246,7 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return cfnResource('AWS::Batch::ComputeEnvironment', {
+  const resource = cfnResource('AWS::Batch::ComputeEnvironment', {
     // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(calculatedStackOverviewManager.context.stackName, spot, gpu),
     ServiceRole: getAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
     State: 'ENABLED',
@@ -249,6 +254,20 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
     ComputeResources: getBatchComputeResourcesConfig(spot, gpu),
     Tags: tagObject
   });
+  // Instances in the public subnets reach ECS and the image registry through the internet gateway. Without this order
+  // a stack deletion detached the gateway while a job's instance still ran: the detach failed after 15 minutes, and the
+  // job, cut off from ECS, kept its state machine execution and so the compute environment alive. The order is a
+  // DependsOn only: adding it to a deployed stack updates no resource.
+  if (!configManager.reuseVpcConfig) {
+    resource.DependsOn = [
+      cfLogicalNames.vpcGatewayAttachment(),
+      ...BATCH_SUBNET_INDEXES.flatMap((subnetIndex) => [
+        cfLogicalNames.internetGatewayRoute(subnetIndex),
+        cfLogicalNames.routeTableToSubnetAssociation(true, subnetIndex)
+      ])
+    ];
+  }
+  return resource;
 };
 
 export const getBatchJobQueue = ({ spot, gpu }: { spot: boolean; gpu: boolean }) =>
@@ -302,7 +321,7 @@ const getBatchJobDefinitionContainerProperties = ({
     Image: getImageUrlForSingleTask(workload),
     // Stacktape's js-bundle images run no init process of their own; Batch starts one as PID 1.
     ...(packagingType === 'js-bundle' && { LinuxParameters: { InitProcessEnabled: true } }),
-    // @todo set this cpu number properties consistently
+    // A whole number: EC2 compute environments assign whole vCPUs, and config validation rejects a fraction.
     Vcpus: workload.resources.cpu,
     Memory: workload.resources.memory,
     LogConfiguration: logsEnabled

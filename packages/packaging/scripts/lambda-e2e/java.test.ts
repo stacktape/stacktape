@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildJavaLambda } from '../../src/buildpacks/java-lambda-buildpack';
+import { buildJavaLambda, getJavaLambdaHandler } from '../../src/buildpacks/java-lambda-buildpack';
 import { invokeInLambdaImage } from '../e2e-helpers';
 import { actions, ensureRuntimeImage, extractArtifact, withProject } from './harness';
 
@@ -20,11 +20,15 @@ for (const manager of ['maven', 'gradle'] as const) {
         const runtimeImage = `public.ecr.aws/lambda/java:${version}`;
         await ensureRuntimeImage(runtimeImage);
         const projectFiles = (await readdir(project)).toSorted();
+        const entryfilePath = join(directory ?? '', 'app/src/main/java/com/example/smoke/Handler.java');
+        // The handler the CLI configures for the function, not a string written for this test.
+        const handler = getJavaLambdaHandler({ cwd: repository, entryfilePath });
+        expect(handler).toBe('com.example.smoke.Handler::handleRequest');
         const output = await buildJavaLambda({
           ...actions,
           cwd: repository,
           name: `java-${manager}`,
-          entryfilePath: join(directory ?? '', 'app/src/main/java/smoke/Handler.java'),
+          entryfilePath,
           distFolderPath: join(root, 'dist'),
           javaVersion: version
           // Detect Maven/Gradle from the project, as a zero-config customer would.
@@ -38,14 +42,14 @@ for (const manager of ['maven', 'gradle'] as const) {
           containerLabel: `stacktape.test=java-${manager}-${process.pid}`,
           event: { name: 'stacktape' }
         };
-        const response = await invokeInLambdaImage({ ...invocation, handler: 'smoke.Handler::handleRequest' });
+        const response = await invokeInLambdaImage({ ...invocation, handler });
         expect(response).toBe(`${manager}-reactor-runtime-ok:java-runtime-resource:stacktape`);
         const invalid = await invokeInLambdaImage<{ errorMessage: string }>({
           ...invocation,
-          handler: 'smoke.Handler::missingMethod'
+          handler: getJavaLambdaHandler({ cwd: repository, entryfilePath, handlerFunction: 'missingMethod' })
         });
         expect(invalid.errorMessage).toContain('missingMethod');
-        expect(invalid.errorMessage).toContain('smoke.Handler');
+        expect(invalid.errorMessage).toContain('com.example.smoke.Handler');
       },
       { directory }
     );

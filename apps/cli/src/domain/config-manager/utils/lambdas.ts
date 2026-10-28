@@ -19,10 +19,12 @@ import {
   getSsmParameterStoreStackPrefix
 } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
+import { getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
 import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
 import { getPythonLambdaHandlerModule } from '@stacktape/packaging/buildpacks/py-lambda-buildpack';
 import { getRubyLambdaHandlerFile } from '@stacktape/packaging/buildpacks/rb-lambda-buildpack';
+import { getJavaLambdaHandler } from '@stacktape/packaging/buildpacks/java-lambda-buildpack';
+import { getDotnetLambdaHandler } from '@stacktape/packaging/buildpacks/dotnet-lambda-buildpack';
 
 import { kebabCase } from 'change-case';
 import type { ConfigManager } from '../index';
@@ -850,23 +852,26 @@ export const getLambdaHandler = ({
   workingDir: string;
 }) => {
   if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
-    const { entryfilePath } = packaging.properties;
+    const { entryfilePath, handlerFunction } = packaging.properties;
     const extension = getFileExtension(entryfilePath);
+    if (packaging.type === 'buildpack' && extension === 'java') {
+      return getJavaLambdaHandler({ cwd: workingDir, entryfilePath, handlerFunction });
+    }
+    if (packaging.type === 'buildpack' && extension === 'cs') {
+      return getDotnetLambdaHandler({
+        cwd: workingDir,
+        entryfilePath,
+        projectFile: packaging.properties.dotnet?.projectFile,
+        handlerFunction
+      });
+    }
     const handlerToUse =
-      packaging.properties.handlerFunction ??
-      (extension === 'java'
+      handlerFunction ??
+      (extension === 'go' || extension === 'rs'
         ? ''
-        : extension === 'go' || extension === 'rs'
-          ? ''
-          : extension === 'py'
-            ? 'handler'
-            : extension === 'rb'
-              ? 'handler'
-              : extension === 'php'
-                ? 'handler'
-                : extension === 'cs'
-                  ? ''
-                  : 'default');
+        : extension === 'py' || extension === 'rb' || extension === 'php'
+          ? 'handler'
+          : 'default');
     let entry = '';
     switch (extension) {
       // Python and Ruby resolve the handler from the ZIP root, which packaging chooses.
@@ -884,12 +889,6 @@ export const getLambdaHandler = ({
       case 'go':
       case 'rs':
         entry = getFileNameWithoutExtension(entryfilePath);
-        break;
-      case 'java':
-        entry = getContainingFolderName(entryfilePath);
-        break;
-      case 'cs':
-        entry = '';
         break;
       default:
         entry = 'index';
