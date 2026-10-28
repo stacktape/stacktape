@@ -76,15 +76,6 @@ const serviceReference = (name: string, targetServiceName: string, targetService
   evidence: []
 });
 
-/** A queue the topic fans out to. */
-const subscribed = (name: string, rawMessageDelivery: boolean) => ({
-  name,
-  kind: 'queue' as const,
-  topicSubscription: { topicName: 'notificationsTopic', rawMessageDelivery },
-  evidence: [],
-  source: 'probe' as const
-});
-
 describe('composed configuration conforms to the Stacktape schema', () => {
   it('a service that keeps its SQLite file on a mounted disk', () => {
     expectValid(
@@ -1043,7 +1034,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     ]);
   });
 
-  it('a Go function, SNS fanout to one queue per consumer, and a table whose key the code does not name', () => {
+  it('a Go function, two consumers on one queue beside a topic, and a table whose key the code does not name', () => {
     const consumer = (name: string, queue: string) =>
       service({
         name,
@@ -1069,13 +1060,18 @@ describe('composed configuration conforms to the Stacktape schema', () => {
             functionEntrypoint: 'functions/ping/main.go',
             functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }]
           }),
-          consumer('billing', 'billingQueue'),
-          consumer('audit', 'auditQueue')
+          consumer('billing', 'jobQueue'),
+          consumer('audit', 'jobQueue')
         ],
         dependencies: [
           { name: 'notificationsTopic', kind: 'topic', evidence: [], source: 'probe' },
-          subscribed('billingQueue', true),
-          subscribed('auditQueue', false),
+          {
+            name: 'jobQueue',
+            kind: 'queue',
+            fanoutHint: { file: 'README.md', line: 3, queues: ['billingQueue', 'auditQueue'] },
+            evidence: [],
+            source: 'probe'
+          },
           {
             name: 'mainTable',
             kind: 'dynamodb',
@@ -1090,20 +1086,24 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     });
 
     expectValid(result.config);
-    const { resources, cloudformationResources } = result.config;
+    const { resources } = result.config;
     // No runtime: the buildpack builds a Go entry file for provided.al2023.
     expect(resources.ping?.properties).toMatchObject({
       packaging: { type: 'buildpack', properties: { entryfilePath: 'functions/ping/main.go' } }
     });
     expect(resources.ping?.properties.runtime).toBeUndefined();
-    expect(Object.keys(cloudformationResources ?? {})).toEqual(['billingQueueSubscription', 'auditQueueSubscription']);
-    expect(cloudformationResources?.auditQueueSubscription?.Properties.RawMessageDelivery).toBe(false);
+    expect(resources.jobQueue?.properties).toEqual({});
     expect(resources.mainTable?.properties.primaryKey).toEqual({ partitionKey: { name: 'pk', type: 'string' } });
     expect(result.gaps).toEqual([
       {
         subject: 'mainTable.primaryKey',
         message:
           "Your code writes items with id and expiresAt to mainTable, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to whichever of id or expiresAt identifies an item."
+      },
+      {
+        subject: 'jobQueue.consumers',
+        message:
+          'billing and audit both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it. README.md line 3 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose.'
       }
     ]);
   });

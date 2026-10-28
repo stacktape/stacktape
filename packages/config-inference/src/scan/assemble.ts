@@ -33,7 +33,7 @@ import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
 import { applyStacktapeReferences } from './stacktape-references';
-import { settleTopicFanout } from './topic-fanout';
+import { noteFanoutHints } from './topic-fanout';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -1068,7 +1068,7 @@ export const assembleCandidateFacts = async ({
     }
   });
   settleJobQueues(services, dependencies);
-  dependencies = await settleTopicFanout({
+  await noteFanoutHints({
     services,
     dependencies,
     read: async (path) => {

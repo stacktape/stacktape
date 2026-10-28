@@ -29,13 +29,6 @@ const MARKERS: ReadonlyArray<{ files?: readonly string[]; suffixes?: readonly st
   { files: ['Package.swift'], language: 'swift' }
 ];
 
-/** Whether a file name is one of the project files above: `Gemfile`, `go.mod`, `Api.csproj`. */
-export const isLanguageMarker = (fileName: string): boolean =>
-  MARKERS.some(
-    (marker) =>
-      (marker.files ?? []).includes(fileName) || (marker.suffixes ?? []).some((suffix) => fileName.endsWith(suffix))
-  );
-
 /**
  * The language of one directory, given the repository's file list.
  *

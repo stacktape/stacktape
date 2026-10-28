@@ -7,7 +7,8 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { createProbeContext } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
+import { languageManifestProbe } from './language-manifests';
 import { messagingCallsProbe } from './messaging-calls';
 
 let root: string | undefined;
@@ -67,6 +68,18 @@ describe('the messaging-calls probe', () => {
       'src/notify.ts',
       "import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';\nconst topicArn = process.env.PARCEL_TOPIC_ARN!;\nexport const send = (Message: string) => sns.send(new PublishCommand({ TopicArn: topicArn, Message }));\n",
       'process.env.PARCEL_TOPIC_ARN'
+    ],
+    [
+      'Java, through the request builder',
+      'src/main/java/app/Notify.java',
+      'import software.amazon.awssdk.services.sns.SnsClient;\nsns.publish(PublishRequest.builder().topicArn(System.getenv("PARCEL_TOPIC_ARN")).message(m).build());\n',
+      'System.getenv("PARCEL_TOPIC_ARN"'
+    ],
+    [
+      'C#, in the request type',
+      'src/Notify.cs',
+      'using Amazon.SimpleNotificationService;\nawait sns.PublishAsync(new PublishRequest { TopicArn = Environment.GetEnvironmentVariable("PARCEL_TOPIC_ARN"), Message = m });\n',
+      'Environment.GetEnvironmentVariable("PARCEL_TOPIC_ARN"'
     ]
   ])('%s: a publish to the topic its variable names is that topic', async (_language, path, source, quote) => {
     expect(await run({ [path]: source })).toEqual([
@@ -120,5 +133,51 @@ describe('the messaging-calls probe', () => {
         'src/notify.ts': "import '@aws-sdk/client-sns';\nx({ TopicArn: process.env.TOPIC_ARN });\n"
       })
     ).toEqual([]);
+  });
+
+  it("reads only the call's own target, not a topic or queue named in the message it carries", async () => {
+    expect(
+      await run({
+        'app/jobs/forward.rb':
+          "require 'aws-sdk-sns'\nsqs.send_message(queue_url: ENV['JOBS_QUEUE_URL'], message_body: {topic_arn: ENV.fetch('EXTERNAL_TOPIC_ARN')}.to_json)\n",
+        'src/forward.ts':
+          "import { SendMessageCommand } from '@aws-sdk/client-sqs';\nawait sqs.send(new SendMessageCommand({ QueueUrl: process.env.JOBS_QUEUE_URL, MessageBody: JSON.stringify({ TopicArn: process.env.EXTERNAL_TOPIC_ARN }) }));\n",
+        // A field outside any publish call, in a string or in a comment, is no target.
+        'src/settings.ts':
+          "export const settings = { TopicArn: process.env.OTHER_TOPIC_ARN };\nconst help = 'TopicArn: process.env.DOC_TOPIC_ARN';\n// sns.publish({ TopicArn: process.env.OLD_TOPIC_ARN })\n"
+      })
+    ).toEqual([
+      {
+        name: 'jobQueue',
+        kind: 'queue',
+        addressedBy: [],
+        evidence: [{ file: 'app/jobs/forward.rb', quote: "ENV['JOBS_QUEUE_URL'" }]
+      }
+    ]);
+  });
+
+  it('a root Gemfile and two topic variables bind neither variable to a guessed topic', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-messaging-calls-'));
+    const files: Record<string, string> = {
+      Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "aws-sdk-sns"\n',
+      'app/models/order.rb':
+        "class Order\n  def placed!\n    sns.publish(topic_arn: ENV.fetch('ORDERS_TOPIC_ARN'), message: id.to_s)\n  end\n  def refunded!\n    sns.publish(topic_arn: ENV.fetch('REFUNDS_TOPIC_ARN'), message: id.to_s)\n  end\nend\n"
+    };
+    const directory = root;
+    await Promise.all(
+      Object.entries(files).map(async ([path, contents]) => {
+        await mkdir(join(directory, path, '..'), { recursive: true });
+        await writeFile(join(directory, path), contents, 'utf8');
+      })
+    );
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, messagingCallsProbe] });
+
+    expect(facts.dependencies.filter(({ kind }) => kind === 'topic')).toEqual([]);
+    expect(
+      facts.services[0]!.environmentVariables.map(({ name, role, dependencyName }) => ({ name, role, dependencyName }))
+    ).toEqual([
+      { name: 'ORDERS_TOPIC_ARN', role: 'runtime-config', dependencyName: undefined },
+      { name: 'REFUNDS_TOPIC_ARN', role: 'runtime-config', dependencyName: undefined }
+    ]);
   });
 });

@@ -180,10 +180,16 @@ export const dependencyFactSchema = z.object({
    */
   workflowSteps: z.array(z.string().min(1)).min(1).optional(),
   /**
-   * The topic a queue receives every message of, when the project says the topic fans out to it. `rawMessageDelivery`
-   * is false when its consumer reads the SNS envelope's `Message`, and true when it reads the published message itself.
+   * The README line that mentions a topic fanning out to queues, and the queue names on it, for a queue several functions
+   * consume. Prose is too weak to rearrange queues on (it can just as well say the opposite); the gap names it.
    */
-  topicSubscription: z.object({ topicName: z.string().min(1), rawMessageDelivery: z.boolean() }).optional(),
+  fanoutHint: z
+    .object({
+      file: z.string().min(1),
+      line: z.number().int().positive(),
+      queues: z.array(z.string().regex(/^[A-Za-z0-9_-]+$/)).min(1)
+    })
+    .optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

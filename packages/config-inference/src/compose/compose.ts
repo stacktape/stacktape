@@ -59,8 +59,6 @@ export type ComposedConfig = {
   /** Deploy-time migration scripts referenced from `hooks`, and the project's own seed and migrate commands. */
   scripts?: Record<string, ComposedResource>;
   hooks?: { afterDeploy: Array<{ scriptName: string }> };
-  /** What Stacktape has no resource for, written as CloudFormation: an SNS topic's subscription to a queue. */
-  cloudformationResources?: Record<string, { Type: string; Properties: Record<string, unknown> }>;
 };
 
 export type Provenance = {
@@ -1260,40 +1258,6 @@ export const composeConfig = ({
     });
   }
 
-  // SNS fanout. Stacktape has no SNS-to-SQS subscription of its own, so the subscription is a CloudFormation resource,
-  // and the queue's own policy lets the topic send to it (a second policy on the queue would replace Stacktape's).
-  const cloudformationResources: Record<string, { Type: string; Properties: Record<string, unknown> }> = {};
-  for (const dependency of facts.dependencies) {
-    const subscription = dependency.topicSubscription;
-    if (dependency.kind !== 'queue' || subscription === undefined) continue;
-    const queueName = dependencyResourceNames.get(dependency.name);
-    const topicName = dependencyResourceNames.get(subscription.topicName);
-    const queue = queueName === undefined ? undefined : resources[queueName];
-    if (queueName === undefined || topicName === undefined || queue === undefined) continue;
-    const topicArn = `$ResourceParam('${topicName}', 'arn')`;
-    queue.properties.policyStatements = [
-      {
-        Effect: 'Allow',
-        Principal: { Service: 'sns.amazonaws.com' },
-        Action: ['sqs:SendMessage'],
-        Condition: { ArnEquals: { 'aws:SourceArn': topicArn } }
-      }
-    ];
-    cloudformationResources[`${queueName}Subscription`] = {
-      Type: 'AWS::SNS::Subscription',
-      Properties: {
-        Protocol: 'sqs',
-        TopicArn: topicArn,
-        Endpoint: `$ResourceParam('${queueName}', 'arn')`,
-        RawMessageDelivery: subscription.rawMessageDelivery
-      }
-    };
-    provenance[queueName] = {
-      reason: `Your project says ${topicName} fans out to this queue, so it receives a copy of every message${subscription.rawMessageDelivery ? ', as published: its consumer reads the message, not the SNS envelope' : ' in the SNS envelope its consumer reads'}.`,
-      evidence: dependency.evidence.slice(0, 3)
-    };
-  }
-
   // Two different functions on one queue split its messages between them. Nothing here says that is the intent, and a
   // project with a topic usually means every consumer to get every message.
   const queueConsumers = new Map<string, string[]>();
@@ -1318,12 +1282,20 @@ export const composeConfig = ({
       consumers.length === 2
         ? `${consumers[0]} and ${consumers[1]} both`
         : `${consumers.slice(0, -1).join(', ')} and ${consumers.at(-1)} all`;
+    const subscription =
+      topicNames.length === 1
+        ? `give each its own queue subscribed to ${topicNames[0]} before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it`
+        : 'publish to an SNS topic and give each its own queue subscribed to it before deploying';
+    const hint = facts.dependencies.find((dependency) => dependency.name === dependencyName)?.fanoutHint;
+    const queues =
+      hint === undefined
+        ? ''
+        : hint.queues.length === 1
+          ? hint.queues[0]
+          : `${hint.queues.slice(0, -1).join(', ')} and ${hint.queues.at(-1)}`;
     gaps.push({
       subject: `${queueName}.consumers`,
-      message:
-        topicNames.length === 1
-          ? `${listed} consume ${queueName}, so each message reaches only one of them. If ${topicNames[0]} should deliver every message to each of them, fanout needs one queue per consumer: before deploying, give each its own sqs-queue with its sqs event, and subscribe each queue to ${topicNames[0]} with an AWS::SNS::Subscription in cloudformationResources and a policyStatements entry that lets sns.amazonaws.com send to it. Leave it as is only if they share the work on purpose.`
-          : `${listed} consume ${queueName}, so each message reaches only one of them. If each of them should handle every message, fanout needs an SNS topic and one queue per consumer subscribed to it; set that up before deploying. Leave it as is only if they share the work on purpose.`
+      message: `${listed} consume ${queueName}, so each message reaches only one of them. If each consumer must receive every message, ${subscription}.${hint === undefined ? '' : ` ${hint.file} line ${hint.line} names ${queues} in a sentence about a topic.`} Leave it as is only if they share the work on purpose.`
     });
   }
 
@@ -1736,8 +1708,7 @@ export const composeConfig = ({
       ...(projectName === undefined ? {} : { projectName }),
       resources,
       ...(Object.keys(scripts).length === 0 ? {} : { scripts }),
-      ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } }),
-      ...(Object.keys(cloudformationResources).length === 0 ? {} : { cloudformationResources })
+      ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } })
     },
     provenance,
     gaps: uniqueGaps,

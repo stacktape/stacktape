@@ -14,6 +14,7 @@ import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
   citeFirstMatchOnly,
+  citeLine,
   readText,
   type Probe,
   type ProbeContext,
@@ -710,8 +711,45 @@ const GO_STARTED_FUNCTION =
  * event type the started function takes says what invokes it; `events.CloudWatchEvent` is either a schedule or an
  * EventBridge rule, and an untyped `json.RawMessage` could be anything, so those get no trigger.
  */
-const goHandler = (context: ProbeContext, path: string, raw: string): CompiledHandler | 'no-build-file' | undefined => {
+/**
+ * Go source with its comments and string contents blanked out and its line breaks kept, so a commented-out
+ * `lambda.Start` example in a command's docs, or one in a help text, is not read as the command's own.
+ */
+const withoutGoComments = (raw: string): string => {
+  let result = '';
+  let quote: string | undefined;
+  for (let index = 0; index < raw.length; index += 1) {
+    const character = raw[index]!;
+    if (quote !== undefined) {
+      if (character === '\\' && quote !== '`') {
+        result += '  ';
+        index += 1;
+      } else if (character === quote) {
+        quote = undefined;
+        result += character;
+      } else result += character === '\n' ? '\n' : ' ';
+      continue;
+    }
+    if (character === '/' && (raw[index + 1] === '/' || raw[index + 1] === '*')) {
+      const end = raw[index + 1] === '/' ? raw.indexOf('\n', index) : raw.indexOf('*/', index + 2) + 2;
+      const stop = end <= 1 || end === -1 ? raw.length : end;
+      result += raw.slice(index, stop).replace(/[^\n]/g, ' ');
+      index = stop - 1;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') quote = character;
+    result += character;
+  }
+  return result;
+};
+
+const goHandler = (
+  context: ProbeContext,
+  path: string,
+  original: string
+): CompiledHandler | 'no-build-file' | undefined => {
   if (/(?:^|\/)vendor\/|_test\.go$/.test(path)) return undefined;
+  const raw = withoutGoComments(original);
   if (!GO_LAMBDA_START.test(raw) || !/^\s*package\s+main\b/m.test(raw)) return undefined;
   const module = nearestModule(context.files, path, (file, directory) => inDirectory(file, directory) === 'go.mod');
   if (module === undefined) return 'no-build-file';
@@ -727,7 +765,13 @@ const goHandler = (context: ProbeContext, path: string, raw: string): CompiledHa
     // The main package's own directory: a module at the repository root can hold several (`cmd/api`, `cmd/worker`).
     module: posix.dirname(path),
     runtimeVersion: undefined,
-    entryEvidence: citeFirstMatch(path, raw, GO_LAMBDA_START, 'functionEntrypoint')
+    // The line the call is on, quoted as the file has it.
+    entryEvidence: citeLine(
+      path,
+      original.split(/\r?\n/),
+      raw.split(/\r?\n/).findIndex((line) => GO_LAMBDA_START.test(line)),
+      'functionEntrypoint'
+    )
   };
 };
 

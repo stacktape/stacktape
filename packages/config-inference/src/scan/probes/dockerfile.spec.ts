@@ -101,6 +101,20 @@ describe('the standalone Dockerfile probe', () => {
     ).toEqual([{ name: 'api', path: 'api', dockerfile: 'api/Dockerfile', buildRoot: undefined }]);
   });
 
+  it('leaves a Dockerfile in a directory the root start command enters to the root service', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"tools","private":true}',
+      Procfile: 'web: cd api && bundle exec rails server -p $PORT\n',
+      'api/Gemfile': 'source "https://rubygems.org"\ngem "rails"\n',
+      'api/Dockerfile': 'FROM ruby:3.4-slim\nCOPY . .\nCMD ["bin/start"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services.map(({ path, dockerfile }) => ({ path, dockerfile }))).toEqual([
+      { path: '.', dockerfile: 'api/Dockerfile' }
+    ]);
+  });
+
   it('reads a Containerfile like a Dockerfile', async () => {
     const repositoryRoot = await makeRepo({
       Gemfile: 'source "https://rubygems.org"\ngem "rails"\n',

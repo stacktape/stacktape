@@ -934,7 +934,10 @@ describe('the lambda-source probe', () => {
       'vendor/example.com/tool/main.go': goHandler('events.SQSEvent'),
       'cmd/resize/main_test.go': goHandler('events.SQSEvent'),
       // Named after its file, like any handler outside a module of its own.
-      'lambdas/thumbnail.go': goHandler('events.S3Event')
+      'lambdas/thumbnail.go': goHandler('events.S3Event'),
+      // A command whose docs show a Lambda example in comments is not a Lambda handler.
+      'cmd/server/main.go':
+        'package main\n\n// To run this on Lambda instead:\n//   lambda.Start(handler)\n/* or lambda.StartWithOptions(func(ctx context.Context, e events.APIGatewayV2HTTPRequest) {}) */\nfunc main() { fmt.Println("// lambda.Start(x) is only text") ; http.ListenAndServe(":8080", nil) }\n'
     });
     root = repo.root;
 

@@ -34,11 +34,100 @@ const variableIn = (value: string): string | undefined =>
     ?.slice(1)
     .find((group) => group !== undefined);
 
-/** The request field that names the target, in each SDK's spelling: `TopicArn`, `topic_arn`, `.topicArn(`. */
-const TARGETS: ReadonlyArray<{ kind: Extract<DependencyKind, 'topic' | 'queue'>; field: RegExp; sdk: RegExp }> = [
-  { kind: 'topic', field: /\b(?:TopicArn|topic_arn|topicArn)\b\s*(?::|=(?!=)|\()\s*/g, sdk: /\bsns\b/i },
-  { kind: 'queue', field: /\b(?:QueueUrl|queue_url|queueUrl)\b\s*(?::|=(?!=)|\()\s*/g, sdk: /\bsqs\b/i }
+/**
+ * The request field that names the target, in each SDK's spelling (`TopicArn`, `topic_arn`, Java's `.topicArn(`), and the
+ * calls and request types it is the target of. A field anywhere else is data: `message_body: { topic_arn: ... }` on an
+ * SQS send names someone else's topic.
+ */
+const TARGETS: ReadonlyArray<{
+  kind: Extract<DependencyKind, 'topic' | 'queue'>;
+  field: RegExp;
+  calls: RegExp;
+  requests: RegExp;
+}> = [
+  {
+    kind: 'topic',
+    field: /\b(?:TopicArn|topic_arn)\b\s*(?::|=(?!=))\s*|\.topicArn\s*\(\s*/g,
+    calls: /^(?:publish|Publish|PublishCommand|PublishAsync|publishAsync)$/,
+    requests: /^(?:PublishInput|PublishRequest)$/
+  },
+  {
+    kind: 'queue',
+    field: /\b(?:QueueUrl|queue_url)\b\s*(?::|=(?!=))\s*|\.queueUrl\s*\(\s*/g,
+    calls:
+      /^(?:send_message|send_message_batch|sendMessage|sendMessageBatch|SendMessage|SendMessageBatch|SendMessageCommand|SendMessageBatchCommand|SendMessageAsync|SendMessageBatchAsync)$/,
+    requests: /^(?:SendMessageInput|SendMessageRequest|SendMessageBatchInput|SendMessageBatchRequest)$/
+  }
 ];
+
+type Opener = { character: '(' | '{' | '['; callee: string };
+
+/**
+ * The brackets open at each of `positions`, innermost last, and the name right before each one (`PublishCommand` for
+ * `new PublishCommand({`), skipping strings and comments. A position inside a string or comment gets no entry.
+ */
+const openersAt = (raw: string, positions: readonly number[], hashComments: boolean): Map<number, Opener[]> => {
+  const wanted = new Set(positions);
+  const result = new Map<number, Opener[]>();
+  const stack: Opener[] = [];
+  let quote: string | undefined;
+  let comment: 'line' | 'block' | undefined;
+  for (let index = 0; index < raw.length; index += 1) {
+    const character = raw[index]!;
+    if (comment === 'line') {
+      if (character === '\n') comment = undefined;
+      continue;
+    }
+    if (comment === 'block') {
+      if (character === '*' && raw[index + 1] === '/') {
+        comment = undefined;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote !== undefined) {
+      if (character === '\\') index += 1;
+      else if (character === quote) quote = undefined;
+      continue;
+    }
+    if (wanted.has(index)) result.set(index, [...stack]);
+    if (character === '"' || character === "'" || character === '`') quote = character;
+    else if (character === '/' && raw[index + 1] === '/') comment = 'line';
+    else if (character === '/' && raw[index + 1] === '*') comment = 'block';
+    else if (character === '#' && hashComments) comment = 'line';
+    else if (character === '(' || character === '{' || character === '[') {
+      const callee = /([A-Za-z_$][\w$]*)\s*$/.exec(raw.slice(Math.max(0, index - 80), index))?.[1] ?? '';
+      stack.push({ character, callee });
+    } else if (character === ')' || character === '}' || character === ']') stack.pop();
+  }
+  return result;
+};
+
+/**
+ * Whether a target field at this nesting is the call's own: an argument of the call (`publish(topic_arn: ...)`,
+ * `publish(TopicArn=...)`), a field of the object passed to it (`new PublishCommand({ TopicArn })`), or a field of
+ * its request type (`&sns.PublishInput{TopicArn: ...}`, `new PublishRequest { TopicArn = ... }`).
+ */
+const isCallTarget = (openers: readonly Opener[], target: (typeof TARGETS)[number]): boolean => {
+  const inner = openers.at(-1);
+  const outer = openers.at(-2);
+  if (inner === undefined) return false;
+  if (inner.character === '(') return target.calls.test(inner.callee);
+  if (inner.character !== '{') return false;
+  if (target.requests.test(inner.callee)) return true;
+  return inner.callee === '' && outer?.character === '(' && target.calls.test(outer.callee);
+};
+
+/** Java's builder: `PublishRequest.builder().topicArn(...)`, in the same statement. */
+const isBuilderTarget = (raw: string, index: number, target: (typeof TARGETS)[number]): boolean => {
+  const statement =
+    raw
+      .slice(Math.max(0, index - 400), index)
+      .split(/[;{}]/)
+      .at(-1) ?? '';
+  const type = /\b(\w+)\s*\.\s*builder\s*\(\s*\)/.exec(statement)?.[1];
+  return type !== undefined && target.requests.test(type);
+};
 
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|py|rb|go|java|kt|cs|php)$/;
 const NON_APPLICATION_PATH =
@@ -57,8 +146,9 @@ const DECLARES_INFRASTRUCTURE = (files: readonly string[]): boolean =>
   );
 
 /**
- * The variable the value after a target field reads: directly (`TopicArn: process.env.TOPIC_ARN`) or through one local
- * name the file assigns from the environment (`const topicArn = process.env.TOPIC_ARN` ... `TopicArn: topicArn`).
+ * The variable a target field's value reads: directly (`TopicArn: process.env.TOPIC_ARN`, `aws.String(os.Getenv("X"))`)
+ * or through one local name the file assigns from the environment (`const topicArn = process.env.TOPIC_ARN` ...
+ * `TopicArn: topicArn`).
  */
 const targetVariable = (raw: string, valueStart: number): string | undefined => {
   const value = raw.slice(valueStart, valueStart + 160);
@@ -82,19 +172,29 @@ export const messagingCallsProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
-      for (const { kind, field, sdk } of TARGETS) {
-        if (!sdk.test(raw)) continue;
-        for (const match of raw.matchAll(field)) {
-          const variable = targetVariable(raw, (match.index ?? 0) + match[0].length);
-          if (variable === undefined) continue;
-          const variables = found.get(kind) ?? new Map<string, DependencyFact['evidence']>();
-          if (!variables.has(variable)) {
-            // The read itself, not its line: the line can hold the message being published.
-            const citation = citeFirstMatchOnly(path, raw, new RegExp(environmentRead(variable)), 'addressedBy');
-            variables.set(variable, citation === undefined ? [] : [citation]);
-          }
-          found.set(kind, variables);
+      const matches = TARGETS.flatMap((target) => [...raw.matchAll(target.field)].map((match) => ({ target, match })));
+      if (matches.length === 0) continue;
+      const openers = openersAt(
+        raw,
+        matches.map(({ match }) => match.index ?? 0),
+        /\.(?:rb|py|php)$/.test(path)
+      );
+      for (const { target, match } of matches) {
+        const { kind } = target;
+        const index = match.index ?? 0;
+        const stack = openers.get(index);
+        if (stack === undefined) continue;
+        const own = match[0].startsWith('.') ? isBuilderTarget(raw, index, target) : isCallTarget(stack, target);
+        if (!own) continue;
+        const variable = targetVariable(raw, index + match[0].length);
+        if (variable === undefined) continue;
+        const variables = found.get(kind) ?? new Map<string, DependencyFact['evidence']>();
+        if (!variables.has(variable)) {
+          // The read itself, not its line: the line can hold the message being published.
+          const citation = citeFirstMatchOnly(path, raw, new RegExp(environmentRead(variable)), 'addressedBy');
+          variables.set(variable, citation === undefined ? [] : [citation]);
         }
+        found.set(kind, variables);
       }
     }
     // One variable names the project's one topic (or queue), which every other probe calls by the same default name.

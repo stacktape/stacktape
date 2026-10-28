@@ -234,14 +234,20 @@ type Occurrence = {
   alwaysHasFallback: boolean;
 };
 
+/** A Ruby default value: anything on the line but raising, failing or exiting. */
+const RUBY_VALUE = String.raw`(?!(?:raise|fail|abort|exit!?)\b)[^\s)|]`;
+
 const hasFallback = (line: string, matchEnd: number, kind: ReadPattern['fallback']): boolean => {
   const rest = line.slice(matchEnd);
   if (kind === 'js-or') return /^\s*(?:\|\||\?\?)/.test(rest);
-  // `ENV['BUNDLE_GEMFILE'] ||= File.expand_path(...)`, `ENV['PORT'] || 3000`.
-  if (kind === 'ruby-or') return /^\s*(?:\|\||\bor\b)/.test(rest);
-  // `ENV.fetch` raises without a default, which is a second argument or a block. A comma after the closing
-  // parenthesis belongs to the enclosing call: `publish(topic_arn: ENV.fetch('TOPIC_ARN'), message: ...)`.
-  if (kind === 'ruby-fetch') return /^\s*(?:,|\)\s*(?:\{|do\b))/.test(rest);
+  // `ENV['BUNDLE_GEMFILE'] ||= File.expand_path(...)`, `ENV['PORT'] || 3000`. A fallback that raises is no default:
+  // `ENV['API_KEY'] || raise('API_KEY missing')` fails at startup without the variable.
+  if (kind === 'ruby-or') return new RegExp(String.raw`^\s*(?:\|\|=?|\bor\b)\s*${RUBY_VALUE}`).test(rest);
+  // `ENV.fetch` raises without a default, which is a second argument or a block on the same line. A comma after the
+  // closing parenthesis belongs to the enclosing call: `publish(topic_arn: ENV.fetch('TOPIC_ARN'), message: ...)`.
+  if (kind === 'ruby-fetch') {
+    return new RegExp(String.raw`^\s*(?:,|\)\s*(?:\{|\bdo\b)\s*(?:\|[^|]*\|\s*)?)\s*${RUBY_VALUE}`).test(rest);
+  }
   if (kind === 'call-argument') return /^\s*['"`)\]]*\s*,/.test(rest);
   return false;
 };

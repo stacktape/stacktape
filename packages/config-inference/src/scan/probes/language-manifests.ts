@@ -176,15 +176,6 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
     packages: ['aws-sdk-dynamodb', 'awssdk.dynamodbv2', 'dynamodb', 'ex_aws_dynamo'],
     kinds: ['dynamodb']
   },
-  // Ruby's and Rust's `aws-sdk-sns`, Go's `aws-sdk-go-v2/service/sns`, .NET's `AWSSDK.SimpleNotificationService`.
-  {
-    packages: ['aws-sdk-sns', 'sns', 'awssdk.simplenotificationservice', 'ex_aws_sns', 'rusoto_sns'],
-    kinds: ['topic']
-  },
-  {
-    packages: ['aws-sdk-sqs', 'sqs', 'awssdk.sqs', 'ex_aws_sqs', 'rusoto_sqs', 'shoryuken'],
-    kinds: ['queue']
-  },
   {
     packages: ['boto3-ses', 'aws-sdk-ses', 'sendgrid', 'mailgun', 'resend', 'swiftmailer', 'symfony-mailer'],
     kinds: ['email']

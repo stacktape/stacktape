@@ -193,13 +193,16 @@ describe('environment-usage enrichment', () => {
     );
   });
 
-  it("tells ENV.fetch's default from the enclosing call's next argument, and reads Ruby's || defaults", async () => {
+  it("tells ENV.fetch's default from the enclosing call's next argument, and reads Ruby's || defaults unless they raise", async () => {
     root = await makeRepo({
       Gemfile: 'gem "rails"\n',
       'app/controllers/parcels_controller.rb':
         "Aws::SNS::Client.new.publish(topic_arn: ENV.fetch('PARCEL_TOPIC_ARN'), message: '{}')\nlimit = ENV.fetch('PAGE_SIZE', '20')\nzone = ENV.fetch('TIME_ZONE') { 'UTC' }\n",
       'config/boot.rb':
-        "ENV['APP_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)\nport = ENV['WEB_PORT'] || 3000\n"
+        "ENV['APP_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)\nport = ENV['WEB_PORT'] || 3000\n",
+      // A fallback that raises is no default: without the variable the app does not start.
+      'config/initializers/secrets.rb':
+        "key = ENV['PAYMENTS_API_KEY'] || raise('PAYMENTS_API_KEY is missing')\nsigning = ENV.fetch('SIGNING_SECRET') { raise KeyError, 'SIGNING_SECRET' }\nhook = ENV.fetch('HOOK_TOKEN') { |name| fail name }\n"
     });
     const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
     const required = Object.fromEntries(
@@ -211,8 +214,18 @@ describe('environment-usage enrichment', () => {
       PAGE_SIZE: false,
       TIME_ZONE: false,
       APP_GEMFILE: false,
-      WEB_PORT: false
+      WEB_PORT: false,
+      PAYMENTS_API_KEY: true,
+      SIGNING_SECRET: true,
+      HOOK_TOKEN: true
     });
+    // Required secrets keep their $Secret, as on main.
+    expect(
+      (facts.services[0]?.environmentVariables ?? [])
+        .filter((variable) => variable.role === 'third-party-secret')
+        .map((variable) => variable.name)
+        .toSorted()
+    ).toEqual(['HOOK_TOKEN', 'PAYMENTS_API_KEY', 'SIGNING_SECRET']);
   });
 
   it("gives each function the reads of its own import graph, or its directory's when an alias hides part of it", async () => {
