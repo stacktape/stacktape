@@ -3,6 +3,7 @@ import type { StpWorkloadType } from '@domain-services/config-manager/resolved-t
 import type { ConfigManager } from '../index.js';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { HttpApiIntegration } from '@stacktape/config/events';
+import { tuiManager } from '@application-services/tui-manager';
 import { configErrors } from '../errors';
 
 export const resolveReferenceToHttpApiGateway = ({
@@ -114,6 +115,28 @@ const validateHttpApiGatewayIntegrations = ({
   });
 };
 
+/**
+ * Paths API Gateway answers itself on a custom domain name, without invoking the route: `GET /ping` returns 200
+ * "Healthy Connection". Every HTTP API that Stacktape deploys has a custom domain, its own or the Stacktape default
+ * domain. Only these exact root paths are reserved; `/api/ping` reaches its route.
+ */
+const PATHS_RESERVED_ON_CUSTOM_DOMAINS = ['/ping', '/sping'];
+
+/** Warnings for routes of the HTTP API that requests through its domain never reach. */
+export const getReservedHttpApiRouteWarnings = ({
+  activeConfig,
+  resource
+}: {
+  activeConfig: ConfigManager;
+  resource: StpHttpApiGateway;
+}): string[] =>
+  getAllIntegrationsForHttpApiGateway({ activeConfig, resource })
+    .filter(({ properties }) => PATHS_RESERVED_ON_CUSTOM_DOMAINS.includes(properties.path))
+    .map(
+      ({ workloadName, properties: { path, method } }) =>
+        `Route \`${method} ${path}\` of \`${workloadName}\` on HTTP API \`${resource.name}\` is answered by API Gateway itself on custom domains, including the Stacktape domain, so requests never reach \`${workloadName}\`. Use another path, such as \`${path}-status\` or \`/health\`.`
+    );
+
 export const validateHttpApiGatewayConfig = ({
   activeConfig,
   resource
@@ -122,4 +145,5 @@ export const validateHttpApiGatewayConfig = ({
   resource: StpHttpApiGateway;
 }) => {
   validateHttpApiGatewayIntegrations({ activeConfig, resource });
+  getReservedHttpApiRouteWarnings({ activeConfig, resource }).forEach((warning) => tuiManager.warn(warning));
 };

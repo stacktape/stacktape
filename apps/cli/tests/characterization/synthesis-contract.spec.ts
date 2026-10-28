@@ -9,7 +9,8 @@ import type {
   KnownCloudFormationResourceType
 } from '@stacktape/cloudformation/resource';
 import { isIntrinsic, type CloudFormationValue } from '@stacktape/cloudformation/intrinsics';
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, spyOn, test } from 'bun:test';
+import { tuiManager } from '@application-services/tui-manager';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -1559,6 +1560,47 @@ describe('full synthesis contract', () => {
     const skipped = await synthesizeDenseFixture({ command: 'dev', devSkippedFunctions: ['worker'] });
     expect(queueMappings(skipped)).toEqual([]);
     expect(skipped.Resources[cfLogicalNames.lambda('worker')]?.Type).toBe('AWS::Lambda::Function');
+  });
+
+  // Seventh dogfood (r2ll): `GET /ping` answered "Healthy Connection" from API Gateway itself on the HTTP API's domain,
+  // while the function behind the route was never invoked. A nested `/api/ping` reaches its route.
+  test('warns about routes that API Gateway answers itself on custom domains', async () => {
+    const compiledConfig = defineConfig(() => {
+      const gateway = new HttpApiGateway({});
+      const packaging = new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' });
+      const status = new LambdaFunction({
+        packaging,
+        events: [new HttpApiIntegration({ httpApiGatewayName: 'gateway', path: '/ping', method: 'GET' })]
+      });
+      const nested = new LambdaFunction({
+        packaging,
+        events: [
+          new HttpApiIntegration({ httpApiGatewayName: 'gateway', path: '/api/ping', method: 'GET' }),
+          new HttpApiIntegration({ httpApiGatewayName: 'gateway', path: '/sping/{id}', method: 'GET' })
+        ]
+      });
+      return { resources: { gateway, status, nested } };
+    })({
+      projectName: 'characterization',
+      stage: 'baseline',
+      region: 'eu-west-1',
+      cliArgs: {} as any,
+      command: 'synth',
+      awsProfile: '',
+      user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+    });
+    const warn = spyOn(tuiManager, 'warn');
+    try {
+      await synthesizeFixture({ compiledConfig, workingDir: join(import.meta.dir, 'fixtures', 'dense-application') });
+      const warnings = warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes('ping'));
+      expect(warnings).toEqual([
+        'Route `GET /ping` of `status` on HTTP API `gateway` is answered by API Gateway itself on custom domains, including the Stacktape domain, so requests never reach `status`. Use another path, such as `/ping-status` or `/health`.'
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('synthesizes a complete WebSocket API with automatic handler access', async () => {

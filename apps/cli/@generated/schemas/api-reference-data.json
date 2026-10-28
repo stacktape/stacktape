@@ -113,18 +113,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -196,18 +196,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -270,18 +270,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -558,18 +558,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -680,18 +680,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -3854,18 +3854,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -4479,18 +4479,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -6465,18 +6465,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -7772,18 +7772,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -8506,18 +8506,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -11204,18 +11204,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -15733,18 +15733,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -19337,18 +19337,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -22795,18 +22795,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -23660,18 +23660,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -24307,18 +24307,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -26099,18 +26099,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -26540,18 +26540,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -27044,18 +27044,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -27882,18 +27882,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -28312,18 +28312,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -29544,18 +29544,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -30539,18 +30539,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -34221,18 +34221,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -35490,18 +35490,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -41777,18 +41777,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -42113,18 +42113,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -42687,18 +42687,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -43197,18 +43197,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -44627,18 +44627,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -46866,18 +46866,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -47615,18 +47615,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -50677,18 +50677,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -52594,18 +52594,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -52722,18 +52722,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -53086,18 +53086,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -54982,18 +54982,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -56450,18 +56450,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -56827,18 +56827,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -57316,18 +57316,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -57880,18 +57880,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -57962,18 +57962,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -58611,18 +58611,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -59960,18 +59960,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -60712,18 +60712,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }
@@ -64269,18 +64269,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       },
@@ -64613,18 +64613,18 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape status</code>.</p>",
+        "longDescription": "<p>Each key is the logical ID of one of the resource&#39;s CloudFormation child resources, as it appears in the template\n(<code>stacktape synth</code> writes it). Each path inside it is relative to that child resource&#39;s <code>Properties</code>: write\n<code>StorageEncrypted</code>, not <code>Properties.StorageEncrypted</code>. Use dot-notation for nested properties.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.6'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDbInstance:\n        StorageEncrypted: true\n    # [!code focus-end]"
           },
           {
             "lang": "typescript",
-            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.6',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDbInstance: { StorageEncrypted: true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
           }
         ]
       }

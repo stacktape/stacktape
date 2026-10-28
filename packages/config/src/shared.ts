@@ -355,8 +355,9 @@ export type StacktapeWorkloadDefinition =
  *
  * ---
  *
- * Use dot-notation paths to override specific properties on any child resource.
- * Find resource logical IDs with `stacktape status`.
+ * Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+ * (`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+ * `StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
  *
  * **Example (YAML):**
  *
@@ -370,13 +371,13 @@ export type StacktapeWorkloadDefinition =
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.2'
+ *           version: '16.6'
  *           primaryInstance:
  *             instanceSize: db.t3.micro
  *     # stp-focus
  *     overrides:
- *       MainDbDatabaseInstance:
- *         Properties.StorageEncrypted: true
+ *       MainDbDbInstance:
+ *         StorageEncrypted: true
  *     # stp-end-focus
  * ```
  *
@@ -389,12 +390,12 @@ export type StacktapeWorkloadDefinition =
  *   const mainDb = new RelationalDatabase({
  *     credentials: { masterUserPassword: $Secret('db-password') },
  *     engine: new RdsEnginePostgres({
- *       version: '16.2',
+ *       version: '16.6',
  *       primaryInstance: { instanceSize: 'db.t3.micro' }
  *     }),
  *     // stp-focus
  *     overrides: {
- *       MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+ *       MainDbDbInstance: { StorageEncrypted: true }
  *     }
  *     // stp-end-focus
  *   });

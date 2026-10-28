@@ -117,8 +117,8 @@ export const findStreamTablesToDeploy = (input: DevStackReferenceInput): Map<str
 /**
  * Fails, before `stacktape dev` does any AWS work, on a `$ResourceParam` that the dev stack could not resolve: a
  * resource or parameter that does not exist, or a resource the dev stack does not deploy. A local database resolves
- * only in deployed functions that reach it through the dev box (`relayedParamNames`), and only for the parameters the
- * relay gives.
+ * only in deployed functions and batch jobs that reach it through the dev box (`relayedParamNames`), and only for the
+ * parameters the relay gives.
  */
 export const assertDevStackReferencesResolve = ({
   relayedParamNames,
@@ -182,7 +182,7 @@ const localResourceReferencedError = (
         ? [
             `To use the deployed ${remotable.join(', ')} in dev mode, add ${them(remotable)} to remoteResources ` +
               `(\`--remote-resources ${remotable.join(',')}\`, or \`args.remoteResources\` in MCP), or set \`dev.remote: true\` on ${remotable.length === 1 ? 'it' : 'each'}.`,
-            'A local database gives the dev stack only its address and credentials, and only to deployed functions that reach it through the dev box (with the database in their environment or connectTo).'
+            'A local database gives the dev stack only its address and credentials, and only to deployed functions and batch jobs that reach it through the dev box (with the database in their environment or connectTo).'
           ]
         : []),
       ...(onMachine.length
@@ -214,7 +214,9 @@ export const prepareDevStackReferences = ({
   configManager.setDevSkippedFunctions(skippedFunctionNames);
   configManager.setDevAutoRemoteResources([...streamTables.keys()]);
   const relayedParamNames = new Map<string, readonly string[]>();
-  for (const name of new Set(Object.values(getDevNetworkDemand({ noTunnel }).functions).flat())) {
+  // Deployed functions and batch jobs reach local databases through the dev box.
+  const { functions, batchJobs } = getDevNetworkDemand({ noTunnel });
+  for (const name of new Set([...Object.values(functions), ...Object.values(batchJobs ?? {})].flat())) {
     const params = getRelayedLocalResourceParamNames(name);
     if (params) relayedParamNames.set(name, params);
   }

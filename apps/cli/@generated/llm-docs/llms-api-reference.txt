@@ -33,8 +33,9 @@ type AgentCoreBrowser = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -48,12 +49,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -65,11 +66,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -142,8 +143,9 @@ type AgentCoreCodeInterpreter = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -157,12 +159,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -174,11 +176,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -245,8 +247,9 @@ type AgentCoreGateway = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -260,12 +263,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -277,11 +280,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -468,8 +471,9 @@ type AgentCoreMemory = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -483,12 +487,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -500,11 +504,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -595,8 +599,9 @@ type AgentCoreRuntime = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -610,12 +615,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -627,11 +632,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -6351,8 +6356,9 @@ type ApplicationLoadBalancer = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -6366,12 +6372,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -6383,11 +6389,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -8817,8 +8823,9 @@ type AppSyncApi = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -8832,12 +8839,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -8849,11 +8856,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -9257,8 +9264,9 @@ type AstroWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -9272,12 +9280,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -9289,11 +9297,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -10301,8 +10309,9 @@ type Bastion = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -10316,12 +10325,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -10333,11 +10342,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -10920,8 +10929,9 @@ type BatchJob = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -10935,12 +10945,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -10952,11 +10962,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -12496,8 +12506,9 @@ type Bucket = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -12511,12 +12522,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -12528,11 +12539,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -19212,8 +19223,9 @@ type Convex = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -19227,12 +19239,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -19244,11 +19256,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -21037,8 +21049,9 @@ type CustomResourceDefinition = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -21052,12 +21065,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -21069,11 +21082,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -21635,8 +21648,9 @@ type CustomResourceInstance = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -21650,12 +21664,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -21667,11 +21681,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -27482,8 +27496,9 @@ type DeploymentScript = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -27497,12 +27512,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -27514,11 +27529,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -28157,8 +28172,9 @@ type DsqlDatabase = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -28172,12 +28188,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -28189,11 +28205,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -28784,8 +28800,9 @@ type DynamoDbTable = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -28799,12 +28816,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -28816,11 +28833,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -29727,8 +29744,9 @@ type EdgeLambdaFunction = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -29742,12 +29760,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -29759,11 +29777,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -30263,8 +30281,9 @@ type EfsFilesystem = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -30278,12 +30297,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -30295,11 +30314,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -30636,8 +30655,9 @@ type EventBus = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -30651,12 +30671,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -30668,11 +30688,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -35696,8 +35716,9 @@ type LambdaFunction = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -35711,12 +35732,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -35728,11 +35749,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -43328,8 +43349,9 @@ type HostingBucket = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -43343,12 +43365,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -43360,11 +43382,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -44934,8 +44956,9 @@ type HttpApiGateway = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -44949,12 +44972,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -44966,11 +44989,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -45479,8 +45502,9 @@ type KinesisStream = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -45494,12 +45518,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -45511,11 +45535,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -48903,8 +48927,9 @@ type ContainerWorkload = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -48918,12 +48943,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -48935,11 +48960,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -51677,8 +51702,9 @@ type NetworkLoadBalancer = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -51692,12 +51718,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -51709,11 +51735,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -52575,8 +52601,9 @@ type NextjsWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -52590,12 +52617,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -52607,11 +52634,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -53392,8 +53419,9 @@ type NuxtWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -53407,12 +53435,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -53424,11 +53452,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -54554,8 +54582,9 @@ type OpenSearchDomain = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -54569,12 +54598,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -54586,11 +54615,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -55486,8 +55515,9 @@ type PrivateService = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -55501,12 +55531,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -55518,11 +55548,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -57075,8 +57105,9 @@ type RedisCluster = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -57090,12 +57121,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -57107,11 +57138,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -60530,8 +60561,9 @@ type RelationalDatabase = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -60545,12 +60577,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -60562,11 +60594,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -61663,8 +61695,9 @@ type RemixWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -61678,12 +61711,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -61695,11 +61728,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -62851,8 +62884,9 @@ type SnsTopic = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -62866,12 +62900,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -62883,11 +62917,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -63118,8 +63152,9 @@ type SolidStartWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -63133,12 +63168,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -63150,11 +63185,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -63758,8 +63793,9 @@ type SqsQueue = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -63773,12 +63809,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -63790,11 +63826,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -66610,8 +66646,9 @@ type StateMachine = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -66625,12 +66662,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -66642,11 +66679,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -67464,8 +67501,9 @@ type SvelteKitWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -67479,12 +67517,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -67496,11 +67534,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -68294,8 +68332,9 @@ type SyntheticTest = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -68309,12 +68348,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -68326,11 +68365,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -68640,8 +68679,9 @@ type TanStackWeb = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -68655,12 +68695,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -68672,11 +68712,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -69409,8 +69449,9 @@ type UpstashRedis = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -69424,12 +69465,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -69441,11 +69482,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -69652,8 +69693,9 @@ type UptimeCheck = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -69667,12 +69709,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -69684,11 +69726,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -72295,8 +72337,9 @@ type UserAuthPool = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -72310,12 +72353,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -72327,11 +72370,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -77296,8 +77339,9 @@ type WebAppFirewall = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -77311,12 +77355,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -77328,11 +77372,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -78116,8 +78160,9 @@ type WebService = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -78131,12 +78176,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -78148,11 +78193,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -80557,8 +80602,9 @@ type WebSocketApiGateway = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -80572,12 +80618,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -80589,11 +80635,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 
@@ -80693,8 +80739,9 @@ type WorkerService = {
 
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
-Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape status`.
+Each key is the logical ID of one of the resource's CloudFormation child resources, as it appears in the template
+(`stacktape synth` writes it). Each path inside it is relative to that child resource's `Properties`: write
+`StorageEncrypted`, not `Properties.StorageEncrypted`. Use dot-notation for nested properties.
 
 ### Example 1 (yaml)
 
@@ -80708,12 +80755,12 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16.6'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
-      MainDbDatabaseInstance:
-        Properties.StorageEncrypted: true
+      MainDbDbInstance:
+        StorageEncrypted: true
 ```
 
 ### Example 2 (typescript)
@@ -80725,11 +80772,11 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.2',
+      version: '16.6',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
-      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+      MainDbDbInstance: { StorageEncrypted: true }
     }
   });
 

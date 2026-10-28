@@ -13,9 +13,10 @@ import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFil
 import { stringifyToYaml } from '@utils/yaml';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
+import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
 import { shouldExcludeResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { templateManager } from '.';
-import { applyResourceOverride } from './resource-overrides';
+import { applyResourceOverride, getPropertiesPrefixMistake } from './resource-overrides';
 import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
 import { deriveAuroraInstanceAddressesForNewFunctions } from './aurora-instance-addresses';
 import { keepDeployedBatchComputeEnvironmentImages } from './batch-compute-environment-images';
@@ -90,6 +91,17 @@ const applyResourceOverrides = () => {
         });
       }
 
+      const resourceType = templateManager.template.Resources[cfLogicalName].Type;
+      for (const pathToProp of Object.keys(overrides)) {
+        const mistake = getPropertiesPrefixMistake({ resourceType, path: pathToProp });
+        if (!mistake) continue;
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_RESOURCE_OVERRIDE_PATH_INVALID',
+          message: `Override \`${pathToProp}\` of \`${cfLogicalName}\` in resource \`${resource.name}\` starts with \`Properties\`. Override paths are relative to the CloudFormation resource's \`Properties\`, so this would set \`Properties.${pathToProp}\`, which ${resourceType} does not have.`,
+          hints: `Write \`${mistake.intended}\` instead of \`${pathToProp}\`.`
+        });
+      }
       Object.entries(overrides).forEach(([pathToProp, value]) =>
         applyResourceOverride(templateManager.template.Resources[cfLogicalName].Properties, pathToProp, value)
       );
@@ -248,8 +260,40 @@ export const finalizeTemplate = async () => {
   });
 };
 
+/**
+ * Where the template still holds `NOT_YET_KNOWN_IDENTIFIER`: a value, such as a container image or an artifact key, that
+ * is filled in once its artifact is packaged. In the r2ll dogfood a dev stack deployed a batch job definition with
+ * `Image: <<not-yet-known>>`, and AWS Batch rejected the first job submitted to it.
+ */
+export const findUnresolvedPlaceholders = (value: unknown, path: string[] = []): string[] => {
+  if (value === NOT_YET_KNOWN_IDENTIFIER) return [path.join('.')];
+  if (Array.isArray(value))
+    return value.flatMap((item, index) => findUnresolvedPlaceholders(item, [...path, `${index}`]));
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, item]) => findUnresolvedPlaceholders(item, [...path, key]));
+  }
+  return [];
+};
+
+/** Refuses a template with an unresolved placeholder before anything is uploaded or sent to CloudFormation. */
+export const assertNoUnresolvedPlaceholders = (template: CloudFormationTemplate) => {
+  const paths = findUnresolvedPlaceholders({ Resources: template.Resources, Outputs: template.Outputs });
+  if (!paths.length) return;
+  throw new CliError({
+    category: 'STACK',
+    code: 'TEMPLATE_UNRESOLVED_PLACEHOLDER',
+    message: `The CloudFormation template still has a placeholder where a packaged artifact belongs: ${paths
+      .slice(0, 5)
+      .map((path) => `\`${path}\``)
+      .join(', ')}. Stacktape did not package the artifact that this value comes from, so nothing was deployed.`,
+    hints: 'This is a Stacktape bug. Report it with the command you ran; `stacktape synth` shows the whole template.',
+    data: { paths }
+  });
+};
+
 export const prepareTemplateForDeploy = async () => {
   await finalizeTemplate();
+  assertNoUnresolvedPlaceholders(templateManager.getTemplate());
 
   await Promise.all([
     stackManager.stackActionType === 'create' &&

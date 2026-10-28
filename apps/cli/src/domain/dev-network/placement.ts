@@ -9,6 +9,12 @@ export type DevNetworkPlacement = {
   /** Functions placed in the network, with the locally emulated resources each one reaches through the relay. */
   functions: Record<string, string[]>;
   /**
+   * Batch jobs, with the locally emulated resources each one reaches through the relay. Present when the stack has
+   * batch jobs and no VPC of its own: their compute environments then run in the network's private subnets with the
+   * functions' security group, instead of a VPC the dev stack would create only for them.
+   */
+  batchJobs?: Record<string, string[]>;
+  /**
    * Each relayed local resource as deployed functions see it: its referenceable parameters with the box's private IP
    * and the leased port, and environment variables its clients need besides them.
    */

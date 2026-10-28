@@ -216,6 +216,23 @@ export const getIncreasedDiskSizeLaunchTemplate = () =>
   });
 
 /**
+ * Where the instances of the compute environments run. A dev stack without a VPC of its own runs them in the dev
+ * network's private subnets with the dev functions' security group: the dev box is their NAT, and they reach the
+ * databases on the developer's machine through its relay. ECR image layers come from S3 through the network's gateway
+ * endpoint.
+ */
+const getBatchInstanceNetwork = () => {
+  const devNetwork = configManager.deploymentContext.devNetwork;
+  if (configManager.batchJobsInDevNetwork && devNetwork) {
+    return { Subnets: devNetwork.subnetIds, SecurityGroupIds: [devNetwork.securityGroupId] };
+  }
+  return {
+    Subnets: vpcManager.getPublicSubnetIds().slice(0, BATCH_SUBNET_INDEXES.length),
+    SecurityGroupIds: [ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())]
+  };
+};
+
+/**
  * generates Compute Resource Config for compute environment
  */
 const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
@@ -231,9 +248,8 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
     MaxvCpus: 1000,
     Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2023_NVIDIA' : 'ECS_AL2023' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
-    Subnets: vpcManager.getPublicSubnetIds().slice(0, BATCH_SUBNET_INDEXES.length),
+    ...getBatchInstanceNetwork(),
     AllocationStrategy: 'BEST_FIT',
-    SecurityGroupIds: [ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())],
     LaunchTemplate: {
       LaunchTemplateId: ref(cfLogicalNames.batchInstanceLaunchTemplate())
     },
@@ -258,7 +274,7 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
   // a stack deletion detached the gateway while a job's instance still ran: the detach failed after 15 minutes, and the
   // job, cut off from ECS, kept its state machine execution and so the compute environment alive. The order is a
   // DependsOn only: adding it to a deployed stack updates no resource.
-  if (!configManager.reuseVpcConfig) {
+  if (!configManager.reuseVpcConfig && !configManager.batchJobsInDevNetwork) {
     resource.DependsOn = [
       cfLogicalNames.vpcGatewayAttachment(),
       ...BATCH_SUBNET_INDEXES.flatMap((subnetIndex) => [

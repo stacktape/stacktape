@@ -53,7 +53,7 @@ import {
 } from './agent-server';
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
-import { deployDevStack } from './dev-stack-deployer';
+import { deployDevStack, packageDevStackImages } from './dev-stack-deployer';
 import {
   describeDevStackUpdateCause,
   getDevStackConfigFingerprint,
@@ -844,15 +844,55 @@ export const commandDev = async () => {
     desiredFingerprint: desiredDevStackConfigFingerprint
   });
   const devStackConfigChanged = devStackUpdateCause !== undefined;
+  // Batch jobs and AgentCore runtimes run images that AWS pulls from the stack's registry. Their code is not in the
+  // fingerprint, so an existing stack is updated when an image changed; a new stack builds them while it deploys.
+  let changedImages: string[] = [];
+  if (stackManager.existingStackDetails && configManager.imageJobNamesToPackage.length) {
+    const imageSpinner = createSpinner(
+      'Building the images of resources that run in AWS',
+      tuiManager.colorize.bind(tuiManager)
+    );
+    reportDevStartup({
+      step: 'DEV_STACK',
+      key: 'images',
+      status: 'started',
+      message: 'Building the images of batch jobs and other resources that run in AWS'
+    });
+    try {
+      changedImages = await packageDevStackImages();
+    } catch (error) {
+      imageSpinner.error();
+      reportDevStartup({
+        step: 'DEV_STACK',
+        key: 'images',
+        status: 'completed',
+        level: 'error',
+        message: `Building the images of resources that run in AWS failed: ${(error as Error).message}`
+      });
+      throw error;
+    }
+    imageSpinner.success();
+    reportDevStartup({
+      step: 'DEV_STACK',
+      key: 'images',
+      status: 'completed',
+      message: changedImages.length
+        ? `Changed images: ${changedImages.join(', ')}`
+        : 'The images of resources that run in AWS are unchanged'
+    });
+  }
 
   // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
-  if (!stackManager.existingStackDetails || devStackConfigChanged) {
+  if (!stackManager.existingStackDetails || devStackConfigChanged || changedImages.length) {
+    const updateReasons = [
+      devStackUpdateCause && describeDevStackUpdateCause(devStackUpdateCause, { takeOver: Boolean(args.takeOver) }),
+      changedImages.length &&
+        `the image of ${changedImages.map((name) => `\`${name}\``).join(', ')} changed and is pushed to AWS`
+    ].filter(Boolean);
     const devStackDeployMessage = !stackManager.existingStackDetails
       ? `Creating dev stack ${stackContext.stackName}`
-      : `Updating dev stack ${stackContext.stackName}: ${describeDevStackUpdateCause(devStackUpdateCause!, {
-          takeOver: Boolean(args.takeOver)
-        })}`;
+      : `Updating dev stack ${stackContext.stackName}: ${updateReasons.join(', and ')}`;
     try {
       if (agentEnabled) {
         // Agent mode reports the deployment as JSONL events, CloudFormation resource counts included: the parent passes

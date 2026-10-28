@@ -43,17 +43,18 @@ export const mergeConnectToEnvironmentVariables = <
 };
 
 /**
- * The variables `connectTo` would inject for each local database a dev function reaches through the dev box, with the
- * relay address, plus what the database's clients need besides them (the DynamoDB endpoint).
+ * The variables `connectTo` would inject for each local database a dev function or batch job reaches through the dev
+ * box, with the relay address, plus what the database's clients need besides them (the DynamoDB endpoint).
  */
 export const getDevNetworkEnvironmentVariables = ({
   placement,
-  functionName
+  resourceNames
 }: {
   placement: DevNetworkPlacement;
-  functionName: string;
+  /** The relayed local resources of the workload: its entry in `placement.functions` or `placement.batchJobs`. */
+  resourceNames: string[] | undefined;
 }) =>
-  (placement.functions[functionName] || []).flatMap((resourceName) => {
+  (resourceNames || []).flatMap((resourceName) => {
     const resource = placement.localResources[resourceName];
     if (!resource) return [];
     return [

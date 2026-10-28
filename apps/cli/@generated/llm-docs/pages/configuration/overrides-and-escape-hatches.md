@@ -23,51 +23,48 @@ Check Stacktape's built-in properties first. Overrides bypass Stacktape's valida
 
 Each Stacktape resource creates one or more CloudFormation resources internally — called "child resources." For example, a Lambda function creates an `AWS::Lambda::Function`, an `AWS::IAM::Role`, and an `AWS::Logs::LogGroup`. A [web service](/resources/compute/web-service) creates an ECS task definition, an ECS service, IAM roles, security groups, and potentially load balancer resources.
 
-Overrides and transforms target these child resources using Stacktape-defined property names (such as `StpLambdaFunction` or `StpEcsTaskDefinition`). These names are distinct from the final CloudFormation logical IDs that appear in the generated template.
+Overrides and transforms name a child resource by its CloudFormation logical ID: the key it has under `Resources` in the generated template. The logical ID combines the Stacktape resource name with the child's kind, so a Lambda function named `api` has the child `ApiFunction`.
 
 ### Finding child resource names
 
-To override a property, you need the Stacktape child resource property name. The table below lists the most common ones. For less common resources, two discovery methods help you find the right name.
-
-Use [`stacktape status`](/cli/info-stack) to inspect child resources for a deployed stack:
-
-```bash
-stacktape status --stage dev --region eu-west-1
-```
-
-Alternatively, run [`stacktape synth`](/cli/synth) to generate the full CloudFormation template locally and verify that your overrides produce the expected output:
+Run [`stacktape synth`](/cli/synth) to generate the CloudFormation template locally and find the logical ID of the child resource you want to change:
 
 ```bash
 stacktape synth --stage dev --region eu-west-1
 ```
 
-This writes a `compiled-template.yaml` file you can inspect. Use it to verify that your override keys resolved correctly and that the final CloudFormation properties match your expectations.
+This writes a `compiled-template.yaml` file. Use it to verify that your overrides produce the expected CloudFormation properties. For a deployed stack, [`stacktape status`](/cli/info-stack) lists the child resources too:
+
+```bash
+stacktape status --stage dev --region eu-west-1
+```
 
 ### Common child resource names
 
-The table below lists commonly overridden child resources. Use the property name from the second column as the override key. Use [`stacktape synth`](/cli/synth) to verify the final CloudFormation output.
+The table below lists commonly overridden child resources of a resource named `api` (or `db`, `uploads`, `mainTable`). Replace the first part of the logical ID with the PascalCase name of your resource.
 
-| Stacktape resource type | Child resource property name | AWS resource type |
+| Stacktape resource type | Logical ID of the child resource | AWS resource type |
 |---|---|---|
-| Lambda function | `StpLambdaFunction` | `AWS::Lambda::Function` |
-| Lambda function | `StpLambdaFunctionRole` | `AWS::IAM::Role` |
-| Lambda function | `StpLambdaFunctionLogGroup` | `AWS::Logs::LogGroup` |
-| Web service | `StpEcsTaskDefinition` | `AWS::ECS::TaskDefinition` |
-| Web service | `StpEcsTaskRole` | `AWS::IAM::Role` |
-| Relational database | `StpRdsInstance` | `AWS::RDS::DBInstance` |
-| Relational database | `StpRdsParameterGroup` | `AWS::RDS::DBParameterGroup` |
-| Bucket | `StpS3Bucket` | `AWS::S3::Bucket` |
-| HTTP API Gateway | `StpHttpApi` | `AWS::ApiGatewayV2::Api` |
+| Lambda function `api` | `ApiFunction` | `AWS::Lambda::Function` |
+| Lambda function `api` | `ApiRole` | `AWS::IAM::Role` |
+| Lambda function `api` | `ApiLogGroup` | `AWS::Logs::LogGroup` |
+| Web service `api` | `ApiTaskDefinition` | `AWS::ECS::TaskDefinition` |
+| Web service `api` | `ApiRole` | `AWS::IAM::Role` |
+| Relational database `db` | `DbDbInstance` | `AWS::RDS::DBInstance` |
+| Relational database `db` | `DbDbParameterGroup` | `AWS::RDS::DBParameterGroup` |
+| Bucket `uploads` | `UploadsBucket` | `AWS::S3::Bucket` |
+| DynamoDB table `mainTable` | `MainTableGlobalTable` | `AWS::DynamoDB::GlobalTable` |
+| HTTP API Gateway `api` | `ApiApi` | `AWS::ApiGatewayV2::Api` |
 
 
-> **Warning:** The table above is not exhaustive, and child resource names can vary by resource shape. If an override does not take effect, use [`stacktape synth`](/cli/synth) to inspect the generated template and verify the exact child resource key.
+> **Warning:** The table above is not exhaustive, and the children of a resource depend on its configuration. An override whose target is not a child of the resource is rejected, and the error lists the valid logical IDs.
 
 
 ## Overrides
 
-Stacktape resource overrides let you set specific CloudFormation properties on child resources. The `overrides` property accepts an object where each key is a child resource property name (such as `StpLambdaFunction`) and the value is an object of CloudFormation properties to set.
+Stacktape resource overrides let you set specific CloudFormation properties on child resources. The `overrides` property accepts an object where each key is the logical ID of a child resource (such as `ApiFunction`) and the value is an object of CloudFormation properties to set.
 
-Overrides apply your specified keys on top of what Stacktape generates for each child resource.
+The properties are relative to the child resource's `Properties`: write `ReservedConcurrentExecutions`, not `Properties.ReservedConcurrentExecutions`. For nested properties, use a nested object or a dot-notation path such as `TimeToLiveSpecification.Enabled`. Overrides apply your specified keys on top of what Stacktape generates for each child resource.
 
 ### Basic override example
 
@@ -84,7 +81,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     overrides: {
-      StpLambdaFunction: {
+      ApiFunction: {
         ReservedConcurrentExecutions: 100
       }
     }
@@ -95,11 +92,69 @@ export default defineConfig(() => {
 ```
 
 
-The key `StpLambdaFunction` targets the underlying `AWS::Lambda::Function` child resource. This example uses an override to set the CloudFormation `ReservedConcurrentExecutions` property directly on that child resource.
+Example (YAML):
+
+```yaml
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/handler.ts
+    overrides:
+      ApiFunction:
+        ReservedConcurrentExecutions: 100
+```
+
+
+The key `ApiFunction` is the logical ID of the function's `AWS::Lambda::Function` child resource. This example uses an override to set the CloudFormation `ReservedConcurrentExecutions` property directly on that child resource.
 
 ### Override with nested properties
 
-For nested CloudFormation properties, use a nested object structure. This example configures an RDS parameter group:
+For a nested CloudFormation property, use a dot-notation path or a nested object. This example enables time-to-live on a DynamoDB table; the path starts at the table's properties, without `Properties.`:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, DynamoDbTable } from 'stacktape';
+export default defineConfig(() => {
+  const mainTable = new DynamoDbTable({
+    primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+    overrides: {
+      MainTableGlobalTable: {
+        'TimeToLiveSpecification.Enabled': true,
+        'TimeToLiveSpecification.AttributeName': 'expiresAt'
+      }
+    }
+  });
+
+  return { resources: { mainTable } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  mainTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+    overrides:
+      MainTableGlobalTable:
+        TimeToLiveSpecification.Enabled: true
+        TimeToLiveSpecification.AttributeName: expiresAt
+```
+
+
+A nested object works the same way. This example configures an RDS parameter group:
 
 
 Example (TypeScript):
@@ -110,13 +165,13 @@ export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16',
+      version: '16.6',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
     }),
     overrides: {
-      StpRdsParameterGroup: {
+      DbDbParameterGroup: {
         Parameters: {
           max_connections: '200',
           shared_buffers: '256MB'
@@ -130,7 +185,7 @@ export default defineConfig(() => {
 ```
 
 
-The `StpRdsParameterGroup` targets the `AWS::RDS::DBParameterGroup` child resource. The `Parameters` key is the CloudFormation property that accepts database engine parameters. The valid keys are RDS engine parameters for the selected PostgreSQL version and instance family — check the [AWS RDS parameter group documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithDBInstanceParamGroups.html) for available parameters.
+`DbDbParameterGroup` is the logical ID of the database's `AWS::RDS::DBParameterGroup` child resource. The `Parameters` key is the CloudFormation property that accepts database engine parameters. The valid keys are RDS engine parameters for the selected PostgreSQL version and instance family — check the [AWS RDS parameter group documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithDBInstanceParamGroups.html) for available parameters.
 
 ### S3 bucket override example
 
@@ -142,7 +197,7 @@ import { defineConfig, Bucket } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({
     overrides: {
-      StpS3Bucket: {
+      UploadsBucket: {
         PublicAccessBlockConfiguration: {
           BlockPublicAcls: true,
           BlockPublicPolicy: true,
@@ -185,7 +240,7 @@ export default defineConfig(() => {
       entryfilePath: './src/handler.ts'
     }),
     transforms: {
-      StpLambdaFunction: (props: any) => ({
+      ApiFunction: (props: any) => ({
         ...props,
         Layers: [
           ...(props.Layers || []),
@@ -216,7 +271,7 @@ export default defineConfig(() => {
     }),
     resources: { cpu: 0.5, memory: 1024 },
     transforms: {
-      StpEcsTaskDefinition: (props: any) => ({
+      ApiTaskDefinition: (props: any) => ({
         ...props,
         ContainerDefinitions: props.ContainerDefinitions.map((container: any) => ({
           ...container,
@@ -231,7 +286,7 @@ export default defineConfig(() => {
 ```
 
 
-The `StpEcsTaskDefinition` transform modifies the ECS task definition to add file descriptor limits to all containers. This is useful for high-connection workloads (WebSocket servers, connection pools) where the default Linux `nofile` limit is too low.
+The `ApiTaskDefinition` transform modifies the ECS task definition to add file descriptor limits to all containers. This is useful for high-connection workloads (WebSocket servers, connection pools) where the default Linux `nofile` limit is too low.
 
 ### When to use transforms over overrides
 

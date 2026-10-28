@@ -63,9 +63,12 @@ export const getDevNetworkSession = () => session;
 /**
  * The dev stack's functions that run in the dev network, each with the local databases it reaches through the relay:
  * every VPC function, and every function that uses a locally emulated database (`connectTo` or `$ResourceParam`).
+ * Batch jobs always run in a VPC, so a dev stack with batch jobs places their compute environments in the network too,
+ * and each job reaches the local databases it uses.
  *
  * A dev stack that still deploys VPC resources of its own (a remote database in its VPC, for example) keeps its VPC
- * functions there, where they reach those resources; they cannot reach local databases, which is reported.
+ * functions and batch jobs there, where they reach those resources; they cannot reach local databases, which is
+ * reported.
  */
 export const getDevNetworkDemand = ({ noTunnel }: { noTunnel: boolean }) => {
   const { remoteResourceNames } = configManager.deploymentContext;
@@ -77,21 +80,35 @@ export const getDevNetworkDemand = ({ noTunnel }: { noTunnel: boolean }) => {
   const stackKeepsOwnVpc = filterResourcesForDevMode(
     configManager.allResourcesRequiringVpc,
     configManager.deploymentContext
-  ).some((resource) => !('configParentResourceType' in resource && resource.configParentResourceType === 'function'));
-  const functions: Record<string, string[]> = {};
-  const unreachable: Array<{ name: string; resources: string[] }> = [];
-  for (const lambda of configManager.functions) {
-    const local = [...new Set([...(lambda.connectTo || []), ...getResourceParamReferences(lambda)])].filter((name) =>
+  ).some(
+    (resource) =>
+      resource.type !== 'batch-job' &&
+      !('configParentResourceType' in resource && resource.configParentResourceType === 'function')
+  );
+  const usedLocalResources = (resource: { connectTo?: string[] }, environmentOwner: unknown) =>
+    [...new Set([...(resource.connectTo || []), ...getResourceParamReferences(environmentOwner)])].filter((name) =>
       localNames.has(name)
     );
+  const functions: Record<string, string[]> = {};
+  const unreachable: Array<{ kind: 'Function' | 'Batch job'; name: string; resources: string[] }> = [];
+  for (const lambda of configManager.functions) {
+    const local = usedLocalResources(lambda, lambda);
     if (lambda.joinDefaultVpc && stackKeepsOwnVpc) {
-      if (local.length && !noTunnel) unreachable.push({ name: lambda.name, resources: local });
+      if (local.length && !noTunnel) unreachable.push({ kind: 'Function', name: lambda.name, resources: local });
       continue;
     }
     const relayed = noTunnel ? [] : local;
     if (lambda.joinDefaultVpc || relayed.length) functions[lambda.name] = relayed;
   }
-  return { functions, unreachable };
+  // The batch jobs of a stack share their compute environments, so either all of them run in the network or none.
+  const batchJobs: Record<string, string[]> | undefined =
+    configManager.batchJobs.length && !stackKeepsOwnVpc ? {} : undefined;
+  for (const job of configManager.batchJobs) {
+    const local = usedLocalResources(job, job.container);
+    if (batchJobs) batchJobs[job.name] = noTunnel ? [] : local;
+    else if (local.length && !noTunnel) unreachable.push({ kind: 'Batch job', name: job.name, resources: local });
+  }
+  return { functions, batchJobs, unreachable };
 };
 
 /**
@@ -354,14 +371,14 @@ export const startDevNetworkSession = async ({
   if (orphanedSessionId) {
     await awsSdkManager.systemsManager.terminateSession({ sessionId: orphanedSessionId }).catch(() => {});
   }
-  const { functions, unreachable } = getDevNetworkDemand({ noTunnel });
-  for (const { name, resources } of unreachable) {
+  const { functions, batchJobs, unreachable } = getDevNetworkDemand({ noTunnel });
+  for (const { kind, name, resources } of unreachable) {
     tuiManager.warn(
-      `Function "${name}" stays in this stage's own VPC, where the stage deploys VPC resources, and can't reach the local ${resources.join(', ')}. ` +
+      `${kind} "${name}" stays in this stage's own VPC, where the stage deploys VPC resources, and can't reach the local ${resources.join(', ')}. ` +
         `To connect it to the deployed resource instead, run with --remote-resources ${resources.join(',')}.`
     );
   }
-  if (!Object.keys(functions).length) return undefined;
+  if (!Object.keys(functions).length && !batchJobs) return undefined;
 
   const { network, action, ready } = await ensureDevNetwork({
     aws,
@@ -407,7 +424,7 @@ export const startDevNetworkSession = async ({
   // The connection starts the box and connects while the dev stack deploys and the local databases start. Its presence
   // connection keeps a box that has been idle for almost 30 minutes from stopping itself meanwhile.
   void connection.connect();
-  const relayedNames = [...new Set(Object.values(functions).flat())];
+  const relayedNames = [...new Set([...Object.values(functions), ...Object.values(batchJobs ?? {})].flat())];
   let leases: Map<string, number>;
   let replacesStaleSession = false;
   try {
@@ -442,6 +459,7 @@ export const startDevNetworkSession = async ({
     subnetIds: network.privateSubnetIds,
     securityGroupId: network.lambdaSecurityGroupId,
     functions,
+    ...(batchJobs ? { batchJobs } : {}),
     localResources
   };
   configManager.setDevNetworkPlacement(placement);

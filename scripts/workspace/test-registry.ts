@@ -2860,6 +2860,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
+      'packages/packaging/src/artifact/docker-context.test.ts',
       'packages/packaging/src/buildpacks/dotnet-lambda-buildpack.test.ts',
       'packages/packaging/src/buildpacks/java-lambda-buildpack.test.ts',
       'packages/packaging/src/buildpacks/js-bundle-image.test.ts',
@@ -4058,6 +4059,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/template-finalization-idempotence.spec.ts',
       'apps/cli/tests/synthesis-families/families.spec.ts',
       'apps/cli/tests/synthesis-families/compute-events.spec.ts',
+      'apps/cli/tests/synthesis-families/documented-overrides.spec.ts',
       'apps/cli/tests/characterization/service-lambda-environment.spec.ts'
     ],
     lanes: [
@@ -4918,6 +4920,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
+      'packages/packaging/src/artifact/docker-context.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'

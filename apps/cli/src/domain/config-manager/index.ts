@@ -1862,6 +1862,25 @@ export class ConfigManager {
     return this.agentCoreRuntimes.filter((runtime) => runtime.packaging.type !== 'prebuilt-image');
   }
 
+  /**
+   * The images the current command builds. `dev` runs services on this machine and builds their images there itself,
+   * but AWS pulls the images of what the dev stack deploys: batch jobs, AgentCore runtimes and Convex's workloads.
+   */
+  get containersToPackage() {
+    if (this.deploymentContext.command !== 'dev') return this.allContainersRequiringPackaging;
+    return this.allContainersRequiringPackaging.filter(
+      ({ workloadType }) => !isResourceTypeExcludedInDevMode(workloadType)
+    );
+  }
+
+  /** The job names of the images in `containersToPackage` and of the AgentCore runtimes. */
+  get imageJobNamesToPackage() {
+    return [
+      ...this.containersToPackage.map(({ jobName }) => jobName),
+      ...this.agentCoreRuntimesRequiringPackaging.map(({ jobName }) => jobName)
+    ];
+  }
+
   get helperLambdas(): StpHelperLambdaFunction[] {
     const res = [];
     res.push(this.stacktapeServiceLambdaProps);
@@ -2298,7 +2317,7 @@ export class ConfigManager {
   get allResourcesRequiringVpc() {
     return [
       ...this.allContainerWorkloads,
-      ...this.batchJobs,
+      ...(this.batchJobsInDevNetwork ? [] : this.batchJobs),
       ...this.allApplicationLoadBalancers,
       ...this.atlasMongoClusters,
       ...this.databases,
@@ -2318,6 +2337,11 @@ export class ConfigManager {
     this.#stackContext?.command === 'dev' &&
     lambda.configParentResourceType === 'function' &&
     Boolean(this.#devNetworkPlacement?.functions[lambda.name]);
+
+  /** Whether a dev stack runs its batch jobs' compute environments in the shared dev network (see `getDevNetworkDemand`). */
+  get batchJobsInDevNetwork() {
+    return this.#stackContext?.command === 'dev' && Boolean(this.#devNetworkPlacement?.batchJobs);
+  }
 
   /**
    * `stackConfig.nat` with defaults applied. `ec2` is one instance in one zone, `ha-ec2` one instance per zone with
