@@ -9,6 +9,7 @@ import {
   type FunctionTrigger,
   type ServiceFactInput
 } from '../../facts/service';
+import type { UnmappedHandler } from '../../facts/project-facts';
 import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
@@ -568,6 +569,228 @@ const citeInferred = (path: string, raw: string, pattern: RegExp | undefined): C
 const languageFor = (path: string): string =>
   path.endsWith('.py') ? 'python' : path.endsWith('.ts') || path.endsWith('.tsx') ? 'typescript' : 'javascript';
 
+const HTTP_METHODS = 'GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS';
+
+/**
+ * The path parameters an HTTP handler reads: `event.pathParameters.sku`, `pathParameters?.['sku']`,
+ * `const { sku } = event.pathParameters`, Python's `event['pathParameters']['sku']` and `.get('sku')`, and Java's
+ * `getPathParameters().get("sku")`.
+ */
+const pathParametersIn = (raw: string): string[] => {
+  const names = new Set<string>();
+  const patterns = [
+    /\bpathParameters\s*\??\.\s*(?!get\b)([A-Za-z_$][\w$]*)/g,
+    /\bpathParameters['"]?\s*\]?\s*\??\.?\s*\[\s*['"]([\w-]+)['"]\s*\]/g,
+    /(?:\bpathParameters['"]?\s*(?:,\s*(?:\{\s*\}|None)\s*)?[\])]?|getPathParameters\(\s*\)|PathParameters)\s*\??\.\s*get\(\s*['"]([\w-]+)['"]/g,
+    /PathParameters\s*\[\s*"([\w-]+)"\s*\]/g
+  ];
+  for (const pattern of patterns) for (const match of raw.matchAll(pattern)) names.add(match[1]!);
+  for (const match of raw.matchAll(/\{([^{}]*)\}\s*=\s*[\w$.?]*\bpathParameters\b/g)) {
+    for (const entry of match[1]!.split(',')) {
+      const key = /^\s*([A-Za-z_$][\w$]*)/.exec(entry)?.[1];
+      if (key !== undefined) names.add(key);
+    }
+  }
+  return [...names];
+};
+
+/** The one HTTP method a handler compares the request's method with (`requestContext.http.method === 'GET'`). */
+const comparedMethod = (raw: string): string | undefined => {
+  const methods = new Set(
+    [
+      ...raw.matchAll(
+        new RegExp(
+          `(?:\\b(?:httpMethod|method|HttpMethod)\\b['"\\]]*\\s*(?:===?|!==?)\\s*['"](${HTTP_METHODS})['"]|getHttpMethod\\(\\)\\s*\\.equals(?:IgnoreCase)?\\(\\s*"(${HTTP_METHODS})")`,
+          'gi'
+        )
+      )
+    ].map((match) => (match[1] ?? match[2])!.toUpperCase())
+  );
+  return methods.size === 1 ? [...methods][0] : undefined;
+};
+
+/** Routes the source states, in a comment or a string: `// GET /quote/{sku}?quantity=12`. */
+const statedRoutes = (raw: string): Array<{ method: string; path: string }> => {
+  const routes = new Map<string, { method: string; path: string }>();
+  for (const match of raw.matchAll(new RegExp(`\\b(${HTTP_METHODS}|ANY)\\s+(\\/[\\w\\-./{}+]*)`, 'g'))) {
+    const path = match[2]!.replace(/(?<=.)\/$/, '');
+    routes.set(`${match[1]} ${path}`, { method: match[1] === 'ANY' ? '*' : match[1]!, path });
+  }
+  return [...routes.values()];
+};
+
+/** A handler comparing or switching on the request path: it serves several routes itself. */
+const ROUTES_ITSELF =
+  /\b(?:rawPath|path|resource|routeKey)\b['"\]]*\s*(?:===?|!==?)|\b(?:rawPath|path)\b['"\]]*\s*\.\s*(?:startsWith|endsWith|match|includes|split)\s*\(|switch\s*\([^)]*\b(?:rawPath|path|routeKey)\b/;
+
+/** Words that name what a handler does rather than what it serves: `users/get.ts` serves `users`. */
+const ACTION_STEMS = /^(?:get|post|put|patch|delete|create|update|list|read|remove|handler|index|main|app|lambda)$/i;
+
+/**
+ * The route an HTTP handler serves, from what it reads: a route the source states that holds every path parameter it
+ * reads, or, for the project's only HTTP handler, `/<name>/{param}` for the parameters themselves (`pathParameters.sku`
+ * in `functions/quote` serves `/quote/{sku}`). Undefined when the handler reads no path parameter and states no single route, or reads `proxy`:
+ * it routes on its own.
+ */
+const handlerRoute = (
+  path: string,
+  raw: string,
+  { lone }: { lone: boolean }
+): { method: string; path: string } | undefined => {
+  const parameters = pathParametersIn(raw);
+  if (parameters.includes('proxy')) return undefined;
+  const method = comparedMethod(raw);
+  const stated = statedRoutes(raw).filter((route) =>
+    parameters.every((parameter) => route.path.includes(`{${parameter}}`))
+  );
+  if (stated.length === 1) return { method: method ?? stated[0]!.method, path: stated[0]!.path };
+  // Beside other handlers, a name says too little: `getUser.ts` serves `GET /users/{id}`, not `/get-user/{id}`. A
+  // handler that compares the request path routes on its own.
+  if (parameters.length === 0 || !lone || ROUTES_ITSELF.test(raw)) return undefined;
+  const segments = path.replace(/\.[^./]+$/, '').split('/');
+  const base = segments
+    .toReversed()
+    .find((segment) => !ACTION_STEMS.test(segment) && !GENERIC_DIRECTORIES.has(segment.toLowerCase()));
+  if (base === undefined) return undefined;
+  const resource = base.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+  return { method: method ?? '*', path: `/${resource}/${parameters.map((name) => `{${name}}`).join('/')}` };
+};
+
+/** Event classes from `aws-lambda-java-events` and `Amazon.Lambda.*Events`, by the trigger each implies. */
+const COMPILED_EVENT_TYPES: Readonly<Record<string, EventFamily>> = {
+  APIGatewayV2HTTPEvent: { trigger: 'http', payloadFormat: '2.0' },
+  APIGatewayHttpApiV2ProxyRequest: { trigger: 'http', payloadFormat: '2.0' },
+  APIGatewayProxyRequestEvent: { trigger: 'http', payloadFormat: '1.0' },
+  APIGatewayProxyRequest: { trigger: 'http', payloadFormat: '1.0' },
+  APIGatewayV2WebSocketEvent: { trigger: 'websocket' },
+  SQSEvent: { trigger: 'queue' },
+  SNSEvent: { trigger: 'topic' },
+  S3Event: { trigger: 'object-storage' },
+  S3EventNotification: { trigger: 'object-storage' },
+  ScheduledEvent: { trigger: 'schedule' },
+  DynamodbEvent: { trigger: 'dynamodb-stream' },
+  DynamoDBEvent: { trigger: 'dynamodb-stream' },
+  KinesisEvent: { trigger: 'unmapped', sourceType: 'a Kinesis stream' },
+  ApplicationLoadBalancerRequestEvent: { trigger: 'unmapped', sourceType: 'an Application Load Balancer' },
+  ApplicationLoadBalancerRequest: { trigger: 'unmapped', sourceType: 'an Application Load Balancer' }
+};
+
+const compiledEventFamily = (typeName: string | undefined): EventFamily | undefined =>
+  typeName === undefined ? undefined : COMPILED_EVENT_TYPES[typeName.split('.').at(-1)!];
+
+/** A Java class implementing the Lambda handler interfaces, and the event class it takes. */
+const JAVA_HANDLER =
+  /\bclass\s+(\w+)\b[^{]*?\bimplements\b[^{]*?\b(?:RequestHandler\s*<\s*([\w.]+)|RequestStreamHandler\b)/;
+/**
+ * A .NET Lambda handler method: public, with an `ILambdaContext` last parameter, and the event type before it.
+ */
+const DOTNET_HANDLER =
+  /\bpublic\s+(?:static\s+)?(?:async\s+)?[\w.<>,?[\]\s]+?\s+(\w+)\s*\(\s*(?:(?:\[[^\]]*\]\s*)?([\w.<>]+)\s+\w+\s*,\s*)?ILambdaContext\s+\w+\s*\)/;
+/** Handler shapes in languages init does not turn into functions: Go, Rust and Ruby. */
+const OTHER_HANDLER_SHAPES: ReadonlyArray<{ extension: RegExp; pattern: RegExp; language: string }> = [
+  { extension: /\.go$/, pattern: /\blambda\.Start(?:WithOptions)?\s*\(/, language: 'Go' },
+  { extension: /\.rs$/, pattern: /\blambda_runtime::run\s*\(|\bservice_fn\s*\(/, language: 'Rust' },
+  { extension: /\.rb$/, pattern: /\bdef\s+(?:self\.)?\w+\s*\(\s*event:\s*,\s*context:\s*\)/, language: 'Ruby' }
+];
+
+/** The nearest directory at or above `path` that holds one of `manifests`. */
+const nearestModule = (
+  files: readonly string[],
+  path: string,
+  holds: (file: string, directory: string) => boolean
+): { directory: string; manifest: string } | undefined => {
+  const segments = path.split('/').slice(0, -1);
+  for (let length = segments.length; length >= 0; length -= 1) {
+    const directory = segments.slice(0, length).join('/') || '.';
+    const manifest = files.find((file) => holds(file, directory));
+    if (manifest !== undefined) return { directory, manifest };
+  }
+  return undefined;
+};
+
+const inDirectory = (file: string, directory: string): string | undefined => {
+  const prefix = directory === '.' ? '' : `${directory}/`;
+  if (!file.startsWith(prefix)) return undefined;
+  const rest = file.slice(prefix.length);
+  return rest.includes('/') ? undefined : rest;
+};
+
+const JAVA_BUILD_FILES = new Set(['pom.xml', 'build.gradle', 'build.gradle.kts']);
+
+/** The Java release a Maven or Gradle build file pins. */
+const javaRelease = (raw: string): string | undefined =>
+  raw.match(/JavaLanguageVersion\.of\(\s*(\d+)\s*\)/)?.[1] ??
+  raw.match(/<maven\.compiler\.(?:release|target)>\s*(?:1\.)?(\d+)\s*</)?.[1] ??
+  raw.match(/<release>\s*(\d+)\s*<\/release>/)?.[1] ??
+  raw.match(/<java\.version>\s*(?:1\.)?(\d+)\s*</)?.[1] ??
+  raw.match(/sourceCompatibility\s*=\s*(?:JavaVersion\.VERSION_)?['"]?(?:1\.)?(\d+)['"]?/)?.[1];
+
+/** A handler written in a compiled language, as the platform names it. */
+type CompiledHandler = {
+  family: EventFamily | undefined;
+  functionHandler: string;
+  language: 'java' | 'dotnet';
+  module: string;
+  runtimeVersion: string | undefined;
+  entryEvidence: Citation | undefined;
+};
+
+/**
+ * A Java class implementing `RequestHandler`/`RequestStreamHandler`, in a Maven or Gradle module. The handler names
+ * the class and its method: `TaxHandler::handleRequest`. Stacktape puts the class's package in front of it.
+ */
+const javaHandler = async (
+  context: ProbeContext,
+  path: string,
+  raw: string
+): Promise<CompiledHandler | 'no-build-file' | undefined> => {
+  const match = JAVA_HANDLER.exec(raw);
+  if (match === null) return undefined;
+  const module = nearestModule(context.files, path, (file, directory) =>
+    JAVA_BUILD_FILES.has(inDirectory(file, directory) ?? '')
+  );
+  if (module === undefined) return 'no-build-file';
+  const build = await readText(context, module.manifest, { fullFile: true });
+  return {
+    family: compiledEventFamily(match[2]),
+    functionHandler: `${match[1]}::handleRequest`,
+    language: 'java',
+    module: module.directory,
+    runtimeVersion: build === undefined ? undefined : javaRelease(build),
+    entryEvidence: citeFirstMatch(path, raw, JAVA_HANDLER, 'functionEntrypoint')
+  };
+};
+
+/** A C# method taking an `ILambdaContext`, in a project: `Assembly::Namespace.Class::Method`. */
+const dotnetHandler = async (
+  context: ProbeContext,
+  path: string,
+  raw: string
+): Promise<CompiledHandler | 'no-build-file' | undefined> => {
+  const match = DOTNET_HANDLER.exec(raw);
+  if (match === null) return undefined;
+  const classes = [...raw.slice(0, match.index).matchAll(/\bclass\s+(\w+)/g)];
+  const className = classes.at(-1)?.[1];
+  if (className === undefined) return undefined;
+  const namespace = /\bnamespace\s+([\w.]+)/.exec(raw)?.[1];
+  const module = nearestModule(context.files, path, (file, directory) =>
+    (inDirectory(file, directory) ?? '').endsWith('.csproj')
+  );
+  if (module === undefined) return 'no-build-file';
+  const project = await readText(context, module.manifest, { fullFile: true });
+  const assembly =
+    /<AssemblyName>\s*([\w.]+)\s*<\/AssemblyName>/.exec(project ?? '')?.[1] ??
+    posix.basename(module.manifest).replace(/\.csproj$/, '');
+  return {
+    family: compiledEventFamily(match[2]),
+    functionHandler: `${assembly}::${namespace === undefined ? '' : `${namespace}.`}${className}::${match[1]}`,
+    language: 'dotnet',
+    module: module.directory,
+    runtimeVersion: /<TargetFramework>\s*net(\d+)\.\d+\s*</.exec(project ?? '')?.[1],
+    entryEvidence: citeFirstMatch(path, raw, DOTNET_HANDLER, 'functionEntrypoint')
+  };
+};
+
 /** File names that say nothing about the function: `api/main.py` is the `api` function. */
 const GENERIC_STEMS = new Set(['handler', 'index', 'main', 'app', 'lambda', 'lambda_function']);
 
@@ -601,8 +824,11 @@ const GENERIC_DIRECTORIES = new Set([
  * Names that stay unique when two handlers have the same file name: `apps/users/src/api.ts` and
  * `apps/orders/src/api.ts` become `users-api` and `orders-api`, not two services called `api`.
  */
-const uniqueHandlerNames = (paths: readonly string[]): Map<string, string> => {
-  const names = new Map(paths.map((path) => [path, nameFor(path)]));
+const uniqueHandlerNames = (
+  paths: readonly string[],
+  preferred: ReadonlyMap<string, string> = new Map()
+): Map<string, string> => {
+  const names = new Map(paths.map((path) => [path, preferred.get(path) ?? nameFor(path)]));
   const counts = new Map<string, number>();
   for (const name of names.values()) counts.set(name, (counts.get(name) ?? 0) + 1);
   for (const [path, name] of names) {
@@ -655,7 +881,9 @@ export const lambdaSourceProbe: Probe = {
       triggerEvidence: Citation | undefined;
       entryEvidence: Citation | undefined;
       pythonHandler: string | undefined;
+      compiled?: CompiledHandler;
     }> = [];
+    const unmappedHandlers: UnmappedHandler[] = [];
     const claimed = new Set<string>();
     const publishers = new Map<string, Publisher>();
     const workflowStarts: WorkflowStart[] = [];
@@ -767,9 +995,52 @@ export const lambdaSourceProbe: Probe = {
       });
     }
 
+    // Java and .NET handlers implement the runtime's handler interface. Each needs the build file that compiles it, and
+    // the platform's handler name, which the file alone does not give. Go, Rust and Ruby handlers are reported for the
+    // user to add.
+    const compiledCandidates = application
+      .filter((path) => /\.(?:java|cs|go|rs|rb)$/.test(path))
+      .slice(0, MAX_TYPED_CANDIDATES);
+    for (const path of compiledCandidates) {
+      // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
+      const raw = await readText(context, path, { fullFile: true });
+      if (raw === undefined) continue;
+      if (path.endsWith('.java') || path.endsWith('.cs')) {
+        // oxlint-disable-next-line no-await-in-loop -- the build file read belongs to this candidate.
+        const compiled = await (path.endsWith('.java') ? javaHandler : dotnetHandler)(context, path, raw);
+        if (compiled === 'no-build-file') {
+          unmappedHandlers.push({ path, language: path.endsWith('.java') ? 'Java' : '.NET', reason: 'no-build-file' });
+        } else if (compiled !== undefined) {
+          handlers.push({
+            path,
+            raw,
+            family: compiled.family,
+            triggerEvidence: undefined,
+            entryEvidence: compiled.entryEvidence,
+            pythonHandler: undefined,
+            compiled
+          });
+        }
+        continue;
+      }
+      const other = OTHER_HANDLER_SHAPES.find((shape) => shape.extension.test(path) && shape.pattern.test(raw));
+      if (other !== undefined)
+        unmappedHandlers.push({ path, language: other.language, reason: 'unsupported-language' });
+    }
+
     // Every HTTP handler would otherwise get the catch-all route on the one HTTP API, and CloudFormation rejects two
-    // `* /{proxy+}` routes. Only a lone HTTP handler is the API; several have to be given their routes.
+    // `* /{proxy+}` routes. A lone HTTP handler takes it unless the path parameters it reads name its route; several
+    // have to be given their routes, unless the source states each one.
     const httpHandlerCount = handlers.filter(({ family }) => family?.trigger === 'http').length;
+    const routes = new Map(
+      handlers.flatMap((handler) => {
+        const route =
+          handler.family?.trigger === 'http'
+            ? handlerRoute(handler.path, handler.raw, { lone: httpHandlerCount === 1 })
+            : undefined;
+        return route === undefined ? [] : [[handler.path, route] as const];
+      })
+    );
 
     // The resource a trigger names is the one other probes find under the same default name, so they fold together.
     const ensureDependency = (
@@ -796,15 +1067,26 @@ export const lambdaSourceProbe: Probe = {
       return name;
     };
 
-    for (const { path, raw, family, triggerEvidence, entryEvidence, pythonHandler } of handlers) {
+    // A Java or .NET module holding one handler is that function: `functions/tax` is `tax`, not `TaxHandler`.
+    const preferredNames = new Map<string, string>();
+    for (const { path, compiled } of handlers) {
+      if (compiled === undefined || compiled.module === '.') continue;
+      const siblings = handlers.filter((handler) => handler.compiled?.module === compiled.module);
+      if (siblings.length === 1) preferredNames.set(path, posix.basename(compiled.module));
+    }
+
+    for (const { path, raw, family, triggerEvidence, entryEvidence, pythonHandler, compiled } of handlers) {
       const evidence = triggerEvidence === undefined ? [] : [triggerEvidence];
       const triggers: FunctionTrigger[] = [];
       if (family?.trigger === 'http') {
+        const route = routes.get(path);
         triggers.push(
-          httpHandlerCount === 1
-            ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
-              { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat }
-            : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
+          route !== undefined
+            ? { type: 'http', ...route, payloadFormat: family.payloadFormat }
+            : httpHandlerCount === 1
+              ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
+                { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat }
+              : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
         );
       } else if (family?.trigger === 'schedule') {
         const rate = scheduleIn(raw);
@@ -877,17 +1159,20 @@ export const lambdaSourceProbe: Probe = {
       }
 
       services.push({
-        name: nameFor(path),
-        path: posix.dirname(path) === '.' ? '.' : posix.dirname(path),
+        name: preferredNames.get(path) ?? nameFor(path),
+        path: compiled?.module ?? (posix.dirname(path) === '.' ? '.' : posix.dirname(path)),
         processType: path,
-        language: languageFor(path),
+        language: compiled?.language ?? languageFor(path),
+        ...(compiled?.runtimeVersion === undefined ? {} : { runtimeVersion: compiled.runtimeVersion }),
         exposesHttp: false,
         executionModel: 'per-request',
         functionEntrypoint: path,
         // Stacktape calls a Python module's `handler`; AWS's own examples name it `lambda_handler`.
         ...(pythonHandler === 'lambda_handler' && !/^def\s+handler\s*\(/m.test(raw)
           ? { functionHandler: pythonHandler }
-          : {}),
+          : compiled === undefined
+            ? {}
+            : { functionHandler: compiled.functionHandler }),
         functionTriggers: triggers,
         environmentVariables: [],
         evidence: [...(entryEvidence === undefined ? [] : [entryEvidence]), ...evidence],
@@ -899,10 +1184,10 @@ export const lambdaSourceProbe: Probe = {
     const candidates = stepCandidates.filter(
       (candidate) => !handlers.some((handler) => handler.path === candidate.path)
     );
-    const finalNames = uniqueHandlerNames([
-      ...services.map((service) => service.functionEntrypoint!),
-      ...candidates.map((candidate) => candidate.path)
-    ]);
+    const finalNames = uniqueHandlerNames(
+      [...services.map((service) => service.functionEntrypoint!), ...candidates.map((candidate) => candidate.path)],
+      preferredNames
+    );
     for (const service of services) {
       const name = finalNames.get(service.functionEntrypoint!)!;
       for (const uncertainty of uncertainties) {
@@ -1011,12 +1296,13 @@ export const lambdaSourceProbe: Probe = {
       });
     }
 
-    return services.length === 0 && dependencies.length === 0
+    return services.length === 0 && dependencies.length === 0 && unmappedHandlers.length === 0
       ? {}
       : {
           services,
           ...(dependencies.length === 0 ? {} : { dependencies }),
-          ...(uncertainties.length === 0 ? {} : { uncertainties })
+          ...(uncertainties.length === 0 ? {} : { uncertainties }),
+          ...(unmappedHandlers.length === 0 ? {} : { unmappedHandlers })
         };
   }
 };

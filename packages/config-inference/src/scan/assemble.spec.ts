@@ -13,6 +13,9 @@ import { staticSiteProbe } from './probes/static-site';
 
 const PROBES = [manifestProbe, environmentProbe];
 
+const pkg = (name: string, start: string, dependencies: Record<string, string> = {}) =>
+  JSON.stringify({ name, scripts: { start }, dependencies });
+
 let root: string;
 
 const makeRepo = async (files: Record<string, string>): Promise<string> => {
@@ -663,6 +666,66 @@ describe('assembleCandidateFacts', () => {
       tool: 'prisma',
       runsAt: 'unknown'
     });
+  });
+
+  // r2gg part B: what makes a service private, a script a job, and a workspace package a library.
+  it('keeps a service public when only a worker calls it, and marks one only another API calls internal', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'shop', workspaces: ['apps/*'] }),
+      'package-lock.json': '{}',
+      'apps/api/package.json': pkg('api', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/api/src/index.js': 'fetch(`${process.env.PRICING_URL}/price`);\napp.listen(3000);\n',
+      'apps/pricing/package.json': pkg('pricing', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/pricing/src/index.js': 'app.listen(3001);\n',
+      'apps/worker/package.json': pkg('worker', 'node src/index.js'),
+      'apps/worker/src/index.js': 'setInterval(() => fetch(`${process.env.API_URL}/tick`), 1000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const result = composeConfig({ facts, projectName: 'shop' });
+
+    expect(
+      Object.fromEntries(Object.entries(result.config.resources).map(([name, resource]) => [name, resource.type]))
+    ).toEqual({ api: 'web-service', pricing: 'private-service', worker: 'worker-service' });
+  });
+
+  it('makes a script that runs once a job, started by the queue its comment names, and leaves libraries out', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'shelf', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - jobs/*\n  - packages/*\n',
+      'pnpm-lock.yaml': '',
+      'jobs/report/package.json': JSON.stringify({
+        name: '@shelf/report',
+        scripts: { start: 'node --experimental-strip-types src/report.ts' },
+        dependencies: { '@shelf/shared': 'workspace:*', '@shelf/ui': 'workspace:*' }
+      }),
+      'jobs/report/src/report.ts': [
+        '// Builds a report. It runs for every message on the report queue.',
+        "import { SHARED } from '@shelf/shared';",
+        'const rows = await load();',
+        'await save(rows);',
+        ''
+      ].join('\n'),
+      'jobs/poller/package.json': JSON.stringify({ name: '@shelf/poller', scripts: { start: 'node src/poll.js' } }),
+      'jobs/poller/src/poll.js': 'const client = await connect();\nwhile (true) await client.poll();\n',
+      'packages/shared/package.json': JSON.stringify({ name: '@shelf/shared', exports: { '.': './src/index.ts' } }),
+      // A library build is no static site.
+      'packages/ui/package.json': JSON.stringify({
+        name: '@shelf/ui',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^6.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(
+      facts.services.map((service) => [service.name, service.executionModel, service.functionTriggers]).toSorted()
+    ).toEqual([
+      ['poller', 'long-running', []],
+      ['report', 'one-shot', [{ type: 'queue', dependencyName: 'jobQueue' }]]
+    ]);
+    expect(facts.dependencies.map((dependency) => [dependency.name, dependency.kind])).toEqual([['jobQueue', 'queue']]);
   });
 
   it('produces an empty but valid document for a repository with nothing to deploy', async () => {

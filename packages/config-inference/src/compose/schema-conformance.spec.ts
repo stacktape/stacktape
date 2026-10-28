@@ -67,6 +67,15 @@ const workflowVariable = (name: string, dependencyName: string) => ({
   evidence: []
 });
 
+const serviceReference = (name: string, targetServiceName: string, targetServiceProperty?: 'arn') => ({
+  name,
+  role: 'cross-service-reference' as const,
+  targetServiceName,
+  ...(targetServiceProperty === undefined ? {} : { targetServiceProperty }),
+  required: true,
+  evidence: []
+});
+
 describe('composed configuration conforms to the Stacktape schema', () => {
   it('a service that keeps its SQLite file on a mounted disk', () => {
     expectValid(
@@ -898,5 +907,87 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           "Your code invokes send-email directly with the Lambda Invoke API. Before deploying, give the workload that calls it connectTo: [sendEmail] and pass it the function's ARN with $ResourceParam('sendEmail', 'arn')."
       }
     ]);
+  });
+
+  // The r2gg part B shapes: a Java function the API invokes by name, a private service only the API calls, a job each
+  // queue message starts, and a frontend reading the address of an HTTP-triggered function.
+  it('a Java function invoked by name, a private service, a job per queue message and a function address', () => {
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({
+            name: 'api',
+            path: 'apps/api',
+            environmentVariables: [
+              serviceReference('RECS_URL', 'recs'),
+              serviceReference('TAX_FUNCTION_NAME', 'tax', 'arn')
+            ]
+          }),
+          service({ name: 'recs', path: 'apps/recs', language: 'python', internalOnly: true, port: 5000 }),
+          service({
+            name: 'tax',
+            path: 'functions/tax',
+            language: 'java',
+            runtimeVersion: '21',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/tax/src/main/java/shelf/TaxHandler.java',
+            functionHandler: 'TaxHandler::handleRequest',
+            functionTriggers: [{ type: 'unmapped', sourceType: DIRECT_INVOCATION_SOURCE }]
+          }),
+          service({
+            name: 'quote',
+            path: 'functions/quote',
+            language: 'typescript',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/quote/handler.ts',
+            functionTriggers: [{ type: 'http', method: 'GET', path: '/quote/{sku}', payloadFormat: '2.0' }]
+          }),
+          service({
+            name: 'report',
+            path: 'jobs/report',
+            exposesHttp: false,
+            executionModel: 'one-shot',
+            functionTriggers: [{ type: 'queue', dependencyName: 'jobQueue' }]
+          }),
+          service({
+            name: 'web',
+            path: 'apps/web',
+            framework: 'astro',
+            environmentVariables: [serviceReference('API_URL', 'api'), serviceReference('QUOTE_URL', 'quote')]
+          })
+        ],
+        dependencies: [{ name: 'jobQueue', kind: 'queue', consumedBy: ['api'], evidence: [], source: 'probe' }]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.api?.properties).toMatchObject({
+      environment: [
+        { name: 'RECS_URL', value: "$CfFormat('http://{}', $ResourceParam('recs', 'address'))" },
+        { name: 'TAX_FUNCTION_NAME', value: "$ResourceParam('tax', 'arn')" }
+      ],
+      connectTo: ['jobQueue', 'recs', 'tax']
+    });
+    expect(resources.recs?.type).toBe('private-service');
+    expect(resources.tax?.properties).toMatchObject({
+      packaging: { type: 'buildpack', properties: { handlerFunction: 'TaxHandler::handleRequest' } },
+      runtime: 'java21'
+    });
+    expect(resources.report).toMatchObject({
+      type: 'batch-job',
+      properties: { resources: { cpu: 1 }, events: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }] }
+    });
+    expect(resources.web?.properties.environment).toEqual([
+      { name: 'API_URL', value: "$ResourceParam('api', 'url')" },
+      { name: 'QUOTE_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+    ]);
+    expect(result.gaps).toEqual([]);
   });
 });

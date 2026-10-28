@@ -408,10 +408,61 @@ const packagingFor = (
  * container with no `DATABASE_URL` at all. Those become secret references too: the connection string
  * is the user's, we never read or keep it, and the file stays coherent either way.
  */
+type ServiceReferenceContext = {
+  serviceResourceNames: ReadonlyMap<string, string>;
+  services: readonly ServiceFact[];
+  httpApiGatewayName: string | undefined;
+};
+
+/**
+ * The value of a variable that addresses another service of the project, or undefined when Stacktape has no value of
+ * the shape the code expects.
+ *
+ * Render can inject a bare host, a port, or `host:port`. A Stacktape web-service exposes a complete URL; substituting
+ * that for one of those narrower shapes produces a valid-looking config and a broken application, so those become an
+ * explicit review item instead. A private service's `address` is `host:port`, so its URL gets the scheme in front. An
+ * HTTP-triggered function is reached through the HTTP API, and a function the code invokes by name gets its ARN, which
+ * the Lambda `Invoke` API takes as well.
+ */
+const serviceReferenceValue = (
+  variable: Pick<ServiceFact['environmentVariables'][number], 'targetServiceName' | 'targetServiceProperty'>,
+  { serviceResourceNames, services, httpApiGatewayName }: ServiceReferenceContext
+): string | undefined => {
+  if (variable.targetServiceName === undefined) return undefined;
+  const resourceName = serviceResourceNames.get(variable.targetServiceName);
+  const target = services.find((candidate) => candidate.name === variable.targetServiceName);
+  if (resourceName === undefined || target === undefined) return undefined;
+  const property = variable.targetServiceProperty ?? 'url';
+  if (target.functionEntrypoint !== undefined) {
+    if (property === 'arn') return `$ResourceParam('${resourceName}', 'arn')`;
+    if (property !== 'url') return undefined;
+    if (target.functionTriggers.some((trigger) => trigger.type === 'url')) {
+      return `$ResourceParam('${resourceName}', 'url')`;
+    }
+    return target.functionTriggers.some((trigger) => trigger.type === 'http') && httpApiGatewayName !== undefined
+      ? `$ResourceParam('${httpApiGatewayName}', 'url')`
+      : undefined;
+  }
+  if (target.internalOnly === true) {
+    if (property === 'hostport') return `$ResourceParam('${resourceName}', 'address')`;
+    return property === 'url' ? `$CfFormat('http://{}', $ResourceParam('${resourceName}', 'address'))` : undefined;
+  }
+  return property === 'url' ? `$ResourceParam('${resourceName}', 'url')` : undefined;
+};
+
+/** Services another service has to `connectTo`: functions it invokes, and private services it calls. */
+const connectedServices = (service: ServiceFact, services: readonly ServiceFact[]): string[] =>
+  service.environmentVariables.flatMap((variable) => {
+    if (variable.role !== 'cross-service-reference') return [];
+    const target = services.find((candidate) => candidate.name === variable.targetServiceName);
+    if (target === undefined) return [];
+    const invoked = target.functionEntrypoint !== undefined && variable.targetServiceProperty === 'arn';
+    return invoked || (target.functionEntrypoint === undefined && target.internalOnly === true) ? [target.name] : [];
+  });
+
 const environmentFor = (
   service: ServiceFact,
-  context: {
-    serviceResourceNames: ReadonlyMap<string, string>;
+  context: ServiceReferenceContext & {
     /** Dependencies we are creating: fact name → its kind and the resource name it composed into. */
     composedDependencies: ReadonlyMap<string, { kind: DependencyFact['kind']; resourceName: string }>;
     /** Where each SQLite dependency's file is, by dependency name. */
@@ -503,20 +554,8 @@ const environmentFor = (
       continue;
     }
     if (variable.role === 'cross-service-reference' && variable.targetServiceName !== undefined) {
-      // Render can inject a bare host, a port, or `host:port`. A Stacktape web-service exposes a
-      // complete URL; substituting that for one of those narrower shapes produces a valid-looking
-      // config and a broken application. Preserve only semantically equivalent URL references and
-      // turn every other shape into an explicit review item below.
-      if (variable.targetServiceProperty !== undefined && variable.targetServiceProperty !== 'url') {
-        continue;
-      }
-      const target = serviceResourceNames.get(variable.targetServiceName);
-      if (target !== undefined) {
-        variables.push({
-          name: variable.name,
-          value: `$ResourceParam('${target}', 'url')`
-        });
-      }
+      const value = serviceReferenceValue(variable, context);
+      if (value !== undefined) variables.push({ name: variable.name, value });
       continue;
     }
     if (variable.role === 'build-time') {
@@ -1203,6 +1242,13 @@ export const composeConfig = ({
     });
   }
 
+  const invokedByName = new Set(
+    facts.services.flatMap((service) =>
+      connectedServices(service, facts.services).filter((name) =>
+        facts.services.some((target) => target.name === name && target.functionEntrypoint !== undefined)
+      )
+    )
+  );
   const dockerfileOwners = facts.services.filter((candidate) => candidate.dockerfile !== undefined);
   const browserCalledServices = new Set(
     facts.services.flatMap((service) =>
@@ -1219,10 +1265,16 @@ export const composeConfig = ({
       service.dockerfile === undefined
         ? dockerfileOwners.find((candidate) => candidate.path === service.path)
         : undefined;
-    const connectTo = facts.dependencies
-      .filter((dependency) => dependency.consumedBy.includes(service.name))
-      .map((dependency) => dependencyResourceNames.get(dependency.name))
-      .filter((value): value is string => value !== undefined);
+    const connectTo = [
+      ...new Set(
+        [
+          ...facts.dependencies
+            .filter((dependency) => dependency.consumedBy.includes(service.name))
+            .map((dependency) => dependencyResourceNames.get(dependency.name)),
+          ...connectedServices(service, facts.services).map((serviceName) => serviceResourceNames.get(serviceName))
+        ].filter((value): value is string => value !== undefined)
+      )
+    ];
     const requiresVpc = facts.dependencies.some((dependency) => {
       if (!dependency.consumedBy.includes(service.name)) return false;
       const resourceName = dependencyResourceNames.get(dependency.name);
@@ -1233,6 +1285,8 @@ export const composeConfig = ({
 
     const environment = environmentFor(service, {
       serviceResourceNames,
+      services: facts.services,
+      httpApiGatewayName,
       composedDependencies,
       sqliteFiles,
       projectName
@@ -1321,7 +1375,8 @@ export const composeConfig = ({
       if (
         variable.role === 'cross-service-reference' &&
         variable.targetServiceProperty !== undefined &&
-        variable.targetServiceProperty !== 'url'
+        variable.targetServiceProperty !== 'url' &&
+        !environment.some((entry) => entry.name === variable.name)
       ) {
         gaps.push({
           subject: `${service.name}.${variable.name}`,
@@ -1474,6 +1529,8 @@ export const composeConfig = ({
     }
     for (const trigger of service.functionTriggers) {
       if (trigger.type !== 'unmapped') continue;
+      // The caller already gets the function's ARN and connectTo from the variable it reads.
+      if (trigger.sourceType === DIRECT_INVOCATION_SOURCE && invokedByName.has(service.name)) continue;
       gaps.push({
         subject: service.name,
         message:
@@ -1542,6 +1599,16 @@ export const composeConfig = ({
     });
   }
 
+  for (const handler of facts.unmappedHandlers) {
+    gaps.push({
+      subject: handler.path,
+      message:
+        handler.reason === 'no-build-file'
+          ? `${handler.path} looks like a ${handler.language} Lambda handler, but init found no ${handler.language === 'Java' ? 'pom.xml or build.gradle' : '.csproj project file'} that builds it, so it created no function for it. If it should deploy, add a function with buildpack packaging, its entryfilePath and its handlerFunction.`
+          : `${handler.path} looks like a ${handler.language} Lambda handler. Init does not create ${handler.language} functions yet. If it should deploy, add a function with buildpack packaging and entryfilePath: ${handler.path}.`
+    });
+  }
+
   const scripts: Record<string, ComposedResource> = {
     ...migrationHooks.scripts,
     ...composeLocalScripts({
@@ -1581,6 +1648,18 @@ export const composeConfig = ({
     // The only thing that makes a configuration undeployable is having nothing in it.
     deployable: Object.keys(resources).length > 0
   };
+};
+
+/** Java and .NET Lambda runtimes. The build compiles for the declared release, and the function has to run it. */
+const COMPILED_RUNTIMES: Readonly<Record<string, ReadonlySet<string>>> = {
+  java: new Set(['11', '17', '21', '25']),
+  dotnet: new Set(['6', '8', '10'])
+};
+
+const compiledRuntime = (service: ServiceFact): { runtime?: string } => {
+  const version = service.runtimeVersion;
+  if (version === undefined || COMPILED_RUNTIMES[service.language]?.has(version) !== true) return {};
+  return { runtime: `${service.language}${version}` };
 };
 
 /** SAM and Serverless spell the catch-all method `ANY`; the HTTP API gateway event takes `*`. */
@@ -1769,6 +1848,7 @@ const buildServiceResource = ({
             ...(service.functionHandler === undefined ? {} : { handlerFunction: service.functionHandler })
           }
         },
+        ...compiledRuntime(service),
         ...(events.length === 0 ? {} : { events }),
         ...(service.functionTriggers.some((trigger) => trigger.type === 'url') ? { url: { enabled: true } } : {}),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),
@@ -1812,24 +1892,28 @@ const buildServiceResource = ({
   }
 
   if (resourceType === 'batch-job') {
+    const events = [
+      ...(service.schedule === undefined
+        ? []
+        : [{ type: 'schedule', properties: { scheduleRate: normalizeScheduleExpression(service.schedule) } }]),
+      // A job each queue message starts.
+      ...service.functionTriggers.flatMap((trigger) => {
+        const queueName = trigger.type === 'queue' ? dependencyResourceNames.get(trigger.dependencyName) : undefined;
+        return queueName === undefined ? [] : [{ type: 'sqs', properties: { sqsQueueName: queueName } }];
+      })
+    ];
     return {
       type: 'batch-job',
       properties: {
+        // A job's variables belong to its container.
         container: {
-          packaging: packagingFor(service, packageManager, siblingDockerfile)
+          packaging: packagingFor(service, packageManager, siblingDockerfile),
+          ...(environment.length > 0 ? { environment } : {})
         },
-        resources: { ...profile.container },
-        ...(service.schedule === undefined
-          ? {}
-          : {
-              events: [
-                {
-                  type: 'schedule',
-                  properties: { scheduleRate: normalizeScheduleExpression(service.schedule) }
-                }
-              ]
-            }),
-        ...shared
+        // AWS Batch takes whole vCPUs on EC2 compute environments.
+        resources: { ...profile.container, cpu: Math.max(1, Math.ceil(profile.container.cpu)) },
+        ...(events.length === 0 ? {} : { events }),
+        ...(connectTo.length > 0 ? { connectTo: [...connectTo] } : {})
       }
     };
   }

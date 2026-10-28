@@ -56,8 +56,9 @@ export const environmentVariableUseSchema = z.object({
    * Render distinguishes a hostname, port and `host:port`, while Stacktape's portable service
    * reference is a complete URL. Keeping the observed shape lets the composer refuse a lossy
    * conversion instead of quietly putting `https://...` where an application expects a bare host.
+   * `arn` is a function's name or ARN, which code passes to the Lambda `Invoke` API (`TAX_FUNCTION_NAME`).
    */
-  targetServiceProperty: z.enum(['url', 'host', 'port', 'hostport']).optional(),
+  targetServiceProperty: z.enum(['url', 'host', 'port', 'hostport', 'arn']).optional(),
   /** A deployment manifest supplies a value, but init deliberately retained only its name. */
   hasDeclaredValue: z.boolean().optional(),
   /**
@@ -130,11 +131,16 @@ export const checkServiceConsistency = (
       message: 'A service cannot both serve HTTP and run once to completion.'
     });
   }
-  if ((service.functionTriggers?.length ?? 0) > 0 && service.functionEntrypoint === undefined) {
+  // A job that runs once per message is started by its queue too, without a handler.
+  if (
+    (service.functionTriggers?.length ?? 0) > 0 &&
+    service.functionEntrypoint === undefined &&
+    service.executionModel !== 'one-shot'
+  ) {
     ctx.addIssue({
       code: 'custom',
       path: ['functionTriggers'],
-      message: 'Function triggers require a `functionEntrypoint`.'
+      message: 'Function triggers require a `functionEntrypoint`, or a `one-shot` service that each event starts.'
     });
   }
   for (const variable of service.environmentVariables) {
@@ -289,6 +295,11 @@ export const serviceShape = {
 
   // ── Observations the composer classifies from ────────────────────────────────────────────────
   exposesHttp: z.boolean(),
+  /**
+   * Only other backend services of this repository call it: one that serves HTTP itself reads its address, and no
+   * frontend does. Such a service needs no public address.
+   */
+  internalOnly: z.boolean().optional(),
   port: z.number().int().positive().optional(),
   /**
    * Connections held open beyond a single request.
@@ -345,7 +356,7 @@ export const serviceShape = {
    * `Assembly::Namespace.Class::Method`; nothing in `LambdaEntryPoint.cs` says which method the runtime calls.
    */
   functionHandler: z.string().min(1).optional(),
-  /** Repository-declared events that invoke `functionEntrypoint`. */
+  /** Repository-declared events that invoke `functionEntrypoint`, or that start a `one-shot` service. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
   dockerfile: repositoryPathSchema.optional(),

@@ -254,6 +254,60 @@ const runCommand = (manager: PackageManager | undefined, script: string): string
   return `${runner} ${script}`;
 };
 
+/** A start script that runs one file: `node --experimental-strip-types src/report.ts`, `bun src/job.ts`, `tsx job.ts`. */
+const SCRIPT_FILE =
+  /^(?:node|bun(?:\s+run)?|tsx|ts-node|deno\s+run)(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:\.\/)?([\w./-]+\.[cm]?[jt]s)\s*$/;
+/** Code that keeps a process alive: a server, a timer, a loop, a consumer or a subscription. */
+const KEEPS_RUNNING =
+  /\.listen\s*\(|\bserve\s*\(|createServer\s*\(|setInterval\s*\(|while\s*\(\s*(?:true|1|!\w+)\s*\)|for\s*\(\s*;\s*;\s*\)|\bReceiveMessage(?:Command)?\b|\.(?:subscribe|consume|process|run)\s*\(\s*(?:\{\s*each|['"`\w]+\s*,\s*(?:async\s*)?\()|\bnew\s+Worker\s*\(|Consumer\.create\s*\(|\.on\s*\(\s*['"](?:message|data|job)['"]|\bcron\.schedule\s*\(|\bnew\s+CronJob\b/;
+/** The file's code does its work at the top level and ends: `await`, without a `main()` it hands off to elsewhere. */
+const TOP_LEVEL_AWAIT = /^(?:const|let|var|await)\b[^\n]*\bawait\b/m;
+/** A relative import: the work may live in another module the probe does not read. */
+const RELATIVE_IMPORT = /\bfrom\s+['"]\.{1,2}\/|\brequire\(\s*['"]\.{1,2}\//;
+/** The file says it runs once: `// Batch job: ...`, `runs once`, `one-off`. */
+const ONE_SHOT_STATEMENT = /^\s*(?:\/\/|\/?\*|#)[^\n]*\b(?:batch job|one-?(?:shot|off)|runs? once|cron job)\b/im;
+/** A statement that each queue message starts the job: `runs for every message on the report queue`. */
+const RUNS_PER_MESSAGE = /\b(?:for |per )?(?:each|every)\b[^.\n]{0,40}\bmessage\b|\bper\b[^.\n]{0,20}\bmessage\b/i;
+
+/**
+ * A package whose start script runs one file that does its work and exits: no server, timer, loop or consumer keeps
+ * it alive. Such a process is a job, not a service: kept running, it would exit and be restarted forever.
+ */
+const oneShotScript = async (
+  context: ProbeContext,
+  manifest: ParsedManifest
+): Promise<{ evidence: Citation | undefined; perMessage: Citation | undefined } | undefined> => {
+  const start = manifest.scripts.start;
+  if (typeof start !== 'string') return undefined;
+  const file = SCRIPT_FILE.exec(start.trim())?.[1];
+  if (file === undefined) return undefined;
+  const path = manifest.directory === '.' ? file : `${manifest.directory}/${file}`;
+  if (!context.files.includes(path)) return undefined;
+  const raw = await readText(context, path, { fullFile: true });
+  if (raw === undefined || KEEPS_RUNNING.test(raw)) return undefined;
+  const states = ONE_SHOT_STATEMENT.test(raw);
+  if (!states && (RELATIVE_IMPORT.test(raw) || !TOP_LEVEL_AWAIT.test(raw))) return undefined;
+  const evidence = citeFirstMatchOnly(path, raw, states ? ONE_SHOT_STATEMENT : TOP_LEVEL_AWAIT, 'executionModel');
+  // Which queue the code does not say. The comment beside the code, or the README line about this package, can say
+  // that each message starts it.
+  const readme = context.files.includes('README.md') ? await readText(context, 'README.md') : undefined;
+  const readmeLine = readme
+    ?.split('\n')
+    .find((line) => line.includes(manifest.directory) && /\bqueue\b/i.test(line) && RUNS_PER_MESSAGE.test(line));
+  const commentLine = raw
+    .split('\n')
+    .find((line) => /^\s*(?:\/\/|\/?\*|#)/.test(line) && /\bqueue\b/i.test(line) && RUNS_PER_MESSAGE.test(line));
+  const perMessage =
+    commentLine !== undefined
+      ? citeFirstMatchOnly(path, raw, new RegExp(escapeRegExp(commentLine.trim())), 'functionTriggers')
+      : readmeLine !== undefined && readme !== undefined
+        ? citeFirstMatchOnly('README.md', readme, new RegExp(escapeRegExp(readmeLine.trim())), 'functionTriggers')
+        : undefined;
+  return { evidence, perMessage };
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&');
+
 /**
  * Which engine a Prisma project uses.
  *
@@ -355,7 +409,17 @@ export const manifestProbe: Probe = {
       };
     };
 
+    const importedMembers = new Set(
+      isMonorepo
+        ? manifests.flatMap((manifest) =>
+            Object.keys(manifest.dependencies).filter((name) => name !== manifest.name && memberPackageNames.has(name))
+          )
+        : []
+    );
+
     const services: ServiceFactInput[] = [];
+    /** The queue whose messages start a job, when the job's comment or README line says so. */
+    const oneShotQueues: DependencyFact[] = [];
     const dependencyConsumers = new Map<
       DependencyKind,
       { consumers: Set<string>; addressedBy: Set<string>; evidence: Citation[] }
@@ -401,7 +465,12 @@ export const manifestProbe: Probe = {
       // positive signal keeps a monorepo from producing a phantom service at its root.
       const isWorkspaceRoot =
         (manifest.workspaces?.length ?? 0) > 0 || (manifest.directory === '.' && pnpmGlobs.length > 0);
-      const runnable = staticSite !== undefined || hasStart || exposesHttp;
+      // A workspace library other members import (`@acme/shared`, `@acme/ui`) is built into its consumers: a library
+      // build (`vite build`) does not make it a static site. A member with a server framework stays a candidate: a
+      // frontend imports a Hono or tRPC API's types from it.
+      const sharedLibrary =
+        manifest.name !== undefined && importedMembers.has(manifest.name) && !hasStart && !exposesHttp;
+      const runnable = !sharedLibrary && (staticSite !== undefined || hasStart || exposesHttp);
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
       const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
@@ -439,6 +508,23 @@ export const manifestProbe: Probe = {
         }
 
         const nodeEngine = manifest.engines?.node?.replace(/[^\d.]/g, '');
+        // oxlint-disable-next-line no-await-in-loop -- one entry file per package that starts a script.
+        const oneShot = exposesHttp || staticSite !== undefined ? undefined : await oneShotScript(context, manifest);
+        if (oneShot?.evidence !== undefined) evidence.push(oneShot.evidence);
+        if (oneShot?.perMessage !== undefined) {
+          const queue = defaultDependencyName('queue');
+          if (!oneShotQueues.some((dependency) => dependency.name === queue)) {
+            oneShotQueues.push({
+              name: queue,
+              kind: 'queue',
+              extensions: [],
+              consumedBy: [],
+              addressedBy: [],
+              evidence: [oneShot.perMessage],
+              source: 'probe'
+            });
+          }
+        }
 
         services.push({
           name: serviceNameFor(manifest),
@@ -454,7 +540,10 @@ export const manifestProbe: Probe = {
           exposesHttp: staticSite === undefined && exposesHttp,
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
-          executionModel: 'long-running',
+          executionModel: oneShot === undefined ? 'long-running' : 'one-shot',
+          ...(oneShot?.perMessage === undefined
+            ? {}
+            : { functionTriggers: [{ type: 'queue' as const, dependencyName: defaultDependencyName('queue') }] }),
           ...(hasBuild ? { buildCommand: runCommand(packageManager, 'build') } : {}),
           ...(staticSite === undefined && hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
           ...(typeof manifest.scripts.dev === 'string' ? { devCommand: runCommand(packageManager, 'dev') } : {}),
@@ -559,6 +648,9 @@ export const manifestProbe: Probe = {
       evidence: entry.evidence,
       source: 'probe'
     }));
+    for (const queue of oneShotQueues) {
+      if (!dependencies.some((dependency) => dependency.name === queue.name)) dependencies.push(queue);
+    }
 
     return {
       ...(packageManager ? { packageManager } : {}),

@@ -77,6 +77,18 @@ export const localScriptFactSchema = z.object({
 
 export type LocalScriptFact = z.infer<typeof localScriptFactSchema>;
 
+/**
+ * A source file shaped like a Lambda handler that init does not turn into a function: a Java class with no Maven or
+ * Gradle build next to it, a C# handler with no project file, or a Go, Rust or Ruby handler. The user adds it.
+ */
+export const unmappedHandlerSchema = z.object({
+  path: repositoryPathSchema,
+  language: z.string().min(1),
+  reason: z.enum(['no-build-file', 'unsupported-language'])
+});
+
+export type UnmappedHandler = z.infer<typeof unmappedHandlerSchema>;
+
 export const PROJECT_FACTS_SCHEMA_VERSION = 1;
 
 export const projectFactsSchema = z.object({
@@ -95,6 +107,7 @@ export const projectFactsSchema = z.object({
   existingDeployments: z.array(existingDeploymentSchema).default([]),
   migrations: z.array(migrationFactSchema).default([]),
   localScripts: z.array(localScriptFactSchema).default([]),
+  unmappedHandlers: z.array(unmappedHandlerSchema).default([]),
   uncertainties: z.array(uncertaintySchema).default([]),
   /**
    * Advisory observations with nowhere else to go.

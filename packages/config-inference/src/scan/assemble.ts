@@ -704,7 +704,7 @@ const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
   const targets = services.filter(
     (service) =>
       (service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)) ||
-      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'url')
+      (service.functionTriggers ?? []).some((trigger) => trigger.type === 'url' || trigger.type === 'http')
   );
   for (const service of services) {
     for (const variable of service.environmentVariables ?? []) {
@@ -717,6 +717,51 @@ const linkServiceAddresses = (services: readonly ServiceFactInput[]): void => {
       variable.targetServiceName = matches[0]!.name;
       if (variable.role === 'runtime-config') variable.role = 'cross-service-reference';
     }
+  }
+};
+
+/** `TAX_FUNCTION_NAME`, `TAX_LAMBDA_ARN`, `TAX_FN`, `TAX_ARN`: the name or ARN of the `tax` function. */
+const FUNCTION_REFERENCE_VARIABLE = /^([A-Z0-9_]+?)(?:_(?:FUNCTION|LAMBDA|FN)(?:_(?:NAME|ARN))?|_ARN)$/;
+
+/**
+ * Point a variable that names a function of the project at that function: code passes `TAX_FUNCTION_NAME` to the
+ * Lambda `Invoke` API. Only one function may match the name.
+ */
+const linkFunctionReferences = (services: readonly ServiceFactInput[]): void => {
+  const functions = services.filter((service) => service.functionEntrypoint !== undefined);
+  for (const service of services) {
+    for (const variable of service.environmentVariables ?? []) {
+      if (variable.targetServiceName !== undefined || variable.dependencyName !== undefined) continue;
+      if (variable.role !== 'runtime-config') continue;
+      const words = FUNCTION_REFERENCE_VARIABLE.exec(variable.name)?.[1];
+      if (words === undefined) continue;
+      const matches = functions.filter((target) => target !== service && serviceWords(target.name) === words);
+      if (matches.length !== 1) continue;
+      variable.role = 'cross-service-reference';
+      variable.targetServiceName = matches[0]!.name;
+      variable.targetServiceProperty = 'arn';
+    }
+  }
+};
+
+/**
+ * Mark an HTTP container that only the project's other backends call: a service that serves HTTP itself reads its
+ * address, and no frontend reads it. A worker that reads an API's address is no evidence that the API is internal: the
+ * API still serves someone else.
+ */
+const markInternalServices = (services: readonly ServiceFactInput[]): void => {
+  const servesRequests = (service: ServiceFactInput) =>
+    (service.exposesHttp && !isFrontend(service)) ||
+    (service.functionTriggers ?? []).some((trigger) => trigger.type === 'http' || trigger.type === 'url');
+  for (const target of services) {
+    if (!target.exposesHttp || target.functionEntrypoint !== undefined || isFrontend(target)) continue;
+    const callers = services.filter(
+      (service) =>
+        service !== target &&
+        (service.environmentVariables ?? []).some((variable) => variable.targetServiceName === target.name)
+    );
+    if (callers.length === 0 || callers.some(isFrontend) || !callers.some(servesRequests)) continue;
+    target.internalOnly = true;
   }
 };
 
@@ -936,6 +981,8 @@ export const assembleCandidateFacts = async ({
   applyStacktapeReferences({ services, dependencies });
   linkFrontendApiAddresses(services);
   linkServiceAddresses(services);
+  linkFunctionReferences(services);
+  markInternalServices(services);
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager
@@ -1042,6 +1089,7 @@ export const assembleCandidateFacts = async ({
     existingDeployments,
     migrations,
     localScripts,
+    unmappedHandlers: outputs.flatMap((output) => output.unmappedHandlers ?? []),
     uncertainties: [...uncertainties.values()],
     notes
   });
