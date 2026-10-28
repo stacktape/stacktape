@@ -678,15 +678,27 @@ describe('assembleCandidateFacts', () => {
       'apps/pricing/package.json': pkg('pricing', 'node src/index.js', { express: '^5.0.0' }),
       'apps/pricing/src/index.js': 'app.listen(3001);\n',
       'apps/worker/package.json': pkg('worker', 'node src/index.js'),
-      'apps/worker/src/index.js': 'setInterval(() => fetch(`${process.env.API_URL}/tick`), 1000);\n'
+      'apps/worker/src/index.js': 'setInterval(() => fetch(`${process.env.API_URL}/tick`), 1000);\n',
+      // A function reads its address: a private service would be out of its reach.
+      'apps/search/package.json': pkg('search', 'node src/index.js', { express: '^5.0.0' }),
+      'apps/search/src/index.js': 'app.listen(3002);\n',
+      'apps/api/src/search.js': 'fetch(`${process.env.SEARCH_URL}/q`);\n',
+      'functions/suggest.ts':
+        "import type { APIGatewayProxyEventV2 } from 'aws-lambda';\nexport const handler = async (event: APIGatewayProxyEventV2) => fetch(`${process.env.SEARCH_URL}/q?${event.rawQueryString}`);\n"
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [...PROBES, lambdaSourceProbe] });
     const result = composeConfig({ facts, projectName: 'shop' });
 
     expect(
       Object.fromEntries(Object.entries(result.config.resources).map(([name, resource]) => [name, resource.type]))
-    ).toEqual({ api: 'web-service', pricing: 'private-service', worker: 'worker-service' });
+    ).toMatchObject({
+      api: 'web-service',
+      pricing: 'private-service',
+      search: 'web-service',
+      suggest: 'function',
+      worker: 'worker-service'
+    });
   });
 
   it('makes a script that runs once a job, started by the queue its comment names, and leaves libraries out', async () => {

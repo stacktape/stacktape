@@ -745,22 +745,21 @@ const linkFunctionReferences = (services: readonly ServiceFactInput[]): void => 
 };
 
 /**
- * Mark an HTTP container that only the project's other backends call: a service that serves HTTP itself reads its
- * address, and no frontend reads it. A worker that reads an API's address is no evidence that the API is internal: the
- * API still serves someone else.
+ * Mark an HTTP container that only the project's other containers call: a container that serves HTTP itself reads its
+ * address, and no frontend or function does. A private service is reachable only from containers in the stack, and a
+ * worker that reads an API's address is no evidence that the API is internal: the API still serves someone else.
  */
 const markInternalServices = (services: readonly ServiceFactInput[]): void => {
-  const servesRequests = (service: ServiceFactInput) =>
-    (service.exposesHttp && !isFrontend(service)) ||
-    (service.functionTriggers ?? []).some((trigger) => trigger.type === 'http' || trigger.type === 'url');
+  const isContainer = (service: ServiceFactInput) =>
+    service.functionEntrypoint === undefined && !isFrontend(service) && service.executionModel === 'long-running';
   for (const target of services) {
-    if (!target.exposesHttp || target.functionEntrypoint !== undefined || isFrontend(target)) continue;
+    if (!target.exposesHttp || !isContainer(target)) continue;
     const callers = services.filter(
       (service) =>
         service !== target &&
         (service.environmentVariables ?? []).some((variable) => variable.targetServiceName === target.name)
     );
-    if (callers.length === 0 || callers.some(isFrontend) || !callers.some(servesRequests)) continue;
+    if (callers.length === 0 || !callers.every(isContainer) || !callers.some((caller) => caller.exposesHttp)) continue;
     target.internalOnly = true;
   }
 };
