@@ -26,6 +26,7 @@ import { getRubyLambdaHandlerFile } from '@stacktape/packaging/buildpacks/rb-lam
 import { getJavaLambdaHandler } from '@stacktape/packaging/buildpacks/java-lambda-buildpack';
 import { getDotnetLambdaHandler } from '@stacktape/packaging/buildpacks/dotnet-lambda-buildpack';
 
+import { posix } from 'node:path';
 import { kebabCase } from 'change-case';
 import type { ConfigManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
@@ -845,11 +846,14 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
 export const getLambdaHandler = ({
   name,
   packaging,
-  workingDir
+  workingDir,
+  runtime
 }: {
   packaging: LambdaPackaging;
   name: string;
   workingDir: string;
+  /** The configured runtime: a custom artifact's `::` handler is valid only for Java and .NET. */
+  runtime?: string;
 }) => {
   if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
     const { entryfilePath, handlerFunction } = packaging.properties;
@@ -899,14 +903,39 @@ export const getLambdaHandler = ({
     if (!packaging.properties.handler) {
       throw configErrors.customArtifactHandlerRequired({ functionName: name });
     }
-    const [filePath, handlerFunction] = packaging.properties.handler.split(':');
-    if (!handlerFunction) {
-      throw configErrors.lambdaHandlerFormatInvalid({ functionName: name });
-    }
-    const filePathWithoutExtension = getFileNameWithoutExtension(filePath);
-
-    return `${filePathWithoutExtension}.${handlerFunction}`;
+    return getCustomArtifactLambdaHandler({ handler: packaging.properties.handler, functionName: name, runtime });
   }
+};
+
+/**
+ * The Lambda `Handler` of a custom artifact. `{{filePath}}:{{functionName}}` becomes the file's path inside the artifact
+ * without its extension, then the function: `handlers/process.js:main` is `handlers/process.main`. Java and .NET
+ * handlers (`com.example.Handler::handleRequest`, `Assembly::Namespace.Class::Method`) are already in Lambda's format and
+ * are used as written; other runtimes have no `::` handler.
+ */
+const getCustomArtifactLambdaHandler = ({
+  handler,
+  functionName,
+  runtime
+}: {
+  handler: string;
+  functionName: string;
+  runtime?: string;
+}) => {
+  if (handler.includes('::')) {
+    const nativeFormat = Boolean(runtime?.startsWith('java') || runtime?.startsWith('dotnet'));
+    if (!nativeFormat || handler.split('::').some((part) => !part.trim())) {
+      throw configErrors.lambdaHandlerFormatInvalid({ functionName });
+    }
+    return handler;
+  }
+  const [filePath, handlerFunction, ...rest] = handler.split(':');
+  if (!filePath || !handlerFunction || rest.length) {
+    throw configErrors.lambdaHandlerFormatInvalid({ functionName });
+  }
+  const pathInArtifact = filePath.replaceAll('\\', '/').replace(/^(\.\/)+/, '');
+  const extension = posix.extname(pathInArtifact);
+  return `${extension ? pathInArtifact.slice(0, -extension.length) : pathInArtifact}.${handlerFunction}`;
 };
 
 // Max runtime version for edge functions - Node.js 24 has ESM-related issues with CommonJS exports

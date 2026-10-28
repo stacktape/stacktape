@@ -36,7 +36,7 @@ The command resolves log streams for the target log group, fetches matching even
 
 In an interactive terminal, the command shows the same newest events (up to `--limit`, 100 by default) and then follows the log group, printing new events that match `--filter` as they arrive until you press Ctrl+C. It sends at most two CloudWatch Logs requests per second, so following a busy production log group stays within the account's request quota. When the output is piped or redirected, or with `--raw` or `--agent`, the command prints the events once and exits. `--follow=false` does the same in a terminal.
 
-`--follow` keeps following without a terminal, for example in a coding agent's shell or in CI. Each log line is written as plain text as soon as it arrives. The command ends on Ctrl+C or `SIGTERM`, and when the reading end of its output closes, as with `| head -20`: it notices on the next line it writes. `--follow` cannot be combined with `--raw`.
+`--follow` keeps following without a terminal, for example in a coding agent's shell or in CI. Each log line is written as plain text as soon as it arrives (with `--agent`, as NDJSON records; see below). The command ends on Ctrl+C or `SIGTERM`, and when the reading end of its output closes, as with `| head -20`: it notices on the next line it writes. `--follow` cannot be combined with `--raw`.
 
 ```bash
 stacktape logs myApi --stage dev --region eu-west-1 --follow --filter "ERROR" > api-errors.log &
@@ -119,13 +119,13 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 Without `--follow`, `--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
 
-With `--agent --follow`, application log lines are written directly to stdout as plain text, alongside CLI protocol records. They are not wrapped in NDJSON log records, so this stream is not consistently parseable as NDJSON. Use a snapshot without `--follow` when you need the structured log payload, or use MCP `stacktape_dev` logs for incremental local dev-session logs.
+With `--agent --follow`, every line of stdout stays an NDJSON record. Each batch of new events is a `type: "log"` record whose `message` holds the same `logGroup`/`events` JSON as the one-shot payload, so the same parser reads both. The final `result` record follows when following ends.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
 ```
 
-`--until` bounds Insights queries and the initial follow backlog, and anchors a relative `--since`. The ordinary one-shot fetch currently does not enforce it as an upper bound, and following continues beyond that time.
+`--until` bounds the one-shot fetch, Insights queries and the initial follow backlog, and anchors a relative `--since`. Following continues beyond that time.
 
 ## Output format
 
@@ -220,7 +220,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound. | - |
+| `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics, logs and Logs Insights enforce it. When following logs, it bounds the initial backlog, and following then continues beyond it. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
 | `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -265,4 +265,4 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, application lines are plain text mixed with CLI protocol records; they are not wrapped as NDJSON. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, each batch of new events arrives as its own log record with the same payload. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.

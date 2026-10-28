@@ -2067,10 +2067,11 @@ export interface CustomArtifactLambdaPackagingProps {
    *
    * ---
    *
-   * Required by CLI validation, alongside `runtime` on the Lambda resource. The type currently permits omission, but the CLI rejects it.
+   * Required, like `runtime` on the Lambda resource.
    *
-   * The syntax is `{{filepath}}:{{functionName}}`. Put the handler file at the artifact root: directory paths are discarded.
-   * Native Java/.NET `::` handler strings are not accepted by this parser.
+   * The syntax is `{{filepath}}:{{functionName}}`, with the file's path inside the artifact: `handlers/process.js:main`
+   * invokes `main` from `handlers/process.js`. Java and .NET handlers use Lambda's own format and are used as written:
+   * `com.example.Handler::handleRequest` or `Assembly::Namespace.Class::Method`.
    *
    * Example: `index.js:default`
   *
@@ -2115,7 +2116,7 @@ export interface CustomArtifactLambdaPackagingProps {
   * });
   * ```
    */
-  handler?: string;
+  handler: string;
 }
 
 

@@ -4468,16 +4468,16 @@
       "tags": [
         "config-reference",
         "CustomArtifactLambdaPackagingProps",
-        "packagePath",
-        "handler"
+        "handler",
+        "packagePath"
       ],
       "chunks": [
         "config-reference:CustomArtifactLambdaPackagingProps#customartifactlambdapackagingprops-api-reference",
         "config-reference:CustomArtifactLambdaPackagingProps#typescript-definition",
-        "config-reference:CustomArtifactLambdaPackagingProps#property-packagepath",
+        "config-reference:CustomArtifactLambdaPackagingProps#property-handler",
         "config-reference:CustomArtifactLambdaPackagingProps#example-1-yaml",
         "config-reference:CustomArtifactLambdaPackagingProps#example-2-typescript",
-        "config-reference:CustomArtifactLambdaPackagingProps#property-handler",
+        "config-reference:CustomArtifactLambdaPackagingProps#property-packagepath",
         "config-reference:CustomArtifactLambdaPackagingProps#example-1-yaml-2",
         "config-reference:CustomArtifactLambdaPackagingProps#example-2-typescript-2"
       ]

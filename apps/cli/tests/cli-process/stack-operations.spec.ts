@@ -799,6 +799,40 @@ describe('logs', () => {
     expect(fakes.aws.mutations).toEqual([]);
   });
 
+  test('--agent --follow writes every log line as a JSONL log record', async () => {
+    const fakes = await startDeployedFunction();
+    await fakes.write('backlog-line-r2ad', Date.now() - 60_000);
+    const logs = await spawnLogs(fakes, { args: ['--agent', '--follow'] });
+
+    await logs.waitFor('backlog-line-r2ad', 90);
+    await fakes.write('new-line-r2ad');
+    await logs.waitFor('new-line-r2ad', 30);
+    expect(logs.child.exitCode).toBeNull();
+    logs.child.kill('SIGTERM');
+    expect(await logs.exited(15)).toBe(0);
+
+    const records = logs
+      .output()
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => {
+        try {
+          return JSON.parse(line) as { type: string; message?: string };
+        } catch {
+          throw new Error(`stacktape logs --agent --follow wrote a line that is not JSON: ${line}`);
+        }
+      });
+    // Each batch is a `log` record holding the same object as the one-shot read, not a stray stdout line.
+    const events = records
+      .filter((record) => record.type === 'log' && record.message?.startsWith('{"logGroup"'))
+      .flatMap(
+        (record) => (JSON.parse(record.message!) as { events: Array<{ message: string; logStream: string }> }).events
+      );
+    expect(events.map(({ message }) => message)).toEqual(['backlog-line-r2ad', 'new-line-r2ad']);
+    expect(events.every(({ logStream }) => logStream === 'stream-1')).toBe(true);
+    expect(fakes.aws.mutations).toEqual([]);
+  });
+
   test('--follow ends when the reader of its output goes away', async () => {
     const fakes = await startDeployedFunction();
     await fakes.write('backlog-line-r2bb', Date.now() - 60_000);

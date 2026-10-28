@@ -42,7 +42,7 @@ test('aws:call returns actual SDK data, rejects mutations before sending them, a
       await dynamo.send(new PutItemCommand({ TableName: 'j9-records', Item: { id: { S: 'first' } } }));
       const args = ['aws:call', '--service', 'dynamodb', ...targetArgs, '--agent'];
       const read = await fixture.run([...args, '--command', 'Scan', '--input', '{"TableName":"j9-records","Limit":1}']);
-      expect(read.exitCode).toBe(0);
+      expect(read.exitCode, read.stdout).toBe(0);
       const result = messages(read.stdout, 'aws:call').find(
         (message) => typeof message === 'string' && message.startsWith('{')
       );
@@ -65,6 +65,29 @@ test('aws:call returns actual SDK data, rejects mutations before sending them, a
       expect(parseCliJsonl(denied.stdout, 'aws:call').result.code).toBe('CLI_AWS_CALL_FAILED');
       expect(denied.stdout).toContain('j9 read denied');
       expect((await dynamo.send(new ScanCommand({ TableName: 'j9-records' }))).Items).toEqual([{ id: { S: 'first' } }]);
+      // Reads go through the stack's read-only debug role, assumed with its external ID.
+      expect(fixture.aws.callsTo('sts.AssumeRole')[0]?.input).toMatchObject({
+        RoleArn: `arn:aws:iam::${fixture.accountId}:role/j9-operations-test-debug-agent`,
+        ExternalId: 'j9-debug-agent-external-id'
+      });
+      // A role that cannot be assumed stops the read instead of falling back to the user's broader credentials.
+      const scansBefore = fixture.aws.callsTo('dynamodb.Scan').length;
+      fixture.aws.on('sts.AssumeRole', () => ({
+        kind: 'error',
+        code: 'AccessDenied',
+        message: 'j9 role denied',
+        status: 403
+      }));
+      const refused = await fixture.run([...args, '--command', 'Scan', '--input', '{"TableName":"j9-records"}']);
+      expect(refused.exitCode).toBe(1);
+      expect(parseCliJsonl(refused.stdout, 'aws:call').result.code).toBe('CLI_DEBUG_AGENT_ROLE_ASSUME_FAILED');
+      expect(fixture.aws.callsTo('dynamodb.Scan')).toHaveLength(scansBefore);
+      // So does a stack without the role.
+      await seedDeployedStack(fixture, {}, undefined, { debugAgentRole: false });
+      const missing = await fixture.run([...args, '--command', 'Scan', '--input', '{"TableName":"j9-records"}']);
+      expect(missing.exitCode).toBe(1);
+      expect(parseCliJsonl(missing.stdout, 'aws:call').result.code).toBe('CLI_DEBUG_AGENT_ROLE_MISSING');
+      expect(fixture.aws.callsTo('dynamodb.Scan')).toHaveLength(scansBefore);
       noUnexpected(fixture);
     } finally {
       dynamo.destroy();

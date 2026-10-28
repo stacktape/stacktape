@@ -13,7 +13,7 @@ import { getDevAgentCredentials, initDevAgentCredentials } from './dev-agent-cre
 // the role could not be assumed. A loopback endpoint stands in for Lambda and STS and records which access key signed
 // each request; the test preload sets a different, ambient access key.
 
-const SELECTED = { accessKeyId: 'AKIASELECTEDDEVELOPER', secretAccessKey: 'selected-secret' };
+const SELECTED = { accessKeyId: 'selected-access-key-id', secretAccessKey: 'selected-secret' };
 const ROLE_ARN = 'arn:aws:iam::111111111111:role/shop-dev-dev-agent';
 const signedBy: string[] = [];
 /** How many more AssumeRole calls STS refuses. */

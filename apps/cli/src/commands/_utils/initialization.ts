@@ -445,6 +445,7 @@ export const initializeValidateOperation = async () => ({
   })),
   calculatedStackOverview: calculatedStackOverviewManager,
   config: configManager,
+  deploymentArtifacts: deploymentArtifactManager,
   finalizeTemplate,
   packaging: packagingManager,
   stack: stackManager,

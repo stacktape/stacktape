@@ -1,4 +1,5 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import {
@@ -136,8 +137,9 @@ export const commandAwsCall = async () => {
   }
   inputObj = batchScope.input;
 
-  // Get credentials (uses debug agent role if available, otherwise user credentials)
-  const credentials = await getDebugAgentCredentials();
+  // A stack with outputs is read through its debug agent role and never with the user's own credentials. A stack
+  // without outputs has no role yet; its requests were limited above to CloudFormation reads of that stack.
+  const credentials = stackWithoutOutputs ? globalStateManager.credentials : await getDebugAgentCredentials();
 
   const result = await executeAwsSdkCommand(service, command, inputObj, {
     region: awsRegion,

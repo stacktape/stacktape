@@ -22710,6 +22710,28 @@
     "definitionName": "CustomArtifactLambdaPackagingProps",
     "properties": [
       {
+        "name": "handler",
+        "required": true,
+        "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
+        "longDescription": "<p>Required, like <code>runtime</code> on the Lambda resource.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>, with the file&#39;s path inside the artifact: <code>handlers/process.js:main</code>\ninvokes <code>main</code> from <code>handlers/process.js</code>. Java and .NET handlers use Lambda&#39;s own format and are used as written:\n<code>com.example.Handler::handleRequest</code> or <code>Assembly::Namespace.Class::Method</code>.</p>\n<p>Example: <code>index.js:default</code></p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+          }
+        ]
+      },
+      {
         "name": "packagePath",
         "required": true,
         "shortDescription": "<p> The path to a pre-built deployment package.</p>",
@@ -22730,35 +22752,13 @@
             "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
-      },
-      {
-        "name": "handler",
-        "required": false,
-        "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-        "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ]
-        },
-        "examples": [
-          {
-            "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
-          },
-          {
-            "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
-          }
-        ]
       }
     ],
     "stats": {
-      "requiredCount": 1,
-      "optionalCount": 1
+      "requiredCount": 2,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype CustomArtifactLambdaPackagingProps = {\n  /** The path to a pre-built deployment package. */\n  packagePath: string;\n  /** The handler function to be executed when the Lambda is invoked. */\n  handler?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype CustomArtifactLambdaPackagingProps = {\n  /** The handler function to be executed when the Lambda is invoked. */\n  handler: string;\n  /** The path to a pre-built deployment package. */\n  packagePath: string;\n};\n// [!code focus-end]"
   },
   "CustomKafkaEventSource": {
     "definitionName": "CustomKafkaEventSource",
@@ -23514,9 +23514,9 @@
                 },
                 {
                   "name": "handler",
-                  "required": false,
+                  "required": true,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
+                  "longDescription": "<p>Required, like <code>runtime</code> on the Lambda resource.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>, with the file&#39;s path inside the artifact: <code>handlers/process.js:main</code>\ninvokes <code>main</code> from <code>handlers/process.js</code>. Java and .NET handlers use Lambda&#39;s own format and are used as written:\n<code>com.example.Handler::handleRequest</code> or <code>Assembly::Namespace.Class::Method</code>.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -25026,9 +25026,9 @@
                 },
                 {
                   "name": "handler",
-                  "required": false,
+                  "required": true,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
+                  "longDescription": "<p>Required, like <code>runtime</code> on the Lambda resource.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>, with the file&#39;s path inside the artifact: <code>handlers/process.js:main</code>\ninvokes <code>main</code> from <code>handlers/process.js</code>. Java and .NET handlers use Lambda&#39;s own format and are used as written:\n<code>com.example.Handler::handleRequest</code> or <code>Assembly::Namespace.Class::Method</code>.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -27776,9 +27776,9 @@
                 },
                 {
                   "name": "handler",
-                  "required": false,
+                  "required": true,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
+                  "longDescription": "<p>Required, like <code>runtime</code> on the Lambda resource.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>, with the file&#39;s path inside the artifact: <code>handlers/process.js:main</code>\ninvokes <code>main</code> from <code>handlers/process.js</code>. Java and .NET handlers use Lambda&#39;s own format and are used as written:\n<code>com.example.Handler::handleRequest</code> or <code>Assembly::Namespace.Class::Method</code>.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -36635,9 +36635,9 @@
                 },
                 {
                   "name": "handler",
-                  "required": false,
+                  "required": true,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
+                  "longDescription": "<p>Required, like <code>runtime</code> on the Lambda resource.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>, with the file&#39;s path inside the artifact: <code>handlers/process.js:main</code>\ninvokes <code>main</code> from <code>handlers/process.js</code>. Java and .NET handlers use Lambda&#39;s own format and are used as written:\n<code>com.example.Handler::handleRequest</code> or <code>Assembly::Namespace.Class::Method</code>.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [

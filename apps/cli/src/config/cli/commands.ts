@@ -276,7 +276,7 @@ By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--o
   validate: {
     description: `Validates your Stacktape project without writing deployment artifacts.
 
-By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--with-package\` to also validate workload packaging, and \`--thorough\` to also call CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output. Use \`--out\` to write the successfully validated template. It also prints security findings, rated for a production or non-production stage (\`stackConfig.stageType\`, or the stage name when it is not set), and lists what to fix before production. Like \`deploy\` and \`dev\`, it accepts \`--aws-account\` to use the credentials of an AWS account connected in the Stacktape Console.`,
+By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--with-package\` to also validate workload packaging, and \`--thorough\` to also validate workload packaging and ask AWS CloudFormation to validate the synthesized template. A template over 51,200 bytes is validated from a temporary object in the stack's deployment bucket. Before the first deploy there is no such bucket: the result then reports checked.cloudformation false with a warning. Use \`--out\` to write the successfully validated template. It also prints security findings, rated for a production or non-production stage (\`stackConfig.stageType\`, or the stage name when it is not set), and lists what to fix before production. Like \`deploy\` and \`dev\`, it accepts \`--aws-account\` to use the credentials of an AWS account connected in the Stacktape Console.`,
     args: {
       ...localUniversalArgs,
       ...stackArgs,
@@ -662,7 +662,7 @@ Examples:
 
 Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). The Secrets Manager and SSM value reads (\`GetSecretValue\`, \`GetParameter*\`) are rejected too; their metadata operations are accepted. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. Logs Insights \`StartQuery\` starts a query that AWS charges for. A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
 
-This name check is the only guard: the call uses the deployed stack's debug role when one is available and falls back to your own AWS credentials when it is not, so an accepted operation runs with whatever those credentials allow.
+The call runs with the deployed stack's read-only debug role; when the stack has no such role or it cannot be assumed, the command fails instead of using your own AWS credentials. A stack whose first deploy failed before it had outputs accepts only CloudFormation reads of that stack.
 
 Examples:
   stacktape aws call --stage prod --service lambda --command ListFunctions

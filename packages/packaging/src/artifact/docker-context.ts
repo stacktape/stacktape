@@ -91,12 +91,10 @@ const listContextEntries = async (root: string, isPruned: (directoryEntry: strin
     for (let start = 0; start < directories.length; start += BATCH_ENTRIES) {
       // oxlint-disable-next-line no-await-in-loop -- Batches bound the directories read at once.
       const listings = await Promise.all(
-        directories
-          .slice(start, start + BATCH_ENTRIES)
-          .map(async (directory) => ({
-            directory,
-            dirents: await readdir(join(root, directory), { withFileTypes: true })
-          }))
+        directories.slice(start, start + BATCH_ENTRIES).map(async (directory) => ({
+          directory,
+          dirents: await readdir(join(root, directory), { withFileTypes: true })
+        }))
       );
       for (const { directory, dirents } of listings) {
         for (const dirent of dirents) {

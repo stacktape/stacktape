@@ -41,7 +41,7 @@ How the Lambda function code is packaged and deployed.
 Choices:
 - `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `keepSourceMapsInPackage?: boolean`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
-- `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
+- `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler: string`.
 
 ### Example 1 (yaml)
 
