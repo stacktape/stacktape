@@ -26,6 +26,7 @@
     "./scan/probe": "./src/scan/probe.ts",
     "./scan/probes/docker-compose": "./src/scan/probes/docker-compose.ts",
     "./scan/probes/dockerfile": "./src/scan/probes/dockerfile.ts",
+    "./scan/probes/cognito": "./src/scan/probes/cognito.ts",
     "./scan/probes/deno": "./src/scan/probes/deno.ts",
     "./scan/probes/cdk": "./src/scan/probes/cdk.ts",
     "./scan/probes/paas-manifests": "./src/scan/probes/paas-manifests.ts",

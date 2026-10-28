@@ -28,7 +28,8 @@ export const dependencyKindSchema = z.enum([
   'nats',
   'event-bus',
   'websocket-api',
-  'state-machine'
+  'state-machine',
+  'user-pool'
 ]);
 
 export type DependencyKind = z.infer<typeof dependencyKindSchema>;
@@ -88,7 +89,8 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     nats: 'eventBroker',
     'event-bus': 'eventBus',
     'websocket-api': 'websocketApi',
-    'state-machine': 'stateMachine'
+    'state-machine': 'stateMachine',
+    'user-pool': 'userPool'
   })[kind];
 
 const RESOURCE_NAME_SUFFIXES: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
@@ -168,6 +170,14 @@ export const dependencyFactSchema = z.object({
    * Delivery guarantees a deployment manifest declares for a queue. A FIFO queue keeps message order and drops
    * duplicates; replacing it with a standard queue changes both without any error.
    */
+  /**
+   * Whether a Cognito user pool the code signs users in to is the project's own. `project` when the project also
+   * consumes the pool's tokens (a handler reading JWT authorizer claims, a token verifier): init then creates it.
+   * `unproven` when the code only signs in against a client ID it reads, which an existing pool can just as well own.
+   */
+  userPoolOwnership: z.enum(['project', 'unproven']).optional(),
+  /** The code calls `SignUp`: the pool has to let users create their own accounts. */
+  userPoolSelfSignUp: z.literal(true).optional(),
   queueSettings: z
     .object({
       fifo: z.literal(true).optional(),

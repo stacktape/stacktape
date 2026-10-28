@@ -1226,4 +1226,82 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       }
     ]);
   });
+
+  it('a WebSocket server behind a load balancer, a user pool with a JWT route and a static directory', () => {
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({ name: 'realtime', path: 'realtime', longLivedConnections: 'websocket' }),
+          service({
+            name: 'web',
+            path: 'web',
+            framework: 'nextjs',
+            startCommand: undefined,
+            environmentVariables: [
+              {
+                name: 'AUTH_CLIENT_ID',
+                role: 'infra-dependency',
+                dependencyName: 'userPool',
+                required: true,
+                evidence: []
+              }
+            ]
+          }),
+          service({
+            name: 'me',
+            path: 'functions',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/me.ts',
+            functionTriggers: [
+              { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0', authorization: 'jwt' }
+            ]
+          }),
+          service({
+            name: 'docs',
+            path: 'docs',
+            language: 'html',
+            exposesHttp: false,
+            startCommand: undefined,
+            servesStaticAssets: { path: 'docs' }
+          })
+        ],
+        dependencies: [
+          {
+            name: 'userPool',
+            kind: 'user-pool',
+            addressedBy: ['AUTH_CLIENT_ID'],
+            userPoolOwnership: 'project',
+            evidence: [],
+            source: 'probe'
+          }
+        ],
+        handlerFindings: [
+          { path: 'functions/image/Dockerfile', language: 'container image', reason: 'container-image' }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.realtime?.properties.loadBalancing).toEqual({ type: 'application-load-balancer' });
+    expect(resources.userPool).toEqual({
+      type: 'user-auth-pool',
+      properties: { allowOnlyAdminsToCreateAccount: true }
+    });
+    expect(resources.web?.properties.environment).toEqual([
+      { name: 'AUTH_CLIENT_ID', value: "$ResourceParam('userPool', 'clientId')" }
+    ]);
+    expect(resources.me?.properties.events).toMatchObject([
+      { properties: { authorizer: { type: 'cognito', properties: { userPoolName: 'userPool' } } } }
+    ]);
+    expect(resources.docs?.properties).toMatchObject({
+      uploadDirectoryPath: 'docs',
+      hostingContentType: 'static-website'
+    });
+    expect(result.gaps.map((gap) => gap.subject)).toContain('functions/image/Dockerfile');
+  });
 });

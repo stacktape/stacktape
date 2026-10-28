@@ -26,6 +26,7 @@ import { existingDeploymentProbe } from '@stacktape/config-inference/scan/probes
 import { languageManifestProbe } from '@stacktape/config-inference/scan/probes/language-manifests';
 import { lambdaSourceProbe } from '@stacktape/config-inference/scan/probes/lambda-source';
 import { messagingCallsProbe } from '@stacktape/config-inference/scan/probes/messaging-calls';
+import { cognitoProbe } from '@stacktape/config-inference/scan/probes/cognito';
 import { staticSiteProbe } from '@stacktape/config-inference/scan/probes/static-site';
 import { manifestProbe } from '@stacktape/config-inference/scan/probes/manifest';
 import { cdkProbe } from '@stacktape/config-inference/scan/probes/cdk';
@@ -62,6 +63,7 @@ const PROBES = [
   serverlessFrameworkProbe,
   lambdaSourceProbe,
   messagingCallsProbe,
+  cognitoProbe,
   serverEntrypointProbe,
   dockerfileProbe,
   staticSiteProbe,

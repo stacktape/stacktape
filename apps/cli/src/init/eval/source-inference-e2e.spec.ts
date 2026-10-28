@@ -1,0 +1,548 @@
+/**
+ * Source code that init reads, through the complete pipeline: the r2ss adversarial audit (F08–F15, F18) and the
+ * eighth dogfood's init gaps. Each case is a reduced repro of a repository where init produced a confident wrong
+ * configuration, paired with a control where the old behavior is right.
+ */
+
+import { describe, expect, it } from 'bun:test';
+import { runEvalCase, type EvalCase } from './harness';
+
+const lines = (...entries: string[]) => `${entries.join('\n')}\n`;
+const packageJson = (fields: Record<string, unknown>) =>
+  JSON.stringify({ name: 'fixture-app', private: true, type: 'module', ...fields });
+
+const CASES: EvalCase[] = [
+  {
+    name: 'F11: a commented-out listen call leaves a heartbeat process a worker',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node worker.js' } }),
+      'worker.js': lines(
+        '// app.listen(3000);',
+        '// export async function handler(event) {return event.Records;}',
+        "setInterval(() => console.log('heartbeat'), 60000);"
+      )
+    },
+    expect: { resources: { fixtureApp: 'worker-service' } }
+  },
+  {
+    name: 'F11 control: a real listen call is a web service',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'server.js': lines(
+        "import express from 'express';",
+        'const app = express();',
+        '// Tests pass a port: app.listen(4000)',
+        'app.listen(3000);'
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'web-service' },
+      resourceProperties: [{ resource: 'fixtureApp', path: 'port', value: undefined }]
+    }
+  },
+  {
+    name: 'F12: example code inside a string is not a Lambda handler',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'example.js':
+        'export const tutorial = "export const handler = async (event) => ({statusCode:200,body:event.requestContext.http.method})";\n',
+      'server.js': lines(
+        "import express from 'express';",
+        'const app = express();',
+        "app.get('/health', (_, res) => res.json({ ok: true }));",
+        "app.listen(3000, '0.0.0.0');"
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'web-service' },
+      resourceProperties: [
+        { resource: 'example', path: 'packaging', value: undefined },
+        { resource: 'httpApiGateway', path: 'type', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'F08: a Serverless MySQL RDS instance stays MySQL',
+    files: {
+      'package.json': packageJson({}),
+      'handler.js': 'export async function handler(event) { return { statusCode: 200, body: "ok" }; }\n',
+      'serverless.yml': lines(
+        'service: fixture',
+        'provider:',
+        '  name: aws',
+        '  runtime: nodejs22.x',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - httpApi: GET /hello',
+        'resources:',
+        '  Resources:',
+        '    Database:',
+        '      Type: AWS::RDS::DBInstance',
+        '      Properties:',
+        '        Engine: mysql',
+        '        EngineVersion: "8.0"'
+      )
+    },
+    expect: {
+      dependencyKinds: ['mysql'],
+      absentDependencyKinds: ['postgres'],
+      resources: { mainDatabase: 'relational-database', api: 'function' },
+      resourceProperties: [{ resource: 'mainDatabase', path: 'engine.type', value: 'mysql' }]
+    }
+  },
+  {
+    name: 'F08: an RDS engine the manifest does not state is no database claim',
+    files: {
+      'package.json': packageJson({}),
+      'handler.js': 'export async function handler(event) { return { statusCode: 200, body: "ok" }; }\n',
+      'serverless.yml': lines(
+        'service: fixture',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        'resources:',
+        '  Resources:',
+        '    Database:',
+        '      Type: AWS::RDS::DBCluster',
+        '      Properties:',
+        '        Engine: ${param:engine}'
+      )
+    },
+    expect: { absentDependencyKinds: ['postgres', 'mysql'] }
+  },
+  {
+    name: 'F09: a Procfile uvicorn --port routes to that port',
+    files: {
+      'api/requirements.txt': lines('fastapi==0.115.0', 'uvicorn==0.32.0'),
+      'api/main.py': lines('from fastapi import FastAPI', 'app = FastAPI()'),
+      'api/Procfile': 'web: uvicorn main:app --host 0.0.0.0 --port 8000\n'
+    },
+    expect: { resources: { api: 'web-service' }, servicePorts: [{ resource: 'api', port: 8000 }] }
+  },
+  {
+    name: 'F09: a Procfile gunicorn --bind routes to that port',
+    files: {
+      'api/requirements.txt': lines('Flask==3.1.0', 'gunicorn==23.0.0'),
+      'api/app.py': lines('from flask import Flask', 'app = Flask(__name__)'),
+      'api/Procfile': 'web: gunicorn app:app --bind 0.0.0.0:5000\n'
+    },
+    expect: { resources: { api: 'web-service' }, servicePorts: [{ resource: 'api', port: 5000 }] }
+  },
+  {
+    name: 'F09 control: a Procfile that follows $PORT keeps the default port',
+    files: {
+      'api/requirements.txt': lines('fastapi==0.115.0', 'uvicorn==0.32.0'),
+      'api/main.py': lines('from fastapi import FastAPI', 'app = FastAPI()'),
+      'api/Procfile': 'web: uvicorn main:app --host 0.0.0.0 --port $PORT\n'
+    },
+    expect: {
+      resources: { api: 'web-service' },
+      resourceProperties: [{ resource: 'api', path: 'port', value: undefined }]
+    }
+  },
+  {
+    name: "F09: Hono's serve({ port }) routes to that port",
+    files: {
+      'package.json': packageJson({
+        dependencies: { hono: '^4.0.0', '@hono/node-server': '^1.0.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'index.js': lines(
+        "import { Hono } from 'hono';",
+        "import { serve } from '@hono/node-server';",
+        'const app = new Hono();',
+        "app.get('/', (c) => c.text('ok'));",
+        'serve({ fetch: app.fetch, port: 4000 });'
+      )
+    },
+    expect: { resources: { fixtureApp: 'web-service' }, servicePorts: [{ resource: 'fixtureApp', port: 4000 }] }
+  },
+  {
+    name: 'F10: a ws WebSocket server gets an Application Load Balancer',
+    files: {
+      'package.json': packageJson({
+        dependencies: { express: '^4.21.0', ws: '^8.0.0' },
+        scripts: { start: 'node server.js' }
+      }),
+      'server.js': lines(
+        "import express from 'express';",
+        "import { createServer } from 'node:http';",
+        "import { WebSocketServer } from 'ws';",
+        'const server = createServer(express());',
+        'const wss = new WebSocketServer({ server });',
+        "wss.on('connection', (ws) => ws.send('hello'));",
+        'server.listen(3000);'
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'web-service' },
+      resourceProperties: [
+        { resource: 'fixtureApp', path: 'loadBalancing.type', value: 'application-load-balancer' },
+        { resource: 'fixtureApp', path: 'alarms.0.trigger.type', value: 'application-load-balancer-error-rate' }
+      ]
+    }
+  },
+  {
+    name: 'F10: a socket.io server gets an Application Load Balancer',
+    files: {
+      'package.json': packageJson({
+        dependencies: { 'socket.io': '^4.8.0' },
+        scripts: { start: 'node server.js' }
+      }),
+      'server.js': lines(
+        "import { createServer } from 'node:http';",
+        "import { Server } from 'socket.io';",
+        'const httpServer = createServer();',
+        'const io = new Server(httpServer);',
+        "io.on('connection', (socket) => socket.emit('hello'));",
+        'httpServer.listen(3000);'
+      )
+    },
+    expect: {
+      resourceProperties: [{ resource: 'fixtureApp', path: 'loadBalancing.type', value: 'application-load-balancer' }]
+    }
+  },
+  {
+    name: 'F10: a FastAPI websocket route gets an Application Load Balancer',
+    files: {
+      'api/requirements.txt': lines('fastapi==0.115.0', 'uvicorn==0.32.0'),
+      'api/main.py': lines(
+        'from fastapi import FastAPI, WebSocket',
+        'app = FastAPI()',
+        "@app.websocket('/ws')",
+        'async def socket(ws: WebSocket):',
+        '    await ws.accept()'
+      ),
+      'api/Procfile': 'web: uvicorn main:app --host 0.0.0.0 --port $PORT\n'
+    },
+    expect: {
+      resourceProperties: [{ resource: 'api', path: 'loadBalancing.type', value: 'application-load-balancer' }]
+    }
+  },
+  {
+    name: 'F10 control: a WebSocket client keeps the HTTP API',
+    files: {
+      'package.json': packageJson({
+        dependencies: { express: '^4.21.0', ws: '^8.0.0' },
+        scripts: { start: 'node server.js' }
+      }),
+      'server.js': lines(
+        "import express from 'express';",
+        "import WebSocket from 'ws';",
+        "const feed = new WebSocket('wss://example.com/feed');",
+        'const app = express();',
+        'app.listen(3000);'
+      )
+    },
+    expect: { resourceProperties: [{ resource: 'fixtureApp', path: 'loadBalancing', value: undefined }] }
+  },
+  {
+    name: 'F13: a fallback that throws keeps an imported secret required',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'config.js': lines(
+        "function required(name) { throw new Error(name + ' required'); }",
+        "export const token = process.env.API_TOKEN || required('API_TOKEN');"
+      ),
+      'server.js': lines("import './config.js';", "import express from 'express';", 'express().listen(3000);')
+    },
+    expect: {
+      serviceEnvironment: [{ resource: 'fixtureApp', name: 'API_TOKEN', value: "$Secret('api_token')" }]
+    }
+  },
+  {
+    name: 'F13: a throwing helper with any name keeps an inline secret required',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'server.js': lines(
+        'const env = (name) => { throw new Error(`${name} is not set`); };',
+        "const token = process.env.API_TOKEN ?? env('API_TOKEN');",
+        "import express from 'express';",
+        'express().listen(3000);'
+      )
+    },
+    expect: {
+      serviceEnvironment: [{ resource: 'fixtureApp', name: 'API_TOKEN', value: "$Secret('api_token')" }]
+    }
+  },
+  {
+    name: 'F13 control: a literal fallback is a default',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'server.js': lines(
+        "const token = process.env.API_TOKEN || 'development-token';",
+        "import express from 'express';",
+        'express().listen(3000);'
+      )
+    },
+    expect: { resourceProperties: [{ resource: 'fixtureApp', path: 'environment', value: undefined }] }
+  },
+  {
+    name: 'F14: a Java Lambda in package com.example is application code',
+    files: {
+      'pom.xml':
+        '<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>com.amazonaws</groupId><artifactId>aws-lambda-java-core</artifactId><version>1.2.3</version></dependency></dependencies></project>\n',
+      'src/main/java/com/example/Handler.java': lines(
+        'package com.example;',
+        'import com.amazonaws.services.lambda.runtime.Context;',
+        'import com.amazonaws.services.lambda.runtime.RequestHandler;',
+        'public class Handler implements RequestHandler<String, String> {',
+        '  public String handleRequest(String input, Context context) { return input; }',
+        '}'
+      )
+    },
+    expect: {
+      resources: { example: 'function' },
+      resourceProperties: [
+        { resource: 'example', path: 'packaging.properties.handlerFunction', value: 'Handler::handleRequest' }
+      ]
+    }
+  },
+  {
+    name: 'F14: a Spring app in package com.example keeps its configured port',
+    files: {
+      'api/pom.xml':
+        '<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.3.0</version></dependency></dependencies></project>\n',
+      'api/src/main/resources/application.properties': 'server.port=8088\n',
+      'api/src/main/java/com/example/App.java': lines(
+        'package com.example;',
+        'import org.springframework.boot.SpringApplication;',
+        'import org.springframework.boot.autoconfigure.SpringBootApplication;',
+        '@SpringBootApplication public class App { public static void main(String[] args) { SpringApplication.run(App.class, args); } }'
+      )
+    },
+    expect: { resources: { api: 'web-service' }, servicePorts: [{ resource: 'api', port: 8088 }] }
+  },
+  {
+    name: 'F14 control: an examples directory is still sample code',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '^4.21.0' }, scripts: { start: 'node server.js' } }),
+      'server.js': lines("import express from 'express';", 'express().listen(3000);'),
+      'examples/consumer.ts': lines(
+        "import type { SQSEvent } from 'aws-lambda';",
+        'export const handler = async (event: SQSEvent) => event.Records.length;'
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'web-service' },
+      absentDependencyKinds: ['queue'],
+      resourceProperties: [{ resource: 'consumer', path: 'packaging', value: undefined }]
+    }
+  },
+  {
+    name: 'F15: a literal Vite build.outDir is the upload directory',
+    files: {
+      'package.json': packageJson({
+        dependencies: { vite: '^6.0.0', react: '^19.0.0' },
+        scripts: { build: 'vite build' }
+      }),
+      'index.html': '<div id="root"></div><script type="module" src="/src/main.js"></script>\n',
+      'vite.config.js': "export default { build: { outDir: 'public-build' } };\n",
+      'src/main.js': "document.getElementById('root').textContent = 'Hello';\n"
+    },
+    expect: {
+      resources: { fixtureApp: 'hosting-bucket' },
+      resourceProperties: [{ resource: 'fixtureApp', path: 'uploadDirectoryPath', value: 'public-build' }]
+    }
+  },
+  {
+    name: 'F15: a Vite outDir is relative to a literal root',
+    files: {
+      'package.json': packageJson({ dependencies: { vite: '^6.0.0' }, scripts: { build: 'vite build' } }),
+      'src/index.html': '<div id="root"></div>\n',
+      'vite.config.js': "export default { root: './src', build: { outDir: '../site' } };\n"
+    },
+    expect: {
+      resources: { fixtureApp: 'hosting-bucket' },
+      resourceProperties: [{ resource: 'fixtureApp', path: 'uploadDirectoryPath', value: 'site' }]
+    }
+  },
+  {
+    name: 'F15: a computed Vite outDir is reported, not guessed',
+    files: {
+      'package.json': packageJson({
+        dependencies: { vite: '^6.0.0', react: '^19.0.0' },
+        scripts: { build: 'vite build' }
+      }),
+      'index.html': '<div id="root"></div>\n',
+      'vite.config.js': lines(
+        "const target = process.env.TARGET ?? 'web';",
+        'export default { build: { outDir: `out/${target}` } };'
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'hosting-bucket' },
+      gapsInclude: ['vite.config.js decides where the build writes']
+    }
+  },
+  {
+    name: "F18: one package's serverless.yml leaves a sibling package's handler to the source scan",
+    files: {
+      'package.json': packageJson({ workspaces: ['apps/*'] }),
+      'apps/worker/package.json': JSON.stringify({ name: 'worker', private: true }),
+      'apps/worker/handler.ts': lines(
+        "import type { SQSEvent } from 'aws-lambda';",
+        'export async function handler(event: SQSEvent) { for (const r of event.Records) console.log(r.body); }'
+      ),
+      'apps/api/package.json': JSON.stringify({ name: 'api', private: true }),
+      'apps/api/handler.js': 'export async function handler(event) { return { statusCode: 200, body: "ok" }; }\n',
+      'apps/api/serverless.yml': lines(
+        'service: fixture',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - httpApi: GET /hello'
+      )
+    },
+    expect: {
+      resources: { api: 'function', worker: 'function', jobQueue: 'sqs-queue' },
+      resourceProperties: [{ resource: 'worker', path: 'events.0.properties.sqsQueueName', value: 'jobQueue' }]
+    }
+  }
+];
+
+/** The eighth dogfood's app, reduced: a Next.js frontend, a Prisma API, Cognito sign-in, an image Lambda and docs. */
+const ledger = (overrides: Record<string, string | undefined> = {}): Record<string, string> => {
+  const files: Record<string, string | undefined> = {
+    'package.json': packageJson({ name: 'ledger', dependencies: { '@aws-sdk/client-lambda': '^3.900.0' } }),
+    'pnpm-workspace.yaml': lines('packages:', '- api', '- web'),
+    'README.md': lines(
+      '# Ledger',
+      'Login uses Cognito USER_PASSWORD_AUTH, then calls GET /me behind a JWT authorizer.',
+      'docs/ is a static site served by a hosting-bucket with CDN.'
+    ),
+    'docs/index.html': '<!doctype html><html><body>Docs</body></html>\n',
+    'web/package.json': JSON.stringify({
+      name: 'ledger-web',
+      scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
+      dependencies: { next: '15.5.7', react: '19.1.0', '@aws-sdk/client-cognito-identity-provider': '^3.900.0' }
+    }),
+    'web/app/actions.js': lines(
+      '"use server";',
+      "import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';",
+      'export async function login(form) {',
+      '  const out = await new CognitoIdentityProviderClient({}).send(new InitiateAuthCommand({',
+      "    ClientId: process.env.AUTH_CLIENT_ID, AuthFlow: 'USER_PASSWORD_AUTH',",
+      "    AuthParameters: { USERNAME: form.get('email'), PASSWORD: form.get('password') }",
+      '  }));',
+      '  return out.AuthenticationResult.IdToken;',
+      '}',
+      'export async function create(token, name) {',
+      "  const me = await fetch(process.env.ME_URL + '/me', { headers: { authorization: 'Bearer ' + token } });",
+      "  await fetch(process.env.API_URL + '/experiments', { method: 'POST', body: JSON.stringify({ name }) });",
+      '  return me.ok;',
+      '}'
+    ),
+    'api/package.json': JSON.stringify({ name: 'ledger-api', type: 'module', scripts: { start: 'node server.mjs' } }),
+    'api/server.mjs': lines(
+      "import http from 'node:http';",
+      "http.createServer((req, res) => res.end('[]')).listen(Number(process.env.PORT || 3000), '0.0.0.0');"
+    ),
+    'functions/me.ts':
+      'export const handler = async (event) => ({ statusCode: 200, body: JSON.stringify({ subject: event.requestContext.authorizer.jwt.claims.sub }) });\n',
+    'functions/image/index.cjs': "exports.handler = async () => ({ shape: 'container-image', ok: true });\n",
+    'functions/image/Dockerfile': lines(
+      'FROM public.ecr.aws/lambda/nodejs:22',
+      'COPY index.cjs ${LAMBDA_TASK_ROOT}/index.cjs',
+      'CMD ["index.handler"]'
+    ),
+    ...overrides
+  };
+  return Object.fromEntries(Object.entries(files).filter((entry): entry is [string, string] => entry[1] !== undefined));
+};
+
+const DOGFOOD_CASES: EvalCase[] = [
+  {
+    name: 'r2qq: a project that signs users in and checks their tokens gets its own user pool',
+    files: ledger(),
+    expect: {
+      dependencyKinds: ['user-pool'],
+      resources: {
+        userPool: 'user-auth-pool',
+        ledgerWeb: 'nextjs-web',
+        ledgerApi: 'web-service',
+        me: 'function',
+        image: 'function',
+        docs: 'hosting-bucket'
+      },
+      serviceEnvironment: [
+        { resource: 'ledgerWeb', name: 'AUTH_CLIENT_ID', value: "$ResourceParam('userPool', 'clientId')" },
+        { resource: 'ledgerWeb', name: 'API_URL', value: "$ResourceParam('ledgerApi', 'url')" },
+        { resource: 'ledgerWeb', name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+      ],
+      resourceProperties: [
+        // No SignUp call: users are created by an administrator, not by anyone with the client ID.
+        { resource: 'userPool', path: 'allowOnlyAdminsToCreateAccount', value: true },
+        {
+          resource: 'me',
+          path: 'events.0.properties.authorizer',
+          value: { type: 'cognito', properties: { userPoolName: 'userPool' } }
+        },
+        { resource: 'docs', path: 'uploadDirectoryPath', value: 'docs' },
+        // The Lambda image's Dockerfile is no always-running worker.
+        { resource: 'ledger', path: 'packaging', value: undefined }
+      ],
+      gapsInclude: ['functions/image/Dockerfile builds a container-image Lambda function']
+    }
+  },
+  {
+    name: 'r2qq: sign-in alone does not prove the user pool belongs to the project',
+    files: ledger({ 'functions/me.ts': undefined }),
+    expect: {
+      resourceProperties: [
+        { resource: 'userPool', path: 'allowOnlyAdminsToCreateAccount', value: undefined },
+        { resource: 'ledgerWeb', path: 'environment.0.name', value: 'API_URL' }
+      ],
+      gapsInclude: ['nothing else in the project shows the user pool is its own', 'set AUTH_CLIENT_ID to your pool']
+    }
+  },
+  {
+    name: 'r2qq: a handler reading JWT claims without a pool of the project gets no public route',
+    files: ledger({ 'web/app/actions.js': 'export async function noop() { return process.env.ME_URL; }\n' }),
+    expect: {
+      resourceProperties: [{ resource: 'me', path: 'events', value: undefined }],
+      gapsInclude: ['me reads the claims of a JWT authorizer']
+    }
+  },
+  {
+    name: 'r2qq: a Lambda Dockerfile with no handler source gets one gap and no worker',
+    files: {
+      'package.json': packageJson({ name: 'imaging' }),
+      'lambda/Dockerfile': lines('FROM public.ecr.aws/lambda/python:3.12', 'COPY app.py ./', 'CMD ["app.handler"]'),
+      'lambda/requirements.txt': 'pillow\n'
+    },
+    expect: {
+      resourceProperties: [{ resource: 'lambda', path: 'packaging', value: undefined }],
+      gapsInclude: ['lambda/Dockerfile builds a container-image Lambda function', 'init created nothing for it']
+    }
+  },
+  {
+    name: 'r2qq: an address the frontend reads that matches no service is a gap',
+    files: {
+      'package.json': packageJson({
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build' }
+      }),
+      'app/actions.js': lines(
+        '"use server";',
+        "export async function load() { return fetch(process.env.BILLING_URL + '/invoices'); }"
+      )
+    },
+    expect: { gapsInclude: ['reads BILLING_URL, an address nothing in the configuration sets'] }
+  }
+];
+
+describe('source inference end-to-end corpus', () => {
+  for (const evalCase of [...CASES, ...DOGFOOD_CASES]) {
+    it(evalCase.name, async () => {
+      const score = await runEvalCase(evalCase);
+      if (!score.passed) {
+        throw new Error(score.failures.map((failure) => `[${failure.stage}] ${failure.detail}`).join('\n'));
+      }
+      expect(score.passed).toBe(true);
+    });
+  }
+});

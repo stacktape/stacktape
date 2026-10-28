@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
-import { assembleCandidateFacts } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
 import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
 import { procfileProbe } from './procfile';
@@ -438,4 +438,27 @@ describe('the Procfile probe', () => {
     expect(facts.migrations).toEqual([expect.objectContaining({ serviceName: 'api', runsAt: 'unknown' })]);
     expect(gaps.map((gap) => gap.subject)).toContain('api.migrations');
   });
+
+  // A web command that binds a literal port listens there whatever PORT says; one that reads $PORT follows it.
+  const PORTS: ReadonlyArray<[command: string, port: number | undefined]> = [
+    ['uvicorn main:app --host 0.0.0.0 --port 8000', 8000],
+    ['uvicorn main:app --port=8001', 8001],
+    ['gunicorn app:app --bind 0.0.0.0:5000', 5000],
+    ['gunicorn app:app -b :5001 --workers 2', 5001],
+    ['bundle exec rails server -p 3001', 3001],
+    ['python manage.py runserver 0.0.0.0:8002', 8002],
+    ['php -S 0.0.0.0:8080 -t public', 8080],
+    ['waitress-serve --listen=*:6543 app:app', 6543],
+    ['uvicorn main:app --port $PORT', undefined],
+    ['gunicorn app:app --bind 0.0.0.0:${PORT}', undefined],
+    ['gunicorn app:app --bind 127.0.0.1:5000 --statsd-host localhost:8125 --port 9000', undefined],
+    ['node server.js', undefined]
+  ];
+  for (const [command, port] of PORTS) {
+    it(`routes \`${command}\` to ${port ?? 'the default port'}`, async () => {
+      root = await makeRepo({ 'requirements.txt': 'gunicorn\n', Procfile: `web: ${command}\n` });
+      const output = await procfileProbe.run(createProbeContext(root, ['requirements.txt', 'Procfile']));
+      expect(output.services?.[0]?.port).toBe(port);
+    });
+  }
 });

@@ -804,6 +804,16 @@ export const describeResult = (result: GreenfieldResult): string[] => {
     for (const gap of result.composition.gaps) lines.push(`  ! ${gap.message}`);
   }
 
+  // The wizard lists these next to the gaps; without them here, a headless run never mentions them.
+  const unset = result.composition.unsetSettings;
+  if (unset.length > 0) {
+    lines.push(
+      '',
+      "Your code reads these with no fallback, and nothing sets them. If your app needs one to start, add it to that resource's environment:"
+    );
+    for (const setting of unset) lines.push(`  - ${setting.resourceName}: ${setting.variableName}`);
+  }
+
   const notable = result.composition.assumptions.filter((assumption) => assumption.notable);
   if (notable.length > 0) {
     lines.push('', 'Decided for you, and worth a look:');

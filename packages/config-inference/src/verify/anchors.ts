@@ -98,6 +98,10 @@ export const DEPENDENCY_ANCHORS: Record<DependencyKind, AnchorRule> = {
   'state-machine': {
     patterns: [/StartExecution|startExecution|start_execution|stepfunctions|client-sfn|AWS::StepFunctions/i],
     expectation: 'a Step Functions StartExecution call'
+  },
+  'user-pool': {
+    patterns: [/cognito/i, /InitiateAuth|initiate_auth|SignUp|sign_up/i, /ClientId|UserPoolId/],
+    expectation: 'a Cognito sign-in call or user pool client ID'
   }
 };
 

@@ -38,12 +38,36 @@ const RESOURCE_KINDS: Readonly<Record<string, DependencyKind>> = {
   'AWS::SQS::Queue': 'queue',
   'AWS::SNS::Topic': 'topic',
   'AWS::S3::Bucket': 'object-storage',
-  'AWS::RDS::DBInstance': 'postgres',
-  'AWS::RDS::DBCluster': 'postgres',
   'AWS::ElastiCache::CacheCluster': 'redis',
   'AWS::ElastiCache::ReplicationGroup': 'redis',
   'AWS::OpenSearchService::Domain': 'search',
   'AWS::Elasticsearch::Domain': 'search'
+};
+
+/** RDS `Engine` values, in our vocabulary. Anything else, or an engine that is not a literal, is no claim at all. */
+const RDS_ENGINES: Readonly<Record<string, DependencyKind>> = {
+  postgres: 'postgres',
+  'aurora-postgresql': 'postgres',
+  mysql: 'mysql',
+  'aurora-mysql': 'mysql',
+  mariadb: 'mysql'
+};
+
+/** The dependency a declared resource is, reading a database's engine from its properties. */
+const resourceKind = (resource: RecordValue): DependencyKind | undefined => {
+  const type = String(resource.Type);
+  if (type !== 'AWS::RDS::DBInstance' && type !== 'AWS::RDS::DBCluster') return RESOURCE_KINDS[type];
+  const engine = isRecord(resource.Properties) ? resource.Properties.Engine : undefined;
+  if (typeof engine !== 'string') return undefined;
+  const normalized = engine.toLowerCase();
+  return normalized.startsWith('sqlserver-') ? 'mssql' : RDS_ENGINES[normalized];
+};
+
+/** A literal `EngineVersion` on an RDS database. */
+const engineVersionOf = (resource: RecordValue): string | undefined => {
+  if (resource.Type !== 'AWS::RDS::DBInstance' && resource.Type !== 'AWS::RDS::DBCluster') return undefined;
+  const version = isRecord(resource.Properties) ? resource.Properties.EngineVersion : undefined;
+  return typeof version === 'string' || typeof version === 'number' ? String(version) : undefined;
 };
 
 const factName = (value: string): string => {
@@ -448,25 +472,27 @@ export const serverlessFrameworkProbe: Probe = {
       );
       const kindCounts = new Map<DependencyKind, number>();
       for (const [, resource] of resourceEntries) {
-        const kind = RESOURCE_KINDS[String(resource.Type)];
+        const kind = resourceKind(resource);
         if (kind !== undefined) kindCounts.set(kind, (kindCounts.get(kind) ?? 0) + 1);
       }
       const dependencyNames = new Map<string, string>();
       const manifestDependencies: DependencyFact[] = [];
       for (const [logicalId, resource] of resourceEntries) {
-        const kind = RESOURCE_KINDS[String(resource.Type)];
+        const kind = resourceKind(resource);
         if (kind === undefined) continue;
         const name = (kindCounts.get(kind) ?? 0) === 1 ? defaultDependencyName(kind) : factName(logicalId);
         dependencyNames.set(logicalId, name);
         const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(logicalId)}:`));
-        manifestDependencies.push(
-          manifestDependencyFact(
+        const engineVersion = engineVersionOf(resource);
+        manifestDependencies.push({
+          ...manifestDependencyFact(
             name,
             kind,
             citation,
             kind === 'queue' ? declaredQueueSettings(resource.Properties) : undefined
-          )
-        );
+          ),
+          ...(engineVersion === undefined ? {} : { engineVersion })
+        });
       }
       const constructs = isRecord(parsed.constructs) ? parsed.constructs : {};
       const constructEntries = Object.entries(constructs).filter(

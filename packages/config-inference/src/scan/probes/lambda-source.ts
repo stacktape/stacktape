@@ -21,6 +21,9 @@ import {
   type ProbeOutput
 } from '../probe';
 import { sliceBalancedBraces } from '../balanced-slice';
+import { citeFirstCodeMatch, maskFile, maskSource } from '../lexical';
+import { outsidePackageNamespace } from '../service-root';
+import { JWT_CLAIMS_READ } from './cognito';
 import { objectShape, orderWorkflowSteps, stepShapeOf } from './step-functions';
 
 /**
@@ -176,10 +179,11 @@ const HANDLER_DIRECTORY = /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i;
 
 type TypedHandler = { family: EventFamily; citation: Citation | undefined };
 
-const typedHandler = (path: string, raw: string): TypedHandler | undefined => {
+/** `code` is `raw` with comments and string contents blanked: an export in a comment or a string is no handler. */
+const typedHandler = (path: string, raw: string, code: string): TypedHandler | undefined => {
   if (!/['"]aws-lambda['"]/.test(raw)) return undefined;
   for (const pattern of TYPED_EXPORT_PATTERNS) {
-    const typeName = pattern.exec(raw)?.[1];
+    const typeName = pattern.exec(code)?.[1];
     if (typeName === undefined) continue;
     const entry = EVENT_TYPES.find((candidate) => candidate.names.includes(typeName))!;
     const family: EventFamily =
@@ -274,11 +278,19 @@ const requestContextDestructuring = (name: string) =>
 const readsRequestContext = (raw: string, name: string): boolean =>
   /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
 
-/** Fields only an HTTP API (payload 2.0) event has. */
+/** Fields only an HTTP API (payload 2.0) event has, including the claims its JWT authorizer adds. */
 const HTTP_V2_EVENT: readonly RegExp[] = [
   new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
-  new RegExp(field('rawPath'))
+  new RegExp(field('rawPath')),
+  new RegExp(`requestContext['"\\]]*\\s*\\??\\.?\\s*(?:\\[\\s*['"])?authorizer\\b[^\\n;]{0,8}?jwt\\b`)
 ];
+
+/** Handler types for a route behind a JWT or Cognito authorizer: the handler relies on its claims. */
+const JWT_HANDLER_TYPE =
+  /\bAPIGatewayProxy(?:EventV2|HandlerV2)WithJWTAuthorizer\b|\bAPIGatewayProxyWithCognitoAuthorizer(?:Event|Handler)\b/;
+
+/** The route has to sit behind an authorizer: the handler reads its JWT claims, or is typed for them. */
+const readsJwtClaims = (raw: string): boolean => JWT_HANDLER_TYPE.test(raw) || JWT_CLAIMS_READ.test(raw);
 /** A WebSocket lifecycle route, or the event type a WebSocket event carries. */
 const WEBSOCKET_ROUTE = /['"`]\$(?:connect|disconnect|default)['"`]/;
 const WEBSOCKET_EVENT_TYPE = /\beventType\b[^\n]{0,12}['"`](?:CONNECT|DISCONNECT|MESSAGE)['"`]/;
@@ -711,45 +723,14 @@ const GO_STARTED_FUNCTION =
  * event type the started function takes says what invokes it; `events.CloudWatchEvent` is either a schedule or an
  * EventBridge rule, and an untyped `json.RawMessage` could be anything, so those get no trigger.
  */
-/**
- * Go source with its comments and string contents blanked out and its line breaks kept, so a commented-out
- * `lambda.Start` example in a command's docs, or one in a help text, is not read as the command's own.
- */
-const withoutGoComments = (raw: string): string => {
-  let result = '';
-  let quote: string | undefined;
-  for (let index = 0; index < raw.length; index += 1) {
-    const character = raw[index]!;
-    if (quote !== undefined) {
-      if (character === '\\' && quote !== '`') {
-        result += '  ';
-        index += 1;
-      } else if (character === quote) {
-        quote = undefined;
-        result += character;
-      } else result += character === '\n' ? '\n' : ' ';
-      continue;
-    }
-    if (character === '/' && (raw[index + 1] === '/' || raw[index + 1] === '*')) {
-      const end = raw[index + 1] === '/' ? raw.indexOf('\n', index) : raw.indexOf('*/', index + 2) + 2;
-      const stop = end <= 1 || end === -1 ? raw.length : end;
-      result += raw.slice(index, stop).replace(/[^\n]/g, ' ');
-      index = stop - 1;
-      continue;
-    }
-    if (character === '"' || character === "'" || character === '`') quote = character;
-    result += character;
-  }
-  return result;
-};
-
 const goHandler = (
   context: ProbeContext,
   path: string,
   original: string
 ): CompiledHandler | 'no-build-file' | undefined => {
   if (/(?:^|\/)vendor\/|_test\.go$/.test(path)) return undefined;
-  const raw = withoutGoComments(original);
+  // A commented-out `lambda.Start` example in a command's docs, or one in a help text, is not the command's own.
+  const raw = maskSource(original, 'go', { strings: 'blank' });
   if (!GO_LAMBDA_START.test(raw) || !/^\s*package\s+main\b/m.test(raw)) return undefined;
   const module = nearestModule(context.files, path, (file, directory) => inDirectory(file, directory) === 'go.mod');
   if (module === undefined) return 'no-build-file';
@@ -941,8 +922,9 @@ const stateMachineNameFor = (variable: string): string => {
 
 export const lambdaSourceProbe: Probe = {
   name: 'lambda-source',
-  run: async (context: ProbeContext): Promise<ProbeOutput> => {
+  run: async (probeContext: ProbeContext): Promise<ProbeOutput> => {
     // SAM is more authoritative: it distinguishes multiple exports in one file and names events.
+    let context = probeContext;
     for (const path of ['template.yaml', 'template.yml', 'sam-template.yaml', 'sam-template.yml']) {
       if (!context.files.includes(path)) continue;
       // oxlint-disable-next-line no-await-in-loop -- stop after the first authoritative SAM template.
@@ -950,8 +932,18 @@ export const lambdaSourceProbe: Probe = {
       if (raw !== undefined && /AWS::Serverless-2016-10-31/.test(raw)) return {};
     }
     // Same deference to the Serverless Framework: its manifest names the functions and their
-    // events, so pattern-matching the same handler files again would only mint duplicates.
-    if (context.files.some((path) => /(^|\/)serverless\.ya?ml$/.test(path))) return {};
+    // events, so pattern-matching the same handler files again would only mint duplicates. A manifest in a package
+    // (`apps/api/serverless.yml`) speaks for that package's handlers only; a sibling package's are still read here.
+    const serverlessRoots = context.files
+      .filter((path) => /(^|\/)serverless\.ya?ml$/.test(path))
+      .map((path) => posix.dirname(path));
+    if (serverlessRoots.includes('.')) return {};
+    if (serverlessRoots.length > 0) {
+      context = {
+        ...context,
+        files: context.files.filter((path) => !serverlessRoots.some((root) => path.startsWith(`${root}/`)))
+      };
+    }
     // And to SST, whose config declares its functions by handler path.
     if (context.files.includes('sst.config.ts') || context.files.includes('sst.config.js')) return {};
     // And to CDK, whose stacks name their entry files and event sources.
@@ -996,10 +988,12 @@ export const lambdaSourceProbe: Probe = {
       const raw = await readText(context, path, { fullFile: true });
       if (raw !== undefined) notePublisher(path, raw);
       if (raw === undefined) continue;
+      // Exports are read from code alone: a commented-out handler, or one quoted in a tutorial string, is not one.
+      const code = maskFile(path, raw, 'blank');
       if (
         HANDLER_DIRECTORY.test(path) &&
-        !HANDLER_PATTERN.test(raw) &&
-        ASYNC_DEFAULT_EXPORT.test(raw) &&
+        !HANDLER_PATTERN.test(code) &&
+        ASYNC_DEFAULT_EXPORT.test(code) &&
         !/\.[jt]sx$/.test(path) &&
         !OTHER_PLATFORM_PATH.test(path) &&
         !OTHER_PLATFORM_SOURCE.test(raw)
@@ -1008,23 +1002,23 @@ export const lambdaSourceProbe: Probe = {
         stepCandidates.push({
           path,
           raw,
-          entryEvidence: citeFirstMatch(path, raw, ASYNC_DEFAULT_EXPORT, 'functionEntrypoint')
+          entryEvidence: citeFirstCodeMatch(path, raw, code, ASYNC_DEFAULT_EXPORT, 'functionEntrypoint')
         });
       }
-      if (!HANDLER_PATTERN.test(raw)) continue;
+      if (!HANDLER_PATTERN.test(code)) continue;
       // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
       // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
       if (!HANDLER_DIRECTORY.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
       claimed.add(path);
-      const typed = typedHandler(path, raw);
+      const typed = typedHandler(path, raw, code);
       const inferred = typed === undefined ? inferEventFamily(raw) : undefined;
       handlers.push({
         path,
         raw,
         family: typed?.family ?? inferred?.family,
         triggerEvidence: typed?.citation ?? citeInferred(path, raw, inferred?.pattern),
-        entryEvidence: citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint'),
-        pythonHandler: untypedExport(path, raw)?.pythonHandler
+        entryEvidence: citeFirstCodeMatch(path, raw, code, HANDLER_PATTERN, 'functionEntrypoint'),
+        pythonHandler: untypedExport(path, code)?.pythonHandler
       });
     }
 
@@ -1033,7 +1027,10 @@ export const lambdaSourceProbe: Probe = {
     // named, and its type says which event invokes it. An untyped one (every Python handler) qualifies when it takes
     // `(event, context)` or reads the fields of one event source, and those fields say which.
     const application = context.files.filter(
-      (path) => !claimed.has(path) && !NON_APPLICATION_PATH.test(path) && !NON_APPLICATION_FILE.test(path)
+      (path) =>
+        !claimed.has(path) &&
+        !NON_APPLICATION_PATH.test(outsidePackageNamespace(path)) &&
+        !NON_APPLICATION_FILE.test(path)
     );
     // Bounded per language, so a Python-heavy repository does not crowd out its TypeScript handlers or the reverse.
     const bounded = new Set([
@@ -1046,19 +1043,20 @@ export const lambdaSourceProbe: Probe = {
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
       notePublisher(path, raw);
-      const typed = typedHandler(path, raw);
+      const code = maskFile(path, raw, 'blank');
+      const typed = typedHandler(path, raw, code);
       if (typed !== undefined) {
         handlers.push({
           path,
           raw,
           family: typed.family,
           triggerEvidence: typed.citation,
-          entryEvidence: citeFirstMatch(path, raw, TYPED_EXPORT, 'functionEntrypoint'),
+          entryEvidence: citeFirstCodeMatch(path, raw, code, TYPED_EXPORT, 'functionEntrypoint'),
           pythonHandler: undefined
         });
         continue;
       }
-      const exported = untypedExport(path, raw);
+      const exported = untypedExport(path, code);
       if (exported === undefined || !exported.eventParameter) continue;
       const inferred = inferEventFamily(raw);
       // `(event, context)` is the Lambda signature itself; a schedule literal alone proves nothing about the export.
@@ -1073,9 +1071,10 @@ export const lambdaSourceProbe: Probe = {
         raw,
         family: inferred?.family,
         triggerEvidence: citeInferred(path, raw, inferred?.pattern),
-        entryEvidence: citeFirstMatch(
+        entryEvidence: citeFirstCodeMatch(
           path,
           raw,
+          code,
           path.endsWith('.py') ? PYTHON_HANDLER : UNTYPED_JS_EXPORT,
           'functionEntrypoint'
         ),
@@ -1193,9 +1192,10 @@ export const lambdaSourceProbe: Probe = {
       if (family?.trigger === 'http') {
         const route = routes.get(path);
         const readParameters = pathParametersIn(raw).filter((parameter) => parameter !== 'proxy');
+        const authorization = readsJwtClaims(raw) ? { authorization: 'jwt' as const } : {};
         triggers.push(
           route !== undefined
-            ? { type: 'http', ...route, payloadFormat: family.payloadFormat }
+            ? { type: 'http', ...route, payloadFormat: family.payloadFormat, ...authorization }
             : httpHandlerCount === 1
               ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it. Path parameters it
                 // reads by name arrive empty on this route, which composition reports.
@@ -1204,7 +1204,8 @@ export const lambdaSourceProbe: Probe = {
                   method: '*',
                   path: '/{proxy+}',
                   payloadFormat: family.payloadFormat,
-                  ...(readParameters.length === 0 ? {} : { pathParameters: readParameters })
+                  ...(readParameters.length === 0 ? {} : { pathParameters: readParameters }),
+                  ...authorization
                 }
               : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
         );

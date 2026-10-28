@@ -61,6 +61,12 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
   // An event bus publishes only its ARN, which `PutEvents` accepts as `EventBusName`. `StartExecution` takes a state
   // machine's ARN.
   if (kind === 'event-bus' || kind === 'state-machine') return { kind: 'param', param: 'arn' };
+  // A Cognito sign-in call takes the app client's ID; admin calls and token verifiers take the pool's own ID.
+  if (kind === 'user-pool') {
+    if (/CLIENT_?ID$/.test(name)) return { kind: 'param', param: 'clientId' };
+    if (/POOL_?ID$/.test(name)) return { kind: 'param', param: 'id' };
+    return name.endsWith('ARN') ? { kind: 'param', param: 'arn' } : { kind: 'none' };
+  }
   // A WebSocket API has two addresses: the `wss://` URL clients connect to, and the HTTPS endpoint the backend posts
   // to connections through.
   if (kind === 'websocket-api') {

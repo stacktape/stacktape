@@ -12,11 +12,12 @@
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { outsidePackageNamespace } from '../service-root';
 
 const NAME = '([A-Z][A-Z0-9_]{2,})';
 
 /** An environment read, in the languages the environment scan reads. `name` is the variable's name or a pattern. */
-const environmentRead = (name: string): string =>
+export const environmentRead = (name: string): string =>
   [
     `process\\.env\\.${name}`,
     `process\\.env\\[\\s*['"\`]${name}['"\`]`,
@@ -136,8 +137,8 @@ const NON_APPLICATION_PATH =
 const NON_APPLICATION_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$|(?:^|\/)(?:test_[^/]*|[^/]*_test)\.(?:py|go)$/i;
 const MAX_FILES = 400;
 
-/** Infrastructure code declares its own topics and queues; those probes name them, so this one stays out of the way. */
-const DECLARES_INFRASTRUCTURE = (files: readonly string[]): boolean =>
+/** Infrastructure code declares its own topics, queues and pools; those probes name them, so these stay out of the way. */
+export const declaresInfrastructure = (files: readonly string[]): boolean =>
   files.some(
     (path) =>
       /(?:^|\/)serverless\.ya?ml$|(?:^|\/)[^/]+\.tf$|^Pulumi\.ya?ml$/.test(path) ||
@@ -151,7 +152,7 @@ const DECLARES_INFRASTRUCTURE = (files: readonly string[]): boolean =>
  * or through one local name the file assigns from the environment (`const topicArn = process.env.TOPIC_ARN` ...
  * `TopicArn: topicArn`).
  */
-const targetVariable = (raw: string, valueStart: number): string | undefined => {
+export const targetVariable = (raw: string, valueStart: number): string | undefined => {
   const value = raw.slice(valueStart, valueStart + 160);
   const direct = variableIn(value);
   if (direct !== undefined) return direct;
@@ -186,13 +187,22 @@ const nameFromVariable = (kind: 'topic' | 'queue', variable: string, taken: Read
   return `${whole}${suffix}`;
 };
 
+/** Application source files, without tests, tooling, samples and build output, bounded. */
+export const applicationSourceFiles = (files: readonly string[]): string[] =>
+  files
+    .filter(
+      (path) =>
+        SOURCE_FILE.test(path) &&
+        !NON_APPLICATION_PATH.test(outsidePackageNamespace(path)) &&
+        !NON_APPLICATION_FILE.test(path)
+    )
+    .slice(0, MAX_FILES);
+
 export const messagingCallsProbe: Probe = {
   name: 'messaging-calls',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    if (DECLARES_INFRASTRUCTURE(context.files)) return {};
-    const candidates = context.files
-      .filter((path) => SOURCE_FILE.test(path) && !NON_APPLICATION_PATH.test(path) && !NON_APPLICATION_FILE.test(path))
-      .slice(0, MAX_FILES);
+    if (declaresInfrastructure(context.files)) return {};
+    const candidates = applicationSourceFiles(context.files);
     const found = new Map<'topic' | 'queue', Map<string, DependencyFact['evidence']>>();
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
