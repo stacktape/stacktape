@@ -119,10 +119,38 @@ const describeRubyError = (lines: string[]): string | undefined => {
   return [lines[errorIndex]!, ...quoted].join('\n');
 };
 
+/** Rake's first line when a task (`bin/rails db:prepare`, `rake`) raised: `bin/rails aborted!`. */
+const RAKE_ABORTED_LINE = /^\S+ aborted!$/;
+/** A Ruby backtrace line: `/app/config/application.rb:17:in '<top (required)>'`. */
+const RUBY_FRAME = /^\S+:\d+:in [`']/;
+/** Frames of Ruby, installed gems and the binstubs that start them, which an app's error is rarely about. */
+const RUBY_LIBRARY_FRAME = /\/gems\/|\/lib\/ruby\/|\/rubygems\/|^(?:\S*\/)?bin\/(?:rails|rake|bundle)\b|^<internal:/;
+
+/**
+ * Rake prints `bin/rails aborted!`, the exception, its backtrace, `Tasks: TOP => ...` and a help line. The cause and the
+ * first frame of the app's own code explain the failure; the help line does not.
+ */
+const describeRakeAbort = (lines: string[]): string | undefined => {
+  const abortedIndex = lines.findLastIndex((line) => RAKE_ABORTED_LINE.test(line));
+  if (abortedIndex < 0) return undefined;
+  const rest = lines.slice(abortedIndex + 1);
+  const firstFrame = rest.findIndex((line) => RUBY_FRAME.test(line));
+  const cause = (firstFrame < 0 ? rest : rest.slice(0, firstFrame))
+    .filter((line) => line.trim() && !/^Tasks: /.test(line) && !/^\(See full trace/.test(line))
+    .slice(0, MAX_FRAME_LINES);
+  const frames = firstFrame < 0 ? [] : rest.slice(firstFrame).filter((line) => RUBY_FRAME.test(line));
+  const appFrame = frames.find((line) => !RUBY_LIBRARY_FRAME.test(line));
+  return [lines[abortedIndex]!, ...cause, ...(appFrame ? [appFrame] : [])].join('\n');
+};
+
 export const describeContainerExit = (stderr: string): string | undefined => {
   const lines = stderr.split('\n').map((line) => line.trimEnd());
   const described =
-    describePythonTraceback(lines) ?? describeBunError(lines) ?? describeNodeError(lines) ?? describeRubyError(lines);
+    describePythonTraceback(lines) ??
+    describeBunError(lines) ??
+    describeNodeError(lines) ??
+    describeRakeAbort(lines) ??
+    describeRubyError(lines);
   if (described) return described;
   const meaningful = lines.filter((line) => line.trim());
   return (meaningful.findLast((line) => /error/i.test(line)) ?? meaningful.at(-1))?.trim();

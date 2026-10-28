@@ -108,7 +108,20 @@ See [Lambda function runtime](/resources/compute/lambda-function#runtime-resourc
 
 ## Handler function
 
-`handlerFunction` names the function in the entry file that Lambda invokes. It is ignored for Rust, where the compiled binary is the handler.
+`handlerFunction` names the function in the entry file that Lambda invokes. It is ignored for Go and Rust, where the compiled binary is the handler.
+
+Stacktape builds the full Lambda handler from the entry file:
+
+| Language | Lambda handler | `handlerFunction` default |
+|---|---|---|
+| Python | `<module>.<handlerFunction>`, for example `src.main.handler` | `handler` |
+| Ruby | `<file>.<handlerFunction>`, for example `src/handler.handler` | `handler` |
+| Java | `<package>.<Class>::<handlerFunction>`, for example `com.example.Handler::handleRequest` | `handleRequest` |
+| .NET | `<Assembly>::<Namespace>.<Class>::<handlerFunction>`, for example `Orders::Orders.Api.Function::FunctionHandler` | `FunctionHandler` |
+
+For Java, the class is the entry file's class in the package its `package` line declares: `src/main/java/com/example/Handler.java` with `package com.example;` is `com.example.Handler`. A capitalized `handlerFunction` such as `Other` names another class of the same package and calls its `handleRequest`; `'Other::handle'` also names the method, and a fully qualified `com.example.Other::handle` is used as written.
+
+For .NET, the assembly is the project's `AssemblyName`, or the `.csproj` file name when the project sets none. The namespace comes from the entry file, and the class is the one named like the file. A `handlerFunction` that contains `::` is a complete handler and is used as written. An entry file with top-level statements and no class is an executable assembly; its handler is the assembly name.
 
 ## Python
 

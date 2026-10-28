@@ -132,7 +132,19 @@ test.each([
   ['[2026-10-28 00:17:51 +0000] [7] [INFO] Booting worker with pid: 7', 'stderr', 'info'],
   ['[2026-10-28 00:17:51 +0000] [1] [ERROR] Worker (pid:7) exited with code 3', 'stderr', 'error'],
   ['[2026-10-28 00:17:51 +0000] [1] [WARNING] Worker with pid 7 was terminated due to signal 9', 'stderr', 'warn'],
-  ['$ astro dev', 'stderr', 'info']
+  ['$ astro dev', 'stderr', 'info'],
+  // r2nn: Puma's line for a request the Rails app failed before its logger ran, from a live run.
+  [
+    '2026-10-28 13:00:16 +0000 Rack app ("GET /boom" - (172.17.0.1)): #<KeyError:"Cannot load database configuration:\\nkey not found: \\"DATABASE_URL\\"">',
+    'stderr',
+    'error'
+  ],
+  [
+    '2026-10-28 13:00:16 +0000 Rack app ("GET /" - (172.17.0.1)): #<Errno::ECONNREFUSED: Connection refused>',
+    'stderr',
+    'error'
+  ],
+  ['#<Parcel id: 1, name: "a">', 'stdout', 'info']
 ] as const)('%s on %s is %s', (line, stream, level) => {
   expect(detectLogLevel(line, stream)).toBe(level);
 });
@@ -246,4 +258,78 @@ test.each([
   for (const stream of ['stdout', 'stderr'] as const) detectLogLevel(line, stream);
   isFrontendServerFailure(line);
   expect(performance.now() - started).toBeLessThan(50);
+});
+
+// r2ll finding 4: Rails logged a controller failure as an `ERROR` line of Ruby's Logger, the exception and the
+// application frame, unindented; the frame came 51 ms after the rest. Each line was its own `info` entry, so `logs
+// {level: "error"}` did not show the API's failure. These are the dogfood's lines with their timing.
+test("a Rails controller failure is one error entry with its exception and frame, Logger's levels are read", async () => {
+  const entries: { message: string; level: string }[] = [];
+  const grouper = createLogLineGrouper({
+    stream: 'stdout',
+    onEntry: (message, level) => entries.push({ message, level })
+  });
+  const completed =
+    'I, [2026-10-28T12:19:46.263840 #1]  INFO -- : Completed 500 Internal Server Error in 0ms (ActiveRecord: 0.0ms (0 queries, 0 cached) | GC: 0.0ms)';
+  const failure = [
+    'E, [2026-10-28T12:19:46.265354 #1] ERROR -- :   ',
+    "NoMethodError (undefined method 'order' for module Parcel):",
+    "app/controllers/parcels_controller.rb:6:in 'ParcelsController#index'"
+  ];
+  const next = 'I, [2026-10-28T12:19:47.120000 #1]  INFO -- : Started GET "/health" for 127.0.0.1';
+  grouper.push(completed);
+  grouper.push(failure[0]!);
+  grouper.push(failure[1]!);
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  grouper.push(failure[2]!);
+  grouper.push(next);
+  grouper.push(
+    'D, [2026-10-28T12:19:47.121000 #1] DEBUG -- :   Parcel Load (0.6ms)  SELECT "parcels".* FROM "parcels"'
+  );
+  grouper.push('W, [2026-10-28T12:19:47.122000 #1]  WARN -- : DEPRECATION WARNING: something');
+  grouper.push('F, [2026-10-28T12:19:47.123000 #1] FATAL -- : out of memory');
+  grouper.flush();
+  expect(entries).toEqual([
+    { message: completed, level: 'info' },
+    { message: failure.join('\n'), level: 'error' },
+    { message: next, level: 'info' },
+    { message: expect.stringContaining('DEBUG'), level: 'info' },
+    { message: expect.stringContaining('DEPRECATION'), level: 'warn' },
+    { message: expect.stringContaining('out of memory'), level: 'error' }
+  ]);
+});
+
+// r2ll finding 8: Rake's aborted task arrived as fifteen `warn` entries, its help line 50 ms after the backtrace.
+test('a task Rake aborted is one error entry up to its help line', async () => {
+  const abort = [
+    'bin/rails aborted!',
+    'r2ll planned startup crash',
+    "/app/config/application.rb:17:in '<top (required)>'",
+    "bin/rails:4:in '<main>'",
+    '(See full trace by running task with --trace)'
+  ];
+  expect(await collect('stderr', [...abort, 'Puma starting in single mode...'])).toEqual([
+    { message: abort.join('\n'), level: 'error' },
+    { message: 'Puma starting in single mode...', level: 'warn' }
+  ]);
+  const uncaught = [
+    "/app/config/boot.rb:3:in '<top (required)>': r2ll planned startup crash (RuntimeError)",
+    "\tfrom bin/rails:3:in 'Kernel#require_relative'"
+  ];
+  expect(await collect('stderr', uncaught)).toEqual([{ message: uncaught.join('\n'), level: 'error' }]);
+});
+
+// r2ll: a frontend's `console.error` of an error value inside a message is an error; plain text stays a warning, since
+// `console.warn` writes to the same stream.
+test.each([
+  ['quote sku-1: SyntaxError: Unexpected token < in JSON at position 0', true],
+  ['upstream [TypeError: fetch failed]', true],
+  ['parcels upstream { status: 502, body: "" }', true],
+  ['HTTP 503 from /parcels', true],
+  ['PrismaClientKnownRequestError: Unique constraint failed', true],
+  ['r2ll-page-1 xxxxxxxx', false],
+  ['status 200 for /parcels', false],
+  ['DeprecationWarning: punycode is deprecated', false]
+] as const)('frontend standard error %s shows an error value: %s', (line, failure) => {
+  expect(isFrontendServerFailure(line)).toBe(failure);
 });

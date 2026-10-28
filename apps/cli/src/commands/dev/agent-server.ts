@@ -588,13 +588,20 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
     }
   }
 
-  // For other workloads, get env vars from parallel-runner state
+  // Other workloads get their environment from the local runner once dev mode prepared it, which for a container needs
+  // the dev stack and the workload's role.
   const envVars = workloadEnvironment.getEnvVars(workloadName);
   if (!envVars) {
+    const failed = workloadState.status === 'error';
     return {
       ok: false,
-      error: `Environment variables not available for "${workloadName}"`,
-      hint: 'Env vars are only tracked for container, hosting-bucket, and nextjs-web workloads'
+      code: 'WORKLOAD_NOT_STARTED',
+      error: failed
+        ? `"${workloadName}" failed before dev mode prepared its environment: ${workloadState.error || 'unknown error'}`
+        : `"${workloadName}" is ${workloadState.status}; dev mode has not prepared its environment yet.`,
+      hint: failed
+        ? 'Fix the error and rebuild the workload; its environment is available once the rebuild prepares it.'
+        : 'Read its environment again once the workload is running.'
     };
   }
 

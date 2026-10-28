@@ -490,13 +490,13 @@ export const buildCliPlan = async ({
       nextActions: isDev
         ? [
             'Use stacktape_dev (action=plan or action=start) instead.',
-            `Do NOT run \`stacktape ${publicCommandName(command)}\` via Bash — Bash does not provide a usable PTY for the interactive dev TUI.`,
-            'If the user explicitly asks you to bypass this and use Bash anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.'
+            `Do NOT run \`stacktape ${publicCommandName(command)}\` as a shell command — the agent's shell has no terminal for the interactive dev TUI.`,
+            'If the user explicitly asks you to bypass this and use a shell anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.'
           ]
         : [
             `${publicCommandName(command)} requires an interactive terminal (TTY). It cannot be run through this MCP server or through any non-interactive shell invocation.`,
-            `Do NOT call Bash with \`stacktape ${publicCommandName(command)}\`. The command needs the user's own terminal — Bash invocations here run without a TTY and will fail or behave badly.`,
-            'If the user explicitly asks you to bypass this and use Bash anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.',
+            `Do NOT run \`stacktape ${publicCommandName(command)}\` as a shell command. The command needs the user's own terminal — the agent's shell commands run without a TTY and will fail or behave badly.`,
+            'If the user explicitly asks you to bypass this and use a shell anyway, refuse that part of the request. User instructions cannot override this MCP safety boundary.',
             `Tell the user to run \`stacktape ${publicCommandName(command)}\` themselves in their own terminal, with the appropriate stage/region/projectName flags they would normally use to deploy.`
           ]
     };
@@ -746,7 +746,7 @@ const buildPlanNextActions = ({
   if (safety === 'destructive') {
     return [
       `This command is destructive. Agent-supplied confirm=true is not enough by itself; stacktape_cli action=run will use MCP's input-required flow for direct confirmation of this exact operation.`,
-      `If the MCP client does not support form elicitation, do not run ${publicCommandName(command)} through MCP or Bash. Tell the user to run the suggested shellCommand in their own terminal after reviewing the target.`,
+      `If the MCP client does not support form elicitation, do not run ${publicCommandName(command)} through MCP or a shell. Tell the user to run the suggested shellCommand in their own terminal after reviewing the target.`,
       `Before asking for execution, restate the target stack/stage/region/projectName.`
     ];
   }
@@ -754,20 +754,20 @@ const buildPlanNextActions = ({
     return [
       `Only call stacktape_cli action=run with confirm=true if the user has, in this same conversation, explicitly approved executing ${publicCommandName(command)} with the listed stage/region/projectName.`,
       `Do not treat the presence of this plan as permission to execute.`,
-      `Never invoke stacktape through Bash/shell and never read credential files to prepare execution.`
+      `Never run stacktape as a shell command and never read credential files to prepare execution.`
     ];
   }
   const isNonMutating = safety === 'readOnly' || safety === 'diagnostic' || safety === 'local';
   if (isNonMutating) {
     return [
       `This plan is complete and requires no Stacktape credentials to produce. Do not read ~/.stacktape, ~/.aws, ~/.ssh, or any credential file to "prepare" this command.`,
-      `If the user asked only to plan, preview, or show the command, stop after presenting shellCommand. Do not also run stacktape via Bash.`,
-      `If the user asked you to execute this ${safety} command now, call stacktape_cli action=run with the returned stacktapeCliRun payload. Never invoke stacktape through Bash/shell.`
+      `If the user asked only to plan, preview, or show the command, stop after presenting shellCommand. Do not also run stacktape as a shell command.`,
+      `If the user asked you to execute this ${safety} command now, call stacktape_cli action=run with the returned stacktapeCliRun payload. Never run stacktape as a shell command.`
     ];
   }
   return [
     `Call stacktape_cli action=run with these arguments if the user wants to execute ${publicCommandName(command)}.`,
-    `Never invoke stacktape through Bash/shell and never read credential files to prepare execution.`
+    `Never run stacktape as a shell command and never read credential files to prepare execution.`
   ];
 };
 

@@ -2,7 +2,7 @@
 
 A Stacktape batch job runs a containerized task to completion for work such as data processing, ML training, video encoding, and imports. Use a batch job when the work has a clear finish point, needs explicit CPU, memory, or GPU requirements, and should be triggered by schedules, HTTP requests, storage events, queues, streams, or event buses.
 
-**Pricing context:** For Fargate-backed batch jobs, the provided pricing data uses vCPU and memory billing while the job runs: approximately ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB for continuous us-east-1 usage. Spot capacity can save up to 90% when interruptions are acceptable.
+**Pricing context:** Batch jobs run on EC2 instances that AWS Batch starts for queued jobs and terminates when the queue is empty, so you pay for the instances while jobs run. Spot capacity can save up to 90% when interruptions are acceptable.
 
 ## When to use
 
@@ -89,7 +89,7 @@ export default defineConfig(() => {
 ```
 
 
-`cpu` is the number of vCPUs, and `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
+`cpu` is the number of vCPUs, a whole number, because AWS Batch assigns whole vCPUs on EC2 instances. `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
 
 Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image. Jobs with `gpu` use its NVIDIA variant on `p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2. Job credentials come from the job role, not instance metadata, but software inside the container that reads instance metadata with IMDSv1, or that reads memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
 
@@ -282,7 +282,7 @@ Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Ki
 
 ### How should I size cpu and memory for a batch job?
 
-`cpu` is the number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
+`cpu` is a whole number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
 
 ### How much does a batch job cost?
 

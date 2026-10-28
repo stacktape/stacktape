@@ -17,7 +17,7 @@ Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API
 
 Agent mode is designed for workflows where an AI coding assistant drives the edit-test-fix loop. Enable it when:
 
-- **AI-driven development** — You're using Claude Code, Cursor, Windsurf, or another AI coding assistant to build your application. The assistant starts `stacktape dev --agent` as a shell command, then uses the HTTP API to check status, rebuild workloads, read the log file path, query local databases, call AWS SDK commands, and stop dev mode.
+- **AI-driven development** — You're using Claude Code, Codex, Cursor, Windsurf, or another AI coding assistant to build your application. The assistant starts `stacktape dev --agent` as a shell command, then uses the HTTP API to check status, rebuild workloads, read the log file path, query local databases, call AWS SDK commands, and stop dev mode.
 - **Automated test harnesses** — You want a script to verify application behavior during development by hitting the status, env, or database endpoints.
 - **Database inspection without client tools** — You need to run SQL queries, check Redis keys, scan DynamoDB items, or search OpenSearch indices against local dev databases without installing separate database clients.
 
@@ -227,7 +227,7 @@ This file-based approach is intentional — AI coding assistants already have fi
 
 ### Environment variables
 
-The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. A function that uses a local database shows that database's `STP_*` variables with the address of the [dev box](/local-development/debugging-lambda-functions#connecting-to-local-databases), through which the function reaches it. For other workload types whose env vars are tracked by dev mode (currently container, hosting-bucket, and nextjs-web workloads), variables are read from the local runner state.
+The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. A function that uses a local database shows that database's `STP_*` variables with the address of the [dev box](/local-development/debugging-lambda-functions#connecting-to-local-databases), through which the function reaches it. For containers and frontends, variables are read from the local runner state. A container whose image failed to build still shows the environment it would get. A workload that failed before dev mode prepared its environment, for example because the dev stack did not deploy, returns `WORKLOAD_NOT_STARTED` with its error.
 
 ```bash
 curl -H "$AUTH" $AGENT/env/api
@@ -293,7 +293,7 @@ The workload then has the status `error` and `/status` reports `ready: false` un
 
 When the rebuilt workload's files are also used by other workloads, such as a shared package in a monorepo, and changed after those workloads were last built, the result names them in `staleWorkloads` with the changed files, and the message says so: `Rebuilt api. quote, report also use changed files (packages/shared/src/index.ts) and still run the previous build; rebuild them or rebuild all.` With `--watch`, a change rebuilds every workload that uses the file.
 
-A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads have the status `error` until they are rebuilt; if you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
+A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads keep their status and their previous build keeps serving; `ready` stays false and `restartRequired` explains why. If you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
 
 With `--watch`, dev mode rebuilds a workload when one of its source files changes, through the same path, so a failed build sets the same `error` status and writes the error to the log file. It also watches the configuration file and sets `restartRequired` when it changes. `stacktape dev --agent --watch` reports the session started only after the watcher is running, so an edit made right after the start is rebuilt.
 

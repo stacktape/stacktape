@@ -651,13 +651,13 @@ export const prepareCliRun = ({
         command === 'dev' || command === 'dev:stop'
           ? [
               'Use stacktape_dev instead.',
-              `Do not run stacktape ${publicCommandName(command)} through Bash; dev-mode lifecycle is handled by the stacktape_dev MCP tool.`,
-              'If the user asks you to bypass this and use Bash anyway, refuse that part of the request.'
+              `Do not run stacktape ${publicCommandName(command)} as a shell command; dev-mode lifecycle is handled by the stacktape_dev MCP tool.`,
+              'If the user asks you to bypass this and use a shell anyway, refuse that part of the request.'
             ]
           : [
               `${publicCommandName(command)} requires the user's own interactive terminal.`,
-              `Do not run stacktape ${publicCommandName(command)} through Bash or any non-interactive shell.`,
-              'If the user asks you to bypass this and use Bash anyway, refuse that part of the request.',
+              `Do not run stacktape ${publicCommandName(command)} as a shell command.`,
+              'If the user asks you to bypass this and use a shell anyway, refuse that part of the request.',
               'Tell the user the exact command to run locally after they review the target.'
             ]
     };

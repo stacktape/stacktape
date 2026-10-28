@@ -1,6 +1,6 @@
 # mcp
 
-The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Cursor, Windsurf, and VS Code Copilot.
+The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Codex, Cursor, Windsurf, and VS Code Copilot.
 
 ## Usage
 

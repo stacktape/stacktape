@@ -10,7 +10,7 @@ import { findStacktapePackageScript, normalizeCliInvocation } from './cli-comman
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
-import { keepRawTailInLogFile, toToolText, type ToolOutput } from './tool-output';
+import { buildCliRunOutput, keepRawTailInLogFile, toToolText, type ToolOutput } from './tool-output';
 import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../dev/agent-daemon';
 
 type DevSession = {
@@ -28,6 +28,20 @@ type DevSession = {
   /** Since when the session is known to run; a stop reason recorded earlier belongs to another session. */
   knownSince: string;
 };
+
+/** A start that failed: the project and the arguments that chose its stage, region and AWS credentials. */
+type FailedStartTarget = {
+  devSessionId: string;
+  cwd: string;
+  args: Record<string, unknown>;
+  stage?: string;
+  finishedAt: number;
+};
+
+/** The start arguments that `aws:call` also takes: they choose the stack, its region and the AWS credentials. */
+const STAGE_ARG_NAMES = ['stage', 'region', 'projectName', 'profile', 'awsAccount'] as const;
+const pickStageArgs = (args: Record<string, unknown>) =>
+  Object.fromEntries(STAGE_ARG_NAMES.flatMap((name) => (args[name] === undefined ? [] : [[name, args[name]]])));
 
 type DevApiRequest = (input: {
   port: number;
@@ -928,6 +942,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const startups = new Map<string, DevStartup>();
   // A start that failed after its tool call returned DEV_STARTING keeps its error here until a call reads it.
   const failedStarts = new Map<string, { output: ToolOutput; finishedAt: number }>();
+  /**
+   * The project and stage of each start that failed. No dev agent runs for it, but its dev stack, rolled back or partly
+   * created, is what an assistant needs to read: an aws call about the start reads that stage through `aws:call`.
+   */
+  const failedStartTargets = new Map<string, FailedStartTarget>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
   const requestDevApi = dependencies.requestDevApi || devApiRequest;
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
@@ -1041,6 +1060,69 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     return startup.state === 'finished' ? startup.output : undefined;
   };
 
+  /**
+   * A read-only AWS call for a start that failed: `stacktape aws:call` with the start's project, stage, region and
+   * credentials. It accepts the same reviewed read-only operations as the dev agent's `/aws/sdk`.
+   */
+  const callAwsForFailedStart = async ({
+    target,
+    toolArgs,
+    startError,
+    signal,
+    clientName
+  }: {
+    target: FailedStartTarget;
+    toolArgs: Record<string, unknown>;
+    startError?: ToolOutput;
+    signal?: AbortSignal;
+    clientName?: string;
+  }): Promise<ToolOutput> => {
+    const { service, command, input, region } = toolArgs;
+    if (typeof service !== 'string' || typeof command !== 'string') {
+      return {
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        message:
+          'args.service and args.command are required for aws, for example service "logs" and command "FilterLogEvents".'
+      };
+    }
+    const result = await runCli({
+      command: 'aws:call',
+      args: {
+        ...target.args,
+        ...(typeof region === 'string' ? { region } : {}),
+        service,
+        command,
+        ...(input === undefined ? {} : { input: typeof input === 'string' ? input : JSON.stringify(input) })
+      },
+      cwd: target.cwd,
+      signal,
+      tool: 'stacktape_dev',
+      clientName
+    });
+    const output = buildCliRunOutput({
+      result,
+      command: 'aws:call',
+      policy: { category: 'diagnostics', safety: 'diagnostic' }
+    });
+    const stage = target.stage ? `stage ${target.stage}` : 'the stage of that start';
+    return {
+      ...output,
+      message: output.ok
+        ? `Called ${service} ${command} for ${stage}. Dev session ${target.devSessionId} failed to start, so no dev agent runs; the call used stacktape aws:call.`
+        : output.message,
+      data: {
+        ...output.data,
+        failedStart: {
+          devSessionId: target.devSessionId,
+          cwd: target.cwd,
+          ...(target.stage ? { stage: target.stage } : {})
+        },
+        ...(startError ? { startError } : {})
+      }
+    };
+  };
+
   return async ({
     action,
     args,
@@ -1104,11 +1186,29 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         done: Promise.resolve()
       };
       const forwardCancellation = () => startup.abort.abort();
-      const finishStartup = (output: ToolOutput, { sessionRuns = output.ok }: { sessionRuns?: boolean } = {}) => {
+      const finishStartup = (result: ToolOutput, { sessionRuns = result.ok }: { sessionRuns?: boolean } = {}) => {
+        const output: ToolOutput = sessionRuns
+          ? result
+          : {
+              ...result,
+              nextActions: [
+                ...(result.nextActions ?? []),
+                `To read what this start deployed, call stacktape_dev with action=aws and args.devSessionId=${devSessionId}: read-only AWS calls still reach its stage.`
+              ]
+            };
         startup.output = output;
         startup.state = 'finished';
         startups.delete(devSessionId);
-        if (!sessionRuns) failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+        if (!sessionRuns) {
+          failedStarts.set(devSessionId, { output, finishedAt: Date.now() });
+          failedStartTargets.set(devSessionId, {
+            devSessionId,
+            cwd: session.cwd,
+            args: pickStageArgs(devCliArgs),
+            stage: session.stage,
+            finishedAt: Date.now()
+          });
+        }
       };
       signal?.addEventListener('abort', forwardCancellation, { once: true });
 
@@ -1248,8 +1348,19 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
-    for (const [id, { finishedAt }] of failedStarts) {
-      if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failedStarts.delete(id);
+    for (const failed of [failedStarts, failedStartTargets]) {
+      for (const [id, { finishedAt }] of failed) {
+        if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failed.delete(id);
+      }
+    }
+    const failedStartTarget = devSessionId === undefined ? undefined : failedStartTargets.get(devSessionId);
+    if (action === 'aws' && failedStartTarget) {
+      // The start's own error, when no call read it yet, comes with the result.
+      const startError = failedStarts.get(failedStartTarget.devSessionId)?.output;
+      failedStarts.delete(failedStartTarget.devSessionId);
+      return toToolText(
+        await callAwsForFailedStart({ target: failedStartTarget, toolArgs, startError, signal, clientName })
+      );
     }
     // A start that failed in the background: the next call about it gets the start's own error, code and hints. Without
     // an ID, a status call gets it when it is the only thing this server knows about.
@@ -1281,6 +1392,18 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       getProjectRoots
     });
     if (sessionResult.ok === false) {
+      // Without an ID, an aws call reads the stage of the last start that failed in the project it addresses.
+      const lastFailedStart =
+        action === 'aws' && devSessionId === undefined
+          ? [...failedStartTargets.values()]
+              .filter(({ cwd }) =>
+                typeof toolArgs.cwd === 'string' ? isSameDirectory(cwd, toolArgs.cwd) : activeDevSessions.size === 0
+              )
+              .at(-1)
+          : undefined;
+      if (lastFailedStart) {
+        return toToolText(await callAwsForFailedStart({ target: lastFailedStart, toolArgs, signal, clientName }));
+      }
       return toToolText(sessionResult.output);
     }
 

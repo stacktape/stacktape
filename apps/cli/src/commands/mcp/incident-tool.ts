@@ -15,7 +15,7 @@ export type IncidentToolInput = {
 
 const INCIDENT_FOLLOW_UP = [
   'Diagnose from this context. Read logs, metrics, alarms, status and reviewed AWS reads (aws call) with stacktape_cli action=run; read-only commands run directly, without a plan or confirmation.',
-  'Run the stacktape commands the handoff mentions through stacktape_cli, not Bash. Report the likely cause, its evidence, what is still uncertain and a recommended next action; a deploy, rollback or resolve is for the user to decide.'
+  'Run the stacktape commands the handoff mentions through stacktape_cli, not a shell. Report the likely cause, its evidence, what is still uncertain and a recommended next action; a deploy, rollback or resolve is for the user to decide.'
 ];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

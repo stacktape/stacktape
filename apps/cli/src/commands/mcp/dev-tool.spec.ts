@@ -631,6 +631,83 @@ describe('MCP dev session routing', () => {
     expect((await third({ action: 'status' })).structuredContent.code).toBe('CLI_DEV_STACK_NOT_UPDATABLE');
   });
 
+  // r2ll: a start whose dev stack update failed left no dev agent, and aws reads about it answered NOT_FOUND "No active
+  // dev session". The rolled-back dev stack is what the assistant has to inspect.
+  test('aws after a failed start reads the stage of that start through aws:call', async () => {
+    const calls: Array<{ command: string; args?: Record<string, unknown>; cwd?: string }> = [];
+    const runCli: RunCli = async ({ command, args, cwd }) => {
+      calls.push({ command, args, cwd });
+      const context = { events: [], logEvents: [], outputEvents: [], resolvedContext: { cwd: cwd || process.cwd() } };
+      if (command === 'dev') {
+        return {
+          ok: false,
+          code: 'CLI_DEPLOYMENT_FAILED',
+          message: 'Dev stack update failed: MainTableGlobalTable.',
+          ...context
+        };
+      }
+      return {
+        ok: true,
+        code: 'OK',
+        message: 'Command finished.',
+        data: {
+          result: { ok: true, service: 'cloudformation', command: 'DescribeStackEvents', data: { StackEvents: [] } }
+        },
+        ...context
+      };
+    };
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-failed-start-'));
+    try {
+      const failed = (
+        await handler({
+          action: 'start',
+          args: { cwd: directory, stage: 'r2nnb', region: 'eu-central-1', profile: 'stacktape-e2e', watch: true }
+        })
+      ).structuredContent;
+      expect(failed.code).toBe('CLI_DEPLOYMENT_FAILED');
+      expect(failed.nextActions?.join(' ')).toContain('action=aws');
+
+      const input = { StackName: 'parcel-r2nnb' };
+      const read = async (args: Record<string, unknown>) =>
+        (
+          await handler({
+            action: 'aws',
+            args: { service: 'cloudformation', command: 'DescribeStackEvents', input, ...args }
+          })
+        ).structuredContent;
+
+      const byCwd = await read({ cwd: directory });
+      expect(byCwd).toMatchObject({ ok: true, code: 'OK', data: { failedStart: { stage: 'r2nnb' } } });
+      expect(byCwd.message).toContain('stage r2nnb');
+      const call = calls.at(-1)!;
+      expect(call.command).toBe('aws:call');
+      expect(call.args).toEqual({
+        stage: 'r2nnb',
+        region: 'eu-central-1',
+        profile: 'stacktape-e2e',
+        service: 'cloudformation',
+        command: 'DescribeStackEvents',
+        input: JSON.stringify(input)
+      });
+
+      const failedStartId = (byCwd.data?.failedStart as { devSessionId: string }).devSessionId;
+      expect(await read({ devSessionId: failedStartId })).toMatchObject({
+        ok: true,
+        data: { failedStart: { devSessionId: failedStartId } }
+      });
+      // Other actions of the failed session still answer that it does not run.
+      expect(
+        (await handler({ action: 'env', args: { devSessionId: failedStartId, workload: 'api' } })).structuredContent
+          .code
+      ).toBe('NOT_FOUND');
+      // A session ID nobody started is no failed start.
+      expect((await read({ devSessionId: 'unknown' })).code).toBe('NOT_FOUND');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   // The dev-agent event names the port before the daemon listens: status and logs must not fail or forget the session.
   test('a starting session whose agent does not listen yet stays DEV_STARTING', async () => {
     const probe = createServer();

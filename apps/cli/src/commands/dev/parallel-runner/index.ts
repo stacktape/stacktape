@@ -1008,9 +1008,18 @@ const startContainerWorkload = async (
         if (useDevTui) devTuiManager.log(resourceName, AWS_ROLE_WAIT_MESSAGE);
         else tuiManager.info(`[${resourceName}] ${AWS_ROLE_WAIT_MESSAGE}`);
         if (packaged) showWaitingForRole();
-      }).finally(() => {
-        waitingForRole = false;
       })
+        .then((freshEnvironment) => {
+          // A failed build rejects before the environment is ready; the environment the container would get is still
+          // what the agent's `env` reports.
+          environment = freshEnvironment;
+          const workload = state.workloads.get(resourceName);
+          if (workload && !workload.envVars) workload.envVars = freshEnvironment;
+          return freshEnvironment;
+        })
+        .finally(() => {
+          waitingForRole = false;
+        })
     ]);
     if (imageResult && environment) {
       // Auto-stop conflicting containers when DevTUI is active (can't prompt user)

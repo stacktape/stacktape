@@ -192,9 +192,13 @@ test('a failed rebuild or a changed configuration is reported, and the session i
   const refused = await call('POST', '/rebuild/api');
   expect(refused).toMatchObject({ ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED' });
   expect(refused.message).toContain('stacktape.json changed after dev mode started');
+  expect(refused.message).toContain('api still runs the previous build');
+  // r2ll: the refused workload was reported failed, although its previous build kept serving.
   const waiting = (await call('GET', '/status?verbose=true')).data;
   expect(waiting.ready).toBeFalse();
   expect(waiting.restartRequired).toContain('restart dev mode');
+  expect(waiting.failedWorkloads).toEqual([]);
+  expect(waiting.workloads).toMatchObject([{ name: 'api', status: 'running' }]);
   expect(deployed).toHaveLength(1);
 
   // A second `dev --agent` for this session reports it, but not as ready: it waits for a restart.
@@ -218,10 +222,7 @@ test('a failed rebuild or a changed configuration is reported, and the session i
   // Reverting the configuration does not forget the refused edit: the session stays not ready until the watcher's
   // configuration check rebuilds it. Formatting and key order are not a change.
   await writeConfig(config, 2);
-  expect((await call('GET', '/status')).data).toMatchObject({
-    ready: false,
-    failedWorkloads: [{ name: 'api', error: expect.stringContaining('Not rebuilt') }]
-  });
+  expect((await call('GET', '/status')).data).toMatchObject({ ready: false, restartRequired: expect.any(String) });
   await rebuilder.onConfigFileChange();
   expect(deployed.at(-1)).toBe('api:export const handler = () => 202;');
   expect((await call('GET', '/status')).data).toMatchObject({ ready: true });
