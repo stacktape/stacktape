@@ -18,6 +18,7 @@ import { templateManager } from '.';
 import { applyResourceOverride } from './resource-overrides';
 import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
 import { deriveAuroraInstanceAddressesForNewFunctions } from './aurora-instance-addresses';
+import { keepDeployedBatchComputeEnvironmentImages } from './batch-compute-environment-images';
 
 const throwTransformFailure = ({
   code,
@@ -226,6 +227,15 @@ export const finalizeTemplate = async () => {
   deriveAuroraInstanceAddressesForNewFunctions({
     template: templateManager.template,
     deployedTemplate: templateManager.oldTemplate
+  });
+  keepDeployedBatchComputeEnvironmentImages({
+    template: templateManager.template,
+    deployedTemplate: templateManager.oldTemplate,
+    existingLogicalIds: new Set(
+      stackManager.existingStackResources
+        .filter(({ PhysicalResourceId }) => PhysicalResourceId)
+        .map(({ LogicalResourceId }) => LogicalResourceId)
+    )
   });
   // Last, so that each version publisher sees its function exactly as it will be deployed.
   await codeSwapIntegration.template(templateManager.template);

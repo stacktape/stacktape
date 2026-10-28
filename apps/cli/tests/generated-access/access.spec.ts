@@ -294,8 +294,9 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
   expect(batch(second).ContainerProperties.Secrets).toEqual(containers(second)[0].Secrets);
   expect(batch(first).Parameters).toEqual({ 'stacktape.ssm-secret-version.0': '1' });
   expect(batch(second).Parameters).toEqual({ 'stacktape.ssm-secret-version.0': '2' });
-  expect(batch(second).ContainerProperties.ExecutionRoleArn).toEqual({ 'Fn::GetAtt': ['JobRole', 'Arn'] });
-  const batchRole = second.Resources.JobRole as {
+  // The ECS agent reads the secrets with the execution role.
+  expect(batch(second).ContainerProperties.ExecutionRoleArn).toEqual({ 'Fn::GetAtt': ['JobTaskExecutionRole', 'Arn'] });
+  const batchRole = second.Resources.JobTaskExecutionRole as {
     Properties: {
       Policies: { PolicyDocument: { Statement: { Effect: string; Action: string | string[]; Resource: unknown }[] } }[];
     };

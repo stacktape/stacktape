@@ -16,7 +16,7 @@ import {
   JsBundleLambdaPackaging,
   defineConfig
 } from '@stacktape/config-authoring';
-import { synthesizeFixture } from '../characterization/synthesis-fixture';
+import { existingResourcesOf, synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const fixturesDir = join(import.meta.dir, 'fixtures');
 const templateOutputDirectory = process.env.STACKTAPE_SYNTHESIS_FAMILY_TEMPLATE_OUTPUT_DIR;
@@ -235,6 +235,16 @@ describe('Batch and Step Functions family', () => {
     expect(
       tableAccess.every(({ resource }) => resource.includes('ResultsGlobalTable') && !resource.includes('"*"'))
     ).toBe(true);
+    // The ECS agent pulls ECR images and writes the awslogs output with the execution role; the job's code never gets it.
+    const executionRole = literal(job.resource.Properties.ContainerProperties).ExecutionRoleArn['Fn::GetAtt'][0];
+    expect(executionRole).not.toBe(jobRole);
+    const managedPolicies = (logicalId: string) =>
+      (template.Resources[logicalId].Properties as { ManagedPolicyArns?: string[] }).ManagedPolicyArns;
+    expect(managedPolicies(executionRole)).toEqual([
+      'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+    ]);
+    expect(managedPolicies(jobRole)).toBeUndefined();
+    expect(roleStatements(template, executionRole)).toEqual([]);
     const workflow = stateMachines.find(([, resource]) => resource.Properties?.Definition)!;
     expect(workflow[1].Properties?.Definition).toEqual({
       StartAt: 'Notify',
@@ -270,6 +280,127 @@ describe('Batch and Step Functions family', () => {
     );
     const job = onlyResourceOfType(template, 'AWS::Batch::JobDefinition');
     expect(literal(job.resource.Properties.ContainerProperties).LinuxParameters).toEqual({ InitProcessEnabled: true });
+  });
+
+  describe('compute environment images', () => {
+    const jobs = (finalTransform?: (template: CloudFormationTemplate) => CloudFormationTemplate) =>
+      defineConfig(() => ({
+        ...(finalTransform && { finalTransform: finalTransform as never }),
+        resources: {
+          report: new BatchJob({
+            container: {
+              packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/reports:v1' } }
+            },
+            resources: { cpu: 1, memory: 2048 }
+          }),
+          train: new BatchJob({
+            container: {
+              packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/train:v1' } }
+            },
+            resources: { cpu: 8, memory: 30720, gpu: 1 }
+          })
+        }
+      }));
+    const synthesize = (
+      deployedTemplate?: CloudFormationTemplate,
+      {
+        existingStackResources = deployedTemplate && existingResourcesOf(deployedTemplate),
+        finalTransform
+      }: {
+        existingStackResources?: ReturnType<typeof existingResourcesOf>;
+        finalTransform?: (template: CloudFormationTemplate) => CloudFormationTemplate;
+      } = {}
+    ) =>
+      synthesizeFixture({
+        compiledConfig: jobs(finalTransform)(authoringParams),
+        workingDir: fixturesDir,
+        deployedTemplate,
+        existingStackResources
+      });
+    const imageTypes = (template: CloudFormationTemplate) =>
+      Object.fromEntries(
+        resourcesOfType(template, 'AWS::Batch::ComputeEnvironment').map(([logicalId, resource]) => [
+          logicalId,
+          json(literal(resource.Properties.ComputeResources).Ec2Configuration)
+        ])
+      );
+    /** The template as a stack deployed before Batch stopped creating Amazon Linux 2 environments has it. */
+    const deployedWithAmazonLinux2 = (template: CloudFormationTemplate) => {
+      const deployed = structuredClone(template);
+      for (const [, resource] of resourcesOfType(deployed, 'AWS::Batch::ComputeEnvironment')) {
+        const computeResources = literal(resource.Properties.ComputeResources);
+        const [{ ImageType }] = literal(computeResources.Ec2Configuration) as [{ ImageType: string }];
+        computeResources.Ec2Configuration = [{ ImageType: ImageType.replace('AL2023', 'AL2') }];
+      }
+      return deployed;
+    };
+
+    test('new compute environments use Amazon Linux 2023, with the NVIDIA image for GPU jobs', async () => {
+      const template = await synthesize();
+      expect(imageTypes(template)).toEqual({
+        StpBatchOnDemandComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchSpotComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchOnDemandGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2023_NVIDIA' }]),
+        StpBatchSpotGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2023_NVIDIA' }])
+      });
+      // The launch template enlarges the root volume, which every Amazon Linux 2023 ECS image names /dev/xvda.
+      const launchTemplate = onlyResourceOfType(template, 'AWS::EC2::LaunchTemplate');
+      expect(json(launchTemplate.resource.Properties.LaunchTemplateData)).toContain('"DeviceName":"/dev/xvda"');
+    });
+
+    test('deployed Amazon Linux 2 compute environments are not replaced while nothing else changes', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      const template = await synthesize(deployed);
+      for (const [logicalId, resource] of resourcesOfType(template, 'AWS::Batch::ComputeEnvironment')) {
+        expect(resource.Properties).toEqual(deployed.Resources[logicalId].Properties as never);
+      }
+      expect(imageTypes(template).StpBatchSpotGpuComputeEnvironment).toBe(json([{ ImageType: 'ECS_AL2_NVIDIA' }]));
+    });
+
+    test('a deployed compute environment that is replaced anyway moves to Amazon Linux 2023', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      // Changed stack tags replace a compute environment; AWS would reject the replacement with Amazon Linux 2.
+      literal(
+        literal(deployed.Resources.StpBatchOnDemandComputeEnvironment.Properties as { Tags: Record<string, string> })
+          .Tags
+      ).team = 'data';
+      const template = await synthesize(deployed);
+      expect(imageTypes(template)).toEqual({
+        StpBatchOnDemandComputeEnvironment: json([{ ImageType: 'ECS_AL2023' }]),
+        StpBatchSpotComputeEnvironment: json([{ ImageType: 'ECS_AL2' }]),
+        StpBatchOnDemandGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2_NVIDIA' }]),
+        StpBatchSpotGpuComputeEnvironment: json([{ ImageType: 'ECS_AL2_NVIDIA' }])
+      });
+    });
+
+    test('a compute environment that a failed update never created gets Amazon Linux 2023', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      // Without a rollback, the deployed template names the environment whose creation AWS rejected.
+      const template = await synthesize(deployed, {
+        existingStackResources: existingResourcesOf(deployed).filter(
+          ({ LogicalResourceId }) => LogicalResourceId !== 'StpBatchSpotComputeEnvironment'
+        )
+      });
+      expect(imageTypes(template).StpBatchSpotComputeEnvironment).toBe(json([{ ImageType: 'ECS_AL2023' }]));
+      expect(imageTypes(template).StpBatchOnDemandComputeEnvironment).toBe(json([{ ImageType: 'ECS_AL2' }]));
+    });
+
+    test('a transform that replaces a deployed compute environment gives it Amazon Linux 2023', async () => {
+      const deployed = deployedWithAmazonLinux2(await synthesize());
+      const template = await synthesize(deployed, {
+        finalTransform: (candidate) => {
+          const gpu = candidate.Resources.StpBatchOnDemandGpuComputeEnvironment.Properties as {
+            ComputeResources: { InstanceTypes: string[] };
+          };
+          gpu.ComputeResources.InstanceTypes = ['g6'];
+          return candidate;
+        }
+      });
+      expect(imageTypes(template).StpBatchOnDemandGpuComputeEnvironment).toBe(
+        json([{ ImageType: 'ECS_AL2023_NVIDIA' }])
+      );
+      expect(imageTypes(template).StpBatchSpotGpuComputeEnvironment).toBe(json([{ ImageType: 'ECS_AL2_NVIDIA' }]));
+    });
   });
 
   test('rejects a scheduled Batch trigger with competing input and inputPath', async () => {
