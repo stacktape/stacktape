@@ -27,7 +27,7 @@ export const publishOnLoopback = (hostPort: number, containerPort: number): stri
  * On Linux a database container owns the data directory it initialized and makes it unreadable to anyone else, so a
  * directory this user cannot list holds data as well.
  */
-const hasExistingData = (dataDir: string): boolean => {
+export const hasExistingData = (dataDir: string): boolean => {
   try {
     return readdirSync(dataDir).length > 0;
   } catch (error) {

@@ -719,8 +719,18 @@ export const parseLogsSince = (since: unknown, now: Date): number | undefined =>
 };
 
 /**
- * Reads the session's JSONL log. Without a cursor it returns the newest matching lines, oldest first; with the
- * `nextCursor` of an earlier call it returns the matching lines written since. `level` is a minimum level.
+ * The characters a page of log entries may take, below the tool response limit (30 000) with room for the rest of the
+ * result. A larger page made the whole call fail with `RESPONSE_TOO_LARGE`.
+ */
+const MAX_LOG_PAGE_CHARS = 24_000;
+
+const entryTime = (entry: Record<string, unknown>) => (typeof entry.ts === 'string' ? Date.parse(entry.ts) || 0 : 0);
+
+/**
+ * Reads the session's JSONL log. Without a cursor it returns the newest matching lines; with the `nextCursor` of an
+ * earlier call it returns the matching lines written since. `level` is a minimum level. A page holds at most `limit`
+ * entries and `MAX_LOG_PAGE_CHARS`; `olderCursor` reads the older matching lines a page without a cursor left out.
+ * Entries are sorted by time: lines that dev mode caught up on after a restart arrive after newer ones.
  */
 const readDevLogs = async ({
   logFile,
@@ -729,7 +739,8 @@ const readDevLogs = async ({
   sinceMs,
   minLevel,
   source,
-  currentSessionOnly
+  currentSessionOnly,
+  maxChars = MAX_LOG_PAGE_CHARS
 }: {
   logFile: string;
   cursor?: number;
@@ -739,7 +750,8 @@ const readDevLogs = async ({
   source?: string;
   /** Starts at the last session marker: the lines of the session that writes the file now. */
   currentSessionOnly?: boolean;
-}): Promise<{ entries: unknown[]; nextCursor: number; totalLines: number; omitted: number }> => {
+  maxChars?: number;
+}): Promise<{ entries: unknown[]; nextCursor: number; totalLines: number; omitted: number; olderCursor?: number }> => {
   if (!(await pathExists(logFile))) {
     return { entries: [], nextCursor: 0, totalLines: 0, omitted: 0 };
   }
@@ -778,14 +790,30 @@ const readDevLogs = async ({
     matching.push({ index, entry });
   }
 
-  const page = cursor === undefined ? matching.slice(-maxItems) : matching.slice(0, maxItems);
+  // Newest first without a cursor, oldest first with one, until the count or the size is reached. One entry always fits.
+  const ordered = cursor === undefined ? [...matching].reverse() : matching;
+  const page: typeof matching = [];
+  let chars = 0;
+  for (const item of ordered) {
+    if (page.length >= maxItems) break;
+    chars += JSON.stringify(item.entry, null, 2).length + 6;
+    if (page.length && chars > maxChars) break;
+    page.push(item);
+  }
+  if (cursor === undefined) page.reverse();
   const nextCursor =
     cursor !== undefined && page.length < matching.length ? page[page.length - 1].index + 1 : lines.length;
+  const omitted = matching.length - page.length;
+  const sorted = page
+    .map(({ entry }, position) => ({ entry, position }))
+    .sort((a, b) => entryTime(a.entry) - entryTime(b.entry) || a.position - b.position)
+    .map(({ entry }) => entry);
   return {
-    entries: page.map(({ entry }) => entry),
+    entries: sorted,
     nextCursor,
     totalLines: lines.length,
-    omitted: matching.length - page.length
+    omitted,
+    ...(cursor === undefined && omitted ? { olderCursor: matching[0]!.index } : {})
   };
 };
 
@@ -1362,10 +1390,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           entries: page.entries,
           nextCursor: page.nextCursor,
           totalLines: page.totalLines,
-          ...(page.omitted ? { omittedOlderEntries: page.omitted } : {})
+          ...(page.omitted ? { omittedOlderEntries: page.omitted } : {}),
+          ...(page.olderCursor !== undefined ? { olderCursor: page.olderCursor } : {})
         },
         nextActions: [
-          `Pass args.cursor=${page.nextCursor} to read only the lines written after these; filter with args.level (info, warn, error), args.since (ISO time or 10m) and args.workload.`
+          `Pass args.cursor=${page.nextCursor} to read only the lines written after these; filter with args.level (info, warn, error), args.since (ISO time or 10m) and args.workload.`,
+          ...(page.olderCursor !== undefined
+            ? [
+                `${page.omitted} older matching entries are not in this result. Pass args.cursor=${page.olderCursor} with the same filters to read them from the oldest, page by page.`
+              ]
+            : [])
         ]
       });
     }
@@ -1385,7 +1419,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         requestDevApi({ port, method: 'POST', path: `/rebuild/${encodeURIComponent(workload)}`, body: {} }),
         onProgress
       );
-      return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
+      const output = toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' });
+      const stale = Array.isArray(response.staleWorkloads) ? (response.staleWorkloads as { name: string }[]) : [];
+      if (stale.length) {
+        const names = stale.map(({ name }) => name);
+        output.nextActions = [
+          ...(output.nextActions ?? []),
+          `${names.join(', ')} still ${names.length === 1 ? 'runs' : 'run'} code older than the changed files; call stacktape_dev with action=rebuild_all, or action=rebuild for ${names.join(' and ')}, before testing ${names.length === 1 ? 'it' : 'them'}.`
+        ];
+      }
+      return toToolText(output);
     }
 
     if (action === 'rebuild_all') {

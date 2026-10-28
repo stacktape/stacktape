@@ -20,7 +20,8 @@ import { getHomeDir } from '@utils/misc';
  *   agent ended itself, in `devAgentStopReasonFile` by port, so a client finds the reason after the agent is gone; the
  *   next agent that ends itself on that port replaces it, and it is safe to delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`),
- *   and the password each such data directory was initialized with in `devResourcePasswordFile`.
+ *   and the password, database and user each such data directory was initialized with in `devResourcePasswordFile`
+ *   and `devResourceIdentityFile`.
  * - User-persistent per project stage: the generated password that new local databases of a project's stage get, in
  *   `devStagePasswordFile`, shared by every worktree of the project on this machine. Deleting it only gives the next
  *   new data directory a new password.
@@ -103,6 +104,24 @@ export const localStatePaths = {
       stage,
       resourceName,
       'password'
+    );
+  },
+  /** The database and user a local database's data directory was initialized with; `--freshDb` removes it too. */
+  devResourceIdentityFile({
+    workingDirectory,
+    stage,
+    resourceName
+  }: {
+    workingDirectory: string;
+    stage: string;
+    resourceName: string;
+  }) {
+    return join(
+      localStatePaths.projectStateDirectory({ workingDirectory }),
+      'dev-data',
+      stage,
+      resourceName,
+      'identity.json'
     );
   },
   /** The generated password new local databases of a project's stage get, shared by the project's worktrees. */

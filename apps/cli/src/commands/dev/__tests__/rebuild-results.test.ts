@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -43,12 +44,16 @@ afterEach(async () => {
 const startSession = async ({
   workloads,
   build,
-  retryDelayMs = 20
+  retryDelayMs = 20,
+  sourceFiles
 }: {
   workloads: string[];
   build: (name: string) => Promise<void>;
   retryDelayMs?: number;
+  /** The files each workload's builds read, relative to the session directory. */
+  sourceFiles?: Record<string, string[]>;
 }) => {
+  const sessionStartedAt = Date.now();
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-rebuild-results-'));
   const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
   process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
@@ -58,6 +63,11 @@ const startSession = async ({
   const rebuilder = createWorkloadRebuilder({
     rebuild: build,
     retryDelayMs,
+    getSourceFiles: () =>
+      new Map(
+        Object.entries(sourceFiles ?? {}).map(([name, files]) => [name, files.map((file) => join(directory, file))])
+      ),
+    getSessionStartedAt: () => sessionStartedAt,
     detectConfigChange: createConfigChangeDetector({
       configPath,
       sessionConfig: config,
@@ -72,7 +82,13 @@ const startSession = async ({
   devTuiManager.start({ projectName: 'todos', stageName: 'dev', agentMode: true });
   const unsubscribe = devTuiState.subscribe(mirrorDevTuiState);
   const port = await freePort();
-  await startAgentServer(port, directory);
+  await startAgentServer(port, directory, undefined, {
+    sessionId: 'rebuild-results',
+    projectDirectory: directory,
+    projectName: 'todos',
+    stage: 'dev',
+    region: 'eu-west-1'
+  });
   cleanups.push(async () => {
     unsubscribe();
     await devTuiManager.stop();
@@ -379,4 +395,40 @@ test("a failed rebuild's error of several lines is in failedWorkloads only", asy
   const failed = await call('POST', '/rebuild/api');
   expect(failed.message).toBe('Rebuild failed. api: 3 lines in failedWorkloads');
   expect(failed.data.failedWorkloads).toEqual([{ name: 'api', error }]);
+});
+
+// r2gg finding 8: after a change to packages/shared, `rebuild {workload: "api"}` answered "Rebuilt api." while quote and
+// report, which use the same package, kept the old code. Watch mode rebuilt all three.
+test('a rebuild names the other workloads that use its changed files and still run the previous build', async () => {
+  const shared = 'packages/shared/src/index.ts';
+  const { call, directory } = await startSession({
+    workloads: ['api', 'quote', 'report', 'web'],
+    build: async () => {},
+    sourceFiles: {
+      api: ['apps/api/src/index.ts', shared],
+      quote: ['functions/quote/src/handler.ts', shared],
+      report: [shared],
+      web: []
+    }
+  });
+  await mkdir(join(directory, 'packages/shared/src'), { recursive: true });
+  // The file changes after the session's first builds.
+  await delay(20);
+  await writeFile(join(directory, shared), 'export const SHARED_VERSION = 2;');
+
+  const api = await call('POST', '/rebuild/api');
+  expect(api).toMatchObject({ ok: true, code: 'OK' });
+  expect(api.message).toBe(
+    `Rebuilt api. quote, report also use changed files (${shared}) and still run the previous build; rebuild them or rebuild all.`
+  );
+  expect(api.data.staleWorkloads).toEqual([
+    { name: 'quote', changedFiles: [join(directory, shared)] },
+    { name: 'report', changedFiles: [join(directory, shared)] }
+  ]);
+
+  // Once every consumer is rebuilt, nothing is stale.
+  await delay(20);
+  const all = await call('POST', '/rebuild/all');
+  expect(all.message).toBe('Rebuilt api, quote, report, web.');
+  expect((await call('POST', '/rebuild/api')).data.staleWorkloads).toBeUndefined();
 });

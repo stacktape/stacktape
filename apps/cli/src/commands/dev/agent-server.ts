@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { relative } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
@@ -110,10 +111,19 @@ export type AgentStatus = {
   restartRequired?: string;
 };
 
+/** A workload that runs older code of files another workload's rebuild just picked up. */
+export type StaleWorkload = { name: string; changedFiles: string[] };
+
 export type RebuildResult =
-  | { ok: true; rebuilt: string[] }
+  | { ok: true; rebuilt: string[]; staleWorkloads?: StaleWorkload[] }
   | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED'; message: string }
-  | { ok: false; code: 'REBUILD_FAILED'; message: string; failedWorkloads: FailedWorkload[] };
+  | {
+      ok: false;
+      code: 'REBUILD_FAILED';
+      message: string;
+      failedWorkloads: FailedWorkload[];
+      staleWorkloads?: StaleWorkload[];
+    };
 
 // State management for agent mode
 let agentState: AgentStatus = {
@@ -402,9 +412,22 @@ addRoute('GET', '/logs', async () => {
 });
 
 /** What a rebuild returns: the outcome, and where a failed build's output and the workloads' logs are. */
-export const toRebuildResponse = (result: RebuildResult, logFile = getAgentLogFilePath()) => {
-  if ('rebuilt' in result)
-    return { ok: true, message: `Rebuilt ${result.rebuilt.join(', ')}.`, rebuilt: result.rebuilt };
+export const toRebuildResponse = (
+  result: RebuildResult,
+  logFile = getAgentLogFilePath(),
+  workingDirectory = agentSession?.projectDirectory ?? globalStateManager.workingDir
+) => {
+  const stale = 'staleWorkloads' in result && result.staleWorkloads?.length ? result.staleWorkloads : undefined;
+  const staleNote = stale && describeStaleWorkloads(stale, workingDirectory);
+  const staleFields = stale ? { staleWorkloads: stale } : {};
+  if ('rebuilt' in result) {
+    return {
+      ok: true,
+      message: `Rebuilt ${result.rebuilt.join(', ')}.${staleNote ? ` ${staleNote}` : ''}`,
+      rebuilt: result.rebuilt,
+      ...staleFields
+    };
+  }
   if (!('failedWorkloads' in result)) {
     return {
       ok: false,
@@ -422,9 +445,24 @@ export const toRebuildResponse = (result: RebuildResult, logFile = getAgentLogFi
     code: result.code,
     error: `Rebuild failed. ${result.failedWorkloads.map(describe).join('\n')}`,
     failedWorkloads: result.failedWorkloads,
+    ...staleFields,
     logFile,
-    hint: 'The failed workloads keep the status error, and their previous code may still serve requests. Fix the error and rebuild again.'
+    hint: `The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again.${staleNote ? ` ${staleNote}` : ''}`
   };
+};
+
+/** At most this many changed files are named; `staleWorkloads` has them all. */
+const MAX_NAMED_STALE_FILES = 3;
+
+/** `quote, report also use changed files (packages/shared/src/index.ts); rebuild them or rebuild all.` */
+const describeStaleWorkloads = (stale: StaleWorkload[], workingDirectory: string) => {
+  const files = [...new Set(stale.flatMap(({ changedFiles }) => changedFiles))].map((file) =>
+    relative(workingDirectory, file).replaceAll('\\', '/')
+  );
+  const named = files.slice(0, MAX_NAMED_STALE_FILES).join(', ');
+  const more = files.length > MAX_NAMED_STALE_FILES ? ` and ${files.length - MAX_NAMED_STALE_FILES} more` : '';
+  const names = stale.map(({ name }) => name).join(', ');
+  return `${names} also ${stale.length === 1 ? 'uses' : 'use'} changed files (${named}${more}) and still ${stale.length === 1 ? 'runs' : 'run'} the previous build; rebuild ${stale.length === 1 ? 'it' : 'them'} or rebuild all.`;
 };
 
 addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {

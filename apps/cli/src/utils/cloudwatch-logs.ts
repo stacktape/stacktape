@@ -10,6 +10,11 @@ import { getPlainLambdaLogLineLevel, parseLambdaLogLine, type LambdaLogLevel } f
 
 /** How far each fetch reaches back for events that reached CloudWatch after newer ones of another log stream. */
 const LATE_EVENT_WINDOW_MS = 10_000;
+/**
+ * How long shown event IDs are kept after the newest event, so the next dev session of a stage can read the end of
+ * this one again and skip what this one showed (`shownEventsSince`).
+ */
+const SHOWN_EVENT_MEMORY_MS = 60_000;
 /** The backlog search narrows a window that holds too many events down to this, and reads a window this short whole. */
 const BACKLOG_MIN_WINDOW_MS = 1000;
 /** The backlog search starts with the last minute and widens each older window up to tenfold. */
@@ -61,6 +66,8 @@ export class LambdaCloudwatchLogPrinter {
   #notBefore: number;
   /** Shown events by ID, with their time: only events within the late-event window can be fetched again. */
   #handledEvents = new Map<string, number>();
+  /** Shown events by ID, with their time, for `SHOWN_EVENT_MEMORY_MS`. */
+  #recentlyShown = new Map<string, number>();
   /** A read whose next page is still to come; the next poll fetches it. */
   #query: { startTime: number; nextToken: string } | undefined;
   #backlog: BacklogSearch | undefined;
@@ -83,6 +90,7 @@ export class LambdaCloudwatchLogPrinter {
     onLog,
     backlog,
     filterPattern,
+    alreadyShown = [],
     fetchPage = (params) => awsSdkManager.observability.filterLogEventsPage(params)
   }: {
     fetchSince: number;
@@ -92,10 +100,15 @@ export class LambdaCloudwatchLogPrinter {
     backlog?: { lines: number; until: number };
     /** A CloudWatch Logs filter pattern: only matching events are read. */
     filterPattern?: string;
+    /** Events, by ID and time, that an earlier reader of the log group already showed: they are skipped. */
+    alreadyShown?: Array<[eventId: string, timestamp: number]>;
     fetchPage?: FetchPage;
   }) {
     this.fetchSince = fetchSince;
     this.#notBefore = fetchSince + 1;
+    for (const [eventId, timestamp] of alreadyShown) {
+      if (timestamp >= this.#notBefore) this.#handledEvents.set(eventId, timestamp);
+    }
     this.logGroupName = logGroupAwsResourceName;
     this.#onLog = onLog || null;
     this.#fetchPage = fetchPage;
@@ -154,6 +167,10 @@ export class LambdaCloudwatchLogPrinter {
     this.#currentEventTimestamp = undefined;
     for (const event of unhandledEvents) {
       this.#handledEvents.set(event.eventId, event.timestamp ?? 0);
+      this.#recentlyShown.set(event.eventId, event.timestamp ?? 0);
+    }
+    for (const [eventId, timestamp] of this.#recentlyShown) {
+      if (timestamp < this.fetchSince - SHOWN_EVENT_MEMORY_MS) this.#recentlyShown.delete(eventId);
     }
     // No later read returns an event older than where it starts, so its ID is no longer needed.
     const oldestReadable = Math.min(
@@ -165,6 +182,10 @@ export class LambdaCloudwatchLogPrinter {
     }
     return unhandledEvents.length;
   };
+
+  /** The events this reader showed at or after `time`, by ID and time; kept for `SHOWN_EVENT_MEMORY_MS`. */
+  shownEventsSince = (time: number): Array<[eventId: string, timestamp: number]> =>
+    [...this.#recentlyShown].filter(([, timestamp]) => timestamp >= time);
 
   #readBacklog = async (search: BacklogSearch): Promise<{ found: number; more: boolean }> => {
     const need = search.lines - search.found.length;

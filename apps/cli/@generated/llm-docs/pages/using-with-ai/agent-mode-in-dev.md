@@ -275,12 +275,14 @@ The request answers after the workload has been rebuilt and, for a Lambda functi
   "data": {
     "failedWorkloads": [{ "name": "api", "error": "Build failed: Unexpected ;" }],
     "logFile": ".stacktape/dev-agent/9900-logs.txt",
-    "hint": "The failed workloads keep the status error, and their previous code may still serve requests. Fix the error and rebuild again."
+    "hint": "The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again."
   }
 }
 ```
 
 The workload then has the status `error` and `/status` reports `ready: false` until a rebuild of it succeeds. Its previous code may still answer requests, so a test that passes while the workload is in `error` does not test your change.
+
+When the rebuilt workload's files are also used by other workloads, such as a shared package in a monorepo, and changed after those workloads were last built, the result names them in `staleWorkloads` with the changed files, and the message says so: `Rebuilt api. quote, report also use changed files (packages/shared/src/index.ts) and still run the previous build; rebuild them or rebuild all.` With `--watch`, a change rebuilds every workload that uses the file.
 
 A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads have the status `error` until they are rebuilt; if you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
 

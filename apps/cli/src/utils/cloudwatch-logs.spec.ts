@@ -289,3 +289,33 @@ test('a line without a request ID gets the prefix of the request its log stream 
   expect(prefix(errorLine)).not.toBe(prefix(messages.at(-1)!));
   expect(messages.every((message) => prefix(message).includes('>'))).toBe(true);
 });
+
+// r2gg: an invocation still running at a restart lost its START line, and one a second before the stop lost every
+// line: neither session read them. The next session reads the end of the previous one again and skips what it showed.
+test('a reader hands the events it showed to the next one, which shows only the rest of that time', async () => {
+  const group = logGroup();
+  const end = UNTIL;
+  const first = printerFor(group, { since: end - 120_000 });
+  group.add(end - 30_000);
+  group.add(end - 20_000);
+  await first.printer.printLogs();
+  expect(first.printed).toEqual(['line 0', 'line 1']);
+  // Written before the stop, but in CloudWatch only after the session's last read.
+  group.add(end - 1000);
+
+  const shown = first.printer.shownEventsSince(end - 60_000);
+  expect(shown).toEqual([
+    ['e0', end - 30_000],
+    ['e1', end - 20_000]
+  ]);
+  const printed: string[] = [];
+  const next = new LambdaCloudwatchLogPrinter({
+    fetchSince: end - 60_000,
+    logGroupAwsResourceName: '/aws/lambda/orders',
+    fetchPage: group.fetchPage,
+    alreadyShown: shown,
+    onLog: (message) => void printed.push(/line \w+/.exec(message)![0])
+  });
+  await next.printLogs();
+  expect(printed).toEqual(['line 2']);
+});

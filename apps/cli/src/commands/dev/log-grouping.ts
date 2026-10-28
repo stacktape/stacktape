@@ -29,6 +29,10 @@ export const isSuccessfulRequestLine = (text: string) => {
 };
 /** SvelteKit's line before a server error: `[500] GET /orders`. */
 const SVELTEKIT_ERROR_HEADER = /^\[(\d{3})\] [A-Z]+ \S+$/;
+/** Bun quotes the failing source above an uncaught error: `87 | const cache = JSON.parse(…)`. */
+const BUN_CODE_FRAME_LINE = /^\d+ \| /;
+/** Bun's line after an uncaught error: `Bun v1.3.4 (Linux x64)`. */
+const BUN_VERSION_LINE = /^Bun v\d+\.\d+\.\d+ \(/;
 
 /** Whether `line` continues the entry whose lines are `entry`, instead of starting a new one. */
 export const isContinuationLine = (line: string, entry: string[]): boolean => {
@@ -39,6 +43,9 @@ export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (/^caused by\b/i.test(line)) return true;
   // A Python traceback ends with the unindented exception line.
   if (entry[0]!.startsWith('Traceback (most recent call last)') && PYTHON_EXCEPTION_LINE.test(line)) return true;
+  // Bun quotes several source lines before the caret, the error and its stack, and then prints its version.
+  if (BUN_CODE_FRAME_LINE.test(line) && entry.every((entryLine) => BUN_CODE_FRAME_LINE.test(entryLine))) return true;
+  if (BUN_VERSION_LINE.test(line)) return true;
   // Node prints the failing source line with a caret under it before the error and its stack.
   if (/^\s*\^+\s*$/.test(entry.at(-1)!)) return true;
   // Next.js and Vite quote the failing source under a stack frame and mark its line: `>  7 |   throw new Error(...)`.
@@ -84,9 +91,10 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
     }
   }
   // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`,
-  // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...` or nginx's `2026/10/27 13:18:28 [crit] ...`.
+  // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...`, nginx's `2026/10/27 13:18:28 [crit] ...` or, after a
+  // bracketed timestamp and process ID, gunicorn's `[2026-10-28 00:17:51 +0000] [1] [INFO] ...`.
   const levelWord = firstLine.match(
-    /^(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
+    /^(?:\[[^\][]*\d[^\][]*\]\s*)*(?:\d{4}\/\d\d\/\d\d\s+)?(?:\S*\d:\d\d\S*\s+)?(?:\S+\.go:\d+:\s+)?\[?\s*(error|err|fatal|panic|critical|crit|alert|emerg|warn|warning|info|debug|trace)\b/i
   )?.[1];
   if (levelWord) return levelFromWord(levelWord);
   if (firstLine.startsWith('⨯')) return 'error';
@@ -108,6 +116,8 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
   const fieldLevel = firstLine.match(/(?:^|\s)level="?(\w+)/i)?.[1];
   if (fieldLevel) return levelFromWord(fieldLevel);
   if (/^\(node:\d+\) \w*Warning\b/.test(firstLine)) return 'warn';
+  // Bun echoes the script it runs (`$ astro dev`) to standard error.
+  if (/^\$ \S/.test(firstLine)) return 'info';
   // Go's standard `log` writes every line to standard error with a date and a time and no level. `log.Fatal` adds no
   // level either; its messages usually start with the failure.
   const goMessage = firstLine.match(GO_LOG_PREFIX) && firstLine.replace(GO_LOG_PREFIX, '');
@@ -118,6 +128,17 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
   }
   return stream === 'stderr' ? 'warn' : 'info';
 };
+
+/** A message that reports a failure: `creating an item failed: 500 {"error":"internal error"}`. */
+const FAILURE_MESSAGE =
+  /\b(?:fail(?:s|ed|ure)?|errors?|exception|denied|refused|timed out|unable to|cannot|can't|could not)\b/i;
+
+/**
+ * A frontend's server code reports a failed request with `console.error`, which reaches standard error without a
+ * level word, as do the dev server's own notes. Standard error that reads like a failure is an error there.
+ */
+export const isFrontendServerFailure = (coloredText: string): boolean =>
+  FAILURE_MESSAGE.test(stripAnsi(coloredText).split('\n', 1)[0]!);
 
 /**
  * Joins the lines of one stream into entries and passes each complete entry on. Call `flush` when the stream ends, so

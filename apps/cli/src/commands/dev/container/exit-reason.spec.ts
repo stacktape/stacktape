@@ -116,3 +116,95 @@ test('other programs give their last line that mentions an error', () => {
   expect(describeContainerExit('just exited\n')).toBe('just exited');
   expect(describeContainerExit('')).toBeUndefined();
 });
+
+// r2gg finding 6: gunicorn's workers die of the app's ModuleNotFoundError, then the arbiter raises HaltServer from the
+// gunicorn entry point. The summary quoted HaltServer; the app's error is in a worker's traceback before it.
+test("a gunicorn worker boot failure quotes the app's exception, not HaltServer", () => {
+  const workerTraceback = [
+    '[2026-10-28 00:17:51 +0000] [7] [ERROR] Exception in worker process',
+    'Traceback (most recent call last):',
+    '  File "/app/.venv/lib/python3.13/site-packages/gunicorn/arbiter.py", line 608, in spawn_worker',
+    '    worker.init_process()',
+    '  File "/app/.venv/lib/python3.13/site-packages/gunicorn/util.py", line 370, in import_app',
+    '    mod = importlib.import_module(module)',
+    '  File "/usr/local/lib/python3.13/importlib/__init__.py", line 88, in import_module',
+    '    return _bootstrap._gcd_import(name[level:], package, level)',
+    '  File "<frozen importlib._bootstrap>", line 1404, in _gcd_import',
+    '  File "/app/app.py", line 5, in <module>',
+    '    from recs_model import load_model',
+    '    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+    "ModuleNotFoundError: No module named 'recs_model'",
+    '[2026-10-28 00:17:51 +0000] [7] [INFO] Worker exiting (pid: 7)'
+  ];
+  const stderr = [
+    '[2026-10-28 00:17:51 +0000] [1] [INFO] Starting gunicorn 23.0.0',
+    ...workerTraceback,
+    ...workerTraceback.map((line) => line.replaceAll('[7]', '[8]')),
+    '[2026-10-28 00:17:51 +0000] [1] [ERROR] Worker (pid:8) exited with code 3',
+    'Traceback (most recent call last):',
+    '  File "/app/.venv/lib/python3.13/site-packages/gunicorn/arbiter.py", line 529, in reap_workers',
+    '    raise HaltServer(reason, self.WORKER_BOOT_ERROR)',
+    "gunicorn.errors.HaltServer: <HaltServer 'Worker failed to boot.' 3>",
+    '',
+    'During handling of the above exception, another exception occurred:',
+    '',
+    'Traceback (most recent call last):',
+    '  File "/app/.venv/bin/gunicorn", line 10, in <module>',
+    '    sys.exit(run())',
+    '             ~~~^^',
+    '  File "/app/.venv/lib/python3.13/site-packages/gunicorn/arbiter.py", line 346, in halt',
+    '    sys.exit(exit_status)',
+    'SystemExit: 3'
+  ].join('\n');
+  expect(describeContainerExit(stderr)).toBe(
+    [
+      '  File "/app/app.py", line 5, in <module>',
+      '    from recs_model import load_model',
+      '    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
+      "ModuleNotFoundError: No module named 'recs_model'"
+    ].join('\n')
+  );
+});
+
+// r2gg finding 6: Bun prints `error: <message>`, the error's properties, its stack and its version line. The summary
+// was the last line mentioning an error: `code: "ER_DBACCESS_DENIED_ERROR"`.
+test("a Bun error quotes its message and the app's frame", () => {
+  const stderr = [
+    "error: Access denied for user 'stacktape'@'%' to database 'shelf'",
+    '      errno: 1044,',
+    '   sqlState: "42000",',
+    ` sqlMessage: "Access denied for user 'stacktape'@'%' to database 'shelf'",`,
+    '        sql: undefined,',
+    '       code: "ER_DBACCESS_DENIED_ERROR"',
+    '      at migrate (/app/dist/apps/api/src/db.ts:28:44)',
+    '',
+    'Bun v1.3.4 (Linux x64)'
+  ].join('\n');
+  expect(describeContainerExit(stderr)).toBe(
+    [
+      "error: Access denied for user 'stacktape'@'%' to database 'shelf'",
+      '      at migrate (/app/dist/apps/api/src/db.ts:28:44)'
+    ].join('\n')
+  );
+});
+
+test('a Bun error thrown with a code frame quotes the failing source line and caret', () => {
+  const stderr = [
+    'warming the price cache for 12000 ms',
+    '86 | await Bun.sleep(warmupMs);',
+    `87 | const cache = JSON.parse(process.env.PRICE_CACHE_SEED ?? '{"version":');`,
+    '                        ^',
+    'SyntaxError: JSON Parse error: Unexpected EOF',
+    '      at /app/dist/apps/api/src/index.ts:87:20',
+    '',
+    'Bun v1.3.4 (Linux x64)'
+  ].join('\n');
+  expect(describeContainerExit(stderr)).toBe(
+    [
+      `87 | const cache = JSON.parse(process.env.PRICE_CACHE_SEED ?? '{"version":');`,
+      '                        ^',
+      'SyntaxError: JSON Parse error: Unexpected EOF',
+      '      at /app/dist/apps/api/src/index.ts:87:20'
+    ].join('\n')
+  );
+});

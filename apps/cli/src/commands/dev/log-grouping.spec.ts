@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createLogLineGrouper, detectLogLevel } from './log-grouping';
+import { createLogLineGrouper, detectLogLevel, isFrontendServerFailure } from './log-grouping';
 
 const collect = async (stream: 'stdout' | 'stderr', lines: string[]) => {
   const entries: { message: string; level: string }[] = [];
@@ -126,7 +126,13 @@ test.each([
   [' GET /orders 500 in 280ms (next.js: 153ms, application-code: 127ms)', 'stdout', 'error'],
   [' GET /orders 404 in 12ms', 'stdout', 'warn'],
   [' GET /orders 200 in 12ms', 'stdout', 'info'],
-  ['\u001b[1;31m[500] GET /\u001b[0m', 'stderr', 'error']
+  ['\u001b[1;31m[500] GET /\u001b[0m', 'stderr', 'error'],
+  // r2gg finding 10: gunicorn writes every line to standard error after a bracketed timestamp and process ID.
+  ['[2026-10-28 00:17:51 +0000] [1] [INFO] Starting gunicorn 23.0.0', 'stderr', 'info'],
+  ['[2026-10-28 00:17:51 +0000] [7] [INFO] Booting worker with pid: 7', 'stderr', 'info'],
+  ['[2026-10-28 00:17:51 +0000] [1] [ERROR] Worker (pid:7) exited with code 3', 'stderr', 'error'],
+  ['[2026-10-28 00:17:51 +0000] [1] [WARNING] Worker with pid 7 was terminated due to signal 9', 'stderr', 'warn'],
+  ['$ astro dev', 'stderr', 'info']
 ] as const)('%s on %s is %s', (line, stream, level) => {
   expect(detectLogLevel(line, stream)).toBe(level);
 });
@@ -174,4 +180,49 @@ test('a Next.js server error keeps its stack, code frame and digest in one error
   // Its access log lines on standard output are separate entries, also when they arrive together.
   const stdout = [`${esc}[32m${esc}[1m✓${esc}[22m${esc}[39m Ready in 333ms`, ` GET / ${esc}[31m500${esc}[39m in 280ms`];
   expect((await collect('stdout', stdout)).map(({ level }) => level)).toEqual(['info', 'error']);
+});
+
+// r2gg finding 10: Bun's uncaught error arrived as five `warn` entries of its code frame and then the `error` entry.
+test("Bun's code frame, error, stack and version line become one error entry", async () => {
+  const lines = [
+    '82 | // Warming the price cache takes a few seconds; the API listens only after it.',
+    '83 | const warmupMs = Number(process.env.WARMUP_MS ?? 12000);',
+    '84 | await migrate();',
+    `87 | const cache = JSON.parse(process.env.PRICE_CACHE_SEED ?? '{"version":');`,
+    '                        ^',
+    'SyntaxError: JSON Parse error: Unexpected EOF',
+    '      at /app/dist/apps/api/src/index.ts:87:20',
+    '',
+    'Bun v1.3.4 (Linux x64)'
+  ];
+  const entries = await collect('stderr', ['warming the price cache for 12000 ms', ...lines, 'next start']);
+  expect(entries).toEqual([
+    { message: 'warming the price cache for 12000 ms', level: 'warn' },
+    { message: lines.filter((line) => line).join('\n'), level: 'error' },
+    { message: 'next start', level: 'warn' }
+  ]);
+  const thrown = [
+    "error: Access denied for user 'stacktape'@'%' to database 'shelf'",
+    '       code: "ER_DBACCESS_DENIED_ERROR"'
+  ];
+  expect(
+    await collect('stderr', [...thrown, '      at migrate (/app/dist/db.ts:28:44)', 'Bun v1.3.4 (Linux x64)'])
+  ).toEqual([
+    {
+      message: [...thrown, '      at migrate (/app/dist/db.ts:28:44)', 'Bun v1.3.4 (Linux x64)'].join('\n'),
+      level: 'error'
+    }
+  ]);
+});
+
+// r2cc finding 4 and r2gg finding 10: Astro's page code logged `console.error('creating an item failed: …')`, which a
+// frontend's dev server logs as `error`; its other standard error stays `warn`.
+test.each([
+  ['creating an item failed: 500 {"error":"internal error"}', true],
+  ['quote for sku-1 failed with 502', true],
+  ['could not reach the API: connect ECONNREFUSED 127.0.0.1:3000', true],
+  ['\u001b[33mwatching for file changes...\u001b[0m', false],
+  ['  ➜  Local:   http://localhost:4321/', false]
+] as const)('frontend standard error %s is a failure: %s', (line, failure) => {
+  expect(isFrontendServerFailure(line)).toBe(failure);
 });
