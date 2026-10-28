@@ -50,6 +50,7 @@ const devTags = (generatedFor: string, ...users: string[]) =>
     { Key: tagNames.devGeneratedSecret(), Value: generatedFor },
     ...users.map((user) => ({ Key: tagNames.devSecretUser(user), Value: user }))
   ]);
+const released = { Key: tagNames.devSecretReleased(), Value: 'true' };
 const userCount = (tags: { Key?: string }[]) =>
   tags.filter(({ Key }) => Key?.startsWith(tagNames.devSecretUserPrefix())).length;
 
@@ -105,7 +106,7 @@ test('a deployment that is not a dev session takes a dev secret out of dev owner
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
   await ensureMissingSecretsCreated();
-  expect(await state('shop-search')).toEqual({ deleted: false, tags: [] });
+  expect(await state('shop-search')).toEqual({ deleted: false, tags: [released] });
   expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
   expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: [], kept: [] });
   expect((await state('shop-search'))?.deleted).toBe(false);
@@ -128,12 +129,12 @@ test('a secret shared by more dev stages than its tags can record is kept, and n
   } finally {
     awsSdkManager.secrets.tag = tag;
   }
-  expect(await state('shop-shared')).toEqual({ deleted: false, tags: [] });
+  expect((await state('shop-shared'))?.tags.filter(({ Key }) => Key !== released.Key)).toEqual([]);
   expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
   expect((await state('shop-shared'))?.deleted).toBe(false);
 });
 
-test('a deployment that may not untag a dev secret warns and goes on', async () => {
+test('a deployment that may not untag a dev secret marks it released, and deleting the stage keeps it', async () => {
   const { state } = useAccount(ministack.account());
   referenceSecrets('shop-db');
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
@@ -149,7 +150,9 @@ test('a deployment that may not untag a dev secret warns and goes on', async () 
   } finally {
     awsSdkManager.secrets.untag = untag;
   }
-  expect(await state('shop-db')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-alice') });
+  expect((await state('shop-db'))?.tags).toEqual(expect.arrayContaining([released]));
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect((await state('shop-db'))?.deleted).toBe(false);
 });
 
 test('a stage that uses a dev secret only inside $CfFormat restores it and keeps it', async () => {
@@ -172,4 +175,74 @@ test('a stage that uses a dev secret only inside $CfFormat restores it and keeps
   expect(await state('shop-queue')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-bob') });
   expect(userCount((await state('shop-queue'))!.tags)).toBe(1);
   expect(await value('shop-queue')).toBe(generated);
+});
+
+/** Runs `during` once, inside the first call of `method` that `when` selects, before or after the real call. */
+const interleave = <K extends 'untag' | 'tag' | 'delete'>(
+  method: K,
+  when: (input: Parameters<(typeof awsSdkManager.secrets)[K]>[0]) => boolean,
+  during: () => Promise<unknown>,
+  { after = false }: { after?: boolean } = {}
+) => {
+  const original = awsSdkManager.secrets[method] as (input: unknown) => Promise<unknown>;
+  let ran = false;
+  (awsSdkManager.secrets as unknown as Record<string, unknown>)[method] = async (input: never) => {
+    if (ran || !when(input)) return original(input);
+    ran = true;
+    if (!after) await during();
+    const result = await original(input);
+    if (after) await during();
+    return result;
+  };
+  return () => ((awsSdkManager.secrets as unknown as Record<string, unknown>)[method] = original);
+};
+
+// r2rr bug hunt, finding 2: a normal deployment adopted a dev secret while its dev stage was being deleted, and the
+// deletion put the generator tag back and scheduled the adopted secret for deletion.
+test('a deployment that adopts a dev secret while its stage is deleted keeps it, whenever it runs', async () => {
+  const { state, value } = useAccount(ministack.account());
+  const userTag = (stack: string) => (input: { tagKeys?: string[] }) =>
+    Boolean(input.tagKeys?.includes(tagNames.devSecretUser(stack)));
+  const scenarios = [
+    // Between the deletion's removal of its own tag and its check of the remaining tags.
+    [
+      'shop-orders',
+      () => interleave('untag', userTag('shop-orders-dev'), () => ensureMissingSecretsCreated(), { after: true })
+    ],
+    // Between the deletion's check and its DeleteSecret call.
+    [
+      'shop-billing',
+      () =>
+        interleave(
+          'delete',
+          () => true,
+          () => ensureMissingSecretsCreated()
+        )
+    ],
+    // The deployment read the tags before the deletion ran, and marks the secret after it was scheduled.
+    [
+      'shop-mail',
+      () =>
+        interleave(
+          'tag',
+          (input) => input.tags.some(({ Key }) => Key === released.Key),
+          () => deleteDevGeneratedSecrets({ stackName: 'shop-mail-dev' })
+        )
+    ]
+  ] as const;
+  for (const [name, arrange] of scenarios) {
+    referenceSecrets(name);
+    await ensureMissingSecretsCreated({ devStackName: `${name}-dev` });
+    const generated = await value(name);
+    const restore = arrange();
+    try {
+      if (name === 'shop-mail') await ensureMissingSecretsCreated();
+      else await deleteDevGeneratedSecrets({ stackName: `${name}-dev` });
+    } finally {
+      restore();
+    }
+    const after = await state(name);
+    expect({ name, ...after }).toEqual({ name, deleted: false, tags: [released] });
+    expect(await value(name)).toBe(generated);
+  }
 });
