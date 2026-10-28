@@ -21,6 +21,8 @@ import {
 } from '@utils/stack-info-map-diff';
 import {
   buildDeploymentChangePlan,
+  findReplacedBatchComputeEnvironments,
+  formatBatchComputeEnvironmentReplacementWarning,
   formatDeploymentChangePlanSummary,
   getChangePlanProducerVersion,
   type DeploymentChangePlanV1
@@ -381,6 +383,16 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       dangerousResources
     });
     tui.info(formatDeploymentChangePlanSummary(changePlan));
+    const replacedComputeEnvironments =
+      stack.stackActionType === 'update'
+        ? findReplacedBatchComputeEnvironments({
+            previousTemplate: template.oldTemplate,
+            template: template.getTemplate()
+          })
+        : [];
+    if (replacedComputeEnvironments.length) {
+      tui.warn(formatBatchComputeEnvironmentReplacementWarning(replacedComputeEnvironments));
+    }
 
     const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
     if (abort) {

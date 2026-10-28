@@ -383,6 +383,80 @@ describe('configuration runtime contract', () => {
     });
   });
 
+  // r2gg: both passed `validate` and failed only once CloudFormation reached them, 65 s and 202 s into a dev start.
+  test.each([
+    {
+      rule: 'a batch job with a fractional cpu',
+      resources: {
+        report: {
+          type: 'batch-job',
+          properties: {
+            container: { packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } } },
+            resources: { cpu: 0.5, memory: 1024 }
+          }
+        }
+      },
+      code: 'CONFIG_BATCH_JOB_CPU_NOT_WHOLE_NUMBER',
+      hint: 'Set `resources.cpu` to a whole number, such as 1.'
+    },
+    {
+      rule: "an SQS-triggered function whose timeout exceeds the queue's visibility timeout",
+      resources: {
+        reports: { type: 'sqs-queue' },
+        report: {
+          type: 'function',
+          properties: {
+            packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } },
+            timeout: 60,
+            events: [{ type: 'sqs', properties: { sqsQueueName: 'reports' } }]
+          }
+        }
+      },
+      code: 'CONFIG_LAMBDA_TIMEOUT_EXCEEDS_QUEUE_VISIBILITY_TIMEOUT',
+      hint: "Set `visibilityTimeoutSeconds` of `reports` to at least 60. AWS recommends six times the function's timeout (360)."
+    }
+  ])('refuses $rule with the fix', async ({ resources, code, hint }) => {
+    const manager = new ConfigManager();
+    await expect(
+      manager.init({
+        configRequired: true,
+        context: getInitContext({
+          accountId: '888888888888',
+          stage: 'rules',
+          stackName: 'rules-project-rules',
+          presetConfig: { projectName: 'rules-project', resources } as StacktapeConfig
+        })
+      })
+    ).rejects.toMatchObject({ code, hints: expect.arrayContaining([hint]) });
+  });
+
+  test('accepts an SQS-triggered function that finishes within the visibility timeout of its queue', async () => {
+    const manager = new ConfigManager();
+    await manager.init({
+      configRequired: true,
+      context: getInitContext({
+        accountId: '888888888888',
+        stage: 'rules',
+        stackName: 'rules-project-rules',
+        presetConfig: {
+          projectName: 'rules-project',
+          resources: {
+            reports: { type: 'sqs-queue', properties: { visibilityTimeoutSeconds: 60 } },
+            report: {
+              type: 'function',
+              properties: {
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } },
+                timeout: 60,
+                events: [{ type: 'sqs', properties: { sqsQueueName: 'reports' } }]
+              }
+            }
+          }
+        } as StacktapeConfig
+      })
+    });
+    expect(manager.functions.map(({ name }) => name)).toEqual(['report']);
+  });
+
   test('refuses a configuration the schema rejects, before publishing anything', async () => {
     // Structure validation loads the generated validator on first use; initialization must still always run it.
     const manager = new ConfigManager();

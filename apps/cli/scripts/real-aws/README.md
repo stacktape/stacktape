@@ -231,8 +231,28 @@ export STP_AWS_STATIC_CANARY_STATE_FILE="$(pwd)/.stacktape-static-canary-${STP_A
 pnpm test:aws --aws-scenario=hosting-bucket-cdn-update
 ```
 
-Both canaries share their guardrails through `source-cli-canary.ts`. Each prints one exact `--cleanup-only` command when
-cleanup does not finish.
+## Batch job canary
+
+`test:real-aws-batch-canary` (scenario `batch-job-sqs-run`) deploys `_test-stacks/batch-job`: an SQS queue and a batch
+job whose js-bundle image the deploy pushes to the stack's private ECR repository. It checks that the compute
+environments are valid and use Amazon Linux 2023, sends a message, and waits until the job succeeds with the message in
+its log and the launch template's 100 GB root volume. It then deploys a queue whose `DelaySeconds` is a fraction: the
+CLI must name the resource, property path and reason from CloudFormation's pre-deployment validation, and the stack must
+roll back. Deletion is verified for the stack, compute environments, job queues, state machine, functions, roles, queue,
+image repository, VPC and log groups. A run takes 10 to 15 minutes and one small EC2 instance for a few minutes, and
+needs Docker for the image build.
+
+```sh
+export STP_AWS_BATCH_CANARY_DEPLOY=1
+export STP_AWS_BATCH_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_BATCH_CANARY_PROFILE='<profile>'
+export STP_AWS_BATCH_CANARY_OWNER="local-batch-$(date -u +%s)"
+export STP_AWS_BATCH_CANARY_STATE_FILE="$(pwd)/.stacktape-batch-canary-${STP_AWS_BATCH_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=batch-job-sqs-run
+```
+
+These canaries share their guardrails through `source-cli-canary.ts`. Each prints one exact `--cleanup-only` command
+when cleanup does not finish.
 
 ## Observability fixture (not yet qualified)
 

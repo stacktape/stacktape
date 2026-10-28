@@ -1,4 +1,4 @@
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { OperationEvent, StackEvent } from '@aws-sdk/client-cloudformation';
 import type { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
 import type { LambdaProvisionedConcurrencyPoller } from 'src/aws/lambda-provisioned-concurrency-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -273,6 +273,36 @@ export const cfFailedEventHandlers: {
     }
   }
 ];
+
+/**
+ * Whether CloudFormation stopped the operation in its pre-deployment validation. Its stack event says only "Validation
+ * failed with N error(s). Call DescribeEvents…"; the findings are operation events (see `getValidationErrors`).
+ */
+export const isPreDeploymentValidationFailure = (event: StackEvent) =>
+  event.DetailedStatus === 'VALIDATION_FAILED' ||
+  /^Validation failed with \d+ error/.test(event.ResourceStatusReason ?? '');
+
+/**
+ * One finding of CloudFormation's pre-deployment validation, named by the config resource it belongs to. Only failures
+ * stop the operation; warnings are left out when there are failures.
+ */
+export const formatPreDeploymentValidationErrors = (validationErrors: OperationEvent[]) => {
+  const failures = validationErrors.filter(({ ValidationFailureMode }) => ValidationFailureMode !== 'WARN');
+  return (failures.length ? failures : validationErrors).map(
+    ({ LogicalResourceId, ValidationPath, ValidationStatusReason, ValidationName }) => {
+      const parentResourceName =
+        LogicalResourceId &&
+        calculatedStackOverviewManager.findStpParentNameOfCfResource({ cfLogicalName: LogicalResourceId });
+      const resource = LogicalResourceId
+        ? `Resource ${tuiManager.colorize('red', LogicalResourceId)}${
+            parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
+          }`
+        : 'Template';
+      const reason = ValidationStatusReason ?? ValidationName ?? 'failed validation';
+      return { errorMessage: `${resource}: ${reason}${ValidationPath ? ` (at ${ValidationPath})` : ''}` };
+    }
+  );
+};
 
 export const getHintsAfterStackFailureOperation = ({
   cfStackAction,

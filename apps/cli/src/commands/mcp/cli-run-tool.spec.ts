@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
 import type { RunStacktapeResult } from './cli-jsonl-runner';
 import { createMcpServer, serveStacktapeMcp } from './index';
@@ -57,6 +57,8 @@ const connect = async (runResult: (cwd: string) => Partial<RunStacktapeResult> =
       ok: boolean;
       code: string;
       data?: Record<string, any>;
+      rawTail?: string;
+      nextActions?: string[];
     };
   return { call, runs, client };
 };
@@ -94,6 +96,38 @@ describe('stacktape_cli action=run', () => {
 
     expect(output.ok).toBe(true);
     expect(output.data?.cli).toEqual({ result: logs });
+  });
+
+  // r2gg: a failed deploy's message named the failure, and the result also carried 3 KB of output with the template.
+  test('keeps the output of a failure the CLI explained in a log file instead of the result', async () => {
+    const template = 'Resources:\n  ReportJobDefinition:\n    Type: AWS::Batch::JobDefinition';
+    const { call } = await connect(() => ({
+      ok: false,
+      code: 'STACK_ERROR',
+      message: 'Resource ReportJobDefinition (part of report): Property [Vcpus] expected type: Integer, found: Float',
+      cliReportedResult: true,
+      rawTail: template
+    }));
+
+    const output = await call({
+      action: 'run',
+      command: 'deploy',
+      args: { projectName: 'shop-api', stage: 'production', region: 'eu-west-1' },
+      confirm: true
+    });
+
+    expect(output.ok).toBe(false);
+    expect(output.rawTail).toBeUndefined();
+    const outputLog = (output.data as { outputLog?: string }).outputLog!;
+    expect(output.nextActions?.join(' ')).toContain(outputLog);
+    expect(await readFile(outputLog, 'utf8')).toBe(`${template}\n`);
+    // Only the user may read the log: a private directory per user and a private file in it.
+    if (process.platform !== 'win32') {
+      expect((await stat(outputLog)).mode & 0o777).toBe(0o600);
+      expect((await stat(dirname(outputLog))).mode & 0o777).toBe(0o700);
+      expect(basename(dirname(outputLog))).toBe(`stacktape-mcp-${process.getuid?.()}`);
+    }
+    await rm(outputLog, { force: true });
   });
 
   test('never recovers the printed payload of a command with sensitive output', async () => {

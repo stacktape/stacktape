@@ -1,6 +1,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { getStacktapeVersion } from '@utils/versioning';
 
 const CHANGE_PLAN_SCHEMA_VERSION = 'stacktape.change-plan.v1' as const;
@@ -269,3 +270,42 @@ export const formatDeploymentChangePlanSummary = (plan: DeploymentChangePlanV1) 
       : '';
   return `Infrastructure changes: ${changeText}${riskText} (plan ${planId})`;
 };
+
+/** Allocation strategies with which AWS Batch updates a compute environment's instances instead of replacing it. */
+const INFRASTRUCTURE_UPDATE_STRATEGIES = [
+  'BEST_FIT_PROGRESSIVE',
+  'SPOT_CAPACITY_OPTIMIZED',
+  'SPOT_PRICE_CAPACITY_OPTIMIZED'
+];
+
+type ComputeEnvironmentProperties = { ComputeResources?: { AllocationStrategy?: unknown } & Record<string, unknown> };
+
+/**
+ * Deployed Batch compute environments this update replaces. The template diff calls their change an update, but with
+ * Stacktape's `BEST_FIT` strategy CloudFormation replaces a compute environment for any change of its compute
+ * resources (image, tags, subnets) and then deletes the old one, which fails the jobs running on it.
+ */
+export const findReplacedBatchComputeEnvironments = ({
+  previousTemplate,
+  template
+}: {
+  previousTemplate: CloudFormationTemplate | undefined;
+  template: CloudFormationTemplate;
+}) =>
+  Object.entries(template.Resources)
+    .filter(([logicalId, resource]) => {
+      const deployed = previousTemplate?.Resources?.[logicalId];
+      if (resource.Type !== 'AWS::Batch::ComputeEnvironment' || deployed?.Type !== resource.Type) return false;
+      const before = (deployed.Properties as ComputeEnvironmentProperties | undefined)?.ComputeResources;
+      const after = (resource.Properties as ComputeEnvironmentProperties | undefined)?.ComputeResources;
+      return (
+        !INFRASTRUCTURE_UPDATE_STRATEGIES.includes(String(before?.AllocationStrategy)) &&
+        !isDeepStrictEqual(JSON.parse(JSON.stringify(before ?? null)), JSON.parse(JSON.stringify(after ?? null)))
+      );
+    })
+    .map(([logicalId]) => logicalId)
+    .sort();
+
+/** One line for the deploy output when the update replaces Batch compute environments. */
+export const formatBatchComputeEnvironmentReplacementWarning = (logicalIds: string[]) =>
+  `This deploy replaces the Batch compute environment${logicalIds.length === 1 ? '' : 's'} ${logicalIds.join(', ')}: batch jobs running on ${logicalIds.length === 1 ? 'it' : 'them'} will fail when CloudFormation deletes the old one. Deploy when no batch job runs.`;

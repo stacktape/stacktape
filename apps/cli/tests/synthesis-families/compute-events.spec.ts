@@ -197,6 +197,19 @@ describe('Batch and Step Functions family', () => {
       queue[1].Properties?.ComputeEnvironmentOrder[0].ComputeEnvironment.Ref
     ] as KnownCloudFormationResource<'AWS::Batch::ComputeEnvironment'>;
     expect(literal(compute.Properties.ComputeResources).Type).toBe('SPOT');
+    // AWS Batch refuses new Amazon Linux 2 compute environments (r2gg).
+    expect(literal(compute.Properties.ComputeResources).Ec2Configuration).toEqual([{ ImageType: 'ECS_AL2023' }]);
+    // The instances need the gateway and routes until the compute environment is gone; a deletion that detached the
+    // gateway first failed after 15 minutes while a job's instance ran.
+    const networkOrder = [
+      'StpVpcGatewayAttachment',
+      'StpInternetGatewayRoute0',
+      'StpInternetGatewayRoute1',
+      'StpPublicSubnet0SubnetRouteTableAssociation',
+      'StpPublicSubnet1SubnetRouteTableAssociation'
+    ];
+    expect(compute.DependsOn).toEqual(expect.arrayContaining(networkOrder));
+    for (const logicalId of networkOrder) expect(template.Resources[logicalId]).toBeDefined();
     expect(batch[1].DependsOn).toEqual(expect.arrayContaining([job.logicalId, queue[0]]));
 
     const trigger = resourcesOfType(template, 'AWS::Lambda::Function').find(([id]) => id.startsWith('Report'))!;

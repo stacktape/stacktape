@@ -530,6 +530,37 @@ export const configErrors = {
       )} is set to true, you must also specify ${inlineCode('customCertificateArn')}.`
     });
   },
+  lambdaTimeoutExceedsQueueVisibilityTimeout({
+    lambdaStpResourceName,
+    sqsQueueName,
+    timeout,
+    visibilityTimeout,
+    visibilityTimeoutIsDefault
+  }: {
+    lambdaStpResourceName: string;
+    sqsQueueName: string;
+    timeout: number;
+    visibilityTimeout: number;
+    visibilityTimeoutIsDefault: boolean;
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_LAMBDA_TIMEOUT_EXCEEDS_QUEUE_VISIBILITY_TIMEOUT',
+      message: `Error in ${inlineCode('function')} ${inlineCode(lambdaStpResourceName)}: its ${inlineCode('timeout')} (${timeout} s) is longer than the visibility timeout of its trigger queue ${inlineCode(sqsQueueName)} (${visibilityTimeout} s${visibilityTimeoutIsDefault ? ', the default' : ''}). AWS refuses such a trigger, because a message would become visible to other consumers while the function still processes it.`,
+      hints: [
+        `Set ${inlineCode('visibilityTimeoutSeconds')} of ${inlineCode(sqsQueueName)} to at least ${timeout}. AWS recommends six times the function's timeout (${Math.min(timeout * 6, 43200)}).`,
+        `Or lower the ${inlineCode('timeout')} of ${inlineCode(lambdaStpResourceName)} to ${visibilityTimeout} or less.`
+      ]
+    });
+  },
+  batchJobCpuNotWholeNumber({ stpResourceName, cpu }: { stpResourceName: string; cpu: number }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_BATCH_JOB_CPU_NOT_WHOLE_NUMBER',
+      message: `Error in ${inlineCode('batch-job')} ${inlineCode(stpResourceName)}: ${inlineCode('resources.cpu')} is ${cpu}, but a batch job runs on EC2 instances, which AWS Batch assigns whole vCPUs.`,
+      hints: `Set ${inlineCode('resources.cpu')} to a whole number, such as ${Math.max(1, Math.ceil(cpu))}.`
+    });
+  },
   lambdaEfsRequiresVpc({ lambdaStpResourceName }: { lambdaStpResourceName: string }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

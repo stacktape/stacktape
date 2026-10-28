@@ -1,4 +1,4 @@
-package smoke;
+package com.example.smoke;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;

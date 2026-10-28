@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
-import { appendFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
@@ -1281,13 +1281,19 @@ describe('MCP dev start results', () => {
           code: 'DEV_STAGE_RUNNING_ELSEWHERE',
           message: 'Dev mode for shop-dev already runs in another session: Bob (laptop, ~/shop-wt2).',
           data: undefined,
-          rawTail: 'the CLI output'
+          rawTail: 'the CLI output',
+          cliReportedResult: true
         };
       },
       discoverAgents: async () => []
     });
     const refused = (await handler({ action: 'start', args: { stage: 'dev' } })).structuredContent;
-    expect(refused).toMatchObject({ ok: false, code: 'DEV_STAGE_RUNNING_ELSEWHERE', rawTail: 'the CLI output' });
+    expect(refused).toMatchObject({ ok: false, code: 'DEV_STAGE_RUNNING_ELSEWHERE' });
+    // The message explains the refusal; the CLI's output stays in a file instead of the agent's context (r2gg).
+    expect(refused.rawTail).toBeUndefined();
+    const outputLog = (refused.data as { outputLog?: string }).outputLog;
+    expect(await readFile(outputLog!, 'utf8')).toBe('the CLI output\n');
+    await rm(outputLog!, { force: true });
     expect(refused.nextActions?.join(' ')).toContain('args.takeOver=true');
     await handler({ action: 'start', args: { stage: 'dev', takeOver: true } });
     await handler({ action: 'start', args: { stage: 'dev', take_over: true } });

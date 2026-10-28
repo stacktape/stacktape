@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
-import { buildDeploymentChangePlan, formatDeploymentChangePlanSummary } from '.';
+import {
+  buildDeploymentChangePlan,
+  findReplacedBatchComputeEnvironments,
+  formatBatchComputeEnvironmentReplacementWarning,
+  formatDeploymentChangePlanSummary
+} from '.';
 
 const newTemplate = {
   Resources: {
@@ -125,5 +130,47 @@ describe('deployment change plan', () => {
       'database'
     ]);
     expect(formatDeploymentChangePlanSummary(plan)).toContain('2 changes affect a protected resource');
+  });
+});
+
+describe('Batch compute environment replacement', () => {
+  const template = (computeResources: Record<string, unknown> | undefined) =>
+    ({
+      Resources: computeResources
+        ? {
+            StpBatchOnDemandComputeEnvironment: {
+              Type: 'AWS::Batch::ComputeEnvironment',
+              Properties: { Type: 'MANAGED', ComputeResources: computeResources }
+            }
+          }
+        : {}
+    }) as never;
+  const al2 = { AllocationStrategy: 'BEST_FIT', Ec2Configuration: [{ ImageType: 'ECS_AL2' }], Tags: { team: 'a' } };
+  const al2023 = { ...al2, Ec2Configuration: [{ ImageType: 'ECS_AL2023' }] };
+
+  // The template diff calls these changes updates; with BEST_FIT, CloudFormation replaces the environment.
+  test.each([
+    ['a new image', al2, al2023, ['StpBatchOnDemandComputeEnvironment']],
+    ['changed tags', al2023, { ...al2023, Tags: { team: 'b' } }, ['StpBatchOnDemandComputeEnvironment']],
+    ['no change, as when the deployed image is kept', al2, al2, []],
+    [
+      'a strategy that updates instances in place',
+      { ...al2, AllocationStrategy: 'BEST_FIT_PROGRESSIVE' },
+      { ...al2023, AllocationStrategy: 'BEST_FIT_PROGRESSIVE' },
+      []
+    ],
+    ['a new environment', undefined, al2023, []]
+  ])('%s', (_label, before, after, expected) => {
+    const replaced = findReplacedBatchComputeEnvironments({
+      previousTemplate: template(before),
+      template: template(after)
+    });
+    expect(replaced).toEqual(expected);
+  });
+
+  test('the warning says that running jobs fail', () => {
+    expect(formatBatchComputeEnvironmentReplacementWarning(['StpBatchOnDemandComputeEnvironment'])).toBe(
+      'This deploy replaces the Batch compute environment StpBatchOnDemandComputeEnvironment: batch jobs running on it will fail when CloudFormation deletes the old one. Deploy when no batch job runs.'
+    );
   });
 });

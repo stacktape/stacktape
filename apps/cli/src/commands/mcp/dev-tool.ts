@@ -10,7 +10,7 @@ import { findStacktapePackageScript, normalizeCliInvocation } from './cli-comman
 import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
-import { toToolText, type ToolOutput } from './tool-output';
+import { keepRawTailInLogFile, toToolText, type ToolOutput } from './tool-output';
 import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../dev/agent-daemon';
 
 type DevSession = {
@@ -1194,6 +1194,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             );
             return;
           }
+          // A failure the CLI explained keeps its output in a log file; without a result, the output is the explanation.
+          const outputLog =
+            !succeeded && result.cliReportedResult && result.rawTail
+              ? keepRawTailInLogFile({ command: 'dev', rawTail: result.rawTail })
+              : undefined;
           const output: ToolOutput = {
             ok: succeeded,
             code: missingPort ? 'INTERNAL_ERROR' : result.code,
@@ -1205,11 +1210,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             data: {
               ...(succeeded ? { session: publicSession(session) } : {}),
               resolvedContext: result.resolvedContext,
-              ...(result.data ? { cli: result.data } : {})
+              ...(result.data ? { cli: result.data } : {}),
+              ...(outputLog ? { outputLog } : {})
             },
-            // The CLI's output explains a failure. After a successful start it is the banner for people, whose
-            // instructions (curl, `stacktape dev stop`) are not the ones an assistant uses here.
-            ...(!succeeded && result.rawTail ? { rawTail: result.rawTail } : {}),
+            // After a successful start the CLI's output is the banner for people, whose instructions (curl,
+            // `stacktape dev stop`) are not the ones an assistant uses here.
+            ...(!succeeded && !outputLog && result.rawTail ? { rawTail: result.rawTail } : {}),
             ...(result.code === 'DEV_STAGE_RUNNING_ELSEWHERE'
               ? {
                   nextActions: [
