@@ -2,9 +2,10 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import killProcessTree from 'tree-kill';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from 'fs-extra';
-import { closeSync, copyFileSync, fstatSync, openSync, readSync, truncateSync } from 'node:fs';
+import { closeSync, copyFileSync, fstatSync, openSync, readSync, rmSync, truncateSync } from 'node:fs';
 import { StringDecoder } from 'node:string_decoder';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
+import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
 
@@ -23,6 +24,34 @@ export type AgentLockFile = {
   sessionId?: string;
   /** The session's SSM session to the dev box, so a later start can end it if this process was killed. */
   devBoxSessionId?: string;
+  /** The AWS profile and account the session runs against, so a start for another target does not reuse it. */
+  profile?: string;
+  awsAccountId?: string;
+  awsAccountName?: string;
+};
+
+/** What a start asks for. A field it does not know yet (the account before credentials load) is left out. */
+export type DevSessionTarget = Pick<AgentLockFile, 'region' | 'profile' | 'awsAccountId' | 'awsAccountName'>;
+
+/** Where the session of `lock` runs against another target than `requested`, as `region eu-west-1 (asked: eu-west-3)`. */
+export const describeTargetMismatch = (lock: AgentLockFile, requested: Partial<DevSessionTarget>): string[] =>
+  (
+    [
+      ['region', 'region'],
+      ['profile', 'AWS profile'],
+      ['awsAccountId', 'AWS account'],
+      ['awsAccountName', 'AWS account']
+    ] as const
+  ).flatMap(([key, label]) =>
+    requested[key] !== undefined && lock[key] !== undefined && requested[key] !== lock[key]
+      ? [`${label} ${lock[key]} (this start: ${requested[key]})`]
+      : []
+  );
+
+/** The live session of another process that this directory's lock file of `stage` names, if any. */
+export const findLiveStageSession = (projectName: string, stage: string): AgentLockFile | null => {
+  const lock = readAgentLockFile(projectName, stage);
+  return lock && lock.pid !== process.pid && isProcessRunning(lock.pid) ? lock : null;
 };
 
 let devBoxSessionId: string | undefined;
@@ -122,8 +151,10 @@ const readAllAgentLockFiles = (): AgentLockFile[] => {
   }
 };
 
-/** The project and stage of this process's own lock file, and whether this session has begun to stop. */
-let ownLock: { projectName: string; stage: string; stopping: boolean } | undefined;
+/** The project and stage of this process's own lock file. */
+let ownLock: { projectName: string; stage: string } | undefined;
+/** Whether this session has begun to stop, possibly before it wrote its lock file. */
+let ownSessionStopping = false;
 
 export const writeAgentLockFile = (data: AgentLockFile): void => {
   const lockPath = getLockFilePath(data.projectName, data.stage);
@@ -135,9 +166,9 @@ export const writeAgentLockFile = (data: AgentLockFile): void => {
 
   let phase = data.phase;
   if (data.pid === process.pid) {
-    ownLock = { projectName: data.projectName, stage: data.stage, stopping: ownLock?.stopping ?? false };
+    ownLock = { projectName: data.projectName, stage: data.stage };
     // A start that finishes after a stop began must not record the session as ready again.
-    if (ownLock.stopping) phase = 'stopping';
+    if (ownSessionStopping) phase = 'stopping';
   }
   writeFileSync(lockPath, JSON.stringify({ ...data, phase, ...(devBoxSessionId && { devBoxSessionId }) }, null, 2));
 };
@@ -148,10 +179,26 @@ export const writeAgentLockFile = (data: AgentLockFile): void => {
  * starting a second session next to it.
  */
 export const markOwnAgentLockStopping = (): void => {
-  if (!ownLock || ownLock.stopping) return;
-  ownLock.stopping = true;
+  if (ownSessionStopping) return;
+  ownSessionStopping = true;
+  if (!ownLock) return;
   const lock = readAgentLockFile(ownLock.projectName, ownLock.stage);
   if (lock?.pid === process.pid) writeAgentLockFile(lock);
+};
+
+/** Whether this session has begun to stop: `/stop` marks it before the interrupt that runs the cleanup arrives. */
+export const isOwnSessionStopping = (): boolean => ownSessionStopping;
+
+/**
+ * The cleanup of this session's lock file. The lock file goes last: a start of this stage while the cleanup runs (right
+ * after a `/stop`) finds it marked as stopping and waits, instead of starting a second session next to this one. It is
+ * deleted only while it is still this process's own, so a successor's lock file stays.
+ */
+export const registerOwnLockCleanup = ({ projectName, stage }: { projectName: string; stage: string }) => {
+  applicationManager.registerCleanUpHook(async () => markOwnAgentLockStopping());
+  applicationManager.finalCleanUpHooks.push(async () =>
+    deleteAgentLockFile({ projectName, stage, ownerPid: process.pid })
+  );
 };
 
 /**
@@ -198,9 +245,21 @@ export const findOrphanedDevBoxSession = (projectName: string, stage: string): s
   return lock && lock.pid !== process.pid && !isProcessRunning(lock.pid) ? lock.devBoxSessionId : undefined;
 };
 
-export const deleteAgentLockFile = (projectName?: string, stage?: string): void => {
+/**
+ * Deletes the lock file of this project and stage if the session of process `ownerPid` still owns it. A later session
+ * of the stage writes its own lock file over a stopping or dead one; deleting by path alone removed the successor's.
+ */
+export const deleteAgentLockFile = ({
+  projectName,
+  stage,
+  ownerPid
+}: {
+  projectName: string;
+  stage: string;
+  ownerPid: number;
+}): void => {
   const lockPath = getLockFilePath(projectName, stage);
-  if (existsSync(lockPath)) {
+  if (readAgentLockFile(projectName, stage)?.pid === ownerPid) {
     try {
       unlinkSync(lockPath);
     } catch {
@@ -235,7 +294,7 @@ export const getRunningAgent = async (projectName?: string, stage?: string): Pro
 
   // Check if process is still running
   if (!isProcessRunning(lockFile.pid)) {
-    deleteAgentLockFile(lockFile.projectName, lockFile.stage);
+    deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
     return null;
   }
 
@@ -262,7 +321,7 @@ export const getAllRunningAgents = async (): Promise<AgentLockFile[]> => {
   for (const lockFile of lockFiles) {
     // Check if process is still running
     if (!isProcessRunning(lockFile.pid)) {
-      deleteAgentLockFile(lockFile.projectName, lockFile.stage);
+      deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
       continue;
     }
 
@@ -351,7 +410,8 @@ export const isSameDirectory = (a: string, b: string): boolean => {
  */
 export const stopRunningAgent = async (lockFile: AgentLockFile): Promise<boolean> => {
   const hasPid = lockFile.pid > 0;
-  const deleteLock = () => deleteAgentLockFile(lockFile.projectName, lockFile.stage);
+  const deleteLock = () =>
+    deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
   const forceStop = async (): Promise<boolean> => {
     if (!isProcessRunning(lockFile.pid)) {
       deleteLock();
@@ -662,23 +722,13 @@ export const capDaemonOutputFiles = ({
   };
   const timer = setInterval(check, intervalMs);
   timer.unref();
-  return () => clearInterval(timer);
-};
-
-/**
- * Deletes the output files of earlier daemons on `port`, so they do not pile up. A daemon that still runs keeps writing
- * to its deleted file; where the system refuses to delete an open file (Windows), the file stays until a later start.
- */
-const removeEarlierDaemonOutputFiles = (port: number) => {
-  const directory = localStatePaths.devAgentTokenDirectory();
-  for (const file of readdirSync(directory)) {
-    if (!file.startsWith(`${port}.`) || !file.includes('.daemon-')) continue;
-    try {
-      unlinkSync(join(directory, file));
-    } catch {
-      // Only debugging output.
+  // Only this start's files, once nobody reads them: another start's reader may not have opened its files yet.
+  applicationManager.finalCleanUpHooks.push(async () => {
+    for (const path of [stdout, stderr]) {
+      for (const file of [path, `${path}.1`]) rmSync(file, { force: true });
     }
-  }
+  });
+  return () => clearInterval(timer);
 };
 
 /**
@@ -720,14 +770,14 @@ export const spawnAgentDaemon = async (args: {
   const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
 
   // r2mm dogfood: a start right after a `/stop` reused the stopping daemon's files on the same port. That daemon still
-  // appended to them, and its final USER_INTERRUPTION result was read as the new daemon's failure.
+  // appended to them, and its final USER_INTERRUPTION result was read as the new daemon's failure. A ready daemon deletes
+  // its own files when it exits (`capDaemonOutputFiles`).
   const startId = randomBytes(4).toString('hex');
   const outputFiles = {
     stdout: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, startId, stream: 'stdout' }),
     stderr: localStatePaths.devAgentDaemonOutputFile({ port: agentPort, startId, stream: 'stderr' })
   };
   mkdirSync(dirname(outputFiles.stdout), { recursive: true, mode: 0o700 });
-  removeEarlierDaemonOutputFiles(agentPort);
   // Emptied, then opened for appending: the daemon empties a file that grew too large while it and its children keep
   // writing to it (see `capDaemonOutputFiles`).
   for (const file of Object.values(outputFiles)) writeFileSync(file, '', { mode: 0o600 });

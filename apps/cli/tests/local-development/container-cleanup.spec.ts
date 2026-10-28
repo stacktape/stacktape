@@ -13,13 +13,18 @@ test('container cleanup removes abandoned and stopped containers while preservin
   expect(docker, 'Docker is required for this explicit change lane').toBeTruthy();
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-container-cleanup-'));
   const owner = randomUUID();
-  const names = ['live', 'abandoned', 'stopped', 'legacy'].map((kind) => `stp-t07-${owner}-${kind}`);
+  // `unlocked`: a live session whose lock file a refused second start deleted (r2rr). Its process still runs.
+  const names = ['live', 'abandoned', 'stopped', 'legacy', 'unlocked'].map((kind) => `stp-t07-${owner}-${kind}`);
   // A customer's own stopped container: not a Stacktape dev container, so cleanup must never list or remove it.
   const foreign = `customer-${owner}-stopped`;
   const lock = join(directory, 'live.json');
   const invoke = (args: string[]) => spawnSync(docker!, args, { encoding: 'utf8', timeout: 60_000 });
   const inspect = (name: string) => invoke(['inspect', '--format', '{{.State.Status}}', name]);
+  // The process of a session that ended: it ran and exited.
+  const ended = spawnSync(process.execPath, ['-e', 'console.log(process.pid)'], { encoding: 'utf8' });
+  const endedPid = Number(ended.stdout.trim());
   try {
+    expect(endedPid).toBeGreaterThan(0);
     await writeFile(lock, JSON.stringify({ pid: process.pid }));
     const foreignCreated = invoke([
       'create',
@@ -33,12 +38,12 @@ test('container cleanup removes abandoned and stopped containers while preservin
     expect(foreignCreated.status, foreignCreated.stderr).toBe(0);
     for (const [index, name] of names.entries()) {
       const labels = ['--label', `stacktape.qa.task=${owner}`];
-      if (index < 2)
+      if (index < 2 || index === 4)
         labels.push(
           '--label',
           `stacktape.dev.lock=${index === 0 ? lock : join(directory, 'missing.json')}`,
           '--label',
-          `stacktape.dev.pid=${process.pid}`
+          `stacktape.dev.pid=${index === 1 ? endedPid : process.pid}`
         );
       const created = invoke(['create', '--name', name, ...labels, 'alpine:3', 'sleep', '600']);
       expect(created.status, created.stderr).toBe(0);
@@ -92,6 +97,7 @@ console.log('REMOVED ' + JSON.stringify(await cleanupOrphanedContainers()));
     expect(removed.sort()).toEqual([names[1], names[2]].sort());
     expect(inspect(names[0]).stdout.trim()).toBe('running');
     expect(inspect(names[3]).stdout.trim()).toBe('running');
+    expect(inspect(names[4]).stdout.trim()).toBe('running');
     expect(inspect(foreign).stdout.trim()).toBe('created');
     for (const name of [names[1], names[2]]) {
       const absent = inspect(name);

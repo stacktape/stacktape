@@ -164,15 +164,26 @@ const targetVariable = (raw: string, valueStart: number): string | undefined => 
 /** Words of a variable name that say what it holds rather than which resource: `SNS`, `TOPIC`, `ARN`, `URL`. */
 const ADDRESS_WORDS = /^(?:sns|sqs|topic|queue|arn|url|name)$/;
 
-/** `ORDER_EVENTS_TOPIC_ARN` → `orderEventsTopic`, `JOBS_QUEUE_URL` → `jobsQueue`; `SNS_TOPIC_ARN` names nothing. */
-const nameFromVariable = (kind: 'topic' | 'queue', variable: string): string | undefined => {
-  const words = variable
-    .toLowerCase()
-    .split('_')
-    .filter((word) => word !== '' && !ADDRESS_WORDS.test(word));
-  if (words.length === 0) return undefined;
-  const base = words.map((word, index) => (index === 0 ? word : word[0]!.toUpperCase() + word.slice(1))).join('');
-  return `${base}${kind === 'topic' ? 'Topic' : 'Queue'}`;
+const camelCase = (words: readonly string[]) =>
+  words.map((word, index) => (index === 0 ? word : word[0]!.toUpperCase() + word.slice(1))).join('');
+
+/**
+ * The resource name for one of several variables: `ORDER_EVENTS_TOPIC_ARN` → `orderEventsTopic`, otherwise the whole
+ * variable (`SNS_TOPIC_ARN` → `snsTopicArn`, `NOTIFICATIONS_TOPIC_ARN` → `notificationsTopicArn`). Never the kind's
+ * default name or a `taken` one: assembly folds a default-named resource into the one other resource of its kind, and
+ * both variables then addressed the same topic.
+ */
+const nameFromVariable = (kind: 'topic' | 'queue', variable: string, taken: ReadonlySet<string>): string => {
+  const words = variable.toLowerCase().split('_').filter(Boolean);
+  const own = words.filter((word) => !ADDRESS_WORDS.test(word));
+  const whole = camelCase(words);
+  const candidates = [...(own.length > 0 ? [`${camelCase(own)}${kind === 'topic' ? 'Topic' : 'Queue'}`] : []), whole];
+  const usable = (name: string) => name !== defaultDependencyName(kind) && !taken.has(name);
+  const named = candidates.find(usable);
+  if (named !== undefined) return named;
+  let suffix = 2;
+  while (!usable(`${whole}${suffix}`)) suffix += 1;
+  return `${whole}${suffix}`;
 };
 
 export const messagingCallsProbe: Probe = {
@@ -216,8 +227,7 @@ export const messagingCallsProbe: Probe = {
       const several = variables.size > 1;
       const names = new Set<string>();
       return [...variables].map(([variable, evidence]) => {
-        let name = (several ? nameFromVariable(kind, variable) : undefined) ?? defaultDependencyName(kind);
-        for (let suffix = 2; names.has(name); suffix += 1) name = `${defaultDependencyName(kind)}${suffix}`;
+        const name = several ? nameFromVariable(kind, variable, names) : defaultDependencyName(kind);
         names.add(name);
         return {
           name,

@@ -39,6 +39,13 @@ const run = async (files: Record<string, string>) => {
   }));
 };
 
+const railsPublisher = (calls: string) => ({
+  Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "aws-sdk-sns"\ngem "aws-sdk-sqs"\n',
+  'app/models/order.rb': `class Order\n  def placed!\n${calls}  end\nend\n`
+});
+const publish = (variable: string) => `    sns.publish(topic_arn: ENV.fetch('${variable}'), message: id.to_s)\n`;
+const send = (variable: string) => `    sqs.send_message(queue_url: ENV.fetch('${variable}'), message_body: id.to_s)\n`;
+
 // The variable is cited, and left to the source scan to bind to the services that read it.
 describe('the messaging-calls probe', () => {
   it.each([
@@ -116,7 +123,7 @@ describe('the messaging-calls probe', () => {
       await run({
         'app/notify.py':
           "sns = boto3.client('sns')\nsns.publish(TopicArn=os.environ['ORDERS_TOPIC_ARN'], Message='a')\nsns.publish(TopicArn=os.environ['REFUNDS_TOPIC_ARN'], Message='b')\nsns.publish(TopicArn=os.environ['ORDERS_TOPIC_ARN'], Message='c')\n",
-        // Names left with nothing of their own fall back to the kind's default name.
+        // A name with nothing of its own is the whole variable's.
         'app/jobs.py':
           "sqs.send_message(QueueUrl=os.environ['SQS_QUEUE_URL'], MessageBody='a')\nsqs.send_message(QueueUrl=os.environ['QUEUE_URL'], MessageBody='b')\n"
       })
@@ -134,13 +141,13 @@ describe('the messaging-calls probe', () => {
         evidence: [{ file: 'app/notify.py', quote: "os.environ['REFUNDS_TOPIC_ARN'" }]
       },
       {
-        name: 'jobQueue',
+        name: 'sqsQueueUrl',
         kind: 'queue',
         addressedBy: ['SQS_QUEUE_URL'],
         evidence: [{ file: 'app/jobs.py', quote: "os.environ['SQS_QUEUE_URL'" }]
       },
       {
-        name: 'jobQueue2',
+        name: 'queueUrl',
         kind: 'queue',
         addressedBy: ['QUEUE_URL'],
         evidence: [{ file: 'app/jobs.py', quote: "os.environ['QUEUE_URL'" }]
@@ -215,7 +222,8 @@ describe('the messaging-calls probe', () => {
       "import { PublishCommand } from '@aws-sdk/client-sns';\nexport const refunded = (id: string) => sns.send(new PublishCommand({ TopicArn: process.env.REFUNDS_TOPIC_ARN, Message: id }));\n"
   };
 
-  // r2pp: with a root `@aws-sdk/client-sns`, the manifest's one topic took both variables.
+  // r2pp: with a root `@aws-sdk/client-sns`, the manifest's one topic took both variables. Review of #385: a variable
+  // that named no resource of its own got the default name, which assembly folded into the other resource.
   it.each([
     [
       'a root package.json',
@@ -227,32 +235,49 @@ describe('the messaging-calls probe', () => {
         }),
         'server.js': "require('express')().listen(process.env.PORT ?? 3000);\n",
         ...twoPublishers
-      }
+      },
+      { ORDERS_TOPIC_ARN: 'ordersTopic', REFUNDS_TOPIC_ARN: 'refundsTopic' }
     ],
     [
       'a root Gemfile',
-      {
-        Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "aws-sdk-sns"\n',
-        'app/models/order.rb':
-          "class Order\n  def placed!\n    sns.publish(topic_arn: ENV.fetch('ORDERS_TOPIC_ARN'), message: id.to_s)\n  end\n  def refunded!\n    sns.publish(topic_arn: ENV.fetch('REFUNDS_TOPIC_ARN'), message: id.to_s)\n  end\nend\n"
-      }
+      railsPublisher(publish('ORDERS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { ORDERS_TOPIC_ARN: 'ordersTopic', REFUNDS_TOPIC_ARN: 'refundsTopic' }
+    ],
+    [
+      'a variable that names no topic of its own',
+      railsPublisher(publish('SNS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { REFUNDS_TOPIC_ARN: 'refundsTopic', SNS_TOPIC_ARN: 'snsTopicArn' }
+    ],
+    [
+      "a variable that reduces to the kind's default name",
+      railsPublisher(publish('NOTIFICATIONS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { NOTIFICATIONS_TOPIC_ARN: 'notificationsTopicArn', REFUNDS_TOPIC_ARN: 'refundsTopic' }
+    ],
+    [
+      'queues',
+      railsPublisher(send('SQS_QUEUE_URL') + send('JOB_QUEUE_URL') + send('REPORTS_QUEUE_URL')),
+      { JOB_QUEUE_URL: 'jobQueueUrl', REPORTS_QUEUE_URL: 'reportsQueue', SQS_QUEUE_URL: 'sqsQueueUrl' }
     ]
-  ])('two topic variables that publish calls target get a topic each, with %s', async (_label, files) => {
+  ])('each variable a call targets gets its own resource, with %s', async (_label, files, expected) => {
     const { facts, variables } = await assemble(files);
 
-    expect(facts.dependencies.filter(({ kind }) => kind === 'topic').map(({ name }) => name)).toEqual([
-      'ordersTopic',
-      'refundsTopic'
-    ]);
-    expect(variables).toEqual([
-      { name: 'ORDERS_TOPIC_ARN', role: 'infra-dependency', dependencyName: 'ordersTopic' },
-      { name: 'REFUNDS_TOPIC_ARN', role: 'infra-dependency', dependencyName: 'refundsTopic' }
-    ]);
+    const names = Object.values(expected).toSorted();
+    expect(
+      facts.dependencies
+        .filter(({ kind }) => kind === 'topic' || kind === 'queue')
+        .map(({ name }) => name)
+        .toSorted()
+    ).toEqual(names);
+    expect(variables).toEqual(
+      Object.entries(expected).map(([name, dependencyName]) => ({ name, role: 'infra-dependency', dependencyName }))
+    );
     const { config, gaps } = composeConfig({ facts });
     expect(
-      Object.entries(config.resources).flatMap(([name, { type }]) => (type === 'sns-topic' ? [name] : []))
-    ).toEqual(['ordersTopic', 'refundsTopic']);
-    expect(gaps.filter(({ subject }) => subject.includes('TOPIC'))).toEqual([]);
+      Object.entries(config.resources)
+        .flatMap(([name, { type }]) => (type === 'sns-topic' || type === 'sqs-queue' ? [name] : []))
+        .toSorted()
+    ).toEqual(names);
+    expect(gaps.filter(({ subject }) => /TOPIC|QUEUE/.test(subject))).toEqual([]);
   });
 
   it('an SNS or SQS client in package.json alone creates no resource, and the variables it would have taken get a gap', async () => {

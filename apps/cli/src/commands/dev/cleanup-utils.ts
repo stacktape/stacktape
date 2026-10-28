@@ -3,7 +3,6 @@
  * Prevents duplicate registrations when modules are imported multiple times.
  */
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 
@@ -108,7 +107,7 @@ export const isDevContainerOfProject = (
 
 /**
  * The dev containers `dev stop --cleanup-containers` may remove: every stopped container, and a running one only when
- * its session is known to be gone (its lock file is missing or no longer names its process, or that process exited).
+ * its session is known to be gone (the process it is labeled with exited).
  * A running container without owner labels comes from an older CLI; its session cannot be checked, so it stays.
  * `isInScope` limits the choice to one project's containers.
  */
@@ -127,14 +126,18 @@ export const selectRemovableDevContainers = (
     })
     .map(({ name }) => name);
 
-const isDevSessionAlive = ({ lockFile, pid }: { lockFile: string; pid: number }): boolean => {
+/**
+ * Whether the session that started a container still runs: its process does. r2rr: a lock file that was missing or
+ * named another process counted as proof that the session had ended, and a refused second start had deleted the live
+ * session's lock file, so cleanup removed its databases. A reused process ID keeps a container, which is the safe side.
+ */
+export const isDevSessionAlive = ({ pid }: { lockFile: string; pid: number }): boolean => {
   try {
-    const lock = JSON.parse(readFileSync(lockFile, 'utf-8')) as { pid?: unknown };
-    if (lock.pid !== pid) return false;
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // Another user's process: it exists.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 };
 

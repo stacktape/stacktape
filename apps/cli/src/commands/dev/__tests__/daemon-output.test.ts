@@ -180,7 +180,7 @@ test('a start on the port of a stopping daemon reports its own daemon, not the s
     command: { executable: process.execPath, args: [stopping, marker], cwd: directory }
   });
   expect(first).toMatchObject({ success: true, port: 7397 });
-  const firstStdout = outputFile(7397, 'stdout');
+  const firstFiles = readdirSync(join(directory, 'tokens')).filter((name) => name.startsWith('7397.'));
 
   const second = await spawnAgentDaemon({
     explicitArgs: {},
@@ -192,7 +192,9 @@ test('a start on the port of a stopping daemon reports its own daemon, not the s
   expect(existsSync(marker)).toBeTrue();
   expect(second).toMatchObject({ success: true, port: 7397 });
   expect(second.pid).not.toBe(first.pid);
-  // The earlier start's files are gone; only the current start's remain.
-  expect(existsSync(firstStdout)).toBeFalse();
-  expect(readdirSync(join(directory, 'tokens')).filter((name) => name.startsWith('7397.'))).toHaveLength(2);
+  // Each start has its own files, and the second start does not delete the first's.
+  expect(firstFiles).toHaveLength(2);
+  const files = readdirSync(join(directory, 'tokens')).filter((name) => name.startsWith('7397.'));
+  expect(files).toHaveLength(4);
+  expect(files).toEqual(expect.arrayContaining(firstFiles));
 });

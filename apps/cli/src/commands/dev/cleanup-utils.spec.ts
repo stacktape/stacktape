@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { getDevContainerName, selectRemovableDevContainers } from './cleanup-utils';
+import { spawn } from 'node:child_process';
+import { getDevContainerName, isDevSessionAlive, selectRemovableDevContainers } from './cleanup-utils';
 
 describe('dev container names', () => {
   test('projects and checkouts that share a stage and resource names get different containers', () => {
@@ -23,7 +24,7 @@ describe('dev container names', () => {
     const containers = [
       { name: 'stp-shop-dev-mainDatabase', state: 'running', ...live },
       { name: 'stp-shop-dev-cache', state: 'exited', ...live },
-      // The lock file is gone or names another process: the session that started it has ended.
+      // The process that started it has exited.
       { name: 'stp-blog-dev-mainDatabase', state: 'running', lockFile: '/work/blog/gone.json', pid: 4200 },
       { name: 'stp-blog-dev-cache', state: 'running', lockFile: live.lockFile, pid: 4300 },
       { name: 'stp-old-dev-db', state: 'created' },
@@ -36,5 +37,22 @@ describe('dev container names', () => {
       'stp-blog-dev-cache',
       'stp-old-dev-db'
     ]);
+  });
+
+  // r2rr: a refused second start deleted the live session's lock file, and cleanup then removed its databases.
+  test("a container's session is alive while its process runs, whatever its lock file says", async () => {
+    const session = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60_000)'], { stdio: 'ignore' });
+    const exited = new Promise((resolve) => session.once('exit', resolve));
+    try {
+      expect(
+        isDevSessionAlive({ lockFile: '/work/shop/.stacktape/dev-agents/missing.json', pid: session.pid! })
+      ).toBeTrue();
+    } finally {
+      session.kill('SIGKILL');
+    }
+    await exited;
+    expect(
+      isDevSessionAlive({ lockFile: '/work/shop/.stacktape/dev-agents/missing.json', pid: session.pid! })
+    ).toBeFalse();
   });
 });

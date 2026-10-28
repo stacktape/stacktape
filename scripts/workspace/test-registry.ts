@@ -4353,6 +4353,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/__tests__/rebuild-results.test.ts',
       'apps/cli/src/commands/dev/__tests__/daemon-output.test.ts',
       'apps/cli/src/commands/dev/__tests__/stopping-session.test.ts',
+      'apps/cli/src/commands/dev/__tests__/stage-sessions.test.ts',
       'apps/cli/src/commands/dev/__tests__/source-watcher.test.ts',
       'apps/cli/src/commands/dev/agent-logger.spec.ts',
       'apps/cli/src/commands/dev/frontend-env.spec.ts',
