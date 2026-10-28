@@ -15,6 +15,9 @@ import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
 import { globalStateManager } from '@application-services/global-state-manager';
 import type { ValidatedAwsCredentials } from '../../src/aws/credentials';
 import { getAgentTokenFile, startAgentServer, stopAgentServer } from '../../src/commands/dev/agent-server';
+import { initDevAgentCredentials } from '../../src/commands/dev/dev-agent-credentials';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { createDevNetworkAws } from '@domain-services/dev-network';
 import { ensureLeases, releaseStackLeases } from '@domain-services/dev-network/leases';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
@@ -106,6 +109,33 @@ test('dev network leases persist in Parameter Store and are released with their 
 }, 30_000);
 
 test('the dev agent exposes reviewed reads with redacted values and refuses mutations and secret reads', async () => {
+  // The agent reads AWS only through the dev stack's dev agent role, assumed with the selected credentials.
+  const account = ministack.account();
+  awsSdkManager.init({ ...ministack.clientConfig(account), region: 'eu-west-1', plugins: [] });
+  const agentRole = await iam.send(
+    new CreateRoleCommand({
+      RoleName: 'localdev-test-dev-agent',
+      AssumeRolePolicyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: { AWS: `arn:aws:iam::${account.accountId}:root` },
+            Action: 'sts:AssumeRole',
+            Condition: { StringEquals: { 'sts:ExternalId': 'test' } }
+          }
+        ]
+      })
+    })
+  );
+  Object.defineProperty(deployedStackOverviewManager, 'stackInfoMap', {
+    configurable: true,
+    value: {
+      customOutputs: { DevAgentRoleArn: agentRole.Role!.Arn },
+      metadata: { [stackMetadataNames.devAgentRoleExternalId()]: { value: 'test' } }
+    }
+  });
+  expect(initDevAgentCredentials()).toBe(true);
   await lambda.send(
     new UpdateFunctionConfigurationCommand({ FunctionName: functionName, Environment: { Variables: originals } })
   );
