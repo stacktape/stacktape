@@ -1,8 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
-import { tuiManager } from '@application-services/tui-manager';
 import { execDocker } from '@utils/docker';
 import { getDevContainerOwnerArgs } from '../cleanup-utils';
-import { ensureDir, remove } from 'fs-extra';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
@@ -28,6 +26,23 @@ const isIncompatibleMysqlDataError = (err: unknown): boolean => {
     message.includes('Unsupported redo log format') || message.includes('Unknown/unsupported storage engine: InnoDB')
   );
 };
+
+export const incompatibleMysqlDataError = ({
+  name,
+  engine,
+  version,
+  dataDir
+}: {
+  name: string;
+  engine: 'MySQL' | 'MariaDB';
+  version: string;
+  dataDir: string;
+}) =>
+  new Error(
+    `The local data of "${name}" in ${dataDir} was written by a ${engine} version that ${engine} ${version} cannot read, so the database did not start. Your data is unchanged. ` +
+      `To keep using it, set the version it was created with in the config. To start over with an empty database, restart with --fresh-db (this deletes the data). ` +
+      `To move the data to ${engine} ${version}, run the old version, dump the database with mysqldump, then switch the version, restart with --fresh-db and load the dump.`
+  );
 
 export const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `mysql://${user}:${pass}@${host}:${port}/${database}`;
@@ -149,17 +164,9 @@ export const startLocalMysql = async (
     if (!isIncompatibleMysqlDataError(err)) {
       throw err;
     }
-
-    tuiManager.warn(
-      `[${name}] Existing local ${isMaria ? 'MariaDB' : 'MySQL'} data is incompatible with version ${version}. Reinitializing local data directory.`
-    );
-
+    // The data stays: only --fresh-db deletes it, before the container starts (see `prepareLocalResource`).
     await removeContainerIfExists(containerName);
-    await remove(dataDir);
-    await ensureDir(dataDir);
-
-    actualPort = await findAvailablePort(port);
-    await runAndWaitUntilReady();
+    throw incompatibleMysqlDataError({ name, engine: isMaria ? 'MariaDB' : 'MySQL', version, dataDir });
   }
 
   const connInfo = buildConnectionInfo(user, pass, DEFAULT_LOCAL_HOST, actualPort, database);
