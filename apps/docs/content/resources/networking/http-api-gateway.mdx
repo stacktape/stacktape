@@ -149,7 +149,7 @@ This routes every request to a single Lambda. The framework inside the Lambda ha
 
 ### Route authorization
 
-Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
+Each HTTP API integration can optionally define an authorizer. Authorization runs before the integration. Rejection status depends on the authorizer and failure: IAM uses `403 Forbidden`, so do not assume every denial is `401`. Check the authorizer type and response mode. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
 
 ## CORS
 

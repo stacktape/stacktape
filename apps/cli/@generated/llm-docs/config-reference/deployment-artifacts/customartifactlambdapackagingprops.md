@@ -32,6 +32,7 @@ resources:
        properties:
          packagePath: ./dist/lambda.zip
          handler: index.js:handler
+     runtime: nodejs22.x
      memory: 512
 ```
 
@@ -49,6 +50,7 @@ export default defineConfig(() => {
        handler: 'index.js:handler'
      }
    },
+   runtime: 'nodejs22.x',
    memory: 512
  });
  return { resources: { apiFunction } };
@@ -62,9 +64,12 @@ export default defineConfig(() => {
 
 The handler function to be executed when the Lambda is invoked.
 
-The syntax is `{{filepath}}:{{functionName}}`.
+Required by CLI validation, alongside `runtime` on the Lambda resource. The type currently permits omission, but the CLI rejects it.
 
-Example: `my-lambda/index.js:default`
+The syntax is `{{filepath}}:{{functionName}}`. Put the handler file at the artifact root: directory paths are discarded.
+Native Java/.NET `::` handler strings are not accepted by this parser.
+
+Example: `index.js:default`
 
 ### Example 1 (yaml)
 
@@ -77,7 +82,8 @@ resources:
        type: custom-artifact
        properties:
          packagePath: ./dist/lambda.zip
-         handler: my-lambda/index.js:default
+         handler: index.js:default
+     runtime: nodejs22.x
      memory: 512
 ```
 
@@ -92,9 +98,10 @@ export default defineConfig(() => {
      type: 'custom-artifact',
      properties: {
        packagePath: './dist/lambda.zip',
-       handler: 'my-lambda/index.js:default'
+       handler: 'index.js:default'
      }
    },
+   runtime: 'nodejs22.x',
    memory: 512
  });
  return { resources: { apiFunction } };

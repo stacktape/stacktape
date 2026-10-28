@@ -189,7 +189,7 @@ export default defineConfig(() => {
 
 
 ```typescript
-export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   const batchItemFailures: Array<{ itemIdentifier: string }> = [];
   for (const record of event.Records) {
     try {
@@ -209,7 +209,7 @@ Turn it on only for handlers that return this shape. With the setting on, a hand
 Your Lambda handler receives the standard AWS Lambda SQS event — an object with a `Records` array. Each record contains the message `body` as a string, plus metadata like `messageId` and `attributes`.
 
 ```typescript
-export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   for (const record of event.Records) {
     const order = JSON.parse(record.body);
     console.info(`Processing order ${record.messageId}:`, order);

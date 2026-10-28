@@ -107,7 +107,7 @@ Set `payloadFormat` on the HTTP API integration when a Lambda handler needs a sp
 
 ### Authorization
 
-HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. When configured, unauthorized requests are rejected with a `401 Unauthorized` response before they reach your function — saving invocation costs and reducing attack surface. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
+HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. Authorization runs before the integration. Rejection status depends on the authorizer and failure: IAM uses `403 Forbidden`, so do not assume every denial is `401`. Check the authorizer type and response mode. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
 
 For routes that other AWS workloads or internal tools call, use `authorizer: { type: 'aws-iam' }`. Callers then sign each request with AWS Signature Version 4, using credentials allowed to call `execute-api:Invoke`; API Gateway rejects every other request with `403 Forbidden`.
 

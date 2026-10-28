@@ -7,7 +7,7 @@ seoDescription: 'Run your Stacktape app locally with database emulation, hot-rel
 
 # dev
 
-The `stacktape dev` command runs your application locally for development and debugging. It starts workloads on your machine, emulates databases and Redis locally using Docker, injects environment variables, secrets, and AWS credentials into running workloads, and streams logs from running dev workloads — giving you a production-like environment without full deployments.
+The `stacktape dev` command runs containers, frontends and supported database emulators on your machine. Lambda functions and Batch jobs run in AWS. Dev mode injects connection settings and credentials into workloads and streams their logs while you iterate on code.
 
 ## Usage
 
@@ -19,11 +19,11 @@ stacktape dev --stage dev-john --region eu-west-1
 
 ## What it does
 
-The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
+The `dev` command deploys a dev stack to AWS. It includes Lambda functions, Batch jobs and configured cloud resources allowed by the dev deployment policy, such as gateways, queues, topics and buckets. Selecting workloads does not limit all cloud resources to their dependencies. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
 
-- Runs containers, Lambda functions, and frontend workloads locally on your machine
+- Runs containers and frontend workloads locally; Lambda functions and Batch jobs execute in AWS
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
-- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions connect to deployed databases through `--remote-resources`
+- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions and Batch jobs reach them through the [dev network](/local-development/debugging-lambda-functions#the-dev-network). Use `--remote-resources` for deployed database connections
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
 
@@ -34,7 +34,6 @@ The `dev` command can run the following resource types locally:
 | Category | Resource types |
 |----------|---------------|
 | Containers | web-service, private-service, worker-service, multi-container-workload |
-| Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
 | Databases (locally emulated by default) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
@@ -42,7 +41,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Control which resources run in dev mode. Without these flags, an interactive picker appears. Use these flags to scope a dev session to a specific workload or container compute resource — for example, run just the API service while skipping a heavy database.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 
@@ -80,7 +79,7 @@ stacktape dev --stage dev --region eu-west-1 --remote-resources myPostgres
 
 ### --fresh-db
 
-Deletes existing local database data before starting. Use this to start with a clean database state.
+Deletes data, schema and local credential/identity files for databases prepared during startup, including deployed-workload relay dependencies that may be unselected. Other persisted databases are untouched. DynamoDB Local shares storage across tables, so resetting it removes every persisted table in that storage. See [reset scope](/local-development/local-databases#resetting-local-data).
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --fresh-db
@@ -104,7 +103,7 @@ stacktape dev --stage dev --region eu-west-1 --take-over
 
 ### --no-emulation
 
-Disables the automatic injection of parameters and credentials during local emulation. Use this flag when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first deploy.
+`--no-emulation` affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses the normal container role-credential and connection-variable paths. This flag does not make dev mode offline or suppress credential injection.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-emulation

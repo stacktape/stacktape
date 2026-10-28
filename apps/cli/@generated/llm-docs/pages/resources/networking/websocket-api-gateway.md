@@ -151,7 +151,7 @@ const client = new ApiGatewayManagementApiClient({
   endpoint: process.env.STP_REALTIME_MANAGEMENT_ENDPOINT
 });
 
-export const handler = async (event) => {
+export default async (event) => {
   await client.send(
     new PostToConnectionCommand({
       ConnectionId: event.requestContext.connectionId,
@@ -223,7 +223,7 @@ new WebSocketApiIntegration({
 ```
 
 ```ts
-export const handler = async () => ({
+export default async () => ({
   statusCode: 200,
   body: JSON.stringify({ status: 'ready' })
 });

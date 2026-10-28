@@ -124,6 +124,10 @@ A batch job supports four container image packaging types. Start with `js-bundle
 
 Use `container.environment` for runtime settings that belong to this job, such as feature flags or fixed paths. Use `$Secret()` or `$ResourceParam()` when a value should come from Stacktape directives instead of being hard-coded; see [directives](/configuration/directives) for the supported directive model.
 
+## Dev mode
+
+Batch jobs run in AWS Batch when triggered; they are not local processes. `--resources` and `--skip-resources` cannot select or skip them. Their images are built and pushed during dev startup, so restart dev mode after changing Batch code. Use a dev-specific configuration to omit a job or disable its triggers. A deployed job can reach local databases through the [dev network](/local-development/debugging-lambda-functions#the-dev-network), with its AWS costs, permissions and network round trip.
+
 ## Triggers
 
 A batch job can start from several event sources: HTTP API Gateway, Application Load Balancer, S3, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch Logs, schedules, and EventBridge event buses. Pick the trigger based on where the unit of work originates, and keep the job handler idempotent when the source can retry delivery.
@@ -142,6 +146,17 @@ A batch job can start from several event sources: HTTP API Gateway, Application 
 | `event-bus` | EventBridge events matching a pattern start the job |
 
 The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/resources/triggers/overview).
+
+### Reading trigger data
+
+The container receives the serialized trigger event in `STP_TRIGGER_EVENT_DATA`. Parse it in your process entrypoint. `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` are string environment variables describing this execution's attempt; this is a container process, not a Lambda `handler(event)` invocation.
+
+```typescript
+const event = JSON.parse(process.env.STP_TRIGGER_EVENT_DATA ?? '{}');
+const attempt = Number(process.env.STP_CURRENT_ATTEMPT ?? '1');
+const maximumAttempts = Number(process.env.STP_MAXIMUM_ATTEMPTS ?? '1');
+await processJob(event, { attempt, maximumAttempts });
+```
 
 ## Retries and timeout
 
@@ -179,7 +194,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`timeout` is measured in seconds; when a job exceeds it, the job is killed and retried if `retryConfig` is set. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. With `30` and `2`, waits grow from 30 seconds to 60 seconds to 120 seconds.
+`timeout` is measured in seconds; when a job exceeds it, the job is killed and retried if `retryConfig` is set. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. `attempts` includes the initial attempt. With the example's three attempts, interval `30` and multiplier `2`, the current implementation waits 60 seconds before attempt 2 and 120 seconds before attempt 3. Waits follow interval × failed-attempt number × multiplier; there is no wait after the final attempt.
 
 <Warning>Retries repeat the whole job attempt. Make job code idempotent before enabling multiple attempts for writes, imports, notifications, or any operation that can create duplicated side effects.</Warning>
 
@@ -322,7 +337,7 @@ Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Ki
 
 ### How much does a batch job cost?
 
-Cost depends on vCPU, memory, GPU needs, runtime, and whether on-demand or Spot capacity is used. The provided Fargate pricing data uses vCPU-hour and GB-hour billing, with continuous us-east-1 usage around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB. Because batch jobs are billed only while running, short jobs cost far less; see [optimization tips](/managing-costs/optimization-tips) for broader cost guidance.
+These jobs use managed EC2 or EC2 Spot capacity. Estimate cost from the selected EC2 instances and how long capacity stays running, including startup, drain and idle time, plus storage, networking and supporting services. Fargate per-vCPU/per-GB prices do not apply to this implementation. See [optimization tips](/managing-costs/optimization-tips) for broader guidance.
 
 ## API Reference
 

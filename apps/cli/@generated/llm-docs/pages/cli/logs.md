@@ -50,7 +50,7 @@ Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights 
 stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
-In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, the output is a JSON object containing the log group name, the query string, and the results array.
+In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, that JSON payload is text in a `type: "log"` record's `message` within the CLI NDJSON stream; the final `result` record is separate.
 
 ## Important flags
 
@@ -58,7 +58,7 @@ In Insights mode, non-agent output prints each result row with a highlighted tim
 
 Controls how far back to fetch logs. Accepts two formats:
 
-- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This is subtracted from the current time.
+- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This counts back from `--until`, or now when it is omitted.
 - **Absolute date** — any string the JavaScript `Date` constructor accepts, such as `2026-05-28T14:00:00Z`.
 
 When omitted, defaults to 1 hour ago.
@@ -117,17 +117,19 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 ### agent
 
-Optimizes CLI output for programmatic and LLM consumption. For `stacktape logs`, `--agent` makes the command print a JSON object instead of formatted terminal text. In standard mode, the output structure matches `--raw` — a JSON object with `logGroup` and `events`. In Insights mode, the output is a JSON object with `logGroup`, `query`, and `results`.
+`--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
 ```
 
+`--until` bounds Insights queries and the initial follow backlog, and anchors a relative `--since`. The ordinary one-shot fetch currently does not enforce it as an upper bound, and following continues beyond that time.
+
 ## Output format
 
 In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
 
-Both `--raw` and `--agent` produce a JSON object with this structure for standard log retrieval:
+`--raw` prints this JSON object for standard retrieval. With `--agent`, this is the payload encoded as text in a log record's `message`:
 
 ```json
 {
@@ -142,7 +144,7 @@ Both `--raw` and `--agent` produce a JSON object with this structure for standar
 }
 ```
 
-In Insights mode with `--agent`, the output includes the query and results:
+In Insights mode with `--agent`, the log record's JSON message payload includes the query and results:
 
 ```json
 {
@@ -155,7 +157,7 @@ In Insights mode with `--agent`, the output includes the query and results:
 ```
 
 
-> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, this is `{"logGroup": "...", "events": []}`.
+> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, a log record's `message` contains `{"logGroup": "...", "events": []}`; the final result remains separate.
 
 
 ## How log group resolution works
@@ -216,7 +218,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
+| `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
 | `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -227,7 +229,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--query` | no | `string` | Logs Query — CloudWatch Logs Insights query string. Example: "fields @timestamp, @message \| filter @message like /ERROR/ \| limit 50" | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--raw` | no | `boolean` | Raw — If `true`, prints logs in raw JSON format instead of pretty-printing them. | - |
-| `--since` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
+| `--since` | no | `number \| string` | Start Time — The query start time: a relative duration such as `30m`, an ISO timestamp or a supported numeric date value. Relative durations count back from `--until` (now by default). | - |
 
 
 ## Related commands
@@ -261,4 +263,4 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-In standard mode both produce the same JSON (`logGroup` and `events` fields), so either works for scripting and piping to `jq`. The gotcha is Insights mode: `--raw` is not honored there, so to get the full JSON object with `logGroup`, `query`, and `results` from a `--query` run you must use `--agent`.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.

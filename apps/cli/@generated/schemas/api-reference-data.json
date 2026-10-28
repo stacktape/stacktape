@@ -22723,11 +22723,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     memory: 512"
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     runtime: nodejs22.x\n     memory: 512"
           },
           {
             "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
       },
@@ -22735,7 +22735,7 @@
         "name": "handler",
         "required": false,
         "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-        "longDescription": "<p>The syntax is <code>{{filepath}}:{{functionName}}</code>.</p>\n<p>Example: <code>my-lambda/index.js:default</code></p>",
+        "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -22745,11 +22745,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: my-lambda/index.js:default\n         # [!code focus-end]\n     memory: 512"
+            "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
           },
           {
             "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'my-lambda/index.js:default'\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
           }
         ]
       }
@@ -23504,11 +23504,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -23516,7 +23516,7 @@
                   "name": "handler",
                   "required": false,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>The syntax is <code>{{filepath}}:{{functionName}}</code>.</p>\n<p>Example: <code>my-lambda/index.js:default</code></p>",
+                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -23526,11 +23526,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: my-lambda/index.js:default\n         # [!code focus-end]\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'my-lambda/index.js:default'\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -25016,11 +25016,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -25028,7 +25028,7 @@
                   "name": "handler",
                   "required": false,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>The syntax is <code>{{filepath}}:{{functionName}}</code>.</p>\n<p>Example: <code>my-lambda/index.js:default</code></p>",
+                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -25038,11 +25038,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: my-lambda/index.js:default\n         # [!code focus-end]\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'my-lambda/index.js:default'\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -27766,11 +27766,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -27778,7 +27778,7 @@
                   "name": "handler",
                   "required": false,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>The syntax is <code>{{filepath}}:{{functionName}}</code>.</p>\n<p>Example: <code>my-lambda/index.js:default</code></p>",
+                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -27788,11 +27788,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: my-lambda/index.js:default\n         # [!code focus-end]\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'my-lambda/index.js:default'\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -36625,11 +36625,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         # [!code focus-start]\n         packagePath: ./dist/lambda.zip\n         # [!code focus-end]\n         handler: index.js:handler\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       // [!code focus-start]\n       packagePath: './dist/lambda.zip',\n       // [!code focus-end]\n       handler: 'index.js:handler'\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 },
@@ -36637,7 +36637,7 @@
                   "name": "handler",
                   "required": false,
                   "shortDescription": "<p> The handler function to be executed when the Lambda is invoked.</p>",
-                  "longDescription": "<p>The syntax is <code>{{filepath}}:{{functionName}}</code>.</p>\n<p>Example: <code>my-lambda/index.js:default</code></p>",
+                  "longDescription": "<p>Required by CLI validation, alongside <code>runtime</code> on the Lambda resource. The type currently permits omission, but the CLI rejects it.</p>\n<p>The syntax is <code>{{filepath}}:{{functionName}}</code>. Put the handler file at the artifact root: directory paths are discarded.\nNative Java/.NET <code>::</code> handler strings are not accepted by this parser.</p>\n<p>Example: <code>index.js:default</code></p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -36647,11 +36647,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: my-lambda/index.js:default\n         # [!code focus-end]\n     memory: 512"
+                      "code": "resources:\n apiFunction:\n   type: function\n   properties:\n     packaging:\n       type: custom-artifact\n       properties:\n         packagePath: ./dist/lambda.zip\n         # [!code focus-start]\n         handler: index.js:default\n         # [!code focus-end]\n     runtime: nodejs22.x\n     memory: 512"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'my-lambda/index.js:default'\n       // [!code focus-end]\n     }\n   },\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'custom-artifact',\n     properties: {\n       packagePath: './dist/lambda.zip',\n       // [!code focus-start]\n       handler: 'index.js:default'\n       // [!code focus-end]\n     }\n   },\n   runtime: 'nodejs22.x',\n   memory: 512\n });\n return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }

@@ -1,6 +1,6 @@
 # dev
 
-The `stacktape dev` command runs your application locally for development and debugging. It starts workloads on your machine, emulates databases and Redis locally using Docker, injects environment variables, secrets, and AWS credentials into running workloads, and streams logs from running dev workloads — giving you a production-like environment without full deployments.
+The `stacktape dev` command runs containers, frontends and supported database emulators on your machine. Lambda functions and Batch jobs run in AWS. Dev mode injects connection settings and credentials into workloads and streams their logs while you iterate on code.
 
 ## Usage
 
@@ -20,9 +20,9 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--no-emulation` | no | `boolean` | Disable Emulation — Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed. | - |
+| `--no-emulation` | no | `boolean` | Disable Emulation — Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection. | - |
 | `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
-| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes existing local database data before starting. Use this to start with a clean database state. | - |
+| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--no-tunnel` | no | `boolean` | No Tunnel — Disables tunnels from deployed Lambda functions to your locally emulated databases. Without this flag, functions that use a local database reach it through the dev box of your account's dev network, over an encrypted AWS Systems Manager session from your machine. With it, they cannot reach local databases; use `--remote-resources` to connect them to the deployed databases instead. VPC functions still run in the dev network. | - |
@@ -31,19 +31,19 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
-| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
+| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
 | `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
 
 ## What it does
 
-The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
+The `dev` command deploys a dev stack to AWS. It includes Lambda functions, Batch jobs and configured cloud resources allowed by the dev deployment policy, such as gateways, queues, topics and buckets. Selecting workloads does not limit all cloud resources to their dependencies. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
 
-- Runs containers, Lambda functions, and frontend workloads locally on your machine
+- Runs containers and frontend workloads locally; Lambda functions and Batch jobs execute in AWS
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
-- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions connect to deployed databases through `--remote-resources`
+- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions and Batch jobs reach them through the [dev network](/local-development/debugging-lambda-functions#the-dev-network). Use `--remote-resources` for deployed database connections
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
 
@@ -54,7 +54,6 @@ The `dev` command can run the following resource types locally:
 | Category | Resource types |
 |----------|---------------|
 | Containers | web-service, private-service, worker-service, multi-container-workload |
-| Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
 | Databases (locally emulated by default) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
@@ -62,7 +61,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Control which resources run in dev mode. Without these flags, an interactive picker appears. Use these flags to scope a dev session to a specific workload or container compute resource — for example, run just the API service while skipping a heavy database.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 
@@ -100,7 +99,7 @@ stacktape dev --stage dev --region eu-west-1 --remote-resources myPostgres
 
 ### --fresh-db
 
-Deletes existing local database data before starting. Use this to start with a clean database state.
+Deletes data, schema and local credential/identity files for databases prepared during startup, including deployed-workload relay dependencies that may be unselected. Other persisted databases are untouched. DynamoDB Local shares storage across tables, so resetting it removes every persisted table in that storage. See [reset scope](/local-development/local-databases#resetting-local-data).
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --fresh-db
@@ -124,7 +123,7 @@ stacktape dev --stage dev --region eu-west-1 --take-over
 
 ### --no-emulation
 
-Disables the automatic injection of parameters and credentials during local emulation. Use this flag when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first deploy.
+`--no-emulation` affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses the normal container role-credential and connection-variable paths. This flag does not make dev mode offline or suppress credential injection.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-emulation

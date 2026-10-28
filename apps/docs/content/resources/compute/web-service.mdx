@@ -447,6 +447,8 @@ Use the built-in web service side-container model when one main public container
 
 ## EFS storage
 
+`volumeMounts`, `rootDirectory` and `readOnly` configure the deployed ECS task. `stacktape dev` does not automatically mount or emulate EFS volumes. Use explicit local test storage when needed, and verify EFS persistence, directory isolation and read-only enforcement in a deployed stage.
+
 A Stacktape web service can mount an [EFS filesystem](/resources/storage/efs-filesystem) when data must survive container replacement. EFS is useful for shared uploads, generated files, or model artifacts that are too large or slow to fetch repeatedly; skip EFS when data can live in S3, a database, memory, or the container filesystem.
 
 <CodeBlock

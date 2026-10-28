@@ -2,16 +2,16 @@
 title: 'Local Databases'
 order: 118
 seoTitle: 'Local Databases in Dev Mode | Stacktape Docs'
-seoDescription: 'Run relational databases, Redis, DynamoDB, and OpenSearch locally in Docker during Stacktape dev mode. Persistent data, automatic connection strings, zero AWS cost.'
+seoDescription: 'Run relational databases, Redis, DynamoDB, and OpenSearch locally in Docker during Stacktape dev mode. Persistent data and automatic connection strings for local clients and deployed workloads.'
 ---
 
 # Local Databases
 
-Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker containers so you can develop without deploying or paying for AWS resources. Data persists between sessions, local connection information is exposed to your workloads, and no manual Docker setup is required. To test against the deployed AWS instance instead, set `dev.remote: true` on the database resource.
+Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker, avoiding the corresponding AWS database service. Dev-stack resources and the [dev network](/local-development/debugging-lambda-functions#the-dev-network) can still incur AWS charges. Data persists between sessions and workloads receive connection settings automatically. Use `dev.remote: true` to connect to the deployed database instead.
 
 ## When to use local databases
 
-Local databases are the default and recommended path for day-to-day development. They start in seconds, have zero network latency, cost nothing, and isolate each developer's data. Use local databases when you are iterating on application logic, testing schema migrations, or prototyping new features.
+Local databases are the default for day-to-day development and isolate each developer's data. Local clients connect on your machine. Lambda and Batch clients in AWS reach them through the dev network and incur a cloud-to-machine round trip. Use local databases for application logic, migrations and prototypes; test cloud-specific behavior against deployed resources.
 
 ## When NOT to use local databases
 
@@ -275,23 +275,21 @@ export default defineConfig(() => {
 - **DynamoDB advanced features** — Streams, Global Tables, TTL, and backups are only available on the deployed resource.
 - **Shared development database** — when multiple developers need to see the same state.
 
-For most day-to-day development, local databases are faster (no network latency), free (no AWS charges), and isolated (no risk of corrupting shared data).
+Local emulation avoids AWS database service charges and isolates test data. Deployed clients still use the dev network, with its network latency and AWS costs.
 
 ## Resetting local data
 
-Data from local databases persists across dev sessions in a local data directory mounted into the container. The primary way to reset all local databases is the `--fresh-db` flag:
+Data persists across sessions in host directories mounted into the containers. Use `--fresh-db` to reset databases that startup prepares:
 
 ```bash
 stacktape dev --fresh-db
 ```
 
-This deletes the data directory for every local database before starting, giving you a clean state. Note that `--fresh-db` resets **all** local databases for the stage, not just one.
+`--fresh-db` deletes data, schema and local password/identity files when startup prepares a database. This includes selected databases and databases prepared for deployed-workload relay connections, which can include unselected resources. Databases never prepared are untouched; this is not a stage-wide wipe. The stage password can be reused, so it does not promise a new password.
 
-To reset a single resource selectively, stop dev mode, delete that resource's data directory, and restart. Data is stored at `.stacktape/dev-data/<stage>/<resourceName>/data/` relative to your project root. For example, to reset only a database named `mainDb` on stage `dev-john`:
+Relational databases, Redis and OpenSearch store data under `.stacktape/dev-data/<stage>/<resourceName>/data/`. Stop dev mode before manually removing one of these data directories.
 
-```bash
-rm -rf .stacktape/dev-data/dev-john/mainDb/data
-```
+All DynamoDB Local tables share `.stacktape/dev-data/<stage>/dynamodb-local/data/`. Preparing any local DynamoDB table with `--fresh-db` removes every persisted table in that storage, even tables not selected this time. For a table-specific item reset that preserves schema, use the [local reset endpoint](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) or MCP `reset_db` with the table's `resource` name and `confirm: true`.
 
 <Tip>
 Add `.stacktape/` to your `.gitignore` to avoid committing local database data to version control.
@@ -313,7 +311,7 @@ Oracle and SQL Server engines are not mapped to a local container type. MongoDB 
 
 ### Does local database data persist when I restart dev mode?
 
-Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --fresh-db`. It deletes the data, and the databases start empty with the stage's generated password.
+Yes. Local data survives restarts. `--fresh-db` resets databases prepared during startup, including relay dependencies, and removes their local credential/identity files. DynamoDB Local tables share storage, so resetting it removes every persisted table there. See [reset scope](#resetting-local-data).
 
 ### Can I run multiple stages locally at the same time?
 

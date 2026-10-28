@@ -315,13 +315,15 @@ The Lambda handler receives the event payload — either the default EventBridge
 ```typescript
 import type { ScheduledHandler } from 'aws-lambda';
 
-export const handler: ScheduledHandler = async (event) => {
+const handler: ScheduledHandler = async (event) => {
   console.info('Scheduled invocation', JSON.stringify(event));
 
   // Perform the periodic task
   const deleted = await deleteExpiredSessions();
   console.info(`Cleaned up ${deleted} expired sessions`);
 };
+
+export default handler;
 ```
 
 When using a fixed `input`, the `event` parameter contains exactly the JSON value you specified. You can use the `ScheduledHandler` type from `aws-lambda` for type-safe handling of the default EventBridge event, or use `any` when passing custom input shapes.

@@ -202,7 +202,7 @@ The [`stacktape bastion shell`](/cli/bastion-session) command opens an interacti
 
 ### How do I view real-time logs as they arrive?
 
-The `logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `logs` with a short `--since` window (e.g. `--since 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
+In a terminal, `stacktape logs` shows recent events and follows new lines by default. Use `--follow=false` for a snapshot. Piped, redirected and agent runs take snapshots unless `--follow` is requested. For the development workflow, see [dev mode](/local-development/dev-mode-overview).
 
 ### Can I use debug commands with dev mode stacks?
 

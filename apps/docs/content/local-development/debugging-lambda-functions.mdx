@@ -13,7 +13,7 @@ Stacktape [dev mode](/local-development/dev-mode-overview) runs Lambda functions
 
 Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev stack and execute on AWS Lambda. Unlike [container workloads](/local-development/debugging-containers) that run locally in Docker, Lambda functions run in their real cloud environment. This surfaces issues that local emulation would miss — you test against AWS Lambda rather than a local approximation.
 
-Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Subsequent runs reuse the existing dev stack, making startup faster. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
+Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Unchanged starts reuse the existing dev stack. Restarting after cloud configuration or cloud-image changes, or with missing required outputs, can update it. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
 
 1. **Load config** — Stacktape reads your configuration and discovers dev-compatible resources (functions, containers, databases)
 2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skip-resources` flags
@@ -41,7 +41,7 @@ stacktape dev --stage dev --resources myApi,myWorker
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --skip-resources heavyBatchJob
+stacktape dev --stage dev --skip-resources myWorker
 ```
 
 Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
@@ -81,11 +81,11 @@ The `memory` property sets the function's memory allocation in MB — AWS Lambda
 
 ### First-time setup
 
-The first run deploys a dev stack, which takes longer than subsequent runs. If the target stage already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)), dev mode refuses to overwrite it and asks you to use a different stage name. A failed or in-progress non-dev stack may be auto-deleted and recreated as a dev stack when it appears to belong to a dev/local stage or lacks the Stacktape stack-info metadata.
+The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. Other rollback statuses need their corresponding CloudFormation recovery path.
 
 Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`.
 
-<Warning>Dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against a healthy `production` deployment will be rejected. Always use a separate stage name for dev mode.</Warning>
+<Warning>Dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against an existing `production` deployment will be rejected. Always use a separate stage name for dev mode.</Warning>
 
 If your config includes `beforeDev` [hooks](/configuration/hooks-and-scripts) with a `scriptName`, dev mode registers those hook names in the dev TUI during startup.
 
@@ -261,7 +261,7 @@ Lambda functions in dev mode run on AWS infrastructure rather than locally, so t
 Lambda functions run on AWS during dev mode, so the primary debugging approach is structured logging rather than local debugger attachment. The tradeoff is high-fidelity testing against the real Lambda runtime. Structured logging is the most effective debugging approach — add JSON log statements at key points in your function. The dev TUI shows them during the session, and you can query them later with [`stacktape logs`](/cli/logs).
 
 ```typescript
-export const handler = async (event: any) => {
+export default async (event: any) => {
   console.info(JSON.stringify({
     action: 'request_received',
     path: event.path,
@@ -302,10 +302,10 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 
 | Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
-| Log delivery | Streamed in the dev TUI | Historical fetch from CloudWatch |
+| Log delivery | Streamed in the dev TUI | Follows CloudWatch logs in a terminal by default; `--follow=false` takes a snapshot |
 | Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
 | Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
-| Interaction model | Interactive TUI with keyboard commands | Single CLI command |
+| Interaction model | Interactive TUI with keyboard commands | Follows until stopped, or exits after a snapshot |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
 | Best for | Active development and rapid iteration | Investigating issues in deployed stages |
@@ -324,11 +324,11 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skip-resources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
+Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions dev mode builds and watches. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
 
 ### Why does dev mode refuse to start on my stage?
 
-Dev mode and full deployments share the same stage namespace, so running `stacktape dev` against a stage that already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)) is rejected to avoid overwriting it. Use a dedicated stage name like `dev`, `dev-local`, or `dev-jane`.
+Dev mode refuses any stack it did not create, regardless of name or status. Use a dedicated stage such as `dev-jane`. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before restarting; see [first-time setup](#first-time-setup).
 
 ### How do my local databases connect to functions running on AWS?
 
@@ -340,4 +340,4 @@ Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges
 
 ### How do I view logs from a Lambda function that's already deployed?
 
-Use [`stacktape logs`](/cli/logs) with `--resource-name` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
+Use [`stacktape logs`](/cli/logs) with `--resource-name` and `--stage` to fetch CloudWatch logs from any deployed stage. In a terminal, it shows the last hour of logs (up to 100 events), then follows new lines. Use `--follow=false` for a snapshot; piped, redirected and agent runs take snapshots unless `--follow` is requested. Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).

@@ -87,7 +87,7 @@ Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-ov
 Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, rebuilds, stop, and local database inspection. It provides structured JSON endpoints for:
 
 - **Status checks** — workload health, ports, and readiness phase (`starting`, `ready`, `rebuilding`, `stopping`, `stopped`)
-- **Log reading** — log text with cursor-based pagination for incremental reads
+- **Log reading** — HTTP `GET /logs` returns the local JSONL file path. Read the file for raw HTTP integration; MCP `stacktape_dev` with `action: "logs"` reads it and provides cursor pagination and filters
 - **Workload rebuilds** — trigger rebuilds of specific workloads or all workloads after code changes
 - **Database queries** — execute SQL, Redis commands, and DynamoDB operations against locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases
 

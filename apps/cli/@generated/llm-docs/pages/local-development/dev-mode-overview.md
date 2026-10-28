@@ -4,7 +4,7 @@ Stacktape dev mode ([`stacktape dev`](/cli/dev)) runs your workloads locally whi
 
 ## How dev mode works
 
-Dev mode splits your stack between your local machine and AWS. Container workloads run in Docker, frontends run through their framework dev servers, and locally-emulated databases run in Docker containers — while Lambda functions deploy directly to AWS. The first run deploys a dev stack to your AWS account. Subsequent runs reuse the existing stack.
+Dev mode splits your stack between your local machine and AWS. Container workloads run in Docker, frontends run through their framework dev servers, and locally-emulated databases run in Docker containers — while Lambda functions deploy directly to AWS. The first run deploys a dev stack to your AWS account. Unchanged starts reuse the existing stack. A restart can update it after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 | Resource type | Where it runs | Mechanism |
 |---|---|---|
@@ -27,13 +27,13 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Check references** — Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
 4. **Load AWS metadata** — Stacktape fetches stack information from AWS.
-5. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config. A database password that dev mode generates is scheduled for deletion with the stage by `stacktape delete`, unless another stage has used it; a deployment or dev session that needs it within 7 days restores it.
+5. **Ensure secrets and SSM parameters** — Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Generated dev database secrets are owned by the stage unless another stage uses them; deletion schedules them for seven-day recovery. See [secret ownership](/local-development/debugging-lambda-functions#the-dev-network).
 6. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
-7. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
+7. **Deploy dev stack** — Create the stack if missing, or update it when cloud configuration, cloud images or required outputs change. Otherwise reuse it.
 8. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 
 
-> **Info:** After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
+> **Info:** Unchanged starts skip the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
 
 
 ## Running dev mode
@@ -112,7 +112,7 @@ Local database data persists between dev mode sessions under `.stacktape/dev-dat
 
 ### Start with a fresh database
 
-Use `--fresh-db` when you want dev mode to start local databases from a fresh state:
+Use `--fresh-db` to reset databases prepared during startup, including relay dependencies. DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data).
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --fresh-db
@@ -172,13 +172,17 @@ A workload whose rebuild fails, for example because of a syntax error, shows the
 
 That start updates the dev stack only when the change reaches it. Changing how a local container is built or started (its `packaging`, including `startCommand`), a frontend's `dev` settings or a local script restarts only what runs on your machine. When the dev stack is updated, functions whose code did not change keep their deployed code.
 
+### Local EFS storage
+
+Configured EFS mounts are not mounted or emulated on local containers. Use explicit local test storage and verify the deployed [EFS configuration](/resources/compute/web-service#efs-storage) in a deployed stage.
+
 ## Lifecycle hooks
 
 Dev mode registers configured `beforeDev` script hooks and displays them in the dev TUI. See [Hooks and scripts](/configuration/hooks-and-scripts) for configuration details, hook types, and the full execution model.
 
 ## Dev stack isolation
 
-Dev mode creates a dedicated dev stack and refuses to reuse a healthy stack created by a full deployment. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
+Dev mode creates a dedicated dev stack and refuses to reuse any stack it did not create, regardless of name or status. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
 
 
 > **Warning:** Dev mode only updates a stack that `stacktape dev` created. It marks every dev stack with the stack tag `stp:dev-stack`, and refuses any other stack on the stage, whatever its name or status: use a different stage name, or delete that stack with `stacktape delete --stage <stage>` yourself. Dev mode never deletes a stack.
@@ -196,7 +200,7 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
+When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. A Lambda build or deploy failure can leave the session running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; fix the code and rebuild. A failure that aborts startup is reported separately. Inspect the returned session and status before starting another agent.
 
 While the agent starts, the command prints its progress as JSONL `event` lines: the agent's port first, then the dev network, the dev box, the dev stack deployment with CloudFormation resource counts, and each workload and database. A first start that creates the dev network and the dev stack takes several minutes, and a heartbeat line every 20 seconds names the step it waits for.
 
@@ -231,7 +235,7 @@ Yes. Dev mode uses Docker to run container workloads and emulated databases loca
 
 ### Which resource types does dev mode support, and what isn't emulated locally?
 
-Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) run in the dev stack when the selected workloads need them.
+Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) run in the dev stack according to the dev deployment policy, rather than only when selected workloads need them. Batch jobs also run in AWS; restart dev mode to rebuild their images.
 
 ### How do Lambda functions connect to local databases in dev mode?
 
@@ -239,7 +243,7 @@ Through the dev box of your account's dev network. Functions connect to the box'
 
 ### How do I reset my local database data?
 
-Use the `--fresh-db` flag: `stacktape dev --stage dev --region us-east-1 --fresh-db`. This starts local databases from a fresh state. Without this flag, local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
+Use the `--fresh-db` flag: `stacktape dev --stage dev --region us-east-1 --fresh-db`. This resets databases prepared during startup, including relay dependencies that may be unselected; DynamoDB Local tables share storage. See [reset scope](/local-development/local-databases#resetting-local-data). Without this flag, local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
 
 ### What is the difference between dev mode and deploying to a dev stage?
 

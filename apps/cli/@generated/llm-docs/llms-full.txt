@@ -3570,7 +3570,7 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 Source: `apps/docs/content/cli/dev.mdx`
 Route: `/cli/dev`
 
-The `stacktape dev` command runs your application locally for development and debugging. It starts workloads on your machine, emulates databases and Redis locally using Docker, injects environment variables, secrets, and AWS credentials into running workloads, and streams logs from running dev workloads — giving you a production-like environment without full deployments.
+The `stacktape dev` command runs containers, frontends and supported database emulators on your machine. Lambda functions and Batch jobs run in AWS. Dev mode injects connection settings and credentials into workloads and streams their logs while you iterate on code.
 
 ## Usage
 
@@ -3590,9 +3590,9 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--no-emulation` | no | `boolean` | Disable Emulation — Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed. | - |
+| `--no-emulation` | no | `boolean` | Disable Emulation — Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection. | - |
 | `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
-| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes existing local database data before starting. Use this to start with a clean database state. | - |
+| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--no-tunnel` | no | `boolean` | No Tunnel — Disables tunnels from deployed Lambda functions to your locally emulated databases. Without this flag, functions that use a local database reach it through the dev box of your account's dev network, over an encrypted AWS Systems Manager session from your machine. With it, they cannot reach local databases; use `--remote-resources` to connect them to the deployed databases instead. VPC functions still run in the dev network. | - |
@@ -3601,19 +3601,19 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
-| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skip-resources` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
+| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
 | `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
 
 ## What it does
 
-The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
+The `dev` command deploys a dev stack to AWS. It includes Lambda functions, Batch jobs and configured cloud resources allowed by the dev deployment policy, such as gateways, queues, topics and buckets. Selecting workloads does not limit all cloud resources to their dependencies. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
 
-- Runs containers, Lambda functions, and frontend workloads locally on your machine
+- Runs containers and frontend workloads locally; Lambda functions and Batch jobs execute in AWS
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
-- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions connect to deployed databases through `--remote-resources`
+- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions and Batch jobs reach them through the [dev network](/local-development/debugging-lambda-functions#the-dev-network). Use `--remote-resources` for deployed database connections
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
 
@@ -3624,7 +3624,6 @@ The `dev` command can run the following resource types locally:
 | Category | Resource types |
 |----------|---------------|
 | Containers | web-service, private-service, worker-service, multi-container-workload |
-| Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
 | Databases (locally emulated by default) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
@@ -3632,7 +3631,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Control which resources run in dev mode. Without these flags, an interactive picker appears. Use these flags to scope a dev session to a specific workload or container compute resource — for example, run just the API service while skipping a heavy database.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 
@@ -3670,7 +3669,7 @@ stacktape dev --stage dev --region eu-west-1 --remote-resources myPostgres
 
 ### --fresh-db
 
-Deletes existing local database data before starting. Use this to start with a clean database state.
+Deletes data, schema and local credential/identity files for databases prepared during startup, including deployed-workload relay dependencies that may be unselected. Other persisted databases are untouched. DynamoDB Local shares storage across tables, so resetting it removes every persisted table in that storage. See [reset scope](/local-development/local-databases#resetting-local-data).
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --fresh-db
@@ -3694,7 +3693,7 @@ stacktape dev --stage dev --region eu-west-1 --take-over
 
 ### --no-emulation
 
-Disables the automatic injection of parameters and credentials during local emulation. Use this flag when you want to run a compute resource locally before the corresponding deployed resource exists — for example, during initial development before your first deploy.
+`--no-emulation` affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses the normal container role-credential and connection-variable paths. This flag does not make dev mode offline or suppress credential injection.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --no-emulation
@@ -5197,11 +5196,9 @@ Where a starter project's files are placed.
 > **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
 
 
-## Your existing configuration is never overwritten
+## Existing and generated configuration files
 
-If the project already has a `stacktape.yml` or `stacktape.ts`, `init` does not touch it. The new
-configuration is written beside it as `stacktape.generated.yml` (or `.ts`), and both the wizard and the
-terminal tell you so. Deploy the generated one with `--config`, or merge it in yourself:
+Init preserves `stacktape.yml`, `stacktape.yaml` and `stacktape.ts`. When one exists, it writes `stacktape.generated.yml` or `.ts` beside it, replacing any previous file at that generated path. Review or save edits to an existing generated file before rerunning init. For a TypeScript config in a project with `package.json`, init also adds or updates the `stacktape` dependency to match the CLI and prints the install command; it does not run the package manager. Deploy the generated config with `--config`, or merge it yourself:
 
 ```bash
 stacktape deploy \
@@ -5312,8 +5309,7 @@ confirmation is a file on your disk or a read-only AWS check.
 
 ### Will init overwrite files in my project?
 
-It writes exactly one file, and never on top of an existing configuration — see above. The one
-destructive flag is `--initialize-project-to`, which empties the directory you point it at.
+Init preserves canonical config files but can replace a previous `stacktape.generated.yml` or `.ts` and update the `stacktape` dependency in `package.json`; see [existing and generated configuration files](#existing-and-generated-configuration-files). The `--initialize-project-to` flag empties the target directory before placing a starter project there.
 
 ---
 
@@ -5564,7 +5560,7 @@ Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights 
 stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
-In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, the output is a JSON object containing the log group name, the query string, and the results array.
+In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, that JSON payload is text in a `type: "log"` record's `message` within the CLI NDJSON stream; the final `result` record is separate.
 
 ## Important flags
 
@@ -5572,7 +5568,7 @@ In Insights mode, non-agent output prints each result row with a highlighted tim
 
 Controls how far back to fetch logs. Accepts two formats:
 
-- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This is subtracted from the current time.
+- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This counts back from `--until`, or now when it is omitted.
 - **Absolute date** — any string the JavaScript `Date` constructor accepts, such as `2026-05-28T14:00:00Z`.
 
 When omitted, defaults to 1 hour ago.
@@ -5631,17 +5627,19 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 ### agent
 
-Optimizes CLI output for programmatic and LLM consumption. For `stacktape logs`, `--agent` makes the command print a JSON object instead of formatted terminal text. In standard mode, the output structure matches `--raw` — a JSON object with `logGroup` and `events`. In Insights mode, the output is a JSON object with `logGroup`, `query`, and `results`.
+`--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
 ```
 
+`--until` bounds Insights queries and the initial follow backlog, and anchors a relative `--since`. The ordinary one-shot fetch currently does not enforce it as an upper bound, and following continues beyond that time.
+
 ## Output format
 
 In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
 
-Both `--raw` and `--agent` produce a JSON object with this structure for standard log retrieval:
+`--raw` prints this JSON object for standard retrieval. With `--agent`, this is the payload encoded as text in a log record's `message`:
 
 ```json
 {
@@ -5656,7 +5654,7 @@ Both `--raw` and `--agent` produce a JSON object with this structure for standar
 }
 ```
 
-In Insights mode with `--agent`, the output includes the query and results:
+In Insights mode with `--agent`, the log record's JSON message payload includes the query and results:
 
 ```json
 {
@@ -5669,7 +5667,7 @@ In Insights mode with `--agent`, the output includes the query and results:
 ```
 
 
-> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, this is `{"logGroup": "...", "events": []}`.
+> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, a log record's `message` contains `{"logGroup": "...", "events": []}`; the final result remains separate.
 
 
 ## How log group resolution works
@@ -5730,7 +5728,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
+| `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound. | - |
 | `--filter` | no | `string` | Filter — A pattern to filter the logs. Only logs matching the pattern will be printed. For more information on filter patterns, see the [AWS documentation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). | - |
 | `--follow` | no | `boolean` | Follow — If `true`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, `logs` follows by default; `--follow=false` prints once and exits. Piped, redirected, in CI or for an agent, `logs` prints once unless `--follow` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, `SIGTERM`, or when the reading end of the output closes. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -5741,7 +5739,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--query` | no | `string` | Logs Query — CloudWatch Logs Insights query string. Example: "fields @timestamp, @message \| filter @message like /ERROR/ \| limit 50" | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--raw` | no | `boolean` | Raw — If `true`, prints logs in raw JSON format instead of pretty-printing them. | - |
-| `--since` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
+| `--since` | no | `number \| string` | Start Time — The query start time: a relative duration such as `30m`, an ISO timestamp or a supported numeric date value. Relative durations count back from `--until` (now by default). | - |
 
 
 ## Related commands
@@ -5775,7 +5773,7 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-In standard mode both produce the same JSON (`logGroup` and `events` fields), so either works for scripting and piping to `jq`. The gotcha is Insights mode: `--raw` is not honored there, so to get the full JSON object with `logGroup`, `query`, and `results` from a `--query` run you must use `--agent`.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
 
 ---
 
@@ -6104,14 +6102,14 @@ stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--until` | no | `number \| string` | End Time — The end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it. | - |
+| `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--period` | no | `number` | Metric Period — Aggregation period in seconds (default: 300). | - |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--since` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
+| `--since` | no | `number \| string` | Start Time — The query start time: a relative duration such as `30m`, an ISO timestamp or a supported numeric date value. Relative durations count back from `--until` (now by default). | - |
 | `--stat` | no | `string` | Metric Statistic — Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average). | - |
 
 
@@ -8216,7 +8214,7 @@ Pass the version as an argument, for example `stacktape upgrade 4.0.1`. Stacktap
 Source: `apps/docs/content/cli/validate.mdx`
 Route: `/cli/validate`
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also packages workloads and asks CloudFormation to validate templates whose compact JSON is at most 51,200 bytes. Larger templates skip that AWS check. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
@@ -8250,7 +8248,7 @@ stacktape validate --stage dev --region eu-west-1 --with-package
 
 ### Thorough — add `--thorough`
 
-The `--thorough` flag runs the most complete validation path. It includes everything from `--with-package` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
+The `--thorough` flag includes workload packaging and calls CloudFormation `ValidateTemplate` when the compact JSON template is at most 51,200 bytes. Larger templates get a warning and are reported as not checked by CloudFormation; validation can still succeed. With `--agent`, inspect `checked.cloudformation` before claiming AWS validated the template. CloudFormation also validates templates during deployment. This read-only API check requires AWS credentials and does not create or modify a stack.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1 --thorough
@@ -8325,7 +8323,7 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 | Flag | What it does |
 |------|-------------|
 | `--with-package` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
-| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--with-package`. Requires AWS credentials. |
+| `--thorough` | Validates packaging and submits templates up to 51,200 bytes of compact JSON to CloudFormation. Larger templates skip the AWS check; inspect `checked.cloudformation`. Implies `--with-package`. |
 | `--out` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
@@ -8346,7 +8344,7 @@ Validate with a specific config file path.
 stacktape validate --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
-Run the most thorough validation, including packaging and CloudFormation template validation, before merging a pull request.
+Run the most thorough validation, including packaging and CloudFormation validation when the template fits the inline limit, before merging a pull request.
 
 ```bash
 stacktape validate --stage ci --region eu-west-1 --thorough --out ./validated-template.yaml
@@ -8376,7 +8374,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--thorough` | no | `boolean` | Thorough — If `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template. | - |
+| `--thorough` | no | `boolean` | Thorough — If `true`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output. | - |
 | `--with-package` | no | `boolean` | With Package — If `true`, validates workload packaging in addition to resolving the configuration and template. | - |
 
 
@@ -8391,7 +8389,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ### Does validate create or modify any AWS resources?
 
-No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks the template structure without creating a stack.
+No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks templates up to 51,200 bytes of compact JSON without creating a stack. Larger templates skip this check.
 
 ### How is validate different from synth?
 
@@ -8399,11 +8397,11 @@ Both commands synthesize a CloudFormation template from your configuration. [`sy
 
 ### Do I need AWS credentials to run validate in CI?
 
-Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API. Use a read-only CI profile scoped to the intended account.
+Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API for templates within its inline size limit. Use a read-only CI profile scoped to the intended account.
 
 ### What errors does --thorough catch that the default level misses?
 
-The default validation catches configuration-level problems: broken references, invalid property values, guardrail violations, and template synthesis errors. The `--thorough` flag submits the synthesized template to CloudFormation for server-side validation, which can catch template-level structural problems that only CloudFormation's validator surfaces. The tradeoff is an AWS API call and the need for credentials. Note that even `--thorough` only validates the template — it cannot catch errors that surface during actual provisioning, which is what [`diff`](/cli/diff) and [`deploy`](/cli/deploy) reveal against a live stack.
+Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check templates up to 51,200 bytes of compact JSON. Larger templates skip that check and can still return `valid: true` with `checked.cloudformation: false`. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
 
 ### Can I use validate with AI agents or in scripts?
 
@@ -9529,10 +9527,10 @@ Stacktape divides directives into two categories based on **when** they resolve:
 | **Local** | Stacktape parses your config (before deployment) | Stage name, region, file contents, string formatting, CLI args, git info |
 | **Runtime** | CloudFormation deploys resources | Secrets, resource parameters, cross-stack imports, runtime string composition |
 
-The distinction matters because **runtime directives can only appear in the `resources` and `scripts` sections** of your config. Local directives work anywhere — including `variables`, top-level settings, and conditional logic.
+Runtime directives are supported in `resources`, `scripts` and `cloudformationResources` properties that become part of the synthesized template. Directives introduced by supported overrides and transforms are also resolved. Local directives work anywhere, including variables and top-level settings.
 
 
-> **Warning:** Using a runtime directive (like `$Secret` or `$ResourceParam`) outside the `resources` or `scripts` sections causes a deployment error. If you need a runtime value in a variable, use `$CfFormat` to compose it within a resource property.
+> **Warning:** Avoid runtime directives where config parsing needs a concrete local value. Compose runtime values inside template properties, for example with `$CfFormat`.
 
 
 ## Using directives in TypeScript
@@ -10712,7 +10710,7 @@ Use overrides when you know the exact final value and it doesn't depend on exist
 | Syntax | Static key-value pairs | JavaScript function |
 | Config format | TypeScript and YAML | TypeScript (native functions) and YAML (function strings) |
 | Use case | Set known property values | Compute, append, or conditionally modify |
-| Merge behavior | Shallow merge | Full control — you return the final object |
+| Merge behavior | Recursive merge for existing top-level objects; directly assigned arrays replace their target | Full control — you return the final object |
 | Stacktape validation | CloudFormation property values are not Stacktape-validated; verify with `synth` | No Stacktape validation on returned properties; verify with `synth` |
 
 ## Raw CloudFormation resources
@@ -10878,7 +10876,7 @@ This writes the final CloudFormation template to `compiled-template.yaml`. Inspe
 
 ### Should I use overrides or transforms?
 
-Use overrides when you know the exact final value and it doesn't depend on existing configuration — they're static key-value pairs merged shallowly on top of what Stacktape generates. Use transforms when you need to append to an array (layers, environment variables, mount points) without clobbering existing entries, conditionally modify a property, or compute a value from the resource's current configuration. Transforms are JavaScript functions that receive the current `Properties` and return the final object, so you get full control over the merge.
+An object override for an existing top-level object recursively merges into it. A directly assigned array replaces that array, and a dot path sets its target. Nested arrays inside merged objects follow lodash merge semantics. Use transforms when you need explicit control over nested arrays, appending entries or removing existing keys.
 
 ### Can I use overrides and transforms in YAML configs?
 
@@ -10890,7 +10888,7 @@ Possibly. If Stacktape changes how it structures a child resource internally, yo
 
 ### What attributes can I reference with $CfResourceParam?
 
-The second argument to [`$CfResourceParam`](/configuration/directives) is a CloudFormation return value of the target resource type. Check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's available return values. Common ones include `Ref` (the physical resource ID) and resource-specific attributes like `TopicArn` for SNS or `Arn`/`BucketName` for S3.
+Use the name of the value returned by CloudFormation `Ref`, such as `FunctionName` for `AWS::Lambda::Function` or `BucketName` for `AWS::S3::Bucket`; do not pass the literal `Ref`. Other return-value names depend on the resource type. Invalid names are rejected with the accepted names. See the [CloudFormation resource reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's return values.
 
 ### Do raw CloudFormation resources get automatic IAM permissions?
 
@@ -16494,7 +16492,7 @@ Start Stacktape dev mode from the directory containing your `stacktape.ts`:
 stacktape dev --stage dev --region eu-west-1
 ```
 
-On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Subsequent runs detect the existing dev stack and start without redeploying.
+On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 An interactive picker lets you choose which resources to run. To skip the picker and run everything:
 
@@ -16571,7 +16569,7 @@ export default defineConfig(() => {
 ```
 
 
-The `version` property sets the PostgreSQL engine version (`'16.6'` here, but any supported RDS version works). The `instanceSize` property controls the RDS compute tier for production deployments. In dev mode, neither value matters — the database runs as a local Docker container regardless. See the [relational database page](/resources/databases/relational-database) for supported versions, instance sizing, and pricing.
+The `version` property selects the PostgreSQL engine version and the local Docker image, subject to the adapter's supported tag mapping. The AWS `instanceSize` controls the deployed RDS compute tier; it does not size the local Docker database. See [relational databases](/resources/databases/relational-database) for supported versions and sizing.
 
 With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
 
@@ -16610,7 +16608,7 @@ Stacktape dev mode starts Docker-backed local emulators for supported database r
 
 Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This means you can stop and restart dev mode without losing your test data.
 
-To start with a clean database:
+To reset databases prepared at startup, including relay dependencies (DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data)):
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --fresh-db
@@ -16650,7 +16648,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 | `--watch` | Auto-rebuild on file changes |
 | `--fresh-db` | Delete local database data before starting |
 | `--remote-resources` | Connect to deployed AWS resources instead of local emulation |
-| `--no-tunnel` | Skip Lambda tunnels to local databases, which run only through a relay you set up yourself |
+| `--no-tunnel` | Prevent deployed functions from receiving local-database relay variables. Stacktape normally manages the dev-box connection; VPC functions still use the dev network. Use `--remote-resources` for deployed database connections |
 
 
 > **Tip:** Run `stacktape help dev` to see all available flags and their short aliases.
@@ -18362,7 +18360,7 @@ The [`stacktape bastion shell`](/cli/bastion-session) command opens an interacti
 
 ### How do I view real-time logs as they arrive?
 
-The `logs` command fetches historical log events from CloudWatch Logs. For near-real-time inspection of a deployed stack, re-run `logs` with a short `--since` window (e.g. `--since 1m`). For local development behavior, see the [dev mode overview](/local-development/dev-mode-overview).
+In a terminal, `stacktape logs` shows recent events and follows new lines by default. Use `--follow=false` for a snapshot. Piped, redirected and agent runs take snapshots unless `--follow` is requested. For the development workflow, see [dev mode](/local-development/dev-mode-overview).
 
 ### Can I use debug commands with dev mode stacks?
 
@@ -18609,7 +18607,7 @@ Stacktape [dev mode](/local-development/dev-mode-overview) runs Lambda functions
 
 Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev stack and execute on AWS Lambda. Unlike [container workloads](/local-development/debugging-containers) that run locally in Docker, Lambda functions run in their real cloud environment. This surfaces issues that local emulation would miss — you test against AWS Lambda rather than a local approximation.
 
-Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Subsequent runs reuse the existing dev stack, making startup faster. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
+Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Unchanged starts reuse the existing dev stack. Restarting after cloud configuration or cloud-image changes, or with missing required outputs, can update it. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
 
 1. **Load config** — Stacktape reads your configuration and discovers dev-compatible resources (functions, containers, databases)
 2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skip-resources` flags
@@ -18637,7 +18635,7 @@ stacktape dev --stage dev --resources myApi,myWorker
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --skip-resources heavyBatchJob
+stacktape dev --stage dev --skip-resources myWorker
 ```
 
 Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
@@ -18673,12 +18671,12 @@ The `memory` property sets the function's memory allocation in MB — AWS Lambda
 
 ### First-time setup
 
-The first run deploys a dev stack, which takes longer than subsequent runs. If the target stage already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)), dev mode refuses to overwrite it and asks you to use a different stage name. A failed or in-progress non-dev stack may be auto-deleted and recreated as a dev stack when it appears to belong to a dev/local stage or lacks the Stacktape stack-info metadata.
+The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. Other rollback statuses need their corresponding CloudFormation recovery path.
 
 Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`.
 
 
-> **Warning:** Dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against a healthy `production` deployment will be rejected. Always use a separate stage name for dev mode.
+> **Warning:** Dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against an existing `production` deployment will be rejected. Always use a separate stage name for dev mode.
 
 
 If your config includes `beforeDev` [hooks](/configuration/hooks-and-scripts) with a `scriptName`, dev mode registers those hook names in the dev TUI during startup.
@@ -18861,7 +18859,7 @@ Lambda functions in dev mode run on AWS infrastructure rather than locally, so t
 Lambda functions run on AWS during dev mode, so the primary debugging approach is structured logging rather than local debugger attachment. The tradeoff is high-fidelity testing against the real Lambda runtime. Structured logging is the most effective debugging approach — add JSON log statements at key points in your function. The dev TUI shows them during the session, and you can query them later with [`stacktape logs`](/cli/logs).
 
 ```typescript
-export const handler = async (event: any) => {
+export default async (event: any) => {
   console.info(JSON.stringify({
     action: 'request_received',
     path: event.path,
@@ -18902,10 +18900,10 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 
 | Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
-| Log delivery | Streamed in the dev TUI | Historical fetch from CloudWatch |
+| Log delivery | Streamed in the dev TUI | Follows CloudWatch logs in a terminal by default; `--follow=false` takes a snapshot |
 | Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
 | Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
-| Interaction model | Interactive TUI with keyboard commands | Single CLI command |
+| Interaction model | Interactive TUI with keyboard commands | Follows until stopped, or exits after a snapshot |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
 | Best for | Active development and rapid iteration | Investigating issues in deployed stages |
@@ -18924,11 +18922,11 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skip-resources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
+Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions dev mode builds and watches. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
 
 ### Why does dev mode refuse to start on my stage?
 
-Dev mode and full deployments share the same stage namespace, so running `stacktape dev` against a stage that already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)) is rejected to avoid overwriting it. Use a dedicated stage name like `dev`, `dev-local`, or `dev-jane`.
+Dev mode refuses any stack it did not create, regardless of name or status. Use a dedicated stage such as `dev-jane`. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before restarting; see [first-time setup](#first-time-setup).
 
 ### How do my local databases connect to functions running on AWS?
 
@@ -18940,7 +18938,7 @@ Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges
 
 ### How do I view logs from a Lambda function that's already deployed?
 
-Use [`stacktape logs`](/cli/logs) with `--resource-name` and `--stage` to fetch CloudWatch logs from any deployed stage. By default, it returns the last hour of logs (up to 100 events). Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
+Use [`stacktape logs`](/cli/logs) with `--resource-name` and `--stage` to fetch CloudWatch logs from any deployed stage. In a terminal, it shows the last hour of logs (up to 100 events), then follows new lines. Use `--follow=false` for a snapshot; piped, redirected and agent runs take snapshots unless `--follow` is requested. Add `--filter "ERROR"` to narrow results, or use `--query` for CloudWatch Logs Insights queries that can search structured JSON fields across log streams. You can also view logs in the [Stacktape Console](/stacktape-console/console-overview).
 
 ---
 
@@ -18953,7 +18951,7 @@ Stacktape dev mode ([`stacktape dev`](/cli/dev)) runs your workloads locally whi
 
 ## How dev mode works
 
-Dev mode splits your stack between your local machine and AWS. Container workloads run in Docker, frontends run through their framework dev servers, and locally-emulated databases run in Docker containers — while Lambda functions deploy directly to AWS. The first run deploys a dev stack to your AWS account. Subsequent runs reuse the existing stack.
+Dev mode splits your stack between your local machine and AWS. Container workloads run in Docker, frontends run through their framework dev servers, and locally-emulated databases run in Docker containers — while Lambda functions deploy directly to AWS. The first run deploys a dev stack to your AWS account. Unchanged starts reuse the existing stack. A restart can update it after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 | Resource type | Where it runs | Mechanism |
 |---|---|---|
@@ -18976,13 +18974,13 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Check references** — Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
 4. **Load AWS metadata** — Stacktape fetches stack information from AWS.
-5. **Ensure secrets and SSM parameters** — Stacktape creates any missing secrets and SSM parameters required by your config. A database password that dev mode generates is scheduled for deletion with the stage by `stacktape delete`, unless another stage has used it; a deployment or dev session that needs it within 7 days restores it.
+5. **Ensure secrets and SSM parameters** — Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Generated dev database secrets are owned by the stage unless another stage uses them; deletion schedules them for seven-day recovery. See [secret ownership](/local-development/debugging-lambda-functions#the-dev-network).
 6. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
-7. **Deploy dev stack** — The dev stack deploys only on the first run. Later runs reuse the existing stack.
+7. **Deploy dev stack** — Create the stack if missing, or update it when cloud configuration, cloud images or required outputs change. Otherwise reuse it.
 8. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
 
 
-> **Info:** After the first run, dev mode skips the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
+> **Info:** Unchanged starts skip the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
 
 
 ## Running dev mode
@@ -19061,7 +19059,7 @@ Local database data persists between dev mode sessions under `.stacktape/dev-dat
 
 ### Start with a fresh database
 
-Use `--fresh-db` when you want dev mode to start local databases from a fresh state:
+Use `--fresh-db` to reset databases prepared during startup, including relay dependencies. DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data).
 
 ```bash
 stacktape dev --stage dev --region us-east-1 --fresh-db
@@ -19121,13 +19119,17 @@ A workload whose rebuild fails, for example because of a syntax error, shows the
 
 That start updates the dev stack only when the change reaches it. Changing how a local container is built or started (its `packaging`, including `startCommand`), a frontend's `dev` settings or a local script restarts only what runs on your machine. When the dev stack is updated, functions whose code did not change keep their deployed code.
 
+### Local EFS storage
+
+Configured EFS mounts are not mounted or emulated on local containers. Use explicit local test storage and verify the deployed [EFS configuration](/resources/compute/web-service#efs-storage) in a deployed stage.
+
 ## Lifecycle hooks
 
 Dev mode registers configured `beforeDev` script hooks and displays them in the dev TUI. See [Hooks and scripts](/configuration/hooks-and-scripts) for configuration details, hook types, and the full execution model.
 
 ## Dev stack isolation
 
-Dev mode creates a dedicated dev stack and refuses to reuse a healthy stack created by a full deployment. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
+Dev mode creates a dedicated dev stack and refuses to reuse any stack it did not create, regardless of name or status. Use a separate stage name such as `dev`, `dev-local`, or `dev-jane`. To connect selected databases or Redis resources to deployed AWS resources, keep the dedicated dev stage and pass `--remote-resources`.
 
 
 > **Warning:** Dev mode only updates a stack that `stacktape dev` created. It marks every dev stack with the stack tag `stp:dev-stack`, and refuses any other stack on the stage, whatever its name or status: use a different stage name, or delete that stack with `stacktape delete --stage <stage>` yourself. Dev mode never deletes a stack.
@@ -19145,7 +19147,7 @@ Start dev mode as an agent:
 stacktape dev --stage dev --region us-east-1 --resources all --agent
 ```
 
-When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. If a workload fails while the agent starts, the command stops the session and exits with an error that names the workload.
+When `--agent-port` is omitted, Stacktape starts at port 7331 and searches ports 7331–7430 if the default is in use. Use `--agent-port` to request a specific port. The agent listens on `127.0.0.1` only, and every request must carry the session token stored in `~/.stacktape/dev-agent-tokens/{port}.token` (see [Authentication](/using-with-ai/agent-mode-in-dev#authentication)). If Stacktape finds an already running dev agent, the command returns that agent's connection details instead of starting another one. A Lambda build or deploy failure can leave the session running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; fix the code and rebuild. A failure that aborts startup is reported separately. Inspect the returned session and status before starting another agent.
 
 While the agent starts, the command prints its progress as JSONL `event` lines: the agent's port first, then the dev network, the dev box, the dev stack deployment with CloudFormation resource counts, and each workload and database. A first start that creates the dev network and the dev stack takes several minutes, and a heartbeat line every 20 seconds names the step it waits for.
 
@@ -19180,7 +19182,7 @@ Yes. Dev mode uses Docker to run container workloads and emulated databases loca
 
 ### Which resource types does dev mode support, and what isn't emulated locally?
 
-Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) run in the dev stack when the selected workloads need them.
+Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) run in the dev stack according to the dev deployment policy, rather than only when selected workloads need them. Batch jobs also run in AWS; restart dev mode to rebuild their images.
 
 ### How do Lambda functions connect to local databases in dev mode?
 
@@ -19188,7 +19190,7 @@ Through the dev box of your account's dev network. Functions connect to the box'
 
 ### How do I reset my local database data?
 
-Use the `--fresh-db` flag: `stacktape dev --stage dev --region us-east-1 --fresh-db`. This starts local databases from a fresh state. Without this flag, local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
+Use the `--fresh-db` flag: `stacktape dev --stage dev --region us-east-1 --fresh-db`. This resets databases prepared during startup, including relay dependencies that may be unselected; DynamoDB Local tables share storage. See [reset scope](/local-development/local-databases#resetting-local-data). Without this flag, local database data persists between dev mode sessions under `.stacktape/dev-data/{stage}/`, which is usually what you want during iterative development.
 
 ### What is the difference between dev mode and deploying to a dev stage?
 
@@ -19205,11 +19207,11 @@ Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AW
 Source: `apps/docs/content/local-development/local-databases.mdx`
 Route: `/local-development/local-databases`
 
-Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker containers so you can develop without deploying or paying for AWS resources. Data persists between sessions, local connection information is exposed to your workloads, and no manual Docker setup is required. To test against the deployed AWS instance instead, set `dev.remote: true` on the database resource.
+Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker, avoiding the corresponding AWS database service. Dev-stack resources and the [dev network](/local-development/debugging-lambda-functions#the-dev-network) can still incur AWS charges. Data persists between sessions and workloads receive connection settings automatically. Use `dev.remote: true` to connect to the deployed database instead.
 
 ## When to use local databases
 
-Local databases are the default and recommended path for day-to-day development. They start in seconds, have zero network latency, cost nothing, and isolate each developer's data. Use local databases when you are iterating on application logic, testing schema migrations, or prototyping new features.
+Local databases are the default for day-to-day development and isolate each developer's data. Local clients connect on your machine. Lambda and Batch clients in AWS reach them through the dev network and incur a cloud-to-machine round trip. Use local databases for application logic, migrations and prototypes; test cloud-specific behavior against deployed resources.
 
 ## When NOT to use local databases
 
@@ -19443,23 +19445,21 @@ export default defineConfig(() => {
 - **DynamoDB advanced features** — Streams, Global Tables, TTL, and backups are only available on the deployed resource.
 - **Shared development database** — when multiple developers need to see the same state.
 
-For most day-to-day development, local databases are faster (no network latency), free (no AWS charges), and isolated (no risk of corrupting shared data).
+Local emulation avoids AWS database service charges and isolates test data. Deployed clients still use the dev network, with its network latency and AWS costs.
 
 ## Resetting local data
 
-Data from local databases persists across dev sessions in a local data directory mounted into the container. The primary way to reset all local databases is the `--fresh-db` flag:
+Data persists across sessions in host directories mounted into the containers. Use `--fresh-db` to reset databases that startup prepares:
 
 ```bash
 stacktape dev --fresh-db
 ```
 
-This deletes the data directory for every local database before starting, giving you a clean state. Note that `--fresh-db` resets **all** local databases for the stage, not just one.
+`--fresh-db` deletes data, schema and local password/identity files when startup prepares a database. This includes selected databases and databases prepared for deployed-workload relay connections, which can include unselected resources. Databases never prepared are untouched; this is not a stage-wide wipe. The stage password can be reused, so it does not promise a new password.
 
-To reset a single resource selectively, stop dev mode, delete that resource's data directory, and restart. Data is stored at `.stacktape/dev-data/<stage>/<resourceName>/data/` relative to your project root. For example, to reset only a database named `mainDb` on stage `dev-john`:
+Relational databases, Redis and OpenSearch store data under `.stacktape/dev-data/<stage>/<resourceName>/data/`. Stop dev mode before manually removing one of these data directories.
 
-```bash
-rm -rf .stacktape/dev-data/dev-john/mainDb/data
-```
+All DynamoDB Local tables share `.stacktape/dev-data/<stage>/dynamodb-local/data/`. Preparing any local DynamoDB table with `--fresh-db` removes every persisted table in that storage, even tables not selected this time. For a table-specific item reset that preserves schema, use the [local reset endpoint](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) or MCP `reset_db` with the table's `resource` name and `confirm: true`.
 
 
 > **Tip:** Add `.stacktape/` to your `.gitignore` to avoid committing local database data to version control.
@@ -19481,7 +19481,7 @@ Oracle and SQL Server engines are not mapped to a local container type. MongoDB 
 
 ### Does local database data persist when I restart dev mode?
 
-Yes. Dev mode mounts a local data directory into each database container, so data survives dev mode restarts. To wipe all local databases for the stage, run `stacktape dev --fresh-db`. It deletes the data, and the databases start empty with the stage's generated password.
+Yes. Local data survives restarts. `--fresh-db` resets databases prepared during startup, including relay dependencies, and removes their local credential/identity files. DynamoDB Local tables share storage, so resetting it removes every persisted table there. See [reset scope](#resetting-local-data).
 
 ### Can I run multiple stages locally at the same time?
 
@@ -24329,7 +24329,7 @@ Use `js-bundle` or `buildpack` if you want Stacktape to manage the build. Use cu
 
 ## Basic example
 
-The minimal custom artifact configuration points `packagePath` at your pre-built artifact:
+Specify `packagePath` and `handler` in the packaging, and `runtime` on the Lambda resource:
 
 
 Example (TypeScript):
@@ -24339,8 +24339,10 @@ import { defineConfig, LambdaFunction, CustomArtifactLambdaPackaging } from 'sta
 export default defineConfig(() => {
   const api = new LambdaFunction({
     packaging: new CustomArtifactLambdaPackaging({
-      packagePath: './dist/lambda.zip'
-    })
+      packagePath: './dist/lambda.zip',
+      handler: 'index.js:default'
+    }),
+    runtime: 'nodejs22.x'
   });
 
   return {
@@ -24352,11 +24354,11 @@ export default defineConfig(() => {
 
 ## Configuration
 
-`CustomArtifactLambdaPackaging` exposes two properties: the required `packagePath` and an optional `handler`. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
+`CustomArtifactLambdaPackaging` exposes two properties: `packagePath` and `handler`, both required by the CLI. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
 
 ### packagePath
 
-The `packagePath` property is the only required field. It specifies the path to your pre-built deployment package.
+The `packagePath` property is required alongside `handler` and the Lambda resource's `runtime`. It specifies the path to your pre-built deployment package.
 
 Stacktape accepts three input shapes:
 
@@ -24372,9 +24374,9 @@ You don't need to zip your output manually if your build produces a directory. P
 
 The `handler` property tells Lambda which function to invoke when the Lambda is triggered. The syntax is `filepath:functionName`.
 
-For example, `my-lambda/index.js:default` means "call the `default` export from `my-lambda/index.js` inside the deployment package."
+For example, `index.js:default` invokes the `default` export from `index.js` at the artifact root. The current CLI strips directories from the handler path: `handlers/process.js:main` becomes `process.main`. Put the handler file at the artifact root. Native Java/.NET `::` handler strings are not accepted by this parser; use [buildpack packaging](/packaging/function/buildpack) for those handler formats.
 
-The `handler` property is optional. Set it explicitly when you need to specify which function inside the artifact serves as the entry point.
+The CLI requires an explicit `handler` and `runtime`; it does not infer them from the artifact. The generated type currently marks `handler` optional, but omitting it fails CLI validation.
 
 
 Example (TypeScript):
@@ -24385,8 +24387,9 @@ export default defineConfig(() => {
   const processor = new LambdaFunction({
     packaging: new CustomArtifactLambdaPackaging({
       packagePath: './build/output',
-      handler: 'handlers/process.js:main'
+      handler: 'process.js:main'
     }),
+    runtime: 'nodejs22.x',
     memory: 512,
     timeout: 60
   });
@@ -24398,7 +24401,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `handlers/process.js` inside the resulting package. The `memory` and `timeout` properties are [Lambda function](/resources/compute/lambda-function) settings, not part of the packaging configuration.
+In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `process.js` at the root of the resulting package. The `memory` and `timeout` properties are [Lambda function](/resources/compute/lambda-function) settings, not part of the packaging configuration.
 
 ## Using with a custom build step
 
@@ -24433,6 +24436,7 @@ export default defineConfig(() => {
       packagePath: './lambda-build',
       handler: 'app.py:handler'
     }),
+    runtime: 'python3.12',
     memory: 256,
     timeout: 30
   });
@@ -24451,8 +24455,8 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 | | `custom-artifact` | [`js-bundle`](/packaging/function/js-bundle) | [`buildpack`](/packaging/function/buildpack) |
 |---|---|---|---|
 | **Build responsibility** | You build the artifact | Stacktape bundles from source | Stacktape builds from source in Docker |
-| **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
-| **Supported languages** | Any Lambda-compatible artifact you build yourself | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
+| **Configuration** | `packagePath` + `handler` + resource `runtime` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
+| **Supported languages** | Pre-built artifacts supported by the current `file:function` handler conversion; see limitations above | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
 | **Source maps** | Your responsibility | Automatic | Not applicable |
 | **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically | Not shared |
 | **Best for** | Custom build processes, pre-built CI artifacts | Node.js functions | Other languages with standard dependency files |
@@ -28118,6 +28122,10 @@ A batch job supports four container image packaging types. Start with `js-bundle
 
 Use `container.environment` for runtime settings that belong to this job, such as feature flags or fixed paths. Use `$Secret()` or `$ResourceParam()` when a value should come from Stacktape directives instead of being hard-coded; see [directives](/configuration/directives) for the supported directive model.
 
+## Dev mode
+
+Batch jobs run in AWS Batch when triggered; they are not local processes. `--resources` and `--skip-resources` cannot select or skip them. Their images are built and pushed during dev startup, so restart dev mode after changing Batch code. Use a dev-specific configuration to omit a job or disable its triggers. A deployed job can reach local databases through the [dev network](/local-development/debugging-lambda-functions#the-dev-network), with its AWS costs, permissions and network round trip.
+
 ## Triggers
 
 A batch job can start from several event sources: HTTP API Gateway, Application Load Balancer, S3, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch Logs, schedules, and EventBridge event buses. Pick the trigger based on where the unit of work originates, and keep the job handler idempotent when the source can retry delivery.
@@ -28136,6 +28144,17 @@ A batch job can start from several event sources: HTTP API Gateway, Application 
 | `event-bus` | EventBridge events matching a pattern start the job |
 
 The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/resources/triggers/overview).
+
+### Reading trigger data
+
+The container receives the serialized trigger event in `STP_TRIGGER_EVENT_DATA`. Parse it in your process entrypoint. `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` are string environment variables describing this execution's attempt; this is a container process, not a Lambda `handler(event)` invocation.
+
+```typescript
+const event = JSON.parse(process.env.STP_TRIGGER_EVENT_DATA ?? '{}');
+const attempt = Number(process.env.STP_CURRENT_ATTEMPT ?? '1');
+const maximumAttempts = Number(process.env.STP_MAXIMUM_ATTEMPTS ?? '1');
+await processJob(event, { attempt, maximumAttempts });
+```
 
 ## Retries and timeout
 
@@ -28168,7 +28187,7 @@ export default defineConfig(() => {
 ```
 
 
-`timeout` is measured in seconds; when a job exceeds it, the job is killed and retried if `retryConfig` is set. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. With `30` and `2`, waits grow from 30 seconds to 60 seconds to 120 seconds.
+`timeout` is measured in seconds; when a job exceeds it, the job is killed and retried if `retryConfig` is set. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. `attempts` includes the initial attempt. With the example's three attempts, interval `30` and multiplier `2`, the current implementation waits 60 seconds before attempt 2 and 120 seconds before attempt 3. Waits follow interval × failed-attempt number × multiplier; there is no wait after the final attempt.
 
 
 > **Warning:** Retries repeat the whole job attempt. Make job code idempotent before enabling multiple attempts for writes, imports, notifications, or any operation that can create duplicated side effects.
@@ -28298,7 +28317,7 @@ Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Ki
 
 ### How much does a batch job cost?
 
-Cost depends on vCPU, memory, GPU needs, runtime, and whether on-demand or Spot capacity is used. The provided Fargate pricing data uses vCPU-hour and GB-hour billing, with continuous us-east-1 usage around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB. Because batch jobs are billed only while running, short jobs cost far less; see [optimization tips](/managing-costs/optimization-tips) for broader cost guidance.
+These jobs use managed EC2 or EC2 Spot capacity. Estimate cost from the selected EC2 instances and how long capacity stays running, including startup, drain and idle time, plus storage, networking and supporting services. Fargate per-vCPU/per-GB prices do not apply to this implementation. See [optimization tips](/managing-costs/optimization-tips) for broader guidance.
 
 ## API Reference
 
@@ -29444,7 +29463,7 @@ export default defineConfig(() => {
 
 ### Custom artifact
 
-The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for runtime auto-detection, so set `runtime` when the Lambda runtime cannot be inferred elsewhere. If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
+The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for runtime auto-detection, so you must set `runtime` on the resource and `handler` in the packaging. The handler file must be at the artifact root; see [custom-artifact limitations](/packaging/function/custom-artifact#handler). If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
 
 
 Example (TypeScript):
@@ -29487,7 +29506,7 @@ A Lambda function receives work through its `events` array. Stacktape supports 1
 | CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
 | Kafka topic | `kafka-topic` | [Kafka topics](/resources/triggers/kafka-topics) |
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent: failed batches are retried including records that already processed successfully.
+For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent. By default, failed batches retry records that already succeeded. Enable `reportBatchItemFailures` and return `batchItemFailures` for partial failure handling; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams).
 
 
 Example (TypeScript):
@@ -29930,7 +29949,7 @@ Lambda CPU scales proportionally with `memory`: `1,769` MB equals 1 vCPU (range 
 
 ### Why are records being processed more than once from my SQS or stream trigger?
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full — including records that already succeeded. Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
+For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full by default, including records that already succeeded. For partial failure handling, enable `reportBatchItemFailures` and return `batchItemFailures`; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams). Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
 
 ## API Reference
 
@@ -31193,6 +31212,10 @@ Use a `sideContainers` entry with `containerType: 'run-on-init'`. The init conta
 
 Not directly — there is no property on a private service that adds a public endpoint. To give a service a public URL, use a [web service](/resources/compute/web-service) instead, which is the same container model with public load balancing added. If you are unsure whether a service will eventually need a public endpoint, start with a web service and restrict access at the application layer.
 
+## EFS in local development
+
+EFS `volumeMounts`, `rootDirectory` and `readOnly` configure the deployed ECS task. `stacktape dev` does not automatically mount or emulate them. Use explicit local test storage and verify persistence, directory isolation and read-only enforcement in a deployed stage. See [EFS storage](/resources/compute/web-service#efs-storage).
+
 ## API Reference
 
 
@@ -31628,6 +31651,8 @@ The example above shows a `run-on-init` side container for migrations. For an `a
 Use the built-in web service side-container model when one main public container owns the endpoint and helpers are secondary. Use a [multi-container-workload](/resources/compute/multi-container-workload) instead when you need a workload model centered on multiple containers with their own integrations and lifecycle configuration.
 
 ## EFS storage
+
+`volumeMounts`, `rootDirectory` and `readOnly` configure the deployed ECS task. `stacktape dev` does not automatically mount or emulate EFS volumes. Use explicit local test storage when needed, and verify EFS persistence, directory isolation and read-only enforcement in a deployed stage.
 
 A Stacktape web service can mount an [EFS filesystem](/resources/storage/efs-filesystem) when data must survive container replacement. EFS is useful for shared uploads, generated files, or model artifacts that are too large or slow to fetch repeatedly; skip EFS when data can live in S3, a database, memory, or the container filesystem.
 
@@ -40839,7 +40864,7 @@ This routes every request to a single Lambda. The framework inside the Lambda ha
 
 ### Route authorization
 
-Each HTTP API integration can optionally define an authorizer. Unauthorized requests are rejected with `401 Unauthorized` before your function code runs. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
+Each HTTP API integration can optionally define an authorizer. Authorization runs before the integration. Rejection status depends on the authorizer and failure: IAM uses `403 Forbidden`, so do not assume every denial is `401`. Check the authorizer type and response mode. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
 
 ## CORS
 
@@ -41524,7 +41549,7 @@ const client = new ApiGatewayManagementApiClient({
   endpoint: process.env.STP_REALTIME_MANAGEMENT_ENDPOINT
 });
 
-export const handler = async (event) => {
+export default async (event) => {
   await client.send(
     new PostToConnectionCommand({
       ConnectionId: event.requestContext.connectionId,
@@ -41596,7 +41621,7 @@ new WebSocketApiIntegration({
 ```
 
 ```ts
-export const handler = async () => ({
+export default async () => ({
   statusCode: 200,
   body: JSON.stringify({ status: 'ready' })
 });
@@ -45234,7 +45259,7 @@ Set `payloadFormat` on the HTTP API integration when a Lambda handler needs a sp
 
 ### Authorization
 
-HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. When configured, unauthorized requests are rejected with a `401 Unauthorized` response before they reach your function — saving invocation costs and reducing attack surface. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
+HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. Authorization runs before the integration. Rejection status depends on the authorizer and failure: IAM uses `403 Forbidden`, so do not assume every denial is `401`. Check the authorizer type and response mode. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
 
 For routes that other AWS workloads or internal tools call, use `authorizer: { type: 'aws-iam' }`. Callers then sign each request with AWS Signature Version 4, using credentials allowed to call `execute-api:Invoke`; API Gateway rejects every other request with `403 Forbidden`.
 
@@ -45587,7 +45612,7 @@ Use `kinesisStreamName` to consume from a Kinesis stream defined in the same Sta
 Each invocation receives a batch of Kinesis records. Record data is **base64-encoded** — decode it in your handler before processing.
 
 ```typescript
-export const handler = async (event: any) => {
+export default async (event: any) => {
   for (const record of event.Records) {
     const data = Buffer.from(record.kinesis.data, 'base64').toString('utf-8');
     const payload = JSON.parse(data);
@@ -46581,13 +46606,15 @@ The Lambda handler receives the event payload — either the default EventBridge
 ```typescript
 import type { ScheduledHandler } from 'aws-lambda';
 
-export const handler: ScheduledHandler = async (event) => {
+const handler: ScheduledHandler = async (event) => {
   console.info('Scheduled invocation', JSON.stringify(event));
 
   // Perform the periodic task
   const deleted = await deleteExpiredSessions();
   console.info(`Cleaned up ${deleted} expired sessions`);
 };
+
+export default handler;
 ```
 
 When using a fixed `input`, the `event` parameter contains exactly the JSON value you specified. You can use the `ScheduledHandler` type from `aws-lambda` for type-safe handling of the default EventBridge event, or use `any` when passing custom input shapes.
@@ -47111,7 +47138,7 @@ export default defineConfig(() => {
 
 
 ```typescript
-export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   const batchItemFailures: Array<{ itemIdentifier: string }> = [];
   for (const record of event.Records) {
     try {
@@ -47131,7 +47158,7 @@ Turn it on only for handlers that return this shape. With the setting on, a hand
 Your Lambda handler receives the standard AWS Lambda SQS event — an object with a `Records` array. Each record contains the message `body` as a string, plus metadata like `messageId` and `attributes`.
 
 ```typescript
-export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   for (const record of event.Records) {
     const order = JSON.parse(record.body);
     console.info(`Processing order ${record.messageId}:`, order);
@@ -48399,11 +48426,11 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 | `--agent`       | Enables the agent HTTP API server alongside dev mode                                     |
 | `--agent-port`   | Port for the agent HTTP server                                                           |
 | `--stage`       | Stage used for dev mode and the `.stacktape/dev-data/{stage}/` directory                 |
-| `--region`      | AWS region used by dev mode and as the default for `/aws/sdk` when `region` is omitted   |
+| `--region`      | Session AWS region; `/aws/sdk` rejects any different region   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
 | `--fresh-db`     | Reset local database data on startup                                                     |
 
-Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
+Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — see [reset scope](/local-development/local-databases#resetting-local-data) before using `--fresh-db`. It resets prepared databases, including relay dependencies, and DynamoDB Local tables share storage.
 
 ### Startup progress
 
@@ -48418,7 +48445,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 | `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
 | `DEV_DATABASE` | Each local database starting and running, or its error                                          |
 
-If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. A first start that fails or is interrupted leaves the dev stack rolled back; the next start updates it again.
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; other rollback statuses require their corresponding recovery path. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
 
 ## Authentication
 
@@ -48688,7 +48715,7 @@ Calling stop when the agent is already stopping or stopped returns success witho
 
 ## Database endpoints
 
-Agent mode exposes HTTP endpoints for local resource instances started by dev mode. The current server has typed handlers for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch resources, so AI agents can inspect schemas, run queries, and verify data without installing separate database client tools. `GET /` lists only the database endpoint groups for local resources currently running in this dev session. If a resource is not running or has a different local type, the endpoint returns an error with available resource names where applicable.
+Agent mode exposes database endpoints for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB and OpenSearch. Most operate on local instances. DynamoDB `query`, `scan`, `schema` and `sample` can also read a table deployed by the dev stack and mark responses `deployed: true`; `get`, `put`, `delete` and `reset` require a local table. `GET /` lists endpoint groups for running local resources. Errors include available resource names where applicable.
 
 The `{name}` path parameter in every database endpoint matches the resource name in your Stacktape configuration. If you reference a name that doesn't exist, the error response includes an `available` array listing the valid resource names.
 
@@ -48756,7 +48783,7 @@ curl -X POST -H "$AUTH" -H "$JSON" $AGENT/redis/myCache/command \
 
 ### DynamoDB
 
-Available when dev mode is running a local instance for a [DynamoDB table](/resources/databases/dynamodb) in your Stacktape configuration. Key parameters (`pk`, `sk`) are objects mapping attribute names to values — for example, `{"userId": "123"}`.
+`query`, `scan`, `schema` and `sample` support both local tables and tables deployed by the dev stack (responses include `deployed: true`). `get`, `put`, `delete` and `reset` require a local [DynamoDB table](/resources/databases/dynamodb). Key parameters (`pk`, `sk`) are objects mapping attribute names to values — for example, `{"userId": "123"}`.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/dynamodb/notesTable/scan \
@@ -48844,14 +48871,14 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role scoped to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
   -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
 ```
 
-The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, defaults to the dev mode region). If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
+The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, must equal the session region if supplied; another region is rejected). Use [`stacktape aws call`](/cli/aws-call) with an explicit target for a different region. If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
 
 To list all supported services and example commands:
 
@@ -48996,7 +49023,7 @@ If a function fails to build or deploy while `stacktape dev --agent` starts, the
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint runs against dev agent credentials, which the source describes as scoped to the stack's IAM role (falling back to user credentials). Those credentials determine what resources are reachable — a call can fail with `AWS credentials not available` if no usable key pair is returned, or with an access-denied error if the role lacks permission for that resource. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
+The `/aws/sdk` endpoint uses the dev agent IAM role scoped to the stack. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
 
 ---
 
@@ -49211,7 +49238,7 @@ The MCP server exposes five tools. Each tool uses an `action` parameter to group
 
 Every completed tool call returns a `stacktape.mcp.tool-result.v1` JSON envelope as structured content and as an identical text block. The envelope includes `ok`, `code`, and `message`, with operation-specific fields under `data`. This lets clients consume typed results while keeping the response readable in clients that primarily render text content.
 
-Tool arguments accept common snake_case and kebab-case forms (`project_name`, `config_path`, `start_time`, `end_time`, `secret_name`, etc.) and normalize them to camelCase automatically. Your AI assistant does not need to know the exact casing convention.
+Use the canonical names in each tool schema. CLI invocation arguments and `stacktape_dev` args accept supported CLI aliases, including common snake_case and kebab-case forms. This does not apply to every outer field of every tool: use `incidentId`, `resourceType`, `propertyName` and other schema names exactly.
 
 ### Incident tool
 
@@ -49315,7 +49342,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`query`** runs `sql` on PostgreSQL or MySQL, a Redis `command` such as `GET session:1`, or a DynamoDB query (`pk`, optional `sk` and `index`) or scan (`filter`). `resource` names the database and can be omitted when only one runs. A statement that deletes or changes data in bulk (`DROP`, `TRUNCATE`, `FLUSHALL`, `UPDATE` or `DELETE` without `WHERE`) returns `DESTRUCTIVE_OPERATION` until it is repeated with `confirm: true`.
 - **`reset_db`** gives the assistant a known database state without restarting dev mode; a reset of a small database takes milliseconds, a `freshDb` restart about 13 seconds. With `confirm: true` it deletes every row of the PostgreSQL and MySQL tables, every Redis key and every DynamoDB item of `resource`, or of every local database when `resource` is omitted. Tables, indexes and migration history tables such as `_prisma_migrations` stay, so the application needs no new migration. PostgreSQL identity columns and MySQL `AUTO_INCREMENT` counters start again at 1. `keepTables` names more tables to keep. OpenSearch is not supported; start dev mode with `freshDb` to delete its data.
 - **`seed`** runs a `local-script` from the config's `scripts` section (`script`, default `seed`) with the local database connections and returns its output. It stops the script after `timeoutSeconds` (default 50, at most 280). A script added to the config after dev mode started returns `CONFIG_CHANGED_RESTART_REQUIRED`: dev mode runs the config it started with, so it has to restart first. See [Reset and seed local databases](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) for the script.
-- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region`) with the dev agent's credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
+- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region` equal to the session region) with the dev agent's stack-scoped role. A missing role or failed AssumeRole fails the live agent call without falling back to developer credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. This separate CLI diagnostic path uses debug-role credentials when available and can fall back to the selected user credentials; it does not guarantee the live dev-agent IAM boundary. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
 - **`stop`** terminates the active session.
 
 `query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
@@ -49438,7 +49465,7 @@ The MCP server is in preview. Docs, project scanning, CLI listing, description, 
 
 ### What happens if a deployment times out through MCP?
 
-CLI commands run as subprocesses. The caller can specify a `timeoutMs` value; if exceeded, the MCP server terminates the subprocess and returns an error. The dev mode `start` action uses a 12-minute timeout for initial setup. For long-running deployments, run them directly via the [CLI](/cli/deploy) where you get real-time streaming output.
+CLI commands run as subprocesses. The caller can specify a `timeoutMs` value; if exceeded, the MCP server terminates the subprocess and returns an error. MCP dev startup can continue for up to 30 minutes. Each `start` or `status` call normally waits up to 50 seconds before returning progress while startup continues. The daemon is also reaped after 10 minutes without output; that silence limit is separate from the total startup budget. For long-running deployments, run them directly via the [CLI](/cli/deploy) where you get real-time streaming output.
 
 ### What is the difference between plan and run in stacktape_cli?
 
@@ -49541,7 +49568,7 @@ Agent mode is a variant of Stacktape's [dev mode](/local-development/dev-mode-ov
 Agent mode controls Stacktape dev mode through HTTP endpoints for status, logs, rebuilds, stop, and local database inspection. It provides structured JSON endpoints for:
 
 - **Status checks** — workload health, ports, and readiness phase (`starting`, `ready`, `rebuilding`, `stopping`, `stopped`)
-- **Log reading** — log text with cursor-based pagination for incremental reads
+- **Log reading** — HTTP `GET /logs` returns the local JSONL file path. Read the file for raw HTTP integration; MCP `stacktape_dev` with `action: "logs"` reads it and provides cursor pagination and filters
 - **Workload rebuilds** — trigger rebuilds of specific workloads or all workloads after code changes
 - **Database queries** — execute SQL, Redis commands, and DynamoDB operations against locally emulated PostgreSQL, MySQL, Redis, and DynamoDB databases
 
@@ -72756,6 +72783,7 @@ resources:
        properties:
          packagePath: ./dist/lambda.zip
          handler: index.js:handler
+     runtime: nodejs22.x
      memory: 512
 ```
 
@@ -72773,6 +72801,7 @@ export default defineConfig(() => {
        handler: 'index.js:handler'
      }
    },
+   runtime: 'nodejs22.x',
    memory: 512
  });
  return { resources: { apiFunction } };
@@ -72786,9 +72815,12 @@ export default defineConfig(() => {
 
 The handler function to be executed when the Lambda is invoked.
 
-The syntax is `{{filepath}}:{{functionName}}`.
+Required by CLI validation, alongside `runtime` on the Lambda resource. The type currently permits omission, but the CLI rejects it.
 
-Example: `my-lambda/index.js:default`
+The syntax is `{{filepath}}:{{functionName}}`. Put the handler file at the artifact root: directory paths are discarded.
+Native Java/.NET `::` handler strings are not accepted by this parser.
+
+Example: `index.js:default`
 
 ### Example 1 (yaml)
 
@@ -72801,7 +72833,8 @@ resources:
        type: custom-artifact
        properties:
          packagePath: ./dist/lambda.zip
-         handler: my-lambda/index.js:default
+         handler: index.js:default
+     runtime: nodejs22.x
      memory: 512
 ```
 
@@ -72816,9 +72849,10 @@ export default defineConfig(() => {
      type: 'custom-artifact',
      properties: {
        packagePath: './dist/lambda.zip',
-       handler: 'my-lambda/index.js:default'
+       handler: 'index.js:default'
      }
    },
+   runtime: 'nodejs22.x',
    memory: 512
  });
  return { resources: { apiFunction } };
