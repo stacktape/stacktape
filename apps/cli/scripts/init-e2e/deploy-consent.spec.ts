@@ -11,6 +11,7 @@ import {
   waitUntilStackDeleteComplete
 } from '@aws-sdk/client-cloudformation';
 import { startMiniStack } from '@stacktape/ministack/fixture';
+import { outputNames } from '@stacktape/naming/stack-output-names';
 import { inspectDeployTarget, startDeploy } from '../../src/init/deploy/run-deploy';
 import { INIT_TARGET_CHECK_ENV, INIT_TARGET_EXPECTATION_ENV } from '../../src/init/deploy/stack-expectation';
 import { buildOfflineQualificationEnvironment } from '../qualification/offline-aws';
@@ -96,12 +97,15 @@ describe('the deploy target init reviewed', () => {
         stackName
       });
       if (!absent) throw new Error('No typed target observation');
+      // The stack that appears is one another deploy completed: every completed deploy records its version output.
+      // A stack without it holds only a failed first deploy's artifact resources and is still checked as absent.
       const created = await cloudformation.send(
         new CreateStackCommand({
           StackName: stackName,
           TemplateBody: JSON.stringify({
             Description: `STP-stack_${projectName}_dev_hash`,
-            Resources: { Data: { Type: 'AWS::S3::Bucket' } }
+            Resources: { Data: { Type: 'AWS::S3::Bucket' } },
+            Outputs: { [outputNames.deploymentVersion()]: { Value: 'v000001' } }
           }),
           Tags: [
             { Key: 'stp:project-name', Value: projectName },

@@ -97,7 +97,7 @@ export const startSsrWebDevServer = async ({
               devTuiManager.setRebuildSize(name, sizeInfo);
             }
           } else if (useDevTui) {
-            devTuiManager.setWorkloadStatus(name, 'running', { url: newState.url, size: sizeInfo });
+            devTuiManager.setWorkloadStatus(name, 'running', { url: newState.url, size: sizeInfo, error: undefined });
             devTuiManager.log(name, status);
           } else {
             tuiManager.info(`[${name}] ${status}`);
@@ -107,21 +107,17 @@ export const startSsrWebDevServer = async ({
           if (inRebuildPhase) devTuiManager.setRebuildError(name, newState.error || 'Build failed');
           if (useDevTui) {
             devTuiManager.setWorkloadStatus(name, 'error', { error: newState.error });
-            devTuiManager.log(name, status, 'error');
-          } else {
+            // An error the server printed is in the log already, as its own entry.
+            if (!newState.errorFromOutput) devTuiManager.log(name, status, 'error');
+          } else if (!newState.errorFromOutput) {
             tuiManager.error(`[${name}] ${status}`);
           }
         }
       },
-      onOutput: (line) => {
-        const inRebuildPhase = devTuiManager.inRebuildPhase;
-        if (inRebuildPhase) {
-          devTuiManager.bufferRebuildLog(name, line);
-        } else if (useDevTui) {
-          devTuiManager.log(name, line);
-        } else {
-          tuiManager.info(`[${name}] ${line}`);
-        }
+      onOutput: (message, level) => {
+        if (devTuiManager.inRebuildPhase) devTuiManager.bufferRebuildLog(name, message, level);
+        else if (useDevTui) devTuiManager.log(name, message, level);
+        else tuiManager.info(`[${name}] ${message}`);
       }
     }
   });

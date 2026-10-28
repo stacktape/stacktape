@@ -885,19 +885,21 @@ export const lanes: readonly Lane[] = [
       'test',
       'tests/characterization/nat-instance-template.spec.ts',
       'helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
-      'helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts'
+      'helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts',
+      'helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/instance-profile.test.ts'
     ],
     level: 'focused',
     tier: 'pr',
     tests: [
       'apps/cli/tests/characterization/nat-instance-template.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
-      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts'
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/instance-profile.test.ts'
     ],
     requires: [],
     release: 'every-candidate',
     proves:
-      'stackConfig.nat synthesizes gateways or per-zone NAT instances with stable route logical ids, the failover planner reroutes, reports and releases lifecycle hooks by the zone rules, and the route reconcile only touches drifted tables.'
+      'stackConfig.nat synthesizes gateways or per-zone NAT instances with stable route logical ids, the failover planner reroutes, reports and releases lifecycle hooks by the zone rules, the route reconcile only touches drifted tables, and new instance profiles are created by the service Lambda once EC2 accepts them while deployed ones keep their CloudFormation form.'
   },
   {
     id: 'nat-instances-live',
@@ -2804,6 +2806,7 @@ export const lanes: readonly Lane[] = [
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
       'packages/analytics/src/web.test.ts',
+      'packages/aws-read-only/src/executor.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -3091,7 +3094,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
     tier: 'pr',
-    tests: ['packages/aws-read-only/src/operations.test.ts'],
+    tests: ['packages/aws-read-only/src/executor.test.ts', 'packages/aws-read-only/src/operations.test.ts'],
     requires: [],
     release: 'every-candidate'
   },
@@ -4343,6 +4346,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/local-development/container-network.spec.ts',
       'apps/cli/src/commands/dev/container/network.spec.ts',
       'apps/cli/src/commands/dev/container/build-error.spec.ts',
+      'apps/cli/src/commands/dev/container/exit-reason.spec.ts',
+      'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
+      'apps/cli/src/commands/dev/function-logs.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
@@ -4397,7 +4403,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/validate/**',
       'apps/cli/src/aws/**',
       'apps/cli/src/commands/info-stack/agent-contract.ts',
-      'packages/aws-read-only/src/operations.ts'
+      'packages/aws-read-only/src/operations.ts',
+      'packages/aws-read-only/src/executor.ts'
     ],
     tests: [
       'apps/cli/scripts/operations/validate.spec.ts',
@@ -4416,7 +4423,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
-      'packages/aws-read-only/src/operations.test.ts'
+      'packages/aws-read-only/src/operations.test.ts',
+      'packages/aws-read-only/src/executor.test.ts'
     ],
     lanes: [
       'cli-operation-rules',
@@ -4739,6 +4747,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/base-images.test.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
+      'apps/cli/src/utils/docker-builder.spec.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/image-builders/docker-build.spec.ts',
       'apps/cli/tests/image-builders/ecr.spec.ts',
@@ -4874,6 +4883,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/database-deletion-protection.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/force-delete-asg.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
       'packages/packaging/scripts/archive-build-e2e.ts',
@@ -6308,6 +6318,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/utils/nat.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/**',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/instance-profile.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/instance-profile.ts',
       'apps/cli/scripts/real-aws/nat-instance-canary.ts',
       'apps/cli/_test-stacks/nat-instance/**',
       'packages/config/src/nat.ts'
@@ -6316,6 +6328,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/nat-instance-template.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/nat-failover/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/nat-routes.test.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/instance-profile.test.ts',
       'apps/cli/scripts/real-aws/nat-instance-canary.ts'
     ],
     lanes: ['nat-instances', 'nat-instances-live']

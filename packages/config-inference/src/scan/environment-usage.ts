@@ -288,6 +288,10 @@ const goHelperPatterns = (contents: readonly string[]): ReadPattern[] =>
 const DYNAMODB_WRITE =
   /\b(?:Put|Update|Delete|BatchWrite|TransactWrite)(?:Item)?Command\b|\.(?:put|update|delete)(?:Item)?\(\s*\{|\b(?:put_item|update_item|delete_item|batch_write_item|transact_write_items|batch_writer)\s*\(|\.(?:PutItem|UpdateItem|DeleteItem|BatchWriteItem|TransactWriteItems)\(/;
 
+/** Code that downloads an object: what a handler does with the object its bucket notification names. */
+const READS_OBJECT =
+  /\bGetObjectCommand\b|\.getObject\s*\(|\bget_object\s*\(|\bdownload_file(?:obj)?\s*\(|\.GetObject\s*\(/;
+
 /**
  * Whether the service's own writes could invoke it again through this trigger. A stream handler that only reads its
  * table, or publishes another detail type to its bus, can be given that table or bus; one that writes the table or
@@ -519,6 +523,17 @@ export const enrichEnvironmentUsage = async ({
     // The same source files, read for the other thing the composer needs from them.
     if (presignMethods.size > 0) {
       for (const service of unit.services) service.presignedUploadMethods = [...presignMethods].toSorted();
+    }
+    // A bucket notification grants no access to the bucket. A handler that reads the object it was invoked for needs
+    // `connectTo` on that bucket, or `GetObject` fails with AccessDenied.
+    if (sources.some(({ contents }) => READS_OBJECT.test(contents))) {
+      for (const service of unit.services) {
+        for (const trigger of service.functionTriggers ?? []) {
+          if (trigger.type !== 'object-storage') continue;
+          const bucket = dependencies.find((dependency) => dependency.name === trigger.dependencyName);
+          if (bucket !== undefined && !bucket.consumedBy.includes(service.name)) bucket.consumedBy.push(service.name);
+        }
+      }
     }
     if (occurrences.size === 0) continue;
 

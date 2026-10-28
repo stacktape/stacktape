@@ -58,8 +58,9 @@ const PRIMARY_HANDLE: Partial<Record<DependencyKind, string>> = {
 export const wiringFor = (kind: DependencyKind, variableName: string): EnvironmentWiring => {
   const name = variableName.toUpperCase();
 
-  // An event bus publishes only its ARN, which `PutEvents` accepts as `EventBusName`.
-  if (kind === 'event-bus') return { kind: 'param', param: 'arn' };
+  // An event bus publishes only its ARN, which `PutEvents` accepts as `EventBusName`. `StartExecution` takes a state
+  // machine's ARN.
+  if (kind === 'event-bus' || kind === 'state-machine') return { kind: 'param', param: 'arn' };
   // A WebSocket API has two addresses: the `wss://` URL clients connect to, and the HTTPS endpoint the backend posts
   // to connections through.
   if (kind === 'websocket-api') {

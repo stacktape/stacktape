@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export const tagNames = {
   stackName() {
     return 'stp:stack-name';
@@ -19,11 +21,23 @@ export const tagNames = {
     return 'stp:dev-stack';
   },
   /**
-   * Set on a secret that `stacktape dev` generated (a database password), with the dev stack's name. Deleting that
-   * stage deletes the secret; a deployment of another stage that uses the secret removes the tag, so the secret stays.
+   * Set on a secret that `stacktape dev` generated (a database password), with the dev stack's name. It marks the
+   * secret as owned by dev stages (see `devSecretUser`); a deployment that is not a dev session takes the secret out of
+   * that ownership by removing this tag and the user tags, so the secret stays.
    */
   devGeneratedSecret() {
     return 'stp:dev-generated-for';
+  },
+  /**
+   * One tag per dev stage that uses a dev-generated secret, with the dev stack's name as value; the key carries a hash
+   * of the name, which keeps it within the 128 characters a tag key may have. Deleting a stage removes its tag, and the
+   * secret is deleted with the last one.
+   */
+  devSecretUser(stackName: string) {
+    return `stp:dev-used-by:${createHash('sha256').update(stackName).digest('hex').slice(0, 16)}`;
+  },
+  devSecretUserPrefix() {
+    return 'stp:dev-used-by:';
   },
   codeDigest() {
     return 'stp:code-digest';

@@ -1201,6 +1201,346 @@ def handler(event, context):
 `
 };
 
+/**
+ * The r2cc dogfood app (part B): a FastAPI container whose Procfile migrates with Alembic before it starts, an S3
+ * trigger feeding an SQS worker, a Step Functions approval workflow started by the API, a function URL read by a
+ * SvelteKit server, and a Python job whose docstring states its schedule. Init's output needed seven config edits.
+ */
+const r2ccReceipts: Record<string, string> = {
+  'package.json': `{
+  "name": "receipts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "seed": ".venv/bin/python scripts/seed.py"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/client-sqs": "^3.700.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.6.0"
+  }
+}
+`,
+  'api/.python-version': `3.13
+`,
+  'api/Procfile': `web: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port \${PORT:-8000}
+`,
+  'api/requirements.txt': `fastapi==0.115.6
+uvicorn[standard]==0.32.1
+psycopg[binary]==3.2.3
+SQLAlchemy==2.0.36
+alembic==1.14.0
+boto3==1.35.80
+python-multipart==0.0.19
+`,
+  'api/alembic.ini': `[alembic]
+script_location = migrations
+`,
+  'api/main.py': `import json
+import os
+import time
+import uuid
+
+import boto3
+import psycopg
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from psycopg.rows import dict_row
+
+app = FastAPI(title="receipts-api")
+s3 = boto3.client("s3")
+stepfunctions = boto3.client("stepfunctions")
+
+COLUMNS = "id, vendor, amount, status, line_count, size_bytes, decision_note, created_at"
+
+
+def db():
+    return psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True)
+
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/receipts")
+def list_receipts():
+    with db() as conn:
+        return conn.execute(f"select {COLUMNS} from receipts order by created_at desc limit 50").fetchall()
+
+
+@app.get("/receipts/{receipt_id}")
+def get_receipt(receipt_id: uuid.UUID):
+    with db() as conn:
+        row = conn.execute(f"select {COLUMNS} from receipts where id = %s", (receipt_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="receipt not found")
+    return row
+
+
+@app.post("/receipts", status_code=201)
+async def create_receipt(vendor: str = Form(...), amount: float = Form(...), file: UploadFile = File(...)):
+    receipt_id = uuid.uuid4()
+    body = await file.read()
+    with db() as conn:
+        conn.execute(
+            "insert into receipts (id, vendor, amount, status) values (%s, %s, %s, 'uploaded')",
+            (receipt_id, vendor, amount),
+        )
+    s3.put_object(Bucket=os.environ["UPLOAD_BUCKET"], Key=f"receipts/{receipt_id}.txt", Body=body, ContentType="text/plain")
+    print(f"receipt {receipt_id} uploaded ({len(body)} bytes)", flush=True)
+    return {"id": str(receipt_id)}
+
+
+@app.post("/receipts/{receipt_id}/approve", status_code=202)
+def approve_receipt(receipt_id: uuid.UUID):
+    receipt = get_receipt(receipt_id)
+    execution = stepfunctions.start_execution(
+        stateMachineArn=os.environ["APPROVAL_WORKFLOW_ARN"],
+        name=f"receipt-{receipt_id}-{int(time.time())}",
+        input=json.dumps({"receiptId": str(receipt_id), "amount": float(receipt["amount"])}),
+    )
+    with db() as conn:
+        conn.execute("update receipts set status = 'reviewing', updated_at = now() where id = %s", (receipt_id,))
+    print(f"receipt {receipt_id} approval started", flush=True)
+    return {"executionArn": execution["executionArn"]}
+`,
+  'api/migrations/env.py': `import os
+
+from alembic import context
+from sqlalchemy import create_engine
+
+url = os.environ["DATABASE_URL"]
+for prefix in ("postgresql://", "postgres://"):
+    if url.startswith(prefix):
+        url = "postgresql+psycopg://" + url[len(prefix):]
+
+engine = create_engine(url)
+with engine.connect() as connection:
+    context.configure(connection=connection, target_metadata=None)
+    with context.begin_transaction():
+        context.run_migrations()
+`,
+  'api/migrations/versions/0001_receipts.py': `revision = "0001"
+down_revision = None
+
+from alembic import op
+
+
+def upgrade():
+    op.execute(
+        """
+        create table receipts (
+            id uuid primary key,
+            vendor text not null,
+            amount numeric(10, 2) not null,
+            status text not null,
+            line_count integer,
+            size_bytes integer,
+            decision_note text,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now()
+        )
+        """
+    )
+
+
+def downgrade():
+    op.execute("drop table receipts")
+`,
+  'functions/on-upload.ts': `// Runs for every receipt file created in the upload bucket and queues it for processing.
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import type { S3Event } from 'aws-lambda';
+
+const s3 = new S3Client({});
+const sqs = new SQSClient({});
+
+export default async (event: S3Event) => {
+  for (const record of event.Records) {
+    const key = decodeURIComponent(record.s3.object.key.replace(/\\+/g, ' '));
+    if (!key.startsWith('receipts/')) continue;
+    const object = await s3.send(new GetObjectCommand({ Bucket: record.s3.bucket.name, Key: key }));
+    const text = await object.Body!.transformToString();
+    const receiptId = key.slice('receipts/'.length).replace(/\\.txt$/, '');
+    await sqs.send(
+      new SendMessageCommand({
+        QueueUrl: process.env.RECEIPTS_QUEUE_URL,
+        MessageBody: JSON.stringify({
+          receiptId,
+          sizeBytes: record.s3.object.size,
+          lineCount: text.split('\\n').filter((line) => line.trim()).length
+        })
+      })
+    );
+    console.log(\`queued receipt \${receiptId}\`);
+  }
+};
+`,
+  'functions/score.ts': `// First step of the approval workflow: small receipts are approved automatically.
+type ScoreInput = { receiptId: string; amount: number };
+
+export default async (input: ScoreInput) => {
+  const approved = input.amount <= 500;
+  console.log(\`scored receipt \${input.receiptId}: \${approved ? 'approved' : 'rejected'}\`);
+  return { ...input, approved, note: approved ? 'auto-approved under 500' : 'over 500, needs a manager' };
+};
+`,
+  'functions/stats.ts': `// Public HTTPS endpoint (function URL) with receipt counts per status.
+import type { LambdaFunctionURLEvent, LambdaFunctionURLResult } from 'aws-lambda';
+import pg from 'pg';
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+
+export default async (_event: LambdaFunctionURLEvent): Promise<LambdaFunctionURLResult> => {
+  const { rows } = await pool.query('select status, count(*)::int as count from receipts group by status');
+  const byStatus = Object.fromEntries(rows.map((row) => [row.status, row.count]));
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ total, byStatus }) };
+};
+`,
+  'workers/requirements.txt': `psycopg[binary]==3.2.3
+`,
+  'workers/process_receipt.py': `"""Consumes the receipts queue: stores the line count and size and marks the receipt processed."""
+import json
+import os
+
+import psycopg
+
+
+def handler(event, context):
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
+        for record in event["Records"]:
+            message = json.loads(record["body"])
+            conn.execute(
+                "update receipts set status = 'processed', line_count = %s, size_bytes = %s, updated_at = now() where id = %s",
+                (message["lineCount"], message["sizeBytes"], message["receiptId"]),
+            )
+            print(f"processed receipt {message['receiptId']} ({message['lineCount']} lines)")
+`,
+  'workers/mark_decision.py': `"""Last step of the approval workflow: records the decision on the receipt."""
+import os
+
+import psycopg
+
+
+def handler(event, context):
+    status = "approved" if event["approved"] else "rejected"
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
+        conn.execute(
+            "update receipts set status = %s, decision_note = %s, updated_at = now() where id = %s",
+            (status, event["note"], event["receiptId"]),
+        )
+    print(f"receipt {event['receiptId']} {status}")
+    return {"receiptId": event["receiptId"], "status": status}
+`,
+  'workers/cleanup.py': `"""Scheduled job, every minute: expires receipts stuck in \`uploaded\` for more than 10 minutes.
+
+Schedule: rate(1 minute)
+"""
+import os
+
+import psycopg
+
+
+def handler(event, context):
+    with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
+        expired = conn.execute(
+            "update receipts set status = 'expired', updated_at = now() "
+            "where status = 'uploaded' and created_at < now() - interval '10 minutes'"
+        ).rowcount
+    print(f"cleanup ran: {expired} receipts expired")
+`,
+  'web/package.json': `{
+  "name": "receipts-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.2.0",
+    "@sveltejs/kit": "^2.15.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "svelte": "^5.16.0",
+    "vite": "^6.0.0"
+  }
+}
+`,
+  'web/svelte.config.js': `import adapter from '@sveltejs/adapter-node';
+
+export default {
+  kit: { adapter: adapter() }
+};
+`,
+  'web/vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({ plugins: [sveltekit()] });
+`,
+  'web/src/routes/+page.server.js': `import { env } from '$env/dynamic/private';
+import { fail } from '@sveltejs/kit';
+
+const api = (path, init) => fetch(\`\${env.API_URL}\${path}\`, init);
+
+export async function load() {
+  const [receipts, stats] = await Promise.all([
+    api('/receipts').then((res) => res.json()),
+    fetch(env.STATS_URL)
+      .then((res) => res.json())
+      .catch(() => ({ total: null, byStatus: {} }))
+  ]);
+  return { receipts, stats };
+}
+
+export const actions = {
+  upload: async ({ request }) => {
+    const form = await request.formData();
+    const file = form.get('file');
+    if (!(file instanceof File) || file.size === 0) return fail(400, { error: 'Choose a receipt file' });
+    const body = new FormData();
+    body.set('vendor', String(form.get('vendor')));
+    body.set('amount', String(form.get('amount')));
+    body.set('file', file, file.name);
+    const res = await api('/receipts', { method: 'POST', body });
+    if (!res.ok) return fail(res.status, { error: await res.text() });
+    return { uploaded: (await res.json()).id };
+  },
+  approve: async ({ request }) => {
+    const id = (await request.formData()).get('id');
+    const res = await api(\`/receipts/\${id}/approve\`, { method: 'POST' });
+    if (!res.ok) return fail(res.status, { error: await res.text() });
+    return { approving: id };
+  }
+};
+`,
+  'scripts/seed.py': `"""Inserts three sample receipts into the database named by DATABASE_URL."""
+import os
+import uuid
+
+import psycopg
+
+SAMPLES = [("seed-coffee", 4.5, "processed", 2), ("seed-laptop", 1299, "processed", 14), ("seed-taxi", 31.2, "approved", 3)]
+
+with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
+    for vendor, amount, status, lines in SAMPLES:
+        conn.execute(
+            "insert into receipts (id, vendor, amount, status, line_count) values (%s, %s, %s, %s, %s)",
+            (uuid.uuid4(), vendor, amount, status, lines),
+        )
+        print(f"seeded {vendor}")
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -1211,5 +1551,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'untyped-handlers': untypedHandlers,
   'trigger-loops': triggerLoops,
   'r2w-shop': r2wShop,
-  'r2w-python': r2wPython
+  'r2w-python': r2wPython,
+  'r2cc-receipts': r2ccReceipts
 } as const;

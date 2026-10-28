@@ -449,6 +449,75 @@ describe('init writes a config stacktape dev can run', () => {
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
+  // The r2cc dogfood (27 Oct 2026) needed seven config edits after init. Each one is asserted here; H5, the dead-letter
+  // queue, stays a hand edit because only the README mentions it.
+  it('r2cc receipts: Procfile migration, state machine, function URL and a Python schedule', async () => {
+    const result = await initFixture('r2cc-receipts');
+    const resources = resourcesOf(result);
+
+    expect(typesOf(resources)).toEqual({
+      mainDatabase: 'relational-database',
+      jobQueue: 'sqs-queue',
+      storageBucket: 'bucket',
+      approvalWorkflow: 'state-machine',
+      receiptsWeb: 'sveltekit-web',
+      onUpload: 'function',
+      score: 'function',
+      stats: 'function',
+      cleanup: 'function',
+      markDecision: 'function',
+      processReceipt: 'function',
+      api: 'web-service'
+    });
+    // H1, H2: the start input feeds `score`, and its result feeds `markDecision`, so the order is the code's own.
+    expect(resources.score!.properties.packaging).toEqual({
+      type: 'js-bundle',
+      properties: { entryfilePath: 'functions/score.ts' }
+    });
+    expect(resources.approvalWorkflow!.properties).toEqual({
+      definition: {
+        StartAt: 'Score',
+        States: {
+          Score: { Type: 'Task', Resource: "$ResourceParam('score', 'arn')", Next: 'MarkDecision' },
+          MarkDecision: { Type: 'Task', Resource: "$ResourceParam('markDecision', 'arn')", End: true }
+        }
+      }
+    });
+    // H2, H7: the API starts the workflow, and its Procfile migrates before uvicorn starts.
+    expect(resources.api!.properties).toMatchObject({
+      packaging: {
+        type: 'buildpack',
+        properties: {
+          sourceDirectoryPath: 'api',
+          startCommand: 'alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}'
+        }
+      },
+      port: 8000,
+      environment: [
+        { name: 'APPROVAL_WORKFLOW_ARN', value: "$ResourceParam('approvalWorkflow', 'arn')" },
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'UPLOAD_BUCKET', value: "$ResourceParam('storageBucket', 'name')" }
+      ],
+      connectTo: ['mainDatabase', 'storageBucket', 'approvalWorkflow']
+    });
+    expect(result.composition.config.hooks).toBeUndefined();
+    // H3: a handler typed `LambdaFunctionURLEvent` serves its own URL, which the SvelteKit server reads.
+    expect(resources.stats!.properties.url).toEqual({ enabled: true });
+    expect(resources.stats!.properties.events).toBeUndefined();
+    expect(resources.receiptsWeb!.properties.environment).toEqual([
+      { name: 'API_URL', value: "$ResourceParam('api', 'url')" },
+      { name: 'STATS_URL', value: "$ResourceParam('stats', 'url')" }
+    ]);
+    // H4: the schedule from the module docstring.
+    expect(resources.cleanup!.properties.events).toEqual([
+      { type: 'schedule', properties: { scheduleRate: 'rate(1 minute)' } }
+    ]);
+    // H6: the S3 trigger grants no access to the object the handler reads.
+    expect(resources.onUpload!.properties.connectTo).toEqual(['jobQueue', 'storageBucket']);
+    expect(result.composition.gaps).toEqual([]);
+    expect(result.composition.unsetSettings).toEqual([]);
+  });
+
   // A function's output bound to its own trigger re-invokes it with every write, forever.
   it('trigger loops: a variable naming the kind that invokes the function is left unset and reported', async () => {
     const result = await initFixture('trigger-loops');

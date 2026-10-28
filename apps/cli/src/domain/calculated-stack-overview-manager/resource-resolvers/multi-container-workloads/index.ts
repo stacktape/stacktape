@@ -28,6 +28,7 @@ import {
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
+import { addInstanceProfile } from '../_utils/instance-profile';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { logClassSupportsSubscriptionFilters } from '../_utils/log-groups';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
@@ -48,7 +49,6 @@ import {
   getEcsEc2CapacityProviderAssociation,
   getEcsEc2ForceDeleteAsgCustomResource,
   getEcsEc2InstanceLaunchTemplate,
-  getEcsEc2InstanceProfile,
   getEcsEc2InstanceRole,
   getEcsExecutionRole,
   getEcsLogGroup,
@@ -215,10 +215,12 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       });
     }
     if (!templateManager.getCfResourceFromTemplate(cfLogicalNames.ecsEc2InstanceProfile())) {
-      calculatedStackOverviewManager.addCfChildResource({
+      addInstanceProfile({
         cfLogicalName: cfLogicalNames.ecsEc2InstanceProfile(),
-        resource: getEcsEc2InstanceProfile(),
-        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+        roleCfLogicalName: cfLogicalNames.ecsEc2InstanceRole(),
+        purpose: 'ecs-instance',
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+        cloudformationProperties: { Path: '/', Roles: [ref(cfLogicalNames.ecsEc2InstanceRole())] }
       });
     }
     calculatedStackOverviewManager.addCfChildResource({

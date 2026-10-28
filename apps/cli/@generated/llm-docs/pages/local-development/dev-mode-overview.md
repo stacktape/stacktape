@@ -151,6 +151,10 @@ STP_MY_DB_PORT=5432
 
 In most applications, reading the Stacktape-provided `STP_*` variables lets the same code path work in dev mode and deployed stacks without conditional logic or environment switching.
 
+Local containers also get `AWS_REGION` and `AWS_DEFAULT_REGION` with the stage's region, as deployed containers do, so AWS SDKs that read either one (boto3 reads only `AWS_DEFAULT_REGION`) find it without a profile.
+
+Code on your machine talks to the dev stack, and deployed functions talk to your local databases, across the distance to the stage's region. In a region far from you, every first connection takes noticeably longer (several hundred milliseconds per round trip), and a client with a short connect timeout can fail. Node.js, for example, gives up on each address after 250 ms by default; raise it with `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`, or run dev mode in a region close to you.
+
 ## Rebuilding workloads
 
 The dev mode terminal accepts commands while running. Type a command and press Enter:
@@ -165,6 +169,8 @@ The dev mode terminal accepts commands while running. Type a command and press E
 When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
+
+That start updates the dev stack only when the change reaches it. Changing how a local container is built or started (its `packaging`, including `startCommand`), a frontend's `dev` settings or a local script restarts only what runs on your machine. When the dev stack is updated, functions whose code did not change keep their deployed code.
 
 ## Lifecycle hooks
 

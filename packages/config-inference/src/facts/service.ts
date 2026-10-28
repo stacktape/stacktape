@@ -195,6 +195,8 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     eventType: z.string().min(1).optional()
   }),
   z.object({ type: z.literal('schedule'), rate: z.string().min(1) }),
+  /** The function's own HTTPS endpoint (a Lambda function URL), for a handler written for `LambdaFunctionURLEvent`. */
+  z.object({ type: z.literal('url') }),
   z.object({
     type: z.literal('websocket'),
     /** The `websocket-api` dependency whose routes invoke the handler. */
@@ -239,6 +241,9 @@ export const invokingDependencyName = (trigger: FunctionTrigger): string | undef
  * none of them can take the catch-all route alone.
  */
 export const UNROUTED_HTTP_SOURCE = 'HTTP requests on a route the code does not name';
+
+/** The `unmapped` source of a function the repository's own code invokes with the Lambda `Invoke` API. */
+export const DIRECT_INVOCATION_SOURCE = 'a direct Lambda invocation from your code';
 
 const containerEntrypointSchema = z
   .string()

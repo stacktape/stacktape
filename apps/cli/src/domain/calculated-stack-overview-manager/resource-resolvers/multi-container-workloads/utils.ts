@@ -179,12 +179,6 @@ export const getEcsEc2InstanceRole = () =>
     ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role']
   });
 
-export const getEcsEc2InstanceProfile = () =>
-  cfnResource('AWS::IAM::InstanceProfile', {
-    Path: '/',
-    Roles: [ref(cfLogicalNames.ecsEc2InstanceRole())]
-  });
-
 export const getEcsTaskRole = ({
   workloadName,
   iamRoleStatements,

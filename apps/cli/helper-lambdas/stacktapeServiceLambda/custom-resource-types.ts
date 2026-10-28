@@ -153,7 +153,21 @@ export type StpServiceCustomResourceNatRoutesProps = {
   launchTemplateVersions: (string | Intrinsic)[];
 };
 
+/**
+ * An instance profile created by the service Lambda instead of `AWS::IAM::InstanceProfile`, whose CloudFormation
+ * handler always waits about 2 minutes. `probeImageId` is any image EC2 accepts in the region; the handler only uses
+ * it, with `probeSubnetId`, in dry-run launches that tell when EC2 sees the new profile.
+ */
+export type StpServiceCustomResourceInstanceProfileProps = {
+  instanceProfileName: string;
+  roleName: string | Intrinsic;
+  probeImageId: string;
+  /** Any subnet of the stack's VPC, for the same dry-run launches. */
+  probeSubnetId: string | Intrinsic;
+};
+
 export type StpServiceCustomResourceProperties = {
+  instanceProfile?: StpServiceCustomResourceInstanceProfileProps;
   natRoutes?: StpServiceCustomResourceNatRoutesProps;
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];
   // @deprecated - use edgeLambda instead

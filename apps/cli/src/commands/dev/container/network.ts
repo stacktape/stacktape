@@ -1,6 +1,7 @@
-import type { Server, Socket } from 'node:net';
+import type { AddressInfo, Server, Socket } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import { connect, createServer } from 'node:net';
+import { tuiManager } from '@application-services/tui-manager';
 import { execDocker, getDockerHostAddress } from '@utils/docker';
 
 /** The name a dev container uses for this machine, on every platform. */
@@ -10,10 +11,11 @@ export const DOCKER_HOST_NAME = 'host.docker.internal';
  * How dev containers reach this machine and get their ports.
  *
  * - `bridge`: each container has its own network, so two stages of one app on this machine can both listen on any port
- *   inside their containers. Declared ports are published on the host with the stage's offset, and the container
- *   reaches this machine as `host.docker.internal`. Docker Desktop forwards that name to this machine's loopback. Native
- *   Linux Docker sends it to the bridge's gateway address, where loopback-only listeners (local databases, SSM tunnels)
- *   do not listen, so dev mode relays their ports from `gatewayAddress` to loopback (`ensureLoopbackRelays`).
+ *   inside their containers. Declared ports get a stable host port with the stage's offset on this machine's loopback
+ *   (`startPortSwitch`), and the container reaches this machine as `host.docker.internal`. Docker Desktop forwards
+ *   that name to this machine's loopback. Native Linux Docker sends it to the bridge's gateway address, where
+ *   loopback-only listeners (local databases, SSM tunnels, the stable ports of dev containers) do not listen, so dev
+ *   mode relays their ports from `gatewayAddress` to loopback (`ensureLoopbackRelays`).
  * - `host`: the container shares this machine's network. Only when the bridge gateway is not an address of this
  *   machine (rootless Docker), so a relay cannot listen on it. Ports cannot be remapped then.
  */
@@ -64,10 +66,71 @@ export const isInIpv4Subnet = (address: string, subnet: string) => {
   return Math.floor(ipv4ToNumber(plain) / size) === Math.floor(ipv4ToNumber(base) / size);
 };
 
+type Forwarder = { close: () => Promise<void> };
+
+/**
+ * Listens on `bindAddress:port` and passes each connection it accepts to `targetPort()` on this machine's loopback. A
+ * connection the target refuses, or that arrives before there is a target, is closed, as Docker's port proxy closes
+ * one to a container that does not listen yet. An error after the listener started (too many open files) is reported
+ * once per kind and the listener goes on: an unhandled one ended the dev session.
+ */
+const startForwarder = ({
+  bindAddress,
+  port,
+  targetPort,
+  accepts = () => true
+}: {
+  bindAddress: string;
+  port: number;
+  targetPort: () => number | undefined;
+  accepts?: (client: Socket) => boolean;
+}): Promise<Forwarder> => {
+  const sockets = new Set<Socket>();
+  const track = (socket: Socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  };
+  // Half-open: a client that has sent everything can still read the answer, and each side's end passes through.
+  const server: Server = createServer({ allowHalfOpen: true }, (client) => {
+    const target = targetPort();
+    if (target === undefined || !accepts(client)) {
+      client.destroy();
+      return;
+    }
+    const upstream = connect({ port: target, host: '127.0.0.1', allowHalfOpen: true });
+    track(client);
+    track(upstream);
+    client.pipe(upstream).pipe(client);
+    client.on('error', () => upstream.destroy());
+    upstream.on('error', () => client.destroy());
+  });
+  const reported = new Set<string>();
+  const reportError = (error: NodeJS.ErrnoException) => {
+    const kind = error.code ?? error.message;
+    if (reported.has(kind)) return;
+    reported.add(kind);
+    tuiManager.warn(`Forwarding connections on ${bindAddress}:${port} failed: ${error.message}`);
+  };
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, bindAddress, () => {
+      server.off('error', reject);
+      server.on('error', reportError);
+      resolve({
+        close: () =>
+          new Promise<void>((done) => {
+            server.close(() => done());
+            for (const socket of sockets) socket.destroy();
+          })
+      });
+    });
+  });
+};
+
 /**
  * Accepts connections on `bindAddress:port` from clients in `subnet` (the containers) and passes them to the same port
- * on this machine's loopback. Resolves `undefined` when the port is in use on every address already, as a published
- * container port is: containers reach that one through the gateway without a relay.
+ * on this machine's loopback. Resolves `undefined` when the port is in use on every address already: containers reach
+ * such a port through the gateway without a relay.
  */
 export const startLoopbackRelay = async ({
   bindAddress,
@@ -77,40 +140,48 @@ export const startLoopbackRelay = async ({
   bindAddress: string;
   port: number;
   subnet?: string;
-}): Promise<{ close: () => Promise<void> } | undefined> => {
-  const sockets = new Set<Socket>();
-  const track = (socket: Socket) => {
-    sockets.add(socket);
-    socket.once('close', () => sockets.delete(socket));
+}): Promise<Forwarder | undefined> =>
+  startForwarder({
+    bindAddress,
+    port,
+    targetPort: () => port,
+    accepts: (client) => !subnet || isInIpv4Subnet(client.remoteAddress ?? '', subnet)
+  }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') return undefined;
+    throw error;
+  });
+
+/**
+ * The stable host port of a dev container on its own network, on this machine's loopback only. Each run of the
+ * container publishes its port on a spare loopback port, and the switch passes connections to the run that serves:
+ * a rebuilt container starts next to the running one and takes over only once it serves, so a new build that crashes
+ * on start leaves the previous one serving. Local databases, other containers (through `ensureLoopbackRelays`),
+ * frontends and the dev proxy keep using the stable port.
+ */
+export const startPortSwitch = async ({ port, targetPort }: { port: number; targetPort?: number }) => {
+  let target = targetPort;
+  const listeners = [await startForwarder({ bindAddress: '127.0.0.1', port, targetPort: () => target })];
+  // A client that resolves `localhost` to ::1 first. A machine without IPv6 loopback has no such client.
+  const ipv6 = await startForwarder({ bindAddress: '::1', port, targetPort: () => target }).catch(() => undefined);
+  if (ipv6) listeners.push(ipv6);
+  return {
+    setTarget: (port: number) => {
+      target = port;
+    },
+    close: () => Promise.all(listeners.map((listener) => listener.close())).then(() => undefined)
   };
-  // Half-open: a client that has sent everything can still read the answer, and each side's end passes through.
-  const server: Server = createServer({ allowHalfOpen: true }, (client) => {
-    if (subnet && !isInIpv4Subnet(client.remoteAddress ?? '', subnet)) {
-      client.destroy();
-      return;
-    }
-    const upstream = connect({ port, host: '127.0.0.1', allowHalfOpen: true });
-    track(client);
-    track(upstream);
-    client.pipe(upstream).pipe(client);
-    client.on('error', () => upstream.destroy());
-    upstream.on('error', () => client.destroy());
-  });
-  return new Promise((resolve, reject) => {
-    server.once('error', (error: NodeJS.ErrnoException) =>
-      error.code === 'EADDRINUSE' ? resolve(undefined) : reject(error)
-    );
-    server.listen(port, bindAddress, () =>
-      resolve({
-        close: () =>
-          new Promise<void>((done) => {
-            server.close(() => done());
-            for (const socket of sockets) socket.destroy();
-          })
-      })
-    );
-  });
 };
+
+/** A port on this machine's loopback that nothing listens on now, for a container run to publish. */
+export const findSpareLoopbackPort = () =>
+  new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
 
 const relays = new Map<number, ReturnType<typeof startLoopbackRelay>>();
 

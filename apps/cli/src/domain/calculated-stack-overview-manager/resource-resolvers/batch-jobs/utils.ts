@@ -97,22 +97,9 @@ export const getBatchJobExecutionRole = ({
     accessToResourcesRequiringRoleChanges,
     accessToAwsServices
   });
-  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
-  if (secretResources.length || parameterResources.length) {
-    policies.push({
-      PolicyName: 'container-runtime-secrets',
-      PolicyDocument: {
-        Version: '2012-10-17',
-        Statement: [
-          ...(secretResources.length
-            ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
-            : []),
-          ...(parameterResources.length
-            ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
-            : [])
-        ]
-      }
-    });
+  const secretsPolicy = getContainerSecretsPolicy(containerSecretValueFroms);
+  if (secretsPolicy) {
+    policies.push(secretsPolicy);
   }
 
   return cfnResource('AWS::IAM::Role', {
@@ -128,6 +115,49 @@ export const getBatchJobExecutionRole = ({
     },
     Policies: policies
   });
+};
+
+/**
+ * The role the ECS agent uses for a batch job: it pulls the image from ECR, writes the awslogs output and reads the
+ * container secrets with it. The job's own code uses the job role.
+ */
+export const getBatchJobTaskExecutionRole = ({
+  containerSecretValueFroms
+}: {
+  containerSecretValueFroms: string[];
+}) => {
+  const secretsPolicy = getContainerSecretsPolicy(containerSecretValueFroms);
+  return cfnResource('AWS::IAM::Role', {
+    Path: '/',
+    AssumeRolePolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [{ Effect: 'Allow', Principal: { Service: 'ecs-tasks.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+    },
+    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+    Policies: secretsPolicy ? [secretsPolicy] : undefined
+  });
+};
+
+/** Read access to the secrets and parameters a job's container receives as environment variables. */
+const getContainerSecretsPolicy = (containerSecretValueFroms: string[]) => {
+  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
+  if (!secretResources.length && !parameterResources.length) {
+    return undefined;
+  }
+  return {
+    PolicyName: 'container-runtime-secrets',
+    PolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [
+        ...(secretResources.length
+          ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
+          : []),
+        ...(parameterResources.length
+          ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
+          : [])
+      ]
+    }
+  };
 };
 
 /**
@@ -154,12 +184,6 @@ export const getBatchInstanceRole = () =>
       Statement: [{ Effect: 'Allow', Principal: { Service: 'ec2.amazonaws.com' }, Action: 'sts:AssumeRole' }]
     },
     ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role']
-  });
-
-export const getBatchInstanceProfile = () =>
-  cfnResource('AWS::IAM::InstanceProfile', {
-    Path: '/',
-    Roles: [ref(cfLogicalNames.batchInstanceRole())]
   });
 
 export const getBatchInstanceDefaultSecurityGroup = () =>
@@ -200,7 +224,7 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
     SpotIamFleetRole: getAtt(cfLogicalNames.batchSpotFleetRole(), 'Arn'),
     MinvCpus: 0,
     MaxvCpus: 1000,
-    Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2_NVIDIA' : 'ECS_AL2' }],
+    Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2023_NVIDIA' : 'ECS_AL2023' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
     Subnets: vpcManager.getPublicSubnetIds().slice(0, 2),
     AllocationStrategy: 'BEST_FIT',
@@ -300,7 +324,7 @@ const getBatchJobDefinitionContainerProperties = ({
     ],
     ResourceRequirements: workload.resources.gpu ? [{ Type: 'GPU', Value: `${workload.resources.gpu}` }] : [],
     JobRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn'),
-    ExecutionRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
+    ExecutionRoleArn: getAtt(cfLogicalNames.batchJobTaskExecutionRole(name), 'Arn')
   };
 };
 

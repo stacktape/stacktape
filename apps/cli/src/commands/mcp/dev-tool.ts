@@ -148,6 +148,10 @@ const toAgentOutput = (
 ): ToolOutput => {
   const { ok, code, message, ...data } = response;
   const succeeded = ok === true;
+  // The agent's HTTP API asks its own clients for a request body field; through this tool, it is an argument.
+  if (typeof data.hint === 'string') {
+    data.hint = data.hint.replace(/set confirm: true in the request body/g, 'repeat this call with args.confirm=true');
+  }
   return {
     ok: succeeded,
     code: typeof code === 'string' ? code : succeeded ? 'OK' : 'INTERNAL_ERROR',
@@ -901,15 +905,25 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
   const createId = dependencies.createId || randomUUID;
   const now = dependencies.now || (() => new Date());
+  const serverDirectory = dependencies.serverDirectory || (() => process.cwd());
   const registry = createSessionRegistry({
     requestDevApi,
     discoverAgents,
     isStarting: (session) => startups.has(session.devSessionId),
     now,
-    serverDirectory: dependencies.serverDirectory || (() => process.cwd()),
+    serverDirectory,
     statusCheckTimeoutMs: dependencies.statusCheckTimeoutMs ?? STATUS_CHECK_TIMEOUT_MS
   });
   const activeDevSessions = registry.active;
+  /**
+   * The project a call without args.cwd means: the MCP server's directory, unless the client names one root and the
+   * server runs outside it. A server started by a wrapper in another directory then still plans and starts the
+   * client's project.
+   */
+  const getDefaultProjectDirectory = async (getProjectRoots: () => Promise<string[]>) => {
+    const roots = await getProjectRoots().catch(() => []);
+    return roots.length === 1 && !isProjectDirectoryOf(serverDirectory(), roots[0]) ? roots[0] : serverDirectory();
+  };
   const stopWaitMs = dependencies.stopWaitMs ?? STOP_WAIT_MS;
   const rebuildProgressIntervalMs = dependencies.rebuildProgressIntervalMs ?? REBUILD_PROGRESS_INTERVAL_MS;
 
@@ -1018,7 +1032,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     const toolArgs = normalizeToolArgs(args);
 
     if (action === 'plan') {
-      return toToolText(await buildDevPlan(toolArgs));
+      return toToolText(
+        await buildDevPlan({
+          ...toolArgs,
+          cwd: typeof toolArgs.cwd === 'string' ? toolArgs.cwd : await getDefaultProjectDirectory(getProjectRoots)
+        })
+      );
     }
 
     if (action === 'start') {
@@ -1029,13 +1048,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             ? Number(toolArgs.agentPort)
             : undefined;
       const {
-        cwd: requestedCwd,
+        cwd: cwdArg,
         devSessionId: _ignoredSessionId,
         waitSeconds,
         agentPort: _requestedPortArg,
         ...devCliArgs
       } = toolArgs;
 
+      const requestedCwd = typeof cwdArg === 'string' ? cwdArg : await getDefaultProjectDirectory(getProjectRoots);
       // The agent adopts this ID, reports it in its status, and a restarted MCP server finds the session by it again.
       const devSessionId = createId();
       const startedAt = now().toISOString();
@@ -1043,7 +1063,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         devSessionId,
         agentSessionId: devSessionId,
         startedAt,
-        cwd: typeof requestedCwd === 'string' ? requestedCwd : process.cwd(),
+        cwd: requestedCwd,
         ...(typeof devCliArgs.stage === 'string' ? { stage: devCliArgs.stage } : {}),
         origin: 'started',
         knownSince: startedAt
@@ -1071,7 +1091,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           // Without a requested port the CLI takes the first free one from 7331 and reports it.
           ...(requestedPort !== undefined && Number.isFinite(requestedPort) ? { agentPort: requestedPort } : {})
         },
-        cwd: typeof requestedCwd === 'string' ? requestedCwd : undefined,
+        cwd: requestedCwd,
         timeoutMs: START_TIMEOUT_MS,
         signal: startup.abort.signal,
         tool: 'stacktape_dev',

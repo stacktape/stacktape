@@ -8,6 +8,7 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   getAgentTokenFile,
+  getDeployedResources,
   startAgentServer,
   stopAgentServer,
   updateAgentState,
@@ -293,4 +294,44 @@ test('the dev agent is ready only when dev mode started and every selected workl
     else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+// Fifth dogfood (r2cc): an agent had to guess the dead-letter queue's name to check it with `aws`.
+test('status lists the deployed resources by AWS name, ARN and URL, and never a connection string', () => {
+  const param = (value: string) => ({ value });
+  expect(
+    getDeployedResources({
+      deadLetterQueue: {
+        resourceType: 'sqs-queue',
+        referencableParams: {
+          name: param('shop-dev-deadLetterQueue'),
+          arn: param('arn:aws:sqs:us-west-1:123456789012:shop-dev-deadLetterQueue'),
+          url: param('https://sqs.us-west-1.amazonaws.com/123456789012/shop-dev-deadLetterQueue')
+        }
+      },
+      stats: {
+        resourceType: 'function',
+        referencableParams: { arn: param('arn:aws:lambda:us-west-1:123456789012:function:shop-dev-stats') }
+      },
+      // A remote database: its address only.
+      orders: {
+        resourceType: 'relational-database',
+        referencableParams: {
+          connectionString: param('postgresql://app:hunter2-db-password@orders.example:5432/app'),
+          host: param('orders.example')
+        }
+      },
+      // A container that runs on this machine; status lists it under workloads.
+      api: { resourceType: 'web-service', referencableParams: { url: param('http://127.0.0.1:8000') } }
+    })
+  ).toEqual([
+    {
+      name: 'deadLetterQueue',
+      type: 'sqs-queue',
+      awsName: 'shop-dev-deadLetterQueue',
+      arn: 'arn:aws:sqs:us-west-1:123456789012:shop-dev-deadLetterQueue',
+      url: 'https://sqs.us-west-1.amazonaws.com/123456789012/shop-dev-deadLetterQueue'
+    },
+    { name: 'stats', type: 'function', arn: 'arn:aws:lambda:us-west-1:123456789012:function:shop-dev-stats' }
+  ]);
 });

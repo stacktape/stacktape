@@ -358,6 +358,7 @@ export const CHILD_RESOURCES: Record<
     { logicalName: cfLogicalNames.batchStateMachine, resourceType: 'AWS::StepFunctions::StateMachine' },
     { logicalName: cfLogicalNames.batchJobLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
     { logicalName: cfLogicalNames.batchJobExecutionRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.batchJobTaskExecutionRole, resourceType: 'AWS::IAM::Role' },
     {
       logicalName: cfLogicalNames.atlasMongoUserAssociatedWithRole,
       resourceType: 'MongoDB::StpAtlasV1::DatabaseUser',

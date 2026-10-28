@@ -15,7 +15,9 @@
  * everything else is a background worker.
  */
 
+import { posix } from 'node:path';
 import { languageOf } from '../language';
+import { withoutSampleDirectories } from '../service-root';
 import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
@@ -134,101 +136,183 @@ export const safeMigrationClauseOf = (command: string): string | undefined => {
   return candidates.length === 1 ? candidates[0] : undefined;
 };
 
+/** Dependencies, build output and tests hold Procfiles that are not this repository's processes. */
+const NON_SERVICE_PATH = /(?:^|\/)(?:node_modules|vendor|dist|build|\.venv|venv|tests?|spec)\//;
+
 const DATASTORE_PROCESS = /^(?:\S+=\S+\s+)*(?:redis-server|valkey-server|postgres|mysqld|mariadbd|mongod|memcached)\b/;
+
+const DEFAULT_PORT = /\$\{PORT:-(\d{2,5})\}/;
+const defaultPortOf = (command: string): number | undefined => {
+  const port = Number(DEFAULT_PORT.exec(command)?.[1]);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined;
+};
+
+/** At most this many Procfiles are read: one per service directory is the norm, and a vendored tree is not a project. */
+const MAX_PROCFILES = 20;
+
+/**
+ * The migration a long-running process runs before its server: `alembic upgrade head && uvicorn main:app`. The whole
+ * command stays the start command, so the migration keeps running where the repository runs it.
+ */
+const startupMigrationOf = (command: string): { clause: string; tool: string } | undefined => {
+  const clause = safeMigrationClauseOf(command);
+  const clauses = splitTopLevelAnd(command);
+  // A migration that is the whole command, or the last step, is not a migration in front of a server.
+  if (clause === undefined || clauses === undefined || clauses.length < 2 || clauses.at(-1) === clause)
+    return undefined;
+  return { clause, tool: MIGRATION_TOOLS.find((entry) => entry.pattern.test(clause))?.tool ?? 'unknown' };
+};
+
+const readProcfile = async (
+  context: ProbeContext,
+  path: string,
+  /** The name this directory's web process gets: its basename, or its whole path when another directory shares it. */
+  directoryName: string
+): Promise<{ services: ServiceFactInput[]; migrations: MigrationFact[] }> => {
+  const services: ServiceFactInput[] = [];
+  const migrations: MigrationFact[] = [];
+  const raw = await readText(context, path);
+  if (raw === undefined) return { services, migrations };
+
+  const directory = posix.dirname(path);
+  const lines = raw.split(/\r?\n/);
+  const language = languageOf(context.files, directory);
+  // A root Procfile names its processes `web` and `worker`. In `api/Procfile` the web process is the `api` service and
+  // a worker is `api-worker`, so two service directories never declare two services called `web`.
+  const serviceNameFor = (name: string) =>
+    directory === '.' ? name : name === 'web' ? directoryName : `${directoryName}-${name}`;
+  let webService: string | undefined;
+
+  for (const [index, line] of lines.entries()) {
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    const match = PROCESS_LINE.exec(trimmed);
+    if (match === null) continue;
+    const [, name, rawCommand] = match as unknown as [string, string, string];
+    const { command, environmentVariables } = commandWithoutEnvironmentValues(rawCommand);
+    // A line containing only assignments is not runnable. More importantly, retaining it would
+    // make the facts document a second store for those values.
+    if (command === '') continue;
+    const commandCitation = {
+      ...citeLine(path, lines, index, 'startCommand'),
+      // The runnable suffix appears verbatim on the line; the discarded assignment values do not.
+      quote: command.slice(0, 200)
+    };
+
+    if (LIFECYCLE_PROCESS.test(name)) {
+      const migrationCommand = safeMigrationClauseOf(command);
+      // A release process may only warm caches, seed demo data or perform other lifecycle work.
+      // It is not a migration unless a migration-shaped clause is actually present.
+      if (migrationCommand === undefined && !MIGRATION_TOOLS.some((entry) => entry.pattern.test(command))) {
+        continue;
+      }
+      migrations.push({
+        // Attributed to the web process, which is the one a release phase belongs to. When there
+        // is no web process the first service named in the file is the next best owner, and
+        // `checkFactsCompleteness` catches it if neither exists.
+        serviceName: webService ?? services[0]?.name ?? serviceNameFor('web'),
+        tool: MIGRATION_TOOLS.find((entry) => entry.pattern.test(migrationCommand ?? command))?.tool ?? 'unknown',
+        // A shell chain is never copied whole. When exactly one safe migration clause can be
+        // isolated, only that argv-like command reaches the deploy hook. Otherwise the original
+        // remains as evidence and composition raises a review gap instead of executing it.
+        command: migrationCommand ?? command,
+        ...(directory === '.' ? {} : { directory }),
+        // Release/migration process declarations run as part of deployment, not forever.
+        runsAt: 'ci',
+        evidence: [
+          {
+            ...commandCitation,
+            field: undefined,
+            quote: migrationCommand ?? commandCitation.quote
+          }
+        ]
+      });
+      continue;
+    }
+
+    // A Procfile line that starts a datastore (`redis: redis-server config/redis.conf`) is how a single-container
+    // image carries its own Redis. The store is a dependency Stacktape provisions, not a worker to run.
+    if (DATASTORE_PROCESS.test(command)) continue;
+
+    const isWeb = name === 'web';
+    const serviceName = serviceNameFor(name);
+    if (isWeb) webService = serviceName;
+
+    services.push({
+      name: serviceName,
+      path: directory,
+      // The web process is the application itself, so it folds into whatever the manifest already
+      // found in this directory rather than becoming a second copy of it. Every other process is
+      // a genuinely separate deployable thing and says so.
+      ...(isWeb ? { processType: 'procfile:web' } : { processType: name }),
+      // A Procfile says nothing about the language, so the marker files next to it answer that.
+      // Without one there is no honest value to give, and the service is left for another probe.
+      language: language ?? 'unknown',
+      exposesHttp: isWeb,
+      // `--port ${PORT:-8000}` listens on 8000 wherever nothing sets PORT; Stacktape sets PORT to the service's port.
+      ...(isWeb && defaultPortOf(command) !== undefined ? { port: defaultPortOf(command) } : {}),
+      executionModel: 'long-running',
+      startCommand: command,
+      environmentVariables,
+      evidence: [commandCitation],
+      source: 'probe'
+    });
+
+    // `alembic upgrade head && uvicorn ...` migrates on every start. The start command keeps it, and the fact says so,
+    // so nothing adds a second run as a deploy hook or reports a migration nobody runs.
+    const startupMigration = startupMigrationOf(command);
+    if (startupMigration !== undefined) {
+      migrations.push({
+        serviceName,
+        tool: startupMigration.tool,
+        command: startupMigration.clause,
+        ...(directory === '.' ? {} : { directory }),
+        runsAt: 'service-startup',
+        evidence: [{ ...commandCitation, field: undefined }]
+      });
+    }
+  }
+
+  // A release phase found before any process line still belongs to the web process, if there is
+  // one. Cheaper to fix up here than to make the loop two passes.
+  for (const migration of migrations) {
+    if (migration.serviceName === serviceNameFor('web') && webService === undefined && services[0] !== undefined) {
+      migration.serviceName = services[0].name;
+    }
+  }
+  return { services, migrations };
+};
 
 export const procfileProbe: Probe = {
   name: 'procfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    if (!context.files.includes('Procfile')) return {};
-
-    const raw = await readText(context, 'Procfile');
-    if (raw === undefined) return {};
-
-    const lines = raw.split(/\r?\n/);
-    const language = languageOf(context.files, '.');
+    // A Procfile in each service directory (`api/Procfile`) describes that service the way a root one describes the
+    // repository's. A directory without its own manifest is not a service root: Outline's `server/collaboration/Procfile`
+    // runs the root application's `yarn start` for a second Heroku app.
+    const paths = withoutSampleDirectories(
+      context.files.filter(
+        (file) =>
+          posix.basename(file) === 'Procfile' &&
+          !NON_SERVICE_PATH.test(file) &&
+          (file === 'Procfile' || languageOf(context.files, posix.dirname(file)) !== undefined)
+      )
+    )
+      .toSorted((left, right) => left.split('/').length - right.split('/').length || left.localeCompare(right))
+      .slice(0, MAX_PROCFILES);
     const services: ServiceFactInput[] = [];
     const migrations: MigrationFact[] = [];
-    let webService: string | undefined;
-
-    for (const [index, line] of lines.entries()) {
-      const trimmed = line.trim();
-      if (trimmed === '' || trimmed.startsWith('#')) continue;
-
-      const match = PROCESS_LINE.exec(trimmed);
-      if (match === null) continue;
-      const [, name, rawCommand] = match as unknown as [string, string, string];
-      const { command, environmentVariables } = commandWithoutEnvironmentValues(rawCommand);
-      // A line containing only assignments is not runnable. More importantly, retaining it would
-      // make the facts document a second store for those values.
-      if (command === '') continue;
-      const commandCitation = {
-        ...citeLine('Procfile', lines, index, 'startCommand'),
-        // The runnable suffix appears verbatim on the line; the discarded assignment values do not.
-        quote: command.slice(0, 200)
-      };
-
-      if (LIFECYCLE_PROCESS.test(name)) {
-        const migrationCommand = safeMigrationClauseOf(command);
-        // A release process may only warm caches, seed demo data or perform other lifecycle work.
-        // It is not a migration unless a migration-shaped clause is actually present.
-        if (migrationCommand === undefined && !MIGRATION_TOOLS.some((entry) => entry.pattern.test(command))) {
-          continue;
-        }
-        migrations.push({
-          // Attributed to the web process, which is the one a release phase belongs to. When there
-          // is no web process the first service named in the file is the next best owner, and
-          // `checkFactsCompleteness` catches it if neither exists.
-          serviceName: webService ?? services[0]?.name ?? 'web',
-          tool: MIGRATION_TOOLS.find((entry) => entry.pattern.test(migrationCommand ?? command))?.tool ?? 'unknown',
-          // A shell chain is never copied whole. When exactly one safe migration clause can be
-          // isolated, only that argv-like command reaches the deploy hook. Otherwise the original
-          // remains as evidence and composition raises a review gap instead of executing it.
-          command: migrationCommand ?? command,
-          // Release/migration process declarations run as part of deployment, not forever.
-          runsAt: 'ci',
-          evidence: [
-            {
-              ...commandCitation,
-              field: undefined,
-              quote: migrationCommand ?? commandCitation.quote
-            }
-          ]
-        });
-        continue;
-      }
-
-      // A Procfile line that starts a datastore (`redis: redis-server config/redis.conf`) is how a single-container
-      // image carries its own Redis. The store is a dependency Stacktape provisions, not a worker to run.
-      if (DATASTORE_PROCESS.test(command)) continue;
-
-      const isWeb = name === 'web';
-      if (isWeb) webService = name;
-
-      services.push({
-        name,
-        path: '.',
-        // The web process is the application itself, so it folds into whatever the manifest already
-        // found in this directory rather than becoming a second copy of it. Every other process is
-        // a genuinely separate deployable thing and says so.
-        ...(isWeb ? { processType: 'procfile:web' } : { processType: name }),
-        // A Procfile says nothing about the language, so the marker files next to it answer that.
-        // Without one there is no honest value to give, and the service is left for another probe.
-        language: language ?? 'unknown',
-        exposesHttp: isWeb,
-        executionModel: 'long-running',
-        startCommand: command,
-        environmentVariables,
-        evidence: [commandCitation],
-        source: 'probe'
-      });
-    }
-
-    // A release phase found before any process line still belongs to the web process, if there is
-    // one. Cheaper to fix up here than to make the loop two passes.
-    for (const migration of migrations) {
-      if (migration.serviceName === 'web' && webService === undefined && services[0] !== undefined) {
-        migration.serviceName = services[0].name;
-      }
+    // `apps/a/api` and `apps/b/api` are two services: shared basenames fall back to the whole path (`apps-a-api`).
+    const basenames = paths.map((path) => posix.basename(posix.dirname(path)));
+    for (const path of paths) {
+      const directory = posix.dirname(path);
+      const basename = posix.basename(directory);
+      const directoryName =
+        basenames.filter((name) => name === basename).length > 1 ? directory.replaceAll('/', '-') : basename;
+      // oxlint-disable-next-line no-await-in-loop -- a handful of small files, read in a stable order.
+      const found = await readProcfile(context, path, directoryName);
+      services.push(...found.services);
+      migrations.push(...found.migrations);
     }
 
     return {

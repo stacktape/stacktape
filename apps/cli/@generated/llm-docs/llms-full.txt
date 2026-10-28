@@ -3030,6 +3030,10 @@ Without a configuration file, `beforeDelete` hooks are not executed.
 
 Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. To proceed, first [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
 
+## Deletion protection
+
+Deletion also stops, before anything is deleted, when a resource of the stack has deletion protection on, such as a [relational database](/resources/databases/relational-database) or [Aurora DSQL database](/resources/databases/dsql) with `deletionProtection: true`. The error lists the protected resources. Deploy with `deletionProtection: false`, then run the delete command again. When an earlier delete already failed with `DELETE_FAILED`, the stack cannot be deployed, so turn the protection off in AWS instead.
+
 ## Examples
 
 Delete a staging stack.
@@ -14171,10 +14175,11 @@ Stacktape deletion follows a fixed sequence. Understanding the order helps when 
 3. **Initialize notifications** — The notification manager is initialized so deployment notifications can be sent during the operation.
 4. **Prompt for confirmation** — Stacktape may prompt before proceeding. If the prompt is aborted, the command exits without deleting anything. See the [`stacktape delete` CLI page](/cli/delete) for flags that control this behavior.
 5. **Check termination protection** — If the stack has `terminationProtection` enabled, the command stops with an error. You must redeploy with termination protection disabled before deleting.
-6. **Run configured hooks** — If a configuration was loaded, Stacktape registers configured hooks and processes START hooks before any artifacts or resources are removed.
-7. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
-8. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
-9. **Delete data stores early** — As soon as CloudFormation has accepted the delete, Stacktape starts deleting RDS instances, Aurora instances, Redis clusters and OpenSearch domains itself, so they do not wait for the services and functions that use them. It skips any resource that CloudFormation would keep or snapshot (`DeletionPolicy` other than `Delete`), that has deletion protection turned on, or that has read replicas. It deletes nothing early when the stack has a `before:delete` deployment script or a custom resource of your own, which may still need the data, or when the stack uses a CloudFormation service role (`cloudformationRoleArn`). If the stack delete then fails or you stop the command, Stacktape lists the resources it already started deleting.
+6. **Check deletion protection** — If a resource of the stack has deletion protection on, such as a database with `deletionProtection: true`, the command lists those resources and stops before anything is deleted. Deploy with `deletionProtection: false` first. Stacktape never turns deletion protection off as part of a delete, so a stack deleted directly through CloudFormation keeps its protected databases too.
+7. **Run configured hooks** — If a configuration was loaded, Stacktape registers configured hooks and processes START hooks before any artifacts or resources are removed.
+8. **Delete deployment artifacts** — Stacktape removes deployment artifacts managed outside the CloudFormation stack.
+9. **Delete CloudFormation stack** — AWS CloudFormation removes all resources defined in the stack template in dependency order.
+10. **Delete data stores early** — As soon as CloudFormation has accepted the delete, Stacktape starts deleting RDS instances, Aurora instances, Redis clusters and OpenSearch domains itself, so they do not wait for the services and functions that use them. It skips any resource that CloudFormation would keep or snapshot (`DeletionPolicy` other than `Delete`), that has deletion protection turned on, or that has read replicas. It deletes nothing early when the stack has a `before:delete` deployment script or a custom resource of your own, which may still need the data, or when the stack uses a CloudFormation service role (`cloudformationRoleArn`). If the stack delete then fails or you stop the command, Stacktape lists the resources it already started deleting.
 
 
 > **Warning:** Stacktape does not provide an undo for `stacktape delete`. CloudFormation attempts to delete all stack resources, and stateful data (databases, buckets, caches) is lost unless the underlying AWS resource has retention, backups, snapshots, versioning, or another preservation mechanism configured. Export any data you need before deleting.
@@ -16013,6 +16018,8 @@ Deploying a v4 configuration over a stack created by v3 is an ordinary stack upd
 The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag.
 
 On stacks with a CDN, it deletes Stacktape's origin-response Lambda@Edge function unless a bucket sets custom metadata headers, the only case that uses it. It also deletes the origin-request Lambda@Edge function unless a bucket cache behaviour uses URL normalization or SPA routing without a custom origin-request handler. API Gateway, load balancer, Lambda URL and custom HTTP origins do not use that helper. When no edge function remains, its internal artifact bucket is removed too. CloudFormation updates distributions before deleting a helper they previously referenced. AWS may retain detached Lambda@Edge replicas for a few hours; this does not fail the update. After AWS releases the replicas, delete any retained function in `us-east-1` with `aws lambda delete-function --profile <profile> --region us-east-1 --function-name <name>`.
+
+Batch jobs now run on Amazon Linux 2023 instances, because AWS Batch stopped creating compute environments with its Amazon Linux 2 images on 30 June 2026. A compute environment last deployed by v3.0.10 or later keeps Amazon Linux 2: changing the image would make CloudFormation replace the environment and could interrupt jobs running on it. AWS keeps such environments running but no longer patches their image. An older environment, or one that a later change replaces anyway (such as a change to the stack's `tags`), moves to Amazon Linux 2023. CloudFormation then deletes the old environment, which can interrupt jobs still running on it, so deploy such a change when no jobs run; the change plan lists the compute environment as replaced. Amazon Linux 2023 requires IMDSv2 and uses cgroup v2; see [compute resources](/resources/compute/batch-job#compute-resources). The first v4 deployment also gives each batch job an execution role with `AmazonECSTaskExecutionRolePolicy`, which the ECS agent uses to pull the job's image from ECR, write its logs and read its secrets. The job's own role is unchanged.
 
 Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
 
@@ -18737,7 +18744,7 @@ A second `stacktape dev` for a stage that another session holds is refused befor
 
 ### AWS permissions
 
-The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParametersByPath`, `ssm:PutParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases are kept.
+The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParameters`, `ssm:GetParametersByPath`, `ssm:PutParameter`, `ssm:DeleteParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases and the record of which session runs each stage are kept. Without the read, a start elsewhere is refused only after the dev network step; without the delete, starts in another directory or on another machine are refused for up to 3 minutes after a session stops.
 
 When dev mode generates a missing database password for a `$Secret`, it tags the secret with the dev stack's name, so `stacktape delete` of that stage schedules it for deletion again, with a 7-day recovery window. Creating it needs `secretsmanager:CreateSecret` and `secretsmanager:TagResource`. A later deployment or dev session of another stage that uses the secret removes the tag (`secretsmanager:UntagResource`), and the secret then outlives the dev stage; without that right, the command warns and goes on. A deployment or dev session that uses a secret scheduled this way restores it (`secretsmanager:RestoreSecret`). The deletion needs `secretsmanager:ListSecrets` and `secretsmanager:DeleteSecret`.
 
@@ -19038,6 +19045,10 @@ STP_MY_DB_PORT=5432
 
 In most applications, reading the Stacktape-provided `STP_*` variables lets the same code path work in dev mode and deployed stacks without conditional logic or environment switching.
 
+Local containers also get `AWS_REGION` and `AWS_DEFAULT_REGION` with the stage's region, as deployed containers do, so AWS SDKs that read either one (boto3 reads only `AWS_DEFAULT_REGION`) find it without a profile.
+
+Code on your machine talks to the dev stack, and deployed functions talk to your local databases, across the distance to the stage's region. In a region far from you, every first connection takes noticeably longer (several hundred milliseconds per round trip), and a client with a short connect timeout can fail. Node.js, for example, gives up on each address after 250 ms by default; raise it with `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`, or run dev mode in a region close to you.
+
 ## Rebuilding workloads
 
 The dev mode terminal accepts commands while running. Type a command and press Enter:
@@ -19052,6 +19063,8 @@ The dev mode terminal accepts commands while running. Type a command and press E
 When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
+
+That start updates the dev stack only when the change reaches it. Changing how a local container is built or started (its `packaging`, including `startCommand`), a frontend's `dev` settings or a local script restarts only what runs on your machine. When the dev stack is updated, functions whose code did not change keep their deployed code.
 
 ## Lifecycle hooks
 
@@ -22781,6 +22794,8 @@ export default defineConfig(() => {
 The `railpack` binary is downloaded on first use, like other external tools Stacktape uses. It is pinned by version and checksum. The first planning run needs network access to resolve tool versions.
 
 Docker must be running. Both `linux/amd64` and `linux/arm64` images are supported.
+
+Railpack's build uses a BuildKit feature that Docker's own builder offers only with the [containerd image store](https://docs.docker.com/engine/storage/containerd/). That store is the default for new installs of Docker Engine 29 and Docker Desktop 4.34 and later. Older or upgraded installs and GitHub-hosted runners use the classic store. There, Stacktape builds through its own Docker Buildx builder, `stacktape-builder`, which runs in a container and needs the Buildx plugin. Its first build downloads the base images again. It keeps its own build cache, which `docker buildx prune --builder stacktape-builder` clears.
 
 ## Caching
 
@@ -28019,6 +28034,8 @@ export default defineConfig(() => {
 
 
 `cpu` is the number of vCPUs, and `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
+
+Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image. Jobs with `gpu` use its NVIDIA variant on `p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2. Job credentials come from the job role, not instance metadata, but software inside the container that reads instance metadata with IMDSv1, or that reads memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
 
 ## Packaging
 
@@ -34721,7 +34738,7 @@ AWS automatically takes daily backups of your database. The `automatedBackupRete
 
 The `preferredMaintenanceWindow` property sets when AWS applies patches and minor version upgrades (format: `Sun:02:00-Sun:04:00` in UTC). The database may be briefly unavailable during this window. Multi-AZ and Aurora reduce downtime during maintenance. Pick a window during your lowest-traffic period.
 
-Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database.
+Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database. Until then, `stacktape delete` stops before deleting anything and lists the protected databases, and a deploy cannot remove or replace them.
 
 ## Dev mode
 
@@ -41627,7 +41644,7 @@ Not every coordination problem needs a state machine. For straightforward async 
 
 ## Basic example
 
-This example defines two [Lambda functions](/resources/compute/lambda-function) orchestrated by a state machine. The workflow validates an order, branches on the result, and either processes the order or fails. Task states use CloudFormation intrinsic functions to reference Lambda ARNs at deploy time.
+This example defines two [Lambda functions](/resources/compute/lambda-function) orchestrated by a state machine. The workflow validates an order, branches on the result, and either processes the order or fails. Task states reference each function's ARN with `$ResourceParam`, which resolves at deploy time.
 
 
 Example (TypeScript):
@@ -41637,7 +41654,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 export default defineConfig(() => {
   const validateOrder = new LambdaFunction({
@@ -41656,7 +41674,7 @@ export default defineConfig(() => {
       States: {
         ValidateOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ValidateOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('validateOrder', 'arn'),
           Next: 'CheckValidity',
           Catch: [{ ErrorEquals: ['States.ALL'], Next: 'OrderFailed' }]
         },
@@ -41667,7 +41685,7 @@ export default defineConfig(() => {
         },
         ProcessOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('processOrder', 'arn'),
           Retry: [
             {
               ErrorEquals: ['States.TaskFailed'],
@@ -41697,7 +41715,7 @@ export default defineConfig(() => {
 A state machine definition requires `StartAt` and `States`. `StartAt` names the first state to execute, and `States` maps state names to state objects — each with a `Type` field. Most non-terminal states transition with `Next` or finish with `End: true`; terminal `Succeed` and `Fail` states end execution without needing `Next` or `End`.
 
 
-> **Tip:** Task states reference Lambda functions by their CloudFormation logical names. Inspect the compiled template (via [`stacktape synth`](/cli/synth)) to verify logical names before hard-coding them. The logical names used in examples on this page are illustrative.
+> **Tip:** Task states reference a Lambda function by its name in your config: `$ResourceParam('validateOrder', 'arn')` resolves to the function's ARN at deploy time. You don't need to look up CloudFormation logical names.
 
 
 ## Workflow definition
@@ -41723,16 +41741,30 @@ The Stacktape `StateMachine` definition models eight ASL state types: Choice, Fa
 
 ### Referencing Lambda functions
 
-Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. The `Resource` value can be a string or an object. Use an object for CloudFormation intrinsic functions like `Fn::GetAtt` to reference Lambda ARNs that resolve at deploy time. Use a string when you already have a concrete Task `Resource` value, such as a Lambda ARN or an [ASL service integration](https://states-language.net/spec.html) URI.
+Task states use the `Resource` property to identify a Lambda function or another supported ASL task target. For a function in the same config, use the [`$ResourceParam` directive](/configuration/directives) with the function's resource name and its `arn` parameter. Stacktape resolves it to the function's ARN at deploy time.
 
-```json
-{
-  "Type": "Task",
-  "Resource": { "Fn::GetAtt": ["MyFunctionLogicalName", "Arn"] }
-}
+```yaml
+resources:
+  scoreReceipt:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/score-receipt.ts
+  approvalWorkflow:
+    type: state-machine
+    properties:
+      definition:
+        StartAt: ScoreReceipt
+        States:
+          ScoreReceipt:
+            Type: Task
+            Resource: $ResourceParam('scoreReceipt', 'arn')
+            End: true
 ```
 
-Run [`stacktape synth`](/cli/synth) to find the CloudFormation logical name for each resource in your generated template. Do not hard-code logical names without verifying them against the compiled output.
+Use a plain string when you already have a concrete Task `Resource` value, such as the ARN of a function outside this config or an [ASL service integration](https://states-language.net/spec.html) URI. An object with a CloudFormation intrinsic function, such as `Fn::GetAtt`, also works when you need one.
 
 You can also set `TimeoutSeconds` on a Task state to limit how long the state machine waits for the task to complete, and `HeartbeatSeconds` to require periodic heartbeat signals from long-running tasks. The `Parameters` property lets you reshape the input before passing it to the task.
 
@@ -41756,7 +41788,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -41774,7 +41807,7 @@ export default defineConfig(() => {
       States: {
         ChargePayment: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ChargePaymentFunction', 'Arn'] },
+          Resource: $ResourceParam('chargePayment', 'arn'),
           Retry: [
             {
               ErrorEquals: ['States.TaskFailed'],
@@ -41793,7 +41826,7 @@ export default defineConfig(() => {
         },
         NotifySupport: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['NotifySupportFunction', 'Arn'] },
+          Resource: $ResourceParam('notifySupport', 'arn'),
           Next: 'PaymentFailed'
         },
         PaymentFailed: {
@@ -41831,7 +41864,8 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  JsBundleLambdaPackaging
+  JsBundleLambdaPackaging,
+  $ResourceParam
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -41845,7 +41879,7 @@ export default defineConfig(() => {
       States: {
         ProcessOrder: {
           Type: 'Task',
-          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },
+          Resource: $ResourceParam('processOrder', 'arn'),
           End: true
         }
       }
@@ -41972,7 +42006,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### How do I reference Lambda functions in a state machine definition?
 
-Use CloudFormation intrinsic functions in the Task state's `Resource` field — for example, `{ 'Fn::GetAtt': ['MyFunctionLogicalName', 'Arn'] }`. The logical name depends on the compiled CloudFormation template. Run [`stacktape synth`](/cli/synth) to find the exact logical name for each resource in your generated template before referencing them.
+Put the function's ARN in the Task state's `Resource` field with the [`$ResourceParam` directive](/configuration/directives): `Resource: $ResourceParam('processOrder', 'arn')`, where `processOrder` is the function's name in your config. Stacktape resolves it at deploy time, so you don't need CloudFormation logical names.
 
 ### How do I pass the state machine ARN to a Lambda function?
 

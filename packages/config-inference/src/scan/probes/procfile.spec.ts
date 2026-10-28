@@ -15,6 +15,7 @@ import { assembleCandidateFacts } from '../assemble';
 import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
 import { procfileProbe } from './procfile';
+import { serverEntrypointProbe } from './server-entrypoint';
 
 const PROBES = [manifestProbe, procfileProbe];
 
@@ -247,5 +248,194 @@ describe('the Procfile probe', () => {
     };
     expect(properties.connectTo).toEqual(['mainDatabase']);
     expect(workerProperties.connectTo).toEqual(['mainDatabase']);
+  });
+
+  // r2cc: `api/Procfile` was ignored, so init composed a bare `uvicorn` command and nothing ran Alembic.
+  it("reads a service directory's Procfile and keeps the migration it runs before the server", async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'fastapi==0.115\nuvicorn==0.32\npsycopg[binary]==3.2\nalembic==1.14\n',
+      'api/main.py':
+        'import os\nfrom fastapi import FastAPI\napp = FastAPI()\nDATABASE_URL = os.environ["DATABASE_URL"]\n',
+      'api/Procfile':
+        'web: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}\nworker: python jobs.py\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, serverEntrypointProbe, procfileProbe]
+    });
+    const { config, gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    // The web process folds into the FastAPI service the entrypoint probe found there; the worker keeps its own name.
+    expect(facts.services.map((service) => service.name).toSorted()).toEqual(['api', 'api-worker']);
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({ serviceName: 'api', tool: 'alembic', runsAt: 'service-startup' })
+    ]);
+    expect(config.resources.api?.properties).toMatchObject({
+      packaging: {
+        properties: { startCommand: 'alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}' }
+      },
+      port: 8000
+    });
+    // The app migrates on every start, so a deploy hook would run it twice.
+    expect(config.hooks).toBeUndefined();
+    expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
+  });
+
+  it('reports a migration tool in the dependencies that nothing runs', async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'fastapi==0.115\nuvicorn==0.32\npsycopg[binary]==3.2\nalembic==1.14\n',
+      'api/main.py':
+        'import os\nfrom fastapi import FastAPI\napp = FastAPI()\nDATABASE_URL = os.environ["DATABASE_URL"]\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, serverEntrypointProbe, procfileProbe]
+    });
+    const { config, gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({
+        serviceName: 'api',
+        tool: 'alembic',
+        command: 'alembic upgrade head',
+        runsAt: 'unknown'
+      })
+    ]);
+    expect(config.hooks).toBeUndefined();
+    expect(gaps.filter((gap) => gap.subject === 'api.migrations')).toEqual([
+      {
+        subject: 'api.migrations',
+        message:
+          'api depends on Alembic, but nothing we found runs "alembic upgrade head". Run it before the server starts (at the start of api\'s start command), or add it as a script and an afterDeploy hook.'
+      }
+    ]);
+  });
+
+  it('counts a start script that migrates as running the migration', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'shop',
+        scripts: { start: 'prisma migrate deploy && node server.js' },
+        dependencies: { express: '^4.21.0', '@prisma/client': '^5.0.0' },
+        devDependencies: { prisma: '^5.0.0' }
+      }),
+      'server.js': "require('express')().listen(process.env.PORT);\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, procfileProbe] });
+    const { gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([expect.objectContaining({ tool: 'prisma', runsAt: 'service-startup' })]);
+    expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
+  });
+
+  it('ignores a Procfile in a directory that is not a service of its own', async () => {
+    // Outline's `server/collaboration/Procfile` starts the root application for a second Heroku app.
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'outline', scripts: { start: 'node build/server/index.js' } }),
+      Procfile: 'web: yarn start --services=web,websockets,collaboration\nworker: yarn start --services=worker\n',
+      'server/collaboration/Procfile': 'web: yarn start --services=collaboration\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.services.map((service) => service.name).toSorted()).toEqual(['outline', 'worker']);
+  });
+
+  it('does not report a migration a script in the repository runs', async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'fastapi==0.115\nuvicorn==0.32\nalembic==1.14\n',
+      'api/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+      // fastapi-full-stack runs this before the server from its Compose file.
+      'api/scripts/prestart.sh': '#! /usr/bin/env bash\nset -e\nalembic upgrade head\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, serverEntrypointProbe, procfileProbe]
+    });
+    const { gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([expect.objectContaining({ tool: 'alembic', runsAt: 'manual' })]);
+    expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
+  });
+
+  it('does not report a migration when the container starts through a script init cannot read', async () => {
+    // Campfire's `CMD ["bin/boot"]` runs `bin/rails db:prepare`; init does not read the root `bin/` directory.
+    root = await makeRepo({
+      Gemfile: 'source "https://rubygems.org"\ngem "rails", "~> 8.0"\ngem "puma"\n',
+      Dockerfile: 'FROM ruby:3.4\nCOPY . .\nCMD ["bin/boot"]\n',
+      'bin/boot': '#!/usr/bin/env bash\n./bin/rails db:prepare\nexec bin/thrust bin/rails server\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, procfileProbe] });
+    const { gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([expect.objectContaining({ tool: 'rails', runsAt: 'manual' })]);
+    expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
+  });
+
+  // #368 review: deploy hooks run from the project root, where `manage.py` is not.
+  it("runs a service directory's release migration from that directory", async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'Django==5.0\ngunicorn==22.0\npsycopg2==2.9\n',
+      'api/manage.py': 'import django\n',
+      'api/Procfile': 'web: gunicorn api.wsgi\nrelease: python manage.py migrate\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, procfileProbe] });
+    const { config } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({
+        serviceName: 'api',
+        runsAt: 'ci',
+        command: 'python manage.py migrate',
+        directory: 'api'
+      })
+    ]);
+    expect(config.scripts?.migrateDatabase).toEqual({
+      type: 'local-script',
+      properties: { executeCommand: 'python manage.py migrate', cwd: 'api' }
+    });
+    expect(config.hooks).toEqual({ afterDeploy: [{ scriptName: 'migrateDatabase' }] });
+  });
+
+  it('names two service directories with the same basename apart', async () => {
+    root = await makeRepo({
+      'apps/a/api/requirements.txt': 'flask==3.0\n',
+      'apps/a/api/Procfile': 'web: gunicorn app:app\nworker: python worker.py\n',
+      'apps/b/api/requirements.txt': 'flask==3.0\n',
+      'apps/b/api/Procfile': 'web: gunicorn app:app\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [procfileProbe] });
+
+    expect(facts.services.map((service) => [service.name, service.path]).toSorted()).toEqual([
+      ['apps-a-api', 'apps/a/api'],
+      ['apps-a-api-worker', 'apps/a/api'],
+      ['apps-b-api', 'apps/b/api']
+    ]);
+  });
+
+  it('still reports the migration when the container only starts through tini, or another package has a migrate script', async () => {
+    root = await makeRepo({
+      'api/requirements.txt': 'fastapi==0.115\nuvicorn==0.32\nalembic==1.14\n',
+      'api/main.py': 'from fastapi import FastAPI\napp = FastAPI()\n',
+      'api/Dockerfile': 'FROM python:3.13\nENTRYPOINT ["/usr/bin/tini", "--"]\nCMD ["uvicorn", "main:app"]\n',
+      // The frontend's own `migrate` script runs its own tool, not the API's Alembic.
+      'web/package.json': JSON.stringify({ name: 'web', scripts: { 'db:migrate': 'prisma migrate deploy' } })
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, languageManifestProbe, serverEntrypointProbe, procfileProbe]
+    });
+    const { gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([expect.objectContaining({ serviceName: 'api', runsAt: 'unknown' })]);
+    expect(gaps.map((gap) => gap.subject)).toContain('api.migrations');
   });
 });

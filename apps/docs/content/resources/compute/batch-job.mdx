@@ -109,6 +109,8 @@ export default defineConfig(() => {
 
 `cpu` is the number of vCPUs, and `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
 
+Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image. Jobs with `gpu` use its NVIDIA variant on `p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2. Job credentials come from the job role, not instance metadata, but software inside the container that reads instance metadata with IMDSv1, or that reads memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
+
 ## Packaging
 
 A batch job supports four container image packaging types. Start with `js-bundle` for JavaScript or TypeScript and `buildpack` for other languages, then switch only when the image needs precise runtime control.
