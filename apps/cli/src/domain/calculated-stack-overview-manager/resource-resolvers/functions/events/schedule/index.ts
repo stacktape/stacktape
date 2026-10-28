@@ -125,7 +125,7 @@ export const getScheduleEventRule = ({
   }
 
   return cfnResource('AWS::Events::Rule', {
-    State: 'ENABLED',
+    State: eventDetails.enabled === false ? 'DISABLED' : 'ENABLED',
     ScheduleExpression: eventDetails.scheduleRate,
     // Description: eventDetails.description,
     // Name: eventDetails.name,

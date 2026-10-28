@@ -1673,6 +1673,19 @@ export interface SqsIntegrationProps {
    * Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
    */
   maxBatchWindowSeconds?: number;
+  /**
+   * #### Lets the function report which records of a batch failed, so only those are retried.
+   *
+   * ---
+   *
+   * Without it, a batch succeeds or fails as a whole. With it, the function returns
+   * `{ batchItemFailures: [{ itemIdentifier }] }` with the IDs of the messages it could not process, and only those
+   * return to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated
+   * as having processed every message. Batch jobs ignore it.
+   *
+   * @default false
+   */
+  reportBatchItemFailures?: boolean;
 }
 
 
@@ -1780,6 +1793,19 @@ export interface KinesisIntegrationProps {
    * This can be useful if a failure is caused by a batch being too large.
    */
   bisectBatchOnFunctionError?: boolean;
+  /**
+   * #### Lets the function report which records of a batch failed, so only those are retried.
+   *
+   * ---
+   *
+   * Without it, a batch succeeds or fails as a whole. With it, the function returns
+   * `{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process,
+   * and Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns
+   * nothing is treated as having processed every record. Batch jobs ignore it.
+   *
+   * @default false
+   */
+  reportBatchItemFailures?: boolean;
 }
 
 
@@ -1867,6 +1893,19 @@ export interface DynamoDbIntegrationProps {
    * This can be useful if a failure is caused by a batch being too large.
    */
   bisectBatchOnFunctionError?: boolean;
+  /**
+   * #### Lets the function report which records of a batch failed, so only those are retried.
+   *
+   * ---
+   *
+   * Without it, a batch succeeds or fails as a whole. With it, the function returns
+   * `{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process,
+   * and Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns
+   * nothing is treated as having processed every record. Batch jobs ignore it.
+   *
+   * @default false
+   */
+  reportBatchItemFailures?: boolean;
 }
 
 /**
@@ -1947,6 +1986,17 @@ export interface ScheduleIntegrationProps {
    * Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`
    */
   scheduleRate: string;
+  /**
+   * #### Whether the schedule runs.
+   *
+   * ---
+   *
+   * Set to `false` to deploy the schedule without running it, for example to pause a job while keeping its
+   * configuration. Setting it back to `true` resumes it from the next scheduled time.
+   *
+   * @default true
+   */
+  enabled?: boolean;
   /**
    * #### A fixed JSON object to be passed as the event payload.
    *
@@ -2261,7 +2311,9 @@ export interface HttpApiIntegrationProps {
    *
    * ---
    *
-   * Unauthorized requests will be rejected with a `401 Unauthorized` response.
+   * Cognito and Lambda authorizers reject unauthorized requests with `401 Unauthorized`. With `aws-iam`, callers sign
+   * requests with AWS credentials allowed to call `execute-api:Invoke`, and API Gateway rejects the rest with
+   * `403 Forbidden`.
    */
   authorizer?: StpAuthorizer;
   /**

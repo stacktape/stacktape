@@ -145,6 +145,37 @@ type ComposeService = {
   depends_on?: unknown;
   environment?: unknown;
   labels?: unknown;
+  volumes?: unknown;
+};
+
+/**
+ * Directories a named volume commonly shadows only for local development: installed dependencies and caches. On AWS
+ * the image already holds them, and an empty network disk mounted over them would hide what the build installed.
+ */
+const DEVELOPMENT_VOLUME_TARGET =
+  /(?:^|\/)(?:node_modules|\.venv|venv|vendor|__pycache__|\.next|\.nuxt|\.cache|cache|tmp)$|^\/tmp(?:\/|$)/;
+
+/** The named volumes a service mounts (`uploads:/app/uploads`), limited to volumes the file declares. */
+const persistentVolumesOf = (
+  service: ComposeService,
+  declaredVolumes: ReadonlySet<string>
+): Array<{ name: string; mountPath: string }> => {
+  const entries = Array.isArray(service.volumes) ? service.volumes : [];
+  const mounts = entries.flatMap((entry) => {
+    let source: unknown;
+    let target: unknown;
+    if (typeof entry === 'string') [source, target] = entry.split(':');
+    else if (isRecord(entry) && (entry.type === undefined || entry.type === 'volume')) {
+      source = entry.source;
+      target = entry.target;
+    }
+    if (typeof source !== 'string' || typeof target !== 'string' || !declaredVolumes.has(source)) return [];
+    const mountPath = posix.normalize(target).replace(/\/$/, '');
+    return mountPath.startsWith('/') && mountPath !== '/' && !DEVELOPMENT_VOLUME_TARGET.test(mountPath)
+      ? [{ name: source, mountPath }]
+      : [];
+  });
+  return [...new Map(mounts.map((mount) => [mount.mountPath, mount])).values()];
 };
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
@@ -423,6 +454,8 @@ export const dockerComposeProbe: Probe = {
 
     const declaredServices = (parsed as { services?: Record<string, ComposeService> } | null)?.services;
     if (declaredServices === null || typeof declaredServices !== 'object') return {};
+    const topLevelVolumes = (parsed as { volumes?: unknown }).volumes;
+    const declaredVolumes = new Set(isRecord(topLevelVolumes) ? Object.keys(topLevelVolumes) : []);
 
     const dependencyDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
       const image = service?.image;
@@ -657,6 +690,7 @@ export const dockerComposeProbe: Probe = {
         }
       }
 
+      const persistentVolumes = persistentVolumesOf(service, declaredVolumes);
       const citation = citeFirstMatchOnly(path, raw, new RegExp(`^\\s*${escapeForPattern(composeName)}:`));
       serviceFacts.push({
         name,
@@ -672,6 +706,7 @@ export const dockerComposeProbe: Probe = {
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(persistentVolumes.length === 0 ? {} : { persistentVolumes }),
         environmentVariables: variables,
         evidence: citation === undefined ? [] : [citation],
         source: 'probe'

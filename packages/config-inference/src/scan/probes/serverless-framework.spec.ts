@@ -72,6 +72,83 @@ describe('the serverless framework probe', () => {
     expect(report?.functionTriggers).toEqual([{ type: 'schedule', rate: 'rate(1 day)' }]);
   });
 
+  it('keeps IAM routes, and leaves out routes and events it cannot carry safely', async () => {
+    root = await makeRepo({
+      'serverless.yml': [
+        'service: orders',
+        'provider:',
+        '  name: aws',
+        '  timeout: 30',
+        '  memorySize: 512',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    timeout: 60',
+        '    events:',
+        '      - httpApi:',
+        '          method: get',
+        '          path: /internal',
+        '          authorizer:',
+        '            type: aws_iam',
+        '      - httpApi:',
+        '          method: get',
+        '          path: /me',
+        '          authorizer:',
+        '            name: jwtAuth',
+        '      - http:',
+        '          method: post',
+        '          path: partners',
+        '          private: true',
+        '      - sqs:',
+        '          arn: !GetAtt Jobs.Arn',
+        '          enabled: false',
+        '      - sqs:',
+        '          arn: !GetAtt Jobs.Arn',
+        '          filterPatterns:',
+        '            - body: { kind: [paid] }',
+        '      - schedule:',
+        '          rate: cron(0 9 * * ? *)',
+        '          method: scheduler',
+        '          timezone: Europe/Bratislava',
+        '      - schedule:',
+        '          rate: rate(1 day)',
+        '          enabled: ${self:custom.nightly}',
+        'resources:',
+        '  Resources:',
+        '    Jobs:',
+        '      Type: AWS::SQS::Queue',
+        ''
+      ].join('\n'),
+      'handler.js': 'exports.handler = async () => ({ statusCode: 200 });'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    const api = facts.services.find((entry) => entry.name === 'api');
+    expect(api).toMatchObject({ functionTimeoutSeconds: 60, functionMemoryMb: 512 });
+    expect(api?.functionHandler).toBeUndefined();
+    expect(api?.functionTriggers).toEqual([
+      { type: 'http', method: 'GET', path: '/internal', authorization: 'aws-iam' },
+      {
+        type: 'unmapped',
+        reason: 'protected-route',
+        sourceType: 'the HTTP route GET /me, which serverless.yml protects with the "jwtAuth" authorizer'
+      },
+      {
+        type: 'unmapped',
+        reason: 'protected-route',
+        sourceType: 'the HTTP route POST /partners, which serverless.yml protects with an API key (private: true)'
+      },
+      { type: 'unmapped', reason: 'disabled', sourceType: 'the event from the jobQueue queue' },
+      {
+        type: 'unmapped',
+        sourceType: 'messages from the jobQueue queue that match its filterPatterns, which Stacktape cannot filter'
+      },
+      { type: 'unmapped', sourceType: 'the schedule cron(0 9 * * ? *) with the Europe/Bratislava time zone' },
+      // A variable may resolve either way, so the schedule deploys paused rather than running.
+      { type: 'schedule', rate: 'rate(1 day)', enabled: false }
+    ]);
+  });
+
   it('skips a function whose handler file does not exist, rather than fabricating a path', async () => {
     root = await makeRepo({
       'serverless.yml': ['service: orders', 'functions:', '  ghost:', '    handler: src/missing.main', ''].join('\n')

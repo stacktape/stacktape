@@ -10114,6 +10114,19 @@
                         "number"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the IDs of the messages it could not process, and only those\nreturn to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated\nas having processed every message. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -10257,6 +10270,19 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -10360,6 +10386,19 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -10437,6 +10476,19 @@
                       "kind": "primitive",
                       "types": [
                         "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "enabled",
+                    "required": false,
+                    "shortDescription": "<p> Whether the schedule runs.</p>",
+                    "longDescription": "<p>Set to <code>false</code> to deploy the schedule without running it, for example to pause a job while keeping its\nconfiguration. Setting it back to <code>true</code> resumes it from the next scheduled time.</p>",
+                    "defaultValue": "true",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
                       ]
                     }
                   },
@@ -10579,7 +10631,7 @@
                     "name": "authorizer",
                     "required": false,
                     "shortDescription": "<p> An authorizer to protect this route.</p>",
-                    "longDescription": "<p>Unauthorized requests will be rejected with a <code>401 Unauthorized</code> response.</p>",
+                    "longDescription": "<p>Cognito and Lambda authorizers reject unauthorized requests with <code>401 Unauthorized</code>. With <code>aws-iam</code>, callers sign\nrequests with AWS credentials allowed to call <code>execute-api:Invoke</code>, and API Gateway rejects the rest with\n<code>403 Forbidden</code>.</p>",
                     "typeInfo": {
                       "kind": "union",
                       "discriminator": "type",
@@ -10733,6 +10785,11 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "label": "aws-iam",
+                          "typeName": "IamAuthorizer",
+                          "properties": []
                         }
                       ]
                     }
@@ -17049,7 +17106,7 @@
                     "name": "authorizer",
                     "required": false,
                     "shortDescription": "<p> An authorizer to protect this route.</p>",
-                    "longDescription": "<p>Unauthorized requests will be rejected with a <code>401 Unauthorized</code> response.</p>",
+                    "longDescription": "<p>Cognito and Lambda authorizers reject unauthorized requests with <code>401 Unauthorized</code>. With <code>aws-iam</code>, callers sign\nrequests with AWS credentials allowed to call <code>execute-api:Invoke</code>, and API Gateway rejects the rest with\n<code>403 Forbidden</code>.</p>",
                     "typeInfo": {
                       "kind": "union",
                       "discriminator": "type",
@@ -17203,6 +17260,11 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "label": "aws-iam",
+                          "typeName": "IamAuthorizer",
+                          "properties": []
                         }
                       ]
                     }
@@ -18088,7 +18150,7 @@
         "name": "authorizer",
         "required": false,
         "shortDescription": "<p> An authorizer to protect this route.</p>",
-        "longDescription": "<p>Unauthorized requests will be rejected with a <code>401 Unauthorized</code> response.</p>",
+        "longDescription": "<p>Cognito and Lambda authorizers reject unauthorized requests with <code>401 Unauthorized</code>. With <code>aws-iam</code>, callers sign\nrequests with AWS credentials allowed to call <code>execute-api:Invoke</code>, and API Gateway rejects the rest with\n<code>403 Forbidden</code>.</p>",
         "typeInfo": {
           "kind": "union",
           "discriminator": "type",
@@ -18242,6 +18304,11 @@
                   ]
                 }
               ]
+            },
+            {
+              "label": "aws-iam",
+              "typeName": "IamAuthorizer",
+              "properties": []
             }
           ]
         }
@@ -18268,7 +18335,7 @@
       "requiredCount": 4,
       "optionalCount": 2
     },
-    "typeDeclaration": "import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadHttpApiIntegrationProps = {\n  /** The container port that will receive traffic from the API Gateway. */\n  containerPort: number;\n  /** The name of the HTTP API Gateway. */\n  httpApiGatewayName: string;\n  /** The HTTP method that will trigger this integration. */\n  method: \"*\" | \"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\";\n  /** The URL path that will trigger this integration. */\n  path: string;\n  /** An authorizer to protect this route. */\n  authorizer?: ContainerWorkloadHttpApiIntegrationAuthorizer;\n  /** The payload format version for the Lambda integration. */\n  payloadFormat?: \"1.0\" | \"2.0\";\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadHttpApiIntegrationAuthorizer =\n  | CognitoAuthorizer\n  | LambdaAuthorizer;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CognitoAuthorizer, IamAuthorizer, LambdaAuthorizer } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadHttpApiIntegrationProps = {\n  /** The container port that will receive traffic from the API Gateway. */\n  containerPort: number;\n  /** The name of the HTTP API Gateway. */\n  httpApiGatewayName: string;\n  /** The HTTP method that will trigger this integration. */\n  method: \"*\" | \"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\";\n  /** The URL path that will trigger this integration. */\n  path: string;\n  /** An authorizer to protect this route. */\n  authorizer?: ContainerWorkloadHttpApiIntegrationAuthorizer;\n  /** The payload format version for the Lambda integration. */\n  payloadFormat?: \"1.0\" | \"2.0\";\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadHttpApiIntegrationAuthorizer =\n  | CognitoAuthorizer\n  | LambdaAuthorizer\n  | IamAuthorizer;\n// [!code focus-end]"
   },
   "ContainerWorkloadInternalIntegration": {
     "definitionName": "ContainerWorkloadInternalIntegration",
@@ -26333,6 +26400,19 @@
         }
       },
       {
+        "name": "reportBatchItemFailures",
+        "required": false,
+        "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+        "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
         "name": "startingPosition",
         "required": false,
         "shortDescription": "<p> The position in the stream from which to start reading records.</p>",
@@ -26348,9 +26428,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 7
+      "optionalCount": 8
     },
-    "typeDeclaration": "import type { DestinationOnFailure } from 'stacktape';\n\n// [!code focus-start]\ntype DynamoDbIntegrationProps = {\n  /** The ARN of the DynamoDB table stream. */\n  streamArn: string;\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** Splits a failed batch in two before retrying. */\n  bisectBatchOnFunctionError?: boolean;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The number of times to retry a failed batch of records. */\n  maximumRetryAttempts?: number;\n  /** A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. */\n  onFailure?: DestinationOnFailure;\n  /** The number of batches to process concurrently from the same shard. */\n  parallelizationFactor?: number;\n  /** The position in the stream from which to start reading records. */\n  startingPosition?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DestinationOnFailure } from 'stacktape';\n\n// [!code focus-start]\ntype DynamoDbIntegrationProps = {\n  /** The ARN of the DynamoDB table stream. */\n  streamArn: string;\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** Splits a failed batch in two before retrying. */\n  bisectBatchOnFunctionError?: boolean;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The number of times to retry a failed batch of records. */\n  maximumRetryAttempts?: number;\n  /** A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. */\n  onFailure?: DestinationOnFailure;\n  /** The number of batches to process concurrently from the same shard. */\n  parallelizationFactor?: number;\n  /** Lets the function report which records of a batch failed, so only those are retried. */\n  reportBatchItemFailures?: boolean;\n  /** The position in the stream from which to start reading records. */\n  startingPosition?: string;\n};\n// [!code focus-end]"
   },
   "DynamoDbProvisionedThroughput": {
     "definitionName": "DynamoDbProvisionedThroughput",
@@ -31535,7 +31615,7 @@
         "name": "authorizer",
         "required": false,
         "shortDescription": "<p> An authorizer to protect this route.</p>",
-        "longDescription": "<p>Unauthorized requests will be rejected with a <code>401 Unauthorized</code> response.</p>",
+        "longDescription": "<p>Cognito and Lambda authorizers reject unauthorized requests with <code>401 Unauthorized</code>. With <code>aws-iam</code>, callers sign\nrequests with AWS credentials allowed to call <code>execute-api:Invoke</code>, and API Gateway rejects the rest with\n<code>403 Forbidden</code>.</p>",
         "typeInfo": {
           "kind": "union",
           "discriminator": "type",
@@ -31689,6 +31769,11 @@
                   ]
                 }
               ]
+            },
+            {
+              "label": "aws-iam",
+              "typeName": "IamAuthorizer",
+              "properties": []
             }
           ]
         }
@@ -31715,7 +31800,7 @@
       "requiredCount": 3,
       "optionalCount": 2
     },
-    "typeDeclaration": "import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiIntegrationProps = {\n  /** The name of the HTTP API Gateway. */\n  httpApiGatewayName: string;\n  /** The HTTP method that will trigger this integration. */\n  method: \"*\" | \"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\";\n  /** The URL path that will trigger this integration. */\n  path: string;\n  /** An authorizer to protect this route. */\n  authorizer?: HttpApiIntegrationAuthorizer;\n  /** The payload format version for the Lambda integration. */\n  payloadFormat?: \"1.0\" | \"2.0\";\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiIntegrationAuthorizer =\n  | CognitoAuthorizer\n  | LambdaAuthorizer;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CognitoAuthorizer, IamAuthorizer, LambdaAuthorizer } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiIntegrationProps = {\n  /** The name of the HTTP API Gateway. */\n  httpApiGatewayName: string;\n  /** The HTTP method that will trigger this integration. */\n  method: \"*\" | \"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\";\n  /** The URL path that will trigger this integration. */\n  path: string;\n  /** An authorizer to protect this route. */\n  authorizer?: HttpApiIntegrationAuthorizer;\n  /** The payload format version for the Lambda integration. */\n  payloadFormat?: \"1.0\" | \"2.0\";\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiIntegrationAuthorizer =\n  | CognitoAuthorizer\n  | LambdaAuthorizer\n  | IamAuthorizer;\n// [!code focus-end]"
   },
   "HttpEndpointLogForwarding": {
     "definitionName": "HttpEndpointLogForwarding",
@@ -34178,6 +34263,19 @@
         }
       },
       {
+        "name": "reportBatchItemFailures",
+        "required": false,
+        "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+        "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
         "name": "startingPosition",
         "required": false,
         "shortDescription": "<p> The position in the stream from which to start reading records.</p>",
@@ -34209,9 +34307,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DestinationOnFailure } from 'stacktape';\n\n// [!code focus-start]\ntype KinesisIntegrationProps = {\n  /** Automatically creates a dedicated stream consumer for this integration. */\n  autoCreateConsumer?: boolean;\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** Splits a failed batch in two before retrying. */\n  bisectBatchOnFunctionError?: boolean;\n  /** The ARN of a specific stream consumer to use. */\n  consumerArn?: string;\n  /** The name of a Kinesis stream defined in your stack's resources. */\n  kinesisStreamName?: string;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The number of times to retry a failed batch of records. */\n  maximumRetryAttempts?: number;\n  /** A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. */\n  onFailure?: DestinationOnFailure;\n  /** The number of batches to process concurrently from the same shard. */\n  parallelizationFactor?: number;\n  /** The position in the stream from which to start reading records. */\n  startingPosition?: \"LATEST\" | \"TRIM_HORIZON\";\n  /** The ARN of an existing Kinesis stream to consume records from. */\n  streamArn?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DestinationOnFailure } from 'stacktape';\n\n// [!code focus-start]\ntype KinesisIntegrationProps = {\n  /** Automatically creates a dedicated stream consumer for this integration. */\n  autoCreateConsumer?: boolean;\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** Splits a failed batch in two before retrying. */\n  bisectBatchOnFunctionError?: boolean;\n  /** The ARN of a specific stream consumer to use. */\n  consumerArn?: string;\n  /** The name of a Kinesis stream defined in your stack's resources. */\n  kinesisStreamName?: string;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The number of times to retry a failed batch of records. */\n  maximumRetryAttempts?: number;\n  /** A destination (SQS queue or SNS topic) for batches that fail after all retry attempts. */\n  onFailure?: DestinationOnFailure;\n  /** The number of batches to process concurrently from the same shard. */\n  parallelizationFactor?: number;\n  /** Lets the function report which records of a batch failed, so only those are retried. */\n  reportBatchItemFailures?: boolean;\n  /** The position in the stream from which to start reading records. */\n  startingPosition?: \"LATEST\" | \"TRIM_HORIZON\";\n  /** The ARN of an existing Kinesis stream to consume records from. */\n  streamArn?: string;\n};\n// [!code focus-end]"
   },
   "KinesisStream": {
     "definitionName": "KinesisStream",
@@ -37081,6 +37179,19 @@
                         "number"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the IDs of the messages it could not process, and only those\nreturn to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated\nas having processed every message. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -37224,6 +37335,19 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -37327,6 +37451,19 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "reportBatchItemFailures",
+                    "required": false,
+                    "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+                    "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the sequence number of the first record it could not process,\nand Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns\nnothing is treated as having processed every record. Batch jobs ignore it.</p>",
+                    "defaultValue": "false",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
+                      ]
+                    }
                   }
                 ]
               },
@@ -37404,6 +37541,19 @@
                       "kind": "primitive",
                       "types": [
                         "string"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "enabled",
+                    "required": false,
+                    "shortDescription": "<p> Whether the schedule runs.</p>",
+                    "longDescription": "<p>Set to <code>false</code> to deploy the schedule without running it, for example to pause a job while keeping its\nconfiguration. Setting it back to <code>true</code> resumes it from the next scheduled time.</p>",
+                    "defaultValue": "true",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "boolean"
                       ]
                     }
                   },
@@ -37564,7 +37714,7 @@
                     "name": "authorizer",
                     "required": false,
                     "shortDescription": "<p> An authorizer to protect this route.</p>",
-                    "longDescription": "<p>Unauthorized requests will be rejected with a <code>401 Unauthorized</code> response.</p>",
+                    "longDescription": "<p>Cognito and Lambda authorizers reject unauthorized requests with <code>401 Unauthorized</code>. With <code>aws-iam</code>, callers sign\nrequests with AWS credentials allowed to call <code>execute-api:Invoke</code>, and API Gateway rejects the rest with\n<code>403 Forbidden</code>.</p>",
                     "typeInfo": {
                       "kind": "union",
                       "discriminator": "type",
@@ -37718,6 +37868,11 @@
                               ]
                             }
                           ]
+                        },
+                        {
+                          "label": "aws-iam",
+                          "typeName": "IamAuthorizer",
+                          "properties": []
                         }
                       ]
                     }
@@ -51108,6 +51263,19 @@
         }
       },
       {
+        "name": "enabled",
+        "required": false,
+        "shortDescription": "<p> Whether the schedule runs.</p>",
+        "longDescription": "<p>Set to <code>false</code> to deploy the schedule without running it, for example to pause a job while keeping its\nconfiguration. Setting it back to <code>true</code> resumes it from the next scheduled time.</p>",
+        "defaultValue": "true",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
         "name": "input",
         "required": false,
         "shortDescription": "A fixed JSON object to be passed as the event payload.",
@@ -51161,9 +51329,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 3
+      "optionalCount": 4
     },
-    "typeDeclaration": "import type { EventInputTransformer } from 'stacktape';\n\n// [!code focus-start]\ntype ScheduleIntegrationProps = {\n  /** The schedule rate or cron expression. */\n  scheduleRate: string;\n  /** A fixed JSON object to be passed as the event payload. */\n  input?: unknown;\n  /** A JSONPath expression to extract a portion of the event to pass to the target. */\n  inputPath?: string;\n  /** Customizes the event payload sent to the target. */\n  inputTransformer?: EventInputTransformer;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { EventInputTransformer } from 'stacktape';\n\n// [!code focus-start]\ntype ScheduleIntegrationProps = {\n  /** The schedule rate or cron expression. */\n  scheduleRate: string;\n  /** Whether the schedule runs. */\n  enabled?: boolean;\n  /** A fixed JSON object to be passed as the event payload. */\n  input?: unknown;\n  /** A JSONPath expression to extract a portion of the event to pass to the target. */\n  inputPath?: string;\n  /** Customizes the event payload sent to the target. */\n  inputTransformer?: EventInputTransformer;\n};\n// [!code focus-end]"
   },
   "SecretEnvironmentVar": {
     "definitionName": "SecretEnvironmentVar",
@@ -53048,6 +53216,19 @@
         }
       },
       {
+        "name": "reportBatchItemFailures",
+        "required": false,
+        "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
+        "longDescription": "<p>Without it, a batch succeeds or fails as a whole. With it, the function returns\n<code>{ batchItemFailures: [{ itemIdentifier }] }</code> with the IDs of the messages it could not process, and only those\nreturn to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated\nas having processed every message. Batch jobs ignore it.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
         "name": "sqsQueueArn",
         "required": false,
         "shortDescription": "<p> The ARN of an existing SQS queue.</p>",
@@ -53074,9 +53255,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 4
+      "optionalCount": 5
     },
-    "typeDeclaration": "// [!code focus-start]\ntype SqsIntegrationProps = {\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The ARN of an existing SQS queue. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue defined in your stack's resources. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype SqsIntegrationProps = {\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** Lets the function report which records of a batch failed, so only those are retried. */\n  reportBatchItemFailures?: boolean;\n  /** The ARN of an existing SQS queue. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue defined in your stack's resources. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
   },
   "SqsQueue": {
     "definitionName": "SqsQueue",

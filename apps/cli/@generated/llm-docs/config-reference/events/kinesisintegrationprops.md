@@ -24,6 +24,8 @@ type KinesisIntegrationProps = {
   onFailure?: DestinationOnFailure;
   /** The number of batches to process concurrently from the same shard. */
   parallelizationFactor?: number;
+  /** Lets the function report which records of a batch failed, so only those are retried. */
+  reportBatchItemFailures?: boolean;
   /** The position in the stream from which to start reading records. */
   startingPosition?: "LATEST" | "TRIM_HORIZON";
   /** The ARN of an existing Kinesis stream to consume records from. */
@@ -110,6 +112,19 @@ A destination (SQS queue or SNS topic) for batches that fail after all retry att
 - Type: `number`
 
 The number of batches to process concurrently from the same shard.
+
+## Property: `reportBatchItemFailures`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Lets the function report which records of a batch failed, so only those are retried.
+
+Without it, a batch succeeds or fails as a whole. With it, the function returns
+`{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process,
+and Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns
+nothing is treated as having processed every record. Batch jobs ignore it.
 
 ## Property: `startingPosition`
 

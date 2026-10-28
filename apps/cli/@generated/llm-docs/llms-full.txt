@@ -44559,7 +44559,7 @@ Use parallelization when your processing logic is idempotent and order within a 
 
 ## Retry and failure handling
 
-When a batch fails (the function throws an error), the entire batch is retried — including records that were processed successfully. Configure retries and failure destinations directly on the `DynamoDbIntegration`.
+When a batch fails (the function throws an error), the entire batch is retried — including records that were processed successfully. Configure retries and failure destinations directly on the `DynamoDbIntegration`. To retry from the first failed record instead, set `reportBatchItemFailures: true` and return `{ batchItemFailures: [{ itemIdentifier }] }` with that record's sequence number from the handler.
 
 
 Example (TypeScript):
@@ -44710,6 +44710,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `maximumRetryAttempts` | no | `number` | - |
 | `onFailure` | no | `DestinationOnFailure` | - |
 | `parallelizationFactor` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string` | `TRIM_HORIZON` |
 
 
@@ -45235,6 +45236,8 @@ Set `payloadFormat` on the HTTP API integration when a Lambda handler needs a sp
 
 HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. When configured, unauthorized requests are rejected with a `401 Unauthorized` response before they reach your function — saving invocation costs and reducing attack surface. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
 
+For routes that other AWS workloads or internal tools call, use `authorizer: { type: 'aws-iam' }`. Callers then sign each request with AWS Signature Version 4, using credentials allowed to call `execute-api:Invoke`; API Gateway rejects every other request with `403 Forbidden`.
+
 Application Load Balancer integrations do not support built-in authorizers. If you use an ALB, handle authentication in your application code or a middleware layer.
 
 ## ALB integration
@@ -45321,7 +45324,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `httpApiGatewayName` | yes | `string` | - |
 | `method` | yes | `string: "*" \| "DELETE" \| "GET" \| "HEAD" \| "OPTIONS" \| "PATCH" \| "POST" \| "PUT"` | - |
 | `path` | yes | `string` | - |
-| `authorizer` | no | `cognito \| lambda` | - |
+| `authorizer` | no | `cognito \| lambda \| aws-iam` | - |
 | `payloadFormat` | no | `string: "1.0" \| "2.0"` | `1.0` |
 
 
@@ -45697,6 +45700,10 @@ Set `maximumRetryAttempts` to cap how many times a failed batch is retried. In A
 
 Enable `bisectBatchOnFunctionError` to split a failed batch in two before retrying. This narrows down the failing records when only part of a large batch causes an error. Pair it with `maximumRetryAttempts` and `onFailure` when you want failed batches to stop retrying indefinitely and be sent to a destination after retries are exhausted.
 
+### Reporting the failed record
+
+Set `reportBatchItemFailures: true` when the handler returns `{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process. Lambda then retries from that record instead of replaying the whole batch. A handler that returns nothing with this setting on is treated as having processed every record.
+
 ### Failure destination
 
 Configure `onFailure` when you want batches that fail after all retry attempts to be sent to an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) for inspection and manual reprocessing.
@@ -45725,6 +45732,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `maximumRetryAttempts` | no | `number` | - |
 | `onFailure` | no | `DestinationOnFailure` | - |
 | `parallelizationFactor` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string: "LATEST" \| "TRIM_HORIZON"` | `TRIM_HORIZON` |
 | `streamArn` | no | `string` | - |
 
@@ -46438,6 +46446,10 @@ export default defineConfig(() => {
 
 This pattern is useful when the same function handles different modes — an incremental sync every 5 minutes and a full sync at 3:00 AM UTC daily. The `input` property passes a fixed JSON payload so the handler can distinguish which schedule triggered the invocation.
 
+## Pausing a schedule
+
+Set `enabled: false` on a schedule to deploy it without running it. The rule stays in your stack with its expression and payload, and setting `enabled` back to `true` (the default) resumes it from the next scheduled time.
+
 ## Event payload customization
 
 `ScheduleIntegrationProps` only defines custom payload behavior when you set `input`, `inputPath`, or `inputTransformer`. If you need a stable handler shape, set `input` or `inputTransformer` explicitly. You can customize what the function receives using one of three mutually exclusive options.
@@ -46598,6 +46610,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
 | `scheduleRate` | yes | `string` | - |
+| `enabled` | no | `boolean` | `true` |
 | `input` | no | `unknown` | - |
 | `inputPath` | no | `string` | - |
 | `inputTransformer` | no | `EventInputTransformer` | - |
@@ -47074,6 +47087,45 @@ When your Lambda function throws an error while processing an SQS batch, AWS ret
 > **Info:** Because the entire batch is retried on failure, make your handler idempotent — processing the same message twice should produce the same result. AWS SQS records include identifiers like `messageId` that you can use for deduplication if your processing semantics require it.
 
 
+### Retrying only the failed messages
+
+Set `reportBatchItemFailures: true` when the handler reports which messages it could not process. The handler returns the IDs of those messages, and only they return to the queue; the rest of the batch is deleted.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, SqsQueue, SqsIntegration, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const orderQueue = new SqsQueue({});
+
+  const orderProcessor = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-orders.ts' }),
+    events: [new SqsIntegration({ sqsQueueName: 'orderQueue', reportBatchItemFailures: true })]
+  });
+
+  return { resources: { orderQueue, orderProcessor } };
+});
+```
+
+
+```typescript
+export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+  const batchItemFailures: Array<{ itemIdentifier: string }> = [];
+  for (const record of event.Records) {
+    try {
+      await saveOrder(JSON.parse(record.body));
+    } catch {
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+    }
+  }
+  return { batchItemFailures };
+};
+```
+
+Turn it on only for handlers that return this shape. With the setting on, a handler that returns nothing tells Lambda that every message succeeded, so a failure it swallowed is lost.
+
 ## Processing SQS messages
 
 Your Lambda handler receives the standard AWS Lambda SQS event — an object with a `Records` array. Each record contains the message `body` as a string, plus metadata like `messageId` and `attributes`.
@@ -47101,6 +47153,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `batchSize` | no | `number` | `10` |
 | `maxBatchWindowSeconds` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
 
@@ -47113,7 +47166,7 @@ No. Each standard SQS queue should have exactly one consumer. When a message is 
 
 ### What happens when my Lambda function fails to process a message?
 
-AWS returns the entire batch to the queue. After the visibility timeout expires, the messages become available for redelivery. `SqsIntegration` does not expose retry or dead-letter properties. AWS dead-letter behavior is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options. Because the whole batch is replayed, make your handler idempotent.
+By default, AWS returns the entire batch to the queue; with `reportBatchItemFailures`, only the messages your handler reports as failed. After the visibility timeout expires, the messages become available for redelivery. `SqsIntegration` does not expose retry or dead-letter properties. AWS dead-letter behavior is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options. Because the whole batch is replayed, make your handler idempotent.
 
 ### How do FIFO queues work with Lambda triggers?
 
@@ -61194,13 +61247,13 @@ Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
-- `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
-- `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
+- `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
-- `schedule` (`ScheduleIntegration`) — Triggers a function on a recurring schedule (cron jobs, periodic tasks).. Properties: `scheduleRate: string`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
+- `schedule` (`ScheduleIntegration`) — Triggers a function on a recurring schedule (cron jobs, periodic tasks).. Properties: `scheduleRate: string`, `enabled?: boolean`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 - `cloudwatch-log` (`CloudwatchLogIntegration`) — Triggers a function when new log records appear in a CloudWatch log group.. Properties: `logGroupArn: string`, `filter?: string`.
-- `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda | aws-iam`, `payloadFormat?: string: "1.0" | "2.0"`.
 - `event-bus` (`EventBusIntegration`) — Triggers a batch job when an event matching a specified pattern is received by an event bus.. Properties: `eventBusArn?: string`, `eventBusName?: string`, `useDefaultBus?: boolean`, `eventPattern: EventBusIntegrationPattern`, `onDeliveryFailure?: EventBusOnDeliveryFailure`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 
 ### Example 1 (yaml)
@@ -81375,7 +81428,7 @@ Route: `/config-reference/events`
 ## TypeScript definition
 
 ```typescript
-import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';
+import type { CognitoAuthorizer, IamAuthorizer, LambdaAuthorizer } from 'stacktape';
 
 type ContainerWorkloadHttpApiIntegrationProps = {
   /** The container port that will receive traffic from the API Gateway. */
@@ -81395,7 +81448,8 @@ type ContainerWorkloadHttpApiIntegrationProps = {
 /** Union choices used by the properties above. */
 type ContainerWorkloadHttpApiIntegrationAuthorizer =
   | CognitoAuthorizer
-  | LambdaAuthorizer;
+  | LambdaAuthorizer
+  | IamAuthorizer;
 ```
 
 ## Property: `containerPort`
@@ -81493,15 +81547,18 @@ The URL path that will trigger this integration.
 ## Property: `authorizer`
 
 - Required: no
-- Type: `cognito | lambda`
+- Type: `cognito | lambda | aws-iam`
 
 An authorizer to protect this route.
 
-Unauthorized requests will be rejected with a `401 Unauthorized` response.
+Cognito and Lambda authorizers reject unauthorized requests with `401 Unauthorized`. With `aws-iam`, callers sign
+requests with AWS credentials allowed to call `execute-api:Invoke`, and API Gateway rejects the rest with
+`403 Forbidden`.
 
 Choices:
 - `cognito` (`CognitoAuthorizer`). Properties: `userPoolName: string`, `identitySources?: Array<string>`.
 - `lambda` (`LambdaAuthorizer`). Properties: `functionName: string`, `iamResponse?: boolean`, `identitySources?: Array<string>`, `cacheResultSeconds?: number`.
+- `aws-iam` (`IamAuthorizer`)
 
 ## Property: `payloadFormat`
 
@@ -82905,6 +82962,8 @@ type DynamoDbIntegrationProps = {
   onFailure?: DestinationOnFailure;
   /** The number of batches to process concurrently from the same shard. */
   parallelizationFactor?: number;
+  /** Lets the function report which records of a batch failed, so only those are retried. */
+  reportBatchItemFailures?: boolean;
   /** The position in the stream from which to start reading records. */
   startingPosition?: string;
 };
@@ -82967,6 +83026,19 @@ A destination (SQS queue or SNS topic) for batches that fail after all retry att
 - Type: `number`
 
 The number of batches to process concurrently from the same shard.
+
+## Property: `reportBatchItemFailures`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Lets the function report which records of a batch failed, so only those are retried.
+
+Without it, a batch succeeds or fails as a whole. With it, the function returns
+`{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process,
+and Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns
+nothing is treated as having processed every record. Batch jobs ignore it.
 
 ## Property: `startingPosition`
 
@@ -83453,7 +83525,7 @@ Route: `/config-reference/events`
 ## TypeScript definition
 
 ```typescript
-import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';
+import type { CognitoAuthorizer, IamAuthorizer, LambdaAuthorizer } from 'stacktape';
 
 type HttpApiIntegrationProps = {
   /** The name of the HTTP API Gateway. */
@@ -83471,7 +83543,8 @@ type HttpApiIntegrationProps = {
 /** Union choices used by the properties above. */
 type HttpApiIntegrationAuthorizer =
   | CognitoAuthorizer
-  | LambdaAuthorizer;
+  | LambdaAuthorizer
+  | IamAuthorizer;
 ```
 
 ## Property: `httpApiGatewayName`
@@ -83504,15 +83577,18 @@ The URL path that will trigger this integration.
 ## Property: `authorizer`
 
 - Required: no
-- Type: `cognito | lambda`
+- Type: `cognito | lambda | aws-iam`
 
 An authorizer to protect this route.
 
-Unauthorized requests will be rejected with a `401 Unauthorized` response.
+Cognito and Lambda authorizers reject unauthorized requests with `401 Unauthorized`. With `aws-iam`, callers sign
+requests with AWS credentials allowed to call `execute-api:Invoke`, and API Gateway rejects the rest with
+`403 Forbidden`.
 
 Choices:
 - `cognito` (`CognitoAuthorizer`). Properties: `userPoolName: string`, `identitySources?: Array<string>`.
 - `lambda` (`LambdaAuthorizer`). Properties: `functionName: string`, `iamResponse?: boolean`, `identitySources?: Array<string>`, `cacheResultSeconds?: number`.
+- `aws-iam` (`IamAuthorizer`)
 
 ## Property: `payloadFormat`
 
@@ -83770,6 +83846,8 @@ type KinesisIntegrationProps = {
   onFailure?: DestinationOnFailure;
   /** The number of batches to process concurrently from the same shard. */
   parallelizationFactor?: number;
+  /** Lets the function report which records of a batch failed, so only those are retried. */
+  reportBatchItemFailures?: boolean;
   /** The position in the stream from which to start reading records. */
   startingPosition?: "LATEST" | "TRIM_HORIZON";
   /** The ARN of an existing Kinesis stream to consume records from. */
@@ -83856,6 +83934,19 @@ A destination (SQS queue or SNS topic) for batches that fail after all retry att
 - Type: `number`
 
 The number of batches to process concurrently from the same shard.
+
+## Property: `reportBatchItemFailures`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Lets the function report which records of a batch failed, so only those are retried.
+
+Without it, a batch succeeds or fails as a whole. With it, the function returns
+`{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process,
+and Lambda retries from that record. Turn it on only when the handler returns that shape: a handler that returns
+nothing is treated as having processed every record. Batch jobs ignore it.
 
 ## Property: `startingPosition`
 
@@ -84311,6 +84402,8 @@ import type { EventInputTransformer } from 'stacktape';
 type ScheduleIntegrationProps = {
   /** The schedule rate or cron expression. */
   scheduleRate: string;
+  /** Whether the schedule runs. */
+  enabled?: boolean;
   /** A fixed JSON object to be passed as the event payload. */
   input?: unknown;
   /** A JSONPath expression to extract a portion of the event to pass to the target. */
@@ -84328,6 +84421,17 @@ type ScheduleIntegrationProps = {
 The schedule rate or cron expression.
 
 Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Whether the schedule runs.
+
+Set to `false` to deploy the schedule without running it, for example to pause a job while keeping its
+configuration. Setting it back to `true` resumes it from the next scheduled time.
 
 ## Property: `input`
 
@@ -84652,6 +84756,8 @@ type SqsIntegrationProps = {
   batchSize?: number;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
+  /** Lets the function report which records of a batch failed, so only those are retried. */
+  reportBatchItemFailures?: boolean;
   /** The ARN of an existing SQS queue. */
   sqsQueueArn?: string;
   /** The name of an SQS queue defined in your stack's resources. */
@@ -84677,6 +84783,19 @@ Maximum is 10,000.
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
 Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+
+## Property: `reportBatchItemFailures`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Lets the function report which records of a batch failed, so only those are retried.
+
+Without it, a batch succeeds or fails as a whole. With it, the function returns
+`{ batchItemFailures: [{ itemIdentifier }] }` with the IDs of the messages it could not process, and only those
+return to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated
+as having processed every message. Batch jobs ignore it.
 
 ## Property: `sqsQueueArn`
 
@@ -86233,14 +86352,14 @@ Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
-- `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
-- `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
+- `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
-- `schedule` (`ScheduleIntegration`) — Triggers a function on a recurring schedule (cron jobs, periodic tasks).. Properties: `scheduleRate: string`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
+- `schedule` (`ScheduleIntegration`) — Triggers a function on a recurring schedule (cron jobs, periodic tasks).. Properties: `scheduleRate: string`, `enabled?: boolean`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 - `cloudwatch-alarm` (`AlarmIntegration`). Properties: `alarmName: string`.
 - `cloudwatch-log` (`CloudwatchLogIntegration`) — Triggers a function when new log records appear in a CloudWatch log group.. Properties: `logGroupArn: string`, `filter?: string`.
-- `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda | aws-iam`, `payloadFormat?: string: "1.0" | "2.0"`.
 - `appsync-api` (`AppSyncApiIntegration`) — Resolves one GraphQL field with a Lambda function through AWS AppSync.. Properties: `appsyncApiName: string`, `field: string`.
 - `websocket-api-gateway` (`WebSocketApiIntegration`) — Routes a WebSocket lifecycle event or message to a Lambda function.. Properties: `websocketApiGatewayName: string`, `routeKey: string`, `authorizer?: aws-iam | lambda`, `returnResponse?: boolean`.
 - `event-bus` (`EventBusIntegration`) — Triggers a batch job when an event matching a specified pattern is received by an event bus.. Properties: `eventBusArn?: string`, `eventBusName?: string`, `useDefaultBus?: boolean`, `eventPattern: EventBusIntegrationPattern`, `onDeliveryFailure?: EventBusOnDeliveryFailure`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
@@ -98877,7 +98996,7 @@ How this container receives traffic (API Gateway, load balancer, or service-conn
 
 Choices:
 - `application-load-balancer` (`ContainerWorkloadLoadBalancerIntegration`) — Triggers a container when a request matches the specified conditions on an Application Load Balancer.. Properties: `containerPort: number`, `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
-- `http-api-gateway` (`ContainerWorkloadHttpApiIntegration`) — Triggers a container when an HTTP API Gateway receives a matching request.. Properties: `containerPort: number`, `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `http-api-gateway` (`ContainerWorkloadHttpApiIntegration`) — Triggers a container when an HTTP API Gateway receives a matching request.. Properties: `containerPort: number`, `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda | aws-iam`, `payloadFormat?: string: "1.0" | "2.0"`.
 - `workload-internal` (`ContainerWorkloadInternalIntegration`) — Opens a container port for connections from other containers within the same workload.. Properties: `containerPort: number`.
 - `service-connect` (`ContainerWorkloadServiceConnectIntegration`) — Opens a container port for connections from other compute resources in the same stack.. Properties: `containerPort: number`, `alias?: string`, `protocol?: string: "grpc" | "http" | "http2"`.
 - `network-load-balancer` (`ContainerWorkloadNetworkLoadBalancerIntegration`) — Triggers a container when a request is made to a Network Load Balancer.. Properties: `containerPort: number`, `loadBalancerName: string`, `listenerPort: number`.

@@ -8,6 +8,8 @@ import type { EventInputTransformer } from 'stacktape';
 type ScheduleIntegrationProps = {
   /** The schedule rate or cron expression. */
   scheduleRate: string;
+  /** Whether the schedule runs. */
+  enabled?: boolean;
   /** A fixed JSON object to be passed as the event payload. */
   input?: unknown;
   /** A JSONPath expression to extract a portion of the event to pass to the target. */
@@ -25,6 +27,17 @@ type ScheduleIntegrationProps = {
 The schedule rate or cron expression.
 
 Examples: `rate(2 hours)`, `cron(0 10 * * ? *)`
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Whether the schedule runs.
+
+Set to `false` to deploy the schedule without running it, for example to pause a job while keeping its
+configuration. Setting it back to `true` resumes it from the next scheduled time.
 
 ## Property: `input`
 

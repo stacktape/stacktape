@@ -753,11 +753,17 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['aws-sam', 'kinesis', 'firehose', 'api-gateway', 'streaming'],
     expect: {
-      resourceTypes: { function: 2, 'http-api-gateway': 1 },
+      // The only route sits behind a REST API Lambda authorizer, whose event an HTTP API authorizer does not send.
+      // Init leaves the route out rather than make it public.
+      resourceTypes: { function: 2 },
       serviceCount: 2,
       httpServiceCount: 0,
       existingDeployments: ['aws-sam'],
-      requiredGapPatterns: ['lambdaAuthorizer handler but no event', 'AWS SAM deployment files'],
+      requiredGapPatterns: [
+        'lambdaAuthorizer handler but no event',
+        'POST /, which your SAM template protects with the "MyLambdaAuthorizer" authorizer',
+        'AWS SAM deployment files'
+      ],
       forbidCurrentlyHostedDependencies: true
     }
   },

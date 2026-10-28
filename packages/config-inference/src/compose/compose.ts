@@ -739,11 +739,29 @@ const composeDependency = (
         resource: { type: 'state-machine', properties: { definition: PLACEHOLDER_DEFINITION } },
         reason: 'Your code starts executions of a Step Functions workflow.'
       };
-    case 'queue':
+    case 'queue': {
+      const settings = dependency.queueSettings;
       return {
-        resource: { type: 'sqs-queue', properties: {} },
-        reason: 'Your code uses Amazon SQS.'
+        resource: {
+          type: 'sqs-queue',
+          properties: {
+            ...(settings?.fifo === true
+              ? {
+                  fifoEnabled: true,
+                  ...(settings.contentBasedDeduplication === true ? { contentBasedDeduplication: true } : {})
+                }
+              : {}),
+            ...(settings?.visibilityTimeoutSeconds === undefined
+              ? {}
+              : { visibilityTimeoutSeconds: settings.visibilityTimeoutSeconds })
+          }
+        },
+        reason:
+          settings?.fifo === true
+            ? 'Your deployment files declare a FIFO queue, so it keeps message order and drops duplicate messages.'
+            : 'Your code uses Amazon SQS.'
       };
+    }
     case 'topic':
       return {
         resource: { type: 'sns-topic', properties: {} },
@@ -869,6 +887,8 @@ export const composeConfig = ({
   const sqliteFiles = new Map<string, string>();
   /** The one disk every kept SQLite file shares, and the services that mount it. */
   let sqliteVolumeName: string | undefined;
+  /** The disk composed for each Compose named volume, by volume name. */
+  const persistentVolumeResources = new Map<string, string>();
   const sqliteVolumeServices = new Set<string>();
   // An agent reports a SQLite file as a question about a service, and the scan may report the same
   // file as a dependency. Both become one dependency, so the user sees one decision per file and the
@@ -1089,6 +1109,22 @@ export const composeConfig = ({
     });
     if (privateDatabase) privateDatabaseResourceNames.add(name);
     resources[name] = composed.resource;
+    if (dependency.kind === 'queue') {
+      // AWS refuses a queue trigger whose function may run longer than the queue hides a message.
+      const longestConsumerTimeout = Math.max(
+        0,
+        ...facts.services
+          .filter((service) =>
+            service.functionTriggers.some(
+              (trigger) => trigger.type === 'queue' && trigger.dependencyName === dependency.name
+            )
+          )
+          .map((service) => service.functionTimeoutSeconds ?? 0)
+      );
+      if (longestConsumerTimeout > (dependency.queueSettings?.visibilityTimeoutSeconds ?? 30)) {
+        composed.resource.properties.visibilityTimeoutSeconds = Math.min(longestConsumerTimeout * 6, 43200);
+      }
+    }
     provenance[name] = {
       reason: composed.reason,
       evidence: dependency.evidence.slice(0, 3)
@@ -1526,6 +1562,32 @@ export const composeConfig = ({
       // for the file over a network disk. One copy is the price of keeping it without code changes.
       properties.scaling = { minInstances: 1, maxInstances: 1 };
     }
+    // A Compose named volume is storage the repository says must outlive the container. Services that mount the same
+    // volume share one disk, as they do under Compose.
+    for (const volume of service.persistentVolumes ?? []) {
+      if (!VOLUME_RESOURCE_TYPES.has(classification.resourceType)) {
+        gaps.push({
+          subject: `${service.name}.volume`,
+          message: `${service.name} keeps files in the ${volume.name} volume at ${volume.mountPath}, but it runs as a ${classification.resourceType}, which has no disk that survives a restart. Before deploying, move that data to a bucket or a database.`
+        });
+        continue;
+      }
+      let filesystemName = persistentVolumeResources.get(volume.name);
+      if (filesystemName === undefined) {
+        filesystemName = uniqueName(`${volume.name}Volume`, taken);
+        persistentVolumeResources.set(volume.name, filesystemName);
+        resources[filesystemName] = { type: 'efs-filesystem', properties: { backupEnabled: true } };
+        provenance[filesystemName] = {
+          reason: `Your Compose file keeps the ${volume.name} volume, so this disk keeps its files through deploys and restarts. It starts empty: copy existing files onto it if the app needs them.`,
+          evidence: service.evidence.slice(0, 2)
+        };
+      }
+      const properties = resources[name]!.properties;
+      properties.volumeMounts = [
+        ...((properties.volumeMounts as unknown[] | undefined) ?? []),
+        { type: 'efs', properties: { efsFilesystemName: filesystemName, mountPath: volume.mountPath } }
+      ];
+    }
 
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside
     // `buildServiceResource`, and the caveat belongs next to the other honest omissions. Only the
@@ -1597,6 +1659,16 @@ export const composeConfig = ({
       if (trigger.type !== 'unmapped') continue;
       // The caller already gets the function's ARN and connectTo from the variable it reads.
       if (trigger.sourceType === DIRECT_INVOCATION_SOURCE && invokedByName.has(service.name)) continue;
+      if (trigger.reason !== undefined) {
+        gaps.push({
+          subject: `${service.name}.trigger`,
+          message:
+            trigger.reason === 'protected-route'
+              ? `${service.name} serves ${trigger.sourceType}. Stacktape cannot reproduce that protection, so we left the route out rather than make it public. Before deploying, add it back to the function's http-api-gateway events with a Stacktape authorizer (cognito, lambda or aws-iam).`
+              : `Your deployment files disable ${trigger.sourceType} for ${service.name}, so we left it out and it does not start running. Add it to the function's events when you want it on.`
+        });
+        continue;
+      }
       gaps.push({
         subject: service.name,
         message:
@@ -1840,7 +1912,8 @@ const buildServiceResource = ({
               httpApiGatewayName,
               method: httpRouteMethod(trigger.method),
               path: trigger.path,
-              ...(trigger.payloadFormat === '2.0' ? { payloadFormat: '2.0' } : {})
+              ...(trigger.payloadFormat === '2.0' ? { payloadFormat: '2.0' } : {}),
+              ...(trigger.authorization === 'aws-iam' ? { authorizer: { type: 'aws-iam' } } : {})
             }
           });
         }
@@ -1849,7 +1922,12 @@ const buildServiceResource = ({
       if (trigger.type === 'schedule') {
         events.push({
           type: 'schedule',
-          properties: { scheduleRate: normalizeScheduleExpression(trigger.rate) }
+          properties: {
+            scheduleRate: normalizeScheduleExpression(trigger.rate),
+            ...(trigger.enabled === false ? { enabled: false } : {}),
+            ...(trigger.input === undefined ? {} : { input: trigger.input }),
+            ...(trigger.inputPath === undefined ? {} : { inputPath: trigger.inputPath })
+          }
         });
         continue;
       }
@@ -1891,7 +1969,8 @@ const buildServiceResource = ({
           type: 'sqs',
           properties: {
             sqsQueueName: dependencyName,
-            ...(trigger.batchSize === undefined ? {} : { batchSize: trigger.batchSize })
+            ...(trigger.batchSize === undefined ? {} : { batchSize: trigger.batchSize }),
+            ...(trigger.reportBatchItemFailures === true ? { reportBatchItemFailures: true } : {})
           }
         });
         continue;
@@ -1899,7 +1978,10 @@ const buildServiceResource = ({
       if (trigger.type === 'topic') {
         events.push({
           type: 'sns',
-          properties: { snsTopicName: dependencyName }
+          properties: {
+            snsTopicName: dependencyName,
+            ...(trigger.filterPolicy === undefined ? {} : { filterPolicy: trigger.filterPolicy })
+          }
         });
         continue;
       }
@@ -1907,7 +1989,15 @@ const buildServiceResource = ({
         type: 's3',
         properties: {
           bucketArn: `$ResourceParam('${dependencyName}', 'arn')`,
-          s3EventType: trigger.eventType ?? 's3:ObjectCreated:*'
+          s3EventType: trigger.eventType ?? 's3:ObjectCreated:*',
+          ...(trigger.keyPrefix === undefined && trigger.keySuffix === undefined
+            ? {}
+            : {
+                filterRule: {
+                  ...(trigger.keyPrefix === undefined ? {} : { prefix: trigger.keyPrefix }),
+                  ...(trigger.keySuffix === undefined ? {} : { suffix: trigger.keySuffix })
+                }
+              })
         }
       });
     }
@@ -1926,6 +2016,8 @@ const buildServiceResource = ({
           }
         },
         ...compiledRuntime(service),
+        ...(service.functionTimeoutSeconds === undefined ? {} : { timeout: service.functionTimeoutSeconds }),
+        ...(service.functionMemoryMb === undefined ? {} : { memory: service.functionMemoryMb }),
         ...(events.length === 0 ? {} : { events }),
         ...(service.functionTriggers.some((trigger) => trigger.type === 'url') ? { url: { enabled: true } } : {}),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),

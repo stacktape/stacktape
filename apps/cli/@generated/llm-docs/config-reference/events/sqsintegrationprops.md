@@ -8,6 +8,8 @@ type SqsIntegrationProps = {
   batchSize?: number;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
+  /** Lets the function report which records of a batch failed, so only those are retried. */
+  reportBatchItemFailures?: boolean;
   /** The ARN of an existing SQS queue. */
   sqsQueueArn?: string;
   /** The name of an SQS queue defined in your stack's resources. */
@@ -33,6 +35,19 @@ Maximum is 10,000.
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
 Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+
+## Property: `reportBatchItemFailures`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Lets the function report which records of a batch failed, so only those are retried.
+
+Without it, a batch succeeds or fails as a whole. With it, the function returns
+`{ batchItemFailures: [{ itemIdentifier }] }` with the IDs of the messages it could not process, and only those
+return to the queue. Turn it on only when the handler returns that shape: a handler that returns nothing is treated
+as having processed every message. Batch jobs ignore it.
 
 ## Property: `sqsQueueArn`
 

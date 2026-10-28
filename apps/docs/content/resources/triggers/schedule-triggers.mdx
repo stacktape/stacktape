@@ -208,6 +208,10 @@ export default defineConfig(() => {
 
 This pattern is useful when the same function handles different modes — an incremental sync every 5 minutes and a full sync at 3:00 AM UTC daily. The `input` property passes a fixed JSON payload so the handler can distinguish which schedule triggered the invocation.
 
+## Pausing a schedule
+
+Set `enabled: false` on a schedule to deploy it without running it. The rule stays in your stack with its expression and payload, and setting `enabled` back to `true` (the default) resumes it from the next scheduled time.
+
 ## Event payload customization
 
 `ScheduleIntegrationProps` only defines custom payload behavior when you set `input`, `inputPath`, or `inputTransformer`. If you need a stable handler shape, set `input` or `inputTransformer` explicitly. You can customize what the function receives using one of three mutually exclusive options.

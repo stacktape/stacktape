@@ -268,6 +268,80 @@ describe('the AWS SAM probe', () => {
     });
   });
 
+  it('reads inherited authorizers, disabled events, every S3 event type and declared sizing', async () => {
+    const repositoryRoot = await makeRepo({
+      'app.py': 'def main(event, context):\n    return None\n',
+      'template.yaml': [
+        'Transform: AWS::Serverless-2016-10-31',
+        'Globals:',
+        '  Function:',
+        '    Runtime: python3.13',
+        '    MemorySize: 1769',
+        '  HttpApi:',
+        '    Auth:',
+        '      DefaultAuthorizer: AWS_IAM',
+        'Resources:',
+        '  Jobs:',
+        '    Type: AWS::SQS::Queue',
+        '    Properties:',
+        '      FifoQueue: true',
+        '      VisibilityTimeout: 120',
+        '  Files:',
+        '    Type: AWS::S3::Bucket',
+        '  WorkerFunction:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      Handler: app.main',
+        '      Timeout: 90',
+        '      Events:',
+        '        Internal:',
+        '          Type: HttpApi',
+        '          Properties:',
+        '            Path: /internal',
+        '            Method: get',
+        '        Public:',
+        '          Type: HttpApi',
+        '          Properties:',
+        '            Path: /health',
+        '            Method: get',
+        '            Auth:',
+        '              Authorizer: NONE',
+        '        Paused:',
+        '          Type: SQS',
+        '          Properties:',
+        '            Queue: !GetAtt Jobs.Arn',
+        '            Enabled: false',
+        '        Cleanup:',
+        '          Type: Schedule',
+        '          Properties:',
+        '            Schedule: rate(1 day)',
+        '            State: DISABLED',
+        '            Input: \'{"mode":"full"}\'',
+        '        Changed:',
+        '          Type: S3',
+        '          Properties:',
+        '            Bucket: !Ref Files',
+        '            Events: [s3:ObjectCreated:*, s3:ObjectRemoved:*]'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+    const worker = facts.services.find((entry) => entry.name === 'worker');
+    expect(worker).toMatchObject({ functionHandler: 'main', functionTimeoutSeconds: 90, functionMemoryMb: 1769 });
+    expect(worker?.functionTriggers).toEqual([
+      { type: 'http', method: 'get', path: '/internal', authorization: 'aws-iam' },
+      { type: 'http', method: 'get', path: '/health' },
+      { type: 'unmapped', reason: 'disabled', sourceType: 'the event from the jobs queue' },
+      { type: 'schedule', rate: 'rate(1 day)', enabled: false, input: '{"mode":"full"}' },
+      { type: 'object-storage', dependencyName: 'files', eventType: 's3:ObjectCreated:*' },
+      { type: 'object-storage', dependencyName: 'files', eventType: 's3:ObjectRemoved:*' }
+    ]);
+    expect(facts.dependencies.find((entry) => entry.name === 'jobs')?.queueSettings).toEqual({
+      fifo: true,
+      visibilityTimeoutSeconds: 120
+    });
+  });
+
   it('imports EventBridge Scheduler ScheduleV2 events', async () => {
     const repositoryRoot = await makeRepo({
       'src/main.go': 'package main\nfunc main() {}\n',

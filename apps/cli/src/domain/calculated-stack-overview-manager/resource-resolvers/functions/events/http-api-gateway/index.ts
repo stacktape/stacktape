@@ -68,7 +68,7 @@ export const resolveHttpApiEvents = ({
         method,
         stpResourceName: httpApiGatewayInfo.name
       });
-      if (authorizer) {
+      if (authorizer && authorizer.type !== 'aws-iam') {
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.httpApiAuthorizer({
             path,
@@ -76,7 +76,7 @@ export const resolveHttpApiEvents = ({
             stpResourceName: httpApiGatewayInfo.name
           }),
           nameChain,
-          resource: getHttpApiAuthorizerResource(event.properties.authorizer, authorizerName, httpApiGatewayInfo.name)
+          resource: getHttpApiAuthorizerResource(authorizer, authorizerName, httpApiGatewayInfo.name)
         });
         if (authorizer.type === 'lambda') {
           const authorizerLambdaProps = resolveReferenceToLambdaFunction({

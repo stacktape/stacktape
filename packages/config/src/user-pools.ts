@@ -4432,4 +4432,45 @@ export interface LambdaAuthorizer {
 }
 
 
-export type StpAuthorizer = CognitoAuthorizer | LambdaAuthorizer;
+export interface IamAuthorizer {
+  /**
+   * #### AWS IAM authorization
+   *
+   * ---
+   *
+   * Requires callers to sign each request with AWS Signature Version 4, using credentials whose IAM policy allows
+   * `execute-api:Invoke` on the route. API Gateway rejects unsigned requests and requests whose credentials lack that
+   * permission with `403 Forbidden`. No authorizer resource is created.
+   *
+   * Use this for routes that other AWS workloads or internal tools call, rather than browsers.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   httpApi:
+   *     type: http-api-gateway
+   *   adminFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/admin.ts
+   *       events:
+   *         - type: http-api-gateway
+   *           properties:
+   *             httpApiGatewayName: httpApi
+   *             method: GET
+   *             path: /admin
+   *             # stp-focus
+   *             authorizer:
+   *               type: aws-iam
+   *             # stp-end-focus
+   * ```
+   */
+  type: 'aws-iam';
+}
+
+
+export type StpAuthorizer = CognitoAuthorizer | LambdaAuthorizer | IamAuthorizer;

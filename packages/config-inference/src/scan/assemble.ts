@@ -81,6 +81,9 @@ const mergeDependency = (existing: DependencyFact, incoming: DependencyFact): De
       : (existing.hostingEvidence ?? incoming.hostingEvidence),
   // Same reasoning for a declared size: only an importer states one, and one statement is enough.
   ...((existing.sizeHint ?? incoming.sizeHint) ? { sizeHint: existing.sizeHint ?? incoming.sizeHint } : {}),
+  ...((existing.queueSettings ?? incoming.queueSettings)
+    ? { queueSettings: existing.queueSettings ?? incoming.queueSettings }
+    : {}),
   evidence: mergeEvidence(existing.evidence, incoming.evidence)
 });
 
@@ -225,6 +228,9 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
   functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
   functionHandler: existing.functionHandler ?? incoming.functionHandler,
+  functionTimeoutSeconds: existing.functionTimeoutSeconds ?? incoming.functionTimeoutSeconds,
+  functionMemoryMb: existing.functionMemoryMb ?? incoming.functionMemoryMb,
+  persistentVolumes: existing.persistentVolumes ?? incoming.persistentVolumes,
   functionTriggers: [
     ...new Map(
       [...(existing.functionTriggers ?? []), ...(incoming.functionTriggers ?? [])].map((trigger) => [

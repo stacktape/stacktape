@@ -204,8 +204,411 @@ const CASES: EvalCase[] = [
   }
 ];
 
+const jsPackage = JSON.stringify({ name: 'fixture-app', private: true, type: 'module' });
+const lines = (...entries: string[]): string => `${entries.join('\n')}\n`;
+const serverless = (...functionsAndResources: string[]): string =>
+  lines('service: fixture', 'provider:', '  name: aws', '  runtime: nodejs22.x', ...functionsAndResources);
+const samTemplate = (...resources: string[]): string =>
+  lines('AWSTemplateFormatVersion: "2010-09-09"', 'Transform: AWS::Serverless-2016-10-31', 'Resources:', ...resources);
+const samFunction = (handler: string, ...rest: string[]): string[] => [
+  '  Api:',
+  '    Type: AWS::Serverless::Function',
+  '    Properties:',
+  '      Runtime: nodejs22.x',
+  `      Handler: ${handler}`,
+  '      CodeUri: .',
+  ...rest
+];
+const handlerFile = 'export async function handler(event) { return { statusCode: 200 }; }\n';
+
+/**
+ * Settings whose loss makes the imported stack less safe than the one it was imported from: a protected route turned
+ * public, a disabled job started, a partially failed batch acknowledged, persistent files kept on a disposable disk.
+ * Each case is a minimal repository from the r2ss init audit.
+ */
+const FIDELITY_CASES: EvalCase[] = [
+  {
+    name: 'Serverless aws_iam route stays IAM-protected',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': handlerFile,
+      'serverless.yml': serverless(
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - http:',
+        '          path: admin',
+        '          method: get',
+        '          authorizer: aws_iam'
+      )
+    },
+    expect: {
+      resources: { api: 'function', httpApiGateway: 'http-api-gateway' },
+      resourceProperties: [
+        { resource: 'api', path: 'events.0.properties.path', value: '/admin' },
+        { resource: 'api', path: 'events.0.properties.authorizer', value: { type: 'aws-iam' } }
+      ]
+    }
+  },
+  {
+    name: 'SAM AWS_IAM route stays IAM-protected and keeps its custom export',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': 'export async function main(event) { return { statusCode: 200 }; }\n',
+      'template.yaml': samTemplate(
+        ...samFunction(
+          'handler.main',
+          '      Events:',
+          '        Read:',
+          '          Type: Api',
+          '          Properties:',
+          '            Path: /hello',
+          '            Method: get',
+          '            Auth:',
+          '              Authorizer: AWS_IAM'
+        )
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'api', path: 'events.0.properties.authorizer', value: { type: 'aws-iam' } },
+        { resource: 'api', path: 'packaging.properties.handlerFunction', value: 'main' }
+      ]
+    }
+  },
+  {
+    name: 'a SAM route behind a default Cognito authorizer is left out instead of made public',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': handlerFile,
+      'template.yaml': samTemplate(
+        '  Gateway:',
+        '    Type: AWS::Serverless::Api',
+        '    Properties:',
+        '      StageName: prod',
+        '      Auth:',
+        '        DefaultAuthorizer: UsersPool',
+        ...samFunction(
+          'handler.handler',
+          '      Events:',
+          '        Read:',
+          '          Type: Api',
+          '          Properties:',
+          '            RestApiId: !Ref Gateway',
+          '            Path: /admin',
+          '            Method: get'
+        )
+      )
+    },
+    expect: {
+      resources: { api: 'function' },
+      resourceProperties: [{ resource: 'api', path: 'events', value: undefined }],
+      gapsInclude: ['GET /admin', 'we left the route out rather than make it public']
+    }
+  },
+  {
+    name: 'Serverless partial batch responses reach the SQS trigger',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': lines(
+        'export async function handler(event) {',
+        '  return { batchItemFailures: event.Records.filter((r) => JSON.parse(r.body).retry).map((r) => ({ itemIdentifier: r.messageId })) };',
+        '}'
+      ),
+      'serverless.yml': serverless(
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - sqs:',
+        '          arn: !GetAtt WorkQueue.Arn',
+        '          batchSize: 10',
+        '          functionResponseType: ReportBatchItemFailures',
+        'resources:',
+        '  Resources:',
+        '    WorkQueue:',
+        '      Type: AWS::SQS::Queue',
+        '      Properties:',
+        '        QueueName: work'
+      )
+    },
+    expect: {
+      resources: { api: 'function', jobQueue: 'sqs-queue' },
+      resourceProperties: [
+        {
+          resource: 'api',
+          path: 'events.0.properties',
+          value: { sqsQueueName: 'jobQueue', batchSize: 10, reportBatchItemFailures: true }
+        },
+        { resource: 'jobQueue', path: 'fifoEnabled', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'a Serverless FIFO queue stays FIFO with content deduplication',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': handlerFile,
+      'serverless.yml': serverless(
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - sqs:',
+        '          arn: !GetAtt WorkQueue.Arn',
+        '          batchSize: 1',
+        'resources:',
+        '  Resources:',
+        '    WorkQueue:',
+        '      Type: AWS::SQS::Queue',
+        '      Properties:',
+        '        QueueName: work.fifo',
+        '        FifoQueue: true',
+        '        ContentBasedDeduplication: true'
+      )
+    },
+    expect: {
+      resources: { jobQueue: 'sqs-queue' },
+      resourceProperties: [
+        { resource: 'jobQueue', path: 'fifoEnabled', value: true },
+        { resource: 'jobQueue', path: 'contentBasedDeduplication', value: true }
+      ]
+    }
+  },
+  {
+    name: 'Serverless and SAM disabled schedules deploy paused',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': handlerFile,
+      'serverless.yml': serverless(
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - schedule:',
+        '          rate: rate(5 minutes)',
+        '          enabled: false'
+      ),
+      'jobs/handler.js': handlerFile,
+      'jobs/template.yaml': samTemplate(
+        '  NightlyFunction:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      Runtime: nodejs22.x',
+        '      Handler: handler.handler',
+        '      CodeUri: .',
+        '      Events:',
+        '        Tick:',
+        '          Type: Schedule',
+        '          Properties:',
+        '            Schedule: rate(1 hour)',
+        '            Enabled: false'
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'api', path: 'events.0.properties', value: { scheduleRate: 'rate(5 minutes)', enabled: false } },
+        { resource: 'nightly', path: 'events.0.properties', value: { scheduleRate: 'rate(1 hour)', enabled: false } }
+      ]
+    }
+  },
+  {
+    name: 'Serverless schedule payloads and every rate survive',
+    files: {
+      'package.json': jsPackage,
+      'handler.js':
+        "export async function handler(event) { if (event.operation !== 'settle') throw Error('missing operation'); }\n",
+      'serverless.yml': serverless(
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - schedule:',
+        '          rate: rate(1 hour)',
+        '          input:',
+        '            operation: settle',
+        '      - schedule:',
+        '          rate:',
+        '            - cron(0 9 ? * MON-FRI *)',
+        '            - cron(0 12 ? * SAT,SUN *)'
+      )
+    },
+    expect: {
+      resourceProperties: [
+        {
+          resource: 'api',
+          path: 'events',
+          value: [
+            { type: 'schedule', properties: { scheduleRate: 'rate(1 hour)', input: { operation: 'settle' } } },
+            { type: 'schedule', properties: { scheduleRate: 'cron(0 9 ? * MON-FRI *)' } },
+            { type: 'schedule', properties: { scheduleRate: 'cron(0 12 ? * SAT,SUN *)' } }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    name: 'Serverless handler exports stay selected in JavaScript and Python',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': lines(
+        'export async function read() { return { statusCode: 200 }; }',
+        'export async function write() { return { statusCode: 201 }; }'
+      ),
+      'serverless.yml': serverless(
+        'functions:',
+        '  read:',
+        '    handler: handler.read',
+        '    events:',
+        '      - httpApi: GET /items',
+        '  write:',
+        '    handler: handler.write',
+        '    events:',
+        '      - httpApi: POST /items'
+      ),
+      'py/requirements.txt': '',
+      'py/handler.py': 'def main(event, context):\n    return {"statusCode": 200}\n',
+      'py/serverless.yml': lines(
+        'service: python',
+        'provider:',
+        '  name: aws',
+        '  runtime: python3.12',
+        'functions:',
+        '  hello:',
+        '    handler: handler.main',
+        '    events:',
+        '      - httpApi: GET /hello'
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'read', path: 'packaging.properties.handlerFunction', value: 'read' },
+        { resource: 'write', path: 'packaging.properties.handlerFunction', value: 'write' },
+        { resource: 'hello', path: 'packaging.properties.handlerFunction', value: 'main' }
+      ]
+    }
+  },
+  {
+    name: 'SAM S3 key filters and Serverless SNS filter policies are kept',
+    files: {
+      'package.json': jsPackage,
+      'handler.js': handlerFile,
+      'template.yaml': samTemplate(
+        '  Uploads:',
+        '    Type: AWS::S3::Bucket',
+        ...samFunction(
+          'handler.handler',
+          '      Events:',
+          '        Upload:',
+          '          Type: S3',
+          '          Properties:',
+          '            Bucket: !Ref Uploads',
+          '            Events: s3:ObjectCreated:*',
+          '            Filter:',
+          '              S3Key:',
+          '                Rules:',
+          '                  - Name: prefix',
+          '                    Value: incoming/',
+          '                  - Name: suffix',
+          '                    Value: .csv'
+        )
+      ),
+      'orders/handler.js': handlerFile,
+      'orders/serverless.yml': serverless(
+        'functions:',
+        '  billing:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - sns:',
+        '          arn: !Ref Orders',
+        '          filterPolicy:',
+        '            kind: [paid]',
+        'resources:',
+        '  Resources:',
+        '    Orders:',
+        '      Type: AWS::SNS::Topic',
+        '    Refunds:',
+        '      Type: AWS::SNS::Topic'
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'api', path: 'events.0.properties.filterRule', value: { prefix: 'incoming/', suffix: '.csv' } },
+        { resource: 'billing', path: 'events.0.properties.filterPolicy', value: { kind: ['paid'] } }
+      ]
+    }
+  },
+  {
+    name: 'SAM timeout and memory are carried',
+    files: {
+      'package.json': jsPackage,
+      'handler.js':
+        'export async function handler() { await new Promise((resolve) => setTimeout(resolve, 60_000)); }\n',
+      'template.yaml': samTemplate(
+        ...samFunction(
+          'handler.handler',
+          '      Timeout: 180',
+          '      MemorySize: 2048',
+          '      Events:',
+          '        Tick:',
+          '          Type: Schedule',
+          '          Properties:',
+          '            Schedule: rate(1 hour)'
+        )
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'api', path: 'timeout', value: 180 },
+        { resource: 'api', path: 'memory', value: 2048 }
+      ]
+    }
+  },
+  {
+    name: 'a Compose named volume becomes a persistent disk on the service',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'fixture-app',
+        private: true,
+        type: 'module',
+        dependencies: { express: '^4.21.0' },
+        scripts: { start: 'node server.js' }
+      }),
+      Dockerfile: 'FROM node:22\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\nCMD ["node","server.js"]\n',
+      'server.js': lines(
+        "import express from 'express';",
+        "import { mkdirSync, writeFileSync } from 'node:fs';",
+        'const app = express();',
+        "app.post('/upload', (req, res) => { mkdirSync('/app/uploads', { recursive: true }); writeFileSync('/app/uploads/record.txt', 'saved'); res.sendStatus(201); });",
+        "app.listen(3000, '0.0.0.0');"
+      ),
+      'compose.yaml': lines(
+        'services:',
+        '  api:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    volumes: ["uploads:/app/uploads", "node_modules:/app/node_modules"]',
+        'volumes:',
+        '  uploads:',
+        '  node_modules:'
+      )
+    },
+    expect: {
+      resources: { fixtureApp: 'web-service', uploadsVolume: 'efs-filesystem' },
+      resourceProperties: [
+        {
+          resource: 'fixtureApp',
+          path: 'volumeMounts',
+          value: [{ type: 'efs', properties: { efsFilesystemName: 'uploadsVolume', mountPath: '/app/uploads' } }]
+        }
+      ]
+    }
+  }
+];
+
 describe('importer synthetic end-to-end corpus', () => {
-  for (const evalCase of CASES) {
+  for (const evalCase of [...CASES, ...FIDELITY_CASES]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

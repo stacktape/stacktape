@@ -6408,6 +6408,7 @@
         "maximumRetryAttempts",
         "onFailure",
         "parallelizationFactor",
+        "reportBatchItemFailures",
         "startingPosition"
       ],
       "chunks": [
@@ -6420,6 +6421,7 @@
         "config-reference:DynamoDbIntegrationProps#property-maximumretryattempts",
         "config-reference:DynamoDbIntegrationProps#property-onfailure",
         "config-reference:DynamoDbIntegrationProps#property-parallelizationfactor",
+        "config-reference:DynamoDbIntegrationProps#property-reportbatchitemfailures",
         "config-reference:DynamoDbIntegrationProps#property-startingposition"
       ]
     },
@@ -6789,6 +6791,7 @@
         "maximumRetryAttempts",
         "onFailure",
         "parallelizationFactor",
+        "reportBatchItemFailures",
         "startingPosition",
         "streamArn"
       ],
@@ -6804,6 +6807,7 @@
         "config-reference:KinesisIntegrationProps#property-maximumretryattempts",
         "config-reference:KinesisIntegrationProps#property-onfailure",
         "config-reference:KinesisIntegrationProps#property-parallelizationfactor",
+        "config-reference:KinesisIntegrationProps#property-reportbatchitemfailures",
         "config-reference:KinesisIntegrationProps#property-startingposition",
         "config-reference:KinesisIntegrationProps#property-streamarn"
       ]
@@ -6966,6 +6970,7 @@
         "config-reference",
         "ScheduleIntegrationProps",
         "scheduleRate",
+        "enabled",
         "input",
         "inputPath",
         "inputTransformer"
@@ -6974,6 +6979,7 @@
         "config-reference:ScheduleIntegrationProps#scheduleintegrationprops-api-reference",
         "config-reference:ScheduleIntegrationProps#typescript-definition",
         "config-reference:ScheduleIntegrationProps#property-schedulerate",
+        "config-reference:ScheduleIntegrationProps#property-enabled",
         "config-reference:ScheduleIntegrationProps#property-input",
         "config-reference:ScheduleIntegrationProps#property-inputpath",
         "config-reference:ScheduleIntegrationProps#example-1-yaml",
@@ -7090,6 +7096,7 @@
         "SqsIntegrationProps",
         "batchSize",
         "maxBatchWindowSeconds",
+        "reportBatchItemFailures",
         "sqsQueueArn",
         "sqsQueueName"
       ],
@@ -7098,6 +7105,7 @@
         "config-reference:SqsIntegrationProps#typescript-definition",
         "config-reference:SqsIntegrationProps#property-batchsize",
         "config-reference:SqsIntegrationProps#property-maxbatchwindowseconds",
+        "config-reference:SqsIntegrationProps#property-reportbatchitemfailures",
         "config-reference:SqsIntegrationProps#property-sqsqueuearn",
         "config-reference:SqsIntegrationProps#property-sqsqueuename"
       ]
@@ -22026,6 +22034,7 @@
         "page:/resources/triggers/kinesis-events#error-handling",
         "page:/resources/triggers/kinesis-events#limiting-retries",
         "page:/resources/triggers/kinesis-events#bisecting-failed-batches",
+        "page:/resources/triggers/kinesis-events#reporting-the-failed-record",
         "page:/resources/triggers/kinesis-events#failure-destination",
         "page:/resources/triggers/kinesis-events#api-reference",
         "page:/resources/triggers/kinesis-events#definition-kinesisintegrationprops",
@@ -22140,6 +22149,7 @@
         "page:/resources/triggers/schedule-triggers#cron-expressions",
         "page:/resources/triggers/schedule-triggers#invalid-expressions",
         "page:/resources/triggers/schedule-triggers#multiple-schedules",
+        "page:/resources/triggers/schedule-triggers#pausing-a-schedule",
         "page:/resources/triggers/schedule-triggers#event-payload-customization",
         "page:/resources/triggers/schedule-triggers#fixed-input",
         "page:/resources/triggers/schedule-triggers#input-path",
@@ -22218,6 +22228,7 @@
         "page:/resources/triggers/sqs-events#batching-and-throughput",
         "page:/resources/triggers/sqs-events#using-an-external-queue",
         "page:/resources/triggers/sqs-events#handling-failures",
+        "page:/resources/triggers/sqs-events#retrying-only-the-failed-messages",
         "page:/resources/triggers/sqs-events#processing-sqs-messages",
         "page:/resources/triggers/sqs-events#api-reference",
         "page:/resources/triggers/sqs-events#definition-sqsintegrationprops",

@@ -20,6 +20,7 @@
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from '../missions/greenfield';
 
 type EvalExpectation = {
@@ -56,7 +57,23 @@ type EvalExpectation = {
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
   /** The port the saved service must route traffic to, independently of agent prose. */
   servicePorts?: ReadonlyArray<{ resource: string; port: number }>;
+  /**
+   * Values at dotted paths inside a composed resource's properties (`events.0.properties.authorizer`). `undefined`
+   * asserts that nothing is there, which is how a dropped unsafe setting is checked.
+   */
+  resourceProperties?: ReadonlyArray<{ resource: string; path: string; value: unknown }>;
+  /** Text each of which some "Before you deploy" gap must contain. */
+  gapsInclude?: readonly string[];
 };
+
+const valueAt = (value: unknown, path: string): unknown =>
+  path
+    .split('.')
+    .reduce<unknown>(
+      (current, key) =>
+        typeof current === 'object' && current !== null ? (current as Record<string, unknown>)[key] : undefined,
+      value
+    );
 
 export type EvalCase = {
   name: string;
@@ -147,6 +164,25 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
   for (const { resource, port } of expected.servicePorts ?? []) {
     if (result.composition.config.resources[resource]?.properties.port !== port) {
       failures.push({ stage: 'composition', detail: `Expected "${resource}" to route to port ${port}.` });
+    }
+  }
+
+  for (const { resource, path, value } of expected.resourceProperties ?? []) {
+    const actual = valueAt(result.composition.config.resources[resource]?.properties, path);
+    if (!isDeepStrictEqual(actual, value)) {
+      failures.push({
+        stage: 'composition',
+        detail: `"${resource}" has ${JSON.stringify(actual)} at ${path}; expected ${JSON.stringify(value)}.`
+      });
+    }
+  }
+
+  for (const text of expected.gapsInclude ?? []) {
+    if (!result.composition.gaps.some((gap) => gap.message.includes(text))) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected a gap mentioning "${text}". Gaps: ${result.composition.gaps.map((gap) => gap.message).join(' | ') || 'none'}`
+      });
     }
   }
 

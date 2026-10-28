@@ -165,6 +165,17 @@ export const dependencyFactSchema = z.object({
     })
     .optional(),
   /**
+   * Delivery guarantees a deployment manifest declares for a queue. A FIFO queue keeps message order and drops
+   * duplicates; replacing it with a standard queue changes both without any error.
+   */
+  queueSettings: z
+    .object({
+      fifo: z.literal(true).optional(),
+      contentBasedDeduplication: z.literal(true).optional(),
+      visibilityTimeoutSeconds: z.number().int().min(0).max(43200).optional()
+    })
+    .optional(),
+  /**
    * The key a DynamoDB table's items are addressed by, read from the code's own requests (`Key: { id }`,
    * `KeyConditionExpression: 'id = :id'`). A table created with another key rejects every one of them.
    */

@@ -141,7 +141,7 @@ Use parallelization when your processing logic is idempotent and order within a 
 
 ## Retry and failure handling
 
-When a batch fails (the function throws an error), the entire batch is retried — including records that were processed successfully. Configure retries and failure destinations directly on the `DynamoDbIntegration`.
+When a batch fails (the function throws an error), the entire batch is retried — including records that were processed successfully. Configure retries and failure destinations directly on the `DynamoDbIntegration`. To retry from the first failed record instead, set `reportBatchItemFailures: true` and return `{ batchItemFailures: [{ itemIdentifier }] }` with that record's sequence number from the handler.
 
 
 Example (TypeScript):
@@ -292,6 +292,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `maximumRetryAttempts` | no | `number` | - |
 | `onFailure` | no | `DestinationOnFailure` | - |
 | `parallelizationFactor` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string` | `TRIM_HORIZON` |
 
 

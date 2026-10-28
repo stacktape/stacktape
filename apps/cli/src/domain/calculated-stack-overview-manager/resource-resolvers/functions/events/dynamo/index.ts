@@ -89,6 +89,7 @@ const getEventSourceMapping = ({
     MaximumRetryAttempts: eventDetails.maximumRetryAttempts,
     ParallelizationFactor: eventDetails.parallelizationFactor,
     BisectBatchOnFunctionError: eventDetails.bisectBatchOnFunctionError,
+    FunctionResponseTypes: eventDetails.reportBatchItemFailures ? ['ReportBatchItemFailures'] : undefined,
     DestinationConfig: eventDetails.onFailure
       ? {
           OnFailure: {

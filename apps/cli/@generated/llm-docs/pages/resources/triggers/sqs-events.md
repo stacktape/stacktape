@@ -165,6 +165,45 @@ When your Lambda function throws an error while processing an SQS batch, AWS ret
 > **Info:** Because the entire batch is retried on failure, make your handler idempotent — processing the same message twice should produce the same result. AWS SQS records include identifiers like `messageId` that you can use for deduplication if your processing semantics require it.
 
 
+### Retrying only the failed messages
+
+Set `reportBatchItemFailures: true` when the handler reports which messages it could not process. The handler returns the IDs of those messages, and only they return to the queue; the rest of the batch is deleted.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, SqsQueue, SqsIntegration, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const orderQueue = new SqsQueue({});
+
+  const orderProcessor = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-orders.ts' }),
+    events: [new SqsIntegration({ sqsQueueName: 'orderQueue', reportBatchItemFailures: true })]
+  });
+
+  return { resources: { orderQueue, orderProcessor } };
+});
+```
+
+
+```typescript
+export const handler = async (event: { Records: Array<{ messageId: string; body: string }> }) => {
+  const batchItemFailures: Array<{ itemIdentifier: string }> = [];
+  for (const record of event.Records) {
+    try {
+      await saveOrder(JSON.parse(record.body));
+    } catch {
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+    }
+  }
+  return { batchItemFailures };
+};
+```
+
+Turn it on only for handlers that return this shape. With the setting on, a handler that returns nothing tells Lambda that every message succeeded, so a failure it swallowed is lost.
+
 ## Processing SQS messages
 
 Your Lambda handler receives the standard AWS Lambda SQS event — an object with a `Records` array. Each record contains the message `body` as a string, plus metadata like `messageId` and `attributes`.
@@ -192,6 +231,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `batchSize` | no | `number` | `10` |
 | `maxBatchWindowSeconds` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
 
@@ -204,7 +244,7 @@ No. Each standard SQS queue should have exactly one consumer. When a message is 
 
 ### What happens when my Lambda function fails to process a message?
 
-AWS returns the entire batch to the queue. After the visibility timeout expires, the messages become available for redelivery. `SqsIntegration` does not expose retry or dead-letter properties. AWS dead-letter behavior is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options. Because the whole batch is replayed, make your handler idempotent.
+By default, AWS returns the entire batch to the queue; with `reportBatchItemFailures`, only the messages your handler reports as failed. After the visibility timeout expires, the messages become available for redelivery. `SqsIntegration` does not expose retry or dead-letter properties. AWS dead-letter behavior is configured on the queue through a redrive policy, not on the event source mapping. See the [SQS queue resource page](/resources/messaging/sqs-queue) for queue-level configuration options. Because the whole batch is replayed, make your handler idempotent.
 
 ### How do FIFO queues work with Lambda triggers?
 
