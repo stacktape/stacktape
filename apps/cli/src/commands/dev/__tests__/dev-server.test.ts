@@ -130,7 +130,8 @@ const port = Number(args[args.indexOf('--port') + 1]);
 require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.1', () => {
   console.log('  ready in 5 ms');
   console.error(['stats unavailable: TypeError: fetch failed', '    at load (src/routes/+page.server.js:9:5) {', "  code: 'ECONNREFUSED'", '}'].join('\\n'));
-  console.log('7:08:55 PM [vite] page reload src/routes/+page.svelte');
+  // Later than the error: lines of two streams that arrive within a millisecond have no order.
+  setTimeout(() => console.log('7:08:55 PM [vite] page reload src/routes/+page.svelte'), 100);
 });
 `
     );
