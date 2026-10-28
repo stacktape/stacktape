@@ -1546,7 +1546,17 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     };
   }
 
-  const awsRegion = region || globalStateManager.region;
+  // The dev agent reads the session's stack. Its role allows resources by the stack's name in any region, so a stack of
+  // the same name elsewhere, or a resource another region gives the same name, is outside the session.
+  const awsRegion = globalStateManager.region;
+  if (region && region !== awsRegion) {
+    return {
+      ok: false,
+      code: 'OPERATION_NOT_ALLOWED',
+      error: `This dev session reads its stack in ${awsRegion}, not ${region}.`,
+      hint: 'Leave out region. For another region, use `stacktape aws:call` with that stage and region.'
+    };
+  }
 
   // Use dev agent role credentials (scoped to stack) or fall back to user credentials
   const credentials = await getDevAgentCredentials();
@@ -1554,15 +1564,21 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     return { ok: false, error: 'AWS credentials not available' };
   }
 
+  // Batch reads are scoped by the stack's own resources, which IAM cannot do for them; the scope also fixes the region.
   const batchScope =
     resolveAwsServiceName(service) === 'batch'
-      ? scopeBatchCall({ command, input: input || {}, scope: getBatchScope(stackManager.existingStackResources) })
-      : {};
+      ? scopeBatchCall({
+          command,
+          input: input || {},
+          region: awsRegion,
+          scope: getBatchScope(stackManager.existingStackResources)
+        })
+      : { input: input || {} };
   if ('refusal' in batchScope) {
     return { ok: false, code: 'OPERATION_NOT_ALLOWED', error: batchScope.refusal };
   }
 
-  const result = await executeAwsSdkCommand(service, command, input || {}, {
+  const result = await executeAwsSdkCommand(service, command, batchScope.input, {
     region: awsRegion,
     credentials: {
       accessKeyId: credentials.accessKeyId,

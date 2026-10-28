@@ -85,28 +85,51 @@ export const maskAgentEnvironment = (
 const MIN_MASKED_VALUE_LENGTH = 6;
 
 /**
+ * Masks text the way `/env` masks `environment`: every value it masks is replaced by its masked form, then the text goes
+ * through the same scrubber. Output the app wrote, such as a crash summary, can quote a secret it read:
+ * `raise ENV.inspect`. Mask raw output before a summary trims it or picks lines from it.
+ */
+export const createEnvironmentMasker = (
+  environment: Record<string, string>,
+  secretNames: ReadonlySet<string> = new Set()
+): ((text: string) => string) => {
+  const masked = maskAgentEnvironment(environment, secretNames);
+  const maskOf = new Map<string, string>();
+  for (const [name, rawValue] of Object.entries(environment)) {
+    const value = String(rawValue);
+    if (masked[name] === value) continue;
+    const minLength = secretNames.has(name) ? 1 : MIN_MASKED_VALUE_LENGTH;
+    // Output quotes a value trimmed, or a multi-line value (a key, a certificate) line by line: a summary keeps some
+    // of its lines only. Each line is masked by itself; a line of punctuation only (`}`, `-----`) says nothing.
+    const lines = value.includes('\n')
+      ? value
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => /[\p{L}\p{N}]/u.test(line))
+      : [];
+    for (const piece of [value, value.trim(), ...lines]) {
+      if (piece.length >= minLength) maskOf.set(piece, masked[name]!);
+    }
+  }
+  if (!maskOf.size) return scrubKeepingPrivateAddresses;
+  // One pass, the longest piece first, so a short secret cannot match inside the mask that replaced another one, and
+  // a value that contains another is replaced whole.
+  const pattern = new RegExp(
+    [...maskOf.keys()]
+      .sort((first, second) => second.length - first.length)
+      .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|'),
+    'g'
+  );
+  return (text) => scrubKeepingPrivateAddresses(text.replace(pattern, (value) => maskOf.get(value)!));
+};
+
+/**
  * `text` with every value of `environment` that `/env` masks replaced by its masked form, then through the same
- * scrubber. Output the app wrote, such as a crash summary, can quote a secret it read: `raise ENV.inspect`.
+ * scrubber (see `createEnvironmentMasker`, which builds the masking once for text masked repeatedly).
  */
 export const maskEnvironmentValuesInText = (
   text: string,
   environment: Record<string, string>,
   secretNames: ReadonlySet<string> = new Set()
-): string => {
-  const masked = maskAgentEnvironment(environment, secretNames);
-  const secrets = Object.entries(environment)
-    .filter(
-      ([name, value]) =>
-        String(value).length >= (secretNames.has(name) ? 1 : MIN_MASKED_VALUE_LENGTH) && masked[name] !== String(value)
-    )
-    // A longer value first, so a value that contains another is replaced whole.
-    .sort(([, first], [, second]) => String(second).length - String(first).length);
-  if (!secrets.length) return scrubKeepingPrivateAddresses(text);
-  // One pass, so a short secret cannot match inside the mask that replaced another one.
-  const maskOf = new Map(secrets.map(([name, value]) => [String(value), masked[name]!]));
-  const pattern = new RegExp(
-    [...maskOf.keys()].map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
-    'g'
-  );
-  return scrubKeepingPrivateAddresses(text.replace(pattern, (value) => maskOf.get(value)!));
-};
+): string => createEnvironmentMasker(environment, secretNames)(text);

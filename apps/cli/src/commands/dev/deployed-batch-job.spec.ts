@@ -56,8 +56,8 @@ describe('Batch reads of a dev agent', () => {
     { ResourceType: 'AWS::Batch::JobDefinition', PhysicalResourceId: `${arn('job-definition', definition)}:3` },
     { ResourceType: 'AWS::Lambda::Function', PhysicalResourceId: 'shelf-dev-api' }
   ]);
-  const refused = (command: string, input: Record<string, unknown>) =>
-    'refusal' in scopeBatchCall({ command, input, scope });
+  const refused = (command: string, input: Record<string, unknown>, region = 'eu-north-1') =>
+    'refusal' in scopeBatchCall({ command, input, region, scope });
 
   test("list jobs only of the stack's own queues", () => {
     expect(refused('ListJobs', { jobQueue: queue })).toBeFalse();
@@ -89,8 +89,41 @@ describe('Batch reads of a dev agent', () => {
     expect(refused('DescribeJobDefinitions', {})).toBeTrue();
   });
 
+  // #386 re-review: a name of the stack's queue with region us-east-1 passed, and us-east-1 was queried unfiltered.
+  test("go only to the stack's region, with names resolved to the stack's ARNs", () => {
+    expect(refused('ListJobs', { jobQueue: 'shelf-dev-batch-onDemand--job-queue' }, 'us-east-1')).toBeTrue();
+    expect(refused('DescribeJobs', { jobs: ['a'] }, 'us-east-1')).toBeTrue();
+    expect(refused('DescribeJobDefinitions', { jobDefinitionName: definition }, 'us-east-1')).toBeTrue();
+    expect(
+      scopeBatchCall({
+        command: 'ListJobs',
+        input: { jobQueue: 'shelf-dev-batch-onDemand--job-queue', jobStatus: 'RUNNABLE' },
+        region: 'eu-north-1',
+        scope
+      })
+    ).toMatchObject({ input: { jobQueue: queue, jobStatus: 'RUNNABLE' } });
+    expect(
+      scopeBatchCall({
+        command: 'DescribeJobDefinitions',
+        input: { jobDefinitions: [`${definition}:3`] },
+        region: 'eu-north-1',
+        scope
+      })
+    ).toMatchObject({ input: { jobDefinitions: [`${arn('job-definition', definition)}:3`] } });
+    // A stack without Batch resources reads none.
+    expect(
+      'refusal' in
+        scopeBatchCall({ command: 'DescribeJobs', input: {}, region: 'eu-north-1', scope: getBatchScope([]) })
+    ).toBeTrue();
+  });
+
   test("describe only jobs on the stack's queues with its job definitions", () => {
-    const scoped = scopeBatchCall({ command: 'DescribeJobs', input: { jobs: ['a', 'b', 'c'] }, scope });
+    const scoped = scopeBatchCall({
+      command: 'DescribeJobs',
+      input: { jobs: ['a', 'b', 'c'] },
+      region: 'eu-north-1',
+      scope
+    });
     if (!('filterResponse' in scoped) || !scoped.filterResponse) throw new Error('DescribeJobs must be filtered');
     const own = { jobId: 'a', jobQueue: queue, jobDefinition: `${arn('job-definition', definition)}:3` };
     expect(

@@ -358,6 +358,7 @@ test("a frontend's failure summary masks the secret-sourced values of its enviro
       join(directory, 'vite'),
       `#!/usr/bin/env node
 console.error('Failed to configure webhook: ' + process.env.PAYMENT_WEBHOOK + ' pin ' + process.env.PAYMENT_PIN + ' for ' + process.env.SHOP_NAME);
+console.error('Signing key: ' + process.env.SIGNING_KEY);
 process.exit(1);
 `
     );
@@ -369,8 +370,13 @@ process.exit(1);
         command: './vite dev',
         workingDirectory: directory,
         framework: 'vite',
-        environment: { PAYMENT_WEBHOOK: secret, PAYMENT_PIN: 'k9#Qz', SHOP_NAME: 'demo-shop' },
-        secretEnvNames: new Set(['PAYMENT_WEBHOOK', 'PAYMENT_PIN'])
+        environment: {
+          PAYMENT_WEBHOOK: secret,
+          PAYMENT_PIN: 'k9#Qz',
+          SIGNING_KEY: '== signing material ==\nr2tt-first-secret-line-4f8a\nk3yL1n3TwoSecretTail\n==\n',
+          SHOP_NAME: 'demo-shop'
+        },
+        secretEnvNames: new Set(['PAYMENT_WEBHOOK', 'PAYMENT_PIN', 'SIGNING_KEY'])
       }
     });
     expect(result.status).toBe('error');
@@ -378,6 +384,10 @@ process.exit(1);
     expect(result.error).not.toContain(secret);
     // A short secret too (#386 review).
     expect(result.error).not.toContain('k9#Qz');
+    // A multi-line secret ending with a newline, line by line (#386 re-review).
+    expect(result.error).toContain('Signing key:');
+    for (const line of ['r2tt-first-secret-line-4f8a', 'k3yL1n3TwoSecretTail'])
+      expect(result.error).not.toContain(line);
     // Plain settings stay readable.
     expect(result.error).toContain('demo-shop');
   } finally {

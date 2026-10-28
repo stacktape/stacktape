@@ -131,28 +131,35 @@ export const getBatchScope = (stackResources: { ResourceType?: string; PhysicalR
   return scope;
 };
 
-/** A queue of the stack, by name or by ARN in the stack's region and account. */
-const isStackQueue = (queue: unknown, scope: BatchScope) =>
-  typeof queue === 'string' &&
-  [...scope.queueArns].some(
-    (arn) => arn === queue || (!queue.startsWith('arn:') && arn.endsWith(`:job-queue/${queue}`))
-  );
+/** The ARN of the stack's queue that `queue` names, by name or by ARN. */
+const toStackQueueArn = (queue: unknown, scope: BatchScope) =>
+  typeof queue === 'string'
+    ? [...scope.queueArns].find(
+        (arn) => arn === queue || (!queue.startsWith('arn:') && arn.endsWith(`:job-queue/${queue}`))
+      )
+    : undefined;
 
-/** A job definition of the stack: its name, `name:revision`, or its ARN in the stack's region and account. */
-const isStackJobDefinition = (definition: unknown, scope: BatchScope) => {
-  if (typeof definition !== 'string') return false;
+/**
+ * The ARN of the stack's job definition that `definition` names: its name, `name:revision`, or its ARN in the stack's
+ * region and account.
+ */
+const toStackJobDefinitionArn = (definition: unknown, scope: BatchScope) => {
+  if (typeof definition !== 'string' || !scope.region || !scope.accountId) return undefined;
   if (definition.startsWith('arn:')) {
     const match = BATCH_ARN.exec(definition);
-    return Boolean(
+    const scoped =
       match &&
       match[3] === 'job-definition' &&
       match[1] === scope.region &&
       match[2] === scope.accountId &&
-      scope.jobDefinitionNames.has(match[4])
-    );
+      scope.jobDefinitionNames.has(match[4]);
+    return scoped ? definition : undefined;
   }
   const [name, revision, ...rest] = definition.split(':');
-  return !rest.length && (revision === undefined || /^\d+$/.test(revision)) && scope.jobDefinitionNames.has(name);
+  if (rest.length || (revision !== undefined && !/^\d+$/.test(revision)) || !scope.jobDefinitionNames.has(name)) {
+    return undefined;
+  }
+  return `arn:aws:batch:${scope.region}:${scope.accountId}:job-definition/${definition}`;
 };
 
 /**
@@ -164,23 +171,38 @@ const isStackJobDefinition = (definition: unknown, scope: BatchScope) => {
 export const scopeBatchCall = ({
   command,
   input,
+  region,
   scope
 }: {
   command: string;
   input: Record<string, unknown>;
+  /** The region the call goes to. */
+  region: string;
   scope: BatchScope;
-}): { refusal: string } | { filterResponse?: (data: unknown) => unknown } => {
+}): { refusal: string } | { input: Record<string, unknown>; filterResponse?: (data: unknown) => unknown } => {
   const operation = command.endsWith('Command') ? command.slice(0, -'Command'.length) : command;
+  // A name of one of the stack's queues or definitions names another resource, or none, in another region.
+  if (region !== scope.region) {
+    return {
+      refusal: scope.region
+        ? `Batch reads of this stack go to its region, ${scope.region}, not ${region}.`
+        : 'This stack has no AWS Batch job queues or job definitions.'
+    };
+  }
   if (operation === 'ListJobs') {
-    return isStackQueue(input.jobQueue, scope)
-      ? {}
+    const jobQueue = toStackQueueArn(input.jobQueue, scope);
+    return jobQueue
+      ? { input: { ...input, jobQueue } }
       : { refusal: 'ListJobs needs jobQueue: one of the job queues of this stack (status lists them as jobQueue).' };
   }
   if (operation === 'DescribeJobDefinitions') {
     const definitions = Array.isArray(input.jobDefinitions) ? input.jobDefinitions : [];
+    const definitionArns = definitions.map((definition) => toStackJobDefinitionArn(definition, scope));
     const scoped = input.jobDefinitionName
-      ? !definitions.length && isStackJobDefinition(input.jobDefinitionName, scope)
-      : definitions.length > 0 && definitions.every((definition) => isStackJobDefinition(definition, scope));
+      ? !definitions.length &&
+        typeof input.jobDefinitionName === 'string' &&
+        scope.jobDefinitionNames.has(input.jobDefinitionName)
+      : definitionArns.length > 0 && definitionArns.every(Boolean);
     if (!scoped) {
       return {
         refusal:
@@ -188,12 +210,13 @@ export const scopeBatchCall = ({
       };
     }
     return {
+      input: input.jobDefinitionName ? input : { ...input, jobDefinitions: definitionArns },
       filterResponse: (data) => {
         const { jobDefinitions, ...rest } = (data ?? {}) as { jobDefinitions?: { jobDefinitionArn?: unknown }[] };
         return {
           ...rest,
           jobDefinitions: (jobDefinitions ?? []).filter(({ jobDefinitionArn }) =>
-            isStackJobDefinition(jobDefinitionArn, scope)
+            toStackJobDefinitionArn(jobDefinitionArn, scope)
           )
         };
       }
@@ -201,16 +224,21 @@ export const scopeBatchCall = ({
   }
   if (operation === 'DescribeJobs') {
     return {
+      input,
       filterResponse: (data) => {
         const { jobs, ...rest } = (data ?? {}) as { jobs?: { jobQueue?: unknown; jobDefinition?: unknown }[] };
         return {
           ...rest,
           jobs: (jobs ?? []).filter(
-            ({ jobQueue, jobDefinition }) => isStackQueue(jobQueue, scope) && isStackJobDefinition(jobDefinition, scope)
+            ({ jobQueue, jobDefinition }) =>
+              typeof jobQueue === 'string' &&
+              scope.queueArns.has(jobQueue) &&
+              toStackJobDefinitionArn(jobDefinition, scope) !== undefined &&
+              String(jobDefinition).startsWith('arn:')
           )
         };
       }
     };
   }
-  return {};
+  return { input };
 };

@@ -273,9 +273,23 @@ describe('credentials of raw resources read by local workloads', () => {
     expect(error?.message).toContain('SecretAccessKey');
     expect(error?.message).toContain('scripts.migrate.properties.environment[0].value');
     expect(() => assertNoLocalCfSecretReferences({ references, resourceTypes: { RawKey: undefined } })).not.toThrow();
+    const reader = findLocalCfResourceReferences({
+      resources: {
+        web: {
+          type: 'nextjs-web',
+          properties: { environment: [{ name: 'DB_URL', value: "$CfResourceParam('CredentialReader', 'value')" }] }
+        }
+      }
+    });
+    expect(() =>
+      assertNoLocalCfSecretReferences({
+        references: reader,
+        resourceTypes: { CredentialReader: 'AWS::CloudFormation::CustomResource' }
+      })
+    ).toThrow(/custom resource attribute other than an ARN, ID or name/);
   });
 
-  test('are the secret attributes of their types, and credential-named attributes of custom resources', () => {
+  test('are the secret attributes of their types, and every custom resource attribute but ARNs, IDs and names', () => {
     const cases: [string, string, boolean][] = [
       ['AWS::IAM::AccessKey', 'SecretAccessKey', true],
       ['AWS::IAM::AccessKey', 'Id', false],
@@ -287,8 +301,13 @@ describe('credentials of raw resources read by local workloads', () => {
       ['AWS::Lambda::Function', 'FunctionName', false],
       ['AWS::CloudFormation::CustomResource', 'DbPassword', true],
       ['Custom::Atlas', 'ApiToken', true],
+      // #386 re-review: Stacktape's ssmParameterRetrieve returns the decrypted parameter as `value`.
+      ['AWS::CloudFormation::CustomResource', 'value', true],
+      ['AWS::CloudFormation::CustomResource', 'Endpoint', true],
       ['AWS::CloudFormation::CustomResource', 'SecretArn', false],
-      ['AWS::CloudFormation::CustomResource', 'Endpoint', false]
+      ['AWS::CloudFormation::CustomResource', 'Id', false],
+      ['AWS::CloudFormation::CustomResource', 'DistributionName', false],
+      ['AWS::CloudFormation::CustomResource', 'version', false]
     ];
     expect(cases.map(([type, attribute]) => isSecretCfAttribute(type, attribute))).toEqual(
       cases.map(([, , secret]) => secret)

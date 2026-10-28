@@ -420,3 +420,35 @@ test('a malformed percent-encoded route parameter is a validation error, not an 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// #386 re-review: an aws call with another region read resources of that region, outside the session's stack.
+test("the dev agent's AWS reads stay in the session's region", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-region-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const { globalStateManager } = await import('@application-services/global-state-manager');
+  const originalArgs = globalStateManager.rawArgs;
+  globalStateManager.rawArgs = { ...originalArgs, region: 'eu-north-1' };
+  const port = await freePort();
+  await startAgentServer(port, directory);
+  try {
+    const token = await readFile(getAgentTokenFile()!, 'utf8');
+    const response = await fetch(`http://127.0.0.1:${port}/aws/sdk`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        service: 'batch',
+        command: 'ListJobs',
+        input: { jobQueue: 'shelf-dev-batch-onDemand--job-queue' },
+        region: 'us-east-1'
+      })
+    });
+    expect(await response.json()).toMatchObject({ ok: false, code: 'OPERATION_NOT_ALLOWED' });
+  } finally {
+    stopAgentServer();
+    globalStateManager.rawArgs = originalArgs;
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
+});

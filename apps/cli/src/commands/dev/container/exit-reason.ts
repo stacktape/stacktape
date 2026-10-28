@@ -158,3 +158,12 @@ export const describeContainerExit = (stderr: string): string | undefined => {
   const meaningful = lines.filter((line) => line.trim());
   return (meaningful.findLast((line) => /error/i.test(line)) ?? meaningful.at(-1))?.trim();
 };
+
+/**
+ * `describeContainerExit` of output that can quote the container's secrets. `mask` runs on the raw output first: the
+ * summary trims lines and picks some, and a value it cut no longer matches whole. The summary is masked again.
+ */
+export const describeMaskedContainerExit = (stderr: string, mask: (text: string) => string): string | undefined => {
+  const described = describeContainerExit(mask(stderr));
+  return described && mask(described);
+};

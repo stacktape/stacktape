@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { describeContainerExit } from './container/exit-reason';
-import { getSecretSourcedEnvNames, maskAgentEnvironment, maskEnvironmentValuesInText } from './agent-env-masking';
+import { describeContainerExit, describeMaskedContainerExit } from './container/exit-reason';
+import {
+  createEnvironmentMasker,
+  getSecretSourcedEnvNames,
+  maskAgentEnvironment,
+  maskEnvironmentValuesInText
+} from './agent-env-masking';
 
 describe('dev agent environment masking', () => {
   test.each([
@@ -117,4 +122,23 @@ test('a secret-sourced value is masked in a summary whatever its length; short p
       new Set(['PIN', 'CODE'])
     )
   ).toBe('Failed to configure webhook: [redacted] (code [redacted]), port 3000');
+});
+
+// #386 re-review: the summary trimmed the trailing newline of a multi-line secret before masking, so it never matched.
+test('a container crash summary masks a multi-line secret that ends with a newline, line by line', () => {
+  const key = '== signing material ==\nr2tt-first-secret-line-4f8a\nk3yL1n3TwoSecretTail\n==\n';
+  const environment = { SIGNING_KEY: key, PORT: '3000' };
+  const stderr = [
+    'Traceback (most recent call last):',
+    '  File "/app/main.py", line 4, in <module>',
+    `    raise ValueError(os.environ["SIGNING_KEY"])`,
+    `ValueError: bad key ${key}`
+  ].join('\n');
+  const summary = describeMaskedContainerExit(stderr, createEnvironmentMasker(environment, new Set(['SIGNING_KEY'])));
+  expect(summary).toBeDefined();
+  for (const line of ['r2tt-first-secret-line-4f8a', 'k3yL1n3TwoSecretTail']) expect(summary).not.toContain(line);
+  // Each line of the value alone, as a summary that keeps some lines would quote it.
+  const mask = createEnvironmentMasker(environment, new Set(['SIGNING_KEY']));
+  expect(mask('last line: k3yL1n3TwoSecretTail')).toBe('last line: [redacted]');
+  expect(mask(key.trimEnd())).not.toContain('r2tt-first-secret-line');
 });

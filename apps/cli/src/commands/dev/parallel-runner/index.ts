@@ -29,7 +29,7 @@ import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage, type PrepareImageResult } from '../container';
 import { summarizeDockerBuildError } from '../container/build-error';
-import { describeContainerExit } from '../container/exit-reason';
+import { describeMaskedContainerExit } from '../container/exit-reason';
 import { startCommandMayChangeData, waitUntilRunServes } from '../container/run-readiness';
 import {
   DOCKER_HOST_NAME,
@@ -74,7 +74,7 @@ import {
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
-import { getSecretSourcedEnvNames, maskEnvironmentValuesInText } from '../agent-env-masking';
+import { createEnvironmentMasker, getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
@@ -821,9 +821,10 @@ const startContainerWorkload = async (
   let current: ContainerRun | undefined;
   /** Why `run` exited, with the secret values it received masked: the summary reaches the status, MCP and the log. */
   const describeExit = (run: ContainerRun) => {
-    const described = describeContainerExit(run.stderr());
-    const reason =
-      described && maskEnvironmentValuesInText(described, run.environment, getWorkloadSecretEnvNames(resourceName));
+    const reason = describeMaskedContainerExit(
+      run.stderr(),
+      createEnvironmentMasker(run.environment, getWorkloadSecretEnvNames(resourceName))
+    );
     return reason ? `:${reason.includes('\n') ? '\n' : ' '}${reason}` : '.';
   };
   const reportUnexpectedExit = (run: ContainerRun) => {

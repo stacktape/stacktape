@@ -124,11 +124,17 @@ export const commandAwsCall = async () => {
 
   const batchScope =
     resolveAwsServiceName(service) === 'batch'
-      ? scopeBatchCall({ command, input: inputObj, scope: getBatchScope(stackManager.existingStackResources) })
-      : {};
+      ? scopeBatchCall({
+          command,
+          input: inputObj,
+          region: awsRegion,
+          scope: getBatchScope(stackManager.existingStackResources)
+        })
+      : { input: inputObj };
   if ('refusal' in batchScope) {
     throw new CliError({ category: 'CLI', code: 'CLI_AWS_CALL_COMMAND_NOT_ALLOWED', message: batchScope.refusal });
   }
+  inputObj = batchScope.input;
 
   // Get credentials (uses debug agent role if available, otherwise user credentials)
   const credentials = await getDebugAgentCredentials();

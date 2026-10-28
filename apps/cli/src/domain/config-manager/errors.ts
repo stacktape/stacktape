@@ -3,6 +3,7 @@ import type { Script, StpResourceType } from './resolved-types/resources';
 import { VALID_CONFIG_PATHS } from 'src/config/random';
 import { CliError } from '@utils/errors';
 import type { Subtype } from '@utils/type-helpers';
+import { isCustomResourceType } from '@utils/referenceable-types';
 
 const inlineCode = (value: unknown) => `\`${String(value)}\``;
 
@@ -64,7 +65,11 @@ export const configErrors = {
     return new CliError({
       category: 'DIRECTIVE',
       code: 'DIRECTIVE_CF_RESOURCE_PARAM_SECRET',
-      message: `${inlineCode(referencedParam)} of ${inlineCode(resourceName)} (${resourceType}) is a credential${
+      message: `${inlineCode(referencedParam)} of ${inlineCode(resourceName)} (${resourceType}) ${
+        isCustomResourceType(resourceType)
+          ? 'is a custom resource attribute other than an ARN, ID or name, so it can hold a credential'
+          : 'is a credential'
+      }${
         location ? `, referenced at ${inlineCode(location)}` : ''
       }. Stacktape does not publish credentials as stack outputs, so it cannot resolve this outside the deployed stack.`,
       hints: [

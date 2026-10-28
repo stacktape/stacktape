@@ -40,13 +40,17 @@ const SECRET_ATTRIBUTES: Record<string, RegExp> = {
   'AWS::MediaPackage::Channel': /Password$/,
   'AWS::ManagedBlockchain::Accessor': /^BillingToken$/
 };
-/** What a custom resource returns is unknown; an attribute named like a credential is treated as one. */
-const SECRET_LIKE_ATTRIBUTE = /secret|password|passwd|token|private.?key|api.?key|credential|auth.?key/i;
-const REFERENCE_TO_SECRET = /(Arn|Id|Name)$/;
+/**
+ * What a custom resource returns is unknown: Stacktape's own `ssmParameterRetrieve` returns a decrypted parameter as
+ * `value`. Only attributes that identify something are published: ARNs, IDs, names and the version of a published
+ * Lambda version (`lambdaVersionPublisher`). Every other attribute of a custom resource is treated as a credential.
+ */
+const IDENTIFYING_ATTRIBUTE = /^(?:[A-Za-z]*(?:Arn|Id|Name)|version|Version)$/;
+
+export const isCustomResourceType = (cloudformationType: string) =>
+  cloudformationType === 'AWS::CloudFormation::CustomResource' || cloudformationType.startsWith('Custom::');
 
 export const isSecretCfAttribute = (cloudformationType: string, attribute: string): boolean => {
   if (SECRET_ATTRIBUTES[cloudformationType]?.test(attribute)) return true;
-  const isCustomResource =
-    cloudformationType === 'AWS::CloudFormation::CustomResource' || cloudformationType.startsWith('Custom::');
-  return isCustomResource && SECRET_LIKE_ATTRIBUTE.test(attribute) && !REFERENCE_TO_SECRET.test(attribute);
+  return isCustomResourceType(cloudformationType) && !IDENTIFYING_ATTRIBUTE.test(attribute);
 };

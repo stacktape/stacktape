@@ -452,6 +452,30 @@ ${properties}`);
     expect(JSON.stringify(template.Outputs)).not.toContain('SecretAccessKey');
   });
 
+  // #386 re-review: Stacktape's ssmParameterRetrieve custom resource returns a decrypted parameter as `value`.
+  test('a custom resource attribute other than an ARN, ID or name is never a stack output', async () => {
+    const dir = await fixtureWithConfig(`${functionWith(`      environment:
+        - name: DB_URL
+          value: $CfResourceParam('CredentialReader', 'value')
+        - name: READER_ID
+          value: $CfResourceParam('CredentialReader', 'Id')`)}cloudformationResources:
+  CredentialReader:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: arn:aws:lambda:us-east-1:123456789999:function:stacktape-service
+      ssmParameterRetrieve:
+        parameterName: /app/database-url
+        region: us-east-1
+`);
+    const template = await synthesizeYaml('production', dir);
+    expect(functionEnvironment(template, 'ApiFunction').DB_URL).toEqual({
+      'Fn::GetAtt': ['CredentialReader', 'value']
+    });
+    const outputs = Object.keys(template.Outputs ?? {});
+    expect(outputs).toContain('CredentialReaderId');
+    expect(outputs).not.toContain('CredentialReaderValue');
+  });
+
   test('a $Format whose argument is only known at deployment time names the directive to use instead', async () => {
     const dir = await fixtureWithConfig(
       functionWith(`      environment:

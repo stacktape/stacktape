@@ -13,7 +13,7 @@ import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
 import { getAgentLogFilePath, type LogLevel } from './agent-logger';
 import { createLogLineGrouper, isFrontendServerFailure, isSuccessfulRequestLine } from './log-grouping';
-import { maskEnvironmentValuesInText } from './agent-env-masking';
+import { createEnvironmentMasker } from './agent-env-masking';
 import {
   extractPortFromCommand,
   findAvailablePort,
@@ -230,9 +230,11 @@ export const startDevServer = async ({
   env.PORT = String(targetPort);
   env.HOST = '127.0.0.1';
 
-  /** An error quoted from the server's output: it goes to the agent's status and MCP results. */
-  const maskOutput = (text: string) =>
-    maskEnvironmentValuesInText(text, config.environment ?? {}, config.secretEnvNames);
+  /**
+   * Errors quoted from the server's output go to the agent's status and MCP results. Output is masked as it arrives,
+   * before an error trims it or picks lines from it, and the error again.
+   */
+  const maskOutput = createEnvironmentMasker(config.environment ?? {}, config.secretEnvNames);
 
   let currentState: DevServerState = { status: 'starting', port: targetPort };
   callbacks?.onStateChange?.(currentState);
@@ -307,7 +309,7 @@ export const startDevServer = async ({
         callbacks?.onOutput?.(message, level);
         if (!serving) return;
         if (level === 'error') {
-          const lines = stripAnsi(message)
+          const lines = maskOutput(stripAnsi(message))
             .split('\n')
             .filter((line) => line.trim())
             .slice(0, SERVER_ERROR_LINES);
@@ -336,7 +338,7 @@ export const startDevServer = async ({
       };
 
       const processLine = (line: string) => {
-        recentLines.push(stripAnsi(line).trimEnd());
+        recentLines.push(maskOutput(stripAnsi(line)).trimEnd());
         if (recentLines.length > RECENT_OUTPUT_LINES) recentLines.shift();
 
         // Use framework-aware parser
