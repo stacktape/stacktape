@@ -412,9 +412,15 @@ test('a dev stack builds the image of its batch job and runs the job in the dev 
     expect(environment.Properties.ComputeResources.SecurityGroupIds).toEqual([devNetwork.securityGroupId]);
     expect(environment.DependsOn).toBeUndefined();
   }
-  // The dev network replaces the VPC the stack would create for its batch jobs.
+  // The dev network replaces the VPC the stack would create for its batch jobs: nothing refers to a resource of it.
   expect(resourcesOfType('AWS::EC2::SecurityGroup')).toEqual([]);
-  expect(JSON.stringify(template)).not.toContain('"Ref":"StpVpc"');
+  expect(
+    Object.entries(template.Resources)
+      .filter(([, resource]) =>
+        /"(Ref|Fn::GetAtt)":\[?"Stp(Vpc|PublicSubnet|PrivateSubnet)/.test(JSON.stringify(resource))
+      )
+      .map(([logicalId]) => logicalId)
+  ).toEqual([]);
 
   const [[, jobDefinition]] = resourcesOfType('AWS::Batch::JobDefinition');
   const container = jobDefinition.Properties.ContainerProperties;

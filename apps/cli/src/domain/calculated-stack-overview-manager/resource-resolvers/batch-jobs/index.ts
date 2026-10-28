@@ -65,7 +65,10 @@ export const resolveBatchJobs = async () => {
       roleCfLogicalName: cfLogicalNames.batchInstanceRole(),
       purpose: 'batch-instance',
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-      cloudformationProperties: { Path: '/', Roles: [ref(cfLogicalNames.batchInstanceRole())] }
+      cloudformationProperties: { Path: '/', Roles: [ref(cfLogicalNames.batchInstanceRole())] },
+      ...(configManager.batchJobsInDevNetwork && {
+        probeSubnetId: configManager.deploymentContext.devNetwork!.subnetIds[0]
+      })
     });
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.batchStateMachineExecutionRole(),

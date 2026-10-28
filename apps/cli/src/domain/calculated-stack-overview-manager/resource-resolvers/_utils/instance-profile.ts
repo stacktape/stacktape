@@ -34,7 +34,8 @@ export const addInstanceProfile = ({
   roleCfLogicalName,
   purpose,
   nameChain,
-  cloudformationProperties
+  cloudformationProperties,
+  probeSubnetId = vpcManager.getPublicSubnetIds()[0]
 }: {
   cfLogicalName: string;
   roleCfLogicalName: string;
@@ -43,6 +44,8 @@ export const addInstanceProfile = ({
   nameChain: string[];
   /** The `AWS::IAM::InstanceProfile` properties a deployed profile was created with. */
   cloudformationProperties: InstanceProfileProperties;
+  /** Where the dry-run launches happen: a subnet the profile's instances run in. Default: the stack's first public one. */
+  probeSubnetId?: string;
 }) => {
   if (isDeployedAsCloudformationInstanceProfile(cfLogicalName)) {
     calculatedStackOverviewManager.addCfChildResource({
@@ -88,7 +91,7 @@ export const addInstanceProfile = ({
       instanceProfileName,
       roleName: ref(roleCfLogicalName),
       probeImageId: PROBE_IMAGE_ID,
-      probeSubnetId: vpcManager.getPublicSubnetIds()[0]
+      probeSubnetId
     }
   });
   resource.DependsOn = [policyLogicalName];
