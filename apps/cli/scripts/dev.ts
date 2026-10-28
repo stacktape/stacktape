@@ -5,6 +5,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from 'src/config/project-paths';
 import { dynamicRequire } from '@utils/fs-utils';
+import { isMcpServerInvocation } from './support/mcp-server-invocation';
 import { logError, logInfo, logWarn } from '@scripts/support/logging';
 import { localBuildTsConfigPath } from '@utils/misc';
 import { createFsExtraSingleCopyPlugin } from '@scripts/support/fs-extra-single-copy-plugin';
@@ -35,7 +36,7 @@ const isMachineMode =
   process.argv.includes('--agentPort') ||
   process.argv.includes('-ap') ||
   requestedJsonlOutput;
-const isMcpMode = process.argv.includes('mcp');
+const isMcpMode = isMcpServerInvocation(process.argv.slice(2));
 const devBuildLockPath = `${DEV_TMP_FOLDER_PATH}.lock`;
 // Test suites that spawn the CLI many times build it once without this flag, then reuse that bundle. Nothing
 // checks that the bundle matches the sources, so it is never read outside such an owned sequence.

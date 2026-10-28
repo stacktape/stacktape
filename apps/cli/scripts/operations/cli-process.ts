@@ -187,6 +187,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
     directory,
     home,
     // Setup clients bypass the fault proxy; assertions can inspect independently stored emulator state.
+    accountId,
     clientConfig: () => {
       if (!endpoint)
         throw new Error('Run this scenario through test:operations or test:operations:db (MiniStack required).');
@@ -222,15 +223,24 @@ export const targetArgs = ['--projectName', 'j9-operations', '--stage', 'test', 
 export const seedDeployedStack = async (
   fixture: Awaited<ReturnType<typeof createOperationsFixture>>,
   resources: StackInfoMap['resources'] = {},
-  templateResources: Record<string, unknown> = { FixtureBucket: { Type: 'AWS::S3::Bucket' } }
+  templateResources: Record<string, unknown> = { FixtureBucket: { Type: 'AWS::S3::Bucket' } },
+  { debugAgentRole = true }: { debugAgentRole?: boolean } = {}
 ) => {
   const client = new CloudFormationClient(fixture.clientConfig());
+  // Every deployed stack has a read-only debug agent role; diagnostic commands read AWS only through it.
+  const stackInfoMap = debugAgentRole
+    ? {
+        resources,
+        metadata: { debugAgentRoleExternalId: { value: 'j9-debug-agent-external-id' } },
+        customOutputs: { DebugAgentRoleArn: `arn:aws:iam::${fixture.accountId}:role/j9-operations-test-debug-agent` }
+      }
+    : { resources, metadata: {}, customOutputs: {} };
   const input = {
     StackName: 'j9-operations-test',
     TemplateBody: JSON.stringify({
       Description: 'STP-stack_j9-operations_test_fixture',
       Resources: templateResources,
-      Outputs: { StpStackInfoMap: { Value: JSON.stringify({ resources, metadata: {}, customOutputs: {} }) } }
+      Outputs: { StpStackInfoMap: { Value: JSON.stringify(stackInfoMap) } }
     })
   };
   try {

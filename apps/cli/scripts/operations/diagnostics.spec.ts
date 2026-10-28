@@ -258,6 +258,15 @@ test('logs read stored streams from the intended stack and expose readable plain
       'ERROR: first failure',
       '{"level":"warn","msg":"second warning"}'
     ]);
+    // An upper bound excludes later events.
+    expect(
+      await messages([
+        '--startTime',
+        new Date(now - 50 * 60_000).toISOString(),
+        '--endTime',
+        new Date(now - 30 * 60_000).toISOString()
+      ])
+    ).toEqual(['stale: before the last 30 minutes']);
     // A limit keeps the most recent events, in order.
     expect(await messages(['--limit', '2'])).toEqual([
       'ERROR: first failure',

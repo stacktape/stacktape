@@ -19,6 +19,21 @@ import {
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 import { buildInfrequentAccessSnapshotQuery, mapInsightsRowsToLogEvents } from './infrequent-access';
 
+const toLogEventsOutput = ({
+  events,
+  logGroupName
+}: {
+  events: { timestamp?: number; message?: string; logStreamName?: string }[];
+  logGroupName: string;
+}) => ({
+  logGroup: logGroupName,
+  events: events.map((event) => ({
+    timestamp: event.timestamp ? new Date(event.timestamp).toISOString() : null,
+    message: event.message,
+    logStream: event.logStreamName
+  }))
+});
+
 const printLogEvents = ({
   events,
   logGroupName,
@@ -29,20 +44,7 @@ const printLogEvents = ({
   raw?: boolean;
 }) => {
   if (isAgentMode() || raw) {
-    tuiManager.info(
-      JSON.stringify(
-        {
-          logGroup: logGroupName,
-          events: events.map((event) => ({
-            timestamp: event.timestamp ? new Date(event.timestamp).toISOString() : null,
-            message: event.message,
-            logStream: event.logStreamName
-          }))
-        },
-        null,
-        2
-      )
-    );
+    tuiManager.info(JSON.stringify(toLogEventsOutput({ events, logGroupName }), null, 2));
   } else {
     printFormattedLogs(events, logGroupName);
   }
@@ -182,7 +184,13 @@ export const commandLogs = async () => {
       filterPattern: filter,
       // Without a terminal every line goes straight to stdout, in arrival order. Bun's console drops a write to a closed
       // pipe without an error; `process.stdout.write` reports it, which ends following (below).
-      onLog: tuiManager.mode === 'tty' ? undefined : (message) => void process.stdout.write(`${message}\n`)
+      onLog: tuiManager.mode === 'tty' ? undefined : (message) => void process.stdout.write(`${message}\n`),
+      // JSONL output (`--agent`, `--json`) keeps one record per line: each batch is a `log` record holding the same
+      // object as the one-shot read.
+      onEvents:
+        tuiManager.mode === 'jsonl'
+          ? (events) => tuiManager.info(JSON.stringify(toLogEventsOutput({ events, logGroupName })))
+          : undefined
     });
     tuiManager.info(
       `Showing the last ${limit} log lines of ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''} and following new ones. ${tuiManager.mode === 'tty' ? 'Press Ctrl+C to stop.' : 'Stop with Ctrl+C or SIGTERM.'}`
@@ -243,7 +251,9 @@ export const commandLogs = async () => {
     logGroupName,
     logStreamNames: logStreams.map((logStream) => logStream.logStreamName),
     filterPattern: filter,
-    startTime: startTime.getTime()
+    startTime: startTime.getTime(),
+    // Without --endTime the read stays open-ended, so a laptop clock behind CloudWatch's cannot hide the newest lines.
+    ...(args.endTime ? { endTime: endTime.getTime() } : {})
   });
 
   // Events arrive oldest first. Keep the most recent ones, as the Infrequent Access snapshot does.

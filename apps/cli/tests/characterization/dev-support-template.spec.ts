@@ -487,7 +487,7 @@ test("a batch job's reference to a local database passes the preflight without a
       batchJobs: { report: ['db'] },
       localResources: {
         db: {
-          params: { host: relayHost, port: '20321', connectionString: `mysql://u:p@${relayHost}:20321/app` },
+          params: { host: relayHost, port: '20321', connectionString: `mysql://u:<password>@${relayHost}:20321/app` },
           environment: {}
         }
       }

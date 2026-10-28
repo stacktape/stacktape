@@ -465,7 +465,7 @@ export const configErrors = {
       category: 'CONFIG',
       code: 'CONFIG_LAMBDA_HANDLER_FORMAT_INVALID',
       message: `${inlineCode('Handler')} property of lambda function ${inlineCode(functionName)} has invalid format.`,
-      hints: `Handler must be in shape ${inlineCode('{{filePath}}:{{handlerFunction}}')}`
+      hints: `Handler must be in shape ${inlineCode('{{filePath}}:{{handlerFunction}}')}, such as ${inlineCode('handlers/process.js:main')}. Java and .NET handlers use Lambda's own format, such as ${inlineCode('com.example.Handler::handleRequest')} or ${inlineCode('Assembly::Namespace.Class::Method')}.`
     });
   },
   nextjsEdgeStreamingConflict({ stpResourceName }: { stpResourceName: string }): CliError {

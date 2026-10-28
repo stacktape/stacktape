@@ -35,9 +35,11 @@ which AWS charges for by the data it scans. `StopQuery` is not accepted.
 
 Stacktape enforces the allowlist where the AWS request is sent, so the dev mode agent's
 [`/aws/sdk` endpoint](/using-with-ai/agent-mode-in-dev#aws-sdk-access) applies the same list. It is a read-only guard,
-not an IAM permission boundary. Stacktape prefers the deployed stack's debug role when it is available. If that role is unavailable or cannot be assumed, the command falls back to the
-caller's selected AWS credentials. An accepted operation therefore runs with the permissions of the credentials that
-are ultimately used.
+not an IAM permission boundary. The call runs with the deployed stack's read-only debug role, assumed with the
+caller's selected AWS credentials. If the stack has no debug role or it cannot be assumed, the command fails with
+`CLI_DEBUG_AGENT_ROLE_MISSING` or `CLI_DEBUG_AGENT_ROLE_ASSUME_FAILED` instead of using your own, broader credentials;
+redeploy the stack to create or repair the role. A stack whose first deployment failed before it had outputs has no
+role yet: there, only CloudFormation reads of that stack are accepted, and they run with your selected credentials.
 
 ## Target stack and credentials
 
@@ -50,11 +52,11 @@ are ultimately used.
 - Otherwise, provide the missing `--project` and `--stage` values explicitly.
 
 Use `--profile` to select a local AWS profile or `--aws-account` to select a connected Stacktape AWS account. These
-credentials are also the fallback when the deployed stack's debug role is unavailable.
+credentials assume the deployed stack's debug role; the AWS request itself runs with the role.
 
 ## Basic usage
 
-List Lambda functions visible to the target stack's debug role or credential fallback:
+List Lambda functions visible to the target stack's debug role:
 
 ```bash
 stacktape aws call lambda ListFunctions \
@@ -138,7 +140,7 @@ configure defaults that identify that same stack.
 
 ### The call returns AccessDenied
 
-The debug role or fallback AWS credentials do not allow the operation for the requested resource. Verify the selected
+The debug role does not allow the operation for the requested resource. Verify the selected
 AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not grant IAM
 permissions.
 

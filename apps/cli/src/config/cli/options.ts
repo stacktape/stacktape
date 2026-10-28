@@ -252,7 +252,7 @@ The query start time: a relative duration such as \`30m\`, an ISO timestamp or a
 
 export const endTime = z.union([z.number(), z.string()]).describe(`#### End Time
 ---
-The query end time; accepts JavaScript \`Date\` inputs and defaults to now. Relative \`--since\` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.`);
+The query end time; accepts JavaScript \`Date\` inputs and defaults to now. Relative \`--since\` counts back from it. Metrics, logs and Logs Insights enforce it. When following logs, it bounds the initial backlog, and following then continues beyond it.`);
 
 export const filter = z.string().describe(`#### Filter
 ---
@@ -498,7 +498,7 @@ If \`true\`, validates workload packaging in addition to resolving the configura
 
 export const thorough = z.boolean().describe(`#### Thorough
 ---
-If \`true\`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output.`);
+If \`true\`, validates workload packaging and asks AWS CloudFormation to validate the synthesized template. A template over 51,200 bytes is validated from a temporary object in the stack's deployment bucket; before the first deploy there is none, so the result reports checked.cloudformation false with a warning.`);
 
 export const rollbackVersion = z.string().describe(`#### Rollback Version
 ---

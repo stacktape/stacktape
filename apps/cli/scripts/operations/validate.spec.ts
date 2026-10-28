@@ -3,6 +3,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import AdmZip from 'adm-zip';
+import { CreateBucketCommand, DeleteBucketCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { writeHelperLambdaManifest } from '@utils/helper-lambdas';
 import { buildOperationsCli, createOperationsFixture, targetArgs } from './cli-process';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
@@ -29,7 +32,7 @@ afterAll(async () => {
   await cli?.close();
 });
 
-test('thorough validation checks at 51,200 bytes, skips larger UTF-8 templates, and propagates AWS rejection', async () => {
+test('thorough validation sends templates up to 51,200 bytes inline, larger ones through the deployment bucket, and propagates AWS rejection', async () => {
   const fixture = await createOperationsFixture(cli.path);
   const out = join(fixture.directory, 'template.yml');
   const config = {
@@ -72,11 +75,38 @@ test('thorough validation checks at 51,200 bytes, skips larger UTF-8 templates, 
     expect(requests).toHaveLength(1);
     expect(Buffer.byteLength(String(requests[0].input.TemplateBody))).toBe(51_200);
     expect(String(requests[0].input.TemplateBody)).toContain('j9-operations-test');
+    // Before the first deploy there is no deployment bucket to read a larger template from: the result says so.
     const larger = await validate(`${padding}x`, true);
     expect(larger.run.exitCode, larger.result.message).toBe(0);
-    expect((larger.result.data.result as { checked: { cloudformation: boolean } }).checked.cloudformation).toBe(false);
-    expect(larger.run.stdout).toContain('CloudFormation did not check this template');
+    const unchecked = larger.result.data.result as { checked: { cloudformation: boolean }; warnings?: string[] };
+    expect(unchecked.checked.cloudformation).toBe(false);
+    expect(unchecked.warnings).toEqual([expect.stringContaining('CloudFormation did not validate this template')]);
+    expect(larger.run.stdout).toContain('CloudFormation did not validate this template');
     expect(fixture.aws.callsTo('cloudformation.ValidateTemplate')).toHaveLength(1);
+    // With the stack's deployment bucket, a larger template is validated from a temporary object there.
+    const bucketName = awsResourceNames.deploymentBucket(
+      getGloballyUniqueStackHash({
+        region: 'eu-west-1',
+        accountId: fixture.accountId!,
+        stackName: 'j9-operations-test'
+      })
+    );
+    const s3 = new S3Client(fixture.clientConfig());
+    try {
+      await s3.send(new CreateBucketCommand({ Bucket: bucketName }));
+      const viaBucket = await validate(`${padding}x`, true);
+      expect(viaBucket.run.exitCode, viaBucket.result.message).toBe(0);
+      const checked = viaBucket.result.data.result as { checked: { cloudformation: boolean }; warnings?: string[] };
+      expect(checked.checked.cloudformation).toBe(true);
+      expect(checked.warnings).toBeUndefined();
+      const [byUrl] = fixture.aws.callsTo('cloudformation.ValidateTemplate').slice(1);
+      expect(byUrl?.input.TemplateBody).toBeUndefined();
+      expect(String(byUrl?.input.TemplateURL)).toContain(`${bucketName}/previews/`);
+      expect((await s3.send(new ListObjectsV2Command({ Bucket: bucketName }))).KeyCount ?? 0).toBe(0);
+      await s3.send(new DeleteBucketCommand({ Bucket: bucketName }));
+    } finally {
+      s3.destroy();
+    }
     fixture.aws.on('cloudformation.ValidateTemplate', () => ({
       kind: 'error',
       code: 'ValidationError',

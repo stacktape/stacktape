@@ -1,9 +1,7 @@
-import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { createFetchHandler } from 'src/aws/fetch-handler';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { CliError } from '@utils/errors';
 
 type DebugAgentCredentials = {
   accessKeyId: string;
@@ -13,8 +11,7 @@ type DebugAgentCredentials = {
 };
 
 let cachedCredentials: DebugAgentCredentials | null = null;
-let roleArn: string | null = null;
-let externalId: string | null = null;
+let role: { arn: string; externalId: string } | null = null;
 
 const getAssumeRoleFailureHint = ({ errorMessage }: { errorMessage: string }) => {
   if (errorMessage.includes('AccessDenied')) {
@@ -37,93 +34,69 @@ const getAssumeRoleFailureHint = ({ errorMessage }: { errorMessage: string }) =>
 };
 
 /**
- * Initialize debug agent credentials by fetching role info from stack outputs/metadata.
- * Call this after stack is loaded but before running debug commands.
+ * Reads the stack's read-only debug agent role from its outputs and metadata. Every stack deploys the role; call this
+ * after the stack is loaded and before running debug commands.
  */
 export const initDebugAgentCredentials = () => {
+  cachedCredentials = null;
+  role = null;
   const stackInfoMap = deployedStackOverviewManager.stackInfoMap;
-  if (!stackInfoMap) {
-    tuiManager.warn('Stack info not available - debug commands will use user credentials');
-    return false;
-  }
-
-  roleArn = stackInfoMap.customOutputs?.DebugAgentRoleArn as string;
-  if (!roleArn) {
-    tuiManager.warn('Debug agent role not found in stack - using user credentials');
-    return false;
-  }
-
-  externalId = stackInfoMap.metadata?.[stackMetadataNames.debugAgentRoleExternalId()]?.value as string;
-  if (!externalId) {
-    tuiManager.warn('Debug agent role external ID not found - using user credentials');
-    return false;
-  }
-
+  const arn = stackInfoMap?.customOutputs?.DebugAgentRoleArn as string | undefined;
+  const externalId = stackInfoMap?.metadata?.[stackMetadataNames.debugAgentRoleExternalId()]?.value as
+    | string
+    | undefined;
+  if (!arn || !externalId) return false;
+  role = { arn, externalId };
   return true;
 };
 
 /**
- * Get credentials for the debug agent role.
- * Assumes the role if not cached or if cached credentials are expired.
- * Falls back to user credentials if role assumption fails.
+ * Credentials of the stack's debug agent role, which can only read this stack. The role is assumed with the credentials
+ * this CLI selected, never the ambient AWS credential chain. When the stack has no such role or it cannot be assumed,
+ * this throws instead of handing out the user's own, broader credentials.
  */
 export const getDebugAgentCredentials = async (): Promise<{
   accessKeyId: string;
   secretAccessKey: string;
   sessionToken?: string;
 }> => {
-  if (!roleArn || !externalId) {
-    const userCreds = globalStateManager.credentials;
-    return {
-      accessKeyId: userCreds.accessKeyId,
-      secretAccessKey: userCreds.secretAccessKey,
-      sessionToken: userCreds.sessionToken
-    };
+  if (!role) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DEBUG_AGENT_ROLE_MISSING',
+      message:
+        'This stack has no read-only debug agent role, so the command does not read AWS. It does not fall back to your own AWS credentials.',
+      hints: 'Redeploy the stack to create the debug agent role, then retry.'
+    });
   }
 
-  // Check if cached credentials are still valid (with 5 min buffer)
-  if (cachedCredentials) {
-    const bufferMs = 5 * 60 * 1000;
-    if (cachedCredentials.expiration.getTime() - Date.now() > bufferMs) {
-      return cachedCredentials;
-    }
+  // Valid for at least 5 more minutes.
+  if (cachedCredentials && cachedCredentials.expiration.getTime() - Date.now() > 5 * 60 * 1000) {
+    return cachedCredentials;
   }
 
   try {
-    const stsClient = new STSClient({ region: globalStateManager.region, requestHandler: createFetchHandler() });
-    const response = await stsClient.send(
-      new AssumeRoleCommand({
-        RoleArn: roleArn,
-        RoleSessionName: `debug-agent-${Date.now()}`,
-        ExternalId: externalId,
-        DurationSeconds: 900
-      })
-    );
-
-    if (!response.Credentials) {
-      throw new Error('No credentials returned from AssumeRole');
-    }
-
+    const credentials = await awsSdkManager.sts.assumeRoleCredentials({
+      roleArn: role.arn,
+      roleSessionName: `debug-agent-${Date.now()}`,
+      externalId: role.externalId,
+      durationSeconds: 900
+    });
     cachedCredentials = {
-      accessKeyId: response.Credentials.AccessKeyId!,
-      secretAccessKey: response.Credentials.SecretAccessKey!,
-      sessionToken: response.Credentials.SessionToken!,
-      expiration: response.Credentials.Expiration!
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken!,
+      expiration: credentials.expiration!
     };
-
     return cachedCredentials;
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    const roleInfo = roleArn ? ` (${roleArn})` : '';
-    tuiManager.warn(`Failed to assume debug agent role${roleInfo}: ${errorMessage}`);
-    tuiManager.warn(getAssumeRoleFailureHint({ errorMessage }));
-    tuiManager.warn('Falling back to user credentials');
-
-    const userCreds = globalStateManager.credentials;
-    return {
-      accessKeyId: userCreds.accessKeyId,
-      secretAccessKey: userCreds.secretAccessKey,
-      sessionToken: userCreds.sessionToken
-    };
+    const cause = ((err as { cause?: unknown }).cause ?? err) as Error;
+    const errorMessage = cause instanceof Error ? cause.message : 'Unknown error';
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DEBUG_AGENT_ROLE_ASSUME_FAILED',
+      message: `Could not assume the read-only debug agent role ${role.arn}, so the command does not read AWS: ${errorMessage}. It does not fall back to your own AWS credentials.`,
+      hints: getAssumeRoleFailureHint({ errorMessage: `${cause.name ?? ''} ${errorMessage}` })
+    });
   }
 };

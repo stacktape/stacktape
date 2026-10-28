@@ -44,7 +44,7 @@ export default defineConfig(() => {
 
 ## Configuration
 
-`CustomArtifactLambdaPackaging` exposes two properties: `packagePath` and `handler`, both required by the CLI. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
+`CustomArtifactLambdaPackaging` exposes two required properties: `packagePath` and `handler`. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
 
 ### packagePath
 
@@ -64,9 +64,11 @@ You don't need to zip your output manually if your build produces a directory. P
 
 The `handler` property tells Lambda which function to invoke when the Lambda is triggered. The syntax is `filepath:functionName`.
 
-For example, `index.js:default` invokes the `default` export from `index.js` at the artifact root. The current CLI strips directories from the handler path: `handlers/process.js:main` becomes `process.main`. Put the handler file at the artifact root. Native Java/.NET `::` handler strings are not accepted by this parser; use [buildpack packaging](/packaging/function/buildpack) for those handler formats.
+For example, `index.js:default` invokes the `default` export from `index.js` at the artifact root, and `handlers/process.js:main` invokes `main` from `handlers/process.js`. Stacktape turns the path into Lambda's handler format by dropping the file extension: `handlers/process.main`.
 
-The CLI requires an explicit `handler` and `runtime`; it does not infer them from the artifact. The generated type currently marks `handler` optional, but omitting it fails CLI validation.
+Java and .NET artifacts use Lambda's own handler format, which Stacktape passes through as written: `com.example.Handler::handleRequest` for Java, `Assembly::Namespace.Class::Method` for .NET.
+
+Set `handler` here and `runtime` on the Lambda resource: Stacktape does not infer them from the artifact.
 
 
 Example (TypeScript):
@@ -146,7 +148,7 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 |---|---|---|---|
 | **Build responsibility** | You build the artifact | Stacktape bundles from source | Stacktape builds from source in Docker |
 | **Configuration** | `packagePath` + `handler` + resource `runtime` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
-| **Supported languages** | Pre-built artifacts supported by the current `file:function` handler conversion; see limitations above | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
+| **Supported languages** | Any language the Lambda runtime supports | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
 | **Source maps** | Your responsibility | Automatic | Not applicable |
 | **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically | Not shared |
 | **Best for** | Custom build processes, pre-built CI artifacts | Node.js functions | Other languages with standard dependency files |
@@ -180,5 +182,5 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
+| `handler` | yes | `string` | - |
 | `packagePath` | yes | `string` | - |
-| `handler` | no | `string` | - |

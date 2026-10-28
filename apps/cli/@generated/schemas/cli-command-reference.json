@@ -4351,7 +4351,7 @@
       },
       {
         "name": "endTime",
-        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.",
+        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics, logs and Logs Insights enforce it. When following logs, it bounds the initial backlog, and following then continues beyond it.",
         "required": false,
         "allowedTypes": [
           "number",
@@ -4704,7 +4704,7 @@
       },
       {
         "name": "endTime",
-        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.",
+        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics, logs and Logs Insights enforce it. When following logs, it bounds the initial backlog, and following then continues beyond it.",
         "required": false,
         "allowedTypes": [
           "number",
@@ -7065,7 +7065,7 @@
       },
       {
         "name": "thorough",
-        "description": "#### Thorough\n---\nIf `true`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output.",
+        "description": "#### Thorough\n---\nIf `true`, validates workload packaging and asks AWS CloudFormation to validate the synthesized template. A template over 51,200 bytes is validated from a temporary object in the stack's deployment bucket; before the first deploy there is none, so the result reports checked.cloudformation false with a warning.",
         "required": false,
         "allowedTypes": [
           "boolean"

@@ -2,6 +2,7 @@ import { resolveAllResources } from '@domain-services/calculated-stack-overview-
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { initializeValidateOperation } from '../_utils/initialization';
 import { findMissingSecrets, type MissingSecret } from '../_utils/secret-preflight';
@@ -25,10 +26,40 @@ const describeMissingSecret = (
 /** CloudFormation's limit for a `TemplateBody` sent with the request. */
 const CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES = 51_200;
 
+/**
+ * Asks CloudFormation to validate the template. Up to 51,200 bytes it is sent with the request; a larger one goes through
+ * a temporary object in the stack's deployment bucket, as `diff` sends it. Returns false when there is no bucket yet.
+ */
+const validateWithCloudFormation = async ({
+  compactTemplate,
+  deploymentArtifacts,
+  stack
+}: {
+  compactTemplate: string;
+  deploymentArtifacts: ValidateOperation['deploymentArtifacts'];
+  stack: ValidateOperation['stack'];
+}) => {
+  if (Buffer.byteLength(compactTemplate) <= CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES) {
+    await stack.validateTemplate({ templateBody: compactTemplate });
+    return true;
+  }
+  if (!(await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifacts.deploymentBucketName }))) return false;
+  const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate({ body: compactTemplate });
+  try {
+    await stack.validateTemplate({ templateUrl });
+  } finally {
+    await deleteTemplate();
+  }
+  return true;
+};
+
+type ValidateOperation = Awaited<ReturnType<typeof initializeValidateOperation>>;
+
 export const commandValidate = async () => {
   const {
     args: { outFile, thorough, withPackage },
     config,
+    deploymentArtifacts,
     finalizeTemplate,
     packaging,
     stack,
@@ -65,19 +96,20 @@ export const commandValidate = async () => {
 
   const synthesizedTemplate = template.getTemplate();
   const serializedTemplate = stringifyToYaml(synthesizedTemplate);
-  // CloudFormation validates an inline template only up to 51,200 bytes; anything larger must come from S3, and
-  // validate creates nothing to upload it to. An ordinary web-service stack is already larger, so it is reported
-  // as not checked rather than failing a valid configuration. CloudFormation still validates it on deploy.
   const compactTemplate = JSON.stringify(synthesizedTemplate);
-  const cloudformationChecked =
-    Boolean(thorough) && Buffer.byteLength(compactTemplate) <= CLOUDFORMATION_INLINE_TEMPLATE_LIMIT_BYTES;
-  if (cloudformationChecked) {
-    await stack.validateTemplate({ templateBody: compactTemplate });
-  } else if (thorough) {
-    tui.warn(
-      `CloudFormation did not check this template: it is ${Math.ceil(Buffer.byteLength(compactTemplate) / 1024)} KB, and CloudFormation validates templates over 50 KB only from S3. It is validated when you deploy.`
-    );
+  const warnings: string[] = [];
+  let cloudformationChecked = false;
+  if (thorough) {
+    cloudformationChecked = await validateWithCloudFormation({ compactTemplate, deploymentArtifacts, stack });
+    if (!cloudformationChecked) {
+      // Only a stack's deployment bucket can hold the template, and validate creates nothing: before the first deploy,
+      // a template over the inline limit cannot reach CloudFormation. The result says so instead of passing silently.
+      warnings.push(
+        `CloudFormation did not validate this template: it is ${Math.ceil(Buffer.byteLength(compactTemplate) / 1024)} KB, CloudFormation reads templates over 50 KB only from S3, and the stack has no deployment bucket yet. The first deploy validates it.`
+      );
+    }
   }
+  for (const warning of warnings) tui.warn(warning);
   if (outFile) {
     await fsExtra.writeFile(outFile, serializedTemplate);
   }
@@ -91,7 +123,7 @@ export const commandValidate = async () => {
   ].filter(Boolean);
   tui.setPendingCompletion({
     success: true,
-    message: `VALIDATION SUCCESSFUL (${details.join(', ')})`,
+    message: `VALIDATION SUCCESSFUL (${details.join(', ')})${thorough && !cloudformationChecked ? '; CloudFormation did not validate the template' : ''}`,
     links: []
   });
 
@@ -104,6 +136,7 @@ export const commandValidate = async () => {
       packaging: shouldPackage,
       cloudformation: cloudformationChecked
     },
+    ...(warnings.length > 0 ? { warnings } : {}),
     ...(securityAssessment ? { security: securityAssessment } : {}),
     ...(missingSecrets.length > 0 ? { missingSecrets } : {}),
     ...(packagedWorkloads ? { packagedWorkloads } : {})

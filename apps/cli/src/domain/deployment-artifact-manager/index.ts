@@ -775,17 +775,17 @@ class DeploymentArtifactManager {
 
   /**
    * Uploads this invocation's template for a preview such as `diff` and returns its URL and a function that deletes it.
-   * The key is outside the release history, so a preview never looks like a release.
+   * The key is outside the release history, so a preview never looks like a release. `body` replaces the template file
+   * this invocation wrote.
    */
-  uploadPreviewTemplate = async () => {
+  uploadPreviewTemplate = async ({ body }: { body?: string } = {}) => {
     const s3Key = `previews/${globalStateManager.invocationId}/${CF_TEMPLATE_FILE_NAME_WITHOUT_EXT}.yml`;
     await awsSdkManager.s3.putObject({
       bucketName: this.deploymentBucketName,
       s3Key,
-      body: await readFile(
-        fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId }),
-        'utf8'
-      ),
+      body:
+        body ??
+        (await readFile(fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId }), 'utf8')),
       contentType: 'text/yaml'
     });
     const localEndpoint = getLocalS3Endpoint();

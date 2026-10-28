@@ -101,6 +101,7 @@ export class AwsObservability {
 
   getLogEvents = async ({
     startTime,
+    endTime,
     logGroupName,
     logStreamNames,
     logStreamPrefix,
@@ -110,6 +111,7 @@ export class AwsObservability {
     logStreamNames?: string[];
     logStreamPrefix?: string;
     startTime?: number;
+    endTime?: number;
     filterPattern?: string;
   }): Promise<FilteredLogEvent[]> => {
     const handleError = this.#getErrorHandler('Failed to get log events.');
@@ -118,6 +120,7 @@ export class AwsObservability {
       logStreamNames,
       logStreamNamePrefix: logStreamPrefix,
       startTime,
+      endTime,
       ...(filterPattern ? { filterPattern } : {})
     };
     const result: FilteredLogEvent[] = [];

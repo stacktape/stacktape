@@ -82,12 +82,14 @@ export class LambdaCloudwatchLogPrinter {
   #colorSequence: SupportedConsoleColor[] = ['blue', 'yellow', 'magenta', 'green', 'gray'];
   #lastColor: SupportedConsoleColor;
   #onLog: LogCallback | null = null;
+  #onEvents: ((events: FilteredLogEvent[]) => void) | null = null;
   #currentEventTimestamp: number | undefined;
 
   constructor({
     fetchSince,
     logGroupAwsResourceName,
     onLog,
+    onEvents,
     backlog,
     filterPattern,
     alreadyShown = [],
@@ -96,6 +98,8 @@ export class LambdaCloudwatchLogPrinter {
     fetchSince: number;
     logGroupAwsResourceName: string;
     onLog?: LogCallback;
+    /** Receives the events as CloudWatch returned them, oldest first, instead of formatted lines. */
+    onEvents?: (events: FilteredLogEvent[]) => void;
     /** Shows the newest `lines` events between `fetchSince` and `until` first, then follows from `until`. */
     backlog?: { lines: number; until: number };
     /** A CloudWatch Logs filter pattern: only matching events are read. */
@@ -111,6 +115,7 @@ export class LambdaCloudwatchLogPrinter {
     }
     this.logGroupName = logGroupAwsResourceName;
     this.#onLog = onLog || null;
+    this.#onEvents = onEvents || null;
     this.#fetchPage = fetchPage;
     this.#filterPattern = filterPattern;
     if (backlog && backlog.lines > 0 && backlog.until > fetchSince) {
@@ -325,6 +330,10 @@ export class LambdaCloudwatchLogPrinter {
   };
 
   #printLambdaLogEvents = (events: FilteredLogEvent[]) => {
+    if (this.#onEvents) {
+      if (events.length) this.#onEvents(events);
+      return;
+    }
     const endLogs: { [requestId: string]: (reportData: string, level: LambdaLogLevel) => void } = {};
 
     events.forEach((event) => {
