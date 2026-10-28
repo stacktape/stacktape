@@ -1,10 +1,10 @@
 import { publicCommandName, publicFlag } from '../../config/cli/public-names';
-import { cliCommands, type StacktapeCommand } from '../../config/cli/commands';
+import { cliCommands, commandDefinitions, type StacktapeCommand } from '../../config/cli/commands';
 import { getArgInfo } from '../../config/cli/utils';
 import { spawn } from 'node:child_process';
 import { basename, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import killProcessTree from 'tree-kill';
 import type {
@@ -185,12 +185,8 @@ const normalizeCliArgs = (args: Record<string, unknown> = {}): string[] => {
       continue;
     }
 
-    if (typeof value === 'object') {
-      cliArgs.push(flag, JSON.stringify(value));
-      continue;
-    }
-
-    cliArgs.push(flag, String(value));
+    // Inline like array items, so a value that starts with a dash (`--comment` SQL, a `--help` filter) stays a value.
+    cliArgs.push(`${flag}=${typeof value === 'object' ? JSON.stringify(value) : String(value)}`);
   }
 
   return cliArgs;
@@ -249,6 +245,25 @@ const terminateProcessTree = async ({
   await waitForClose(closePromise, PROCESS_EXIT_GRACE_MS);
 };
 
+/** Why `directory` cannot be a command's working directory, or undefined when it can. */
+export const describeInvalidWorkingDirectory = (directory: string): string | undefined => {
+  try {
+    return statSync(directory).isDirectory() ? undefined : `Working directory is not a directory: ${directory}`;
+  } catch {
+    return `Working directory does not exist or is not accessible: ${directory}`;
+  }
+};
+
+/**
+ * `--agent` for the commands that take it. The others (version, help) still answer in JSONL: `--agent` only implies
+ * that output format, and those commands reject an argument they do not declare.
+ */
+const getMachineOutputArg = (command: string) =>
+  (cliCommands as readonly string[]).includes(command) &&
+  !('agent' in commandDefinitions[command as StacktapeCommand].args)
+    ? '--output-format=jsonl'
+    : '--agent';
+
 // The CLI keeps the last value of a repeated single-value flag, so a list sent for one would silently pick its last item.
 const findListForSingleValueFlag = (command: string, args: Record<string, unknown>): string | undefined =>
   (cliCommands as readonly string[]).includes(command)
@@ -281,9 +296,22 @@ export const runStacktapeCommandJsonl = async ({
   env?: Record<string, string>;
 }): Promise<RunStacktapeResult> => {
   const { command: spawnCommand, prefixArgs } = getStacktapeSpawnBase();
+  const requestedCwd = resolve(cwd || process.cwd());
+  const invalidCwd = describeInvalidWorkingDirectory(requestedCwd);
+  if (invalidCwd) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: invalidCwd,
+      events: [],
+      logEvents: [],
+      outputEvents: [],
+      resolvedContext: { cwd: requestedCwd }
+    };
+  }
   // macOS exposes /tmp through /private/tmp. Use the filesystem's canonical path so the
   // context reported to callers is exactly the directory observed by the child process.
-  const resolvedCwd = realpathSync(resolve(cwd || process.cwd()));
+  const resolvedCwd = realpathSync(requestedCwd);
   const resolvedProjectArgs = resolveUserProjectArgs({ args: args || {}, cwd: resolvedCwd });
   const resolvedArgs = resolvedProjectArgs.args;
   const listForSingleValue = findListForSingleValueFlag(command, resolvedArgs);
@@ -299,7 +327,7 @@ export const runStacktapeCommandJsonl = async ({
     };
   }
   const cliArgs = normalizeCliArgs(resolvedArgs);
-  const spawnArgs = [...prefixArgs, command, '--agent', ...cliArgs];
+  const spawnArgs = [...prefixArgs, command, getMachineOutputArg(command), ...cliArgs];
   const operationInvocationEnv = getMcpOperationInvocationEnv({
     client: clientName || process.env.STACKTAPE_MCP_CLIENT_NAME || process.env.STACKTAPE_MCP_CLIENT,
     tool
@@ -448,6 +476,21 @@ export const runStacktapeCommandJsonl = async ({
       message: malformedResult
         ? 'Stacktape CLI emitted a malformed final agent result.'
         : 'Stacktape CLI emitted more than one final agent result.',
+      rawTail: tailLines.length > 0 ? tailLines.join('\n') : undefined,
+      events,
+      logEvents,
+      outputEvents,
+      resolvedContext
+    };
+  }
+
+  // A process that reported success and then failed did not finish what it reported: its exit decides.
+  if (resultEvent?.ok && (exitCode !== 0 || exitSignal)) {
+    return {
+      ok: false,
+      code: 'CLI_EXIT_FAILED',
+      message: `Stacktape CLI reported success for ${publicCommandName(command)} but then exited with ${exitSignal ? `signal ${exitSignal}` : `code ${exitCode}`}. Its last output lines are in rawTail.`,
+      data: resultEvent.data,
       rawTail: tailLines.length > 0 ? tailLines.join('\n') : undefined,
       events,
       logEvents,

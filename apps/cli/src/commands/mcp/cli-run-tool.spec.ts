@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
@@ -187,9 +187,12 @@ describe('stacktape_cli action=run', () => {
     });
 
     expect(output.ok).toBe(true);
-    expect(output.data?.shellCommand).toStartWith(
-      'stacktape secret set --region eu-west-1 --secret-name stripe --value '
-    );
+    // r2xx: the plan returned the masked value as the payload to run, which would have set a different secret.
+    expect(output.data?.shellCommand).toBe('stacktape secret set --region eu-west-1 --secret-name stripe');
+    expect(output.data?.stacktapeCliRun).toBeUndefined();
+    expect(output.data?.args).toEqual({ region: 'eu-west-1', secretName: 'stripe' });
+    expect(output.data?.withheldArgs).toEqual(['secretValue']);
+    expect(output.nextActions?.[0]).toContain('secretValue included');
     expect(JSON.stringify(output)).not.toContain('correct-horse-battery-staple');
     expect(runs).toHaveLength(0);
   });
@@ -398,5 +401,93 @@ export default defineConfig(${settings}, () => ({ resources: { uploads: new Buck
     expect(output.data?.args.region).toBeUndefined();
     expect(output.data?.resolvedContext.projectSettings.region).toBe('eu-central-1');
     expect(existsSync(marker)).toBe(false);
+  });
+});
+
+// Findings of the r2xx MCP audit, each reproduced through the tool the way an agent calls it.
+describe('stacktape_cli audit findings', () => {
+  const monorepo = async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-mcp-monorepo-'));
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    for (const name of ['a', 'b']) {
+      await mkdir(join(root, name));
+      await writeFile(join(root, name, 'stacktape.yml'), 'resources: {}\n');
+    }
+    await writeFile(
+      join(root, 'package.json'),
+      JSON.stringify({
+        scripts: {
+          'deploy-a':
+            'stacktape deploy --stage production --region eu-west-1 --project r2xx-a --aws-account account-a --config-path a/stacktape.yml',
+          'deploy-b':
+            'stacktape deploy --stage staging --region eu-west-2 --project r2xx-b --aws-account account-b --config-path b/stacktape.yml'
+        }
+      })
+    );
+    return root;
+  };
+
+  test("plans take the target from the selected project's script, not another project's", async () => {
+    const root = await monorepo();
+    const { call, client } = await connect();
+    const b = { configPath: join(root, 'b', 'stacktape.yml'), currentWorkingDirectory: join(root, 'b') };
+
+    for (const command of ['deploy', 'delete']) {
+      const output = await call({ action: 'plan', command, cwd: root, ...b });
+      expect(output.ok, command).toBe(true);
+      expect(output.data?.args, command).toMatchObject({ stage: 'staging', awsAccount: 'account-b', ...b });
+    }
+
+    // A config path relative to cwd alone runs from cwd, not from the other project's directory.
+    const relative = await call({ action: 'plan', command: 'deploy', cwd: root, configPath: 'b/stacktape.yml' });
+    expect(relative.ok).toBe(true);
+    expect(relative.data?.args).toMatchObject({
+      stage: 'staging',
+      awsAccount: 'account-b',
+      configPath: 'b/stacktape.yml',
+      currentWorkingDirectory: root
+    });
+
+    const dev = (
+      await client.callTool({ name: 'stacktape_dev', arguments: { action: 'plan', args: { cwd: root, ...b } } })
+    ).structuredContent as { ok: boolean; data?: Record<string, any> };
+    expect(dev.ok).toBe(true);
+    expect(dev.data?.args).toMatchObject({ awsAccount: 'account-b', region: 'eu-west-2', ...b });
+
+    // Without a selected project, the two scripts tie on different targets: the plan does not pick one.
+    const unselected = await call({ action: 'plan', command: 'deploy', cwd: root });
+    expect(unselected.data?.matchedPackageScript).toBeUndefined();
+    expect(JSON.stringify(unselected.data?.args ?? {})).not.toContain('account-');
+  });
+
+  test('param get never returns a sensitive value', async () => {
+    const { call, runs } = await connect(() => ({ data: { result: '<<OMITTED>>' } }));
+    const args = { region: 'eu-west-1', stage: 'production', resourceName: 'database', paramName: 'password' };
+
+    const refused = await call({ action: 'run', command: 'param:get', args: { ...args, showSensitiveValues: true } });
+    expect(refused).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+    expect(runs).toHaveLength(0);
+
+    // Without the flag the CLI itself replaces a sensitive value; a plain one (a URL) comes back unchanged.
+    const omitted = await call({ action: 'run', command: 'param:get', args });
+    expect(omitted.data?.cli).toEqual({ result: '<<OMITTED>>' });
+  });
+
+  test('a working directory that does not exist gets the validation result envelope', async () => {
+    const { call, client } = await connect();
+    const missing = join(tmpdir(), `stacktape-mcp-missing-${process.pid}`);
+
+    const output = (await client.callTool({
+      name: 'stacktape_cli',
+      arguments: { action: 'run', command: 'version', cwd: missing }
+    })) as { structuredContent: Record<string, unknown>; isError?: boolean };
+    expect(output.isError).toBe(true);
+    expect(output.structuredContent).toMatchObject({
+      schemaVersion: 'stacktape.mcp.tool-result.v1',
+      ok: false,
+      code: 'VALIDATION_ERROR'
+    });
+    expect(String(output.structuredContent.message)).toContain(missing);
+    expect((await call({ action: 'plan', command: 'deploy', cwd: missing })).code).toBe('VALIDATION_ERROR');
   });
 });

@@ -16,6 +16,7 @@ import {
   updateAgentState,
   type WorkloadStatus
 } from '../agent-server';
+import { agentLog } from '../agent-logger';
 
 // The dev agent runs SQL, rebuilds and stops dev mode, and reads workload environments. These scenarios run the real
 // agent server and call it the way a web page, a DNS-rebinding page, another program on the network and the
@@ -413,6 +414,42 @@ test('a malformed percent-encoded route parameter is a validation error, not an 
     // The agent keeps answering.
     const status = await fetch(`http://127.0.0.1:${port}/status`, { headers: { authorization: `Bearer ${token}` } });
     expect(status.status).toBe(200);
+  } finally {
+    stopAgentServer();
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// r2xx: workload output in the agent log, which MCP returns to agents, carried the workloads' secret values.
+test('the agent log masks the secret values of every workload environment', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-log-masking-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const port = await freePort();
+  const environments: Record<string, Record<string, string>> = {
+    api: { DB_PASSWORD: 'r2zz-fabricated-Xk29fQ7v', PORT: '3000' },
+    worker: { WEBHOOK: 'r2zz-opaque-webhook-9fQ7' }
+  };
+  await startAgentServer(port, directory, {
+    getEnvVars: (name) => environments[name] ?? null,
+    getSecretEnvNames: (name) => new Set(name === 'worker' ? ['WEBHOOK'] : [])
+  });
+  try {
+    updateAgentState({
+      workloads: [
+        { name: 'api', type: 'container', status: 'running' },
+        { name: 'worker', type: 'container', status: 'running' }
+      ]
+    });
+    // The worker prints the api's password, the api the worker's secret: every environment counts.
+    agentLog('worker', 'connecting with r2zz-fabricated-Xk29fQ7v');
+    agentLog('api', 'signing with r2zz-opaque-webhook-9fQ7 on port 3000');
+    const log = await readFile(join(directory, `${port}-logs.txt`), 'utf8');
+    expect(log).not.toContain('r2zz-fabricated-Xk29fQ7v');
+    expect(log).not.toContain('r2zz-opaque-webhook-9fQ7');
+    expect(log).toContain('on port 3000');
   } finally {
     stopAgentServer();
     if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;

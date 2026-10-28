@@ -4,6 +4,7 @@ import { basename } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { getExecutableScriptFunction } from '../script-run/utils';
+import { createEnvironmentMasker, getSecretSourcedEnvNames } from './agent-env-masking';
 import { agentLog } from './agent-logger';
 import { getRunningLocalInstances } from './local-resources';
 
@@ -15,7 +16,16 @@ export const MAX_SEED_TIMEOUT_SECONDS = 280;
 
 export type SeedScriptResult =
   | { ok: true; script: string; durationMs: number; output: string[]; omittedOutputLines?: number }
-  | { ok: false; code: string; error: string; hint?: string; available?: string[]; output?: string[] };
+  | {
+      ok: false;
+      code: string;
+      error: string;
+      hint?: string;
+      available?: string[];
+      output?: string[];
+      /** Processes a timed-out script started that still run. */
+      survivingPids?: number[];
+    };
 
 /**
  * Directives that read a resource or deployed CloudFormation state. Only `$ResourceParam` of a database running
@@ -181,12 +191,19 @@ export const runSeedScript = async (
   let omittedOutputLines = 0;
   const startedAt = Date.now();
   const timeoutMs = timeoutSeconds * 1000;
+  // The result reaches an agent's conversation: output and errors are masked like `/env` masks the script's own
+  // environment (its resolved secret and connection values), with the shared scrubber behind it.
+  let mask = createEnvironmentMasker({});
   agentLog('dev', `Seed script started: ${scriptName}`);
   try {
     await getExecutableScriptFunction({
       scriptDefinition: { ...script, scriptName },
       timeoutMs,
       checkResolved: ({ env, commands }) => {
+        mask = createEnvironmentMasker(
+          Object.fromEntries(Object.entries(env).map(([name, value]) => [name, String(value)])),
+          getSecretSourcedEnvNames(script.properties)
+        );
         const identifier = findDeployedIdentifier(
           [Object.values(env), commands],
           getDeployedDatabaseIdentifiers(deployedStackOverviewManager.stackInfoMap?.resources ?? {}, localResourceNames)
@@ -198,7 +215,7 @@ export const runSeedScript = async (
         }
       },
       onOutputLine: (line) => {
-        output.push(stripVTControlCharacters(line));
+        output.push(mask(stripVTControlCharacters(line)));
         if (output.length > MAX_OUTPUT_LINES) {
           output.shift();
           omittedOutputLines++;
@@ -210,17 +227,33 @@ export const runSeedScript = async (
       agentLog('dev', `Seed script refused: ${scriptName}`, 'warn');
       return { ok: false, code: 'NOT_LOCAL', error: error.message };
     }
-    const timedOut = Date.now() - startedAt >= timeoutMs;
+    const timeout = (
+      error as { metadata?: { timedOut?: boolean; processTreeStopped?: boolean; survivingPids?: number[] } }
+    ).metadata;
+    const timedOut = timeout?.timedOut === true || Date.now() - startedAt >= timeoutMs;
     agentLog('dev', `Seed script ${timedOut ? 'timed out' : 'failed'}: ${scriptName}`, 'error');
-    return timedOut
-      ? {
-          ok: false,
-          code: 'SCRIPT_TIMEOUT',
-          error: `Script "${scriptName}" was stopped after ${timeoutSeconds} s.`,
-          hint: `Pass a longer timeoutSeconds (at most ${MAX_SEED_TIMEOUT_SECONDS}) if the seed needs more time; the MCP client's own per-call timeout still applies.`,
-          output
-        }
-      : { ok: false, code: 'SCRIPT_FAILED', error: error instanceof Error ? error.message : String(error), output };
+    if (!timedOut) {
+      return {
+        ok: false,
+        code: 'SCRIPT_FAILED',
+        error: mask(stripVTControlCharacters(error instanceof Error ? error.message : String(error))),
+        output
+      };
+    }
+    const stopped = timeout?.processTreeStopped !== false;
+    const survivors = timeout?.survivingPids ?? [];
+    return {
+      ok: false,
+      code: 'SCRIPT_TIMEOUT',
+      error: stopped
+        ? `Script "${scriptName}" was stopped after ${timeoutSeconds} s, with every process it started.`
+        : `Script "${scriptName}" timed out after ${timeoutSeconds} s, and ${survivors.length ? `processes ${survivors.join(', ')} it started still run` : 'some of the processes it started could not be stopped'}; they may still be changing data.`,
+      hint: stopped
+        ? `Pass a longer timeoutSeconds (at most ${MAX_SEED_TIMEOUT_SECONDS}) if the seed needs more time; the MCP client's own per-call timeout still applies.`
+        : 'Stop the leftover processes of the script before running it again.',
+      output,
+      ...(survivors.length ? { survivingPids: survivors } : {})
+    };
   }
   agentLog('dev', `Seed script finished: ${scriptName}`);
   return {

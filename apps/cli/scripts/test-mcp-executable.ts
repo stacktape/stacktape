@@ -714,6 +714,21 @@ const verify = async () => {
       (await call('stacktape_cli', { action: 'run', command: 'j12_unknown_command' })).code,
       'UNKNOWN_COMMAND'
     );
+    // r2xx: version and help do not take --agent and rejected every MCP run.
+    const version = await call('stacktape_cli', { action: 'run', command: 'version' });
+    assert.equal(version.ok, true, JSON.stringify(version));
+    const reportedVersion = (version.data?.cli as { result?: unknown } | undefined)?.result;
+    assert.equal(typeof reportedVersion, 'string');
+    if (!candidateBinary) assert.equal(reportedVersion, packageJson.version);
+    const help = await call('stacktape_cli', { action: 'run', command: 'help', args: { command: 'logs' } });
+    assert.equal(help.ok, true, JSON.stringify(help));
+    const missingCwd = await call('stacktape_cli', {
+      action: 'run',
+      command: 'version',
+      cwd: join(project, 'missing')
+    });
+    assert.equal(missingCwd.code, 'VALIDATION_ERROR');
+    assert.equal(missingCwd.schemaVersion, 'stacktape.mcp.tool-result.v1');
     console.info('PASS executable MCP command classification, supported reads and argument surfaces');
     assert.equal(requests.length, 0, 'Rejected requests must not reach the control plane');
     const incident = await call('stacktape_incident', { action: 'show', incidentId: 'inc_j12' });

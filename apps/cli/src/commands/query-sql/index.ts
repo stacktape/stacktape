@@ -8,7 +8,7 @@ import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-va
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
-import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
+import { isDefinitelyReadOnlySql } from '@domain-services/debug-services/sql-statements';
 
 const SUPPORTED_DB_TYPES = ['relational-database'] as const;
 

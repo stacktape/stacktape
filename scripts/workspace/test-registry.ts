@@ -4371,6 +4371,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/frontend-env.spec.ts',
       'apps/cli/src/domain/config-manager/dev-mode.spec.ts',
       'apps/cli/src/domain/debug-services/db-client.spec.ts',
+      'apps/cli/src/domain/debug-services/sql-statements.spec.ts',
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/tests/characterization/dev-support-template.spec.ts',
       'apps/cli/tests/local-development/next-dev.spec.ts',

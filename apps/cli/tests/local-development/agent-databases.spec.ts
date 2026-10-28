@@ -240,6 +240,22 @@ test('an assistant lists, writes, resets and seeds local databases through stack
 
   // Bulk deletes and resets need confirmation; nothing changes without it.
   expect((await call('query', { resource: 'db', sql: 'delete from settings' })).code).toBe('DESTRUCTIVE_OPERATION');
+  // r2xx: a leading comment or a quoted "where" made these run without confirmation.
+  for (const [resource, statement] of [
+    ['db', '-- ordinary explanation\ndelete from users'],
+    ['db', "update users set name = 'where'"],
+    ['db', '/* comment */ truncate users'],
+    ['mydb', '# note\ndelete from todos'],
+    ['mydb', 'update todos set title = "where"'],
+    // Review of #391: a writable CTE inside CREATE TABLE AS, and a `$` identifier that hid the missing WHERE.
+    ['db', 'create table saved as with wiped as (delete from users returning *) select * from wiped'],
+    ['db', "update users set name$where = 'changed'"],
+    ['db', 'delete from users where 1 = 1']
+  ]) {
+    expect((await call('query', { resource, sql: statement })).code, statement).toBe('DESTRUCTIVE_OPERATION');
+  }
+  expect((await sql('db', "select count(*)::int as n from users where name <> 'where'")).rows).toEqual([{ n: 3 }]);
+  expect((await sql('mydb', 'select count(*) as n from todos')).rows).toEqual([{ n: 2 }]);
   expect((await call('query', { resource: 'cache', command: 'FLUSHALL' })).code).toBe('DESTRUCTIVE_OPERATION');
   const unconfirmed = await call('reset_db');
   expect(unconfirmed.code).toBe('DESTRUCTIVE_OPERATION');
@@ -334,13 +350,16 @@ test('an assistant lists, writes, resets and seeds local databases through stack
 // Review of #336: an MCP server of another project may read this session through cwd but never write to it. A statement
 // that looks like a read can still write through a function, so the databases themselves refuse the write.
 test("another project's MCP server reads through cwd, and the databases refuse its writes", async () => {
+  // A function can write, so creating one needs confirmation on a writable session.
   await sql(
     'db',
-    "create function r2m_bump() returns int language sql as $$ insert into settings values ('r2m', 'x') returning 1 $$"
+    "create function r2m_bump() returns int language sql as $$ insert into settings values ('r2m', 'x') returning 1 $$",
+    { confirm: true }
   );
   await sql(
     'mydb',
-    "create function r2m_bump() returns int deterministic modifies sql data begin insert into todos (title) values ('r2m'); return 1; end"
+    "create function r2m_bump() returns int deterministic modifies sql data begin insert into todos (title) values ('r2m'); return 1; end",
+    { confirm: true }
   );
   const elsewhere = createDevToolHandler({ serverDirectory: () => join(root, 'elsewhere'), discoverAgents: discover });
   const read = async (args: Record<string, unknown>) =>

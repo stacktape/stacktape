@@ -332,9 +332,16 @@ const getLocalScriptExecutionFn = ({
           finalMessage: `Script ${scriptDisplayName} failed`
         });
         await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
+        const { timedOut, processTreeStopped, survivingPids } = (err ?? {}) as {
+          timedOut?: boolean;
+          processTreeStopped?: boolean;
+          survivingPids?: number[];
+        };
         throw new ExpectedError(
           'SCRIPT',
-          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${currentDescription}. Error:\n${err}`
+          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${currentDescription}. Error:\n${err}`,
+          undefined,
+          timedOut ? { timedOut, processTreeStopped, survivingPids } : undefined
         );
       }
     }
