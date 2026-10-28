@@ -18,7 +18,7 @@ import {
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
 import { scopeBatchCall } from '../dev/deployed-batch-job';
-import { scopeToStackWithoutOutputs } from './stack-without-outputs';
+import { scopeToStackWithoutOutputs, summarizeStackEvents } from './stack-without-outputs';
 
 const isMissingStackOverview = (error: unknown) => error instanceof CliError && error.category === 'MISSING_OUTPUT';
 
@@ -152,7 +152,9 @@ export const commandAwsCall = async () => {
     });
   }
 
-  const data = batchScope.filterResponse ? batchScope.filterResponse(result.data) : result.data;
+  const scoped = batchScope.filterResponse ? batchScope.filterResponse(result.data) : result.data;
+  const data =
+    stackWithoutOutputs && /^DescribeStackEvents(Command)?$/.test(command) ? summarizeStackEvents(scoped) : scoped;
 
   // Output
   if (isAgentMode()) {

@@ -275,22 +275,6 @@ export const resolveDevAgentRole = () => {
         }
       },
 
-      // Batch: Read. These actions take no resource ARNs or tag conditions; the dev agent scopes the calls to the
-      // stack's queues and job definitions (`scopeBatchCall`).
-      {
-        PolicyName: 'batch-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: ['batch:DescribeJobs', 'batch:ListJobs', 'batch:DescribeJobDefinitions'],
-              Resource: '*'
-            }
-          ]
-        }
-      },
-
       // RDS: Read only
       {
         PolicyName: 'rds-access',
@@ -456,6 +440,8 @@ export const resolveDevAgentRole = () => {
         PolicyDocument: {
           Version: '2012-10-17',
           Statement: [
+            // Batch's describe and list actions take no resource ARN, so a resource tag condition always denies them.
+            // The dev agent scopes these calls to the stack's queues and job definitions (`scopeBatchCall`).
             {
               Effect: 'Allow',
               Action: [
@@ -463,11 +449,13 @@ export const resolveDevAgentRole = () => {
                 'batch:DescribeJobDefinitions',
                 'batch:DescribeJobQueues',
                 'batch:DescribeComputeEnvironments',
-                'batch:ListJobs',
-                'batch:SubmitJob',
-                'batch:TerminateJob',
-                'batch:ListTagsForResource'
+                'batch:ListJobs'
               ],
+              Resource: '*'
+            },
+            {
+              Effect: 'Allow',
+              Action: ['batch:SubmitJob', 'batch:TerminateJob', 'batch:ListTagsForResource'],
               Resource: '*',
               Condition: stackTagCondition
             }

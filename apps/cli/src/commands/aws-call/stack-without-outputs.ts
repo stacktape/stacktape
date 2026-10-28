@@ -51,3 +51,24 @@ export const scopeToStackWithoutOutputs = ({
   }
   return { ...input, StackName: requested ?? stackId ?? stackName };
 };
+
+/** What each stack event of a failed deployment says: which resource reached which status, when and why. */
+const STACK_EVENT_FIELDS = ['Timestamp', 'LogicalResourceId', 'ResourceType', 'ResourceStatus', 'ResourceStatusReason'];
+
+/**
+ * Stack events reduced to the fields that explain a failure. A failed first deployment has an event per resource and
+ * step, each repeating the resource's properties and the stack's IDs; whole, 62 events of a small stack are 140 kB, far
+ * more than an MCP client accepts.
+ */
+export const summarizeStackEvents = (data: unknown): unknown => {
+  const { StackEvents, ...rest } = (data ?? {}) as { StackEvents?: Record<string, unknown>[] };
+  if (!Array.isArray(StackEvents)) return data;
+  return {
+    ...rest,
+    StackEvents: StackEvents.map((event) =>
+      Object.fromEntries(
+        STACK_EVENT_FIELDS.flatMap((field) => (event[field] === undefined ? [] : [[field, event[field]]]))
+      )
+    )
+  };
+};
