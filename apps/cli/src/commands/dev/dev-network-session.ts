@@ -311,23 +311,33 @@ export const endSessionForLostStage = ({
   stackName,
   label,
   agentPort,
+  refused = false,
   stop = () => process.emit('SIGINT')
 }: {
   stackName: string;
   label: string;
   agentPort: number | undefined;
+  /** The stage was held by another session that started at the same time, and this session never got it. */
+  refused?: boolean;
   stop?: () => void;
 }) => {
-  const message =
-    `${label} took over dev mode for ${stackName}, so deployed functions now reach the databases there. This session ` +
-    'stopped so that it cannot redeploy functions over theirs. To move the stage back, run `stacktape dev` again with --take-over.';
+  const message = refused
+    ? `Dev mode for ${stackName} already runs in another session: ${label}. This session stopped so that it cannot ` +
+      'redeploy functions over theirs. Stop that session, or run `stacktape dev` again with --take-over to move the stage here.'
+    : `${label} took over dev mode for ${stackName}, so deployed functions now reach the databases there. This session ` +
+      'stopped so that it cannot redeploy functions over theirs. To move the stage back, run `stacktape dev` again with --take-over.';
   if (agentPort) {
     agentLog('dev', message, 'error');
     const file = localStatePaths.devAgentStopReasonFile({ port: agentPort });
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     writeFileSync(
       file,
-      JSON.stringify({ code: 'DEV_STAGE_TAKEN_OVER', message, pid: process.pid, at: new Date().toISOString() }),
+      JSON.stringify({
+        code: refused ? 'DEV_STAGE_RUNNING_ELSEWHERE' : 'DEV_STAGE_TAKEN_OVER',
+        message,
+        pid: process.pid,
+        at: new Date().toISOString()
+      }),
       { mode: 0o600 }
     );
   } else {
@@ -394,18 +404,26 @@ export const startDevNetworkSession = async ({
   registerSessionCleanupHook();
   let stageLost = false;
   let heldStage: { lose: () => void; release: () => Promise<void> } | undefined;
-  setStageLostHandler(({ label }) => {
+  const loseStage = ({ label, refused = false }: { label: string; refused?: boolean }) => {
     if (stageLost) return;
     stageLost = true;
     // The holder record is the new holder's now: this session neither refreshes nor deletes it.
     heldStage?.lose();
-    endSessionForLostStage({ stackName, label, agentPort });
-  });
+    endSessionForLostStage({ stackName, label, agentPort, refused });
+  };
+  setStageLostHandler(loseStage);
+  // Settles once the stage check below has decided; the relay may refuse this session's presence before that.
+  let decideStage!: (decision: { mayTakeOver: boolean }) => void;
+  const stageDecision = new Promise<{ mayTakeOver: boolean }>((resolve) => (decideStage = resolve));
   const connection = new DevBoxConnection({
     network,
     owner,
     stackName,
     deps: {
+      // The presence holds the stage on the relay: a session whose functions only use the box as NAT has no tunnel
+      // that a take-over could close.
+      mayTakeOverStage: async (holder) => (await stageDecision).mayTakeOver || isStaleHolder(holder, owner),
+      onStageLost: ({ label, refused }) => loseStage({ label, refused }),
       aws,
       onSession: (sessionId) => recordDevBoxSession(sessionId, projectName, stage),
       findFreePort: async () => (await findFreePorts(1))[0],
@@ -427,6 +445,7 @@ export const startDevNetworkSession = async ({
   const relayedNames = [...new Set([...Object.values(functions), ...Object.values(batchJobs ?? {})].flat())];
   let leases: Map<string, number>;
   let replacesStaleSession = false;
+  const localResources: DevNetworkPlacement['localResources'] = {};
   try {
     ({ replacesStaleSession } = await assertStageNotRunningElsewhere({
       boxState,
@@ -436,24 +455,25 @@ export const startDevNetworkSession = async ({
       owner,
       takeOver
     }));
+    decideStage({ mayTakeOver: takeOver || replacesStaleSession });
     leases = await ensureLeases({
       store: aws.leases,
       networkName: network.stackName,
       stackName,
       resourceNames: relayedNames
     });
+    for (const resourceName of relayedNames) {
+      const relayed = await getRelayedLocalResource(resourceName, {
+        host: network.boxPrivateIp,
+        port: leases.get(resourceName)!
+      });
+      if (relayed) localResources[resourceName] = relayed;
+    }
   } catch (error) {
     // The session is not recorded yet, so the cleanup hook would not end this connection.
+    decideStage({ mayTakeOver: false });
     await connection.stop();
     throw error;
-  }
-  const localResources: DevNetworkPlacement['localResources'] = {};
-  for (const resourceName of relayedNames) {
-    const relayed = await getRelayedLocalResource(resourceName, {
-      host: network.boxPrivateIp,
-      port: leases.get(resourceName)!
-    });
-    if (relayed) localResources[resourceName] = relayed;
   }
   const placement: DevNetworkPlacement = {
     subnetIds: network.privateSubnetIds,

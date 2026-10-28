@@ -1,4 +1,4 @@
-import { afterAll, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,7 +32,10 @@ mock.module('./db-parameters', () => ({
   mysqlParamsToDockerArgs: () => []
 }));
 
-const { startLocalMysql } = await import('./mysql');
+let startLocalMysql: typeof import('./mysql').startLocalMysql;
+beforeAll(async () => {
+  ({ startLocalMysql } = await import('./mysql'));
+});
 
 const root = mkdtempSync(join(tmpdir(), 'stacktape-mysql-data-'));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
