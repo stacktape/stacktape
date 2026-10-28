@@ -19,6 +19,7 @@ export type EngineVersionCatalogue = Readonly<Record<string, readonly string[]>>
 const FALLBACK_VERSIONS: Record<string, string> = {
   postgres: '18.1',
   mysql: '8.4.8',
+  mariadb: '11.8.5',
   'sqlserver-ex': '16.00.4225.2.v1'
 };
 

@@ -5,6 +5,7 @@ import type { ServiceFactInput } from '../../facts/service';
 import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
+import { citeFirstCodeMatch, maskFile } from '../lexical';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -27,6 +28,45 @@ type Detection = {
   language: string;
   exposesHttp?: boolean;
   processType?: string;
+  /** The pattern that proved a WebSocket server, which needs a load balancer that keeps the connection open. */
+  websocket?: RegExp;
+  /**
+   * Whether the file is the entry a container runs. Hono's `serve({ fetch })` proves the port and that the package
+   * serves HTTP, but the package's own start script stays how it runs (it often starts a compiled `dist/index.js`).
+   */
+  claimsEntrypoint?: false;
+};
+
+/**
+ * A WebSocket server in the process, by library: `ws`'s `WebSocketServer`, socket.io's `Server`, `@fastify/websocket`,
+ * `express-ws`, uWebSockets.js and Bun's `websocket` handler, or a FastAPI/Starlette `@app.websocket` route,
+ * Flask-SocketIO and `websockets.serve`. Each needs the library's import and its server call; a client
+ * (`new WebSocket(url)`, `socket.io-client`) is not one.
+ */
+const JS_WEBSOCKET_SERVERS: ReadonlyArray<{ module: string; server: RegExp }> = [
+  { module: 'ws', server: /\bnew\s+(?:WebSocketServer|WebSocket\.Server|WsServer)\s*\(/ },
+  {
+    module: 'socket.io',
+    server: /\bnew\s+(?:Server|SocketIOServer|SocketServer)\s*\(|\b(?:socketIo|socketio|io)\s*\(\s*\w/
+  },
+  { module: '@fastify/websocket', server: /\.register\s*\(/ },
+  { module: 'express-ws', server: /\bexpressWs\s*\(|\.ws\s*\(/ },
+  { module: 'uWebSockets.js', server: /\.ws\s*\(/ }
+];
+const BUN_WEBSOCKET_SERVER = /\bBun\.serve\s*\(\s*\{[\s\S]{0,800}?\bwebsocket\s*:/;
+const PYTHON_WEBSOCKET_SERVER = /^\s*@\w+\.websocket(?:_route)?\s*\(|\bSocketIO\s*\(|\bwebsockets\.serve\s*\(/m;
+
+const importsModule = (keep: string, module: string): boolean => {
+  const name = module.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:\\bfrom\\s*|\\brequire\\s*\\(\\s*|\\bimport\\s*\\(\\s*)['"]${name}['"]`).test(keep);
+};
+
+const websocketIn = (path: string, raw: string, code: string): RegExp | undefined => {
+  if (path.endsWith('.py')) return PYTHON_WEBSOCKET_SERVER.test(code) ? PYTHON_WEBSOCKET_SERVER : undefined;
+  if (!/\.(?:[cm]?js|tsx?)$/.test(path)) return undefined;
+  if (BUN_WEBSOCKET_SERVER.test(code)) return BUN_WEBSOCKET_SERVER;
+  const keep = maskFile(path, raw, 'keep');
+  return JS_WEBSOCKET_SERVERS.find(({ module, server }) => importsModule(keep, module) && server.test(code))?.server;
 };
 
 const workerProcessType = (path: string): string => {
@@ -34,9 +74,14 @@ const workerProcessType = (path: string): string => {
   return /(?:^|\/)(?:worker|workers)(?:\/|$)/i.test(path) && /^(?:index|main|bootstrap)$/i.test(stem) ? 'worker' : stem;
 };
 
-const detectionFor = (path: string, raw: string): Detection | undefined => {
+/**
+ * `code` is `raw` with comments and string contents blanked: a commented-out `app.listen(3000)` or a server quoted in
+ * a help text proves nothing.
+ */
+const detectionFor = (path: string, raw: string, code: string): Detection | undefined => {
   if (/\.(?:[cm]?js|tsx?)$/.test(path)) {
-    const queueWorker = /from\s+["'](?:bullmq|bull|bee-queue)["']/.test(raw) && /new\s+Worker\s*\(/.test(raw);
+    const queueWorker =
+      /from\s+["'](?:bullmq|bull|bee-queue)["']/.test(maskFile(path, raw, 'keep')) && /new\s+Worker\s*\(/.test(code);
     if (queueWorker) {
       return {
         entrypoint: path,
@@ -46,8 +91,8 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
         processType: workerProcessType(path)
       };
     }
-    const honoApplication = /\b(?:const|let)\s+(\w+)\s*=\s*new\s+Hono\s*\(/.exec(raw);
-    if (honoApplication !== null && new RegExp(`export\\s+default\\s+${honoApplication[1]}\\b`).test(raw)) {
+    const honoApplication = /\b(?:const|let)\s+(\w+)\s*=\s*new\s+Hono\s*\(/.exec(code);
+    if (honoApplication !== null && new RegExp(`export\\s+default\\s+${honoApplication[1]}\\b`).test(code)) {
       return {
         entrypoint: path,
         framework: 'hono',
@@ -55,8 +100,18 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
         language: /\.tsx?$/.test(path) ? 'typescript' : 'javascript'
       };
     }
+    // `serve({ fetch: app.fetch })` is Hono's Node server.
+    const honoServe = /\bserve\s*\(\s*\{[^}]*\bfetch\s*[:,}]/;
     const pattern = /\.listen\s*\(|\bBun\.serve\s*\(|\bDeno\.serve\s*\(/;
-    return pattern.test(raw)
+    if (!pattern.test(code) && honoServe.test(code)) {
+      return {
+        entrypoint: path,
+        pattern: honoServe,
+        language: /\.tsx?$/.test(path) ? 'typescript' : 'javascript',
+        claimsEntrypoint: false
+      };
+    }
+    return pattern.test(code)
       ? {
           entrypoint: path,
           pattern,
@@ -72,7 +127,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
     return isWebEntrypoint && pattern.test(raw) ? { entrypoint: path, pattern, language: 'php' } : undefined;
   }
   if (path.endsWith('.py')) {
-    const application = /^\s*(\w+)\s*=\s*(FastAPI|Flask)\s*\(/m.exec(raw);
+    const application = /^\s*(\w+)\s*=\s*(FastAPI|Flask)\s*\(/m.exec(code);
     if (application !== null) {
       const framework = application[2] === 'FastAPI' ? 'fastapi' : 'flask';
       return {
@@ -83,7 +138,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
       };
     }
     const django = /^\s*application\s*=\s*get_wsgi_application\s*\(\s*\)/m;
-    return django.test(raw)
+    return django.test(code)
       ? {
           entrypoint: `${path}:application`,
           framework: 'django',
@@ -94,13 +149,13 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
   }
   if (path.endsWith('.go')) {
     const pattern = /(?:http\.ListenAndServe|\.ListenAndServe\s*\(|\.Run\s*\(|fiber\.New\s*\(|echo\.New\s*\()/;
-    return /\bfunc\s+main\s*\(/.test(raw) && pattern.test(raw)
+    return /\bfunc\s+main\s*\(/.test(code) && pattern.test(code)
       ? { entrypoint: path, pattern, language: 'go' }
       : undefined;
   }
   if (path.endsWith('.java') || path.endsWith('.kt')) {
     const pattern = /@SpringBootApplication|SpringApplication\.run\s*\(/;
-    return pattern.test(raw)
+    return pattern.test(maskFile(path, raw, 'keep'))
       ? {
           entrypoint: path,
           framework: 'spring-boot',
@@ -128,27 +183,42 @@ const matchedPort = (path: string, raw: string, match: RegExpExecArray | null): 
 
 /**
  * The port a JavaScript server listens on when the source says so literally: `listen(4000)`,
- * `listen({ port: 4000 })`, `Bun.serve({ port: 4000 })`, `listen(process.env.PORT || 4000)`, or a constant that
- * holds one of those. A fallback is reported too: the service then listens there whether or not `PORT` is set.
+ * `listen({ port: 4000 })`, `Bun.serve({ port: 4000 })`, Hono's `serve({ fetch: app.fetch, port: 4000 })`,
+ * `listen(process.env.PORT || 4000)`, or a constant that holds one of those. A fallback is reported too: the service
+ * then listens there whether or not `PORT` is set. `code` has comments and strings blanked, at the same offsets.
  */
-const javascriptListenPort = (path: string, raw: string): ListenPort | undefined => {
+const javascriptListenPort = (path: string, raw: string, code: string): ListenPort | undefined => {
   const direct =
-    /\.listen\(\s*(\d{2,5})\b/.exec(raw) ??
-    /\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*(\d{2,5})\b/.exec(raw) ??
-    /(?:\.listen|\bBun\.serve|\bDeno\.serve)\(\s*\{[^}]*?\bport\s*:\s*(\d{2,5})\b/.exec(raw);
+    /\.listen\(\s*(\d{2,5})\b/.exec(code) ??
+    /\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*(\d{2,5})\b/.exec(code) ??
+    // Only a literal number is a port: `port: 8000 + 1` is not 8000.
+    /(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*(?:[^,}]*?(?:\|\||\?\?)\s*)?(\d{2,5})\s*[,}\n]/.exec(
+      code
+    );
   if (direct !== null) return matchedPort(path, raw, direct);
-  const named = /\.listen\(\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(raw)?.[1];
+  // `serve({ fetch: app.fetch, port })` reads a constant named `port`.
+  const served = /\b(?:Bun\.serve|Deno\.serve|serve)\(\s*\{[^}]*?\bport\b\s*(?::\s*([A-Za-z_$][\w$]*))?\s*[,}]/.exec(
+    code
+  );
+  const named =
+    /\.listen\(\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(code)?.[1] ?? (served === null ? undefined : (served[1] ?? 'port'));
   if (named === undefined) return undefined;
   return matchedPort(
     path,
     raw,
-    new RegExp(`\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\b`).exec(raw)
+    new RegExp(
+      `\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\s*(?:[;,)\\n]|$)`
+    ).exec(code)
   );
 };
 
 /** `http.ListenAndServe(":8080", ...)`, gin's `r.Run(":8080")`, echo's `e.Start(":8080")`, fiber's `app.Listen(":3000")`. */
 const goListenPort = (path: string, raw: string): ListenPort | undefined =>
-  matchedPort(path, raw, /(?:ListenAndServe(?:TLS)?|\.Run|\.Start|\.Listen)\(\s*"[\w.-]*:(\d{2,5})"/.exec(raw));
+  matchedPort(
+    path,
+    raw,
+    /(?:ListenAndServe(?:TLS)?|\.Run|\.Start|\.Listen)\(\s*"[\w.-]*:(\d{2,5})"/.exec(maskFile(path, raw, 'keep'))
+  );
 
 const SPRING_BOOT_DEFAULT_PORT = 8080;
 
@@ -195,7 +265,8 @@ export const serverEntrypointProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, stopped after one entrypoint per service root.
       const raw = await readText(context, path);
       if (raw === undefined) continue;
-      const detection = detectionFor(path, raw);
+      const code = maskFile(path, raw, 'blank');
+      const detection = detectionFor(path, raw, code);
       if (detection === undefined) continue;
       const root = nearestManifestRoot(path, context.files, entered) ?? '.';
       const key = `${root}::${detection.processType ?? 'main'}`;
@@ -205,7 +276,13 @@ export const serverEntrypointProbe: Probe = {
         // oxlint-disable-next-line no-await-in-loop -- Java manifest evidence is needed before classifying the candidate.
         exposesHttp = await javaServiceExposesHttp(root, context);
       }
-      const citation = citeFirstMatch(path, raw, detection.pattern, 'containerEntrypoint');
+      const citation = citeFirstCodeMatch(
+        path,
+        raw,
+        code,
+        detection.pattern,
+        detection.claimsEntrypoint === false ? 'exposesHttp' : 'containerEntrypoint'
+      );
       const listenPort = !exposesHttp
         ? undefined
         : detection.language === 'go'
@@ -214,8 +291,14 @@ export const serverEntrypointProbe: Probe = {
             ? // oxlint-disable-next-line no-await-in-loop -- one Spring module per service root.
               await springBootPort(root, context, citation)
             : detection.language === 'javascript' || detection.language === 'typescript'
-              ? javascriptListenPort(path, raw)
+              ? javascriptListenPort(path, raw, code)
               : undefined;
+      const websocket = exposesHttp ? websocketIn(path, raw, code) : undefined;
+      const websocketCitation =
+        websocket === undefined
+          ? undefined
+          : (citeFirstCodeMatch(path, raw, code, websocket, 'longLivedConnections') ??
+            citeFirstMatch(path, raw, /\bWebSocket|\bwebsocket|SocketIO|socket\.io/, 'longLivedConnections'));
       byRoot.set(key, {
         name:
           detection.processType ??
@@ -228,10 +311,13 @@ export const serverEntrypointProbe: Probe = {
         ...(detection.framework === undefined ? {} : { framework: detection.framework }),
         exposesHttp,
         executionModel: 'long-running',
-        containerEntrypoint: detection.entrypoint,
+        ...(detection.claimsEntrypoint === false ? {} : { containerEntrypoint: detection.entrypoint }),
         ...(listenPort === undefined ? {} : { port: listenPort.port }),
+        ...(websocket === undefined ? {} : { longLivedConnections: 'websocket' as const }),
         environmentVariables: [],
-        evidence: [citation, listenPort?.citation].filter((entry): entry is Citation => entry !== undefined),
+        evidence: [citation, listenPort?.citation, websocketCitation].filter(
+          (entry): entry is Citation => entry !== undefined
+        ),
         source: 'probe'
       });
     }

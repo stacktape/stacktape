@@ -188,6 +188,13 @@ const SELF_TRIGGER_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
 };
 
 const SNS_SQS_ADDRESS = /(?:^|_)(?:TOPIC_ARN|QUEUE_URL|QUEUE_ARN)$/;
+/**
+ * A variable holding the HTTP address of a service: `API_URL`, `ME_URL`, `PAYMENTS_ENDPOINT`. A datastore's connection
+ * URL, an error tracker's DSN or the app's own callback address is not one.
+ */
+const ADDRESS_VARIABLE = /(?:^|_)(?:URL|URI|ENDPOINT|ORIGIN)$/;
+const NOT_A_SERVICE_ADDRESS =
+  /DATABASE|(?:^|_)(?:DB|PG|POSTGRES|MYSQL|MARIADB|MONGO(?:DB)?|REDIS|VALKEY|CACHE|AMQP|RABBIT(?:MQ)?|KAFKA|NATS|ELASTIC(?:SEARCH)?|OPENSEARCH|SEARCH|SMTP|MAIL|S3|BUCKET|QUEUE|TOPIC|SENTRY|WEBHOOK|CALLBACK|REDIRECT)(?:_|$)|^(?:APP|APPLICATION|SITE|NEXTAUTH|BASE|PUBLIC|SELF)_URL$/;
 
 /** The resources only a publish or send call proves, as a gap names them. */
 const MESSAGING_VARIABLE_LABELS: Partial<
@@ -478,9 +485,11 @@ const environmentFor = (
     /** Where each SQLite dependency's file is, by dependency name. */
     sqliteFiles: ReadonlyMap<string, string>;
     projectName: string | undefined;
+    /** User pools by dependency name. An app client ID is no secret, so one init does not create stays unset. */
+    userPoolNames: ReadonlySet<string>;
   }
 ): Array<{ name: string; value: unknown }> => {
-  const { serviceResourceNames, composedDependencies, sqliteFiles, projectName } = context;
+  const { serviceResourceNames, composedDependencies, sqliteFiles, projectName, userPoolNames } = context;
   const variables: Array<{ name: string; value: unknown }> = [];
 
   for (const variable of service.environmentVariables) {
@@ -496,6 +505,7 @@ const environmentFor = (
         continue;
       }
       if (composed === undefined) {
+        if (userPoolNames.has(variable.dependencyName)) continue;
         const secretName = secretNameFor(variable.name);
         if (secretName !== undefined) {
           variables.push({
@@ -609,7 +619,8 @@ const composeDependency = (
   /** The stream a table needs for the handlers its stream invokes. */
   streamType: StreamType | undefined
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
-  const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
+  const rdsEngine =
+    dependency.kind === 'mysql' && dependency.mysqlEngine === 'mariadb' ? 'mariadb' : RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
     const resolved = resolveEngineVersion({
       engine: rdsEngine,
@@ -665,7 +676,7 @@ const composeDependency = (
           ]
         }
       },
-      reason: `Your code connects to a ${dependencyLabel(dependency.kind)} database.${
+      reason: `Your code connects to a ${rdsEngine === 'mariadb' ? 'MariaDB' : dependencyLabel(dependency.kind)} database.${
         resolved.movedOffPin
           ? ` Version ${dependency.engineVersion} is no longer offered on RDS, so ${resolved.version} is used instead.`
           : ''
@@ -743,6 +754,23 @@ const composeDependency = (
         resource: { type: 'websocket-api-gateway', properties: {} },
         reason: 'Your functions handle WebSocket connections and messages.'
       };
+    case 'user-pool': {
+      const variables = dependency.addressedBy;
+      const client = variables.find((name) => /CLIENT_?ID$/.test(name)) ?? 'the client ID variable';
+      return dependency.userPoolOwnership === 'project'
+        ? {
+            resource: {
+              type: 'user-auth-pool',
+              // Without a SignUp call in the code, accounts are created by an administrator: an open pool would let
+              // anyone sign up through the Cognito API and pass the API's token check.
+              properties: dependency.userPoolSelfSignUp === true ? {} : { allowOnlyAdminsToCreateAccount: true }
+            },
+            reason: `Your code signs users in with Cognito, and the repository creates its own user pool, so this creates the pool and the app client ${client} names.`
+          }
+        : {
+            unsupported: `Your code signs users in with a Cognito user pool through ${variables.join(' and ')}. Nothing in the repository creates that pool, so it is probably an existing one with its users, and init created none and set no value. Before deploying, set ${variables.join(' and ')} to your pool's values. If this project should own a new, empty pool, add a user-auth-pool resource and set ${client} to $ResourceParam('<pool name>', 'clientId').`
+          };
+    }
     case 'state-machine':
       return {
         // The states are written once the functions have their resource names; a placeholder until then.
@@ -867,6 +895,10 @@ export const composeConfig = ({
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
+  // A handler that reads JWT authorizer claims gets its route behind the project's own user pool, when there is one.
+  const projectUserPools = facts.dependencies.filter(
+    (dependency) => dependency.kind === 'user-pool' && dependency.userPoolOwnership === 'project'
+  );
   const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
@@ -1186,6 +1218,9 @@ export const composeConfig = ({
     };
   }
 
+  const userPoolNames = new Set(
+    facts.dependencies.filter((dependency) => dependency.kind === 'user-pool').map((dependency) => dependency.name)
+  );
   const httpTriggeredServices = facts.services.filter((service) =>
     service.functionTriggers.some((trigger) => trigger.type === 'http')
   );
@@ -1392,7 +1427,8 @@ export const composeConfig = ({
       httpApiGatewayName,
       composedDependencies,
       sqliteFiles,
-      projectName
+      projectName,
+      userPoolNames
     });
     // A frontend's build-time API address: the HTTP API in front of the functions, or the backend service's URL.
     const buildAddresses: Array<{ name: string; value: string }> = [];
@@ -1449,6 +1485,8 @@ export const composeConfig = ({
         variable.dependencyName !== undefined &&
         !composedDependencyNames.has(variable.dependencyName) &&
         !sqliteFiles.has(variable.dependencyName) &&
+        // The user pool's own note names the variable to set.
+        !userPoolNames.has(variable.dependencyName) &&
         // The kept-external branch above says this better, naming the provider it is leaving alone.
         !gaps.some((gap) => gap.subject === `${service.name}.${variable.name}`)
       ) {
@@ -1526,6 +1564,19 @@ export const composeConfig = ({
         });
         continue;
       }
+      // An address the code sends requests to (`fetch(process.env.API_URL + '/me')`) is how it reaches another service.
+      // Left empty, every one of those requests fails, so it is a named gap rather than one more optional setting.
+      if (
+        variable.requestedOverHttp === true &&
+        ADDRESS_VARIABLE.test(variable.name) &&
+        !NOT_A_SERVICE_ADDRESS.test(variable.name)
+      ) {
+        gaps.push({
+          subject: `${service.name}.${variable.name}`,
+          message: `${service.name} reads ${variable.name}, an address nothing in the configuration sets, and init could not tell which service it points at. Before deploying, set ${variable.name} in ${name}'s environment: $ResourceParam('<resource name>', 'url') for one of your services, or the address of an outside one.`
+        });
+        continue;
+      }
       unsetSettings.push({
         serviceName: service.name,
         resourceName: name,
@@ -1557,6 +1608,9 @@ export const composeConfig = ({
       connectTo,
       dependencyResourceNames,
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
+      ...(projectUserPools.length === 1 && dependencyResourceNames.has(projectUserPools[0]!.name)
+        ? { userPoolResourceName: dependencyResourceNames.get(projectUserPools[0]!.name)! }
+        : {}),
       profile,
       packageManager: facts.packageManager,
       requiresVpc,
@@ -1652,6 +1706,13 @@ export const composeConfig = ({
     if (monorepoCaveat !== undefined) {
       gaps.push({ subject: service.name, message: monorepoCaveat });
     }
+    const unreadOutputConfig = service.servesStaticAssets?.unreadOutputConfig;
+    if (classification.resourceType === 'hosting-bucket' && unreadOutputConfig !== undefined) {
+      gaps.push({
+        subject: `${service.name}.uploadDirectoryPath`,
+        message: `${unreadOutputConfig} decides where the build writes, in a way init could not read, so uploadDirectoryPath: ${service.servesStaticAssets!.path} is only the default. Set it to the directory your build writes before deploying.`
+      });
+    }
 
     if (
       service.startCommand === undefined &&
@@ -1690,6 +1751,16 @@ export const composeConfig = ({
       gaps.push({
         subject: `${service.name}.vpc-internet-access`,
         message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
+      });
+    }
+    // Without the project's own pool there is nothing init can attach; the route stays as it is on main, public.
+    if (
+      projectUserPools.length !== 1 &&
+      service.functionTriggers.some((trigger) => trigger.type === 'http' && trigger.authorization === 'jwt')
+    ) {
+      gaps.push({
+        subject: `${service.name}.authorizer`,
+        message: `${service.name} reads the claims of a JWT authorizer, but init found no user pool this project creates, so its route has no authorizer: anyone can call it and the claims arrive empty. Before deploying, add a cognito authorizer for your user pool, or a lambda authorizer that checks your tokens, to its http-api-gateway event.`
       });
     }
     for (const trigger of service.functionTriggers) {
@@ -1784,6 +1855,26 @@ export const composeConfig = ({
   }
 
   for (const handler of facts.handlerFindings) {
+    if (handler.reason === 'container-image') {
+      const directory = posix.dirname(handler.path);
+      const zipFunction = facts.services.find(
+        (service) =>
+          service.functionEntrypoint !== undefined &&
+          (directory === '.' || service.functionEntrypoint.startsWith(`${directory}/`)) &&
+          serviceResourceNames.has(service.name)
+      );
+      const raw =
+        'an AWS::Lambda::Function with PackageType: Image under cloudformationResources, and push the image to ECR yourself';
+      const zipName = zipFunction === undefined ? undefined : serviceResourceNames.get(zipFunction.name);
+      gaps.push({
+        subject: handler.path,
+        message:
+          zipFunction === undefined
+            ? `${handler.path} builds a container-image Lambda function. Stacktape packages functions as zip archives only, so init created nothing for it. To deploy it, add ${raw}.`
+            : `${handler.path} builds a container-image Lambda function. Stacktape packages functions as zip archives only, so init deploys the ${zipName} function from ${zipFunction.functionEntrypoint} as a zip archive and runs no container for the Dockerfile. That works when the handler needs nothing the image adds. If it needs the image, replace the ${zipName} function with ${raw}.`
+      });
+      continue;
+    }
     if (handler.reason === 'java-package') {
       const folder = posix.basename(posix.dirname(handler.path));
       const className = posix.basename(handler.path, '.java');
@@ -1873,6 +1964,7 @@ const buildServiceResource = ({
   connectTo,
   dependencyResourceNames,
   httpApiGatewayName,
+  userPoolResourceName,
   profile,
   packageManager,
   requiresVpc,
@@ -1890,6 +1982,8 @@ const buildServiceResource = ({
   connectTo: readonly string[];
   dependencyResourceNames: ReadonlyMap<string, string>;
   httpApiGatewayName?: string;
+  /** The project's own user pool, whose tokens a JWT-protected route checks. */
+  userPoolResourceName?: string;
   profile: InfrastructureProfile;
   packageManager: PackageManager | undefined;
   requiresVpc: boolean;
@@ -1959,7 +2053,10 @@ const buildServiceResource = ({
               method: httpRouteMethod(trigger.method),
               path: trigger.path,
               ...(trigger.payloadFormat === '2.0' ? { payloadFormat: '2.0' } : {}),
-              ...(trigger.authorization === 'aws-iam' ? { authorizer: { type: 'aws-iam' } } : {})
+              ...(trigger.authorization === 'aws-iam' ? { authorizer: { type: 'aws-iam' } } : {}),
+              ...(trigger.authorization === 'jwt' && userPoolResourceName !== undefined
+                ? { authorizer: { type: 'cognito', properties: { userPoolName: userPoolResourceName } } }
+                : {})
             }
           });
         }
@@ -2155,25 +2252,39 @@ const buildServiceResource = ({
         minInstances: profile.scaling.minInstances,
         maxInstances: profile.scaling.maxInstances
       },
-      ...(resourceType === 'web-service'
+      // The default HTTP API closes every connection after one response. WebSockets and streamed responses need an
+      // Application Load Balancer, the one web-service ingress that keeps a connection open.
+      ...(resourceType === 'web-service' && service.longLivedConnections !== 'none'
         ? {
+            loadBalancing: { type: 'application-load-balancer' },
             alarms: [
               {
-                description: 'Web service p95 latency stays above 5 seconds',
-                trigger: {
-                  type: 'http-api-gateway-latency',
-                  properties: { thresholdMilliseconds: 5000, statistic: 'p95' }
-                },
-                evaluation: {
-                  period: 300,
-                  evaluationPeriods: 3,
-                  breachedPeriods: 2
-                },
+                description: 'Web service returns errors on more than 10% of requests',
+                trigger: { type: 'application-load-balancer-error-rate', properties: { thresholdPercent: 10 } },
+                evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
                 includeInHistory: true
               }
             ]
           }
-        : {}),
+        : resourceType === 'web-service'
+          ? {
+              alarms: [
+                {
+                  description: 'Web service p95 latency stays above 5 seconds',
+                  trigger: {
+                    type: 'http-api-gateway-latency',
+                    properties: { thresholdMilliseconds: 5000, statistic: 'p95' }
+                  },
+                  evaluation: {
+                    period: 300,
+                    evaluationPeriods: 3,
+                    breachedPeriods: 2
+                  },
+                  includeInHistory: true
+                }
+              ]
+            }
+          : {}),
       ...shared
     }
   };

@@ -147,6 +147,27 @@ const defaultPortOf = (command: string): number | undefined => {
   return Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined;
 };
 
+/**
+ * The port a web command binds when it states one: `uvicorn --port 8000`, `gunicorn --bind 0.0.0.0:5000`,
+ * `rails server -p 3000`, `manage.py runserver 0.0.0.0:8000`, `php -S 0.0.0.0:8000`. A command that reads `$PORT`
+ * anywhere follows the port Stacktape gives it, and two different ports say nothing.
+ */
+const LITERAL_PORTS = [
+  /(?:^|\s)--port(?:=|\s+)(\d{2,5})\b/g,
+  /(?:^|\s)-p\s*(\d{2,5})\b/g,
+  /(?:^|\s)(?:--bind|-b|--listen)(?:=|\s+)['"]?[\w.*[\]:-]*:(\d{2,5})\b/g,
+  /\brunserver\s+(?:[\w.[\]:-]*:)?(\d{2,5})\b/g,
+  /(?:^|\s)-S\s+[\w.[\]-]*:(\d{2,5})\b/g
+];
+const literalPortOf = (command: string): number | undefined => {
+  if (/\$\{?PORT\b|%PORT%/.test(command)) return undefined;
+  const ports = new Set(
+    LITERAL_PORTS.flatMap((pattern) => [...command.matchAll(pattern)].map((match) => Number(match[1])))
+  );
+  const [port] = ports;
+  return ports.size === 1 && port! > 0 && port! < 65536 ? port : undefined;
+};
+
 /** At most this many Procfiles are read: one per service directory is the norm, and a vendored tree is not a project. */
 const MAX_PROCFILES = 20;
 
@@ -251,7 +272,10 @@ const readProcfile = async (
       language: language ?? 'unknown',
       exposesHttp: isWeb,
       // `--port ${PORT:-8000}` listens on 8000 wherever nothing sets PORT; Stacktape sets PORT to the service's port.
-      ...(isWeb && defaultPortOf(command) !== undefined ? { port: defaultPortOf(command) } : {}),
+      // `--port 8000` listens there whatever PORT says.
+      ...(isWeb && (defaultPortOf(command) ?? literalPortOf(command)) !== undefined
+        ? { port: (defaultPortOf(command) ?? literalPortOf(command))! }
+        : {}),
       executionModel: 'long-running',
       startCommand: command,
       environmentVariables,

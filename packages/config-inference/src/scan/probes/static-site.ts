@@ -1,29 +1,85 @@
-/** Detect a repository that is already a directory of static files, with no build step. */
+/** Detect static files that deploy as they are, with no build step. */
 
+import { posix } from 'node:path';
+import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
-import { citeFirstMatch, readText, type Probe, type ProbeOutput } from '../probe';
+import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+
+const HTML = /<html\b|<!doctype\s+html/i;
+/** A README sentence calling something a static site: `docs/ is a static site served from a CDN`. */
+const STATIC_STATEMENT = /\bstatic\s+(?:site|website|web\s+site|pages|html)\b/i;
+/** The sentence says the site is served: `served by a CDN`, `deployed to S3`, `hosted on ...`. */
+const SERVED = /\b(?:serve[sd]?|host(?:s|ed|ing)?|deploy(?:s|ed)?|publish(?:es|ed)?|CDN)\b/i;
+/** A sentence about fixtures, examples or what is not deployed states no site to publish. */
+const NOT_PUBLISHED = /\b(?:not|never|fixtures?|tests?|examples?|samples?)\b/i;
+const NOT_SOURCE =
+  /(?:^|\/)(?:node_modules|dist|build|out|\.next|\.output|coverage|vendor|\.stacktape|fixtures?|__fixtures__|tests?|__tests__|spec|templates?|examples?|samples?|demos?)(?:\/|$)/i;
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Directories the root README says are a static site that is served, and that hold an `index.html` and no package
+ * manifest of their own: `docs/index.html` with "docs/ is a static site served by a CDN". A directory of HTML alone is
+ * no such statement: generated API references and GitHub Pages sources look the same. Fixture, test, template and
+ * example directories are never one.
+ */
+const statedStaticDirectories = async (
+  context: ProbeContext
+): Promise<Array<{ directory: string; readme: string; statement: RegExp }>> => {
+  const readme = context.files.find((path) => /^readme\.md$/i.test(path));
+  if (readme === undefined) return [];
+  const raw = await readText(context, readme, { fullFile: true });
+  if (raw === undefined) return [];
+  const sentences = raw
+    .split(/(?<=[.!?])\s+|\r?\n/)
+    .filter((sentence) => STATIC_STATEMENT.test(sentence) && SERVED.test(sentence) && !NOT_PUBLISHED.test(sentence));
+  if (sentences.length === 0) return [];
+  const directories = context.files
+    .filter((path) => posix.basename(path) === 'index.html' && path.includes('/') && !NOT_SOURCE.test(path))
+    .map((path) => posix.dirname(path))
+    .filter((directory) => !context.files.includes(`${directory}/package.json`));
+  return directories.flatMap((directory) => {
+    const named = new RegExp(`(?:^|[\\s\`'"(])${escapeRegExp(directory)}/?(?=[\\s\`'".,:;)]|$)`);
+    const sentence = sentences.find((candidate) => named.test(candidate));
+    return sentence === undefined
+      ? []
+      : [{ directory, readme, statement: new RegExp(escapeRegExp(sentence.trim().slice(0, 120))) }];
+  });
+};
+
+const staticService = (name: string, path: string, citation: Citation | undefined) =>
+  ({
+    name,
+    path,
+    language: 'html',
+    exposesHttp: false,
+    executionModel: 'long-running',
+    servesStaticAssets: { path },
+    environmentVariables: [],
+    evidence: citation === undefined ? [] : [citation],
+    source: 'probe'
+  }) satisfies ServiceFactInput;
 
 export const staticSiteProbe: Probe = {
   name: 'static-site',
   run: async (context): Promise<ProbeOutput> => {
-    // Manifests own generated frontends. This probe is only for an already-built/plain HTML root;
-    // otherwise the same Vite project would become two resources.
-    if (!context.files.includes('index.html') || context.files.includes('package.json')) return {};
-    const contents = await readText(context, 'index.html');
-    if (contents === undefined || !/<html\b|<!doctype\s+html/i.test(contents)) return {};
-
-    const citation = citeFirstMatch('index.html', contents, /<html\b|<!doctype\s+html/i, 'servesStaticAssets');
-    const service: ServiceFactInput = {
-      name: 'staticSite',
-      path: '.',
-      language: 'html',
-      exposesHttp: false,
-      executionModel: 'long-running',
-      servesStaticAssets: { path: '.' },
-      environmentVariables: [],
-      evidence: citation === undefined ? [] : [citation],
-      source: 'probe'
-    };
-    return { services: [service] };
+    const services: ServiceFactInput[] = [];
+    // Manifests own generated frontends. A plain HTML root is only for a repository without one; otherwise the same
+    // Vite project would become two resources.
+    if (context.files.includes('index.html') && !context.files.includes('package.json')) {
+      const contents = await readText(context, 'index.html');
+      if (contents !== undefined && HTML.test(contents)) {
+        services.push(
+          staticService('staticSite', '.', citeFirstMatch('index.html', contents, HTML, 'servesStaticAssets'))
+        );
+      }
+    }
+    for (const { directory, readme, statement } of await statedStaticDirectories(context)) {
+      // oxlint-disable-next-line no-await-in-loop -- one README, read again only for the citation.
+      const raw = await readText(context, readme, { fullFile: true });
+      const citation = raw === undefined ? undefined : citeFirstMatch(readme, raw, statement, 'servesStaticAssets');
+      services.push(staticService(posix.basename(directory), directory, citation));
+    }
+    return services.length === 0 ? {} : { services };
   }
 };

@@ -242,6 +242,11 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   dockerfile: existing.dockerfile ?? incoming.dockerfile,
   healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
   writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
+  // A WebSocket server one probe found is not undone by another that did not look.
+  longLivedConnections:
+    existing.longLivedConnections === undefined || existing.longLivedConnections === 'none'
+      ? (incoming.longLivedConnections ?? existing.longLivedConnections)
+      : existing.longLivedConnections,
   servesStaticAssets: existing.servesStaticAssets ?? incoming.servesStaticAssets,
   environmentVariables: mergeEnvironmentVariables(
     existing.environmentVariables ?? [],
@@ -655,7 +660,8 @@ const API_ADDRESS_VARIABLE =
   /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
 
 /**
- * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, …) at the project's one HTTP backend.
+ * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, or the `API_URL` a Next.js server action reads) at the
+ * project's one HTTP backend.
  *
  * Without it the frontend builds, deploys and starts in `stacktape dev` with an empty API address. Only one backend
  * qualifies: every HTTP-triggered function shares one API gateway, so they count as one, and a project with both such
@@ -665,7 +671,8 @@ const isFrontend = (service: ServiceFactInput): boolean =>
   (service.servesStaticAssets !== undefined && !service.exposesHttp) ||
   SELF_PACKAGING_FRAMEWORKS.has(service.framework ?? '');
 
-const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void => {
+const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): Set<VariableInput> => {
+  const linked = new Set<VariableInput>();
   const httpFunctions = services.filter((service) =>
     (service.functionTriggers ?? []).some((trigger) => trigger.type === 'http')
   );
@@ -673,20 +680,21 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): void =
     (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
   );
   const backends = [...(httpFunctions.length > 0 ? [httpFunctions[0]!] : []), ...httpServices];
-  if (backends.length !== 1) return;
+  if (backends.length !== 1) return linked;
   const [backend] = backends;
   for (const service of services) {
     if (!isFrontend(service) || service === backend) continue;
     for (const variable of service.environmentVariables ?? []) {
-      if (
-        variable.role === 'build-time' &&
-        variable.targetServiceName === undefined &&
-        API_ADDRESS_VARIABLE.test(variable.name)
-      ) {
+      if (variable.targetServiceName !== undefined || !API_ADDRESS_VARIABLE.test(variable.name)) continue;
+      if (variable.role === 'build-time') variable.targetServiceName = backend!.name;
+      if (variable.role === 'runtime-config') {
+        variable.role = 'cross-service-reference';
         variable.targetServiceName = backend!.name;
+        linked.add(variable);
       }
     }
   }
+  return linked;
 };
 
 type VariableInput = NonNullable<ServiceFactInput['environmentVariables']>[number];
@@ -1060,8 +1068,9 @@ export const assembleCandidateFacts = async ({
   }
 
   applyStacktapeReferences({ services, dependencies });
-  linkFrontendApiAddresses(services);
+  const frontendAddresses = linkFrontendApiAddresses(services);
   const linkedAddresses = linkServiceAddresses(services);
+  for (const variable of frontendAddresses) linkedAddresses.add(variable);
   linkFunctionReferences(services);
   await markInternalServices({
     services,

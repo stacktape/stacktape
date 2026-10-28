@@ -90,7 +90,15 @@ export const directoriesEnteredByRoot = async (context: ProbeContext): Promise<R
 export const SAMPLE_DIRECTORY =
   /(?:^|\/)(?:examples?|samples?|demos?|extras?|fixtures?|__fixtures__|templates?|playgrounds?)\//i;
 
+/**
+ * A path without the package directories under a JVM source root: `src/main/java/com/example/App.java` becomes
+ * `src/main/java/App.java`. `com.example` is the conventional package of real applications, not a sample, and no package
+ * name says what a directory is for.
+ */
+export const outsidePackageNamespace = (path: string): string =>
+  path.replace(/((?:^|\/)src\/(?:main|test)\/(?:java|kotlin|scala|groovy)\/)(?:[^/]+\/)+/, '$1');
+
 export const withoutSampleDirectories = (paths: readonly string[]): readonly string[] => {
-  const own = paths.filter((path) => !SAMPLE_DIRECTORY.test(path));
+  const own = paths.filter((path) => !SAMPLE_DIRECTORY.test(outsidePackageNamespace(path)));
   return own.length > 0 ? own : paths;
 };

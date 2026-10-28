@@ -98,7 +98,9 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
     return {
       resourceType: 'hosting-bucket',
       reason:
-        'This builds to static files and runs no server, so it is served from storage and a CDN rather than a container.',
+        service.buildCommand === undefined
+          ? 'These are static files with no server, so they are served from storage and a CDN rather than a container.'
+          : 'This builds to static files and runs no server, so it is served from storage and a CDN rather than a container.',
       evidence: service.evidence.slice(0, 2)
     };
   }
@@ -134,7 +136,7 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
   if (service.longLivedConnections !== 'none') {
     return {
       resourceType: 'web-service',
-      reason: `This holds ${service.longLivedConnections === 'websocket' ? 'websocket' : 'streaming'} connections open, which needs a long-lived container rather than a per-request function.`,
+      reason: `This holds ${service.longLivedConnections === 'websocket' ? 'WebSocket' : 'streaming'} connections open, so it runs as a container behind an Application Load Balancer, which keeps them open. A load balancer is billed by the hour, plus usage (LCUs) and its public IPv4 addresses, rather than per request.`,
       evidence: evidenceFor(service, ['longLivedConnections'])
     };
   }

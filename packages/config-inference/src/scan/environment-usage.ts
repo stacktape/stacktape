@@ -36,6 +36,8 @@ import { agreedItemKey, emptyItemKeyObservations, observeItemKeys } from './dyna
 import { AMBIGUOUS_DATABASE_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
 import { publishedDetailTypes } from './probes/lambda-source';
 import { isPlatformEnvironmentVariable } from './platform-environment';
+import { sliceBalancedBraces } from './balanced-slice';
+import { outsidePackageNamespace } from './service-root';
 
 /** Whole-repo and per-service ceilings, so one pathological repository cannot stall the scan. */
 const MAX_FILES_SCANNED = 800;
@@ -230,6 +232,8 @@ const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
 type Occurrence = {
   citations: Citation[];
   buildTimeRead: boolean;
+  /** Some read is the address of an HTTP request. */
+  requestedOverHttp: boolean;
   /** True while every read seen so far carries its own fallback value. */
   alwaysHasFallback: boolean;
 };
@@ -237,9 +241,56 @@ type Occurrence = {
 /** A Ruby default value: anything on the line but raising, failing or exiting. */
 const RUBY_VALUE = String.raw`(?!(?:raise|fail|abort|exit!?)\b)[^\s)|]`;
 
-const hasFallback = (line: string, matchEnd: number, kind: ReadPattern['fallback']): boolean => {
+/**
+ * Helpers whose names say they throw when a variable is missing: `required('API_TOKEN')`, `requireEnv`, `mustGet`,
+ * `throwMissing`, `invariant`. `require` loads a module and is not one.
+ */
+const THROWING_HELPER =
+  /^(?:required|requireEnv\w*|requiredEnv\w*|mustGet\w*|must[A-Z]\w*|throw\w*|fail\w*|missing\w*|panic|assert\w*|die|expectEnv\w*|getRequired\w*|invariant)$/;
+const JS_FUNCTION_DECLARATION =
+  /\bfunction\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::[^{]+)?\{|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:function\b[^(]*\([^)]*\)|\([^)]*\)\s*(?::[^=]+)?=>|[A-Za-z_$][\w$]*\s*=>)\s*\{/g;
+
+/** Functions the files declare whose body throws: a fallback calling one fails without the variable. */
+const throwingFunctions = (sources: ReadonlyArray<{ file: string; contents: string }>): Set<string> => {
+  const names = new Set<string>();
+  for (const { file, contents } of sources) {
+    if (!JS_SOURCE.test(file)) continue;
+    for (const match of contents.matchAll(JS_FUNCTION_DECLARATION)) {
+      const body = sliceBalancedBraces(contents, (match.index ?? 0) + match[0].length - 1)?.body;
+      if (body !== undefined && /\bthrow\b/.test(body)) names.add((match[1] ?? match[2])!);
+    }
+  }
+  return names;
+};
+
+/** A request call whose URL argument starts right here: `fetch(`, `` fetch(`${ ``, `axios.get(`, `requests.post(f"{`. */
+const REQUEST_CALL_BEFORE =
+  /(?:\bfetch|\baxios(?:\.\w+)?|\bgot(?:\.\w+)?|\bky(?:\.\w+)?|\b(?:requests|httpx|session|client)\.(?:get|post|put|patch|delete|request)|\bnew\s+URL)\s*\(\s*(?:[^,()]*,\s*)?(?:`\$\{\s*|f?['"]\{\s*)?$/;
+
+/**
+ * Whether a read on a line is the address of an HTTP request: the URL argument of a request call, or the base a path
+ * is appended to (`process.env.API_URL + '/me'`, `` `${process.env.API_URL}/me` ``, `f"{os.environ['API']}/me"`).
+ */
+const isRequestedOverHttp = (before: string, after: string): boolean =>
+  REQUEST_CALL_BEFORE.test(before) ||
+  /^\s*\+\s*['"`]\//.test(after) ||
+  (/(?:\$|f['"].*)\{\s*$/.test(before) && /^\s*\}\//.test(after));
+
+const hasFallback = (
+  line: string,
+  matchEnd: number,
+  kind: ReadPattern['fallback'],
+  throwing: ReadonlySet<string> = new Set()
+): boolean => {
   const rest = line.slice(matchEnd);
-  if (kind === 'js-or') return /^\s*(?:\|\||\?\?)/.test(rest);
+  if (kind === 'js-or') {
+    const fallback = /^\s*(?:\|\||\?\?)\s*(.*)$/.exec(rest)?.[1];
+    if (fallback === undefined) return false;
+    // `?? throwMissing('API_TOKEN')`, `|| required('API_TOKEN')`, `?? (() => { throw ... })()`: no default at all.
+    if (/^throw\b|^\(\s*\(\s*\)\s*=>\s*\{\s*throw\b/.test(fallback)) return false;
+    const called = /^(?:await\s+)?([A-Za-z_$][\w$]*)\s*\(/.exec(fallback)?.[1];
+    return called === undefined || !(throwing.has(called) || THROWING_HELPER.test(called));
+  }
   // `ENV['BUNDLE_GEMFILE'] ||= File.expand_path(...)`, `ENV['PORT'] || 3000`. A fallback that raises is no default:
   // `ENV['API_KEY'] || raise('API_KEY missing')` fails at startup without the variable.
   if (kind === 'ruby-or') return new RegExp(String.raw`^\s*(?:\|\|=?|\bor\b)\s*${RUBY_VALUE}`).test(rest);
@@ -321,7 +372,9 @@ const collectFromFile = (
   path: string,
   contents: string,
   occurrences: Map<string, Occurrence>,
-  extraPatterns: readonly ReadPattern[] = []
+  extraPatterns: readonly ReadPattern[] = [],
+  /** Functions in the scanned files that throw, which a fallback may call. */
+  throwing: ReadonlySet<string> = new Set()
 ): void => {
   const group = PATTERNS_BY_EXTENSION.find((entry) => entry.extensions.test(path));
   if (group === undefined) return;
@@ -340,13 +393,21 @@ const collectFromFile = (
         const name = match[1];
         if (name === undefined || isPlatformEnvironmentVariable(name)) continue;
 
-        const entry = occurrences.get(name) ?? { citations: [], buildTimeRead: false, alwaysHasFallback: true };
+        const entry = occurrences.get(name) ?? {
+          citations: [],
+          buildTimeRead: false,
+          requestedOverHttp: false,
+          alwaysHasFallback: true
+        };
         if (entry.citations.length < MAX_EVIDENCE_PER_VARIABLE) {
           entry.citations.push({ file: path, line: index + 1, quote: match[0] });
         }
         entry.buildTimeRead = entry.buildTimeRead || buildTime === true;
+        entry.requestedOverHttp =
+          entry.requestedOverHttp ||
+          isRequestedOverHttp(line.slice(0, match.index ?? 0), line.slice((match.index ?? 0) + match[0].length));
         entry.alwaysHasFallback =
-          entry.alwaysHasFallback && hasFallback(line, (match.index ?? 0) + match[0].length, fallback);
+          entry.alwaysHasFallback && hasFallback(line, (match.index ?? 0) + match[0].length, fallback, throwing);
         occurrences.set(name, entry);
       }
     }
@@ -450,7 +511,7 @@ export const enrichEnvironmentUsage = async ({
   let totalAssigned = 0;
   for (const file of files) {
     if (totalAssigned >= MAX_FILES_SCANNED) break;
-    if (EXCLUDED_PATH.test(file) || EXCLUDED_FILE.test(file)) continue;
+    if (EXCLUDED_PATH.test(outsidePackageNamespace(file)) || EXCLUDED_FILE.test(file)) continue;
     if (!PATTERNS_BY_EXTENSION.some((entry) => entry.extensions.test(file))) continue;
     const owner = pathsDeepestFirst.find((path) => path === '.' || file === path || file.startsWith(`${path}/`));
     if (owner === undefined) continue;
@@ -524,8 +585,9 @@ export const enrichEnvironmentUsage = async ({
     const goHelpers = goHelperPatterns(
       sources.filter(({ file }) => file.endsWith('.go')).map(({ contents }) => contents)
     );
+    const throwing = throwingFunctions(sources);
     for (const { file, contents } of sources) {
-      collectFromFile(file, contents, occurrences, goHelpers);
+      collectFromFile(file, contents, occurrences, goHelpers, throwing);
       for (const method of presignedUploadMethods(contents)) presignMethods.add(method);
       // Two functions importing one data module read it once.
       if (!observedFiles.has(file)) observeItemKeys(contents, itemKeys);
@@ -564,6 +626,7 @@ export const enrichEnvironmentUsage = async ({
           role,
           ...(dependencyName === undefined ? {} : { dependencyName }),
           required: !occurrence.alwaysHasFallback,
+          ...(occurrence.requestedOverHttp ? { requestedOverHttp: true as const } : {}),
           evidence: occurrence.citations
         });
       }
@@ -623,11 +686,14 @@ export const scriptEnvironmentUsage = async ({
     ? ((await importClosure(entry, new Set(files), readContents)) ?? [entry])
     : [entry];
   const occurrences = new Map<string, Occurrence>();
+  const sources: Array<{ file: string; contents: string }> = [];
   for (const file of closure) {
     // oxlint-disable-next-line no-await-in-loop -- a script's import graph is small, and the order keeps citations stable.
     const contents = await readContents(file);
-    if (contents !== undefined) collectFromFile(file, contents, occurrences);
+    if (contents !== undefined) sources.push({ file, contents });
   }
+  const throwing = throwingFunctions(sources);
+  for (const { file, contents } of sources) collectFromFile(file, contents, occurrences, [], throwing);
   const uses: EnvironmentVariableUse[] = [];
   for (const [name, occurrence] of occurrences) {
     const { role, dependencyName } = classify(name, occurrence, dependencies);

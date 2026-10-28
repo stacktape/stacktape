@@ -80,12 +80,13 @@ export type LocalScriptFact = z.infer<typeof localScriptFactSchema>;
 /**
  * A source file shaped like a Lambda handler that init does not turn into a function, or turns into one Stacktape may
  * not load: a Java class with no Maven or Gradle build next to it, a C# handler with no project file, a Go, Rust or
- * Ruby handler, or a Java class whose package is not its folder name (Stacktape names the handler after the folder).
+ * Ruby handler, a Java class whose package is not its folder name (Stacktape names the handler after the folder), or
+ * a Dockerfile that builds a container-image Lambda (the path is the Dockerfile).
  */
 export const handlerFindingSchema = z.object({
   path: repositoryPathSchema,
   language: z.string().min(1),
-  reason: z.enum(['no-build-file', 'unsupported-language', 'java-package']),
+  reason: z.enum(['no-build-file', 'unsupported-language', 'java-package', 'container-image']),
   /** The Java package, or its absence, when the reason is `java-package`. */
   packageName: z.string().min(1).optional()
 });

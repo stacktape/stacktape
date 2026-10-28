@@ -71,6 +71,11 @@ export const environmentVariableUseSchema = z.object({
   safeLiteralValue: z.string().max(200).optional(),
   /** False when the code has a working fallback for its absence. */
   required: z.boolean().default(true),
+  /**
+   * The code sends HTTP requests to the address the variable holds: `fetch(process.env.API_URL + '/me')`,
+   * `` `${process.env.API_URL}/orders` ``, `requests.get(os.environ['API_URL'])`. Left unset, every one of them fails.
+   */
+  requestedOverHttp: z.literal(true).optional(),
   evidence: z.array(citationSchema).default([])
 });
 
@@ -190,8 +195,11 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     payloadFormat: z.enum(['1.0', '2.0']).optional(),
     /** Path parameters the handler reads by name (`event.pathParameters.sku`), which its route has to define. */
     pathParameters: z.array(z.string().min(1)).optional(),
-    /** The route accepts only requests signed with AWS credentials (an `aws_iam`/`AWS_IAM` authorizer). */
-    authorization: z.literal('aws-iam').optional()
+    /**
+     * `aws-iam`: the route accepts only requests signed with AWS credentials (an `aws_iam`/`AWS_IAM` authorizer).
+     * `jwt`: the handler reads the claims a JWT authorizer puts on the request, so the route has to sit behind one.
+     */
+    authorization: z.enum(['aws-iam', 'jwt']).optional()
   }),
   z.object({
     type: z.literal('queue'),
@@ -344,7 +352,16 @@ export const serviceShape = {
   /** Cron or rate expression, when `executionModel` is `scheduled`. */
   schedule: z.string().min(1).optional(),
   /** A directory of built assets this service serves itself, rather than from a CDN. */
-  servesStaticAssets: z.object({ path: repositoryPathSchema }).optional(),
+  servesStaticAssets: z
+    .object({
+      path: repositoryPathSchema,
+      /**
+       * A build config that sets the output directory in a way init could not read (a computed `outDir`, a moved Vite
+       * `root`). `path` is then the framework default, not a proven location.
+       */
+      unreadOutputConfig: repositoryPathSchema.optional()
+    })
+    .optional(),
   /**
    * Paths the application writes to on local disk.
    *

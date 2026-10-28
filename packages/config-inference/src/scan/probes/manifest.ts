@@ -10,12 +10,14 @@
  * not evidence of anything; a dependency on `express` is.
  */
 
+import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { withoutSampleDirectories } from '../service-root';
+import { maskFile } from '../lexical';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -130,15 +132,74 @@ const writtenForBun = (manifest: ParsedManifest): boolean =>
 const DEV_SERVER_START =
   /(?:^|&&|;|\s)(?:vite(?:\s+(?:dev|serve))?|docusaurus\s+start|next\s+dev|nuxt\s+dev|astro\s+dev|remix\s+dev|react-scripts\s+start|ng\s+serve|gatsby\s+develop|webpack(?:-dev-server|\s+serve)|parcel(?:\s+serve)?|storybook(?:\s+dev)?)(?:\s|$)/;
 
-const staticSiteFor = (
+const VITE_CONFIGS = [
+  'vite.config.ts',
+  'vite.config.js',
+  'vite.config.mts',
+  'vite.config.mjs',
+  'vite.config.cts',
+  'vite.config.cjs'
+];
+
+/**
+ * Where `vite build` writes, read from the package's Vite config: its literal `build.outDir`, or `dist`. A config that
+ * sets `outDir` to something other than a literal, or moves the project `root` (which `outDir` is relative to), is
+ * reported by name instead: uploading `dist` while the build writes elsewhere deploys an empty site.
+ */
+const viteOutput = async (
+  context: ProbeContext,
+  manifest: ParsedManifest
+): Promise<{ outputDirectory: string; unreadOutputConfig?: string }> => {
+  const prefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+  const config = VITE_CONFIGS.map((name) => `${prefix}${name}`).find((path) => context.files.includes(path));
+  if (config === undefined) return { outputDirectory: 'dist' };
+  const raw = await readText(context, config, { fullFile: true });
+  if (raw === undefined) return { outputDirectory: 'dist' };
+  const code = maskFile(config, raw, 'keep');
+  // Brace depth at an offset, counted with strings blanked. The config object's own keys sit at depth 1
+  // (`export default {`, `defineConfig({`), so `resolve: { alias: { root } }` is no project root.
+  const structure = maskFile(config, raw, 'blank');
+  const depthAt = (offset: number) => {
+    let depth = 0;
+    for (const character of structure.slice(0, offset)) depth += character === '{' ? 1 : character === '}' ? -1 : 0;
+    return depth;
+  };
+  /** The key's occurrences (`root: x`, or the shorthand `root,`), at one depth when given. */
+  const keyed = (key: string, depth?: number) =>
+    [...code.matchAll(new RegExp(`\\b${key}\\b(?=\\s*[:,}])`, 'g'))].filter(
+      (match) => depth === undefined || depthAt(match.index ?? 0) === depth
+    );
+  const literal = (key: string, depth?: number) =>
+    keyed(key, depth)
+      .map(
+        (match) => /^\s*:\s*(['"`])([^'"`$]+)\1\s*[,}\n]/.exec(code.slice((match.index ?? 0) + match[0].length))?.[2]
+      )
+      .find((value) => value !== undefined);
+  const root = literal('root', 1);
+  const outDir = literal('outDir');
+  // `outDir` is relative to `root`: `root: './src'` with `outDir: '../dist'` writes `dist`.
+  const output = posix.normalize(posix.join(root ?? '.', outDir ?? 'dist')).replace(/\/$/, '');
+  const unreadable =
+    (keyed('root', 1).length > 0 && root === undefined) ||
+    (keyed('outDir').length > 0 && outDir === undefined) ||
+    output.startsWith('..') ||
+    output.startsWith('/') ||
+    output === '.';
+  return unreadable ? { outputDirectory: 'dist', unreadOutputConfig: config } : { outputDirectory: output };
+};
+
+const staticSiteFor = async (
+  context: ProbeContext,
   manifest: ParsedManifest,
   files: readonly string[]
-):
+): Promise<
   | {
       framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue';
       outputDirectory: string;
+      unreadOutputConfig?: string;
     }
-  | undefined => {
+  | undefined
+> => {
   if (manifest.dependencies['@angular/core'] !== undefined) {
     return {
       framework: 'angular',
@@ -154,7 +215,7 @@ const staticSiteFor = (
     return {
       framework:
         manifest.dependencies.vue !== undefined ? 'vue' : manifest.dependencies.react !== undefined ? 'react' : 'vite',
-      outputDirectory: 'dist'
+      ...(await viteOutput(context, manifest))
     };
   }
   return undefined;
@@ -440,13 +501,18 @@ export const manifestProbe: Probe = {
       // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
       // expensive and non-functional.
       const staticSite:
-        | { framework: 'angular' | 'astro' | 'gatsby' | 'react' | 'vite' | 'vue'; outputDirectory: string }
+        | {
+            framework: 'angular' | 'astro' | 'gatsby' | 'react' | 'vite' | 'vue';
+            outputDirectory: string;
+            unreadOutputConfig?: string;
+          }
         | undefined =
         astroStatic && hasBuild
           ? { framework: 'astro', outputDirectory: 'dist' }
           : exposesHttp || !hasBuild
             ? undefined
-            : staticSiteFor(manifest, context.files);
+            : // oxlint-disable-next-line no-await-in-loop -- at most one Vite config per package.
+              await staticSiteFor(context, manifest, context.files);
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
       const hasHandlerLayout = context.files.some(
         (file) =>
@@ -547,7 +613,10 @@ export const manifestProbe: Probe = {
                   path:
                     manifest.directory === '.'
                       ? staticSite.outputDirectory
-                      : `${manifest.directory}/${staticSite.outputDirectory}`
+                      : `${manifest.directory}/${staticSite.outputDirectory}`,
+                  ...(staticSite.unreadOutputConfig === undefined
+                    ? {}
+                    : { unreadOutputConfig: staticSite.unreadOutputConfig })
                 }
               }),
           ...workspaceFor(manifest),

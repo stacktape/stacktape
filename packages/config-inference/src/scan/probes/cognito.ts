@@ -1,0 +1,117 @@
+/**
+ * A Cognito user pool the code signs users in to.
+ *
+ * `InitiateAuth` with `ClientId: process.env.AUTH_CLIENT_ID` proves the application needs a user pool and an app client,
+ * not whose they are: an existing pool with real users serves the same call, and checking its tokens is no different.
+ * The pool is the project's own only when the repository says so: infrastructure code defines one, a script creates
+ * users or pools, or the README says the app creates it. Otherwise the pool is reported as unproven and init creates
+ * none, because a new empty pool would lock every existing user out.
+ */
+
+import type { Citation } from '../../facts/citation';
+import { defaultDependencyName, type DependencyFact } from '../../facts/dependency';
+import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { maskFile } from '../lexical';
+import { applicationSourceFiles, environmentRead, targetVariable } from './messaging-calls';
+
+/** User-pool calls that take the app client's ID, in the JavaScript SDK and boto3. */
+const SIGN_IN_CALL =
+  /\b(?:InitiateAuth|SignUp|ConfirmSignUp|ForgotPassword|ConfirmForgotPassword|RespondToAuthChallenge|ResendConfirmationCode)Command\s*\(|\.(?:initiate_auth|sign_up|confirm_sign_up|forgot_password|confirm_forgot_password|respond_to_auth_challenge|resend_confirmation_code)\s*\(/g;
+const SIGN_UP_CALL = /\bSignUpCommand\s*\(|\.sign_up\s*\(/;
+/** Calls that take the pool's own ID: admin operations and token verifiers. */
+const POOL_ID_FIELD = /\b(?:UserPoolId|userPoolId)\s*(?::|=(?!=))\s*/g;
+/**
+ * A handler relying on the claims an HTTP API JWT authorizer adds: `event.requestContext.authorizer.jwt.claims.sub`.
+ * An optional read (`authorizer?.jwt`) is a handler that also serves anonymous requests.
+ */
+export const JWT_CLAIMS_READ = /\bauthorizer\b['"\]]*\s*(?:\.\s*jwt\b|\[\s*['"]jwt['"])/;
+
+/** Infrastructure code that defines a user pool: CloudFormation, Terraform, CDK, SST, Pulumi. */
+const POOL_DEFINITION =
+  /\bAWS::Cognito::UserPool\b|\bresource\s+"aws_cognito_user_pool"|\bnew\s+(?:cognito\.)?UserPool\s*\(|\bnew\s+sst\.aws\.CognitoUserPool\s*\(|\bnew\s+aws\.cognito\.UserPool\s*\(/;
+const INFRASTRUCTURE_FILE = /(?:^|\/)(?:serverless\.ya?ml|(?:sam-)?template\.ya?ml|[^/]+\.tf)$/;
+/** A script that creates users or pools: the project administers the pool. */
+const POOL_ADMINISTRATION =
+  /\b(?:AdminCreateUser|CreateUserPool|CreateUserPoolClient)Command\b|\.(?:admin_create_user|create_user_pool|create_user_pool_client)\s*\(|\bcognito-idp\s+(?:admin-create-user|create-user-pool)\b/;
+/** A README sentence saying the app creates its user pool, not one about using an existing one. */
+const CREATES_POOL =
+  /\b(?:creates?|provisions?|sets? up|deploys?|defines?)\b[^.]{0,60}\b(?:cognito|user pool)\b|\bits own\b[^.]{0,30}\b(?:cognito|user pool)\b/i;
+const EXISTING_POOL = /\b(?:existing|shared|external|separate|another|company|maintained|managed elsewhere)\b/i;
+
+/** Where the repository says the user pool is its own, or undefined. */
+const ownershipEvidence = async (context: ProbeContext, sources: readonly string[]): Promise<Citation | undefined> => {
+  const readme = context.files.find((path) => /^readme\.md$/i.test(path));
+  const readmeText = readme === undefined ? undefined : await readText(context, readme, { fullFile: true });
+  const statement = readmeText
+    ?.split(/(?<=[.!?])\s+|\r?\n/)
+    .find((sentence) => CREATES_POOL.test(sentence) && !EXISTING_POOL.test(sentence));
+  if (readme !== undefined && readmeText !== undefined && statement !== undefined) {
+    const escaped = statement
+      .trim()
+      .slice(0, 120)
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return citeFirstMatchOnly(readme, readmeText, new RegExp(escaped));
+  }
+  const scripts = context.files.filter((path) => /\.(?:sh|bash)$|(?:^|\/)package\.json$/.test(path));
+  const files = [...context.files.filter((path) => INFRASTRUCTURE_FILE.test(path)), ...sources, ...scripts];
+  for (const path of files.slice(0, 600)) {
+    // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
+    const raw = await readText(context, path, { fullFile: true });
+    if (raw === undefined) continue;
+    const code = maskFile(path, raw, 'keep');
+    const pattern = [POOL_DEFINITION, POOL_ADMINISTRATION].find((candidate) => candidate.test(code));
+    if (pattern !== undefined) return citeFirstMatchOnly(path, raw, pattern);
+  }
+  return undefined;
+};
+
+export const cognitoProbe: Probe = {
+  name: 'cognito',
+  run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    // No importer reads user pools, so infrastructure code is read here too: it is the best proof of ownership.
+    const sources = applicationSourceFiles(context.files);
+    const candidates = sources.filter((path) => /\.(?:[cm]?[jt]sx?|py)$/.test(path));
+    const clientVariables = new Set<string>();
+    const poolVariables = new Set<string>();
+    const evidence: Citation[] = [];
+    let selfSignUp = false;
+    for (const path of candidates) {
+      // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
+      const raw = await readText(context, path, { fullFile: true });
+      if (raw === undefined) continue;
+      // Comments are no calls; string contents stay, because the variable names are read from them.
+      const code = maskFile(path, raw, 'keep');
+      for (const call of code.matchAll(SIGN_IN_CALL)) {
+        // The call's own arguments: a request object or keyword list fits in the next 800 characters.
+        const start = call.index ?? 0;
+        const field = /\bClientId\s*(?::|=(?!=))\s*/.exec(code.slice(start, start + 800));
+        const variable = field === null ? undefined : targetVariable(code, start + field.index + field[0].length);
+        if (variable === undefined) continue;
+        clientVariables.add(variable);
+        if (SIGN_UP_CALL.test(call[0])) selfSignUp = true;
+        const citation = citeFirstMatchOnly(path, raw, new RegExp(environmentRead(variable)), 'addressedBy');
+        if (citation !== undefined && evidence.length < 3) evidence.push(citation);
+      }
+      for (const field of code.matchAll(POOL_ID_FIELD)) {
+        const variable = targetVariable(code, (field.index ?? 0) + field[0].length);
+        if (variable === undefined) continue;
+        poolVariables.add(variable);
+      }
+    }
+    if (clientVariables.size === 0) return {};
+    const owned = await ownershipEvidence(context, sources);
+    if (owned !== undefined) evidence.push(owned);
+    const dependency: DependencyFact = {
+      name: defaultDependencyName('user-pool'),
+      kind: 'user-pool',
+      extensions: [],
+      consumedBy: [],
+      addressedBy: [...clientVariables, ...poolVariables],
+      userPoolOwnership: owned === undefined ? 'unproven' : 'project',
+      ...(selfSignUp ? { userPoolSelfSignUp: true as const } : {}),
+      evidence,
+      source: 'probe'
+    };
+    return { dependencies: [dependency] };
+  }
+};

@@ -2,6 +2,7 @@
 
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
+import type { HandlerFinding } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { languageOf } from '../language';
@@ -60,6 +61,19 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
   };
 };
 
+/**
+ * A Dockerfile that builds a container-image Lambda function: its final stage starts from an AWS Lambda base image
+ * (`public.ecr.aws/lambda/nodejs:22`, `amazon/aws-lambda-python`), or it runs the Lambda runtime interface client. Such an
+ * image only answers Lambda invocations; run as a container it never serves anything.
+ */
+const LAMBDA_BASE_IMAGE = /^(?:public\.ecr\.aws\/lambda\/|(?:docker\.io\/)?amazon\/aws-lambda-)/i;
+const LAMBDA_RUNTIME_CLIENT = /^\s*(?:ENTRYPOINT|CMD)\b.*(?:aws-lambda-ric|awslambdaric|\/lambda-entrypoint\.sh)/im;
+
+const buildsLambdaImage = (raw: string): boolean => {
+  const finalStage = [...raw.matchAll(/^\s*FROM\s+(?:--\S+\s+)*(\S+)/gim)].at(-1)?.[1];
+  return (finalStage !== undefined && LAMBDA_BASE_IMAGE.test(finalStage)) || LAMBDA_RUNTIME_CLIENT.test(raw);
+};
+
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -76,6 +90,7 @@ export const dockerfileProbe: Probe = {
       return leftExact === rightExact ? left.localeCompare(right) : leftExact ? -1 : 1;
     });
     const services = new Map<string, ServiceFactInput>();
+    const handlerFindings: HandlerFinding[] = [];
 
     const entered = await directoriesEnteredByRoot(context);
     for (const path of candidates) {
@@ -84,6 +99,11 @@ export const dockerfileProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
       const raw = await readText(context, path);
       if (raw === undefined || !/^\s*FROM\s+\S+/im.test(raw)) continue;
+      // Stacktape packages functions as zip archives, so an image Lambda is reported rather than run as a worker.
+      if (buildsLambdaImage(raw)) {
+        handlerFindings.push({ path, language: 'container image', reason: 'container-image' });
+        continue;
+      }
       const { port, citation: portCitation } = exposedPort(path, raw);
       const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
       // Only a Dockerfile that must be built from the repository root overrides the context; otherwise the
@@ -107,6 +127,9 @@ export const dockerfileProbe: Probe = {
       });
     }
 
-    return services.size === 0 ? {} : { services: [...services.values()] };
+    return {
+      ...(services.size === 0 ? {} : { services: [...services.values()] }),
+      ...(handlerFindings.length === 0 ? {} : { handlerFindings })
+    };
   }
 };

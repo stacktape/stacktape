@@ -58,7 +58,7 @@ describe('classifyService', () => {
 
     const classification = classifyService(parsed.services[0]!);
     expect(classification.resourceType).toBe('web-service');
-    expect(classification.reason).toContain('websocket');
+    expect(classification.reason).toContain('WebSocket');
   });
 
   it('classifies a non-HTTP long-running process as a worker', () => {
