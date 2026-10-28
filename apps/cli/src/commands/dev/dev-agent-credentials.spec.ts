@@ -16,7 +16,8 @@ import { getDevAgentCredentials, initDevAgentCredentials } from './dev-agent-cre
 const SELECTED = { accessKeyId: 'AKIASELECTEDDEVELOPER', secretAccessKey: 'selected-secret' };
 const ROLE_ARN = 'arn:aws:iam::111111111111:role/shop-dev-dev-agent';
 const signedBy: string[] = [];
-let denyAssumeRole = false;
+/** How many more AssumeRole calls STS refuses. */
+let assumeRoleRefusals = 0;
 let server: Server;
 
 const readBody = async (request: IncomingMessage) => {
@@ -45,7 +46,11 @@ beforeAll(async () => {
     }
     const params = new URLSearchParams(body);
     response.setHeader('content-type', 'text/xml');
-    if (params.get('Action') !== 'AssumeRole' || params.get('ExternalId') !== 'stack-hash' || denyAssumeRole) {
+    if (
+      params.get('Action') !== 'AssumeRole' ||
+      params.get('ExternalId') !== 'stack-hash' ||
+      assumeRoleRefusals-- > 0
+    ) {
       response.statusCode = 403;
       response.end(
         '<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/"><Error><Type>Sender</Type><Code>AccessDenied</Code>' +
@@ -89,9 +94,9 @@ test("a deployed function's environment is read with the selected credentials", 
 
 test('the dev agent role is assumed with the selected credentials, and a denied role never falls back to them', async () => {
   signedBy.length = 0;
-  denyAssumeRole = true;
+  assumeRoleRefusals = Number.POSITIVE_INFINITY;
   expect(initDevAgentCredentials()).toBe(true);
-  const denied = await getDevAgentCredentials().then(
+  const denied = await getDevAgentCredentials({ retryForMs: 1200 }).then(
     (credentials) => `got ${credentials.accessKeyId}`,
     (error: Error) => error.message
   );
@@ -100,8 +105,16 @@ test('the dev agent role is assumed with the selected credentials, and a denied 
   expect(signedBy.length).toBeGreaterThan(0);
   expect(new Set(signedBy)).toEqual(new Set([SELECTED.accessKeyId]));
 
-  denyAssumeRole = false;
+  // A refusal that outlasted the retries is final for the session: the next call fails at once.
+  const started = Date.now();
+  await expect(getDevAgentCredentials()).rejects.toThrow('could not assume');
+  expect(Date.now() - started).toBeLessThan(1000);
+
+  // Right after the dev stack created the role, IAM refuses it for a few seconds; the agent keeps asking.
+  expect(initDevAgentCredentials()).toBe(true);
+  assumeRoleRefusals = 2;
   expect((await getDevAgentCredentials()).accessKeyId).toBe('ASIADEVAGENTROLE');
+  expect(assumeRoleRefusals).toBe(-1);
 });
 
 test('a dev stack without the role gives the agent no AWS credentials at all', async () => {
