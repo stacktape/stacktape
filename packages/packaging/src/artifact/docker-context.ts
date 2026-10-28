@@ -1,9 +1,8 @@
 import dockerIgnore from '@balena/dockerignore';
 import { createHash, type Hash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, readFile, readlink } from 'node:fs/promises';
+import { lstat, readdir, readFile, readlink } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
-import fastGlob from 'fast-glob';
 import { pathExists } from 'fs-extra';
 import { withFileDescriptor } from './archive-entries';
 
@@ -79,18 +78,42 @@ const getDockerIgnorePath = async ({
  * selected Dockerfile-specific ignore file takes precedence over the root `.dockerignore`, matching Docker.
  */
 /**
- * The directories that exclusions drop as a whole, as globs that keep the inventory from reading them. Stacktape's local
- * state in `.stacktape` holds the files of local databases, owned by the database container's user: reading them made
- * the checksum of a batch job image built from the project root fail with EACCES once dev mode had run (r2mm). A `!`
- * pattern can bring a file inside an excluded directory back, so with one every directory is read.
+ * Every entry of the build context as Docker paths relative to it, directories with a trailing slash. A directory that
+ * `isPruned` accepts is listed but not read. Stacktape's local state in `.stacktape` holds the files of local
+ * databases, owned by the database container's user: reading them made the checksum of a batch job image built from
+ * the project root fail with EACCES once dev mode had run (r2mm).
  */
-export const getExcludedDirectoryGlobs = (patterns: string[]): string[] => {
-  const lines = patterns.map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
-  if (lines.some((line) => line.startsWith('!'))) return [];
-  return lines
-    .map((line) => line.replace(/^\/+/, '').replace(/\/+$/, ''))
-    .filter((line) => /^(\*\*\/)?[^*?[\]\\/]+$/.test(line))
-    .map((line) => `${line}/**`);
+const listContextEntries = async (root: string, isPruned: (directoryEntry: string) => boolean) => {
+  const entries: string[] = [];
+  let directories = [''];
+  while (directories.length) {
+    const next: string[] = [];
+    for (let start = 0; start < directories.length; start += BATCH_ENTRIES) {
+      // oxlint-disable-next-line no-await-in-loop -- Batches bound the directories read at once.
+      const listings = await Promise.all(
+        directories
+          .slice(start, start + BATCH_ENTRIES)
+          .map(async (directory) => ({
+            directory,
+            dirents: await readdir(join(root, directory), { withFileTypes: true })
+          }))
+      );
+      for (const { directory, dirents } of listings) {
+        for (const dirent of dirents) {
+          const entry = directory ? `${directory}/${dirent.name}` : dirent.name;
+          // A symbolic link is an entry of its own and is not followed, also when it points at a directory.
+          if (!dirent.isDirectory()) {
+            entries.push(entry);
+            continue;
+          }
+          entries.push(`${entry}/`);
+          if (!isPruned(`${entry}/`)) next.push(entry);
+        }
+      }
+    }
+    directories = next;
+  }
+  return entries;
 };
 
 export const getDockerContextChecksum = async ({
@@ -122,20 +145,17 @@ export const getDockerContextChecksum = async ({
     applyDockerIgnore && ignorePatterns === undefined
       ? await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath })
       : undefined;
-  const patterns =
-    ignorePatterns ?? (dockerIgnorePath ? (await readFile(dockerIgnorePath, 'utf8')).split(/\r?\n/) : []);
+  const exclusions = ignorePatterns?.join('\n') ?? (dockerIgnorePath ? await readFile(dockerIgnorePath, 'utf8') : '');
   const matcher = dockerIgnore();
-  matcher.add(patterns.join('\n'));
-
-  const contextEntries = await fastGlob('**/*', {
-    cwd: absoluteBuildContextPath,
-    dot: true,
-    followSymbolicLinks: false,
-    markDirectories: true,
-    onlyFiles: false,
-    unique: true,
-    ignore: getExcludedDirectoryGlobs(patterns)
-  });
+  matcher.add(exclusions);
+  // Docker excludes everything inside an excluded directory unless an exception (`!`) brings something back, so an
+  // excluded directory is read only when the exclusions have an exception. The matcher decides what is excluded, as it
+  // does for every entry below.
+  const hasExceptions = exclusions.split(/\r?\n/).some((line) => line.trim().startsWith('!'));
+  const contextEntries = await listContextEntries(
+    absoluteBuildContextPath,
+    (directoryEntry) => !hasExceptions && matcher.ignores(directoryEntry)
+  );
   const includedEntries = matcher
     .filter(contextEntries)
     .map(toDockerPath)

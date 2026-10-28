@@ -29,6 +29,7 @@ import { deploymentArtifactManager } from '../../src/domain/deployment-artifact-
 import { packagingManager } from '../../src/domain/packaging-manager';
 import { assertNoUnresolvedPlaceholders, findUnresolvedPlaceholders } from '../../src/domain/template-manager/finalize';
 import { getDevNetworkDemand } from '../../src/commands/dev/dev-network-session';
+import { prepareDevStackReferences } from '../../src/commands/dev/dev-stack-references';
 import { getDevStackConfigFingerprint } from '../../src/commands/dev/dev-stack-config-fingerprint';
 import { synthesizeFixture } from './synthesis-fixture';
 
@@ -448,6 +449,55 @@ test('a dev stack builds the image of its batch job and runs the job in the dev 
   ]);
   expect(() => assertNoUnresolvedPlaceholders(unbuilt)).toThrow(
     expect.objectContaining({ code: 'TEMPLATE_UNRESOLVED_PLACEHOLDER' })
+  );
+});
+
+// Review of #384: the start's preflight counted only functions as relay users, so a batch job's
+// `$ResourceParam('db', 'connectionString')` failed before any AWS work unless a function also used the database.
+test("a batch job's reference to a local database passes the preflight without a function using it", async () => {
+  const compiledConfig = defineConfig(() => {
+    const db = new RelationalDatabase({
+      credentials: { masterUserPassword: 'deployed-only' },
+      engine: new RdsEngineMysql({ version: '8.4.8', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    });
+    const report = new BatchJob({
+      container: {
+        packaging: new BuildpackImagePackaging({ sourceDirectoryPath: './src', startCommand: 'node report.js' }),
+        environment: { DATABASE_URL: $ResourceParam('db', 'connectionString') }
+      },
+      resources: { cpu: 1, memory: 512 }
+    });
+    return { resources: { db, report } };
+  })({
+    projectName: 'characterization',
+    stage: 'baseline',
+    region: 'eu-west-1',
+    command: 'dev',
+    awsProfile: '',
+    cliArgs: {}
+  });
+  const relayHost = '10.230.0.10';
+  await synthesizeFixture({
+    compiledConfig,
+    command: 'dev',
+    devNetwork: {
+      subnetIds: ['subnet-private-a'],
+      securityGroupId: 'sg-dev-lambdas',
+      functions: {},
+      batchJobs: { report: ['db'] },
+      localResources: {
+        db: {
+          params: { host: relayHost, port: '20321', connectionString: `mysql://u:p@${relayHost}:20321/app` },
+          environment: {}
+        }
+      }
+    },
+    workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+  });
+  expect(prepareDevStackReferences({ noTunnel: false, skippedFunctionNames: new Set() })).toEqual([]);
+  // Without the dev box nothing reaches the local database, and the preflight says how to use the deployed one.
+  expect(() => prepareDevStackReferences({ noTunnel: true, skippedFunctionNames: new Set() })).toThrow(
+    expect.objectContaining({ code: 'DEV_LOCAL_RESOURCE_REFERENCED' })
   );
 });
 

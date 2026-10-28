@@ -13,7 +13,13 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import get from 'lodash/get';
-import { defineConfig, DynamoDbTable } from '@stacktape/config-authoring';
+import {
+  CustomResourceDefinition,
+  CustomResourceInstance,
+  defineConfig,
+  DynamoDbTable,
+  JsBundleLambdaPackaging
+} from '@stacktape/config-authoring';
 import { parseYaml } from '@utils/yaml';
 import { configManager } from '@domain-services/config-manager';
 import { RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY } from '../../src/domain/template-manager/resource-overrides';
@@ -59,7 +65,7 @@ const readGuideExamples = async (): Promise<Example[]> => {
 
 const workingDir = mkdtempSync(join(tmpdir(), 'stacktape-documented-overrides-'));
 mkdirSync(join(workingDir, 'src'));
-for (const file of ['handler.ts', 'server.ts'])
+for (const file of ['handler.ts', 'server.ts', 'webhook-provider.ts'])
   writeFileSync(join(workingDir, 'src', file), 'export default () => {};\n');
 afterAll(() => rm(workingDir, { recursive: true, force: true }));
 
@@ -133,13 +139,13 @@ describe('documented overrides', () => {
     const config = defineConfig(() => {
       const mainTable = new DynamoDbTable({
         primaryKey: { partitionKey: { name: 'id', type: 'string' } },
-        overrides: { MainTableGlobalTable: { Properties: { TimeToLiveSpecification: { Enabled: true } } } }
+        overrides: { MainTableGlobalTable: { 'Properties.TimeToLiveSpecification.Enabled': true } }
       });
       return { resources: { mainTable } };
     });
     await expect(synthesizeFixture({ compiledConfig: config(authoringParams), workingDir })).rejects.toMatchObject({
       code: 'CONFIG_RESOURCE_OVERRIDE_PATH_INVALID',
-      hints: ['Move the keys inside `Properties` one level up, directly under `MainTableGlobalTable`.']
+      hints: ['Write `TimeToLiveSpecification.Enabled` instead of `Properties.TimeToLiveSpecification.Enabled`.']
     });
 
     const yamlPath = join(workingDir, 'properties-prefix.yml');
@@ -154,14 +160,41 @@ describe('documented overrides', () => {
         '        partitionKey: { name: id, type: string }',
         '    overrides:',
         '      MainTableGlobalTable:',
-        '        Properties:',
-        '          TimeToLiveSpecification: { Enabled: true, AttributeName: expiresAt }',
+        '        Properties.TimeToLiveSpecification: { Enabled: true, AttributeName: expiresAt }',
         ''
       ].join('\n')
     );
     await expect(synthesizeFixture({ configPath: yamlPath, workingDir })).rejects.toMatchObject({
       code: 'CONFIG_RESOURCE_OVERRIDE_PATH_INVALID',
-      hints: ['Move the keys inside `Properties` one level up, directly under `MainTableGlobalTable`.']
+      hints: ['Write `TimeToLiveSpecification` instead of `Properties.TimeToLiveSpecification`.']
+    });
+  });
+
+  // Review of #384: a custom resource's provider defines its properties, and one of them may be named `Properties`.
+  test('a custom resource accepts overrides of a property named Properties', async () => {
+    const config = (overrides?: Record<string, Record<string, unknown>>) =>
+      defineConfig(() => {
+        const webhookProvider = new CustomResourceDefinition({
+          packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/webhook-provider.ts' })
+        });
+        const apiWebhook = new CustomResourceInstance({
+          definitionName: 'webhookProvider',
+          resourceProperties: { callbackUrl: 'https://myapp.example.com/webhook' },
+          ...(overrides ? { overrides } : {})
+        });
+        return { resources: { webhookProvider, apiWebhook } };
+      })(authoringParams);
+    const plain = await synthesizeFixture({ compiledConfig: config(), workingDir });
+    const [instanceId] = Object.entries(plain.Resources).find(
+      ([logicalId, resource]) =>
+        resource.Type === 'AWS::CloudFormation::CustomResource' && logicalId.startsWith('ApiWebhook')
+    )!;
+    const template = await synthesizeFixture({
+      compiledConfig: config({ [instanceId]: { 'Properties.mode': 'strict' } }),
+      workingDir
+    });
+    expect((template.Resources[instanceId] as { Properties: Record<string, any> }).Properties.Properties).toEqual({
+      mode: 'strict'
     });
   });
 

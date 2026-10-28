@@ -99,9 +99,7 @@ const applyResourceOverrides = () => {
           category: 'CONFIG_VALIDATION',
           code: 'CONFIG_RESOURCE_OVERRIDE_PATH_INVALID',
           message: `Override \`${pathToProp}\` of \`${cfLogicalName}\` in resource \`${resource.name}\` starts with \`Properties\`. Override paths are relative to the CloudFormation resource's \`Properties\`, so this would set \`Properties.${pathToProp}\`, which ${resourceType} does not have.`,
-          hints: mistake.intended
-            ? `Write \`${mistake.intended}\` instead of \`${pathToProp}\`.`
-            : `Move the keys inside \`Properties\` one level up, directly under \`${cfLogicalName}\`.`
+          hints: `Write \`${mistake.intended}\` instead of \`${pathToProp}\`.`
         });
       }
       Object.entries(overrides).forEach(([pathToProp, value]) =>

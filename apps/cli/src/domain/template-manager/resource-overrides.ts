@@ -61,15 +61,19 @@ export const RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY = new Set([
   'AWS::ServiceDiscovery::PublicDnsNamespace'
 ]);
 
+const isCustomResourceType = (resourceType: string) =>
+  resourceType === 'AWS::CloudFormation::CustomResource' || resourceType.startsWith('Custom::');
+
 /**
- * The path an override means when it starts with `Properties`, or `undefined` when it is fine. Override paths are
+ * The path an override means when it starts with `Properties.`, or `undefined` when it is fine. Override paths are
  * applied to the child resource's `Properties` already: the r2ll dogfood followed an example with
  * `Properties.TimeToLiveSpecification` and got `Properties.Properties.TimeToLiveSpecification`, which CloudFormation
- * rejected during the deployment.
+ * rejected during the deployment. A key `Properties` by itself is left alone, and so are custom resources, whose
+ * properties their provider defines.
  */
 export const getPropertiesPrefixMistake = ({ resourceType, path }: { resourceType: string; path: string }) => {
-  if (RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY.has(resourceType)) return undefined;
-  if (path === 'Properties') return { intended: undefined };
-  if (path.startsWith('Properties.')) return { intended: path.slice('Properties.'.length) };
-  return undefined;
+  if (!path.startsWith('Properties.')) return undefined;
+  if (RESOURCE_TYPES_WITH_A_PROPERTIES_PROPERTY.has(resourceType) || isCustomResourceType(resourceType))
+    return undefined;
+  return { intended: path.slice('Properties.'.length) };
 };
