@@ -12,6 +12,7 @@ import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
 import { buildCliRunOutput, keepRawTailInLogFile, toToolText, type ToolOutput } from './tool-output';
 import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../dev/agent-daemon';
+import { readLineOffset } from '../dev/agent-logger';
 
 type DevSession = {
   devSessionId: string;
@@ -777,8 +778,23 @@ const readDevLogs = async ({
     return { entries: [], nextCursor: 0, totalLines: 0, omitted: 0 };
   }
 
-  const content = await readFile(logFile, 'utf-8');
-  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const readLines = async (file: string) =>
+    (await pathExists(file))
+      ? (await readFile(file, 'utf-8')).split(/\r?\n/).filter((line) => line.trim().length > 0)
+      : [];
+  // Cursors count lines across rotations: `offset` is the position of `lines[0]` in the whole log.
+  let lines = await readLines(logFile);
+  let offset = readLineOffset(lines[0]);
+  if (cursor !== undefined && cursor < offset) {
+    // The cursor points into the copy the last rotation made: its remaining lines come first.
+    const archived = await readLines(`${logFile}.1`);
+    const archivedOffset = readLineOffset(archived[0]);
+    if (archivedOffset + archived.length === offset) {
+      lines = [...archived, ...lines];
+      offset = archivedOffset;
+    }
+  }
+  const end = offset + lines.length;
   const maxItems = Math.max(1, Math.min(limit ?? 100, 1000));
   const minRank = minLevel ? (LOG_LEVEL_RANK[minLevel] ?? 0) : 0;
   const parse = (line: string): Record<string, unknown> => {
@@ -788,11 +804,11 @@ const readDevLogs = async ({
       return { message: line };
     }
   };
-  // A cursor past the end is from before the log was rotated (see `AGENT_LOG_ROTATE_BYTES`): its lines start again at 0.
-  let start = cursor === undefined || cursor > lines.length ? 0 : Math.max(0, cursor);
+  // A cursor past the end, or before the lines still kept, is from a log that was replaced: read what there is.
+  let start = cursor === undefined || cursor > end ? offset : Math.max(offset, cursor);
   if (currentSessionOnly) {
-    for (let index = lines.length - 1; index >= start; index--) {
-      const entry = parse(lines[index]);
+    for (let index = end - 1; index >= start; index--) {
+      const entry = parse(lines[index - offset]);
       if (entry.source === 'dev' && entry.session && entry.msg === 'Dev session started') {
         start = index;
         break;
@@ -801,8 +817,8 @@ const readDevLogs = async ({
   }
 
   const matching: Array<{ index: number; entry: Record<string, unknown> }> = [];
-  for (let index = start; index < lines.length; index++) {
-    const entry = parse(lines[index]);
+  for (let index = start; index < end; index++) {
+    const entry = parse(lines[index - offset]);
     if (source && entry.source !== source) continue;
     if (minRank && (LOG_LEVEL_RANK[String(entry.level)] ?? 0) < minRank) continue;
     if (sinceMs !== undefined) {
@@ -823,8 +839,7 @@ const readDevLogs = async ({
     page.push(item);
   }
   if (cursor === undefined) page.reverse();
-  const nextCursor =
-    cursor !== undefined && page.length < matching.length ? page[page.length - 1].index + 1 : lines.length;
+  const nextCursor = cursor !== undefined && page.length < matching.length ? page[page.length - 1].index + 1 : end;
   const omitted = matching.length - page.length;
   const sorted = page
     .map(({ entry }, position) => ({ entry, position }))
@@ -833,7 +848,7 @@ const readDevLogs = async ({
   return {
     entries: sorted,
     nextCursor,
-    totalLines: lines.length,
+    totalLines: end,
     omitted,
     ...(cursor === undefined && omitted ? { olderCursor: matching[0]!.index } : {})
   };

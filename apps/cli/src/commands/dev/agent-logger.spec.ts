@@ -78,6 +78,12 @@ test('a session whose lines reach the size limit continues in a new file, with t
   expect((await stat(file)).size).toBeLessThanOrEqual(AGENT_LOG_ROTATE_BYTES);
   expect((await stat(`${file}.1`)).size).toBeLessThanOrEqual(AGENT_LOG_ROTATE_BYTES);
   const entries = await readEntries(file);
-  expect(entries[0]).toMatchObject({ source: 'dev', msg: 'Earlier lines of this session are in 7331-logs.txt.1' });
+  // The first line counts the lines of the earlier copies, so a reader's cursor stays valid across rotations.
+  const archived = await readEntries(`${file}.1`);
+  expect(entries[0]).toMatchObject({
+    source: 'dev',
+    msg: 'Earlier lines of this session are in 7331-logs.txt.1',
+    lineOffset: (archived[0] as { lineOffset?: number }).lineOffset! + archived.length
+  });
   expect(entries.at(-1)).toMatchObject({ source: 'api', level: 'error', msg: 'last line' });
 });
