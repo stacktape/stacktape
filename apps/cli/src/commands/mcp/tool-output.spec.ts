@@ -95,4 +95,22 @@ describe('MCP tool output', () => {
     expect(cloudformation.resourceTypeCounts).toEqual({ 'AWS::Lambda::Function': 1 });
     expect(output.rawTail).toBeUndefined();
   });
+
+  // r2xx: param get's value is its scalar result, which key-name masking never reached.
+  test('withholds the result of a sensitive command that was asked to show secrets', () => {
+    const canary = 'r2zz-fabricated-Xk29fQ7v';
+    const run = (args: Record<string, unknown>) =>
+      buildCliRunOutput({
+        command: 'param:get',
+        policy: { category: 'secrets', safety: 'readOnly', sensitiveOutput: true },
+        args,
+        result: { ok: true, code: 'OK', message: 'param get completed', data: { result: canary }, rawTail: canary }
+      });
+
+    const shown = run({ resourceName: 'db', paramName: 'password', showSensitiveValues: true });
+    expect(JSON.stringify(shown)).not.toContain(canary);
+    expect(shown.data?.cli).toEqual({ result: '[REDACTED: this command can return sensitive values]' });
+    // Without the flag the CLI returns <<OMITTED>> for a sensitive parameter and the value of a plain one.
+    expect(run({ resourceName: 'db', paramName: 'host' }).data?.cli).toEqual({ result: canary });
+  });
 });

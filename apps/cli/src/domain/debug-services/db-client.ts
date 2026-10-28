@@ -14,6 +14,7 @@ import { Sha256 } from '@aws-crypto/sha256-js';
 import { Client as PgClient } from 'pg';
 import { createConnection, type Connection as MysqlConnection } from 'mysql2/promise';
 import Redis from 'ioredis';
+import { getSqlConfirmationReason } from './sql-statements';
 
 // Common response types
 type BaseResponse = { ok: boolean; hint?: string };
@@ -262,54 +263,6 @@ export const partitionResetTables = <T extends { name: string; schema?: string }
   return { reset, kept };
 };
 
-// Check if a single SQL statement is destructive
-const isStatementDestructive = (statement: string): { destructive: boolean; reason?: string } => {
-  const stmtLower = statement.toLowerCase().trim();
-  if (!stmtLower) return { destructive: false };
-
-  // DROP statements
-  if (/^drop\s+(table|database|schema|index|view|function|procedure|trigger)/i.test(stmtLower)) {
-    return { destructive: true, reason: 'DROP statement will permanently delete database objects' };
-  }
-
-  // TRUNCATE statements
-  if (/^truncate\s+/i.test(stmtLower)) {
-    return { destructive: true, reason: 'TRUNCATE will delete all rows from the table' };
-  }
-
-  // DELETE without WHERE clause
-  if (
-    /^delete\s+from\s+\S+\s*$/i.test(stmtLower) ||
-    (/^delete\s+from\s+/i.test(stmtLower) && !/\bwhere\b/i.test(stmtLower))
-  ) {
-    return { destructive: true, reason: 'DELETE without WHERE clause will delete all rows' };
-  }
-
-  // UPDATE without WHERE clause
-  if (/^update\s+\S+\s+set\s+/i.test(stmtLower) && !/\bwhere\b/i.test(stmtLower)) {
-    return { destructive: true, reason: 'UPDATE without WHERE clause will modify all rows' };
-  }
-
-  return { destructive: false };
-};
-
-// Check if SQL contains any destructive operations (handles multi-statement queries)
-const isDestructiveSql = (sql: string): { destructive: boolean; reason?: string } => {
-  // Split on semicolons, but be careful about semicolons inside strings
-  // Simple approach: split on ; and check each part
-  // This won't handle all edge cases (like ; inside string literals) but covers most cases
-  const statements = sql.split(/;(?=(?:[^']*'[^']*')*[^']*$)/);
-
-  for (const statement of statements) {
-    const result = isStatementDestructive(statement);
-    if (result.destructive) {
-      return result;
-    }
-  }
-
-  return { destructive: false };
-};
-
 export type SqlQueryOpts = {
   sql: string;
   limit?: number;
@@ -329,9 +282,9 @@ export const postgresQuery = async (conn: PostgresConnectionOpts, opts: SqlQuery
   let client: PgClient | null = null;
 
   try {
-    // Check for destructive operations
-    const { destructive, reason } = isDestructiveSql(opts.sql);
-    if (destructive && !opts.confirm) {
+    // A writable session runs only SQL that cannot change data in bulk without confirmation.
+    const reason = getSqlConfirmationReason(opts.sql, 'postgres');
+    if (reason && !opts.confirm) {
       return {
         ok: false,
         error: `Destructive SQL operation requires confirmation`,
@@ -783,9 +736,8 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
   let connection: MysqlConnection | null = null;
 
   try {
-    // Check for destructive operations
-    const { destructive, reason } = isDestructiveSql(opts.sql);
-    if (destructive && !opts.confirm) {
+    const reason = getSqlConfirmationReason(opts.sql, 'mysql');
+    if (reason && !opts.confirm) {
       return {
         ok: false,
         error: `Destructive SQL operation requires confirmation`,

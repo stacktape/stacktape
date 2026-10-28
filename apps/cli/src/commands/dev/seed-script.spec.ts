@@ -186,3 +186,112 @@ describe('a script added to the configuration after dev mode started', () => {
     }
   });
 });
+
+/** Runs `scripts` as the session's configuration, in a fresh project directory. */
+const withScripts = async (
+  scripts: (directory: string) => Record<string, unknown>,
+  run: (directory: string) => Promise<void>
+) => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-seed-run-'));
+  const previous = {
+    config: configManager.config,
+    rawArgs: globalStateManager.rawArgs,
+    rawCommands: globalStateManager.rawCommands
+  };
+  try {
+    configManager.config = { resources: {}, scripts: scripts(directory) } as unknown as typeof configManager.config;
+    globalStateManager.rawArgs = { currentWorkingDirectory: directory } as typeof globalStateManager.rawArgs;
+    globalStateManager.rawCommands = ['dev'];
+    await run(directory);
+  } finally {
+    configManager.config = previous.config;
+    globalStateManager.rawArgs = previous.rawArgs;
+    globalStateManager.rawCommands = previous.rawCommands;
+    await rm(directory, { recursive: true, force: true });
+  }
+};
+
+const isRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// r2xx: seed output and errors reached the agent with the script's database password in them.
+describe('seed output and errors are masked before they reach an agent', () => {
+  const canary = 'r2zz-fabricated-Xk29fQ7v';
+  const script = (executeCommand: string) =>
+    localScript({ environment: [{ name: 'DB_PASSWORD', value: canary }], executeCommand });
+
+  test('a successful seed', async () => {
+    await withScripts(
+      () => ({
+        seed: script(
+          'echo "connecting with $DB_PASSWORD"; echo "Authorization: Bearer $DB_PASSWORD"; echo "{\\"password\\":\\"$DB_PASSWORD\\"}"'
+        )
+      }),
+      async () => {
+        const result = await runSeedScript('seed');
+        expect(result).toMatchObject({ ok: true });
+        expect(result.ok && result.output.length).toBe(3);
+        expect(JSON.stringify(result)).not.toContain(canary);
+      }
+    );
+  });
+
+  test('a failing seed', async () => {
+    await withScripts(
+      () => ({ seed: script('echo "password=$DB_PASSWORD rejected" >&2; exit 3') }),
+      async () => {
+        const result = await runSeedScript('seed');
+        expect(result).toMatchObject({ ok: false, code: 'SCRIPT_FAILED' });
+        expect(JSON.stringify(result)).not.toContain(canary);
+      }
+    );
+  });
+});
+
+// r2xx: a timed-out seed reported that it was stopped while a process it started kept running and wrote afterwards.
+describe.skipIf(process.platform === 'win32')('a seed that times out', () => {
+  // With `inherit`, the child holds the script's output pipes open, which kept the answer waiting for the child.
+  test.each(['ignore', 'inherit'])(
+    'stops every process it started before it answers (child stdio %s)',
+    async (stdio) => {
+      await withScripts(
+        (directory) => ({
+          seed: localScript({
+            // The parent waits for an ordinary child whose output is detached from the script's pipes.
+            executeCommand: `${JSON.stringify(process.execPath)} ${JSON.stringify(join(directory, 'parent.js'))}`
+          })
+        }),
+        async (directory) => {
+          const pidFile = join(directory, 'child.pid');
+          const mutation = join(directory, 'mutation-after-timeout');
+          await writeFile(
+            join(directory, 'child.js'),
+            `require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+setTimeout(() => require('fs').writeFileSync(${JSON.stringify(mutation)}, 'late'), 1500);
+setTimeout(() => {}, 5000);\n`
+          );
+          await writeFile(
+            join(directory, 'parent.js'),
+            `const child = require('child_process').spawn(process.execPath, [${JSON.stringify(join(directory, 'child.js'))}], { stdio: '${stdio}' });
+child.on('exit', () => process.exit(0));\n`
+          );
+          const startedAt = Date.now();
+          const result = await runSeedScript('seed', { timeoutSeconds: 0.5 });
+          expect(Date.now() - startedAt).toBeLessThan(2500);
+          expect(result).toMatchObject({ ok: false, code: 'SCRIPT_TIMEOUT' });
+          expect(result.ok === false && result.error).toContain('with every process it started');
+          const childPid = Number(await Bun.file(pidFile).text());
+          expect(isRunning(childPid)).toBe(false);
+          await Bun.sleep(1800);
+          expect(await Bun.file(mutation).exists()).toBe(false);
+        }
+      );
+    }
+  );
+});

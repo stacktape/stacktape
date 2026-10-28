@@ -240,6 +240,18 @@ test('an assistant lists, writes, resets and seeds local databases through stack
 
   // Bulk deletes and resets need confirmation; nothing changes without it.
   expect((await call('query', { resource: 'db', sql: 'delete from settings' })).code).toBe('DESTRUCTIVE_OPERATION');
+  // r2xx: a leading comment or a quoted "where" made these run without confirmation.
+  for (const [resource, statement] of [
+    ['db', '-- ordinary explanation\ndelete from users'],
+    ['db', "update users set name = 'where'"],
+    ['db', '/* comment */ truncate users'],
+    ['mydb', '# note\ndelete from todos'],
+    ['mydb', 'update todos set title = "where"']
+  ]) {
+    expect((await call('query', { resource, sql: statement })).code, statement).toBe('DESTRUCTIVE_OPERATION');
+  }
+  expect((await sql('db', "select count(*)::int as n from users where name <> 'where'")).rows).toEqual([{ n: 3 }]);
+  expect((await sql('mydb', 'select count(*) as n from todos')).rows).toEqual([{ n: 2 }]);
   expect((await call('query', { resource: 'cache', command: 'FLUSHALL' })).code).toBe('DESTRUCTIVE_OPERATION');
   const unconfirmed = await call('reset_db');
   expect(unconfirmed.code).toBe('DESTRUCTIVE_OPERATION');
@@ -338,9 +350,11 @@ test("another project's MCP server reads through cwd, and the databases refuse i
     'db',
     "create function r2m_bump() returns int language sql as $$ insert into settings values ('r2m', 'x') returning 1 $$"
   );
+  // The semicolons of a compound body split it for the lexer, which cannot classify the parts and asks to confirm.
   await sql(
     'mydb',
-    "create function r2m_bump() returns int deterministic modifies sql data begin insert into todos (title) values ('r2m'); return 1; end"
+    "create function r2m_bump() returns int deterministic modifies sql data begin insert into todos (title) values ('r2m'); return 1; end",
+    { confirm: true }
   );
   const elsewhere = createDevToolHandler({ serverDirectory: () => join(root, 'elsewhere'), discoverAgents: discover });
   const read = async (args: Record<string, unknown>) =>

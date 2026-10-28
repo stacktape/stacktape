@@ -2,6 +2,7 @@ import { publicCommandName, resolveCommandName } from '../../config/cli/public-n
 import { parseCliInput, resolveFlagName } from '../../utils/cli';
 import type { StacktapeCommand } from '../../config/cli/commands';
 import { cliCommands } from '../../config/cli/commands';
+import { dirname, resolve } from 'node:path';
 import {
   getAllowedArgs,
   getCommandDescription,
@@ -14,7 +15,7 @@ import {
   getReadOnlyAwsOperations,
   isReadOnlyAwsCommand
 } from '@stacktape/aws-read-only/operations';
-import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
+import { isDefinitelyReadOnlySql } from '@domain-services/debug-services/sql-statements';
 
 export type CliCommandSafety = 'readOnly' | 'diagnostic' | 'local' | 'mutating' | 'destructive' | 'interactive';
 
@@ -323,16 +324,53 @@ const commandMatchesScriptName = (command: StacktapeCommand, scriptName: string)
   return false;
 };
 
+/**
+ * Where a package script runs its command: the directory (its package's, or its --current-working-directory) and the
+ * config it names, both absolute. `scanDirectory` is what the package.json path is relative to.
+ */
+export const getPackageScriptLocation = (
+  script: Pick<MatchedStacktapePackageScript, 'packageJsonPath' | 'parsedArgs'>,
+  scanDirectory: string
+): { directory: string; configPath?: string } => {
+  const packageDirectory = resolve(scanDirectory, dirname(script.packageJsonPath));
+  const { currentWorkingDirectory, configPath } = script.parsedArgs;
+  const directory =
+    typeof currentWorkingDirectory === 'string' ? resolve(packageDirectory, currentWorkingDirectory) : packageDirectory;
+  return { directory, ...(typeof configPath === 'string' ? { configPath: resolve(directory, configPath) } : {}) };
+};
+
+/** The arguments of a script that pick what it deploys and where. */
+const TARGET_ARGS = [
+  'stage',
+  'region',
+  'projectName',
+  'awsAccount',
+  'profile',
+  'configPath',
+  'currentWorkingDirectory'
+] as const;
+
+/**
+ * The package script that runs `command` for the project a request selects, used to fill in its target. With a config
+ * path or directory in `location` (absolute), only scripts that run that config, or run in that directory, count. When
+ * the best scripts tie and would deploy different targets, none is returned: guessing between them is worse than
+ * asking.
+ */
 export const findStacktapePackageScript = ({
   packageJsonFiles,
   command,
   projectName,
-  stage
+  stage,
+  scanDirectory,
+  location
 }: {
   packageJsonFiles: { path: string; name?: string; relevantScripts: Record<string, string> }[];
   command: StacktapeCommand;
   projectName?: string;
   stage?: string;
+  /** The directory the package.json paths are relative to; required with `location`. */
+  scanDirectory?: string;
+  location?: { configPath?: string; directory?: string };
 }): MatchedStacktapePackageScript | undefined => {
   const candidates: Array<MatchedStacktapePackageScript & { score: number }> = [];
 
@@ -340,6 +378,19 @@ export const findStacktapePackageScript = ({
     for (const [scriptName, scriptCommand] of Object.entries(packageJson.relevantScripts)) {
       const parsed = parseStacktapeScriptCommand(scriptCommand);
       if (!parsed || parsed.command !== command) continue;
+      if (scanDirectory && (location?.configPath || location?.directory)) {
+        const runs = getPackageScriptLocation(
+          { packageJsonPath: packageJson.path, parsedArgs: parsed.args },
+          scanDirectory
+        );
+        const matches = location.configPath
+          ? runs.configPath
+            ? runs.configPath === location.configPath
+            : runs.directory === dirname(location.configPath)
+          : runs.directory === location.directory ||
+            (runs.configPath !== undefined && dirname(runs.configPath) === location.directory);
+        if (!matches) continue;
+      }
 
       let score = 0;
       if (commandMatchesScriptName(command, scriptName)) score += 30;
@@ -370,7 +421,16 @@ export const findStacktapePackageScript = ({
   }
 
   candidates.sort((left, right) => right.score - left.score);
-  return candidates[0];
+  const [best, ...others] = candidates;
+  const targetOf = (candidate: MatchedStacktapePackageScript) =>
+    JSON.stringify([
+      ...TARGET_ARGS.map((name) => candidate.parsedArgs[name]),
+      scanDirectory ? getPackageScriptLocation(candidate, scanDirectory) : candidate.packageJsonPath
+    ]);
+  if (best && others.some((other) => other.score === best.score && targetOf(other) !== targetOf(best))) {
+    return undefined;
+  }
+  return best;
 };
 
 const requiresConfirmationForSafety = (safety: CliCommandSafety): boolean =>
@@ -528,12 +588,20 @@ const validateMcpSpecificArgs = ({
 // agent's to set; listing them only invites calls that break the run.
 const MCP_MANAGED_ARGS = new Set(['agent', 'outputFormat', 'ui', 'help']);
 
-/** Arguments that would keep a command running past what one MCP call can wait for, with what to use instead. */
+const SHOW_SECRETS_REFUSAL =
+  '`showSensitiveValues` would print secret values into this conversation. MCP never returns them: without it, a sensitive value comes back as <<OMITTED>>. Tell the user to run the command with --show-secrets in their own terminal.';
+
+/**
+ * Arguments MCP does not pass on, with what to use instead: ones that would keep a command running past what one MCP
+ * call can wait for, and ones that would print secret values into the conversation.
+ */
 const MCP_REFUSED_ARGS: Partial<Record<StacktapeCommand, Record<string, string>>> = {
   logs: {
     follow:
       '`follow` keeps `stacktape logs` running until it is stopped, so an MCP call would not return. To watch a dev session\'s logs, use the stacktape_dev tool with action "logs"; for a deployed stack, run logs again with a later startTime.'
-  }
+  },
+  'param:get': { showSensitiveValues: SHOW_SECRETS_REFUSAL },
+  deploy: { showSensitiveValues: SHOW_SECRETS_REFUSAL }
 };
 
 const isMcpExcludedArg = (command: StacktapeCommand, argName: string) =>

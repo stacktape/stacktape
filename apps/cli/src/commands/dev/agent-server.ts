@@ -62,8 +62,8 @@ import {
   dynamoDbReset,
   type DynamoDbConnectionOpts
 } from '@domain-services/debug-services/db-client';
-import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
-import { getSecretSourcedEnvNames, maskAgentEnvironment } from './agent-env-masking';
+import { agentLog, getAgentLogFilePath, initAgentLogger, setAgentLogMasker, stopAgentLogger } from './agent-logger';
+import { createEnvironmentMasker, getSecretSourcedEnvNames, maskAgentEnvironment } from './agent-env-masking';
 import {
   describeBatchJob,
   findSubmittedBatchJobId,
@@ -2047,6 +2047,37 @@ export const buildStartupMessage = (params: {
   return lines.join('\n');
 };
 
+/**
+ * Masks what dev mode writes to its log, which MCP returns to agents: the values `/env` masks in any workload's
+ * environment, then the shared scrubber. A workload can print another one's secret (a shared database password), so
+ * every environment counts. The masking is rebuilt only when an environment changes.
+ */
+const createSessionLogMasker = (): ((text: string) => string) => {
+  let environments: Array<Record<string, string> | null> = [];
+  let mask = createEnvironmentMasker({});
+  return (text) => {
+    const names = agentState.workloads.map(({ name }) => name);
+    const current = names.map((name) => workloadEnvironment.getEnvVars(name));
+    if (current.length !== environments.length || current.some((env, index) => env !== environments[index])) {
+      environments = current;
+      const merged: Record<string, string> = {};
+      const secretNames = new Set<string>();
+      names.forEach((name, index) => {
+        const secret = workloadEnvironment.getSecretEnvNames(name);
+        for (const [variable, value] of Object.entries(current[index] ?? {})) {
+          // Two workloads can set one name to different values; a suffix keeps both and keeps the name's meaning.
+          let key = variable;
+          for (let copy = 2; key in merged && merged[key] !== value; copy++) key = `${variable}_${copy}`;
+          merged[key] = value;
+          if (secret.has(variable)) secretNames.add(key);
+        }
+      });
+      mask = createEnvironmentMasker(merged, secretNames);
+    }
+    return mask(text);
+  };
+};
+
 export const startAgentServer = async (
   port: number,
   logDir: string,
@@ -2054,6 +2085,7 @@ export const startAgentServer = async (
   session?: AgentSessionIdentity
 ): Promise<void> => {
   if (environment) workloadEnvironment = environment;
+  setAgentLogMasker(createSessionLogMasker());
   agentPort = port;
   agentSession = session ?? null;
   startTime = Date.now();

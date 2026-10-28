@@ -1,5 +1,5 @@
 import { publicCommandName, publicCommandLine } from '../../config/cli/public-names';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   acceptedContent,
@@ -15,15 +15,17 @@ import type { StacktapeCommand } from '../../config/cli/commands';
 import {
   describeCliCommand,
   findStacktapePackageScript,
+  getPackageScriptLocation,
   getRawStacktapeCredentialArgNames,
   normalizeCliArgsForCommand,
   normalizeCliArgs,
   prepareCliRun,
-  type CliCommandSafety
+  type CliCommandSafety,
+  type MatchedStacktapePackageScript
 } from './cli-command-tools';
 import { scanStacktapeProject } from './project-scan';
 import { readCommandProjectSettings } from '@domain-services/config-manager/project-settings';
-import { maskSecretString, maskSensitiveValues, type ToolOutput } from './tool-output';
+import { maskSensitiveValues, type ToolOutput } from './tool-output';
 
 const CLI_CREDENTIAL_GUIDANCE = {
   planRequiresCredentials: false,
@@ -53,16 +55,17 @@ const consumedDestructiveConfirmations = new Map<string, number>();
 
 export const verifyDestructiveConfirmationState = destructiveConfirmationCodec.verify;
 
+/** Arguments whose value is a secret. Tool output masks them, so a plan never repeats them as something to run. */
+const SECRET_ARG = /secretValue|password|token|credential|privateKey/i;
+
+/** The command line of a plan, without its secret arguments: in a terminal, `secret set` then asks for the value. */
 const buildShellCommand = (command: string, args: Record<string, unknown>): string =>
   publicCommandLine(
     command,
     Object.fromEntries(
-      Object.entries(args)
-        .filter(([key, value]) => !(key === 'currentWorkingDirectory' && value === '.'))
-        .map(([key, value]) => [
-          key,
-          /secretValue|password|token|credential|privateKey/i.test(key) ? maskSecretString(String(value)) : value
-        ])
+      Object.entries(args).filter(
+        ([key, value]) => !(key === 'currentWorkingDirectory' && value === '.') && !SECRET_ARG.test(key)
+      )
     )
   );
 
@@ -291,6 +294,60 @@ export const summarizeMatchedScriptForPlan = (matchedScriptData?: Record<string,
   };
 };
 
+const LOCATION_ARGS = new Set(['configPath', 'currentWorkingDirectory']);
+
+/** The config and directory a request names, absolute, the way the CLI resolves them from `scanDirectory`. */
+export const getRequestedLocation = (
+  scanDirectory: string,
+  args: Record<string, unknown>
+): { configPath?: string; directory?: string } => {
+  const directory =
+    typeof args.currentWorkingDirectory === 'string' ? resolve(scanDirectory, args.currentWorkingDirectory) : undefined;
+  return {
+    ...(directory ? { directory } : {}),
+    ...(typeof args.configPath === 'string' ? { configPath: resolve(directory ?? scanDirectory, args.configPath) } : {})
+  };
+};
+
+/**
+ * The config and directory a plan adds to the ones a request names. They come from one source, so a requested config
+ * is never resolved from another project's directory: a config path alone runs from the request's directory, a
+ * directory alone uses the config in it, and without either the matched package script's location or the scan's
+ * preferred config applies.
+ */
+export const inferPlanLocation = ({
+  scan,
+  location,
+  script
+}: {
+  scan: Awaited<ReturnType<typeof scanStacktapeProject>>;
+  location: { configPath?: string; directory?: string };
+  script?: MatchedStacktapePackageScript;
+}): { configPath?: string; currentWorkingDirectory?: string } => {
+  const configIn = (directory: string) => {
+    const config = scan.configCandidates.find((candidate) => resolve(scan.cwd, candidate.directory) === directory);
+    return config && relative(directory, resolve(scan.cwd, config.path)).replaceAll('\\', '/');
+  };
+  if (location.configPath) return location.directory ? {} : { currentWorkingDirectory: scan.cwd };
+  if (location.directory) {
+    const configPath = configIn(location.directory);
+    return configPath ? { configPath } : {};
+  }
+  if (script) {
+    const { directory } = getPackageScriptLocation(script, scan.cwd);
+    // A script without --config-path uses the config in its directory.
+    const configPath =
+      typeof script.parsedArgs.configPath === 'string' ? script.parsedArgs.configPath : configIn(directory);
+    return { currentWorkingDirectory: directory, ...(configPath ? { configPath } : {}) };
+  }
+  return {
+    ...(scan.suggestedDefaults.currentWorkingDirectory
+      ? { currentWorkingDirectory: resolve(scan.cwd, scan.suggestedDefaults.currentWorkingDirectory) }
+      : {}),
+    ...(scan.suggestedDefaults.configPath ? { configPath: scan.suggestedDefaults.configPath } : {})
+  };
+};
+
 type ConvenienceArgs = {
   stage?: string;
   region?: string;
@@ -322,7 +379,9 @@ const findProjectScript = ({
   const filter = {
     packageJsonFiles: scan.packageJsonFiles,
     projectName: typeof args.projectName === 'string' ? args.projectName : undefined,
-    stage: typeof args.stage === 'string' ? args.stage : undefined
+    stage: typeof args.stage === 'string' ? args.stage : undefined,
+    scanDirectory: scan.cwd,
+    location: getRequestedLocation(scan.cwd, args)
   };
   return (
     findStacktapePackageScript({ ...filter, command }) || findStacktapePackageScript({ ...filter, command: 'deploy' })
@@ -519,24 +578,25 @@ export const buildCliPlan = async ({
     secretFile
   });
   const commandContextArgs = { ...convenienceArgs, ...rawArgs };
+  const location = getRequestedLocation(scan.cwd, commandContextArgs);
+  const scriptFilter = {
+    packageJsonFiles: scan.packageJsonFiles,
+    projectName: typeof commandContextArgs.projectName === 'string' ? commandContextArgs.projectName : undefined,
+    stage: typeof commandContextArgs.stage === 'string' ? commandContextArgs.stage : undefined,
+    scanDirectory: scan.cwd,
+    location
+  };
   const matchedScript =
-    findStacktapePackageScript({
-      packageJsonFiles: scan.packageJsonFiles,
-      command: description.canonicalCommand,
-      projectName: typeof commandContextArgs.projectName === 'string' ? commandContextArgs.projectName : undefined,
-      stage: typeof commandContextArgs.stage === 'string' ? commandContextArgs.stage : undefined
-    }) ||
+    findStacktapePackageScript({ ...scriptFilter, command: description.canonicalCommand }) ||
     (['diff', 'delete', 'rollback'].includes(canonicalCommand)
-      ? findStacktapePackageScript({
-          packageJsonFiles: scan.packageJsonFiles,
-          command: 'deploy',
-          projectName: typeof commandContextArgs.projectName === 'string' ? commandContextArgs.projectName : undefined,
-          stage: typeof commandContextArgs.stage === 'string' ? commandContextArgs.stage : undefined
-        })
+      ? findStacktapePackageScript({ ...scriptFilter, command: 'deploy' })
       : undefined);
   const allowedArgs = new Set(description.allowedArgs);
+  // The script's location is applied as one with its directory below, never mixed with other sources.
   const scriptArgs = Object.fromEntries(
-    Object.entries(matchedScript?.parsedArgs || {}).filter(([argName]) => allowedArgs.has(argName))
+    Object.entries(matchedScript?.parsedArgs || {}).filter(
+      ([argName]) => allowedArgs.has(argName) && !LOCATION_ARGS.has(argName)
+    )
   );
   const droppedScriptArgs = Object.keys(matchedScript?.parsedArgs || {}).filter((argName) => !allowedArgs.has(argName));
 
@@ -568,13 +628,11 @@ export const buildCliPlan = async ({
         droppedParsedArgs: droppedScriptArgs
       }
     : undefined;
-  const inferredArgs: Record<string, unknown> = {};
-  if (allowedArgs.has('currentWorkingDirectory') && scan.suggestedDefaults.currentWorkingDirectory) {
-    inferredArgs.currentWorkingDirectory = resolve(scan.cwd, scan.suggestedDefaults.currentWorkingDirectory);
-  }
-  if (allowedArgs.has('configPath') && scan.suggestedDefaults.configPath) {
-    inferredArgs.configPath = scan.suggestedDefaults.configPath;
-  }
+  const inferredArgs = Object.fromEntries(
+    Object.entries(inferPlanLocation({ scan, location, script: matchedScript })).filter(([argName]) =>
+      allowedArgs.has(argName)
+    )
+  );
 
   const planArgs: Record<string, unknown> = {
     ...scriptArgs,
@@ -676,6 +734,7 @@ export const buildCliPlan = async ({
     };
   }
 
+  const withheldArgs = Object.keys(prepared.args).filter((key) => SECRET_ARG.test(key));
   return {
     ok: true,
     code: 'OK',
@@ -683,7 +742,7 @@ export const buildCliPlan = async ({
     data: {
       command: prepared.command,
       canonicalCommand: prepared.command,
-      args: prepared.args,
+      args: Object.fromEntries(Object.entries(prepared.args).filter(([key]) => !withheldArgs.includes(key))),
       policy: {
         category: prepared.policy.category,
         safety: prepared.policy.safety,
@@ -691,15 +750,20 @@ export const buildCliPlan = async ({
         sensitiveOutput: prepared.policy.sensitiveOutput ?? false
       },
       shellCommand: buildShellCommand(prepared.command, prepared.args),
-      stacktapeCliRun: {
-        tool: 'stacktape_cli',
-        arguments: {
-          action: 'run',
-          command: prepared.command,
-          cwd: scan.cwd,
-          args: prepared.args
-        }
-      },
+      // Masked output would turn a secret into a different value, so a plan with one returns no call to repeat.
+      ...(withheldArgs.length
+        ? { withheldArgs }
+        : {
+            stacktapeCliRun: {
+              tool: 'stacktape_cli',
+              arguments: {
+                action: 'run',
+                command: prepared.command,
+                cwd: scan.cwd,
+                args: prepared.args
+              }
+            }
+          }),
       resolvedContext: {
         cwd: scan.cwd,
         currentWorkingDirectory:
@@ -713,12 +777,19 @@ export const buildCliPlan = async ({
       scan: summarizeScanForPlan(scan),
       matchedPackageScript: summarizeMatchedScriptForPlan(matchedScriptData)
     },
-    nextActions: buildPlanNextActions({
-      command: prepared.command,
-      safety: prepared.policy.safety,
-      requiresConfirmation: prepared.policy.requiresConfirmation,
-      sensitiveOutput: prepared.policy.sensitiveOutput ?? false
-    })
+    nextActions: [
+      ...(withheldArgs.length
+        ? [
+            `This plan does not repeat ${withheldArgs.join(', ')}. To run it, call stacktape_cli action=run with the arguments you passed to this plan, ${withheldArgs.join(', ')} included. shellCommand leaves the value out: in the user's terminal, the command asks for it.`
+          ]
+        : []),
+      ...buildPlanNextActions({
+        command: prepared.command,
+        safety: prepared.policy.safety,
+        requiresConfirmation: prepared.policy.requiresConfirmation,
+        sensitiveOutput: prepared.policy.sensitiveOutput ?? false
+      })
+    ]
   };
 };
 
@@ -739,8 +810,8 @@ const buildPlanNextActions = ({
     // production behaviour is to tell the user to run it in their own terminal.
     return [
       `DO NOT call stacktape_cli action=run for ${publicCommandName(command)} just to display the value to the user. The value would be exposed in the conversation transcript and may be cached or logged.`,
-      `Instead, tell the user to run the suggested shellCommand in their OWN terminal. Their terminal output is private; this conversation is not.`,
-      `Only call stacktape_cli action=run for ${publicCommandName(command)} if the user has explicitly said they want a programmatic/automated retrieval (e.g. piping into another tool) and accepts the disclosure risk.`
+      `Instead, tell the user to run the suggested shellCommand in their OWN terminal${command === 'param:get' ? ', with --show-secrets for a sensitive parameter' : ''}. Their terminal output is private; this conversation is not.`,
+      `stacktape_cli action=run never returns a sensitive value: ${command === 'param:get' ? 'a sensitive parameter comes back as <<OMITTED>> and showSensitiveValues is refused' : 'the secret value is redacted from its output'}.`
     ];
   }
   if (safety === 'destructive') {

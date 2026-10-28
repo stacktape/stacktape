@@ -134,4 +134,33 @@ describe('MCP Stacktape agent subprocess runner', () => {
       'vscode'
     ]);
   });
+
+  test('passes a value that starts with a dash as the value, not as a flag', async () => {
+    const run = async (parseAs: string, args: Record<string, unknown>) =>
+      (await runStacktapeCommandJsonl({ command: fixturePath, args: { mode: 'parse', parseAs, ...args } })).data as {
+        commands: string[];
+        options: Record<string, unknown>;
+      };
+
+    const sql = await run('query:sql', { sql: '--comment\nSELECT 1', resourceName: 'db', stage: 'r2xx' });
+    expect(sql.options).toMatchObject({ sql: '--comment\nSELECT 1', resourceName: 'db', stage: 'r2xx' });
+    // A filter of `--help` used to turn the logs call into the help command.
+    const logs = await run('logs', { filter: '--help', resourceName: 'app', stage: 'r2xx', limit: 5 });
+    expect(logs.commands).toEqual(['logs']);
+    expect(logs.options).toMatchObject({ filter: '--help', resourceName: 'app', limit: 5 });
+  });
+
+  test('fails a run whose CLI exits with an error after reporting success', async () => {
+    const result = await runStacktapeCommandJsonl({ command: fixturePath, args: { mode: 'success-then-crash' } });
+    expect(result).toMatchObject({ ok: false, code: 'CLI_EXIT_FAILED' });
+    expect(result.message).toContain('code 9');
+    expect(result.rawTail).toContain('fatal: flushing the operation record failed');
+  });
+
+  test('answers a working directory that does not exist with a validation result', async () => {
+    const cwd = join(tmpdir(), `stacktape-mcp-runner-missing-${process.pid}`);
+    const result = await runStacktapeCommandJsonl({ command: fixturePath, cwd });
+    expect(result).toMatchObject({ ok: false, code: 'VALIDATION_ERROR', resolvedContext: { cwd } });
+    expect(result.message).toContain(cwd);
+  });
 });

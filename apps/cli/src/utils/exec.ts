@@ -9,6 +9,7 @@ import { isDirAccessible } from './fs-utils';
 import { serialize } from './misc';
 import { CliError } from './errors';
 import { StreamTransformer } from './streams';
+import { stopProcessGroupOnExit, stopProcessTree } from './process-tree';
 import { nextSubprocessOrdinal, startTiming } from './timings';
 
 EventEmitter.defaultMaxListeners = 0;
@@ -67,6 +68,15 @@ type ExecProps = {
 
 export type ChildStdioMode = 'capture' | 'inherit' | 'ignore';
 
+/**
+ * Whether the child starts as the leader of its own process group: on POSIX, for a command with a deadline that does not
+ * share the terminal. A child in another group would no longer receive the terminal's Ctrl+C or be able to read it.
+ */
+const leadsProcessGroup = ({ rawOptions, stdioMode = 'capture', stdinInput }: ExecProps) =>
+  rawOptions?.timeout !== undefined &&
+  process.platform !== 'win32' &&
+  !(stdinInput === undefined && stdioMode === 'inherit');
+
 const getChildProcess = (
   command: string,
   args: string[],
@@ -103,8 +113,12 @@ const getChildProcess = (
         : stdioMode === 'ignore'
           ? ('ignore' as const)
           : (['ignore', 'pipe', 'pipe'] as const);
+  // A command with a deadline leads its own process group (on POSIX, unless it shares the terminal), so its whole tree
+  // can be stopped when the deadline passes; `exec` enforces the deadline itself.
+  const { timeout: _deadline, ...otherRawOptions } = rawOptions;
   const cpOpts = {
-    ...rawOptions,
+    ...otherRawOptions,
+    detached: leadsProcessGroup({ rawOptions, stdioMode, stdinInput }),
     encoding: 'utf8' as const,
     lines: false as const,
     env: childEnv,
@@ -243,6 +257,22 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   });
 
   const childProcess = getChildProcess(command, args, params);
+  const timeoutMs = params.rawOptions?.timeout;
+  let stopOnDeadline: Promise<boolean> | undefined;
+  let removeExitHook = () => {};
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs !== undefined && childProcess.pid) {
+    const pid = childProcess.pid;
+    const processGroup = leadsProcessGroup(params);
+    if (processGroup) removeExitHook = stopProcessGroupOnExit(pid);
+    deadline = setTimeout(() => {
+      stopOnDeadline = stopProcessTree(pid, { processGroup });
+    }, timeoutMs);
+  }
+  const settle = () => {
+    clearTimeout(deadline);
+    removeExitHook();
+  };
 
   const logDetailsFn = () => {
     if (params.logDetails) {
@@ -251,12 +281,27 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   };
 
   return childProcess
-    .then((res) => {
+    .then(async (res) => {
+      settle();
+      if (stopOnDeadline) {
+        // A command that ends cleanly on SIGTERM still did not finish before its deadline.
+        throw Object.assign(new Error(`Command \`${commandDescription}\` timed out after ${timeoutMs} ms.`), {
+          timedOut: true,
+          processTreeStopped: await stopOnDeadline
+        });
+      }
       logDetailsFn();
       endTiming({ exitCode: res.exitCode ?? 0 });
       return { ...res, exitCode: res.exitCode ?? 0 };
     })
-    .catch((err) => {
+    .catch(async (err) => {
+      settle();
+      if (stopOnDeadline && err && typeof err === 'object' && !err.timedOut) {
+        // Execa reports a signal; the deadline is the reason. Whether every process of the command stopped is known
+        // only once the tree is checked.
+        err.timedOut = true;
+        err.processTreeStopped = await stopOnDeadline;
+      }
       logDetailsFn();
       endTiming({ exitCode: typeof err?.exitCode === 'number' ? err.exitCode : null, outcome: 'error' });
       if (params.safeCommandDescription) {

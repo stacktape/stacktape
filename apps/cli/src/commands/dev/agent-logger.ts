@@ -37,6 +37,13 @@ type JsonlLogEntry = {
 export const AGENT_LOG_ROTATE_BYTES = 10 * 1024 * 1024;
 
 let logFilePath: string | null = null;
+let maskMessage: (text: string) => string = (text) => text;
+
+/** Masks every message before it is written; dev mode masks its workloads' secret values with it. */
+export const setAgentLogMasker = (mask: (text: string) => string) => {
+  maskMessage = mask;
+};
+
 let fileBytes = 0;
 let fileLines = 0;
 let fileLineOffset = 0;
@@ -116,7 +123,7 @@ const writeEntry = (entry: JsonlLogEntry) => {
 
 /**
  * Log a message to the agent log file in JSONL format.
- * Each line is a valid JSON object for easy parsing. Terminal colors are removed.
+ * Each line is a valid JSON object for easy parsing. Terminal colors are removed and secret values masked.
  */
 export const agentLog = (source: string, message: string, level: LogLevel = 'info', timestamp?: number) => {
   if (!logFilePath) return;
@@ -124,7 +131,7 @@ export const agentLog = (source: string, message: string, level: LogLevel = 'inf
     ts: new Date(timestamp ?? Date.now()).toISOString(),
     source,
     level,
-    msg: stripAnsi(message)
+    msg: maskMessage(stripAnsi(message))
   });
 };
 

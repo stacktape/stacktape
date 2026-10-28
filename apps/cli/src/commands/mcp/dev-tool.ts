@@ -4,14 +4,21 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, posix, resolve, win32 } from 'node:path';
 import { isReadOnlyRedisCommand } from '@domain-services/debug-services/db-client';
-import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
+import { isDefinitelyReadOnlySql } from '@domain-services/debug-services/sql-statements';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { findStacktapePackageScript, normalizeCliInvocation } from './cli-command-tools';
-import { readPlannedProjectSettings, summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
+import {
+  getRequestedLocation,
+  inferPlanLocation,
+  readPlannedProjectSettings,
+  summarizeMatchedScriptForPlan,
+  summarizeScanForPlan
+} from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import { scanStacktapeProject } from './project-scan';
 import { buildCliRunOutput, keepRawTailInLogFile, toToolText, type ToolOutput } from './tool-output';
 import { type DiscoveredDevAgent, discoverDevAgents, isSameDirectory } from '../dev/agent-daemon';
+import { createEnvironmentMasker } from '../dev/agent-env-masking';
 import { readLineOffset } from '../dev/agent-logger';
 
 type DevSession = {
@@ -724,6 +731,42 @@ const readStopReason = async (
   }
 };
 
+/** The characters of script output a seed result carries; the rest of the result needs the remaining room. */
+const MAX_SCRIPT_OUTPUT_CHARS = 12_000;
+const MAX_SCRIPT_OUTPUT_LINE_CHARS = 2_000;
+
+/**
+ * A seed result whose output fits one tool response. A script that printed more keeps its last lines, each cut to a
+ * readable length, and the whole output goes to a log file: the result still says whether the script ran, so an agent
+ * does not run a seed again only because it printed a lot.
+ */
+const boundScriptOutput = (output: ToolOutput, script: string): ToolOutput => {
+  const lines = output.data?.output;
+  if (!Array.isArray(lines) || JSON.stringify(lines).length <= MAX_SCRIPT_OUTPUT_CHARS) return output;
+  const kept: string[] = [];
+  let chars = 0;
+  for (const line of [...lines].reverse()) {
+    const text = String(line);
+    const shown =
+      text.length > MAX_SCRIPT_OUTPUT_LINE_CHARS
+        ? `${text.slice(0, MAX_SCRIPT_OUTPUT_LINE_CHARS)}... [${text.length - MAX_SCRIPT_OUTPUT_LINE_CHARS} characters cut]`
+        : text;
+    chars += JSON.stringify(shown).length + 1;
+    if (kept.length && chars > MAX_SCRIPT_OUTPUT_CHARS) break;
+    kept.unshift(shown);
+  }
+  const outputLog = keepRawTailInLogFile({ command: `seed-${script}`, rawTail: lines.map(String).join('\n') });
+  const omitted = Number(output.data?.omittedOutputLines ?? 0) + lines.length - kept.length;
+  return {
+    ...output,
+    data: { ...output.data, output: kept, omittedOutputLines: omitted, ...(outputLog ? { outputLog } : {}) },
+    nextActions: [
+      ...(output.nextActions ?? []),
+      `The script printed more than one result holds: this shows its last ${kept.length} lines${outputLog ? `, and ${outputLog} has all ${lines.length} it returned` : ''}.`
+    ]
+  };
+};
+
 const LOG_LEVEL_RANK: Record<string, number> = { info: 0, warn: 1, error: 2 };
 
 /** `since` as an ISO time or a duration back from now (`30s`, `10m`, `2h`, `1d`). */
@@ -745,6 +788,41 @@ export const parseLogsSince = (since: unknown, now: Date): number | undefined =>
  * result. A larger page made the whole call fail with `RESPONSE_TOO_LARGE`.
  */
 const MAX_LOG_PAGE_CHARS = 24_000;
+
+/**
+ * Masks a log entry as `/env` masks values: known credential formats, passwords in connection strings and values under
+ * secret names. Dev mode masks the session's own environment values as it writes the log; this also covers lines it
+ * wrote before, or that a workload logged in a form only the patterns recognize.
+ */
+const maskLogText = createEnvironmentMasker({});
+const maskLogEntry = (entry: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(entry).map(([key, value]) => [key, typeof value === 'string' ? maskLogText(value) : value])
+  );
+
+/**
+ * `entry`, cut until it takes at most `maxChars` characters: its longest text field first. `truncatedFromChars` says how
+ * long it was; the whole line stays in the log file.
+ */
+const fitLogEntry = (entry: Record<string, unknown>, maxChars: number): Record<string, unknown> => {
+  const size = JSON.stringify(entry, null, 2).length;
+  if (size <= maxChars) return entry;
+  const fitted: Record<string, unknown> = { ...entry, truncatedFromChars: size };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const excess = JSON.stringify(fitted, null, 2).length - maxChars;
+    if (excess <= 0) return fitted;
+    const longest = Object.entries(fitted)
+      .filter((field): field is [string, string] => typeof field[1] === 'string')
+      .sort(([, left], [, right]) => right.length - left.length)[0];
+    if (!longest) break;
+    const [key, text] = longest;
+    // JSON escapes can make a character take several; cut generously so the next pass rarely runs.
+    const keep = Math.max(0, text.length - excess * 2 - 64);
+    fitted[key] = `${text.slice(0, keep)}... [${text.length - keep} characters cut]`;
+  }
+  const { ts, source, level } = entry;
+  return { ts, source, level, msg: '[entry too large to return; read it from logFile]', truncatedFromChars: size };
+};
 
 const entryTime = (entry: Record<string, unknown>) => (typeof entry.ts === 'string' ? Date.parse(entry.ts) || 0 : 0);
 
@@ -828,15 +906,17 @@ const readDevLogs = async ({
     matching.push({ index, entry });
   }
 
-  // Newest first without a cursor, oldest first with one, until the count or the size is reached. One entry always fits.
+  // Newest first without a cursor, oldest first with one, until the count or the size is reached. One entry always
+  // fits: a line longer than the page is cut, so a cursor still moves past it.
   const ordered = cursor === undefined ? [...matching].reverse() : matching;
   const page: typeof matching = [];
   let chars = 0;
   for (const item of ordered) {
     if (page.length >= maxItems) break;
-    chars += JSON.stringify(item.entry, null, 2).length + 6;
+    const entry = fitLogEntry(maskLogEntry(item.entry), maxChars);
+    chars += JSON.stringify(entry, null, 2).length + 6;
     if (page.length && chars > maxChars) break;
-    page.push(item);
+    page.push({ ...item, entry });
   }
   if (cursor === undefined) page.reverse();
   const nextCursor = cursor !== undefined && page.length < matching.length ? page[page.length - 1].index + 1 : end;
@@ -861,12 +941,23 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
     maxFiles: 10
   });
   const projectName = typeof toolArgs.projectName === 'string' ? toolArgs.projectName : undefined;
+  const location = getRequestedLocation(scan.cwd, toolArgs);
+  // Only a deploy script of the selected project gives its target; its location is applied as a whole below.
   const matchedDeployScript = findStacktapePackageScript({
     packageJsonFiles: scan.packageJsonFiles,
     command: 'deploy',
-    projectName
+    projectName,
+    // The stage the session deploys: a script of that stage describes its target best.
+    stage: typeof toolArgs.stage === 'string' ? toolArgs.stage : 'dev',
+    scanDirectory: scan.cwd,
+    location
   });
-  const deployContext = matchedDeployScript?.parsedArgs || {};
+  const {
+    configPath: _scriptConfigPath,
+    currentWorkingDirectory: _scriptDirectory,
+    ...deployContext
+  } = matchedDeployScript?.parsedArgs || {};
+  const inferredLocation = inferPlanLocation({ scan, location, script: matchedDeployScript });
   // Every start setting of the request reaches the returned start call unchanged (a profile, noTunnel, resources): the
   // plan promises a complete call, and a client that runs it must get the session it asked for. Only what concerns the
   // plan itself stays out, and `takeOver`, which moves another session's stage and is chosen at start.
@@ -899,8 +990,8 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
     currentWorkingDirectory:
       typeof toolArgs.currentWorkingDirectory === 'string'
         ? toolArgs.currentWorkingDirectory
-        : scan.suggestedDefaults.currentWorkingDirectory,
-    configPath: typeof toolArgs.configPath === 'string' ? toolArgs.configPath : scan.suggestedDefaults.configPath
+        : inferredLocation.currentWorkingDirectory,
+    configPath: typeof toolArgs.configPath === 'string' ? toolArgs.configPath : inferredLocation.configPath
   };
   if (typeof startArgs.currentWorkingDirectory === 'string' && !isAbsolute(startArgs.currentWorkingDirectory)) {
     startArgs.currentWorkingDirectory = resolve(scan.cwd, startArgs.currentWorkingDirectory);
@@ -1592,6 +1683,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         });
       }
       const cursor = numberArg(toolArgs.cursor);
+      // A fractional line number reads no line: every entry of the page would be empty.
+      if (cursor !== undefined && !(Number.isInteger(cursor) && cursor >= 0)) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'args.cursor must be a whole number of 0 or more: the nextCursor or olderCursor of an earlier call.'
+        });
+      }
       const page = await readDevLogs({
         logFile,
         cursor,
@@ -1624,6 +1723,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
             ? [
                 `${page.omitted} older matching entries are not in this result. Pass args.cursor=${page.olderCursor} with the same filters to read them from the oldest, page by page.`
               ]
+            : []),
+          ...(page.entries.some((entry) => (entry as Record<string, unknown>).truncatedFromChars !== undefined)
+            ? ['Entries with truncatedFromChars were cut to fit this result; the whole line is in logFile.']
             : [])
         ]
       });
@@ -1753,7 +1855,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           ? {
               ...output,
               nextActions: [
-                'The statement deletes or changes data in bulk. Repeat it with args.confirm=true only if that is intended.'
+                'The statement can delete or change data in bulk, or Stacktape could not tell how much it changes (data.hint says why). Repeat it with args.confirm=true only if that is intended.'
               ]
             }
           : output
@@ -1831,10 +1933,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         body: typeof toolArgs.timeoutSeconds === 'number' ? { timeoutSeconds: toolArgs.timeoutSeconds } : {}
       });
       return toToolText(
-        toAgentOutput(response, sessionResult.session, {
-          ok: `Ran script ${script} against the local databases.`,
-          failed: `Script ${script} failed.`
-        })
+        boundScriptOutput(
+          toAgentOutput(response, sessionResult.session, {
+            ok: `Ran script ${script} against the local databases.`,
+            failed: `Script ${script} failed.`
+          }),
+          script
+        )
       );
     }
 

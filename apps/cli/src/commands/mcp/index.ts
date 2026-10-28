@@ -13,7 +13,7 @@ import { serveStdio, type ServeStdioOptions } from '@modelcontextprotocol/server
 import { getStacktapeVersion } from '@utils/versioning';
 import { buildIndex, search, formatAnswer } from './lexical-index';
 import type { LexicalIndex, DocKind } from './lexical-index';
-import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
+import { describeInvalidWorkingDirectory, runStacktapeCommandJsonl } from './cli-jsonl-runner';
 import {
   describeCliCommand,
   listCliCommandSummaries,
@@ -38,7 +38,8 @@ import {
   clampInteger,
   GENERIC_AWS_MCP_BOUNDARY,
   MCP_TOOL_RESULT_SCHEMA_VERSION,
-  toToolText
+  toToolText,
+  type ToolOutput
 } from './tool-output';
 
 const MODERN_MCP_PROTOCOL_VERSION = '2026-07-28';
@@ -129,7 +130,12 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .optional()
     .describe('start, status: how long to wait for the start to finish before returning DEV_STARTING. Default: 50'),
   workload: z.string().optional().describe('rebuild, env: workload name. logs: only lines of this workload'),
-  cursor: z.number().optional().describe('logs: nextCursor of the previous call, to read only newer lines'),
+  cursor: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('logs: nextCursor of the previous call, to read only newer lines'),
   limit: z.number().optional().describe('logs: lines to return (default 100). query: rows or items (default 1000/100)'),
   level: z.enum(['info', 'warn', 'error']).optional().describe('logs: minimum level'),
   since: z.string().optional().describe('logs: ISO time or a duration back from now, for example "10m"'),
@@ -150,7 +156,7 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .boolean()
     .optional()
     .describe(
-      'query: set true for a statement that deletes or changes data in bulk (DROP, TRUNCATE, FLUSHALL, UPDATE/DELETE without WHERE). reset_db: required'
+      'query: set true for a statement that can delete or change data in bulk (DROP, TRUNCATE, ALTER, FLUSHALL, UPDATE/DELETE without WHERE) or that Stacktape cannot classify. Reads, INSERT, CREATE and UPDATE/DELETE with WHERE need none. reset_db: required'
     ),
   pk: z
     .record(z.string(), z.unknown())
@@ -171,6 +177,20 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .optional()
     .describe('seed: stop the script after this many seconds. Default: 50, at most 280')
 });
+
+/** The validation result for a `cwd` that is not an existing directory, in the envelope every other refusal uses. */
+const describeRequestedCwd = (cwd: unknown): ToolOutput | undefined => {
+  if (typeof cwd !== 'string') return undefined;
+  const message = describeInvalidWorkingDirectory(resolve(cwd));
+  return message
+    ? {
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        message,
+        nextActions: ['Pass the directory of the Stacktape project as cwd.']
+      }
+    : undefined;
+};
 
 const getMcpServerVersion = (): string => {
   try {
@@ -575,6 +595,9 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         });
       }
 
+      const invalidCwd = describeRequestedCwd(cwd);
+      if (invalidCwd && action !== 'describe') return toToolText(invalidCwd);
+
       if (action === 'describe') {
         const description = describeCliCommand(command);
         if (!description) {
@@ -679,7 +702,8 @@ Use action=scan to orient in a Stacktape project, for example when the user asks
         buildCliRunOutput({
           result,
           command: prepared.command,
-          policy: prepared.policy
+          policy: prepared.policy,
+          args: prepared.args
         })
       );
     }
@@ -694,22 +718,25 @@ Use this instead of running stacktape dev or stacktape dev stop as shell command
 
 start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state, resets and seeds.
 
-Database actions reach the databases dev mode runs on this machine. The one exception is reading: query and tables with args.resource naming a DynamoDB table the dev stack deploys (a remote resource) scan, query or describe that table in AWS, read-only, and mark the result deployed=true; reset_db refuses it with NOT_LOCAL_RESOURCE. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output; it stops the script after args.timeoutSeconds (default 50) and refuses scripts that reference a deployed resource, but it runs with the developer's AWS credentials and is not a sandbox. env returns a workload's environment with secret values masked, or WORKLOAD_NOT_STARTED for a workload that failed before dev mode prepared it. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) in the session region using the dev agent role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm and API Gateway reads are account-wide read-only; CloudWatch Logs uses stack-name log-group ARN patterns. The live endpoint accepts reviewed reads only and adds resource filtering for Batch, not for other services. Missing or unusable dev-role credentials fail without falling back to developer credentials; a different region is rejected. It fails with OPERATION_NOT_ALLOWED for an operation outside that list and ACCESS_DENIED when IAM refuses it. For 15 minutes after a failed start, aws with that start's devSessionId uses the separate stacktape aws call diagnostic path for that target. That path may fall back from debug-role credentials to the selected user credentials and does not guarantee the live agent's IAM boundary. status lists what the dev stack deploys in data.status.deployedResources, each with its AWS name (awsName), ARN and URL, so a queue URL or a function URL needs no guessing.`,
+Database actions reach the databases dev mode runs on this machine. The one exception is reading: query and tables with args.resource naming a DynamoDB table the dev stack deploys (a remote resource) scan, query or describe that table in AWS, read-only, and mark the result deployed=true; reset_db refuses it with NOT_LOCAL_RESOURCE. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a statement that can delete or change data in bulk, or one Stacktape cannot classify, returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true; comments and quoted text never count. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output; it stops the script after args.timeoutSeconds (default 50) and refuses scripts that reference a deployed resource, but it runs with the developer's AWS credentials and is not a sandbox. env returns a workload's environment with secret values masked, or WORKLOAD_NOT_STARTED for a workload that failed before dev mode prepared it. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) in the session region using the dev agent role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm and API Gateway reads are account-wide read-only; CloudWatch Logs uses stack-name log-group ARN patterns. The live endpoint accepts reviewed reads only and adds resource filtering for Batch, not for other services. Missing or unusable dev-role credentials fail without falling back to developer credentials; a different region is rejected. It fails with OPERATION_NOT_ALLOWED for an operation outside that list and ACCESS_DENIED when IAM refuses it. For 15 minutes after a failed start, aws with that start's devSessionId uses the separate stacktape aws call diagnostic path for that target. That path may fall back from debug-role credentials to the selected user credentials and does not guarantee the live agent's IAM boundary. status lists what the dev stack deploys in data.status.deployedResources, each with its AWS name (awsName), ARN and URL, so a queue URL or a function URL needs no guessing.`,
       inputSchema: z.object({
         action: z.enum(DEV_TOOL_ACTIONS),
         args: DEV_TOOL_ARGS_SCHEMA.optional()
       }),
       outputSchema: TOOL_RESULT_SCHEMA
     },
-    async ({ action, args }, ctx) =>
-      runDevAction({
+    async ({ action, args }, ctx) => {
+      const invalidCwd = describeRequestedCwd(args?.cwd);
+      if (invalidCwd) return toToolText(invalidCwd);
+      return runDevAction({
         action,
         args,
         signal: ctx.mcpReq.signal,
         clientName: getAdvisoryClientName(ctx),
         onProgress: createProgressReporter(ctx),
         getProjectRoots: getClientRoots
-      })
+      });
+    }
   );
 
   return server;

@@ -471,10 +471,13 @@ const summarizeCliDataForAgent = ({
   return data;
 };
 
+const SENSITIVE_OUTPUT_REDACTION = '[REDACTED: this command can return sensitive values]';
+
 export const buildCliRunOutput = ({
   result,
   command,
-  policy
+  policy,
+  args
 }: {
   result: {
     ok: boolean;
@@ -490,6 +493,8 @@ export const buildCliRunOutput = ({
   };
   command: string;
   policy: { category: string; safety: string; sensitiveOutput?: boolean };
+  /** The arguments the command ran with. */
+  args?: Record<string, unknown>;
 }): ToolOutput => {
   let data = summarizeCliDataForAgent({
     command,
@@ -503,8 +508,12 @@ export const buildCliRunOutput = ({
   let rawTail = (result.ok && data) || outputLog ? undefined : result.rawTail;
 
   if (policy.sensitiveOutput) {
-    data = maskSensitiveValues(data || {}) as Record<string, unknown>;
-    rawTail = '[REDACTED: this command can return sensitive values]';
+    // The command's return value is the value itself (param get). The CLI replaces a sensitive one with <<OMITTED>>
+    // unless it is asked to show it; MCP refuses that argument, and the value is withheld if it is ever set.
+    const { result: value, ...rest } = data || {};
+    const shown = args?.showSensitiveValues ? SENSITIVE_OUTPUT_REDACTION : value;
+    data = maskSensitiveValues(value === undefined ? rest : { ...rest, result: shown }) as Record<string, unknown>;
+    rawTail = SENSITIVE_OUTPUT_REDACTION;
   } else {
     data = maskSensitiveValues(data || {}) as Record<string, unknown>;
     rawTail = rawTail ? maskSensitiveText(rawTail) : undefined;

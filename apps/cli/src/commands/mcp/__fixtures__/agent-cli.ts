@@ -4,6 +4,8 @@ import { getStacktapeOperationInvocationContext } from '../../../app/operation-i
 import { parseCliInput } from '../../../utils/cli';
 
 const readFlag = (name: string): string | undefined => {
+  const inline = process.argv.find((argument) => argument.startsWith(`--${name}=`));
+  if (inline) return inline.slice(name.length + 3);
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? process.argv[index + 1] : undefined;
 };
@@ -26,9 +28,15 @@ const main = async () => {
     return;
   }
 
+  if (mode === 'success-then-crash') {
+    process.stdout.write(`${JSON.stringify({ type: 'result', ts: now(), ok: true, code: 'OK', message: 'done' })}\n`);
+    process.stderr.write('fatal: flushing the operation record failed\n');
+    process.exit(9);
+  }
+
   if (mode === 'parse') {
     // What the real CLI reads from this command line and environment, as if it were `stacktape <parseAs> ...`.
-    const { options } = parseCliInput([readFlag('parseAs')!, ...process.argv.slice(2)]);
+    const { commands, options } = parseCliInput([readFlag('parseAs')!, ...process.argv.slice(2)]);
     process.stdout.write(
       `${JSON.stringify({
         type: 'result',
@@ -36,7 +44,7 @@ const main = async () => {
         ok: true,
         code: 'OK',
         message: 'Fixture parsed its arguments.',
-        data: { options, invocation: getStacktapeOperationInvocationContext(process.env) }
+        data: { commands, options, invocation: getStacktapeOperationInvocationContext(process.env) }
       })}\n`
     );
     return;

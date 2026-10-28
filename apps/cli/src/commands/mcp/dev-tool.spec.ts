@@ -25,9 +25,12 @@ const daemon = async ({
   status = {},
   hangs = false,
   exitAfterStopMs = 20,
-  rebuildMs = 0
+  rebuildMs = 0,
+  scriptOutput = []
 }: {
   logFile?: string;
+  /** The output lines a script run returns. */
+  scriptOutput?: string[];
   status?: Record<string, unknown>;
   /** Accepts connections and never answers, like an agent stuck in a long synchronous step. */
   hangs?: boolean;
@@ -100,7 +103,9 @@ const daemon = async ({
           }, exitAfterStopMs)
         );
       }
-    } else if (request.method === 'POST' && (path.startsWith('/reset/') || path.startsWith('/scripts/'))) data = {};
+    } else if (request.method === 'POST' && path.startsWith('/scripts/')) {
+      data = { script: 'seed', durationMs: 5, output: scriptOutput };
+    } else if (request.method === 'POST' && path.startsWith('/reset/')) data = {};
     else if (request.method === 'POST' && path === '/rebuild/broken') {
       // What the agent answers when the build fails: the error, the failed workloads and the log file.
       response.setHeader('content-type', 'application/json');
@@ -594,6 +599,74 @@ describe('MCP dev session routing', () => {
     } finally {
       await dev.close();
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  // r2xx: one 40 000-character line answered RESPONSE_TOO_LARGE with no cursor, a fractional cursor returned empty
+  // entries, and credentials in log lines reached the agent unmasked.
+  test('logs cut a line longer than a page, refuse a fractional cursor and mask credentials', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-logs-long-'));
+    const logFile = join(directory, 'dev.jsonl');
+    const canary = 'r2zz-fabricated-Xk29fQ7v';
+    const line = (msg: string) =>
+      `${JSON.stringify({ ts: '2026-10-28T12:00:00.000Z', source: 'api', level: 'error', msg })}\n`;
+    await writeFile(
+      logFile,
+      line('started') +
+        line(`dump ${'y'.repeat(40_000)}`) +
+        line(`login failed password=${canary}`) +
+        line(`GET /me Authorization: Bearer ${canary}`) +
+        line(JSON.stringify({ password: canary, api_key: canary }))
+    );
+    const dev = await daemon({ logFile });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const read = async (args: Record<string, unknown>) =>
+        (await handler({ action: 'logs', args: { devSessionId, ...args } })).structuredContent;
+
+      const long = await read({ cursor: 1, limit: 1 });
+      expect(long).toMatchObject({ ok: true, code: 'OK', data: { nextCursor: 2 } });
+      const [entry] = long.data?.entries as Array<{ msg: string; truncatedFromChars?: number }>;
+      expect(entry.msg).toStartWith('dump yyy');
+      expect(entry.msg).toContain('characters cut]');
+      expect(entry.truncatedFromChars).toBeGreaterThan(40_000);
+      expect(long.nextActions?.join('\n')).toContain('truncatedFromChars');
+
+      expect(await read({ cursor: 0.5 })).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+
+      const rest = await read({ cursor: 2 });
+      expect((rest.data?.entries as unknown[]).length).toBe(3);
+      expect(JSON.stringify(rest)).not.toContain(canary);
+    } finally {
+      await dev.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  // r2xx: a seed that ran and printed 40 000 characters answered RESPONSE_TOO_LARGE and advised running it again.
+  test('a seed with more output than one result holds still reports that it ran', async () => {
+    const lines = [
+      'inserted 10 users',
+      'z'.repeat(40_000),
+      ...Array.from({ length: 150 }, (_, index) => `row ${index}`)
+    ];
+    const dev = await daemon({ scriptOutput: lines });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+
+      const seeded = (await handler({ action: 'seed', args: { devSessionId } })).structuredContent;
+      expect(seeded).toMatchObject({ ok: true, code: 'OK' });
+      const data = seeded.data as { output: string[]; omittedOutputLines: number; outputLog: string };
+      expect(data.output.at(-1)).toBe('row 149');
+      expect(data.omittedOutputLines).toBe(lines.length - data.output.length);
+      expect((await readFile(data.outputLog, 'utf8')).trimEnd()).toBe(lines.join('\n'));
+      await rm(data.outputLog, { force: true });
+    } finally {
+      await dev.close();
     }
   });
 
