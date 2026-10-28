@@ -3,8 +3,10 @@
  * Prevents duplicate registrations when modules are imported multiple times.
  */
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
+import type { AgentLockFile } from './agent-daemon';
 
 // Track registered hooks by name to prevent duplicates
 const registeredHooks = new Set<string>();
@@ -107,7 +109,7 @@ export const isDevContainerOfProject = (
 
 /**
  * The dev containers `dev stop --cleanup-containers` may remove: every stopped container, and a running one only when
- * its session is known to be gone (the process it is labeled with exited).
+ * its session is known to be gone (the process it is labeled with exited, and no live session holds its lock file).
  * A running container without owner labels comes from an older CLI; its session cannot be checked, so it stays.
  * `isInScope` limits the choice to one project's containers.
  */
@@ -139,6 +141,29 @@ export const isDevSessionAlive = ({ pid }: { lockFile: string; pid: number }): b
     // Another user's process: it exists.
     return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
+};
+
+/**
+ * The lock files that the containers name and a live session holds. A container's name and its lock file both follow
+ * from the project, stage and directory, and a session uses the running containers of its stage there: review of #385,
+ * a session restarted after `kill -9` took over the running PostgreSQL container, which keeps the dead session's
+ * process ID in its labels, and cleanup removed the new session's database. Labels cannot change on a running container,
+ * so the lock file at the label's path says who has it now.
+ */
+const findLiveLockFiles = async (containers: DevContainer[]): Promise<Set<string>> => {
+  const { isLockOwnerAlive } = await import('./agent-daemon');
+  const lockFiles = [...new Set(containers.flatMap(({ lockFile }) => (lockFile ? [lockFile] : [])))];
+  const live = await Promise.all(
+    lockFiles.map(async (lockFile) => {
+      try {
+        const lock = JSON.parse(readFileSync(lockFile, 'utf-8')) as AgentLockFile;
+        return typeof lock?.pid === 'number' && (await isLockOwnerAlive(lock)) ? lockFile : undefined;
+      } catch {
+        return undefined;
+      }
+    })
+  );
+  return new Set(live.filter((lockFile): lockFile is string => lockFile !== undefined));
 };
 
 /** Stop and remove the dev containers in scope that no live session owns, and return their names. */
@@ -176,7 +201,12 @@ export const cleanupOrphanedContainers = async ({
         };
       });
 
-    const orphanedContainers = selectRemovableDevContainers(containers, isDevSessionAlive, isInScope);
+    const liveLockFiles = await findLiveLockFiles(containers);
+    const orphanedContainers = selectRemovableDevContainers(
+      containers,
+      (owner) => isDevSessionAlive(owner) || liveLockFiles.has(owner.lockFile),
+      isInScope
+    );
 
     const removedContainers: string[] = [];
     for (const name of orphanedContainers) {

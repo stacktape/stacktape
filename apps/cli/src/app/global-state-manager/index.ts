@@ -412,6 +412,17 @@ export class GlobalStateManager {
     return detectLocalAwsSelectors({ requestedProfile: this.rawArgs?.profile, environment: process.env });
   }
 
+  /**
+   * The AWS account ID of the local credentials, without the Console: from the profile when it names its account,
+   * otherwise one STS call. Undefined with `--awsAccount`, without a profile or credential variables, or when it cannot
+   * be found.
+   */
+  resolveLocalAwsAccountId = async (): Promise<string | undefined> => {
+    if (this.args.awsAccount) return undefined;
+    this.startLocalAwsAccountResolution();
+    return (await this.#localAwsAccount)?.account?.accountId;
+  };
+
   /** Starts finding the account of local AWS credentials, so its STS call can overlap the Console request. */
   startLocalAwsAccountResolution = () => {
     if (this.args.awsAccount || this.#localAwsAccount) return;

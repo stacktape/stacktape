@@ -269,12 +269,20 @@ test('dev --agent reports an agent that is already running like a new one', asyn
         projectName: 'fixture',
         stage: 'dev',
         region: 'eu-west-1',
+        profile: 'fixture',
+        awsAccountId: '111111111111',
         startedAt: new Date().toISOString(),
         workloads: ['api'],
         databases: [],
         logFile: join(directory, `${port}-logs.txt`)
       })
     );
+    // A profile that names its account: the start compares the agent's target without asking AWS.
+    await writeFile(
+      join(directory, 'aws-config'),
+      '[profile fixture]\nregion = eu-west-1\nsso_session = fixture\nsso_account_id = 111111111111\nsso_role_name = Developer\n\n[sso-session fixture]\nsso_start_url = https://example.awsapps.com/start\nsso_region = eu-west-1\n'
+    );
+    await writeFile(join(directory, 'aws-credentials'), '');
     const report = async () => {
       const { exitCode, output } = await runCli(
         [
@@ -289,7 +297,15 @@ test('dev --agent reports an agent that is already running like a new one', asyn
           project
         ],
         // `dev` requires a key before it runs; this path never sends it anywhere (the network guard would refuse).
-        { home: directory, env: { STACKTAPE_API_KEY: 'test-value' } }
+        {
+          home: directory,
+          env: {
+            STACKTAPE_API_KEY: 'test-value',
+            AWS_PROFILE: 'fixture',
+            AWS_CONFIG_FILE: join(directory, 'aws-config'),
+            AWS_SHARED_CREDENTIALS_FILE: join(directory, 'aws-credentials')
+          }
+        }
       );
       const final = output
         .split('\n')
