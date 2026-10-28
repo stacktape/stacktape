@@ -529,7 +529,7 @@ const devBoxConnection = (
 
 test('a session that takes over a presence-only stage ends the old one; a refused start ends itself', async () => {
   await startRelay({ idleSeconds: 3600 });
-  const lost: Record<string, { label: string; refused: boolean }[]> = { alice: [], bob: [], carol: [] };
+  const lost: Record<string, { label: string; since?: number; refused: boolean }[]> = { alice: [], bob: [], carol: [] };
   const carol = { id: 'user-carol', label: 'Carol (carol-laptop)', session: 'carol-laptop-session' };
   const connections: DevBoxConnection[] = [];
   try {
