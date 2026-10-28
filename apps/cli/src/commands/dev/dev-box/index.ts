@@ -30,6 +30,7 @@ export type DevBoxDependencies = {
     relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
     owner: RelayOwner;
     stack?: string;
+    held?: boolean;
     takeOver?: boolean;
     signal: AbortSignal;
     onHeld?: () => void;
@@ -298,6 +299,7 @@ export class DevBoxConnection {
           relay: this.#endpoint(),
           owner: this.#owner,
           stack: this.#stackName,
+          held: this.#heldStage,
           takeOver,
           signal: presence.signal,
           onHeld: () => (this.#heldStage = true)

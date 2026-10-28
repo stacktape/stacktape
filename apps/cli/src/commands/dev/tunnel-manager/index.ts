@@ -31,7 +31,7 @@ export type RelaySessionInfo = { stack: string; session: string; owner: string; 
 
 type ClientMessage =
   | { type: 'Lease'; port: number; key: string; owner: RelayOwner; takeOver: boolean }
-  | { type: 'Presence'; owner: RelayOwner; stack?: string; takeOver: boolean }
+  | { type: 'Presence'; owner: RelayOwner; stack?: string; held: boolean; takeOver: boolean }
   | { type: 'Sessions'; stack?: string }
   | { type: 'Ping' }
   | { type: 'Accept'; connectionId: string };
@@ -118,6 +118,7 @@ const serializeClientMessage = (message: ClientMessage): string => {
           stack: message.stack,
           // Relay version 4 holds the stage with it; older relays ignore both fields.
           exclusive: true,
+          held: message.held,
           takeOver: message.takeOver
         }
       });
@@ -747,14 +748,16 @@ export type RelayPresenceOutcome = { takenOverBy: string } | { refusedBy: RelayS
 /**
  * Holds a presence connection: the box stays awake while it is open, also for a session without tunnels whose VPC
  * functions only need the box as NAT. With a stack, it holds that stage like a tunnel does (relay version 4): another
- * session's presence or tunnel of the stack refuses it, or with `takeOver` is replaced. `onHeld` runs once the relay
- * accepted it. Resolves when the connection ends, with the reason when the relay refused it or another session took
+ * session's presence or tunnel of the stack refuses it, or with `takeOver` is replaced. `held` says this session held
+ * the stage before, so a presence of an older CLI does not refuse its reconnect. `onHeld` runs once the relay accepted
+ * it. Resolves when the connection ends, with the reason when the relay refused it or another session took
  * the stage over.
  */
 export const holdRelayPresence = async ({
   relay,
   owner,
   stack,
+  held = false,
   takeOver = false,
   signal,
   onHeld
@@ -762,6 +765,7 @@ export const holdRelayPresence = async ({
   relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
   owner: RelayOwner;
   stack?: string;
+  held?: boolean;
   takeOver?: boolean;
   signal: AbortSignal;
   onHeld?: () => void;
@@ -770,7 +774,7 @@ export const holdRelayPresence = async ({
   const abort = () => socket.destroy();
   signal.addEventListener('abort', abort, { once: true });
   try {
-    await socket.send({ type: 'Presence', owner, stack, takeOver });
+    await socket.send({ type: 'Presence', owner, stack, held, takeOver });
     while (!signal.aborted) {
       const message = await socket.recv();
       if (!message) return undefined;

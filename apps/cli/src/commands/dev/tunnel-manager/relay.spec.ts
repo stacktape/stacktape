@@ -454,38 +454,56 @@ test('a presence holds its stage: another session is refused, and a take-over en
   }
 }, 30_000);
 
-test('a presence of an older CLI neither refuses a stage nor is taken over', async () => {
+/** A presence of a CLI before relay version 4: not exclusive, and it ignores every message. */
+const legacyPresence = async (owner: typeof alice, stack: string) => {
+  const socket = createConnection({ host: '127.0.0.1', port: controlPort });
+  socket.on('error', () => {});
+  const state = { closed: false };
+  socket.on('close', () => (state.closed = true));
+  // Heartbeats are read and dropped, so the end of the connection is seen.
+  socket.resume();
+  socket.write(
+    `${JSON.stringify({ Presence: { owner: owner.id, label: owner.label, session: owner.session, stack } })}\0`
+  );
+  await waitFor('the older presence to be listed', async () =>
+    (await listRelaySessions(relay(), stack)).some(({ session }) => session === owner.session)
+  );
+  return { socket, state };
+};
+
+// Review of #388: an older CLI that held a VPC-only stage stayed after a take-over, next to the new holder.
+test('a presence of an older CLI refuses a first claim, a take-over closes it, and it never costs the holder its stage', async () => {
   await startRelay({ idleSeconds: 3600 });
-  try {
-    const legacy = createConnection({ host: '127.0.0.1', port: controlPort });
-    legacy.on('error', () => {});
-    let received = '';
-    legacy.on('data', (chunk) => (received += String(chunk)));
-    legacy.write(
-      `${JSON.stringify({ Presence: { owner: alice.id, label: alice.label, session: alice.session, stack: 'vpc-dev' } })}\0`
-    );
-    await waitFor(
-      'the legacy presence to be listed',
-      async () => (await listRelaySessions(relay(), 'vpc-dev')).length > 0
-    );
+  const stops: AbortController[] = [];
+  const presence = (owner: typeof alice, options: { held?: boolean; takeOver?: boolean } = {}) => {
     const stop = new AbortController();
-    let held = false;
-    const presence = holdRelayPresence({
+    stops.push(stop);
+    const state = { held: false };
+    const ended = holdRelayPresence({
       relay: relay(),
-      owner: bob,
+      owner,
       stack: 'vpc-dev',
-      takeOver: true,
       signal: stop.signal,
-      onHeld: () => (held = true)
+      onHeld: () => (state.held = true),
+      ...options
     });
-    await waitFor('the new presence to be held', () => held);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(received).not.toContain('TakenOver');
-    expect(legacy.destroyed).toBe(false);
-    stop.abort();
-    expect(await presence).toBeUndefined();
-    legacy.destroy();
+    return { state, ended };
+  };
+  try {
+    const old = await legacyPresence(alice, 'vpc-dev');
+    expect(await presence(bob).ended).toMatchObject({ refusedBy: { label: alice.label, session: alice.session } });
+
+    const holder = presence(bob, { takeOver: true });
+    await waitFor('the take-over to be held', () => holder.state.held);
+    await waitFor('the older presence to be closed', () => old.state.closed);
+
+    // The older CLI reconnects; the holder's own reconnect after a lost SSM session keeps the stage.
+    const reconnected = await legacyPresence(alice, 'vpc-dev');
+    const holderAgain = presence(bob, { held: true });
+    await waitFor('the holder to be held again', () => holderAgain.state.held);
+    reconnected.socket.destroy();
   } finally {
+    for (const stop of stops) stop.abort();
     await stopRelay();
   }
 }, 30_000);
