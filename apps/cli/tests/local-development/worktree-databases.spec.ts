@@ -399,3 +399,133 @@ test('a database password read from $Secret is replaced by one local password th
     await rm(root, { recursive: true, force: true });
   }
 }, 300_000);
+
+// r2gg findings 2 and 9: a MySQL database with a non-root user and no `dbName` served `app`, while deployed functions
+// got `mysql` and failed with "Access denied … to database 'mysql'". A later `dbName` or user change on kept data then
+// failed with an access error, because the images create the database and the user only for empty data.
+test('local databases serve one database name to every consumer and follow a changed dbName or user', async () => {
+  for (const image of [IMAGE, 'mysql:8.0']) {
+    expect(docker(['image', 'inspect', image]).status === 0 || docker(['pull', image]).status === 0).toBeTrue();
+  }
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-database-identity-'));
+  const projectName = `di${randomBytes(4).toString('hex')}`;
+  const workingDirectory = join(root, 'app');
+  const owned = new Set<string>();
+  const mysqlDb = (properties: Record<string, unknown>, credentials: Record<string, string>) => ({
+    type: 'relational-database',
+    properties: {
+      engine: {
+        type: 'mysql',
+        properties: { version: '8.0', primaryInstance: { instanceSize: 'db.t4g.micro' }, ...properties }
+      },
+      credentials
+    }
+  });
+  const postgresDb = (properties: Record<string, unknown>, credentials: Record<string, string>) => ({
+    ...POSTGRES_DB,
+    properties: {
+      engine: {
+        ...POSTGRES_DB.properties.engine,
+        properties: { ...POSTGRES_DB.properties.engine.properties, ...properties }
+      },
+      credentials
+    }
+  });
+  const start = async (resources: Record<string, unknown>) => {
+    const result = await startDatabases({
+      directory: await mkdtemp(join(root, 'driver-')),
+      workingDirectory,
+      projectName,
+      resources
+    });
+    for (const instance of result.instances) owned.add(instance.containerName);
+    return { ...result, byName: Object.fromEntries(result.instances.map((instance) => [instance.name, instance])) };
+  };
+  /** Stops the session's containers, as `stacktape dev` does on exit; the data stays. */
+  const stop = (instances: Instance[]) => {
+    for (const { containerName } of instances) expect(docker(['rm', '-f', containerName]).status).toBe(0);
+  };
+  const mysqlDatabase = async (instance: Instance, user: string, database: string) => {
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: '127.0.0.1',
+      port: instance.actualPort,
+      user,
+      password: instance.credentials!.password,
+      database
+    });
+    try {
+      const [rows] = await connection.query('select database() as db');
+      return (rows as Array<{ db: string }>)[0]!.db;
+    } finally {
+      await connection.end();
+    }
+  };
+  const postgresDatabase = async (instance: Instance, user: string, database: string) => {
+    const client = new Client({
+      host: '127.0.0.1',
+      port: instance.actualPort,
+      user,
+      password: instance.credentials!.password,
+      database
+    });
+    await client.connect();
+    try {
+      return (await client.query('select current_database() as db')).rows[0].db as string;
+    } finally {
+      await client.end();
+    }
+  };
+  try {
+    // `init` writes `masterUserName: stacktape` and no `dbName`.
+    const first = await start({
+      mydb: mysqlDb({}, { masterUserName: 'stacktape' }),
+      pgdb: postgresDb({}, { masterUserName: 'postgres' })
+    });
+    const mydb = first.byName.mydb!;
+    expect(mydb.referencableParams.dbName).toBe('app');
+    expect(first.relayed.mydb!.params.dbName).toBe('app');
+    expect(first.relayed.mydb!.params.connectionString).toEndWith('@10.20.0.5:40001/app');
+    expect(first.envVars.STP_MYDB_DB_NAME).toBe('app');
+    expect(await mysqlDatabase(mydb, 'stacktape', 'app')).toBe('app');
+    expect(first.byName.pgdb!.referencableParams.dbName).toBe('postgres');
+    expect(JSON.parse(await readFile(join(mydb.dataDir, '..', 'identity.json'), 'utf8'))).toEqual({
+      dbName: 'app',
+      username: 'stacktape'
+    });
+    stop(first.instances);
+
+    // The configuration names another database, and for PostgreSQL another user; the data stays.
+    const changed = await start({
+      mydb: mysqlDb({ dbName: 'shelf' }, { masterUserName: 'stacktape' }),
+      pgdb: postgresDb({ dbName: 'orders' }, { masterUserName: 'shelf_app' })
+    });
+    expect(changed.relayed.mydb!.params.dbName).toBe('shelf');
+    expect(await mysqlDatabase(changed.byName.mydb!, 'stacktape', 'shelf')).toBe('shelf');
+    expect(changed.relayed.pgdb!.params.connectionString).toContain('shelf_app:');
+    expect(await postgresDatabase(changed.byName.pgdb!, 'shelf_app', 'orders')).toBe('orders');
+    stop(changed.instances);
+
+    // A configured password differs from the one the data was created with, so dev mode cannot log in to create them.
+    const failure = await start({
+      mydb: mysqlDb({ dbName: 'other' }, { masterUserName: 'stacktape', masterUserPassword: 'not-the-data-password' })
+    }).catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain(
+      'The local data of "mydb" was created for database "shelf" and user "stacktape", and creating database "other" and user "stacktape" in it failed'
+    );
+    expect((failure as Error).message).toContain('Start with freshDb (--fresh-db) to recreate it');
+    // The cause is the client's own error, not the `docker exec` command line; the password is not in it.
+    expect((failure as Error).message).toContain(
+      "(ERROR 1045 (28000): Access denied for user 'root'@'127.0.0.1' (using password: YES))"
+    );
+    expect((failure as Error).message).not.toContain('not-the-data-password');
+  } finally {
+    const named = docker(['ps', '-a', '--filter', `name=^stp-${projectName}-`, '--format', '{{.Names}}']);
+    for (const name of named.stdout.split('\n').filter(Boolean)) owned.add(name);
+    for (const name of owned) docker(['rm', '-f', name]);
+    for (const name of owned) expect(docker(['inspect', name]).status, `${name} must be removed`).not.toBe(0);
+    docker(['run', '--rm', '-v', `${root}:/work`, '--entrypoint', 'sh', IMAGE, '-c', 'rm -rf /work/*']);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 300_000);

@@ -529,6 +529,55 @@ describe('MCP dev session routing', () => {
     }
   });
 
+  // r2gg: `logs {since: "5m", limit: 400}` answered RESPONSE_TOO_LARGE, and lines caught up on after a restart were
+  // listed before newer ones that had arrived first.
+  test('logs fit the response size, say how to read the older entries, and are sorted by time', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-dev-logs-size-'));
+    const logFile = join(directory, 'dev.jsonl');
+    const at = (secondsAgo: number) => new Date(Date.parse('2026-10-24T12:00:00Z') - secondsAgo * 1000).toISOString();
+    const line = (secondsAgo: number, msg: string) =>
+      `${JSON.stringify({ ts: at(secondsAgo), source: 'api', level: 'info', msg })}\n`;
+    const big = (index: number) => `request ${index} ${'x'.repeat(400)}`;
+    await writeFile(
+      logFile,
+      [
+        ...Array.from({ length: 200 }, (_, index) => line(200 - index, big(index))),
+        line(0.5, 'Function code unchanged, already deployed'),
+        line(0.7, '(before this session was ready) START RequestId: 1')
+      ].join('')
+    );
+    const dev = await daemon({ logFile });
+    try {
+      const handler = createDevToolHandler({ runCli: startedDaemon, now: () => new Date('2026-10-24T12:00:00Z') });
+      const started = (await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent;
+      const devSessionId = (started.data?.session as { devSessionId: string }).devSessionId;
+      const read = async (args: Record<string, unknown>) =>
+        (await handler({ action: 'logs', args: { devSessionId, ...args } })).structuredContent;
+      const messages = (output: Awaited<ReturnType<typeof read>>) =>
+        (output.data?.entries as Array<{ msg: string }>).map(({ msg }) => msg);
+
+      const newest = await read({ since: '5m', limit: 400 });
+      expect(newest).toMatchObject({ ok: true, code: 'OK' });
+      const shown = messages(newest);
+      expect(shown.length).toBeLessThan(202);
+      expect(shown.slice(-2)).toEqual([
+        '(before this session was ready) START RequestId: 1',
+        'Function code unchanged, already deployed'
+      ]);
+      const omitted = newest.data?.omittedOlderEntries as number;
+      expect(omitted).toBe(202 - shown.length);
+      expect(newest.data?.olderCursor).toBe(0);
+      expect(newest.nextActions?.join('\n')).toContain('args.cursor=0');
+
+      const oldest = await read({ since: '5m', limit: 400, cursor: 0 });
+      expect(messages(oldest)[0]).toBe(big(0));
+      expect(oldest.data?.nextCursor).toBe(messages(oldest).length);
+    } finally {
+      await dev.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   // The P1 of the review: a start that fails after start returned DEV_STARTING, while no status call waits, must keep
   // its own error for the next call instead of answering NOT_FOUND.
   test('a background start that fails while no call waits keeps its code and hints for the next status call', async () => {

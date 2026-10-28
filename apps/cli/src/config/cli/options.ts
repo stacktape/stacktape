@@ -264,10 +264,7 @@ If \`true\`, prints logs in raw JSON format instead of pretty-printing them.`);
 
 export const follow = z.boolean().describe(`#### Follow
 ---
-If \`true\`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, \`logs\` follows by
-default; \`--follow=false\` prints once and exits. Piped, redirected, in CI or for an agent, \`logs\` prints once unless
-\`--follow\` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, \`SIGTERM\`, or
-when the reading end of the output closes.`);
+If \`true\`, keeps printing new log lines as they arrive until the command is stopped. In a terminal, \`logs\` follows by default; \`--follow=false\` prints once and exits. Piped, redirected, in CI or for an agent, \`logs\` prints once unless \`--follow\` is set. Following without a terminal prints plain lines, one at a time, and ends on Ctrl+C, \`SIGTERM\`, or when the reading end of the output closes.`);
 
 export const currentUserOnly = z.boolean().describe(`#### Current User Only
 ---

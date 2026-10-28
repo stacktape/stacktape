@@ -50,7 +50,8 @@ export const startLocalMysql = async (
   const isMaria = type === 'mariadb';
   const defaultPort = DEFAULT_PORTS.mysql;
   const { username: user, password: pass } = getDbCredentials(config, { username: 'root' });
-  let database = dbName || 'mysql';
+  // Resolved with `getLocalDatabaseName`, which every other consumer of the database name uses too.
+  const database = dbName || 'mysql';
 
   // Return existing instance if container is already running
   if (await isContainerRunning(containerName)) {
@@ -90,13 +91,8 @@ export const startLocalMysql = async (
     envVars.MYSQL_DATABASE = database;
   }
 
-  // Add non-root user if specified
+  // A non-root user gets rights on MYSQL_DATABASE, which `getLocalDatabaseName` never leaves at `mysql` for one.
   if (user !== 'root') {
-    // Non-root users need a target database. If user didn't specify one, use a safe default.
-    if (!shouldCreateDatabase) {
-      database = 'app';
-      envVars.MYSQL_DATABASE = database;
-    }
     envVars.MYSQL_USER = user;
     envVars.MYSQL_PASSWORD = pass;
   }

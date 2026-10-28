@@ -1,7 +1,8 @@
+import { statSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { CliError } from '@utils/errors';
-import { updateAgentState, type RebuildResult } from './agent-server';
+import { updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
 import type { ConfigChange } from './config-change';
 import { clearCredentialExpiryTimer } from './utils';
 
@@ -12,6 +13,41 @@ import { clearCredentialExpiryTimer } from './utils';
  */
 export const isRetryableRebuildError = (error: unknown) =>
   error instanceof Error && (!(error instanceof CliError) || error.category === 'AWS');
+
+const modifiedAt = (file: string): number | undefined => {
+  try {
+    return statSync(file).mtimeMs;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The workloads besides `rebuilt` that use one of the rebuilt workloads' files changed after their own last build. A
+ * shared package that one rebuild picked up leaves its other consumers on the old code; watch mode rebuilds them all,
+ * a manual rebuild of one workload does not.
+ */
+export const findStaleWorkloads = ({
+  rebuilt,
+  sourceFiles,
+  builtAt,
+  getModifiedAt = modifiedAt
+}: {
+  rebuilt: string[];
+  sourceFiles: Map<string, string[]>;
+  /** When the last build of a workload that succeeded started. */
+  builtAt: (name: string) => number;
+  getModifiedAt?: (file: string) => number | undefined;
+}): StaleWorkload[] => {
+  const rebuiltFiles = new Set(rebuilt.flatMap((name) => sourceFiles.get(name) ?? []));
+  if (!rebuiltFiles.size) return [];
+  return [...sourceFiles].flatMap(([name, files]) => {
+    if (rebuilt.includes(name)) return [];
+    const since = builtAt(name);
+    const changedFiles = files.filter((file) => rebuiltFiles.has(file) && (getModifiedAt(file) ?? 0) > since);
+    return changedFiles.length ? [{ name, changedFiles }] : [];
+  });
+};
 
 type WorkloadQueue = {
   /** The build that runs now. */
@@ -32,15 +68,23 @@ type WorkloadQueue = {
 export const createWorkloadRebuilder = ({
   rebuild,
   detectConfigChange,
+  getSourceFiles = () => new Map(),
+  getSessionStartedAt = () => 0,
   retryDelayMs = 3000
 }: {
   rebuild: (name: string) => Promise<void>;
   detectConfigChange: () => Promise<ConfigChange>;
+  /** The files each workload's last build read, to tell which workloads a rebuild left on older code. */
+  getSourceFiles?: () => Map<string, string[]>;
+  /** When the session's first builds started, the last build of a workload that this rebuilder never built. */
+  getSessionStartedAt?: () => number;
   /** The wait before the second attempt: Lambda refuses a code update while the function is still updating. */
   retryDelayMs?: number;
 }) => {
   const queues = new Map<string, WorkloadQueue>();
   const refused = new Set<string>();
+  /** When the last successful build of each workload started. */
+  const builtAt = new Map<string, number>();
 
   const checkConfig = async (): Promise<ConfigChange> => {
     const change = await detectConfigChange();
@@ -54,9 +98,11 @@ export const createWorkloadRebuilder = ({
     clearCredentialExpiryTimer(name);
     let error: string | undefined;
     for (let attempt = 1; ; attempt++) {
+      const startedAt = Date.now();
       try {
         await rebuild(name);
         error = undefined;
+        builtAt.set(name, startedAt);
         break;
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
@@ -128,12 +174,19 @@ export const createWorkloadRebuilder = ({
     const failedWorkloads = names.flatMap((name, index) =>
       errors[index] === undefined ? [] : [{ name, error: errors[index] }]
     );
-    if (!failedWorkloads.length) return { ok: true, rebuilt: names };
+    const staleWorkloads = findStaleWorkloads({
+      rebuilt: names.filter((_, index) => errors[index] === undefined),
+      sourceFiles: getSourceFiles(),
+      builtAt: (name) => builtAt.get(name) ?? getSessionStartedAt()
+    });
+    const stale = staleWorkloads.length ? { staleWorkloads } : {};
+    if (!failedWorkloads.length) return { ok: true, rebuilt: names, ...stale };
     return {
       ok: false,
       code: 'REBUILD_FAILED',
       message: failedWorkloads.map(({ name, error }) => `${name}: ${error}`).join('\n'),
-      failedWorkloads
+      failedWorkloads,
+      ...stale
     };
   };
 

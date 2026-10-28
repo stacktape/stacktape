@@ -294,7 +294,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `internalApi` receives `STP_DATA_BUCKET_NAME` and `STP_DATA_BUCKET_ARN` as environment variables from connecting to `dataBucket`. The `publicApi` web service receives `STP_INTERNAL_API_ADDRESS` from connecting to `internalApi`, which it can use as the base URL for HTTP or gRPC calls. For permissions not covered by `connectTo` (e.g., accessing AWS Bedrock), add raw IAM statements via `iamRoleStatements`.
+In this example, `internalApi` receives `STP_DATA_BUCKET_NAME` and `STP_DATA_BUCKET_ARN` as environment variables from connecting to `dataBucket`. The `publicApi` web service receives `STP_INTERNAL_API_ADDRESS` from connecting to `internalApi`. The address is `host:port` without a scheme, so an HTTP client calls `http://${STP_INTERNAL_API_ADDRESS}`, and a gRPC client uses it as it is. In a config value, build the URL with `$CfFormat('http://{}', $ResourceParam('internalApi', 'address'))`. For permissions not covered by `connectTo` (e.g., accessing AWS Bedrock), add raw IAM statements via `iamRoleStatements`.
 
 ## Health checks
 

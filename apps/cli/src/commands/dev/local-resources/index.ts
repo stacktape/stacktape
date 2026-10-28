@@ -13,9 +13,11 @@ import { DEV_CONFIG } from '../dev-config';
 import {
   clearReservedPorts,
   getImageTag,
+  hasExistingData,
   removeContainerIfExists,
   resolveLocalDatabasePassword
 } from './container-helpers';
+import { reconcileLocalDataIdentity } from './data-identity';
 import { buildConnectionInfo as dynamoDbConnectionInfo, DYNAMODB_IMAGE, startLocalDynamoDb } from './dynamodb';
 import { buildConnectionInfo as mysqlConnectionInfo, startLocalMysql } from './mysql';
 import {
@@ -84,6 +86,13 @@ const getDataDir = (resourceName: string) => {
 
 const getPasswordFile = (resourceName: string) =>
   localStatePaths.devResourcePasswordFile({
+    workingDirectory: globalStateManager.workingDir,
+    stage: globalStateManager.stage,
+    resourceName
+  });
+
+const getIdentityFile = (resourceName: string) =>
+  localStatePaths.devResourceIdentityFile({
     workingDirectory: globalStateManager.workingDir,
     stage: globalStateManager.stage,
     resourceName
@@ -169,7 +178,7 @@ const removeLocalData = async (config: LocalResourceConfig) => {
   }
 };
 
-const mapEngineToLocalType = (engineType: string): LocalResourceType | null => {
+const mapEngineToLocalType = (engineType: string): 'postgres' | 'mysql' | 'mariadb' | null => {
   if (
     ['postgres', 'aurora-postgresql', 'aurora-postgresql-serverless', 'aurora-postgresql-serverless-v2'].includes(
       engineType
@@ -261,6 +270,25 @@ export const categorizeConnectToResources = ({
   return { local, deployed };
 };
 
+/**
+ * The database a local relational database serves, used by its container, local workloads, deployed dev functions
+ * through the relay and the agent's queries. MySQL's system database `mysql` is the default for `root`; a non-root
+ * user gets no rights on it, so the container creates `app` for that user instead.
+ */
+export const getLocalDatabaseName = ({
+  type,
+  configuredDbName,
+  username
+}: {
+  type: 'postgres' | 'mysql' | 'mariadb';
+  configuredDbName?: string;
+  username: string;
+}): string => {
+  if (type === 'postgres') return configuredDbName || 'postgres';
+  const dbName = configuredDbName || 'mysql';
+  return username !== 'root' && dbName.toLowerCase() === 'mysql' ? 'app' : dbName;
+};
+
 const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | null => {
   const db = configManager.databases?.find((r) => r.name === resourceName);
   if (db) {
@@ -271,9 +299,12 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
     const version = engineProps?.version || 'latest';
     const port = engineProps?.port || (localType === 'mysql' || localType === 'mariadb' ? 3306 : 5432);
     const isMysqlType = localType === 'mysql' || localType === 'mariadb';
-    const defaultDbName = isMysqlType ? 'mysql' : 'postgres';
-    const defaultUsername = isMysqlType ? 'root' : 'postgres';
-    const dbName = engineProps?.dbName || engineProps?.primaryDbName || defaultDbName;
+    const username = getLocalCredential(db.credentials?.masterUserName) || (isMysqlType ? 'root' : 'postgres');
+    const dbName = getLocalDatabaseName({
+      type: localType,
+      configuredDbName: engineProps?.dbName || engineProps?.primaryDbName,
+      username
+    });
 
     if (isAuroraEngine(db.engine.type)) {
       tuiManager.warn(
@@ -289,7 +320,7 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
       dataDir: getDataDir(resourceName),
       // Without a literal password, one is generated once the data directory is known to be fresh or not.
       credentials: {
-        username: getLocalCredential(db.credentials?.masterUserName) || defaultUsername,
+        username,
         password: getLocalCredential(db.credentials?.masterUserPassword) || ''
       },
       dbName
@@ -363,6 +394,7 @@ export const prepareLocalResource = async (resourceName: string): Promise<LocalR
   if (globalStateManager.args.freshDb) {
     await removeLocalData(config);
     await remove(getPasswordFile(resourceName));
+    await remove(getIdentityFile(resourceName));
   }
   await ensureDir(config.dataDir);
   if (config.credentials && !config.credentials.password) {
@@ -428,14 +460,13 @@ export const getRelayedLocalResource = async (
   switch (config.type) {
     case 'postgres':
       return {
-        params: postgresConnectionInfo(user || 'postgres', password, host, port, config.dbName || 'postgres')
-          .referencableParams,
+        params: postgresConnectionInfo(user, password, host, port, config.dbName!).referencableParams,
         environment: {}
       };
     case 'mysql':
     case 'mariadb':
       return {
-        params: mysqlConnectionInfo(user || 'root', password, host, port, config.dbName || 'mysql').referencableParams,
+        params: mysqlConnectionInfo(user, password, host, port, config.dbName!).referencableParams,
         environment: {}
       };
     case 'redis':
@@ -479,6 +510,8 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
 
     let instance: LocalResourceInstance;
     try {
+      const isRelational = RELATIONAL_TYPES.has(config.type);
+      const hadData = isRelational && hasExistingData(config.dataDir);
       if (config.type === 'postgres') {
         instance = await startLocalPostgres({ ...config, containerName });
       } else if (config.type === 'mysql' || config.type === 'mariadb') {
@@ -493,7 +526,21 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
         throw new Error(`Unsupported local resource type: ${config.type}`);
       }
 
+      // Registered before the identity check, so the cleanup removes the container when the check fails.
       localResourceInstances.push(instance);
+      if (isRelational) {
+        const identity = await reconcileLocalDataIdentity({
+          config,
+          containerName,
+          identityFile: getIdentityFile(resourceName),
+          hadData
+        });
+        if (identity === 'created') {
+          tuiManager.info(
+            `[${resourceName}] Created database "${config.dbName}" and user "${config.credentials?.username}" in the existing local data.`
+          );
+        }
+      }
 
       // Update DevTui with success
       if (useDevTui) {

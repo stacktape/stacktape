@@ -12,7 +12,7 @@ import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/mana
 import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
 import type { LogLevel } from './agent-logger';
-import { createLogLineGrouper, isSuccessfulRequestLine } from './log-grouping';
+import { createLogLineGrouper, isFrontendServerFailure, isSuccessfulRequestLine } from './log-grouping';
 import {
   extractPortFromCommand,
   findAvailablePort,
@@ -312,7 +312,17 @@ export const startDevServer = async ({
       };
       const outputGroupers = {
         stdout: createLogLineGrouper({ stream: 'stdout', onEntry }),
-        stderr: createLogLineGrouper({ stream: 'stderr', onEntry })
+        stderr: createLogLineGrouper({
+          stream: 'stderr',
+          onEntry: (message, level) => {
+            // A failed request the page's code logs is an error in the log, but the server itself still serves.
+            if (level === 'warn' && isFrontendServerFailure(message)) {
+              callbacks?.onOutput?.(message, 'error');
+              return;
+            }
+            onEntry(message, level);
+          }
+        })
       };
 
       const processLine = (line: string) => {

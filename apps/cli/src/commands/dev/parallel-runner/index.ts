@@ -16,7 +16,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
+import { dockerRun, execDocker, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { getResourceParamReferences } from '../resource-references';
@@ -61,7 +61,15 @@ import {
 import { updateAgentWorkloadStatus, type RebuildResult } from '../agent-server';
 import { agentLog, type LogLevel } from '../agent-logger';
 import { createLogLineGrouper } from '../log-grouping';
-import { BEFORE_READY_LABEL, getLogReadStart, mapLambdaTaskPaths } from '../function-logs';
+import {
+  CATCH_UP_OVERLAP_MS,
+  getLogReadStart,
+  labelCatchUpLine,
+  mapLambdaTaskPaths,
+  parseSessionEnd,
+  type PreviousSessionEnd,
+  serializeSessionEnd
+} from '../function-logs';
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
@@ -103,6 +111,8 @@ type ParallelRunnerState = {
   sourceWatcher?: Awaited<ReturnType<typeof startSourceWatcher>>;
   /** Whether the configuration file differs from the one the session started with; unset when it cannot be read. */
   detectConfigChange?: () => Promise<ConfigChange>;
+  /** When the session started its first builds. */
+  sessionStartedAt?: number;
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
@@ -1062,6 +1072,19 @@ const startContainerWorkload = async (
   };
 
   /**
+   * The run that serves takes the container's own name once the previous one is gone, so `docker ps` shows the same
+   * name after every rebuild; the `-next` name is only for the run that starts beside it.
+   */
+  const takeStableName = async (run: ContainerRun) => {
+    if (run.name === localContainerName || run.exited) return;
+    await gracefullyStopContainer(localContainerName);
+    const { exitCode } = await execDocker(['rename', run.name, localContainerName], { skipHandleError: true }).catch(
+      () => ({ exitCode: 1 })
+    );
+    if (exitCode === 0) run.name = localContainerName;
+  };
+
+  /**
    * On its own network, the new container starts next to the running one and takes the stable ports over once it
    * serves and keeps running (see `waitUntilServing`); the previous one stops then. When the new one exits first, or
    * does not serve in time, the previous one keeps serving. When it exits while the previous one stops, the previous
@@ -1083,6 +1106,7 @@ const startContainerWorkload = async (
         if (previous) await restartPrevious(previous, previousImageId, containerEnvironment, failure);
         throw new ExpectedError('DOCKER', failure);
       }
+      await takeStableName(run);
       if (result === 'timeout') {
         watchForLateServing(run);
         throw new ExpectedError('DOCKER', notServingError);
@@ -1411,11 +1435,15 @@ const getFunctionEntryFiles = (resourceName: string): string[] => {
   return entryfilePath ? [join(globalStateManager.workingDir, entryfilePath)] : [];
 };
 
-let previousSessionEnd: Promise<number | undefined> | undefined;
+let previousSessionEnd: Promise<PreviousSessionEnd | undefined> | undefined;
+/** The log readers of this session's functions, whose shown events the next session skips. */
+const functionLogPrinters = new Set<LambdaCloudwatchLogPrinter>();
+/** The earliest time this session's log readers read from: before it, nothing they skipped was shown by this session. */
+let sessionLogReadStart: number | undefined;
 /**
- * When the previous dev session of this stage in this directory ended (see `getLogReadStart`). The first call also
- * records this session's end for the next one, in AWS time: `now` is AWS time, and the offset corrects this machine's
- * clock at the end.
+ * When the previous dev session of this stage in this directory ended and what it showed last (see `getLogReadStart`).
+ * The first call also records this session's end for the next one, in AWS time: `now` is AWS time, and the offset
+ * corrects this machine's clock at the end.
  */
 const readPreviousSessionEnd = (now: number) => {
   if (previousSessionEnd) return previousSessionEnd;
@@ -1425,13 +1453,16 @@ const readPreviousSessionEnd = (now: number) => {
   });
   const clockOffset = now - Date.now();
   applicationManager.registerCleanUpHook(async () => {
+    const end = Date.now() + clockOffset;
+    const shownEvents: Record<string, Array<[string, number]>> = {};
+    for (const printer of functionLogPrinters) {
+      shownEvents[printer.logGroupName] = printer.shownEventsSince(end - CATCH_UP_OVERLAP_MS);
+    }
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, String(Date.now() + clockOffset));
+    const overlapStart = Math.max(end - CATCH_UP_OVERLAP_MS, sessionLogReadStart ?? end);
+    await writeFile(file, serializeSessionEnd({ end, overlapStart, shownEvents }));
   });
-  previousSessionEnd = readFile(file, 'utf8').then(
-    (content) => Number(content.trim()) || undefined,
-    () => undefined
-  );
+  previousSessionEnd = readFile(file, 'utf8').then(parseSessionEnd, () => undefined);
   return previousSessionEnd;
 };
 
@@ -1498,14 +1529,18 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
 
   // Setup log streaming. Entries from before this point come from the gap between the previous session and this one.
   const now = (await getAwsSynchronizedTime()).getTime();
-  const fetchSince = getLogReadStart({ previousSessionEnd: await readPreviousSessionEnd(now), now });
+  const sessionEnd = await readPreviousSessionEnd(now);
+  const fetchSince = getLogReadStart({ previousSessionEnd: sessionEnd, now });
+  sessionLogReadStart = Math.min(sessionLogReadStart ?? fetchSince, fetchSince);
+  const logGroupName = getLogGroupInfoForStacktapeResource({
+    resourceName,
+    stackName: stackContext.stackName,
+    stackResources: stackManager.existingStackResources
+  }).PhysicalResourceId;
   const cloudwatchLogPrinter = new LambdaCloudwatchLogPrinter({
     fetchSince,
-    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({
-      resourceName,
-      stackName: stackContext.stackName,
-      stackResources: stackManager.existingStackResources
-    }).PhysicalResourceId,
+    logGroupAwsResourceName: logGroupName,
+    alreadyShown: sessionEnd?.shownEvents?.[logGroupName],
     onLog: (message, level, timestamp) => {
       const mapped = mapLambdaTaskPaths({
         message,
@@ -1513,7 +1548,9 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
         workingDirectory: globalStateManager.workingDir
       });
       const beforeReady = fetchSince < now && timestamp !== undefined && timestamp <= now;
-      const text = beforeReady ? `${BEFORE_READY_LABEL} ${mapped}` : mapped;
+      const text = beforeReady
+        ? labelCatchUpLine({ message: mapped, timestamp, previousSessionEnd: sessionEnd?.end })
+        : mapped;
       if (useDevTui) devTuiManager.log(resourceName, text, level, timestamp);
       else if (level === 'error') console.error(text);
       else console.info(text);
@@ -1522,6 +1559,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
 
   const logPoll = logPollScheduler.register(resourceName, () => cloudwatchLogPrinter.printLogs());
   state.logPolls.push(logPoll);
+  functionLogPrinters.add(cloudwatchLogPrinter);
 
   // Register workload
   state.workloads.set(resourceName, {
@@ -1596,6 +1634,7 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
  * matches it. An edit made while the session starts counts as a change too.
  */
 export const captureSessionConfig = () => {
+  state.sessionStartedAt = Date.now();
   const configPath = globalStateManager.configPath;
   if (!configPath || !configManager.rawConfig) return;
   state.detectConfigChange = createConfigChangeDetector({
@@ -1605,14 +1644,19 @@ export const captureSessionConfig = () => {
   });
 };
 
+const getWorkloadSourceFiles = () =>
+  new Map([...state.workloads].map(([name, workload]) => [name, workload.sourceFiles]));
+
 const rebuilder = createWorkloadRebuilder({
   rebuild: (name) => state.workloads.get(name)!.rebuild(),
-  detectConfigChange: () => state.detectConfigChange?.() ?? Promise.resolve({ changed: false })
+  detectConfigChange: () => state.detectConfigChange?.() ?? Promise.resolve({ changed: false }),
+  getSourceFiles: getWorkloadSourceFiles,
+  getSessionStartedAt: () => state.sessionStartedAt ?? 0
 });
 
 const setupFileWatching = async () => {
   state.sourceWatcher = await startSourceWatcher({
-    getSourceFiles: () => new Map([...state.workloads].map(([name, workload]) => [name, workload.sourceFiles])),
+    getSourceFiles: getWorkloadSourceFiles,
     configPath: globalStateManager.configPath || undefined,
     onWorkloadChange: async ({ workloads, changedFile }) => {
       tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} -> rebuilding ${workloads.join(', ')}`);
