@@ -2034,6 +2034,7 @@ export interface CustomArtifactLambdaPackagingProps {
   *           packagePath: ./dist/lambda.zip
   *           # stp-end-focus
   *           handler: index.js:handler
+  *       runtime: nodejs22.x
   *       memory: 512
   * ```
   *
@@ -2053,6 +2054,7 @@ export interface CustomArtifactLambdaPackagingProps {
   *         handler: 'index.js:handler'
   *       }
   *     },
+  *     runtime: 'nodejs22.x',
   *     memory: 512
   *   });
   *   return { resources: { apiFunction } };
@@ -2065,9 +2067,12 @@ export interface CustomArtifactLambdaPackagingProps {
    *
    * ---
    *
-   * The syntax is `{{filepath}}:{{functionName}}`.
+   * Required by CLI validation, alongside `runtime` on the Lambda resource. The type currently permits omission, but the CLI rejects it.
    *
-   * Example: `my-lambda/index.js:default`
+   * The syntax is `{{filepath}}:{{functionName}}`. Put the handler file at the artifact root: directory paths are discarded.
+   * Native Java/.NET `::` handler strings are not accepted by this parser.
+   *
+   * Example: `index.js:default`
   *
   * **Example (YAML):**
   *
@@ -2081,8 +2086,9 @@ export interface CustomArtifactLambdaPackagingProps {
   *         properties:
   *           packagePath: ./dist/lambda.zip
   *           # stp-focus
-  *           handler: my-lambda/index.js:default
+  *           handler: index.js:default
   *           # stp-end-focus
+  *       runtime: nodejs22.x
   *       memory: 512
   * ```
   *
@@ -2098,10 +2104,11 @@ export interface CustomArtifactLambdaPackagingProps {
   *       properties: {
   *         packagePath: './dist/lambda.zip',
   *         // stp-focus
-  *         handler: 'my-lambda/index.js:default'
+  *         handler: 'index.js:default'
   *         // stp-end-focus
   *       }
   *     },
+  *     runtime: 'nodejs22.x',
   *     memory: 512
   *   });
   *   return { resources: { apiFunction } };

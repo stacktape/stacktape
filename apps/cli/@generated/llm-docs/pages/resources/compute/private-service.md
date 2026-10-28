@@ -456,6 +456,10 @@ Use a `sideContainers` entry with `containerType: 'run-on-init'`. The init conta
 
 Not directly — there is no property on a private service that adds a public endpoint. To give a service a public URL, use a [web service](/resources/compute/web-service) instead, which is the same container model with public load balancing added. If you are unsure whether a service will eventually need a public endpoint, start with a web service and restrict access at the application layer.
 
+## EFS in local development
+
+EFS `volumeMounts`, `rootDirectory` and `readOnly` configure the deployed ECS task. `stacktape dev` does not automatically mount or emulate them. Use explicit local test storage and verify persistence, directory isolation and read-only enforcement in a deployed stage. See [EFS storage](/resources/compute/web-service#efs-storage).
+
 ## API Reference
 
 

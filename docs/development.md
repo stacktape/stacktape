@@ -48,6 +48,10 @@ pnpm dev:wizard-ui      # rebuild the init wizard on changes
 outputs until their inputs change. The command runs with `apps/cli` as its working directory, so relative config paths
 start there.
 
+The current source wrapper starts the stdio MCP server whenever an argument is `mcp`, so `pnpm dev:cli mcp --help` and
+`mcp add/remove --help` return no help text. Until the dispatcher is fixed, inspect the
+[command definitions](../apps/cli/src/config/cli/commands.ts) or use an installed release for MCP help and setup.
+
 For extension work, run `pnpm dev:vscode-extension`, then launch an Extension Development Host from VS Code with
 `apps/vscode-extension` as the extension development path. `pnpm --filter vscode-stacktape test` exercises the bundled
 language server over LSP; `pnpm package:vscode-extension` creates an installable VSIX.

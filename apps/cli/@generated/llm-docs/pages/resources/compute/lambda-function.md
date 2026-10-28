@@ -284,7 +284,7 @@ export default defineConfig(() => {
 
 ### Custom artifact
 
-The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for runtime auto-detection, so set `runtime` when the Lambda runtime cannot be inferred elsewhere. If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
+The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for runtime auto-detection, so you must set `runtime` on the resource and `handler` in the packaging. The handler file must be at the artifact root; see [custom-artifact limitations](/packaging/function/custom-artifact#handler). If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
 
 
 Example (TypeScript):
@@ -327,7 +327,7 @@ A Lambda function receives work through its `events` array. Stacktape supports 1
 | CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
 | Kafka topic | `kafka-topic` | [Kafka topics](/resources/triggers/kafka-topics) |
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent: failed batches are retried including records that already processed successfully.
+For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent. By default, failed batches retry records that already succeeded. Enable `reportBatchItemFailures` and return `batchItemFailures` for partial failure handling; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams).
 
 
 Example (TypeScript):
@@ -770,7 +770,7 @@ Lambda CPU scales proportionally with `memory`: `1,769` MB equals 1 vCPU (range 
 
 ### Why are records being processed more than once from my SQS or stream trigger?
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full — including records that already succeeded. Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
+For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full by default, including records that already succeeded. For partial failure handling, enable `reportBatchItemFailures` and return `batchItemFailures`; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams). Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
 
 ## API Reference
 

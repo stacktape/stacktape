@@ -1,6 +1,6 @@
 # validate
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also packages workloads and asks CloudFormation to validate templates whose compact JSON is at most 51,200 bytes. Larger templates skip that AWS check. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
@@ -34,7 +34,7 @@ stacktape validate --stage dev --region eu-west-1 --with-package
 
 ### Thorough — add `--thorough`
 
-The `--thorough` flag runs the most complete validation path. It includes everything from `--with-package` and additionally submits the synthesized CloudFormation template to AWS for server-side validation. CloudFormation validates the template and returns any template validation errors before any stack is created or updated. This requires AWS credentials for the CloudFormation `ValidateTemplate` API call but does not create or modify any stack.
+The `--thorough` flag includes workload packaging and calls CloudFormation `ValidateTemplate` when the compact JSON template is at most 51,200 bytes. Larger templates get a warning and are reported as not checked by CloudFormation; validation can still succeed. With `--agent`, inspect `checked.cloudformation` before claiming AWS validated the template. CloudFormation also validates templates during deployment. This read-only API check requires AWS credentials and does not create or modify a stack.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1 --thorough
@@ -109,7 +109,7 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 | Flag | What it does |
 |------|-------------|
 | `--with-package` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
-| `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--with-package`. Requires AWS credentials. |
+| `--thorough` | Validates packaging and submits templates up to 51,200 bytes of compact JSON to CloudFormation. Larger templates skip the AWS check; inspect `checked.cloudformation`. Implies `--with-package`. |
 | `--out` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
@@ -130,7 +130,7 @@ Validate with a specific config file path.
 stacktape validate --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
-Run the most thorough validation, including packaging and CloudFormation template validation, before merging a pull request.
+Run the most thorough validation, including packaging and CloudFormation validation when the template fits the inline limit, before merging a pull request.
 
 ```bash
 stacktape validate --stage ci --region eu-west-1 --thorough --out ./validated-template.yaml
@@ -160,7 +160,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--thorough` | no | `boolean` | Thorough — If `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template. | - |
+| `--thorough` | no | `boolean` | Thorough — If `true`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output. | - |
 | `--with-package` | no | `boolean` | With Package — If `true`, validates workload packaging in addition to resolving the configuration and template. | - |
 
 
@@ -175,7 +175,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ### Does validate create or modify any AWS resources?
 
-No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks the template structure without creating a stack.
+No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks templates up to 51,200 bytes of compact JSON without creating a stack. Larger templates skip this check.
 
 ### How is validate different from synth?
 
@@ -183,11 +183,11 @@ Both commands synthesize a CloudFormation template from your configuration. [`sy
 
 ### Do I need AWS credentials to run validate in CI?
 
-Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API. Use a read-only CI profile scoped to the intended account.
+Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API for templates within its inline size limit. Use a read-only CI profile scoped to the intended account.
 
 ### What errors does --thorough catch that the default level misses?
 
-The default validation catches configuration-level problems: broken references, invalid property values, guardrail violations, and template synthesis errors. The `--thorough` flag submits the synthesized template to CloudFormation for server-side validation, which can catch template-level structural problems that only CloudFormation's validator surfaces. The tradeoff is an AWS API call and the need for credentials. Note that even `--thorough` only validates the template — it cannot catch errors that surface during actual provisioning, which is what [`diff`](/cli/diff) and [`deploy`](/cli/deploy) reveal against a live stack.
+Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check templates up to 51,200 bytes of compact JSON. Larger templates skip that check and can still return `valid: true` with `checked.cloudformation: false`. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
 
 ### Can I use validate with AI agents or in scripts?
 

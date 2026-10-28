@@ -29,7 +29,7 @@ Start Stacktape dev mode from the directory containing your `stacktape.ts`:
 stacktape dev --stage dev --region eu-west-1
 ```
 
-On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Subsequent runs detect the existing dev stack and start without redeploying.
+On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 An interactive picker lets you choose which resources to run. To skip the picker and run everything:
 
@@ -113,7 +113,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `version` property sets the PostgreSQL engine version (`'16.6'` here, but any supported RDS version works). The `instanceSize` property controls the RDS compute tier for production deployments. In dev mode, neither value matters — the database runs as a local Docker container regardless. See the [relational database page](/resources/databases/relational-database) for supported versions, instance sizing, and pricing.
+The `version` property selects the PostgreSQL engine version and the local Docker image, subject to the adapter's supported tag mapping. The AWS `instanceSize` controls the deployed RDS compute tier; it does not size the local Docker database. See [relational databases](/resources/databases/relational-database) for supported versions and sizing.
 
 With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
 
@@ -152,7 +152,7 @@ Stacktape dev mode starts Docker-backed local emulators for supported database r
 
 Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This means you can stop and restart dev mode without losing your test data.
 
-To start with a clean database:
+To reset databases prepared at startup, including relay dependencies (DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data)):
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --fresh-db
@@ -192,7 +192,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 | `--watch` | Auto-rebuild on file changes |
 | `--fresh-db` | Delete local database data before starting |
 | `--remote-resources` | Connect to deployed AWS resources instead of local emulation |
-| `--no-tunnel` | Skip Lambda tunnels to local databases, which run only through a relay you set up yourself |
+| `--no-tunnel` | Prevent deployed functions from receiving local-database relay variables. Stacktape normally manages the dev-box connection; VPC functions still use the dev network. Use `--remote-resources` for deployed database connections |
 
 <Tip>
 Run `stacktape help dev` to see all available flags and their short aliases.

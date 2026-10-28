@@ -57,7 +57,7 @@ Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights 
 stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
-In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, the output is a JSON object containing the log group name, the query string, and the results array.
+In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, that JSON payload is text in a `type: "log"` record's `message` within the CLI NDJSON stream; the final `result` record is separate.
 
 ## Important flags
 
@@ -65,7 +65,7 @@ In Insights mode, non-agent output prints each result row with a highlighted tim
 
 Controls how far back to fetch logs. Accepts two formats:
 
-- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This is subtracted from the current time.
+- **Relative shorthand** — a number followed by a unit: `1h` (1 hour), `30m` (30 minutes), `1d` (1 day), `5s` (5 seconds). This counts back from `--until`, or now when it is omitted.
 - **Absolute date** — any string the JavaScript `Date` constructor accepts, such as `2026-05-28T14:00:00Z`.
 
 When omitted, defaults to 1 hour ago.
@@ -124,17 +124,21 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 ### agent
 
-Optimizes CLI output for programmatic and LLM consumption. For `stacktape logs`, `--agent` makes the command print a JSON object instead of formatted terminal text. In standard mode, the output structure matches `--raw` — a JSON object with `logGroup` and `events`. In Insights mode, the output is a JSON object with `logGroup`, `query`, and `results`.
+Without `--follow`, `--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
+
+With `--agent --follow`, application log lines are written directly to stdout as plain text, alongside CLI protocol records. They are not wrapped in NDJSON log records, so this stream is not consistently parseable as NDJSON. Use a snapshot without `--follow` when you need the structured log payload, or use MCP `stacktape_dev` logs for incremental local dev-session logs.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
 ```
 
+`--until` bounds Insights queries and the initial follow backlog, and anchors a relative `--since`. The ordinary one-shot fetch currently does not enforce it as an upper bound, and following continues beyond that time.
+
 ## Output format
 
 In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
 
-Both `--raw` and `--agent` produce a JSON object with this structure for standard log retrieval:
+`--raw` prints this JSON object for standard retrieval. With `--agent` without `--follow`, this is the payload encoded as text in a log record's `message`:
 
 ```json
 {
@@ -149,7 +153,7 @@ Both `--raw` and `--agent` produce a JSON object with this structure for standar
 }
 ```
 
-In Insights mode with `--agent`, the output includes the query and results:
+In Insights mode with `--agent`, the log record's JSON message payload includes the query and results:
 
 ```json
 {
@@ -162,7 +166,7 @@ In Insights mode with `--agent`, the output includes the query and results:
 ```
 
 <Tip>
-If no log streams exist for the resource, the command prints an empty result. In agent mode, this is `{"logGroup": "...", "events": []}`.
+If no log streams exist for the resource, the command prints an empty result. In agent mode, a log record's `message` contains `{"logGroup": "...", "events": []}`; the final result remains separate.
 </Tip>
 
 ## How log group resolution works
@@ -244,4 +248,4 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-In standard mode both produce the same JSON (`logGroup` and `events` fields), so either works for scripting and piping to `jq`. The gotcha is Insights mode: `--raw` is not honored there, so to get the full JSON object with `logGroup`, `query`, and `results` from a `--query` run you must use `--agent`.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, application lines are plain text mixed with CLI protocol records; they are not wrapped as NDJSON. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.

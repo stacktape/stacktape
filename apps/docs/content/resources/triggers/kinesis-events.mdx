@@ -83,7 +83,7 @@ Use `kinesisStreamName` to consume from a Kinesis stream defined in the same Sta
 Each invocation receives a batch of Kinesis records. Record data is **base64-encoded** — decode it in your handler before processing.
 
 ```typescript
-export const handler = async (event: any) => {
+export default async (event: any) => {
   for (const record of event.Records) {
     const data = Buffer.from(record.kinesis.data, 'base64').toString('utf-8');
     const payload = JSON.parse(data);

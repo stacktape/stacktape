@@ -22,10 +22,10 @@ Stacktape divides directives into two categories based on **when** they resolve:
 | **Local** | Stacktape parses your config (before deployment) | Stage name, region, file contents, string formatting, CLI args, git info |
 | **Runtime** | CloudFormation deploys resources | Secrets, resource parameters, cross-stack imports, runtime string composition |
 
-The distinction matters because **runtime directives can only appear in the `resources` and `scripts` sections** of your config. Local directives work anywhere — including `variables`, top-level settings, and conditional logic.
+Runtime directives are supported in `resources`, `scripts` and `cloudformationResources` properties that become part of the synthesized template. Directives introduced by supported overrides and transforms are also resolved. Local directives work anywhere, including variables and top-level settings.
 
 
-> **Warning:** Using a runtime directive (like `$Secret` or `$ResourceParam`) outside the `resources` or `scripts` sections causes a deployment error. If you need a runtime value in a variable, use `$CfFormat` to compose it within a resource property.
+> **Warning:** Avoid runtime directives where config parsing needs a concrete local value. Compose runtime values inside template properties, for example with `$CfFormat`.
 
 
 ## Using directives in TypeScript

@@ -159,11 +159,9 @@ Where a starter project's files are placed.
 > **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
 
 
-## Your existing configuration is never overwritten
+## Existing and generated configuration files
 
-If the project already has a `stacktape.yml` or `stacktape.ts`, `init` does not touch it. The new
-configuration is written beside it as `stacktape.generated.yml` (or `.ts`), and both the wizard and the
-terminal tell you so. Deploy the generated one with `--config`, or merge it in yourself:
+Init preserves `stacktape.yml`, `stacktape.yaml` and `stacktape.ts`. When one exists, it writes `stacktape.generated.yml` or `.ts` beside it, replacing any previous file at that generated path. Review or save edits to an existing generated file before rerunning init. For a TypeScript config in a project with `package.json`, init also adds or updates the `stacktape` dependency to match the CLI and prints the install command; it does not run the package manager. Deploy the generated config with `--config`, or merge it yourself:
 
 ```bash
 stacktape deploy \
@@ -274,5 +272,4 @@ confirmation is a file on your disk or a read-only AWS check.
 
 ### Will init overwrite files in my project?
 
-It writes exactly one file, and never on top of an existing configuration — see above. The one
-destructive flag is `--initialize-project-to`, which empties the directory you point it at.
+Init preserves canonical config files but can replace a previous `stacktape.generated.yml` or `.ts` and update the `stacktape` dependency in `package.json`; see [existing and generated configuration files](#existing-and-generated-configuration-files). The `--initialize-project-to` flag empties the target directory before placing a starter project there.

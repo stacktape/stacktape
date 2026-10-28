@@ -304,7 +304,7 @@ Use overrides when you know the exact final value and it doesn't depend on exist
 | Syntax | Static key-value pairs | JavaScript function |
 | Config format | TypeScript and YAML | TypeScript (native functions) and YAML (function strings) |
 | Use case | Set known property values | Compute, append, or conditionally modify |
-| Merge behavior | Shallow merge | Full control — you return the final object |
+| Merge behavior | Recursive merge for existing top-level objects; directly assigned arrays replace their target | Full control — you return the final object |
 | Stacktape validation | CloudFormation property values are not Stacktape-validated; verify with `synth` | No Stacktape validation on returned properties; verify with `synth` |
 
 ## Raw CloudFormation resources
@@ -470,7 +470,7 @@ This writes the final CloudFormation template to `compiled-template.yaml`. Inspe
 
 ### Should I use overrides or transforms?
 
-Use overrides when you know the exact final value and it doesn't depend on existing configuration — they're static key-value pairs merged shallowly on top of what Stacktape generates. Use transforms when you need to append to an array (layers, environment variables, mount points) without clobbering existing entries, conditionally modify a property, or compute a value from the resource's current configuration. Transforms are JavaScript functions that receive the current `Properties` and return the final object, so you get full control over the merge.
+An object override for an existing top-level object recursively merges into it. A directly assigned array replaces that array, and a dot path sets its target. Nested arrays inside merged objects follow lodash merge semantics. Use transforms when you need explicit control over nested arrays, appending entries or removing existing keys.
 
 ### Can I use overrides and transforms in YAML configs?
 
@@ -482,7 +482,7 @@ Possibly. If Stacktape changes how it structures a child resource internally, yo
 
 ### What attributes can I reference with $CfResourceParam?
 
-The second argument to [`$CfResourceParam`](/configuration/directives) is a CloudFormation return value of the target resource type. Check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's available return values. Common ones include `Ref` (the physical resource ID) and resource-specific attributes like `TopicArn` for SNS or `Arn`/`BucketName` for S3.
+Use the name of the value returned by CloudFormation `Ref`, such as `FunctionName` for `AWS::Lambda::Function` or `BucketName` for `AWS::S3::Bucket`; do not pass the literal `Ref`. Other return-value names depend on the resource type. Invalid names are rejected with the accepted names. See the [CloudFormation resource reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's return values.
 
 ### Do raw CloudFormation resources get automatic IAM permissions?
 

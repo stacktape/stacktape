@@ -19,7 +19,7 @@ Use `js-bundle` or `buildpack` if you want Stacktape to manage the build. Use cu
 
 ## Basic example
 
-The minimal custom artifact configuration points `packagePath` at your pre-built artifact:
+Specify `packagePath` and `handler` in the packaging, and `runtime` on the Lambda resource:
 
 
 Example (TypeScript):
@@ -29,8 +29,10 @@ import { defineConfig, LambdaFunction, CustomArtifactLambdaPackaging } from 'sta
 export default defineConfig(() => {
   const api = new LambdaFunction({
     packaging: new CustomArtifactLambdaPackaging({
-      packagePath: './dist/lambda.zip'
-    })
+      packagePath: './dist/lambda.zip',
+      handler: 'index.js:default'
+    }),
+    runtime: 'nodejs22.x'
   });
 
   return {
@@ -42,11 +44,11 @@ export default defineConfig(() => {
 
 ## Configuration
 
-`CustomArtifactLambdaPackaging` exposes two properties: the required `packagePath` and an optional `handler`. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
+`CustomArtifactLambdaPackaging` exposes two properties: `packagePath` and `handler`, both required by the CLI. All other Lambda runtime settings (`memory`, `timeout`, environment variables, etc.) are configured on the [Lambda function](/resources/compute/lambda-function) resource itself, not on the packaging.
 
 ### packagePath
 
-The `packagePath` property is the only required field. It specifies the path to your pre-built deployment package.
+The `packagePath` property is required alongside `handler` and the Lambda resource's `runtime`. It specifies the path to your pre-built deployment package.
 
 Stacktape accepts three input shapes:
 
@@ -62,9 +64,9 @@ You don't need to zip your output manually if your build produces a directory. P
 
 The `handler` property tells Lambda which function to invoke when the Lambda is triggered. The syntax is `filepath:functionName`.
 
-For example, `my-lambda/index.js:default` means "call the `default` export from `my-lambda/index.js` inside the deployment package."
+For example, `index.js:default` invokes the `default` export from `index.js` at the artifact root. The current CLI strips directories from the handler path: `handlers/process.js:main` becomes `process.main`. Put the handler file at the artifact root. Native Java/.NET `::` handler strings are not accepted by this parser; use [buildpack packaging](/packaging/function/buildpack) for those handler formats.
 
-The `handler` property is optional. Set it explicitly when you need to specify which function inside the artifact serves as the entry point.
+The CLI requires an explicit `handler` and `runtime`; it does not infer them from the artifact. The generated type currently marks `handler` optional, but omitting it fails CLI validation.
 
 
 Example (TypeScript):
@@ -75,8 +77,9 @@ export default defineConfig(() => {
   const processor = new LambdaFunction({
     packaging: new CustomArtifactLambdaPackaging({
       packagePath: './build/output',
-      handler: 'handlers/process.js:main'
+      handler: 'process.js:main'
     }),
+    runtime: 'nodejs22.x',
     memory: 512,
     timeout: 60
   });
@@ -88,7 +91,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `handlers/process.js` inside the resulting package. The `memory` and `timeout` properties are [Lambda function](/resources/compute/lambda-function) settings, not part of the packaging configuration.
+In this example, `packagePath` points to a directory. Stacktape zips it automatically, and Lambda invokes the `main` export from `process.js` at the root of the resulting package. The `memory` and `timeout` properties are [Lambda function](/resources/compute/lambda-function) settings, not part of the packaging configuration.
 
 ## Using with a custom build step
 
@@ -123,6 +126,7 @@ export default defineConfig(() => {
       packagePath: './lambda-build',
       handler: 'app.py:handler'
     }),
+    runtime: 'python3.12',
     memory: 256,
     timeout: 30
   });
@@ -141,8 +145,8 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 | | `custom-artifact` | [`js-bundle`](/packaging/function/js-bundle) | [`buildpack`](/packaging/function/buildpack) |
 |---|---|---|---|
 | **Build responsibility** | You build the artifact | Stacktape bundles from source | Stacktape builds from source in Docker |
-| **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
-| **Supported languages** | Any Lambda-compatible artifact you build yourself | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
+| **Configuration** | `packagePath` + `handler` + resource `runtime` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
+| **Supported languages** | Pre-built artifacts supported by the current `file:function` handler conversion; see limitations above | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
 | **Source maps** | Your responsibility | Automatic | Not applicable |
 | **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically | Not shared |
 | **Best for** | Custom build processes, pre-built CI artifacts | Node.js functions | Other languages with standard dependency files |

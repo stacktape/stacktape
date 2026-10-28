@@ -163,7 +163,7 @@ The name of the container as defined in your container compute resource configur
 
 export const disableEmulation = z.boolean().describe(`#### Disable Emulation
 ---
-Disables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed.`);
+Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection.`);
 
 export const noTunnel = z.boolean().describe(`#### No Tunnel
 ---
@@ -175,11 +175,11 @@ Databases and Redis run locally by default. Use this flag to connect selected re
 
 export const resources = z.array(z.string()).describe(`#### Resources
 ---
-Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use \`all\` to run all resources without prompting. Examples: \`--resources myApi\`, \`--resources myApi,myDb\`, or \`--resources all\`.`);
+Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. If not provided, an interactive picker is shown. Use \`all\` to run all resources without prompting. Examples: \`--resources myApi\`, \`--resources myApi,myDb\`, or \`--resources all\`.`);
 
 export const skipResources = z.array(z.string()).describe(`#### Skip Resources
 ---
-Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: \`--skip-resources myHeavyDb\`, \`--skip-resources fn1,fn2\`.`);
+Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: \`--skip-resources myHeavyDb\`, \`--skip-resources fn1,fn2\`.`);
 
 export const outputFormat = z.enum(['jsonl', 'plain', 'tty']).describe(`#### Output Format
 ---
@@ -236,7 +236,7 @@ With \`--cleanup-containers\`, removes the left-behind Stacktape dev containers 
 
 export const freshDb = z.boolean().describe(`#### Fresh Database
 ---
-If \`true\`, deletes existing local database data before starting. Use this to start with a clean database state.`);
+If \`true\`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused.`);
 
 export const takeOver = z.boolean().describe(`#### Take Over
 ---
@@ -248,11 +248,11 @@ Deletes the dev network even while \`stacktape dev\` sessions use it, or when th
 
 export const startTime = z.union([z.number(), z.string()]).describe(`#### Start Time
 ---
-The start time from which to print logs. This can be any format accepted by the JavaScript \`Date\` constructor.`);
+The query start time: a relative duration such as \`30m\`, an ISO timestamp or a supported numeric date value. Relative durations count back from \`--until\` (now by default).`);
 
 export const endTime = z.union([z.number(), z.string()]).describe(`#### End Time
 ---
-The end of the time window. This can be any format accepted by the JavaScript \`Date\` constructor. Defaults to now; a relative \`--since\` value counts back from it.`);
+The query end time; accepts JavaScript \`Date\` inputs and defaults to now. Relative \`--since\` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.`);
 
 export const filter = z.string().describe(`#### Filter
 ---
@@ -498,7 +498,7 @@ If \`true\`, validates workload packaging in addition to resolving the configura
 
 export const thorough = z.boolean().describe(`#### Thorough
 ---
-If \`true\`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template.`);
+If \`true\`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output.`);
 
 export const rollbackVersion = z.string().describe(`#### Rollback Version
 ---

@@ -104,13 +104,24 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .describe('plan, start: directory that resolves the config and application files. Default: cwd'),
   resources: stringList
     .optional()
-    .describe('start: workloads and databases to run, or "all". Without it, start runs every resource'),
-  skipResources: stringList.optional().describe('start: resources not to run'),
+    .describe(
+      'start: selectable functions, local containers, frontends and emulated databases, or "all". Batch jobs run in AWS and cannot be selected; restart dev mode after Batch code changes. Unselected functions keep no configured triggers. Selection limits session rebuild/watch, but a dev-stack create/update still packages all functions and can fail on an unselected function'
+    ),
+  skipResources: stringList
+    .optional()
+    .describe(
+      'start: selectable functions, local containers, frontends and emulated databases to skip; not Batch jobs'
+    ),
   remoteResources: stringList
     .optional()
     .describe('start: databases to use from the deployed stage instead of running them locally'),
   watch: z.boolean().optional().describe('start: rebuild workloads when their source files change'),
-  freshDb: z.boolean().optional().describe('start: delete local database data before starting'),
+  freshDb: z
+    .boolean()
+    .optional()
+    .describe(
+      'start: delete data, schema and local credential/identity files for prepared databases, including unselected relay dependencies. DynamoDB Local shares storage, so this removes every persisted table there'
+    ),
   noTunnel: z.boolean().optional().describe('start: do not connect deployed functions to local databases'),
   agentPort: z.number().optional().describe('start: port of the dev agent. Default: first free port from 7331'),
   waitSeconds: z
@@ -683,7 +694,7 @@ Use this instead of running stacktape dev or stacktape dev stop as shell command
 
 start and status wait up to args.waitSeconds (default 50) and send progress notifications. A first start creates the dev network and the dev stack and takes several minutes: start then returns code DEV_STARTING with the latest progress while the start continues; call status with the devSessionId until it returns the ready status or the start's error. logs returns the newest lines by default; pass args.cursor (the previous nextCursor) for new lines only, args.level (info, warn, error) for a minimum level, args.since (ISO time or 10m) and args.workload to filter. Lines with source "dev" are dev mode's own lifecycle: rebuilds, file changes, dev stack updates, dev box state, resets and seeds.
 
-Database actions reach the databases dev mode runs on this machine. The one exception is reading: query and tables with args.resource naming a DynamoDB table the dev stack deploys (a remote resource) scan, query or describe that table in AWS, read-only, and mark the result deployed=true; reset_db refuses it with NOT_LOCAL_RESOURCE. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output; it stops the script after args.timeoutSeconds (default 50) and refuses scripts that reference a deployed resource, but it runs with the developer's AWS credentials and is not a sandbox. env returns a workload's environment with secret values masked, or WORKLOAD_NOT_STARTED for a workload that failed before dev mode prepared it. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) scoped to the dev stack; it fails with OPERATION_NOT_ALLOWED for an operation outside that list and ACCESS_DENIED when IAM refuses it. For 15 minutes after a failed start, aws with that start's devSessionId still reads the stack it targeted. status lists what the dev stack deploys in data.status.deployedResources, each with its AWS name (awsName), ARN and URL, so a queue URL or a function URL needs no guessing.`,
+Database actions reach the databases dev mode runs on this machine. The one exception is reading: query and tables with args.resource naming a DynamoDB table the dev stack deploys (a remote resource) scan, query or describe that table in AWS, read-only, and mark the result deployed=true; reset_db refuses it with NOT_LOCAL_RESOURCE. tables lists tables, Redis keys, the DynamoDB key schema or OpenSearch indices. query runs args.sql (PostgreSQL, MySQL), args.command (Redis) or a DynamoDB query (args.pk) or scan; a bulk delete or change returns DESTRUCTIVE_OPERATION until repeated with args.confirm=true. reset_db with args.confirm=true deletes all rows (PostgreSQL, MySQL, DynamoDB) or keys (Redis) of args.resource or of every local database, and keeps the schema and migration history tables. seed runs the config's local-script args.script (default "seed") with the local database connections, as a beforeDev hook would, and returns its output; it stops the script after args.timeoutSeconds (default 50) and refuses scripts that reference a deployed resource, but it runs with the developer's AWS credentials and is not a sandbox. env returns a workload's environment with secret values masked, or WORKLOAD_NOT_STARTED for a workload that failed before dev mode prepared it. aws calls a reviewed read-only AWS SDK operation (args.service, args.command, args.input) in the session region using the dev agent role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm and API Gateway reads are account-wide read-only; CloudWatch Logs uses stack-name log-group ARN patterns. The live endpoint accepts reviewed reads only and adds resource filtering for Batch, not for other services. Missing or unusable dev-role credentials fail without falling back to developer credentials; a different region is rejected. It fails with OPERATION_NOT_ALLOWED for an operation outside that list and ACCESS_DENIED when IAM refuses it. For 15 minutes after a failed start, aws with that start's devSessionId uses the separate stacktape aws call diagnostic path for that target. That path may fall back from debug-role credentials to the selected user credentials and does not guarantee the live agent's IAM boundary. status lists what the dev stack deploys in data.status.deployedResources, each with its AWS name (awsName), ARN and URL, so a queue URL or a function URL needs no guessing.`,
       inputSchema: z.object({
         action: z.enum(DEV_TOOL_ACTIONS),
         args: DEV_TOOL_ARGS_SCHEMA.optional()

@@ -40,11 +40,11 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 | `--agent`       | Enables the agent HTTP API server alongside dev mode                                     |
 | `--agent-port`   | Port for the agent HTTP server                                                           |
 | `--stage`       | Stage used for dev mode and the `.stacktape/dev-data/{stage}/` directory                 |
-| `--region`      | AWS region used by dev mode and as the default for `/aws/sdk` when `region` is omitted   |
+| `--region`      | Session AWS region; `/aws/sdk` rejects any different region   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
 | `--fresh-db`     | Reset local database data on startup                                                     |
 
-Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — use `--fresh-db` to wipe it for a clean slate.
+Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — see [reset scope](/local-development/local-databases#resetting-local-data) before using `--fresh-db`. It resets prepared databases, including relay dependencies, and DynamoDB Local tables share storage.
 
 ### Startup progress
 
@@ -59,7 +59,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 | `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
 | `DEV_DATABASE` | Each local database starting and running, or its error                                          |
 
-If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. A first start that fails or is interrupted leaves the dev stack rolled back; the next start updates it again.
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; `UPDATE_ROLLBACK_COMPLETE` permits another start. A stack still rolling back or in `UPDATE_ROLLBACK_FAILED` must finish or recover before an update can proceed. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
 
 ## Authentication
 
@@ -331,7 +331,7 @@ Calling stop when the agent is already stopping or stopped returns success witho
 
 ## Database endpoints
 
-Agent mode exposes HTTP endpoints for local resource instances started by dev mode. The current server has typed handlers for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB, and OpenSearch resources, so AI agents can inspect schemas, run queries, and verify data without installing separate database client tools. `GET /` lists only the database endpoint groups for local resources currently running in this dev session. If a resource is not running or has a different local type, the endpoint returns an error with available resource names where applicable.
+Agent mode exposes database endpoints for PostgreSQL, MySQL/MariaDB, Redis, DynamoDB and OpenSearch. Most operate on local instances. DynamoDB `query`, `scan`, `schema` and `sample` can also read a table deployed by the dev stack and mark responses `deployed: true`; `get`, `put`, `delete` and `reset` require a local table. `GET /` lists endpoint groups for running local resources. Errors include available resource names where applicable.
 
 The `{name}` path parameter in every database endpoint matches the resource name in your Stacktape configuration. If you reference a name that doesn't exist, the error response includes an `available` array listing the valid resource names.
 
@@ -401,7 +401,7 @@ curl -X POST -H "$AUTH" -H "$JSON" $AGENT/redis/myCache/command \
 
 ### DynamoDB
 
-Available when dev mode is running a local instance for a [DynamoDB table](/resources/databases/dynamodb) in your Stacktape configuration. Key parameters (`pk`, `sk`) are objects mapping attribute names to values — for example, `{"userId": "123"}`.
+`query`, `scan`, `schema` and `sample` support both local tables and tables deployed by the dev stack (responses include `deployed: true`). `get`, `put`, `delete` and `reset` require a local [DynamoDB table](/resources/databases/dynamodb). Key parameters (`pk`, `sk`) are objects mapping attribute names to values — for example, `{"userId": "123"}`.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/dynamodb/notesTable/scan \
@@ -491,14 +491,14 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm reads and API Gateway reads are account-wide read-only within the session region. CloudWatch Logs reads use the role's stack-name log-group ARN patterns. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch; it does not add stack filtering to the other services. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
   -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
 ```
 
-The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, defaults to the dev mode region). If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
+The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, must equal the session region if supplied; another region is rejected). Use [`stacktape aws call`](/cli/aws-call) with an explicit target for a different region. If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
 
 To list all supported services and example commands:
 
@@ -625,7 +625,7 @@ The agent can run SQL against your local databases, rebuild and stop workloads, 
 
 Do not forward the agent port to other machines, and do not paste the token into chats or logs.
 
-The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant.
+The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. This does not make every read stack-scoped: CloudWatch metrics/alarm and API Gateway reads can reach other resources in the account and session region. CloudWatch Logs uses stack-name log-group ARN patterns. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
 
 ## FAQ
 
@@ -651,4 +651,4 @@ If a function fails to build or deploy while `stacktape dev --agent` starts, the
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint runs against dev agent credentials, which the source describes as scoped to the stack's IAM role (falling back to user credentials). Those credentials determine what resources are reachable — a call can fail with `AWS credentials not available` if no usable key pair is returned, or with an access-denied error if the role lacks permission for that resource. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
+The `/aws/sdk` endpoint uses the dev agent IAM role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide within the session region; CloudWatch Logs reads use stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the HTTP endpoint. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.

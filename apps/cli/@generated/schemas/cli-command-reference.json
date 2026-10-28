@@ -2318,7 +2318,7 @@
       },
       {
         "name": "disableEmulation",
-        "description": "#### Disable Emulation\n---\nDisables the automatic injection of parameters and credentials during local emulation. Use this flag if you want to run a compute resource locally that has not yet been deployed.",
+        "description": "#### Disable Emulation\n---\nAffects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection.",
         "required": false,
         "allowedTypes": [
           "boolean"
@@ -2336,7 +2336,7 @@
       },
       {
         "name": "freshDb",
-        "description": "#### Fresh Database\n---\nIf `true`, deletes existing local database data before starting. Use this to start with a clean database state.",
+        "description": "#### Fresh Database\n---\nIf `true`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused.",
         "required": false,
         "allowedTypes": [
           "boolean"
@@ -2424,7 +2424,7 @@
       },
       {
         "name": "resources",
-        "description": "#### Resources\n---\nSpecify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`.",
+        "description": "#### Resources\n---\nSpecify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`.",
         "required": false,
         "allowedTypes": [
           "array"
@@ -2433,7 +2433,7 @@
       },
       {
         "name": "skipResources",
-        "description": "#### Skip Resources\n---\nExclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`.",
+        "description": "#### Skip Resources\n---\nExclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`.",
         "required": false,
         "allowedTypes": [
           "array"
@@ -4351,7 +4351,7 @@
       },
       {
         "name": "endTime",
-        "description": "#### End Time\n---\nThe end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it.",
+        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.",
         "required": false,
         "allowedTypes": [
           "number",
@@ -4458,7 +4458,7 @@
       },
       {
         "name": "startTime",
-        "description": "#### Start Time\n---\nThe start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor.",
+        "description": "#### Start Time\n---\nThe query start time: a relative duration such as `30m`, an ISO timestamp or a supported numeric date value. Relative durations count back from `--until` (now by default).",
         "required": false,
         "allowedTypes": [
           "number",
@@ -4704,7 +4704,7 @@
       },
       {
         "name": "endTime",
-        "description": "#### End Time\n---\nThe end of the time window. This can be any format accepted by the JavaScript `Date` constructor. Defaults to now; a relative `--since` value counts back from it.",
+        "description": "#### End Time\n---\nThe query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics and Logs Insights enforce it. For logs, it bounds the initial follow backlog, but following continues beyond it; the ordinary one-shot log fetch currently does not enforce this upper bound.",
         "required": false,
         "allowedTypes": [
           "number",
@@ -4775,7 +4775,7 @@
       },
       {
         "name": "startTime",
-        "description": "#### Start Time\n---\nThe start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor.",
+        "description": "#### Start Time\n---\nThe query start time: a relative duration such as `30m`, an ISO timestamp or a supported numeric date value. Relative durations count back from `--until` (now by default).",
         "required": false,
         "allowedTypes": [
           "number",
@@ -7065,7 +7065,7 @@
       },
       {
         "name": "thorough",
-        "description": "#### Thorough\n---\nIf `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template.",
+        "description": "#### Thorough\n---\nIf `true`, validates workload packaging and calls CloudFormation ValidateTemplate for templates up to 51,200 bytes of compact JSON. Larger templates skip the AWS check and can still succeed; inspect checked.cloudformation in agent output.",
         "required": false,
         "allowedTypes": [
           "boolean"
