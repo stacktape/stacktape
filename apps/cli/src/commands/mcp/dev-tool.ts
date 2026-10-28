@@ -788,7 +788,8 @@ const readDevLogs = async ({
       return { message: line };
     }
   };
-  let start = cursor === undefined ? 0 : Math.max(0, cursor);
+  // A cursor past the end is from before the log was rotated (see `AGENT_LOG_ROTATE_BYTES`): its lines start again at 0.
+  let start = cursor === undefined || cursor > lines.length ? 0 : Math.max(0, cursor);
   if (currentSessionOnly) {
     for (let index = lines.length - 1; index >= start; index--) {
       const entry = parse(lines[index]);

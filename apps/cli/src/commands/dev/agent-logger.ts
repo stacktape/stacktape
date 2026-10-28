@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'fs-extra';
-import { dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import stripAnsi from 'strip-ansi';
 
 export type LogLevel = 'info' | 'warn' | 'error';
@@ -24,10 +24,20 @@ type JsonlLogEntry = {
   session?: Record<string, unknown>;
 };
 
-/** A file larger than this is moved to `<file>.1` when the next session starts, replacing the older copy. */
+/**
+ * A file larger than this is moved to `<file>.1`, replacing the older copy: when the next session starts, and during a
+ * session once its lines reach it. A noisy session that runs for days stays within twice this on disk, and a reader of
+ * the log never loads more.
+ */
 export const AGENT_LOG_ROTATE_BYTES = 10 * 1024 * 1024;
 
 let logFilePath: string | null = null;
+let fileBytes = 0;
+
+const rotate = (filePath: string) => {
+  rmSync(`${filePath}.1`, { force: true });
+  renameSync(filePath, `${filePath}.1`);
+};
 
 /**
  * Initialize the agent logger with a file path. Sessions on the same port append to the same file, so a restart keeps
@@ -41,10 +51,12 @@ export const initAgentLogger = (filePath: string, session: Record<string, unknow
     mkdirSync(dir, { recursive: true });
   }
 
+  fileBytes = 0;
   try {
-    if (statSync(filePath).size > AGENT_LOG_ROTATE_BYTES) {
-      rmSync(`${filePath}.1`, { force: true });
-      renameSync(filePath, `${filePath}.1`);
+    fileBytes = statSync(filePath).size;
+    if (fileBytes > AGENT_LOG_ROTATE_BYTES) {
+      rotate(filePath);
+      fileBytes = 0;
     }
   } catch {
     // No earlier file.
@@ -56,7 +68,16 @@ export const initAgentLogger = (filePath: string, session: Record<string, unknow
 const writeEntry = (entry: JsonlLogEntry) => {
   if (!logFilePath) return;
   try {
-    appendFileSync(logFilePath, `${JSON.stringify(entry)}\n`);
+    let line = `${JSON.stringify(entry)}\n`;
+    if (fileBytes > 0 && fileBytes + line.length > AGENT_LOG_ROTATE_BYTES) {
+      rotate(logFilePath);
+      line =
+        `${JSON.stringify({ ts: entry.ts, source: 'dev', level: 'info', msg: `Earlier lines of this session are in ${basename(logFilePath)}.1` })}\n` +
+        line;
+      fileBytes = 0;
+    }
+    appendFileSync(logFilePath, line);
+    fileBytes += Buffer.byteLength(line);
   } catch {
     // Ignore write errors
   }

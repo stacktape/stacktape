@@ -381,6 +381,11 @@ describe('MCP dev session routing', () => {
       expect((await read({ cursor: first.nextCursor, workload: 'api' })).entries).toEqual([
         { source: 'api', message: 'TypeError: x is undefined' }
       ]);
+      // The logger rotated the file meanwhile: a cursor past its end reads the new file from its start.
+      await writeFile(logFile, line('api', 'GET /orders 200'));
+      const rotated = await read({ cursor: next.nextCursor });
+      expect(rotated.entries.map(({ message }) => message)).toEqual(['GET /orders 200']);
+      expect(rotated.nextCursor).toBe(1);
       await handler({ action: 'stop', args: { devSessionId } });
     } finally {
       await dev.close();
