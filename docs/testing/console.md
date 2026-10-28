@@ -208,9 +208,11 @@ This creates and removes one uniquely named test row. It is not part of normal t
 
 ### Localhost login
 
-Both local modes serve the UI at `http://localhost:4000` and use the real **dev Cognito pool**. For manual testing, open
-that URL and use the normal dev login. Console browser login and the source CLI's login are separate; the private guide
-covers
+Both local modes serve the UI at `http://localhost:4000`, which proxies `/auth` and tRPC to the API so the sign-in
+cookie stays on localhost. Sign in with a dev Console account (Cognito-era passwords move over at the first sign-in). In
+the UI-only mode, Google, GitHub and passkeys belong to the deployed dev Console host; use email and password. For
+manual testing, open that URL and use the normal dev login. Console browser login and the source CLI's login are
+separate; the private guide covers
 [restoring the development CLI login](../../apps/console/e2e/README.md#restoring-the-agents-development-cli-login).
 
 For automation, reuse the existing Developer or separately scoped Admin fixture described in
@@ -228,7 +230,7 @@ application request does not trigger a hidden login retry. Cached state is disca
 saved to disk. Run `pnpm --filter @stacktape/console-ui test:e2e:sessions` and `test:e2e:privacy` after changing these
 helpers; both qualifiers are offline.
 
-There is no shared-dev authentication bypass. Locally signed identities belong to the isolated harness, not the live dev
+There is no shared-dev authentication bypass. Fixture-stored sessions belong to the isolated harness, not the live dev
 API. Shared-dev tests remain serialized under a reservation; session reuse does not isolate server-side data. Console
 login also does not authenticate GitHub/GitLab/Bitbucket provider sessions; follow the private guide for those callbacks
 and approvals.
@@ -256,7 +258,7 @@ reuse across contexts, not complete feature acceptance. Missing credentials fail
 Authenticated traces, screenshots, and videos are disabled to avoid storing credentials, tokens, or private account
 data.
 
-Authenticated automation uses a dedicated email/password user in the dev Cognito pool. Invite it to the existing dev
+Authenticated automation uses a dedicated email/password Console user on the dev stage. Invite it to the existing dev
 Stacktape organization with Developer access to the intended test projects. For interactive development, the owner's
 normal dev Google login is also supported; it is not the unattended browser test's credential source. Restricted-user
 and cross-organization tests need their own fixtures, not an Owner login. Destructive disconnect/revoke/delete tests
