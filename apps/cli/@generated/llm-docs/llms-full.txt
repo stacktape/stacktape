@@ -3601,8 +3601,8 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
-| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
+| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
 | `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
@@ -3631,7 +3631,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 
@@ -5627,7 +5627,9 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 ### agent
 
-`--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
+Without `--follow`, `--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
+
+With `--agent --follow`, application log lines are written directly to stdout as plain text, alongside CLI protocol records. They are not wrapped in NDJSON log records, so this stream is not consistently parseable as NDJSON. Use a snapshot without `--follow` when you need the structured log payload, or use MCP `stacktape_dev` logs for incremental local dev-session logs.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
@@ -5639,7 +5641,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent
 
 In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
 
-`--raw` prints this JSON object for standard retrieval. With `--agent`, this is the payload encoded as text in a log record's `message`:
+`--raw` prints this JSON object for standard retrieval. With `--agent` without `--follow`, this is the payload encoded as text in a log record's `message`:
 
 ```json
 {
@@ -5773,7 +5775,7 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, application lines are plain text mixed with CLI protocol records; they are not wrapped as NDJSON. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
 
 ---
 
@@ -18671,7 +18673,7 @@ The `memory` property sets the function's memory allocation in MB — AWS Lambda
 
 ### First-time setup
 
-The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. Other rollback statuses need their corresponding CloudFormation recovery path.
+The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. A dev stack in `UPDATE_ROLLBACK_COMPLETE` can restart normally. A stack still rolling back or in `UPDATE_ROLLBACK_FAILED` must finish or recover before an update can proceed.
 
 Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`.
 
@@ -18892,7 +18894,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. A dev-stack create/update still packages every function, including unselected ones. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -18922,7 +18924,7 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions dev mode builds and watches. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
+Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions the running session rebuilds and watches. Creating or updating the dev stack still packages all functions, so skipping a broken function does not avoid its startup build failure. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
 
 ### Why does dev mode refuse to start on my stage?
 
@@ -48445,7 +48447,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 | `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
 | `DEV_DATABASE` | Each local database starting and running, or its error                                          |
 
-If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; other rollback statuses require their corresponding recovery path. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; `UPDATE_ROLLBACK_COMPLETE` permits another start. A stack still rolling back or in `UPDATE_ROLLBACK_FAILED` must finish or recover before an update can proceed. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
 
 ## Authentication
 
@@ -48871,7 +48873,7 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role scoped to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm reads and API Gateway reads are account-wide read-only within the session region. CloudWatch Logs reads use the role's stack-name log-group ARN patterns. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch; it does not add stack filtering to the other services. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
@@ -48997,7 +48999,7 @@ The agent can run SQL against your local databases, rebuild and stop workloads, 
 
 Do not forward the agent port to other machines, and do not paste the token into chats or logs.
 
-The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant.
+The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. This does not make every read stack-scoped: CloudWatch metrics/alarm and API Gateway reads can reach other resources in the account and session region. CloudWatch Logs uses stack-name log-group ARN patterns. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
 
 ## FAQ
 
@@ -49023,7 +49025,7 @@ If a function fails to build or deploy while `stacktape dev --agent` starts, the
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint uses the dev agent IAM role scoped to the stack. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
+The `/aws/sdk` endpoint uses the dev agent IAM role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide within the session region; CloudWatch Logs reads use stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the HTTP endpoint. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
 
 ---
 
@@ -49342,7 +49344,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`query`** runs `sql` on PostgreSQL or MySQL, a Redis `command` such as `GET session:1`, or a DynamoDB query (`pk`, optional `sk` and `index`) or scan (`filter`). `resource` names the database and can be omitted when only one runs. A statement that deletes or changes data in bulk (`DROP`, `TRUNCATE`, `FLUSHALL`, `UPDATE` or `DELETE` without `WHERE`) returns `DESTRUCTIVE_OPERATION` until it is repeated with `confirm: true`.
 - **`reset_db`** gives the assistant a known database state without restarting dev mode; a reset of a small database takes milliseconds, a `freshDb` restart about 13 seconds. With `confirm: true` it deletes every row of the PostgreSQL and MySQL tables, every Redis key and every DynamoDB item of `resource`, or of every local database when `resource` is omitted. Tables, indexes and migration history tables such as `_prisma_migrations` stay, so the application needs no new migration. PostgreSQL identity columns and MySQL `AUTO_INCREMENT` counters start again at 1. `keepTables` names more tables to keep. OpenSearch is not supported; start dev mode with `freshDb` to delete its data.
 - **`seed`** runs a `local-script` from the config's `scripts` section (`script`, default `seed`) with the local database connections and returns its output. It stops the script after `timeoutSeconds` (default 50, at most 280). A script added to the config after dev mode started returns `CONFIG_CHANGED_RESTART_REQUIRED`: dev mode runs the config it started with, so it has to restart first. See [Reset and seed local databases](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) for the script.
-- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region` equal to the session region) with the dev agent's stack-scoped role. A missing role or failed AssumeRole fails the live agent call without falling back to developer credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. This separate CLI diagnostic path uses debug-role credentials when available and can fall back to the selected user credentials; it does not guarantee the live dev-agent IAM boundary. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
+- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region` equal to the session region) with the dev agent's role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide in the session region; CloudWatch Logs uses stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the live HTTP endpoint. A missing role or failed AssumeRole fails the live agent call without falling back to developer credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. This separate CLI diagnostic path uses debug-role credentials when available and can fall back to the selected user credentials; it does not guarantee the live dev-agent IAM boundary. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
 - **`stop`** terminates the active session.
 
 `query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.

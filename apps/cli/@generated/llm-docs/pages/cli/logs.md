@@ -117,7 +117,9 @@ stacktape logs myApi --stage prod --region eu-west-1 --raw
 
 ### agent
 
-`--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
+Without `--follow`, `--agent` uses the CLI NDJSON protocol. The log payload is JSON text inside a `type: "log"` record's `message`; the final `type: "result"` record is separate and has `result: null`. Standard-mode payloads contain `logGroup` and `events`; Insights payloads contain `logGroup`, `query` and `results`. Parse both the protocol and the message payload, or use MCP `stacktape_cli`, which extracts it. Do not parse all stdout as one log object.
+
+With `--agent --follow`, application log lines are written directly to stdout as plain text, alongside CLI protocol records. They are not wrapped in NDJSON log records, so this stream is not consistently parseable as NDJSON. Use a snapshot without `--follow` when you need the structured log payload, or use MCP `stacktape_dev` logs for incremental local dev-session logs.
 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --agent
@@ -129,7 +131,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent
 
 In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
 
-`--raw` prints this JSON object for standard retrieval. With `--agent`, this is the payload encoded as text in a log record's `message`:
+`--raw` prints this JSON object for standard retrieval. With `--agent` without `--follow`, this is the payload encoded as text in a log record's `message`:
 
 ```json
 {
@@ -263,4 +265,4 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ### What is the difference between --raw and --agent?
 
-`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, application lines are plain text mixed with CLI protocol records; they are not wrapped as NDJSON. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.

@@ -70,7 +70,7 @@ The `memory` property sets the function's memory allocation in MB — AWS Lambda
 
 ### First-time setup
 
-The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. Other rollback statuses need their corresponding CloudFormation recovery path.
+The first run deploys a dev stack. Dev mode never updates or deletes a stack it did not create, regardless of its name or status. Choose another stage, or explicitly delete an unwanted stack. A dev stack in `ROLLBACK_COMPLETE` cannot be updated: delete it explicitly before starting again. A dev stack in `UPDATE_ROLLBACK_COMPLETE` can restart normally. A stack still rolling back or in `UPDATE_ROLLBACK_FAILED` must finish or recover before an update can proceed.
 
 Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`.
 
@@ -291,7 +291,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to start only that function in dev mode. This reduces startup time and log noise from other workloads. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. A dev-stack create/update still packages every function, including unselected ones. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -321,7 +321,7 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions dev mode builds and watches. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
+Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions the running session rebuilds and watches. Creating or updating the dev stack still packages all functions, so skipping a broken function does not avoid its startup build failure. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
 
 ### Why does dev mode refuse to start on my stage?
 

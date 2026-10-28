@@ -59,7 +59,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 | `DEV_WORKLOAD` | Each workload starting and running, or its error (`instanceId` is the workload name)            |
 | `DEV_DATABASE` | Each local database starting and running, or its error                                          |
 
-If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; other rollback statuses require their corresponding recovery path. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
+If the start fails, the final `result` line carries the failure's own code and hints, for example `CLI_DEV_STACK_CONFLICT` with how to resolve it. Dev mode never updates or deletes a stack it did not create. A dev stack in `ROLLBACK_COMPLETE` requires explicit deletion before another start; `UPDATE_ROLLBACK_COMPLETE` permits another start. A stack still rolling back or in `UPDATE_ROLLBACK_FAILED` must finish or recover before an update can proceed. A Lambda build/deploy failure may leave the agent running with `DEV_STARTED_WITH_FAILURES` and `ready: false`; inspect status and rebuild it.
 
 ## Authentication
 
@@ -491,7 +491,7 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role scoped to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm reads and API Gateway reads are account-wide read-only within the session region. CloudWatch Logs reads use the role's stack-name log-group ARN patterns. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch; it does not add stack filtering to the other services. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
@@ -625,7 +625,7 @@ The agent can run SQL against your local databases, rebuild and stop workloads, 
 
 Do not forward the agent port to other machines, and do not paste the token into chats or logs.
 
-The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant.
+The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. This does not make every read stack-scoped: CloudWatch metrics/alarm and API Gateway reads can reach other resources in the account and session region. CloudWatch Logs uses stack-name log-group ARN patterns. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
 
 ## FAQ
 
@@ -651,4 +651,4 @@ If a function fails to build or deploy while `stacktape dev --agent` starts, the
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint uses the dev agent IAM role scoped to the stack. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
+The `/aws/sdk` endpoint uses the dev agent IAM role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide within the session region; CloudWatch Logs reads use stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the HTTP endpoint. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
