@@ -62,9 +62,11 @@ const makeDynamoDbRequest = async <T>(
     const data = (await response.json()) as DynamoDbResponse<T>;
 
     if (!response.ok || data.__type) {
+      // The error type, such as `ResourceInUseException`, stays in the message so a caller can tell errors apart.
+      const type = data.__type?.split('#').pop();
       return {
         success: false,
-        error: data.message || data.__type || `HTTP ${response.status}`
+        error: [data.message, type && `(${type})`].filter(Boolean).join(' ') || `HTTP ${response.status}`
       };
     }
 
@@ -146,7 +148,8 @@ const createTableIfNotExists = async (
     if (createResult.error?.includes('ResourceInUseException') || createResult.error?.includes('already exists')) {
       return;
     }
-    tuiManager.warn(`Failed to create DynamoDB table "${tableName}": ${createResult.error}`);
+    // A table that does not exist must not look like a running local resource.
+    throw new Error(`Creating the local DynamoDB table "${tableName}" failed: ${createResult.error}`);
   }
 };
 
@@ -236,13 +239,7 @@ export const startLocalDynamoDb = async (
   const actualPort = await ensureDynamoDbLocalContainer(config);
 
   // The table may be missing although the container runs: it was deleted, or the data directory is new.
-  if (tableConfig) {
-    try {
-      await createTableIfNotExists(actualPort, name, tableConfig);
-    } catch (err) {
-      tuiManager.warn(`Failed to create DynamoDB table "${name}": ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  if (tableConfig) await createTableIfNotExists(actualPort, name, tableConfig);
 
   const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, name);
 

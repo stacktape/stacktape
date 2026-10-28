@@ -50,7 +50,9 @@ export const DEV_CONFIG = {
       /** Whether to attempt auto-restart on failure */
       autoRestart: true,
       /** Max restart attempts before giving up */
-      maxRestartAttempts: 3
+      maxRestartAttempts: 3,
+      /** How long a restarted container gets before it is checked again (ms) */
+      restartSettleMs: 3000
     }
   },
 
