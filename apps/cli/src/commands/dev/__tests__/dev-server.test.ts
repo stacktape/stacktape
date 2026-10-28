@@ -357,7 +357,7 @@ test("a frontend's failure summary masks the secret-sourced values of its enviro
     await writeExecutable(
       join(directory, 'vite'),
       `#!/usr/bin/env node
-console.error('Failed to configure webhook: ' + process.env.PAYMENT_WEBHOOK + ' for ' + process.env.SHOP_NAME);
+console.error('Failed to configure webhook: ' + process.env.PAYMENT_WEBHOOK + ' pin ' + process.env.PAYMENT_PIN + ' for ' + process.env.SHOP_NAME);
 process.exit(1);
 `
     );
@@ -369,13 +369,15 @@ process.exit(1);
         command: './vite dev',
         workingDirectory: directory,
         framework: 'vite',
-        environment: { PAYMENT_WEBHOOK: secret, SHOP_NAME: 'demo-shop' },
-        secretEnvNames: new Set(['PAYMENT_WEBHOOK'])
+        environment: { PAYMENT_WEBHOOK: secret, PAYMENT_PIN: 'k9#Qz', SHOP_NAME: 'demo-shop' },
+        secretEnvNames: new Set(['PAYMENT_WEBHOOK', 'PAYMENT_PIN'])
       }
     });
     expect(result.status).toBe('error');
     expect(result.error).toContain('Failed to configure webhook:');
     expect(result.error).not.toContain(secret);
+    // A short secret too (#386 review).
+    expect(result.error).not.toContain('k9#Qz');
     // Plain settings stay readable.
     expect(result.error).toContain('demo-shop');
   } finally {

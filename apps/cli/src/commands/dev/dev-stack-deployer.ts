@@ -22,7 +22,7 @@ import {
   getCfResourceParamOutput
 } from '@domain-services/config-manager/built-in-directives';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
-import { findLocalCfResourceReferences } from './dev-stack-references';
+import { assertNoLocalCfSecretReferences, findLocalCfResourceReferences } from './dev-stack-references';
 
 /**
  * Builds the images that AWS pulls for the dev stack (batch jobs, AgentCore runtimes) and returns the resources whose
@@ -64,7 +64,13 @@ export const packageDevStackImages = async (): Promise<string[]> => {
  */
 const addLocalCfResourceOutputs = () => {
   const resources = templateManager.template.Resources;
-  for (const { resourceName, property } of findLocalCfResourceReferences(configManager.config)) {
+  const references = findLocalCfResourceReferences(configManager.config);
+  // Raw resources were checked before any AWS work; the template also names the resources Stacktape synthesizes.
+  assertNoLocalCfSecretReferences({
+    references,
+    resourceTypes: Object.fromEntries(Object.entries(resources).map(([name, { Type }]) => [name, Type]))
+  });
+  for (const { resourceName, property } of references) {
     if (!resources[resourceName]) continue;
     const value = getCfResourceParamIntrinsic({ resources, resourceName, property });
     templateManager.addStackOutput(getCfResourceParamOutput({ resourceName, property, value }));

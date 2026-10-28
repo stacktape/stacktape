@@ -78,7 +78,10 @@ export const maskAgentEnvironment = (
     ])
   );
 
-/** Shorter values (ports, flags, counts) also appear in text that holds no secret, such as line numbers. */
+/**
+ * Shorter values (ports, flags, counts) also appear in text that holds no secret, such as line numbers. A value read
+ * from a secret is masked whatever its length: a short secret is still a secret.
+ */
 const MIN_MASKED_VALUE_LENGTH = 6;
 
 /**
@@ -92,9 +95,18 @@ export const maskEnvironmentValuesInText = (
 ): string => {
   const masked = maskAgentEnvironment(environment, secretNames);
   const secrets = Object.entries(environment)
-    .filter(([name, value]) => String(value).length >= MIN_MASKED_VALUE_LENGTH && masked[name] !== String(value))
+    .filter(
+      ([name, value]) =>
+        String(value).length >= (secretNames.has(name) ? 1 : MIN_MASKED_VALUE_LENGTH) && masked[name] !== String(value)
+    )
     // A longer value first, so a value that contains another is replaced whole.
     .sort(([, first], [, second]) => String(second).length - String(first).length);
-  const replaced = secrets.reduce((result, [name, value]) => result.replaceAll(String(value), masked[name]!), text);
-  return scrubKeepingPrivateAddresses(replaced);
+  if (!secrets.length) return scrubKeepingPrivateAddresses(text);
+  // One pass, so a short secret cannot match inside the mask that replaced another one.
+  const maskOf = new Map(secrets.map(([name, value]) => [String(value), masked[name]!]));
+  const pattern = new RegExp(
+    [...maskOf.keys()].map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+    'g'
+  );
+  return scrubKeepingPrivateAddresses(text.replace(pattern, (value) => maskOf.get(value)!));
 };

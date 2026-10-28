@@ -102,50 +102,112 @@ export const getBatchJobEnvVars = async ({
   }
 };
 
-const belongsToStack = (nameOrArn: unknown, stackName: string, kind: 'job-queue' | 'job-definition') =>
-  typeof nameOrArn === 'string' &&
-  (nameOrArn.startsWith(`${stackName}-`) || nameOrArn.includes(`:${kind}/${stackName}-`));
+/** The AWS Batch queues and job definitions a stack deployed, from its resource list. */
+export type BatchScope = {
+  queueArns: Set<string>;
+  jobDefinitionNames: Set<string>;
+  region?: string;
+  accountId?: string;
+};
+
+const BATCH_ARN = /^arn:aws[\w-]*:batch:([\w-]+):(\d{12}):(job-queue|job-definition)\/([^:/]+)(?::(\d+))?$/;
 
 /**
- * Batch reads are scoped to the stage's own queues, job definitions and jobs. IAM cannot scope them (Batch's describe
+ * The scope of Batch reads for a stack: its job queues by ARN and its job definitions by name, all in the region and
+ * account of the stack. Physical IDs of `AWS::Batch::JobQueue` are queue ARNs, those of `AWS::Batch::JobDefinition` are
+ * definition ARNs with a revision.
+ */
+export const getBatchScope = (stackResources: { ResourceType?: string; PhysicalResourceId?: string }[]): BatchScope => {
+  const scope: BatchScope = { queueArns: new Set(), jobDefinitionNames: new Set() };
+  for (const { ResourceType, PhysicalResourceId } of stackResources) {
+    const match = PhysicalResourceId && BATCH_ARN.exec(PhysicalResourceId);
+    if (!match) continue;
+    const [, region, accountId, kind, name] = match;
+    scope.region = region;
+    scope.accountId = accountId;
+    if (ResourceType === 'AWS::Batch::JobQueue' && kind === 'job-queue') scope.queueArns.add(PhysicalResourceId!);
+    if (ResourceType === 'AWS::Batch::JobDefinition' && kind === 'job-definition') scope.jobDefinitionNames.add(name);
+  }
+  return scope;
+};
+
+/** A queue of the stack, by name or by ARN in the stack's region and account. */
+const isStackQueue = (queue: unknown, scope: BatchScope) =>
+  typeof queue === 'string' &&
+  [...scope.queueArns].some(
+    (arn) => arn === queue || (!queue.startsWith('arn:') && arn.endsWith(`:job-queue/${queue}`))
+  );
+
+/** A job definition of the stack: its name, `name:revision`, or its ARN in the stack's region and account. */
+const isStackJobDefinition = (definition: unknown, scope: BatchScope) => {
+  if (typeof definition !== 'string') return false;
+  if (definition.startsWith('arn:')) {
+    const match = BATCH_ARN.exec(definition);
+    return Boolean(
+      match &&
+      match[3] === 'job-definition' &&
+      match[1] === scope.region &&
+      match[2] === scope.accountId &&
+      scope.jobDefinitionNames.has(match[4])
+    );
+  }
+  const [name, revision, ...rest] = definition.split(':');
+  return !rest.length && (revision === undefined || /^\d+$/.test(revision)) && scope.jobDefinitionNames.has(name);
+};
+
+/**
+ * Batch reads are scoped to the stack's own queues, job definitions and jobs. IAM cannot scope them (Batch's describe
  * and list actions accept only `*`), and the caller's credentials can be the developer's own, so this is the scope.
- * Returns why a call is refused, or how to filter its response: `DescribeJobs` names jobs by ID only, so the jobs of
- * other queues are left out of its result.
+ * Returns why a call is refused, or how to filter its response: `DescribeJobs` names jobs by ID only, so jobs outside
+ * the stack's queues and job definitions are left out of its result.
  */
 export const scopeBatchCall = ({
   command,
   input,
-  stackName
+  scope
 }: {
   command: string;
   input: Record<string, unknown>;
-  stackName: string;
+  scope: BatchScope;
 }): { refusal: string } | { filterResponse?: (data: unknown) => unknown } => {
   const operation = command.endsWith('Command') ? command.slice(0, -'Command'.length) : command;
   if (operation === 'ListJobs') {
-    return belongsToStack(input.jobQueue, stackName, 'job-queue')
+    return isStackQueue(input.jobQueue, scope)
       ? {}
-      : { refusal: `ListJobs needs jobQueue: one of the job queues of ${stackName} (status lists them as jobQueue).` };
+      : { refusal: 'ListJobs needs jobQueue: one of the job queues of this stack (status lists them as jobQueue).' };
   }
   if (operation === 'DescribeJobDefinitions') {
     const definitions = Array.isArray(input.jobDefinitions) ? input.jobDefinitions : [];
     const scoped = input.jobDefinitionName
-      ? belongsToStack(input.jobDefinitionName, stackName, 'job-definition') && !definitions.length
-      : definitions.length > 0 &&
-        definitions.every((definition) => belongsToStack(definition, stackName, 'job-definition'));
-    return scoped
-      ? {}
-      : {
-          refusal: `DescribeJobDefinitions needs jobDefinitionName or jobDefinitions of ${stackName} (status lists them as jobDefinitionArn).`
+      ? !definitions.length && isStackJobDefinition(input.jobDefinitionName, scope)
+      : definitions.length > 0 && definitions.every((definition) => isStackJobDefinition(definition, scope));
+    if (!scoped) {
+      return {
+        refusal:
+          'DescribeJobDefinitions needs jobDefinitionName or jobDefinitions of this stack (status lists them as jobDefinitionArn).'
+      };
+    }
+    return {
+      filterResponse: (data) => {
+        const { jobDefinitions, ...rest } = (data ?? {}) as { jobDefinitions?: { jobDefinitionArn?: unknown }[] };
+        return {
+          ...rest,
+          jobDefinitions: (jobDefinitions ?? []).filter(({ jobDefinitionArn }) =>
+            isStackJobDefinition(jobDefinitionArn, scope)
+          )
         };
+      }
+    };
   }
   if (operation === 'DescribeJobs') {
     return {
       filterResponse: (data) => {
-        const { jobs, ...rest } = (data ?? {}) as { jobs?: { jobQueue?: unknown }[] };
+        const { jobs, ...rest } = (data ?? {}) as { jobs?: { jobQueue?: unknown; jobDefinition?: unknown }[] };
         return {
           ...rest,
-          jobs: (jobs ?? []).filter(({ jobQueue }) => belongsToStack(jobQueue, stackName, 'job-queue'))
+          jobs: (jobs ?? []).filter(
+            ({ jobQueue, jobDefinition }) => isStackQueue(jobQueue, scope) && isStackJobDefinition(jobDefinition, scope)
+          )
         };
       }
     };

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import { isSecretCfAttribute } from '@utils/referenceable-types';
 import {
   assertDevStackReferencesResolve,
+  assertNoLocalCfSecretReferences,
   findLocalCfResourceReferences,
   findMissingLocalCfResourceOutputs,
   findStreamTablesToDeploy
@@ -247,5 +249,49 @@ describe('$CfResourceParam references of local workloads', () => {
         outputs: { JobsArn: 'arn:aws:sqs:eu-north-1:123456789012:jobs' }
       })
     ).toEqual(['ImageLambda.FunctionName']);
+  });
+});
+
+// #386 review: a local script's $CfResourceParam of an access key's secret became a plaintext stack output.
+describe('credentials of raw resources read by local workloads', () => {
+  test('fail before any AWS work, naming the attribute and where it is referenced', () => {
+    const references = findLocalCfResourceReferences({
+      scripts: {
+        migrate: {
+          type: 'local-script',
+          properties: { environment: [{ name: 'KEY', value: "$CfResourceParam('RawKey', 'SecretAccessKey')" }] }
+        }
+      }
+    });
+    let error: { code?: string; message?: string } | undefined;
+    try {
+      assertNoLocalCfSecretReferences({ references, resourceTypes: { RawKey: 'AWS::IAM::AccessKey' } });
+    } catch (caught) {
+      error = caught as typeof error;
+    }
+    expect(error?.code).toBe('DIRECTIVE_CF_RESOURCE_PARAM_SECRET');
+    expect(error?.message).toContain('SecretAccessKey');
+    expect(error?.message).toContain('scripts.migrate.properties.environment[0].value');
+    expect(() => assertNoLocalCfSecretReferences({ references, resourceTypes: { RawKey: undefined } })).not.toThrow();
+  });
+
+  test('are the secret attributes of their types, and credential-named attributes of custom resources', () => {
+    const cases: [string, string, boolean][] = [
+      ['AWS::IAM::AccessKey', 'SecretAccessKey', true],
+      ['AWS::IAM::AccessKey', 'Id', false],
+      ['AWS::Cognito::UserPoolClient', 'ClientSecret', true],
+      ['AWS::Cognito::UserPoolClient', 'ClientId', false],
+      ['AWS::AppSync::ApiKey', 'ApiKey', true],
+      ['AWS::MediaPackage::Channel', 'HlsIngest.ingestEndpoints.0.Password', true],
+      ['AWS::RDS::DBInstance', 'MasterUserSecret.SecretArn', false],
+      ['AWS::Lambda::Function', 'FunctionName', false],
+      ['AWS::CloudFormation::CustomResource', 'DbPassword', true],
+      ['Custom::Atlas', 'ApiToken', true],
+      ['AWS::CloudFormation::CustomResource', 'SecretArn', false],
+      ['AWS::CloudFormation::CustomResource', 'Endpoint', false]
+    ];
+    expect(cases.map(([type, attribute]) => isSecretCfAttribute(type, attribute))).toEqual(
+      cases.map(([, , secret]) => secret)
+    );
   });
 });

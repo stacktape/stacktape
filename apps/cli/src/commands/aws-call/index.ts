@@ -17,7 +17,7 @@ import {
 } from '../_utils/initialization';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
-import { scopeBatchCall } from '../dev/deployed-batch-job';
+import { getBatchScope, scopeBatchCall } from '../dev/deployed-batch-job';
 import { scopeToStackWithoutOutputs, summarizeStackEvents } from './stack-without-outputs';
 
 const isMissingStackOverview = (error: unknown) => error instanceof CliError && error.category === 'MISSING_OUTPUT';
@@ -124,7 +124,7 @@ export const commandAwsCall = async () => {
 
   const batchScope =
     resolveAwsServiceName(service) === 'batch'
-      ? scopeBatchCall({ command, input: inputObj, stackName: stackContext.stackName })
+      ? scopeBatchCall({ command, input: inputObj, scope: getBatchScope(stackManager.existingStackResources) })
       : {};
   if ('refusal' in batchScope) {
     throw new CliError({ category: 'CLI', code: 'CLI_AWS_CALL_COMMAND_NOT_ALLOWED', message: batchScope.refusal });

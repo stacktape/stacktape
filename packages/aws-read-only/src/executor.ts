@@ -179,7 +179,8 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
  * Environment variable values where AWS returns them as structured data: Lambda function configurations
  * (`GetFunction`, `GetFunctionConfiguration`, `ListFunctions`, `ListVersionsByFunction`), ECS container environments
  * (`DescribeTaskDefinition`, and the task overrides in `DescribeTasks`) and Batch container environments
- * (`DescribeJobDefinitions`, `DescribeJobs`). Applications keep secrets there, so every
+ * (`DescribeJobDefinitions`, `DescribeJobs`): `environment` of ECS-style containers, multi-node ranges and overrides, and
+ * `env` of EKS pod containers. Secrets given by reference (`secrets[].valueFrom`) are ARNs and stay. Applications keep secrets there, so every
  * caller gets the variable names and the rest of the metadata, never the values. Other content reads are not touched.
  */
 const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown): unknown => {
@@ -193,7 +194,8 @@ const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown)
           const names = Object.keys(value.Variables);
           return [key, { ...value, Variables: Object.fromEntries(names.map((name) => [name, REDACTED_VALUE])) }];
         }
-        if ((service === 'ecs' || service === 'batch') && key === 'environment' && Array.isArray(value)) {
+        const isContainerEnvironment = key === 'environment' || (service === 'batch' && key === 'env');
+        if ((service === 'ecs' || service === 'batch') && isContainerEnvironment && Array.isArray(value)) {
           return [key, value.map((entry) => (isPlainObject(entry) ? { ...entry, value: REDACTED_VALUE } : entry))];
         }
         return [key, visit(value)];

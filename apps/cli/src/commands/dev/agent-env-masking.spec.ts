@@ -106,3 +106,15 @@ test('a crash summary that quotes an environment dump masks the secret values th
   // Short values such as ports also appear as line numbers; they stay as they are.
   expect(maskEnvironmentValuesInText('main.rb:3000', { API_TOKEN_TTL: '3000' })).toBe('main.rb:3000');
 });
+
+// #386 review: a five-character secret appeared unmasked in a frontend's failure summary.
+test('a secret-sourced value is masked in a summary whatever its length; short plain values stay', () => {
+  const environment = { PIN: 'k9#Qz', CODE: 'ct', PORT: '3000' };
+  expect(
+    maskEnvironmentValuesInText(
+      'Failed to configure webhook: k9#Qz (code ct), port 3000',
+      environment,
+      new Set(['PIN', 'CODE'])
+    )
+  ).toBe('Failed to configure webhook: [redacted] (code [redacted]), port 3000');
+});

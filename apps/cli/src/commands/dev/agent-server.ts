@@ -15,6 +15,7 @@ import { localStatePaths } from 'src/config/local-state-paths';
 import { markOwnAgentLockStopping } from './agent-daemon';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -67,6 +68,7 @@ import {
   describeBatchJob,
   findSubmittedBatchJobId,
   getBatchJobEnvVars,
+  getBatchScope,
   scopeBatchCall,
   type BatchJobDetails
 } from './deployed-batch-job';
@@ -1554,7 +1556,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
 
   const batchScope =
     resolveAwsServiceName(service) === 'batch'
-      ? scopeBatchCall({ command, input: input || {}, stackName: globalStateManager.targetStack.stackName })
+      ? scopeBatchCall({ command, input: input || {}, scope: getBatchScope(stackManager.existingStackResources) })
       : {};
   if ('refusal' in batchScope) {
     return { ok: false, code: 'OPERATION_NOT_ALLOWED', error: batchScope.refusal };

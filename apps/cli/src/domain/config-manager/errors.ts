@@ -48,6 +48,31 @@ export const configErrors = {
       hints: `Deploy the stack, then run the command again.`
     });
   },
+  /** A credential of a raw CloudFormation resource, which Stacktape never publishes as a stack output. */
+  cfResourceParamSecret({
+    resourceName,
+    referencedParam,
+    resourceType,
+    location
+  }: {
+    resourceName: string;
+    referencedParam: string;
+    resourceType: string;
+    /** Where the reference is, when known, such as `scripts.migrate.properties.environment[0].value`. */
+    location?: string;
+  }): CliError {
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_CF_RESOURCE_PARAM_SECRET',
+      message: `${inlineCode(referencedParam)} of ${inlineCode(resourceName)} (${resourceType}) is a credential${
+        location ? `, referenced at ${inlineCode(location)}` : ''
+      }. Stacktape does not publish credentials as stack outputs, so it cannot resolve this outside the deployed stack.`,
+      hints: [
+        `Store the value in Secrets Manager (for example an \`AWS::SecretsManager::Secret\` whose \`SecretString\` is \`$CfResourceParam('${resourceName}', '${referencedParam}')\`) and read it with \`$Secret\`.`,
+        'Local containers and scripts can also assume a role (`assumeRoleOfResource`) instead of using long-lived keys.'
+      ]
+    });
+  },
   directiveResourceParameterInvalid({
     directiveType,
     referencableParams,

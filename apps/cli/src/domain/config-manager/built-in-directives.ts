@@ -16,7 +16,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
-import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
+import { getAllReferencableParams, isSecretCfAttribute, referenceableTypes } from '@utils/referenceable-types';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { configErrors } from './errors';
@@ -314,17 +314,27 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
           resourceName,
           property
         });
-        templateManager.addFinalTemplateOverrideFn(async () => {
-          templateManager.addStackOutput(getCfResourceParamOutput({ resourceName, property, value: intrinsicFn }));
-        });
+        // A credential stays in the template, where only the resources that need it read it, never in an output.
+        if (!isSecretCfAttribute(templateManager.template.Resources[resourceName].Type, property)) {
+          templateManager.addFinalTemplateOverrideFn(async () => {
+            templateManager.addStackOutput(getCfResourceParamOutput({ resourceName, property, value: intrinsicFn }));
+          });
+        }
         return intrinsicFn;
       },
       localResolveFunction: () => (resourceName: string, property: string) => {
-        const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
+        const deployedResource = stackManager.getExistingResourceDetails(resourceName);
         // The logical IDs of the resources Stacktape creates are known only once the template is built, so a name that
         // is not deployed may be one of them.
-        if (!isResourceDeployed) {
+        if (!deployedResource) {
           throw configErrors.directiveResourceNotDeployed({ resourceName, directiveType: '$CfResourceParam' });
+        }
+        if (deployedResource.ResourceType && isSecretCfAttribute(deployedResource.ResourceType, property)) {
+          throw configErrors.cfResourceParamSecret({
+            resourceName,
+            referencedParam: property,
+            resourceType: deployedResource.ResourceType
+          });
         }
         const outputName = getStackOutputName(resourceName, property);
         const output = stackManager.existingStackDetails?.stackOutput[outputName];

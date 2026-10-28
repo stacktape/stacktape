@@ -9,6 +9,7 @@ import {
 import { configErrors } from '@domain-services/config-manager/errors';
 import { getReferenceableParamNames, isReferenceableParam } from '@stacktape/config-authoring/resource-metadata';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
+import { isSecretCfAttribute } from '@utils/referenceable-types';
 import { CliError } from '@utils/errors';
 import { LOCAL_SCRIPT_TYPES } from './dev-stack-config-fingerprint';
 import { getDevNetworkDemand } from './dev-network-session';
@@ -229,6 +230,12 @@ export const prepareDevStackReferences = ({
     skippedFunctionNames,
     relayedParamNames
   });
+  assertNoLocalCfSecretReferences({
+    references: findLocalCfResourceReferences(configManager.config),
+    resourceTypes: Object.fromEntries(
+      Object.entries(configManager.config.cloudformationResources ?? {}).map(([name, { Type }]) => [name, Type])
+    )
+  });
   return [...streamTables].map(
     ([table, functions]) =>
       `${table} is deployed in the dev stack because ${functions.join(', ')} ${functions.length === 1 ? 'reads' : 'read'} its stream; ` +
@@ -303,3 +310,29 @@ export const findMissingLocalCfResourceOutputs = ({
       .map(({ resourceName, property }) => `${resourceName}.${property}`)
   )
 ];
+
+/**
+ * Fails on a local workload's `$CfResourceParam` of a credential, such as the `SecretAccessKey` of an
+ * `AWS::IAM::AccessKey`: local workloads read raw resources from stack outputs, and a credential never becomes one.
+ * `resourceTypes` gives the type of each raw resource: those of `cloudformationResources` before synthesis, those of the
+ * template after it.
+ */
+export const assertNoLocalCfSecretReferences = ({
+  references,
+  resourceTypes
+}: {
+  references: LocalCfResourceReference[];
+  resourceTypes: Record<string, string | undefined>;
+}) => {
+  for (const { resourceName, property, path } of references) {
+    const resourceType = resourceTypes[resourceName];
+    if (resourceType && isSecretCfAttribute(resourceType, property)) {
+      throw configErrors.cfResourceParamSecret({
+        resourceName,
+        referencedParam: property,
+        resourceType,
+        location: path
+      });
+    }
+  }
+};

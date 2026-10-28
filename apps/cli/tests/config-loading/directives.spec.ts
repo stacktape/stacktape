@@ -428,6 +428,30 @@ ${resources}
           entryfilePath: ./src/api.ts
 ${properties}`);
 
+  // #386 review: a credential referenced with $CfResourceParam became a stack output, readable by DescribeStacks.
+  test('a credential of a raw resource reaches the function that reads it, never a stack output', async () => {
+    const dir = await fixtureWithConfig(`${functionWith(`      environment:
+        - name: KEY_SECRET
+          value: $CfResourceParam('RawKey', 'SecretAccessKey')
+        - name: KEY_USER
+          value: $CfResourceParam('RawUser', 'Arn')`)}cloudformationResources:
+  RawUser:
+    Type: AWS::IAM::User
+  RawKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: $CfResourceParam('RawUser', 'UserName')
+`);
+    const template = await synthesizeYaml('production', dir);
+    expect(functionEnvironment(template, 'ApiFunction').KEY_SECRET).toEqual({
+      'Fn::GetAtt': ['RawKey', 'SecretAccessKey']
+    });
+    const outputs = Object.keys(template.Outputs ?? {});
+    expect(outputs).toContain('RawUserArn');
+    expect(outputs.filter((name) => name.startsWith('RawKey'))).toEqual([]);
+    expect(JSON.stringify(template.Outputs)).not.toContain('SecretAccessKey');
+  });
+
   test('a $Format whose argument is only known at deployment time names the directive to use instead', async () => {
     const dir = await fixtureWithConfig(
       functionWith(`      environment:
