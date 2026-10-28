@@ -32,6 +32,10 @@ const makeRepo = async (files: Record<string, string>): Promise<{ root: string; 
 };
 
 const typedHandler = (body: string) => `import type { APIGatewayProxyEventV2 } from 'aws-lambda';\n${body}\n`;
+/** A Go main package handing `handler`, which takes `event`, to the Lambda runtime. */
+const goHandler = (event: string) =>
+  `package main\n\nimport (\n  "context"\n  "github.com/aws/aws-lambda-go/events"\n  "github.com/aws/aws-lambda-go/lambda"\n)\n\nfunc handler(ctx context.Context, event ${event}) (string, error) { return "", nil }\n\nfunc main() { lambda.Start(handler) }\n`;
+
 const catchAll = (pathParameters?: string[]) => ({
   method: '*',
   path: '/{proxy+}',
@@ -907,9 +911,91 @@ describe('the lambda-source probe', () => {
         packageName: 'com.acme'
       },
       { path: 'loose/Handler.java', language: 'Java', reason: 'no-build-file' },
-      { path: 'go/main.go', language: 'Go', reason: 'unsupported-language' },
+      // The Go buildpack builds a module; without a go.mod there is nothing to build.
+      { path: 'go/main.go', language: 'Go', reason: 'no-build-file' },
       { path: 'ruby/app.rb', language: 'Ruby', reason: 'unsupported-language' }
     ]);
+  });
+
+  it('turns a Go main package calling lambda.Start into a function, triggered by the event type it takes', async () => {
+    const repo = await makeRepo({
+      'functions/ping/go.mod': 'module r2/ping\n\ngo 1.24\n',
+      'functions/ping/main.go': goHandler('events.APIGatewayV2HTTPRequest'),
+      // One module at the root with two commands: each main package is its own function.
+      'go.mod': 'module r2\n\ngo 1.24\n',
+      'cmd/resize/main.go': goHandler('events.SQSEvent'),
+      'cmd/cleanup/main.go': goHandler('events.CloudWatchEvent'),
+      // A wrapped handler says nothing about its event.
+      'cmd/wrapped/main.go':
+        'package main\n\nfunc main() { lambda.Start(otelaws.WrapHandler(handler)) }\nfunc handler(ctx context.Context, event events.SQSEvent) error { return nil }\n',
+      // A library calling lambda.Start in a package other than main is not a program, and vendored code and tests do
+      // not deploy.
+      'internal/runner/runner.go': 'package runner\n\nfunc Run() { lambda.Start(handle) }\n',
+      'vendor/example.com/tool/main.go': goHandler('events.SQSEvent'),
+      'cmd/resize/main_test.go': goHandler('events.SQSEvent'),
+      // Named after its file, like any handler outside a module of its own.
+      'lambdas/thumbnail.go': goHandler('events.S3Event')
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect(
+      (output.services ?? [])
+        .map((service) => ({
+          name: service.name,
+          path: service.path,
+          language: service.language,
+          functionEntrypoint: service.functionEntrypoint,
+          functionHandler: service.functionHandler,
+          functionTriggers: service.functionTriggers
+        }))
+        .toSorted((left, right) => left.name.localeCompare(right.name))
+    ).toEqual([
+      {
+        name: 'cleanup',
+        path: 'cmd/cleanup',
+        language: 'go',
+        functionEntrypoint: 'cmd/cleanup/main.go',
+        functionHandler: undefined,
+        // A CloudWatch event is a schedule or an EventBridge rule; composition asks for the trigger.
+        functionTriggers: []
+      },
+      {
+        name: 'ping',
+        path: 'functions/ping',
+        language: 'go',
+        functionEntrypoint: 'functions/ping/main.go',
+        functionHandler: undefined,
+        // The only HTTP handler, and it does not route: every request reaches it.
+        functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }]
+      },
+      {
+        name: 'resize',
+        path: 'cmd/resize',
+        language: 'go',
+        functionEntrypoint: 'cmd/resize/main.go',
+        functionHandler: undefined,
+        functionTriggers: [{ type: 'queue', dependencyName: 'jobQueue' }]
+      },
+      {
+        name: 'thumbnail',
+        path: 'lambdas',
+        language: 'go',
+        functionEntrypoint: 'lambdas/thumbnail.go',
+        functionHandler: undefined,
+        functionTriggers: [{ type: 'object-storage', dependencyName: 'storageBucket' }]
+      },
+      {
+        name: 'wrapped',
+        path: 'cmd/wrapped',
+        language: 'go',
+        functionEntrypoint: 'cmd/wrapped/main.go',
+        functionHandler: undefined,
+        functionTriggers: []
+      }
+    ]);
+    expect(output.handlerFindings).toBeUndefined();
   });
 
   it('routes an HTTP handler only where its code or comment leaves no doubt, and falls back to the catch-all', async () => {

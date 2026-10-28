@@ -170,10 +170,20 @@ export const dependencyFactSchema = z.object({
    */
   itemKey: z.object({ partitionKey: z.string().min(1), sortKey: z.string().min(1).optional() }).optional(),
   /**
+   * The attributes of the items the code writes to a DynamoDB table (`Item: { id, expiresAt }`), when no request says
+   * which of them is the key. One of them has to be, or the table rejects every write.
+   */
+  writtenItemAttributes: z.array(z.string().min(1)).min(1).optional(),
+  /**
    * The services a state machine runs as its Task states, in order, when the code makes the order clear: the input
    * the code starts an execution with is what the first one reads, and each one's result is what the next one reads.
    */
   workflowSteps: z.array(z.string().min(1)).min(1).optional(),
+  /**
+   * The topic a queue receives every message of, when the project says the topic fans out to it. `rawMessageDelivery`
+   * is false when its consumer reads the SNS envelope's `Message`, and true when it reads the published message itself.
+   */
+  topicSubscription: z.object({ topicName: z.string().min(1), rawMessageDelivery: z.boolean() }).optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

@@ -59,6 +59,8 @@ export type ComposedConfig = {
   /** Deploy-time migration scripts referenced from `hooks`, and the project's own seed and migrate commands. */
   scripts?: Record<string, ComposedResource>;
   hooks?: { afterDeploy: Array<{ scriptName: string }> };
+  /** What Stacktape has no resource for, written as CloudFormation: an SNS topic's subscription to a queue. */
+  cloudformationResources?: Record<string, { Type: string; Properties: Record<string, unknown> }>;
 };
 
 export type Provenance = {
@@ -1093,6 +1095,22 @@ export const composeConfig = ({
       reason: composed.reason,
       evidence: dependency.evidence.slice(0, 3)
     };
+    const writtenAttributes = dependency.writtenItemAttributes ?? [];
+    if (
+      dependency.kind === 'dynamodb' &&
+      dependency.itemKey === undefined &&
+      writtenAttributes.length > 0 &&
+      !writtenAttributes.includes('pk')
+    ) {
+      const listed = (conjunction: string) =>
+        writtenAttributes.length === 1
+          ? writtenAttributes[0]
+          : `${writtenAttributes.slice(0, -1).join(', ')} ${conjunction} ${writtenAttributes.at(-1)}`;
+      gaps.push({
+        subject: `${dependency.name}.primaryKey`,
+        message: `Your code writes items with ${listed('and')} to ${name}, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to ${writtenAttributes.length === 1 ? `${listed('or')}, if that identifies an item` : `whichever of ${listed('or')} identifies an item`}.`
+      });
+    }
     if (dependency.kind === 'mongodb') {
       gaps.push({
         subject: `${dependency.name}.provider`,
@@ -1239,6 +1257,73 @@ export const composeConfig = ({
         candidates.length === 0
           ? `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs. Its definition is a Pass placeholder; replace it with your workflow's states before deploying.`
           : `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs or in which order. Its definition is a Pass placeholder. These functions are invoked by nothing else and may be its Task states: ${candidates.join(', ')}. Add them as Task states with Resource: $ResourceParam('<function>', 'arn').`
+    });
+  }
+
+  // SNS fanout. Stacktape has no SNS-to-SQS subscription of its own, so the subscription is a CloudFormation resource,
+  // and the queue's own policy lets the topic send to it (a second policy on the queue would replace Stacktape's).
+  const cloudformationResources: Record<string, { Type: string; Properties: Record<string, unknown> }> = {};
+  for (const dependency of facts.dependencies) {
+    const subscription = dependency.topicSubscription;
+    if (dependency.kind !== 'queue' || subscription === undefined) continue;
+    const queueName = dependencyResourceNames.get(dependency.name);
+    const topicName = dependencyResourceNames.get(subscription.topicName);
+    const queue = queueName === undefined ? undefined : resources[queueName];
+    if (queueName === undefined || topicName === undefined || queue === undefined) continue;
+    const topicArn = `$ResourceParam('${topicName}', 'arn')`;
+    queue.properties.policyStatements = [
+      {
+        Effect: 'Allow',
+        Principal: { Service: 'sns.amazonaws.com' },
+        Action: ['sqs:SendMessage'],
+        Condition: { ArnEquals: { 'aws:SourceArn': topicArn } }
+      }
+    ];
+    cloudformationResources[`${queueName}Subscription`] = {
+      Type: 'AWS::SNS::Subscription',
+      Properties: {
+        Protocol: 'sqs',
+        TopicArn: topicArn,
+        Endpoint: `$ResourceParam('${queueName}', 'arn')`,
+        RawMessageDelivery: subscription.rawMessageDelivery
+      }
+    };
+    provenance[queueName] = {
+      reason: `Your project says ${topicName} fans out to this queue, so it receives a copy of every message${subscription.rawMessageDelivery ? ', as published: its consumer reads the message, not the SNS envelope' : ' in the SNS envelope its consumer reads'}.`,
+      evidence: dependency.evidence.slice(0, 3)
+    };
+  }
+
+  // Two different functions on one queue split its messages between them. Nothing here says that is the intent, and a
+  // project with a topic usually means every consumer to get every message.
+  const queueConsumers = new Map<string, string[]>();
+  for (const service of facts.services) {
+    if (service.functionEntrypoint === undefined) continue;
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'queue') continue;
+      const consumer = serviceResourceNames.get(service.name);
+      if (consumer !== undefined)
+        queueConsumers.set(trigger.dependencyName, [...(queueConsumers.get(trigger.dependencyName) ?? []), consumer]);
+    }
+  }
+  const topicNames = facts.dependencies.flatMap((dependency) =>
+    dependency.kind === 'topic' && dependencyResourceNames.has(dependency.name)
+      ? [dependencyResourceNames.get(dependency.name)!]
+      : []
+  );
+  for (const [dependencyName, consumers] of queueConsumers) {
+    const queueName = dependencyResourceNames.get(dependencyName);
+    if (queueName === undefined || new Set(consumers).size < 2) continue;
+    const listed =
+      consumers.length === 2
+        ? `${consumers[0]} and ${consumers[1]} both`
+        : `${consumers.slice(0, -1).join(', ')} and ${consumers.at(-1)} all`;
+    gaps.push({
+      subject: `${queueName}.consumers`,
+      message:
+        topicNames.length === 1
+          ? `${listed} consume ${queueName}, so each message reaches only one of them. If ${topicNames[0]} should deliver every message to each of them, fanout needs one queue per consumer: before deploying, give each its own sqs-queue with its sqs event, and subscribe each queue to ${topicNames[0]} with an AWS::SNS::Subscription in cloudformationResources and a policyStatements entry that lets sns.amazonaws.com send to it. Leave it as is only if they share the work on purpose.`
+          : `${listed} consume ${queueName}, so each message reaches only one of them. If each of them should handle every message, fanout needs an SNS topic and one queue per consumer subscribed to it; set that up before deploying. Leave it as is only if they share the work on purpose.`
     });
   }
 
@@ -1622,7 +1707,9 @@ export const composeConfig = ({
       subject: handler.path,
       message:
         handler.reason === 'no-build-file'
-          ? `${handler.path} looks like a ${handler.language} Lambda handler, but init found no ${handler.language === 'Java' ? 'pom.xml or build.gradle' : '.csproj project file'} that builds it, so it created no function for it. If it should deploy, add a function with buildpack packaging, its entryfilePath and its handlerFunction.`
+          ? handler.language === 'Go'
+            ? `${handler.path} looks like a Go Lambda handler, but init found no go.mod that builds it, so it created no function for it. If it should deploy, add a go.mod for it and a function with buildpack packaging and entryfilePath: ${handler.path}.`
+            : `${handler.path} looks like a ${handler.language} Lambda handler, but init found no ${handler.language === 'Java' ? 'pom.xml or build.gradle' : '.csproj project file'} that builds it, so it created no function for it. If it should deploy, add a function with buildpack packaging, its entryfilePath and its handlerFunction.`
           : `${handler.path} looks like a ${handler.language} Lambda handler. Init does not create ${handler.language} functions yet. If it should deploy, add a function with buildpack packaging and entryfilePath: ${handler.path}.`
     });
   }
@@ -1649,7 +1736,8 @@ export const composeConfig = ({
       ...(projectName === undefined ? {} : { projectName }),
       resources,
       ...(Object.keys(scripts).length === 0 ? {} : { scripts }),
-      ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } })
+      ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } }),
+      ...(Object.keys(cloudformationResources).length === 0 ? {} : { cloudformationResources })
     },
     provenance,
     gaps: uniqueGaps,

@@ -76,6 +76,15 @@ const serviceReference = (name: string, targetServiceName: string, targetService
   evidence: []
 });
 
+/** A queue the topic fans out to. */
+const subscribed = (name: string, rawMessageDelivery: boolean) => ({
+  name,
+  kind: 'queue' as const,
+  topicSubscription: { topicName: 'notificationsTopic', rawMessageDelivery },
+  evidence: [],
+  source: 'probe' as const
+});
+
 describe('composed configuration conforms to the Stacktape schema', () => {
   it('a service that keeps its SQLite file on a mounted disk', () => {
     expectValid(
@@ -1030,6 +1039,71 @@ describe('composed configuration conforms to the Stacktape schema', () => {
         subject: 'functions/tax/src/main/java/com/acme/tax/TaxHandler.java',
         message:
           "TaxHandler is in package com.acme.tax, but Stacktape currently builds a Java handler from the class's folder: tax.TaxHandler::handleRequest. Lambda cannot load that class, so every invocation fails. Until Stacktape builds the handler from the package, put TaxHandler in package tax."
+      }
+    ]);
+  });
+
+  it('a Go function, SNS fanout to one queue per consumer, and a table whose key the code does not name', () => {
+    const consumer = (name: string, queue: string) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`,
+        functionTriggers: [{ type: 'queue', dependencyName: queue }]
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({
+            name: 'ping',
+            path: 'functions/ping',
+            language: 'go',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/ping/main.go',
+            functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }]
+          }),
+          consumer('billing', 'billingQueue'),
+          consumer('audit', 'auditQueue')
+        ],
+        dependencies: [
+          { name: 'notificationsTopic', kind: 'topic', evidence: [], source: 'probe' },
+          subscribed('billingQueue', true),
+          subscribed('auditQueue', false),
+          {
+            name: 'mainTable',
+            kind: 'dynamodb',
+            writtenItemAttributes: ['id', 'expiresAt'],
+            consumedBy: ['audit'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources, cloudformationResources } = result.config;
+    // No runtime: the buildpack builds a Go entry file for provided.al2023.
+    expect(resources.ping?.properties).toMatchObject({
+      packaging: { type: 'buildpack', properties: { entryfilePath: 'functions/ping/main.go' } }
+    });
+    expect(resources.ping?.properties.runtime).toBeUndefined();
+    expect(Object.keys(cloudformationResources ?? {})).toEqual(['billingQueueSubscription', 'auditQueueSubscription']);
+    expect(cloudformationResources?.auditQueueSubscription?.Properties.RawMessageDelivery).toBe(false);
+    expect(resources.mainTable?.properties.primaryKey).toEqual({ partitionKey: { name: 'pk', type: 'string' } });
+    expect(result.gaps).toEqual([
+      {
+        subject: 'mainTable.primaryKey',
+        message:
+          "Your code writes items with id and expiresAt to mainTable, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to whichever of id or expiresAt identifies an item."
       }
     ]);
   });

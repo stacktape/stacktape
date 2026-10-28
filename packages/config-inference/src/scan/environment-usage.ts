@@ -51,7 +51,7 @@ type ReadPattern = {
   /** Vite/Astro-style reads are build-time by construction, whatever the name looks like. */
   buildTime?: boolean;
   /** How a fallback value appears immediately after this read, when the language has one. */
-  fallback?: 'js-or' | 'call-argument';
+  fallback?: 'js-or' | 'ruby-or' | 'ruby-fetch' | 'call-argument';
 };
 
 const JS_PATTERNS: readonly ReadPattern[] = [
@@ -76,8 +76,8 @@ const PATTERNS_BY_EXTENSION: ReadonlyArray<{ extensions: RegExp; patterns: reado
   {
     extensions: /\.rb$/,
     patterns: [
-      { pattern: new RegExp(`ENV\\[\\s*['"]${NAME}['"]\\s*\\]`, 'g') },
-      { pattern: new RegExp(`ENV\\.fetch\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'call-argument' }
+      { pattern: new RegExp(`ENV\\[\\s*['"]${NAME}['"]\\s*\\]`, 'g'), fallback: 'ruby-or' },
+      { pattern: new RegExp(`ENV\\.fetch\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'ruby-fetch' }
     ]
   },
   {
@@ -237,6 +237,11 @@ type Occurrence = {
 const hasFallback = (line: string, matchEnd: number, kind: ReadPattern['fallback']): boolean => {
   const rest = line.slice(matchEnd);
   if (kind === 'js-or') return /^\s*(?:\|\||\?\?)/.test(rest);
+  // `ENV['BUNDLE_GEMFILE'] ||= File.expand_path(...)`, `ENV['PORT'] || 3000`.
+  if (kind === 'ruby-or') return /^\s*(?:\|\||\bor\b)/.test(rest);
+  // `ENV.fetch` raises without a default, which is a second argument or a block. A comma after the closing
+  // parenthesis belongs to the enclosing call: `publish(topic_arn: ENV.fetch('TOPIC_ARN'), message: ...)`.
+  if (kind === 'ruby-fetch') return /^\s*(?:,|\)\s*(?:\{|do\b))/.test(rest);
   if (kind === 'call-argument') return /^\s*['"`)\]]*\s*,/.test(rest);
   return false;
 };
@@ -584,6 +589,9 @@ export const enrichEnvironmentUsage = async ({
   const tables = dependencies.filter((dependency) => dependency.kind === 'dynamodb');
   const itemKey = agreedItemKey(itemKeys);
   if (tables.length === 1 && itemKey !== undefined) tables[0]!.itemKey ??= itemKey;
+  if (tables.length === 1 && tables[0]!.itemKey === undefined && itemKeys.itemAttributes.length > 0) {
+    tables[0]!.writtenItemAttributes ??= [...itemKeys.itemAttributes];
+  }
 };
 
 /**

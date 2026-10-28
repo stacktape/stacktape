@@ -603,6 +603,89 @@ describe('init writes a config stacktape dev can run', () => {
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
+  // The r2ll dogfood (28 Oct 2026) needed five logical config edits after init for init gaps, H1-H5; each is asserted
+  // here. Its sixth edit, DynamoDB TTL through an override, has no native property to infer, and the route rename from
+  // /ping avoided an API Gateway reserved path rather than an init gap.
+  it('r2ll parcel: one Rails service from its Gemfile directory, SNS fanout to a queue per consumer, a Go function and an unproven table key', async () => {
+    const result = await initFixture('r2ll-parcel');
+    const resources = resourcesOf(result);
+
+    // H1: no second worker building api/Dockerfile from the repository root.
+    expect(typesOf(resources)).toEqual({
+      mainDatabase: 'relational-database',
+      mainTable: 'dynamo-db-table',
+      notificationsTopic: 'sns-topic',
+      billingQueue: 'sqs-queue',
+      auditQueue: 'sqs-queue',
+      httpApiGateway: 'http-api-gateway',
+      parcelWeb: 'sveltekit-web',
+      audit: 'function',
+      billing: 'function',
+      ping: 'function',
+      api: 'web-service'
+    });
+    expect(resources.api!.properties).toMatchObject({
+      packaging: { type: 'dockerfile', properties: { buildContextPath: 'api', dockerfilePath: 'Dockerfile' } },
+      // H3: the topic the controller publishes to, and the permission to publish.
+      environment: [
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'PARCEL_TOPIC_ARN', value: "$ResourceParam('notificationsTopic', 'arn')" }
+      ],
+      connectTo: ['mainDatabase', 'notificationsTopic']
+    });
+    // H4: the README's billingQueue and auditQueue, one per consumer, each subscribed to the topic. Both handlers parse
+    // the published message, so delivery is raw.
+    expect(resources.billing!.properties.events).toEqual([
+      { type: 'sqs', properties: { sqsQueueName: 'billingQueue' } }
+    ]);
+    expect(resources.audit!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'auditQueue' } }]);
+    for (const queue of ['billingQueue', 'auditQueue']) {
+      expect(resources[queue]!.properties.policyStatements).toEqual([
+        {
+          Effect: 'Allow',
+          Principal: { Service: 'sns.amazonaws.com' },
+          Action: ['sqs:SendMessage'],
+          Condition: { ArnEquals: { 'aws:SourceArn': "$ResourceParam('notificationsTopic', 'arn')" } }
+        }
+      ]);
+      expect(result.composition.config.cloudformationResources?.[`${queue}Subscription`]).toEqual({
+        Type: 'AWS::SNS::Subscription',
+        Properties: {
+          Protocol: 'sqs',
+          TopicArn: "$ResourceParam('notificationsTopic', 'arn')",
+          Endpoint: `$ResourceParam('${queue}', 'arn')`,
+          RawMessageDelivery: true
+        }
+      });
+    }
+    // H2: the Go handler takes an HTTP API v2 request and does not route, so every request reaches it, and the
+    // SvelteKit server's PING_URL is that API.
+    expect(resources.ping!.properties).toMatchObject({
+      packaging: { type: 'buildpack', properties: { entryfilePath: 'functions/ping/main.go' } },
+      events: [
+        {
+          type: 'http-api-gateway',
+          properties: { httpApiGatewayName: 'httpApiGateway', method: '*', path: '/{proxy+}', payloadFormat: '2.0' }
+        }
+      ]
+    });
+    expect(resources.parcelWeb!.properties.environment).toEqual([
+      { name: 'API_URL', value: "$ResourceParam('api', 'url')" },
+      { name: 'PING_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+    ]);
+    // H5: the audit item `{ id, expiresAt }` does not say which attribute is the key, so the placeholder stays and the
+    // result says it has to be chosen.
+    expect(resources.mainTable!.properties.primaryKey).toEqual({ partitionKey: { name: 'pk', type: 'string' } });
+    expect(result.composition.gaps).toEqual([
+      {
+        subject: 'mainTable.primaryKey',
+        message:
+          "Your code writes items with id and expiresAt to mainTable, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to whichever of id or expiresAt identifies an item."
+      }
+    ]);
+    expect(result.composition.unsetSettings).toEqual([]);
+  });
+
   // A function's output bound to its own trigger re-invokes it with every write, forever.
   it('trigger loops: a variable naming the kind that invokes the function is left unset and reported', async () => {
     const result = await initFixture('trigger-loops');
