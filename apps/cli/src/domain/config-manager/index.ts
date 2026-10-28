@@ -547,7 +547,12 @@ export class ConfigManager {
         type: 'function',
         packaging,
         artifactName: name,
-        handler: getLambdaHandler({ name, packaging, workingDir: this.stackContext.workingDir }),
+        handler: getLambdaHandler({
+          name,
+          packaging,
+          workingDir: this.stackContext.workingDir,
+          runtime: definition.runtime
+        }),
         resourceName: awsResourceNames.lambda(name, this.stackContext.stackName),
         cfLogicalName: cfLogicalNames.lambda(name),
         aliasLogicalName:
@@ -764,7 +769,8 @@ export class ConfigManager {
             handler: getLambdaHandler({
               name: stpName,
               packaging: customResourceDefinition.packaging,
-              workingDir: this.stackContext.workingDir
+              workingDir: this.stackContext.workingDir,
+              runtime: customResourceDefinition.runtime
             }),
             resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
@@ -812,7 +818,8 @@ export class ConfigManager {
             handler: getLambdaHandler({
               name: stpName,
               packaging: deploymentScript.packaging,
-              workingDir: this.stackContext.workingDir
+              workingDir: this.stackContext.workingDir,
+              runtime: deploymentScript.runtime
             }),
             resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
@@ -938,7 +945,8 @@ export class ConfigManager {
         handler: getLambdaHandler({
           name: edgeLambda.name,
           packaging: edgeLambda.packaging,
-          workingDir: this.stackContext.workingDir
+          workingDir: this.stackContext.workingDir,
+          runtime: edgeLambda.runtime
         }),
         resourceName: lambdaResourceName,
         artifactName: edgeLambda.name,

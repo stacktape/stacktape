@@ -103,6 +103,38 @@ test('thorough validation sends templates up to 51,200 bytes inline, larger ones
       expect(byUrl?.input.TemplateBody).toBeUndefined();
       expect(String(byUrl?.input.TemplateURL)).toContain(`${bucketName}/previews/`);
       expect((await s3.send(new ListObjectsV2Command({ Bucket: bucketName }))).KeyCount ?? 0).toBe(0);
+      // An interruption while CloudFormation reads the template still deletes the temporary object. Windows has no
+      // SIGINT, so this runs on Linux and macOS only, like the fixture's other interruption cases.
+      if (process.platform !== 'win32') {
+        let ready!: () => void;
+        const received = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        fixture.aws.on('cloudformation.ValidateTemplate', () => {
+          ready();
+          return { kind: 'hang' };
+        });
+        const interrupted = fixture.start(['validate', ...targetArgs, '--agent', '--thorough']);
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            received,
+            new Promise<never>((_, reject) => {
+              deadline = setTimeout(() => reject(new Error('ValidateTemplate never arrived')), 30_000);
+            })
+          ]);
+        } finally {
+          clearTimeout(deadline);
+        }
+        expect((await s3.send(new ListObjectsV2Command({ Bucket: bucketName }))).KeyCount).toBe(1);
+        interrupted.child.kill('SIGINT');
+        const stopped = await interrupted.finished;
+        expect(parseCliJsonl(stopped.stdout, 'validate').result).toMatchObject({
+          ok: false,
+          code: 'USER_INTERRUPTION'
+        });
+        expect((await s3.send(new ListObjectsV2Command({ Bucket: bucketName }))).KeyCount ?? 0).toBe(0);
+      }
       await s3.send(new DeleteBucketCommand({ Bucket: bucketName }));
     } finally {
       s3.destroy();

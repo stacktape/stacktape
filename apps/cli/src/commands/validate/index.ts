@@ -3,6 +3,7 @@ import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/t
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { initializeValidateOperation } from '../_utils/initialization';
 import { findMissingSecrets, type MissingSecret } from '../_utils/secret-preflight';
@@ -45,10 +46,16 @@ const validateWithCloudFormation = async ({
   }
   if (!(await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifacts.deploymentBucketName }))) return false;
   const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate({ body: compactTemplate });
+  // Ctrl+C or SIGTERM during the check ends the command through the cleanup hooks, not this `finally`.
+  let deletion: Promise<unknown> | undefined;
+  const deleteOnce = () => (deletion ??= deleteTemplate());
+  applicationManager.registerCleanUpHook(async () => {
+    await deleteOnce();
+  });
   try {
     await stack.validateTemplate({ templateUrl });
   } finally {
-    await deleteTemplate();
+    await deleteOnce();
   }
   return true;
 };

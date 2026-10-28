@@ -846,11 +846,14 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
 export const getLambdaHandler = ({
   name,
   packaging,
-  workingDir
+  workingDir,
+  runtime
 }: {
   packaging: LambdaPackaging;
   name: string;
   workingDir: string;
+  /** The configured runtime: a custom artifact's `::` handler is valid only for Java and .NET. */
+  runtime?: string;
 }) => {
   if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
     const { entryfilePath, handlerFunction } = packaging.properties;
@@ -900,7 +903,7 @@ export const getLambdaHandler = ({
     if (!packaging.properties.handler) {
       throw configErrors.customArtifactHandlerRequired({ functionName: name });
     }
-    return getCustomArtifactLambdaHandler({ handler: packaging.properties.handler, functionName: name });
+    return getCustomArtifactLambdaHandler({ handler: packaging.properties.handler, functionName: name, runtime });
   }
 };
 
@@ -908,11 +911,20 @@ export const getLambdaHandler = ({
  * The Lambda `Handler` of a custom artifact. `{{filePath}}:{{functionName}}` becomes the file's path inside the artifact
  * without its extension, then the function: `handlers/process.js:main` is `handlers/process.main`. Java and .NET
  * handlers (`com.example.Handler::handleRequest`, `Assembly::Namespace.Class::Method`) are already in Lambda's format and
- * are used as written.
+ * are used as written; other runtimes have no `::` handler.
  */
-const getCustomArtifactLambdaHandler = ({ handler, functionName }: { handler: string; functionName: string }) => {
+const getCustomArtifactLambdaHandler = ({
+  handler,
+  functionName,
+  runtime
+}: {
+  handler: string;
+  functionName: string;
+  runtime?: string;
+}) => {
   if (handler.includes('::')) {
-    if (handler.split('::').some((part) => !part.trim())) {
+    const nativeFormat = Boolean(runtime?.startsWith('java') || runtime?.startsWith('dotnet'));
+    if (!nativeFormat || handler.split('::').some((part) => !part.trim())) {
       throw configErrors.lambdaHandlerFormatInvalid({ functionName });
     }
     return handler;
