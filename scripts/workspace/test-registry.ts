@@ -53,6 +53,7 @@ const configInferenceScanTests = [
   'packages/config-inference/src/scan/probes/existing-deployment.spec.ts',
   'packages/config-inference/src/scan/probes/lambda-source.spec.ts',
   'packages/config-inference/src/scan/probes/language-manifests.spec.ts',
+  'packages/config-inference/src/scan/probes/messaging-calls.spec.ts',
   'packages/config-inference/src/scan/probes/paas-manifests.spec.ts',
   'packages/config-inference/src/scan/probes/procfile.spec.ts',
   'packages/config-inference/src/scan/probes/server-entrypoint.spec.ts',
@@ -60,6 +61,7 @@ const configInferenceScanTests = [
   'packages/config-inference/src/scan/probes/sst.spec.ts',
   'packages/config-inference/src/scan/probes/terraform.spec.ts',
   'packages/config-inference/src/scan/stacktape-references.spec.ts',
+  'packages/config-inference/src/scan/topic-fanout.spec.ts',
   'packages/config-inference/src/verify/verify-facts.spec.ts'
 ];
 

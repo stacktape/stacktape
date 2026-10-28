@@ -2102,6 +2102,198 @@ await conn.end();
 `
 };
 
+/** The r2ll part B app (28 Oct 2026): a Rails API in `api/` (Gemfile, Procfile and Dockerfile) on PostgreSQL that
+ * publishes to SNS, which the README says fans out to one queue per TypeScript consumer; the audit consumer writes
+ * DynamoDB items without naming the table's key; a Go `lambda.Start` handler behind the HTTP API; SvelteKit SSR. Lockfiles
+ * and go.sum are stubs: init only reads that they exist. */
+const r2llParcel: Record<string, string> = {
+  'README.md': `# Parcel
+Rails API stores parcels in PostgreSQL. Its startup runs Rails migrations. Creating a parcel publishes its id to PARCEL_TOPIC_ARN (SNS), which fans out to billingQueue and auditQueue. Each queue invokes its own TypeScript SQS handler. Billing marks the parcel billed in PostgreSQL; audit writes an expiring DynamoDB record with TTL attribute expiresAt. A Go Lambda exposes GET /ping through an HTTP API. SvelteKit SSR calls API_URL and PING_URL; browser tests create a parcel and wait until both consumers finish. All workloads are public only when an HTTP client needs them.
+`,
+  'api/Dockerfile': `FROM ruby:3.4-slim
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY Gemfile ./
+RUN bundle install
+COPY . .
+ENV RAILS_ENV=development PORT=3000
+CMD ["sh", "-c", "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p $PORT"]
+`,
+  'api/Gemfile': `source "https://rubygems.org"
+gem "rails", "~> 8.0.0"
+gem "pg", "~> 1.5"
+gem "puma", "~> 6.6"
+gem "aws-sdk-sns", "~> 1"
+`,
+  'api/Gemfile.lock': `GEM
+  remote: https://rubygems.org/
+`,
+  'api/Procfile': `web: bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p $PORT
+`,
+  'api/Rakefile': `require_relative 'config/application'
+Rails.application.load_tasks
+`,
+  'api/app/controllers/application_controller.rb': `class ApplicationController < ActionController::API
+end
+`,
+  'api/app/controllers/parcels_controller.rb': `class ParcelsController < ApplicationController
+ def health
+  render json: {ok: true}
+ end
+ def index
+  render json: Parcel.order(id: :desc).limit(20)
+ end
+ def create
+  parcel = Parcel.create!(name: params.require(:name), billed: false)
+  Aws::SNS::Client.new.publish(topic_arn: ENV.fetch('PARCEL_TOPIC_ARN'), message: {parcelId: parcel.id}.to_json)
+  render json: parcel, status: :created
+ end
+end
+`,
+  'api/app/models/application_record.rb': `class ApplicationRecord < ActiveRecord::Base
+ self.abstract_class = true
+end
+`,
+  'api/app/models/parcel.rb': `class Parcel < ApplicationRecord
+end
+`,
+  'api/bin/rails': `#!/usr/bin/env ruby
+APP_PATH = File.expand_path('../config/application', __dir__)
+require_relative '../config/boot'
+require 'rails/commands'
+`,
+  'api/config.ru': `require_relative 'config/environment'
+run Rails.application
+Rails.application.load_server
+`,
+  'api/config/application.rb': `require_relative 'boot'
+require 'rails'
+require 'active_record/railtie'
+require 'action_controller/railtie'
+Bundler.require(*Rails.groups)
+module ParcelApp
+ class Application < Rails::Application
+  config.load_defaults 8.0
+  config.api_only = true
+  config.eager_load = false
+  config.secret_key_base = 'development-only-r2ll'
+  config.hosts.clear
+  config.logger = Logger.new($stdout)
+ end
+end
+`,
+  'api/config/boot.rb': `ENV['BUNDLE_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)
+require 'bundler/setup'
+`,
+  'api/config/database.yml': `development:
+  adapter: postgresql
+  url: <%= ENV.fetch('DATABASE_URL') %>
+`,
+  'api/config/environment.rb': `require_relative 'application'
+Rails.application.initialize!
+`,
+  'api/config/routes.rb': `Rails.application.routes.draw do
+ get '/health', to: 'parcels#health'
+ get '/parcels', to: 'parcels#index'
+ post '/parcels', to: 'parcels#create'
+end
+`,
+  'api/db/migrate/20261028000001_create_parcels.rb': `class CreateParcels < ActiveRecord::Migration[8.0]
+ def change
+  create_table :parcels do |t|
+   t.string :name, null: false
+   t.boolean :billed, default: false
+   t.timestamps
+  end
+ end
+end
+`,
+  'functions/audit.ts': `import type { SQSEvent } from 'aws-lambda';
+import {DynamoDBClient} from '@aws-sdk/client-dynamodb';
+import {DynamoDBDocumentClient, PutCommand} from '@aws-sdk/lib-dynamodb';
+const db=DynamoDBDocumentClient.from(new DynamoDBClient({}));
+export const handler=async(event: SQSEvent)=>{for(const r of event.Records){const msg=JSON.parse(r.body);console.log('audit parcel',msg.parcelId);await db.send(new PutCommand({TableName:process.env.AUDIT_TABLE,Item:{id:String(msg.parcelId),expiresAt:Math.floor(Date.now()/1000)+3600}}));}};
+`,
+  'functions/billing.ts': `import type { SQSEvent } from 'aws-lambda';
+import pg from 'pg';
+export const handler = async (event: SQSEvent) => {
+ const client = new pg.Client({connectionString: process.env.DATABASE_URL}); await client.connect();
+ try { for (const record of event.Records) { const msg = JSON.parse(record.body); console.log('billing parcel', msg.parcelId); await client.query('update parcels set billed=true where id=$1',[msg.parcelId]); }} finally {await client.end();}
+};
+`,
+  'functions/ping/go.mod': `module r2ll/ping
+
+go 1.24
+
+require github.com/aws/aws-lambda-go v1.49.0
+`,
+  'functions/ping/go.sum': ``,
+  'functions/ping/main.go': `package main
+import("context";"github.com/aws/aws-lambda-go/events";"github.com/aws/aws-lambda-go/lambda")
+func handler(ctx context.Context,event events.APIGatewayV2HTTPRequest)(events.APIGatewayV2HTTPResponse,error){return events.APIGatewayV2HTTPResponse{StatusCode:200,Body:\`{"message":"pong-r2ll"}\`,Headers:map[string]string{"content-type":"application/json"}},nil}
+func main(){lambda.Start(handler)}
+`,
+  'package-lock.json': `{ "lockfileVersion": 3 }
+`,
+  'package.json': `{
+  "name": "r2ll-parcel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "node scripts/seed.mjs",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "pg": "^8.16.0",
+    "@aws-sdk/client-dynamodb": "^3.900.0",
+    "@aws-sdk/lib-dynamodb": "^3.900.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/aws-lambda": "^8.10.0"
+  }
+}`,
+  'scripts/seed.mjs': `import pg from 'pg';const c=new pg.Client({connectionString:process.env.DATABASE_URL});await c.connect();await c.query("insert into parcels(name,billed,created_at,updated_at) values('seed-r2ll',false,now(),now())");console.log('seeded one parcel');await c.end();
+`,
+  'web/package-lock.json': `{ "lockfileVersion": 3 }
+`,
+  'web/package.json': `{
+  "name": "parcel-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.2.0",
+    "@sveltejs/kit": "^2.15.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "svelte": "^5.16.0",
+    "vite": "^6.0.0"
+  }
+}`,
+  'web/src/app.html': `<!doctype html><html><head>%sveltekit.head%</head><body><div>%sveltekit.body%</div></body></html>`,
+  'web/src/routes/+page.server.js': `import {redirect} from '@sveltejs/kit';
+import {env} from '$env/dynamic/private';
+export async function load(){const [p,g]=await Promise.all([fetch(env.API_URL+'/parcels'),fetch(env.PING_URL+'/go-status')]);if(!p.ok||!g.ok){console.error('Parcel SSR upstream failed',p.status,g.status);throw new Error('upstream failed');}return {parcels:await p.json(),ping:await g.json()};}
+export const actions={default:async({request})=>{const form=await request.formData();const res=await fetch(env.API_URL+'/parcels',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:form.get('name')})});if(!res.ok){console.error('parcel create failed',await res.text());throw new Error('create failed');}return redirect(303,'/');}};
+`,
+  'web/src/routes/+page.svelte': `<script>export let data;</script>
+<h1>Parcel</h1><p data-testid="ping">{data.ping.message}</p>
+<form method="POST"><input name="name" aria-label="Name"/><button>Create parcel</button></form>
+<ul>{#each data.parcels as parcel}<li data-testid="parcel">{parcel.name}: {parcel.billed?'billed':'pending'}</li>{/each}</ul>
+`,
+  'web/svelte.config.js': `import adapter from '@sveltejs/adapter-node';
+export default {kit:{adapter:adapter()}};
+`,
+  'web/vite.config.js': `import {sveltekit} from '@sveltejs/kit/vite';
+import {defineConfig} from 'vite';
+export default defineConfig({plugins:[sveltekit()]});
+`
+};
+
 export const DEV_RUNNABLE_FIXTURES = {
   'lambda-todos': lambdaTodos,
   'container-api-nextjs': containerApiNextjs,
@@ -2114,5 +2306,6 @@ export const DEV_RUNNABLE_FIXTURES = {
   'r2w-shop': r2wShop,
   'r2w-python': r2wPython,
   'r2cc-receipts': r2ccReceipts,
-  'r2gg-shelf': r2ggShelf
+  'r2gg-shelf': r2ggShelf,
+  'r2ll-parcel': r2llParcel
 } as const;

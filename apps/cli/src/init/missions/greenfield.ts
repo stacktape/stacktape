@@ -25,6 +25,7 @@ import { environmentProbe } from '@stacktape/config-inference/scan/probes/enviro
 import { existingDeploymentProbe } from '@stacktape/config-inference/scan/probes/existing-deployment';
 import { languageManifestProbe } from '@stacktape/config-inference/scan/probes/language-manifests';
 import { lambdaSourceProbe } from '@stacktape/config-inference/scan/probes/lambda-source';
+import { messagingCallsProbe } from '@stacktape/config-inference/scan/probes/messaging-calls';
 import { staticSiteProbe } from '@stacktape/config-inference/scan/probes/static-site';
 import { manifestProbe } from '@stacktape/config-inference/scan/probes/manifest';
 import { cdkProbe } from '@stacktape/config-inference/scan/probes/cdk';
@@ -60,6 +61,7 @@ const PROBES = [
   awsSamProbe,
   serverlessFrameworkProbe,
   lambdaSourceProbe,
+  messagingCallsProbe,
   serverEntrypointProbe,
   dockerfileProbe,
   staticSiteProbe,

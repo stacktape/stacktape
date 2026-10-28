@@ -84,6 +84,37 @@ describe('the standalone Dockerfile probe', () => {
     });
   });
 
+  it.each([
+    ['Gemfile', 'source "https://rubygems.org"\ngem "rails"\n'],
+    ['Api.csproj', '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n'],
+    ['mix.exs', 'defmodule Api.MixProject do\nend\n']
+  ])('builds a Dockerfile beside a %s in that directory, not in the root package', async (manifest, contents) => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"parcel","dependencies":{"pg":"8"}}',
+      [`api/${manifest}`]: contents,
+      'api/Dockerfile': 'FROM ruby:3.4-slim\nCOPY Gemfile ./\nCOPY . .\nCMD ["bin/start"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(
+      facts.services.map(({ name, path, dockerfile, buildRoot }) => ({ name, path, dockerfile, buildRoot }))
+    ).toEqual([{ name: 'api', path: 'api', dockerfile: 'api/Dockerfile', buildRoot: undefined }]);
+  });
+
+  it('leaves a Dockerfile in a directory the root start command enters to the root service', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"tools","private":true}',
+      Procfile: 'web: cd api && bundle exec rails server -p $PORT\n',
+      'api/Gemfile': 'source "https://rubygems.org"\ngem "rails"\n',
+      'api/Dockerfile': 'FROM ruby:3.4-slim\nCOPY . .\nCMD ["bin/start"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services.map(({ path, dockerfile }) => ({ path, dockerfile }))).toEqual([
+      { path: '.', dockerfile: 'api/Dockerfile' }
+    ]);
+  });
+
   it('reads a Containerfile like a Dockerfile', async () => {
     const repositoryRoot = await makeRepo({
       Gemfile: 'source "https://rubygems.org"\ngem "rails"\n',

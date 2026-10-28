@@ -33,6 +33,8 @@ const PLATFORM_ENVIRONMENT_VARIABLES: ReadonlySet<string> = new Set([
   'GOROOT',
   'JAVA_HOME',
   'CLASSPATH',
+  // Bundler sets it, and Rails' generated config/boot.rb reads it with a default.
+  'BUNDLE_GEMFILE',
   'LD_LIBRARY_PATH',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',

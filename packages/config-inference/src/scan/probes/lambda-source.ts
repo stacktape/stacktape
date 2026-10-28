@@ -14,6 +14,7 @@ import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
   citeFirstMatchOnly,
+  citeLine,
   readText,
   type Probe,
   type ProbeContext,
@@ -685,9 +686,97 @@ const JAVA_HANDLER =
  */
 const DOTNET_HANDLER =
   /\bpublic\s+(?:static\s+)?(?:async\s+)?[\w.<>,?[\]\s]+?\s+(\w+)\s*\(\s*(?:(?:\[[^\]]*\]\s*)?([\w.<>]+)\s+\w+\s*,\s*)?ILambdaContext\s+\w+\s*\)/;
-/** Handler shapes in languages init does not turn into functions: Go, Rust and Ruby. */
+/** Event types from `github.com/aws/aws-lambda-go/events`, by the trigger each implies. */
+const GO_EVENT_TYPES: Readonly<Record<string, EventFamily>> = {
+  APIGatewayV2HTTPRequest: { trigger: 'http', payloadFormat: '2.0' },
+  APIGatewayProxyRequest: { trigger: 'http', payloadFormat: '1.0' },
+  LambdaFunctionURLRequest: { trigger: 'url' },
+  APIGatewayWebsocketProxyRequest: { trigger: 'websocket' },
+  SQSEvent: { trigger: 'queue' },
+  SNSEvent: { trigger: 'topic' },
+  S3Event: { trigger: 'object-storage' },
+  DynamoDBEvent: { trigger: 'dynamodb-stream' },
+  KinesisEvent: { trigger: 'unmapped', sourceType: 'a Kinesis stream' },
+  ALBTargetGroupRequest: { trigger: 'unmapped', sourceType: 'an Application Load Balancer' }
+};
+
+/** `lambda.Start(handler)`: a Go `main` package handing a function to the Lambda runtime. */
+const GO_LAMBDA_START = /\blambda\.Start(?:WithOptions|Handler)?\s*\(/;
+/** The function it hands over: a named one, or a literal with its parameters. */
+const GO_STARTED_FUNCTION =
+  /\blambda\.Start(?:WithOptions|Handler)?\s*\(\s*(?:([A-Za-z_]\w*)\s*[,)]|func\s*\(([^)]*)\))/;
+
+/**
+ * A Go Lambda handler: a `main` package calling `lambda.Start`, in a module (`go.mod`) the buildpack builds. The
+ * event type the started function takes says what invokes it; `events.CloudWatchEvent` is either a schedule or an
+ * EventBridge rule, and an untyped `json.RawMessage` could be anything, so those get no trigger.
+ */
+/**
+ * Go source with its comments and string contents blanked out and its line breaks kept, so a commented-out
+ * `lambda.Start` example in a command's docs, or one in a help text, is not read as the command's own.
+ */
+const withoutGoComments = (raw: string): string => {
+  let result = '';
+  let quote: string | undefined;
+  for (let index = 0; index < raw.length; index += 1) {
+    const character = raw[index]!;
+    if (quote !== undefined) {
+      if (character === '\\' && quote !== '`') {
+        result += '  ';
+        index += 1;
+      } else if (character === quote) {
+        quote = undefined;
+        result += character;
+      } else result += character === '\n' ? '\n' : ' ';
+      continue;
+    }
+    if (character === '/' && (raw[index + 1] === '/' || raw[index + 1] === '*')) {
+      const end = raw[index + 1] === '/' ? raw.indexOf('\n', index) : raw.indexOf('*/', index + 2) + 2;
+      const stop = end <= 1 || end === -1 ? raw.length : end;
+      result += raw.slice(index, stop).replace(/[^\n]/g, ' ');
+      index = stop - 1;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') quote = character;
+    result += character;
+  }
+  return result;
+};
+
+const goHandler = (
+  context: ProbeContext,
+  path: string,
+  original: string
+): CompiledHandler | 'no-build-file' | undefined => {
+  if (/(?:^|\/)vendor\/|_test\.go$/.test(path)) return undefined;
+  const raw = withoutGoComments(original);
+  if (!GO_LAMBDA_START.test(raw) || !/^\s*package\s+main\b/m.test(raw)) return undefined;
+  const module = nearestModule(context.files, path, (file, directory) => inDirectory(file, directory) === 'go.mod');
+  if (module === undefined) return 'no-build-file';
+  // A wrapped or adapted handler (`otelaws.WrapHandler(handler)`, an HTTP router adapter) says nothing about its event.
+  const started = GO_STARTED_FUNCTION.exec(raw);
+  const parameters =
+    started?.[2] ??
+    (started?.[1] === undefined ? undefined : new RegExp(`\\bfunc\\s+${started[1]}\\s*\\(([^)]*)\\)`).exec(raw)?.[1]);
+  const eventType = /\bevents\.(\w+)/.exec(parameters ?? '')?.[1];
+  return {
+    family: eventType === undefined ? undefined : GO_EVENT_TYPES[eventType],
+    language: 'go',
+    // The main package's own directory: a module at the repository root can hold several (`cmd/api`, `cmd/worker`).
+    module: posix.dirname(path),
+    runtimeVersion: undefined,
+    // The line the call is on, quoted as the file has it.
+    entryEvidence: citeLine(
+      path,
+      original.split(/\r?\n/),
+      raw.split(/\r?\n/).findIndex((line) => GO_LAMBDA_START.test(line)),
+      'functionEntrypoint'
+    )
+  };
+};
+
+/** Handler shapes in languages init does not turn into functions: Rust and Ruby. */
 const OTHER_HANDLER_SHAPES: ReadonlyArray<{ extension: RegExp; pattern: RegExp; language: string }> = [
-  { extension: /\.go$/, pattern: /\blambda\.Start(?:WithOptions)?\s*\(/, language: 'Go' },
   { extension: /\.rs$/, pattern: /\blambda_runtime::run\s*\(|\bservice_fn\s*\(/, language: 'Rust' },
   { extension: /\.rb$/, pattern: /\bdef\s+(?:self\.)?\w+\s*\(\s*event:\s*,\s*context:\s*\)/, language: 'Ruby' }
 ];
@@ -724,11 +813,11 @@ const javaRelease = (raw: string): string | undefined =>
   raw.match(/<java\.version>\s*(?:1\.)?(\d+)\s*</)?.[1] ??
   raw.match(/sourceCompatibility\s*=\s*(?:JavaVersion\.VERSION_)?['"]?(?:1\.)?(\d+)['"]?/)?.[1];
 
-/** A handler written in a compiled language, as the platform names it. */
+/** A handler written in a compiled language, as the platform names it. A Go binary has no handler name. */
 type CompiledHandler = {
   family: EventFamily | undefined;
-  functionHandler: string;
-  language: 'java' | 'dotnet';
+  functionHandler?: string;
+  language: 'java' | 'dotnet' | 'go';
   module: string;
   runtimeVersion: string | undefined;
   entryEvidence: Citation | undefined;
@@ -995,8 +1084,8 @@ export const lambdaSourceProbe: Probe = {
     }
 
     // Java and .NET handlers implement the runtime's handler interface. Each needs the build file that compiles it, and
-    // the platform's handler name, which the file alone does not give. Go, Rust and Ruby handlers are reported for the
-    // user to add.
+    // the platform's handler name, which the file alone does not give. A Go handler needs its module. Rust and Ruby
+    // handlers are reported for the user to add.
     const compiledCandidates = application
       .filter((path) => /\.(?:java|cs|go|rs|rb)$/.test(path))
       .slice(0, MAX_TYPED_CANDIDATES);
@@ -1021,6 +1110,22 @@ export const lambdaSourceProbe: Probe = {
               ...(packageName === undefined ? {} : { packageName })
             });
           }
+          handlers.push({
+            path,
+            raw,
+            family: compiled.family,
+            triggerEvidence: undefined,
+            entryEvidence: compiled.entryEvidence,
+            pythonHandler: undefined,
+            compiled
+          });
+        }
+        continue;
+      }
+      if (path.endsWith('.go')) {
+        const compiled = goHandler(context, path, raw);
+        if (compiled === 'no-build-file') handlerFindings.push({ path, language: 'Go', reason: 'no-build-file' });
+        else if (compiled !== undefined) {
           handlers.push({
             path,
             raw,
@@ -1073,10 +1178,11 @@ export const lambdaSourceProbe: Probe = {
       return name;
     };
 
-    // A Java or .NET module holding one handler is that function: `functions/tax` is `tax`, not `TaxHandler`.
+    // A Java or .NET module holding one handler is that function: `functions/tax` is `tax`, not `TaxHandler`. A Go
+    // handler is named like any other file: `functions/ping/main.go` is `ping`, `lambdas/resize.go` is `resize`.
     const preferredNames = new Map<string, string>();
     for (const { path, compiled } of handlers) {
-      if (compiled === undefined || compiled.module === '.') continue;
+      if (compiled === undefined || compiled.language === 'go' || compiled.module === '.') continue;
       const siblings = handlers.filter((handler) => handler.compiled?.module === compiled.module);
       if (siblings.length === 1) preferredNames.set(path, posix.basename(compiled.module));
     }
@@ -1184,7 +1290,7 @@ export const lambdaSourceProbe: Probe = {
         // Stacktape calls a Python module's `handler`; AWS's own examples name it `lambda_handler`.
         ...(pythonHandler === 'lambda_handler' && !/^def\s+handler\s*\(/m.test(raw)
           ? { functionHandler: pythonHandler }
-          : compiled === undefined
+          : compiled?.functionHandler === undefined
             ? {}
             : { functionHandler: compiled.functionHandler }),
         functionTriggers: triggers,

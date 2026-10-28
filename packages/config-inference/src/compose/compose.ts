@@ -1093,6 +1093,22 @@ export const composeConfig = ({
       reason: composed.reason,
       evidence: dependency.evidence.slice(0, 3)
     };
+    const writtenAttributes = dependency.writtenItemAttributes ?? [];
+    if (
+      dependency.kind === 'dynamodb' &&
+      dependency.itemKey === undefined &&
+      writtenAttributes.length > 0 &&
+      !writtenAttributes.includes('pk')
+    ) {
+      const listed = (conjunction: string) =>
+        writtenAttributes.length === 1
+          ? writtenAttributes[0]
+          : `${writtenAttributes.slice(0, -1).join(', ')} ${conjunction} ${writtenAttributes.at(-1)}`;
+      gaps.push({
+        subject: `${dependency.name}.primaryKey`,
+        message: `Your code writes items with ${listed('and')} to ${name}, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to ${writtenAttributes.length === 1 ? `${listed('or')}, if that identifies an item` : `whichever of ${listed('or')} identifies an item`}.`
+      });
+    }
     if (dependency.kind === 'mongodb') {
       gaps.push({
         subject: `${dependency.name}.provider`,
@@ -1239,6 +1255,47 @@ export const composeConfig = ({
         candidates.length === 0
           ? `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs. Its definition is a Pass placeholder; replace it with your workflow's states before deploying.`
           : `Your code starts ${resourceName}, a Step Functions workflow, but init cannot tell which states it runs or in which order. Its definition is a Pass placeholder. These functions are invoked by nothing else and may be its Task states: ${candidates.join(', ')}. Add them as Task states with Resource: $ResourceParam('<function>', 'arn').`
+    });
+  }
+
+  // Two different functions on one queue split its messages between them. Nothing here says that is the intent, and a
+  // project with a topic usually means every consumer to get every message.
+  const queueConsumers = new Map<string, string[]>();
+  for (const service of facts.services) {
+    if (service.functionEntrypoint === undefined) continue;
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'queue') continue;
+      const consumer = serviceResourceNames.get(service.name);
+      if (consumer !== undefined)
+        queueConsumers.set(trigger.dependencyName, [...(queueConsumers.get(trigger.dependencyName) ?? []), consumer]);
+    }
+  }
+  const topicNames = facts.dependencies.flatMap((dependency) =>
+    dependency.kind === 'topic' && dependencyResourceNames.has(dependency.name)
+      ? [dependencyResourceNames.get(dependency.name)!]
+      : []
+  );
+  for (const [dependencyName, consumers] of queueConsumers) {
+    const queueName = dependencyResourceNames.get(dependencyName);
+    if (queueName === undefined || new Set(consumers).size < 2) continue;
+    const listed =
+      consumers.length === 2
+        ? `${consumers[0]} and ${consumers[1]} both`
+        : `${consumers.slice(0, -1).join(', ')} and ${consumers.at(-1)} all`;
+    const subscription =
+      topicNames.length === 1
+        ? `give each its own queue subscribed to ${topicNames[0]} before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it`
+        : 'publish to an SNS topic and give each its own queue subscribed to it before deploying';
+    const hint = facts.dependencies.find((dependency) => dependency.name === dependencyName)?.fanoutHint;
+    const queues =
+      hint === undefined
+        ? ''
+        : hint.queues.length === 1
+          ? hint.queues[0]
+          : `${hint.queues.slice(0, -1).join(', ')} and ${hint.queues.at(-1)}`;
+    gaps.push({
+      subject: `${queueName}.consumers`,
+      message: `${listed} consume ${queueName}, so each message reaches only one of them. If each consumer must receive every message, ${subscription}.${hint === undefined ? '' : ` ${hint.file} line ${hint.line} names ${queues} in a sentence about a topic.`} Leave it as is only if they share the work on purpose.`
     });
   }
 
@@ -1622,7 +1679,9 @@ export const composeConfig = ({
       subject: handler.path,
       message:
         handler.reason === 'no-build-file'
-          ? `${handler.path} looks like a ${handler.language} Lambda handler, but init found no ${handler.language === 'Java' ? 'pom.xml or build.gradle' : '.csproj project file'} that builds it, so it created no function for it. If it should deploy, add a function with buildpack packaging, its entryfilePath and its handlerFunction.`
+          ? handler.language === 'Go'
+            ? `${handler.path} looks like a Go Lambda handler, but init found no go.mod that builds it, so it created no function for it. If it should deploy, add a go.mod for it and a function with buildpack packaging and entryfilePath: ${handler.path}.`
+            : `${handler.path} looks like a ${handler.language} Lambda handler, but init found no ${handler.language === 'Java' ? 'pom.xml or build.gradle' : '.csproj project file'} that builds it, so it created no function for it. If it should deploy, add a function with buildpack packaging, its entryfilePath and its handlerFunction.`
           : `${handler.path} looks like a ${handler.language} Lambda handler. Init does not create ${handler.language} functions yet. If it should deploy, add a function with buildpack packaging and entryfilePath: ${handler.path}.`
     });
   }

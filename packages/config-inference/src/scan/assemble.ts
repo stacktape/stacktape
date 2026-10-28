@@ -33,6 +33,7 @@ import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
 import { applyStacktapeReferences } from './stacktape-references';
+import { noteFanoutHints } from './topic-fanout';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -508,6 +509,9 @@ const mergeServices = (
  * Services spread across directories stay unattributed, for the agent to resolve: a monorepo's
  * root-level `.env` really is ambiguous about which package reads it.
  */
+/** Evidence that proves a resource but not who uses it: a trigger, or the variable a call reads its address from. */
+const ADDRESS_ONLY_EVIDENCE: ReadonlySet<string> = new Set(['functionTriggers', 'addressedBy']);
+
 const attributeDependencies = (
   dependencies: DependencyFact[],
   services: readonly ServiceFactInput[]
@@ -542,7 +546,7 @@ const attributeDependencies = (
       // A handler's event type proves what invokes it, not that the code beside it uses the resource.
       const evidenceRoots = new Set(
         dependency.evidence
-          .filter((citation) => citation.field !== 'functionTriggers')
+          .filter((citation) => !ADDRESS_ONLY_EVIDENCE.has(citation.field ?? ''))
           .map((citation) => posix.dirname(citation.file))
       );
       const colocatedServices = services.filter((service) => evidenceRoots.has(service.path));
@@ -560,11 +564,12 @@ const attributeDependencies = (
       // Once at least one real service is known, retain only real services for that concrete resource.
       return { ...dependency, consumedBy: [...new Set(known)] };
     }
-    // A resource only a handler's trigger proves (the table whose stream invokes it, the bus code publishes to) is used
-    // by whoever reads its address; the env scan finds them. Sharing a directory with the handler says nothing.
+    // A resource only a handler's trigger proves (the table whose stream invokes it, the bus code publishes to), or a
+    // call that reads its address from a variable, is used by whoever reads that address; the env scan finds them.
+    // Sharing a directory with the handler or the caller says nothing.
     if (
       dependency.evidence.length > 0 &&
-      dependency.evidence.every((citation) => citation.field === 'functionTriggers')
+      dependency.evidence.every((citation) => ADDRESS_ONLY_EVIDENCE.has(citation.field ?? ''))
     ) {
       return dependency;
     }
@@ -1063,6 +1068,15 @@ export const assembleCandidateFacts = async ({
     }
   });
   settleJobQueues(services, dependencies);
+  await noteFanoutHints({
+    services,
+    dependencies,
+    read: async (path) => {
+      if (!listing.files.includes(path)) return undefined;
+      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+      return result.kind === 'contents' ? result.contents : undefined;
+    }
+  });
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

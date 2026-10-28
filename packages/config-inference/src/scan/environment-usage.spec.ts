@@ -193,6 +193,41 @@ describe('environment-usage enrichment', () => {
     );
   });
 
+  it("tells ENV.fetch's default from the enclosing call's next argument, and reads Ruby's || defaults unless they raise", async () => {
+    root = await makeRepo({
+      Gemfile: 'gem "rails"\n',
+      'app/controllers/parcels_controller.rb':
+        "Aws::SNS::Client.new.publish(topic_arn: ENV.fetch('PARCEL_TOPIC_ARN'), message: '{}')\nlimit = ENV.fetch('PAGE_SIZE', '20')\nzone = ENV.fetch('TIME_ZONE') { 'UTC' }\n",
+      'config/boot.rb':
+        "ENV['APP_GEMFILE'] ||= File.expand_path('../Gemfile', __dir__)\nport = ENV['WEB_PORT'] || 3000\n",
+      // A fallback that raises is no default: without the variable the app does not start.
+      'config/initializers/secrets.rb':
+        "key = ENV['PAYMENTS_API_KEY'] || raise('PAYMENTS_API_KEY is missing')\nsigning = ENV.fetch('SIGNING_SECRET') { raise KeyError, 'SIGNING_SECRET' }\nhook = ENV.fetch('HOOK_TOKEN') { |name| fail name }\n"
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
+    const required = Object.fromEntries(
+      (facts.services[0]?.environmentVariables ?? []).map((variable) => [variable.name, variable.required])
+    );
+
+    expect(required).toEqual({
+      PARCEL_TOPIC_ARN: true,
+      PAGE_SIZE: false,
+      TIME_ZONE: false,
+      APP_GEMFILE: false,
+      WEB_PORT: false,
+      PAYMENTS_API_KEY: true,
+      SIGNING_SECRET: true,
+      HOOK_TOKEN: true
+    });
+    // Required secrets keep their $Secret, as on main.
+    expect(
+      (facts.services[0]?.environmentVariables ?? [])
+        .filter((variable) => variable.role === 'third-party-secret')
+        .map((variable) => variable.name)
+        .toSorted()
+    ).toEqual(['HOOK_TOKEN', 'PAYMENTS_API_KEY', 'SIGNING_SECRET']);
+  });
+
   it("gives each function the reads of its own import graph, or its directory's when an alias hides part of it", async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({ name: 'app', dependencies: { '@aws-sdk/client-sqs': '^3.0.0' } }),
@@ -389,5 +424,35 @@ describe('environment-usage enrichment', () => {
       rollup: [],
       ship: ['EVENT_BUS_NAME=eventBus']
     });
+  });
+
+  it("records the attributes of the items code writes when no request names the table's key", async () => {
+    const audit = (item: string) =>
+      typedHandler(
+        'SQSEvent',
+        `import { PutCommand } from '@aws-sdk/lib-dynamodb';\nconst put = new PutCommand({ TableName: process.env.AUDIT_TABLE, Item: ${item} });`
+      );
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'audit', dependencies: { '@aws-sdk/client-dynamodb': '^3.0.0' } }),
+      'functions/audit.ts': audit('{ id: String(msg.parcelId), expiresAt: Math.floor(Date.now() / 1000) + 3600 }')
+    });
+    const table = async () => {
+      const { facts } = await assembleCandidateFacts({ root, probes: [manifestProbe, lambdaSourceProbe] });
+      const { itemKey, writtenItemAttributes } = facts.dependencies.find(({ kind }) => kind === 'dynamodb')!;
+      return { itemKey, writtenItemAttributes };
+    };
+
+    // An item does not say which of its attributes is the key.
+    expect(await table()).toEqual({ itemKey: undefined, writtenItemAttributes: ['id', 'expiresAt'] });
+
+    await writeFile(
+      join(root, 'functions/read.ts'),
+      typedHandler(
+        'SQSEvent',
+        "import { GetCommand } from '@aws-sdk/lib-dynamodb';\nconst get = new GetCommand({ TableName: process.env.AUDIT_TABLE, Key: { id: 'x' } });"
+      )
+    );
+    // A request that names the key settles it.
+    expect(await table()).toEqual({ itemKey: { partitionKey: 'id' }, writtenItemAttributes: undefined });
   });
 });

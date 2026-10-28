@@ -4,7 +4,7 @@ import { posix } from 'node:path';
 import type { ServiceFactInput } from '../../facts/service';
 import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
-import { nearestManifestRoot, withoutSampleDirectories } from '../service-root';
+import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -190,13 +190,14 @@ export const serverEntrypointProbe: Probe = {
         !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
+    const entered = await directoriesEnteredByRoot(context);
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, stopped after one entrypoint per service root.
       const raw = await readText(context, path);
       if (raw === undefined) continue;
       const detection = detectionFor(path, raw);
       if (detection === undefined) continue;
-      const root = nearestManifestRoot(path, context.files) ?? '.';
+      const root = nearestManifestRoot(path, context.files, entered) ?? '.';
       const key = `${root}::${detection.processType ?? 'main'}`;
       if (byRoot.has(key)) continue;
       let exposesHttp = detection.exposesHttp ?? true;

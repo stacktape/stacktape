@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from '../assemble';
+import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
+import { procfileProbe } from './procfile';
 import { serverEntrypointProbe } from './server-entrypoint';
 
 let root: string;
@@ -296,4 +298,30 @@ describe('the port a server listens on', () => {
       }
     });
   }
+
+  it.each([
+    ['an entry script beside it', {}],
+    ['a manifest of its own', { 'src/requirements.txt': 'django==5.1\n' }]
+  ])(
+    'keeps a Django project the root Procfile runs with --chdir src in the root service, with %s',
+    async (_case, extra) => {
+      const repositoryRoot = await makeRepo({
+        'requirements.txt': 'django==5.1\ngunicorn==23\n',
+        Procfile: 'web: gunicorn --chdir src config.wsgi:application\n',
+        'src/manage.py':
+          'import os, sys\nif __name__ == "__main__":\n    from django.core.management import execute_from_command_line\n    execute_from_command_line(sys.argv)\n',
+        'src/config/wsgi.py':
+          'from django.core.wsgi import get_wsgi_application\napplication = get_wsgi_application()\n',
+        ...extra
+      });
+      const { facts } = await assembleCandidateFacts({
+        root: repositoryRoot,
+        probes: [procfileProbe, languageManifestProbe, serverEntrypointProbe]
+      });
+
+      expect(facts.services.map(({ path, startCommand }) => ({ path, startCommand }))).toEqual([
+        { path: '.', startCommand: 'gunicorn --chdir src config.wsgi:application' }
+      ]);
+    }
+  );
 });

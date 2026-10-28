@@ -170,10 +170,26 @@ export const dependencyFactSchema = z.object({
    */
   itemKey: z.object({ partitionKey: z.string().min(1), sortKey: z.string().min(1).optional() }).optional(),
   /**
+   * The attributes of the items the code writes to a DynamoDB table (`Item: { id, expiresAt }`), when no request says
+   * which of them is the key. One of them has to be, or the table rejects every write.
+   */
+  writtenItemAttributes: z.array(z.string().min(1)).min(1).optional(),
+  /**
    * The services a state machine runs as its Task states, in order, when the code makes the order clear: the input
    * the code starts an execution with is what the first one reads, and each one's result is what the next one reads.
    */
   workflowSteps: z.array(z.string().min(1)).min(1).optional(),
+  /**
+   * The README line that mentions a topic fanning out to queues, and the queue names on it, for a queue several functions
+   * consume. Prose is too weak to rearrange queues on (it can just as well say the opposite); the gap names it.
+   */
+  fanoutHint: z
+    .object({
+      file: z.string().min(1),
+      line: z.number().int().positive(),
+      queues: z.array(z.string().regex(/^[A-Za-z0-9_-]+$/)).min(1)
+    })
+    .optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

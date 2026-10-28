@@ -5,11 +5,10 @@ import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { languageOf } from '../language';
-import { nearestManifestRoot, withoutSampleDirectories } from '../service-root';
+import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 
-const serviceRootFor = (dockerfile: string, files: readonly string[]): string => {
-  return nearestManifestRoot(dockerfile, files) ?? posix.dirname(dockerfile);
-};
+const serviceRootFor = (dockerfile: string, files: readonly string[], entered: ReadonlySet<string>): string =>
+  nearestManifestRoot(dockerfile, files, entered) ?? posix.dirname(dockerfile);
 
 const globToPattern = (glob: string): RegExp =>
   new RegExp(
@@ -78,8 +77,9 @@ export const dockerfileProbe: Probe = {
     });
     const services = new Map<string, ServiceFactInput>();
 
+    const entered = await directoriesEnteredByRoot(context);
     for (const path of candidates) {
-      const root = serviceRootFor(path, context.files);
+      const root = serviceRootFor(path, context.files, entered);
       if (services.has(root)) continue;
       // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
       const raw = await readText(context, path);
