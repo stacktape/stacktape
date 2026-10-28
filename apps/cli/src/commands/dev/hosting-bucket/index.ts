@@ -6,6 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
 import { prepareFrontendEnvironment } from '../frontend-env';
+import { getSecretSourcedEnvNames } from '../agent-env-masking';
 
 const getWorkingDirectory = (dev: { workingDirectory?: string }): string => {
   return dev.workingDirectory
@@ -47,7 +48,12 @@ export const startHostingBucketDevServer = async ({
 
   return startDevServer({
     name,
-    config: { ...bucket.dev, environment: injectedEnvironment, withheldEnvNames },
+    config: {
+      ...bucket.dev,
+      environment: injectedEnvironment,
+      secretEnvNames: getSecretSourcedEnvNames(bucket),
+      withheldEnvNames
+    },
     callbacks: {
       onStateChange: (newState) => {
         const status = formatDevServerStatus(newState);

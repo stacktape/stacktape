@@ -18,6 +18,7 @@
     "@aws-sdk/client-acm": "3.1121.0",
     "@aws-sdk/client-apigatewayv2": "3.1121.0",
     "@aws-sdk/client-auto-scaling": "3.1121.0",
+    "@aws-sdk/client-batch": "3.1121.0",
     "@aws-sdk/client-budgets": "3.1121.0",
     "@aws-sdk/client-cloudformation": "3.1121.0",
     "@aws-sdk/client-cloudfront": "3.1121.0",

@@ -11,8 +11,9 @@ import { createFrameworkParser, detectFramework, stripAnsi, type FrameworkType }
 import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/manager';
 import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
-import type { LogLevel } from './agent-logger';
+import { getAgentLogFilePath, type LogLevel } from './agent-logger';
 import { createLogLineGrouper, isFrontendServerFailure, isSuccessfulRequestLine } from './log-grouping';
+import { maskEnvironmentValuesInText } from './agent-env-masking';
 import {
   extractPortFromCommand,
   findAvailablePort,
@@ -36,6 +37,11 @@ type DevServerConfig = {
    * actual process environment outranks every file in all the supported frameworks.
    */
   environment?: Record<string, string>;
+  /**
+   * Variables of `environment` read from secrets. The server's output can quote them, so the errors made from its
+   * output mask them, and every other value that the dev agent's `/env` masks, as container crash summaries do.
+   */
+  secretEnvNames?: ReadonlySet<string>;
   /**
    * Variables of this process that the dev server must not inherit: those of local databases and services the
    * frontend does not connect to. Dev mode sets them on its own process for hooks and other workloads.
@@ -224,6 +230,10 @@ export const startDevServer = async ({
   env.PORT = String(targetPort);
   env.HOST = '127.0.0.1';
 
+  /** An error quoted from the server's output: it goes to the agent's status and MCP results. */
+  const maskOutput = (text: string) =>
+    maskEnvironmentValuesInText(text, config.environment ?? {}, config.secretEnvNames);
+
   let currentState: DevServerState = { status: 'starting', port: targetPort };
   callbacks?.onStateChange?.(currentState);
 
@@ -301,7 +311,7 @@ export const startDevServer = async ({
             .split('\n')
             .filter((line) => line.trim())
             .slice(0, SERVER_ERROR_LINES);
-          setState({ ...currentState, status: 'error', error: lines.join('\n'), errorFromOutput: true });
+          setState({ ...currentState, status: 'error', error: maskOutput(lines.join('\n')), errorFromOutput: true });
         } else if (isSuccessfulRequestLine(stripAnsi(message))) {
           clearServerError();
         }
@@ -396,7 +406,17 @@ export const startDevServer = async ({
           setState({
             status: 'error',
             port: currentState.port,
-            error: describeDevServerExit({ code, signal, serving, lines: recentLines, framework, workingDir })
+            error: maskOutput(
+              describeDevServerExit({
+                code,
+                signal,
+                serving,
+                lines: recentLines,
+                framework,
+                workingDir,
+                logFile: getAgentLogFilePath() ?? undefined
+              })
+            )
           });
         }
         resolveOnce(currentState);
@@ -428,11 +448,52 @@ export const startDevServer = async ({
   return spawnDevServer();
 };
 
-const RECENT_OUTPUT_LINES = 30;
+/** Enough output to keep a package manager's error above the stack trace it prints after it. */
+const RECENT_OUTPUT_LINES = 200;
 /** Lines of a server error entry that the workload's error quotes; the whole entry is in the log. */
 const SERVER_ERROR_LINES = 3;
 /** Lines of a dev server's last output that its error quotes. */
 const EXIT_REASON_LINES = 8;
+/** Stack frames quoted below the error line they belong to. */
+const EXIT_REASON_FRAMES = 2;
+
+const STACK_FRAME = /^\s*at\s/;
+/**
+ * An error a package manager prints with its code: pnpm `ERR_PNPM_*`, npm `npm error code` (`npm ERR! code` before
+ * npm 9) and Yarn Berry's `YN0001`-style lines that report an error. It names the cause, and the lines after it usually
+ * say how to fix it, such as pnpm's "Run pnpm approve-builds".
+ */
+const PACKAGE_MANAGER_ERROR = /\bERR_PNPM_[A-Z0-9_]+|^npm (?:error|ERR!) code\b|\bYN\d{4}:.*\b(?:error|failed)\b/i;
+
+/**
+ * The lines of a dev server's last output that explain its exit. A package manager's error code and the instruction
+ * after it come first: its stack trace follows them and pushed them out of a plain tail. Otherwise the last error line
+ * stays above at most a few of the stack frames that follow it.
+ */
+export const selectDevServerExitOutput = (lines: string[]): string[] => {
+  const output = lines.map((line) => line.trimEnd()).filter((line) => line.trim());
+  const errorIndex = output.findLastIndex((line) => PACKAGE_MANAGER_ERROR.test(line));
+  if (errorIndex !== -1) {
+    const block = [output[errorIndex]];
+    for (const line of output.slice(errorIndex + 1)) {
+      if (STACK_FRAME.test(line) || block.length === EXIT_REASON_LINES) break;
+      block.push(line);
+    }
+    return block;
+  }
+  const tail = output.slice(-EXIT_REASON_LINES * 4);
+  const selected: string[] = [];
+  let frames = 0;
+  for (const line of tail) {
+    if (!STACK_FRAME.test(line)) {
+      frames = 0;
+      selected.push(line);
+    } else if (frames++ < EXIT_REASON_FRAMES) {
+      selected.push(line);
+    }
+  }
+  return selected.slice(-EXIT_REASON_LINES);
+};
 
 /**
  * Why a dev server exited, from its last output. Next.js 16 runs one dev server per app directory: when another dev
@@ -472,6 +533,7 @@ export const describeDevServerExit = ({
   lines,
   framework,
   workingDir,
+  logFile,
   findOtherSessions = findOtherDevSessions
 }: {
   code: number | null;
@@ -480,6 +542,8 @@ export const describeDevServerExit = ({
   lines: string[];
   framework: FrameworkType;
   workingDir: string;
+  /** The log the dev server's whole output went to. */
+  logFile?: string;
   findOtherSessions?: () => OtherDevSession[];
 }): string => {
   const how = signal ? `was stopped by ${signal}` : `exited with code ${code}`;
@@ -487,8 +551,9 @@ export const describeDevServerExit = ({
   if (framework === 'next' && lines.some((line) => /another next dev server is already running/i.test(line))) {
     return describeNextDevServerHolder(findOtherSessions()[0], workingDir);
   }
-  const output = lines.filter((line) => line.trim()).slice(-EXIT_REASON_LINES);
-  return `The dev server ${how}${when}.${output.length ? ` Its last output:\n${output.join('\n')}` : ''}`;
+  const output = selectDevServerExitOutput(lines);
+  const logs = logFile ? `\nIts whole output is in ${logFile}.` : '';
+  return `The dev server ${how}${when}.${output.length ? ` Its output:\n${output.join('\n')}` : ''}${logs}`;
 };
 
 /**

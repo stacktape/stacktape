@@ -17,7 +17,12 @@ import { templateManager } from '@domain-services/template-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
+import {
+  getCfResourceParamIntrinsic,
+  getCfResourceParamOutput
+} from '@domain-services/config-manager/built-in-directives';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
+import { findLocalCfResourceReferences } from './dev-stack-references';
 
 /**
  * Builds the images that AWS pulls for the dev stack (batch jobs, AgentCore runtimes) and returns the resources whose
@@ -49,6 +54,21 @@ export const packageDevStackImages = async (): Promise<string[]> => {
         .map(({ workloadName }) => workloadName)
     )
   ];
+};
+
+/**
+ * Local containers, frontends and scripts read raw CloudFormation resources (`$CfResourceParam`) from the dev stack's
+ * outputs. A deployment adds such an output when its template resolves the reference, but the dev template leaves those
+ * workloads out, so the outputs are added here. A resource the dev stack does not deploy gets none: the workload's
+ * environment then fails to resolve and names the variable.
+ */
+const addLocalCfResourceOutputs = () => {
+  const resources = templateManager.template.Resources;
+  for (const { resourceName, property } of findLocalCfResourceReferences(configManager.config)) {
+    if (!resources[resourceName]) continue;
+    const value = getCfResourceParamIntrinsic({ resources, resourceName, property });
+    templateManager.addStackOutput(getCfResourceParamOutput({ resourceName, property, value }));
+  }
 };
 
 /**
@@ -88,6 +108,7 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   // Resolve resources (the config-manager should filter based on dev mode)
   await resolveAllResources();
+  addLocalCfResourceOutputs();
 
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
     tuiManager.warn(

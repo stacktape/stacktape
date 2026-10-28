@@ -4224,6 +4224,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/_test-stacks/container-fast-deploy/**'
     ],
     tests: [
+      'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
@@ -4330,6 +4331,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-references.spec.ts',
+      'apps/cli/src/commands/dev/unresolved-environment.spec.ts',
+      'apps/cli/src/commands/dev/deployed-batch-job.spec.ts',
+      'apps/cli/src/domain/dev-network/placement.spec.ts',
       'apps/cli/src/commands/_utils/assume-role.spec.ts',
       'apps/cli/src/commands/dev/log-grouping.spec.ts',
       'apps/cli/src/utils/formatting.spec.ts',
@@ -4437,6 +4441,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/fetch-handler.spec.ts',
       'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
+      'apps/cli/src/commands/aws-call/stack-without-outputs.spec.ts',
       'apps/cli/src/utils/lambda-log-lines.spec.ts',
       'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
       'apps/cli/src/utils/cloudwatch-logs.spec.ts',

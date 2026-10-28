@@ -12,6 +12,28 @@ beforeAll(async () => {
   server = createServer((request, response) => {
     request.resume();
     request.on('end', () => {
+      if (request.url === '/v1/describejobdefinitions') {
+        requests.push('batch.DescribeJobDefinitions');
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            jobDefinitions: [
+              {
+                jobDefinitionName: 'shop-dev-report-job-definition',
+                jobDefinitionArn:
+                  'arn:aws:batch:us-west-1:123456789012:job-definition/shop-dev-report-job-definition:3',
+                revision: 3,
+                type: 'container',
+                containerProperties: {
+                  image: '123456789012.dkr.ecr.us-west-1.amazonaws.com/shop:report',
+                  environment: [{ name: 'PAYMENT_TOKEN', value: 'sk_live_batch_secret_value' }]
+                }
+              }
+            ]
+          })
+        );
+        return;
+      }
       const target = String(request.headers['x-amz-target'] ?? '');
       requests.push(target);
       const [status, type, message] = target.endsWith('.ListQueues')
@@ -53,4 +75,21 @@ test('a failed call says whether the catalog refused it, IAM denied it or AWS re
   const missing = await executeAwsSdkCommand('sqs', 'GetQueueUrl', { QueueName: 'r2ee-missing' }, context());
   expect(missing).toMatchObject({ ok: false, code: 'NOT_FOUND' });
   expect(requests.map((target) => target.split('.').at(-1))).toEqual(['ListQueues', 'GetQueueUrl']);
+});
+
+// r2qq finding 8: a batch job's diagnostics read its job definition; its environment values stay out of the result.
+test('Batch job definitions are readable with their container environment values redacted', async () => {
+  const result = await executeAwsSdkCommand(
+    'batch',
+    'DescribeJobDefinitions',
+    { jobDefinitionName: 'shop-dev-report-job-definition' },
+    context()
+  );
+  expect(result.ok).toBeTrue();
+  expect(JSON.stringify(result)).not.toContain('sk_live_batch_secret_value');
+  expect(result).toMatchObject({
+    data: {
+      jobDefinitions: [{ containerProperties: { environment: [{ name: 'PAYMENT_TOKEN', value: '[redacted]' }] } }]
+    }
+  });
 });

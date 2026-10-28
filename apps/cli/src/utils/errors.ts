@@ -163,6 +163,14 @@ export class UserCodeError extends CliError {
 
 export type HandledError = CliError | UnexpectedError;
 
+/** The hints of a Stacktape error, for reports that keep an error's message and its hints apart. */
+export const getErrorHints = (error: unknown): string[] | undefined =>
+  error instanceof CliError && error.hints.length ? error.hints : undefined;
+
+/** A failure with its hints, one per line, for logs and terminal output. */
+export const withHintLines = (message: string, hints: string[] | undefined) =>
+  hints?.length ? `${message}\n${hints.map((hint) => `Hint: ${hint}`).join('\n')}` : message;
+
 export const getReturnableError = (error: HandledError): Error => {
   const details = error.details || getErrorDetails(error);
   const res = new Error();

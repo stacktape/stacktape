@@ -6,6 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
 import { prepareFrontendEnvironment } from '../frontend-env';
+import { getSecretSourcedEnvNames } from '../agent-env-masking';
 
 const DEFAULT_NEXTJS_DEV_COMMAND = 'next dev';
 
@@ -42,6 +43,7 @@ export const startNextjsWebDevServer = async ({
     command: nextjsWeb.dev?.command || DEFAULT_NEXTJS_DEV_COMMAND,
     workingDirectory: nextjsWeb.appDirectory,
     environment: injectedEnvironment,
+    secretEnvNames: getSecretSourcedEnvNames(nextjsWeb),
     withheldEnvNames
   };
 

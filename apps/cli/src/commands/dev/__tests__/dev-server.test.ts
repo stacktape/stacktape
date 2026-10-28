@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { registerDevServerCleanupHook, startDevServer } from '../dev-server';
+import {
+  describeDevServerExit,
+  registerDevServerCleanupHook,
+  selectDevServerExitOutput,
+  startDevServer
+} from '../dev-server';
 import { stopNamedProxy } from '../named-proxy/manager';
 
 // A stand-in for a framework dev server such as Vite: it binds the host and port it is given on the command line and
@@ -272,6 +277,107 @@ setTimeout(() => process.exit(1), 100);
     const state = await start();
     expect(state.status).toBe('error');
     expect(state.error).toBe(expected);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
+// r2qq finding 9: pnpm's install error and its instruction came before its stack trace, and the summary quoted only frames.
+test("a package manager's error code and instruction explain a dev server's exit instead of its stack frames", () => {
+  const pnpm = '/home/dev/.local/share/stacktape-toolchain/node_modules/pnpm/dist/pnpm.mjs';
+  const lines = [
+    '✓ Lockfile passes supply-chain policies (verified 9m ago)',
+    'Lockfile is up to date, resolution step is skipped',
+    'Already up to date',
+    '[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: esbuild@0.25.12',
+    'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.',
+    '[ERROR] Command failed with exit code 1: pnpm install',
+    'pnpm: Command failed with exit code 1: pnpm install',
+    ...['getFinalError', 'makeError', 'getSyncResult', 'spawnSubprocessSync', 'execaCoreSync', 'callBoundExeca'].map(
+      (frame, index) => `    at ${frame} (file://${pnpm}:${88203 + index}:14)`
+    ),
+    `    at runDepsStatusCheck (file://${pnpm}:251287:7)`
+  ];
+  const error = describeDevServerExit({
+    code: 1,
+    signal: null,
+    serving: false,
+    lines,
+    framework: 'vite',
+    workingDir: '/work/web',
+    logFile: '/work/.stacktape/dev-agent/7332-logs.txt'
+  });
+  expect(error).toBe(
+    'The dev server exited with code 1. Its output:\n' +
+      '[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: esbuild@0.25.12\n' +
+      'Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.\n' +
+      '[ERROR] Command failed with exit code 1: pnpm install\n' +
+      'pnpm: Command failed with exit code 1: pnpm install\n' +
+      'Its whole output is in /work/.stacktape/dev-agent/7332-logs.txt.'
+  );
+});
+
+test("a framework error keeps its message above the first frames of the loader's trailing stack", () => {
+  const frames = Array.from(
+    { length: 12 },
+    (_, index) => `    at ModuleLoader.load (node:internal/modules/esm/loader:${400 + index}:9)`
+  );
+  expect(
+    selectDevServerExitOutput([
+      'VITE v6.2.0  ready in 120 ms',
+      'failed to load config from /work/web/vite.config.ts',
+      'error when starting dev server:',
+      "Error: Cannot find module '@vitejs/plugin-react'",
+      ...frames
+    ])
+  ).toEqual([
+    'VITE v6.2.0  ready in 120 ms',
+    'failed to load config from /work/web/vite.config.ts',
+    'error when starting dev server:',
+    "Error: Cannot find module '@vitejs/plugin-react'",
+    frames[0],
+    frames[1]
+  ]);
+  expect(
+    selectDevServerExitOutput([
+      'npm error code ENOENT',
+      'npm error syscall open',
+      '',
+      'npm error path /work/package.json'
+    ])
+  ).toEqual(['npm error code ENOENT', 'npm error syscall open', 'npm error path /work/package.json']);
+});
+
+// r2rr finding 5: a frontend's exit summary quoted a secret-sourced value it printed, and the summary reaches the agent's
+// status and MCP results.
+test("a frontend's failure summary masks the secret-sourced values of its environment", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  const secret = 'synthetic-webhook-secret-r2tt';
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+console.error('Failed to configure webhook: ' + process.env.PAYMENT_WEBHOOK + ' for ' + process.env.SHOP_NAME);
+process.exit(1);
+`
+    );
+    globalStateManager.rawArgs = { stage: 'secret', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const result = await startDevServer({
+      name: 'web',
+      config: {
+        command: './vite dev',
+        workingDirectory: directory,
+        framework: 'vite',
+        environment: { PAYMENT_WEBHOOK: secret, SHOP_NAME: 'demo-shop' },
+        secretEnvNames: new Set(['PAYMENT_WEBHOOK'])
+      }
+    });
+    expect(result.status).toBe('error');
+    expect(result.error).toContain('Failed to configure webhook:');
+    expect(result.error).not.toContain(secret);
+    // Plain settings stay readable.
+    expect(result.error).toContain('demo-shop');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

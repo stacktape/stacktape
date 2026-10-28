@@ -20,3 +20,11 @@ export type DevNetworkPlacement = {
    */
   localResources: Record<string, { params: Record<string, string>; environment: Record<string, string> }>;
 };
+
+/**
+ * The local resources that deployed workloads reach through the relay: those of the functions and of the batch jobs.
+ * Each needs a running local resource and a relay tunnel, also when only a batch job uses it.
+ */
+export const getRelayedLocalResourceNames = (placement: Pick<DevNetworkPlacement, 'functions' | 'batchJobs'>) => [
+  ...new Set([...Object.values(placement.functions), ...Object.values(placement.batchJobs ?? {})].flat())
+];

@@ -10,6 +10,7 @@ import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stackta
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import { join } from 'node:path';
 import { pathExists } from 'fs-extra';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -108,9 +109,16 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
-    // `validate` without `--withPackage` builds nothing, so there is nothing to read. Every other command has built the
-    // app by now, and a missing directory is a failed build it must not deploy past.
-    if (calculatedStackOverviewManager.context.command === 'validate' && !(await pathExists(assetsDirPath))) {
+    // `synth`, and `validate` without `--withPackage`, build nothing, so there is nothing to read: the template keeps
+    // the static-asset placeholder behavior. Every other command has built the app by now, and a missing directory is
+    // a failed build it must not deploy past.
+    const { command } = calculatedStackOverviewManager.context;
+    if ((command === 'validate' || command === 'synth') && !(await pathExists(assetsDirPath))) {
+      if (command === 'synth') {
+        tuiManager.warn(
+          `${nextjsWeb.name}: synth does not build the Next.js app, so the template has a placeholder (<<TBD_STATIC>>) instead of the cache behaviors of its static assets. \`stacktape deploy\` and \`stacktape validate --withPackage\` build the app and add them.`
+        );
+      }
       return;
     }
     const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirPath)).map((PathPattern) => ({

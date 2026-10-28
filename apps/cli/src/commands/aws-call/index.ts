@@ -10,16 +10,33 @@ import {
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { getDebugAgentCredentials, initDebugAgentCredentials } from '../_utils/debug-agent-credentials';
-import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import {
+  captureCommandArgs,
+  getStackContext,
+  initializeStackServicesForWorkingWithDeployedStack
+} from '../_utils/initialization';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
+import { scopeBatchCall } from '../dev/deployed-batch-job';
+import { scopeToStackWithoutOutputs } from './stack-without-outputs';
+
+const isMissingStackOverview = (error: unknown) => error instanceof CliError && error.category === 'MISSING_OUTPUT';
 
 export const commandAwsCall = async () => {
-  const { args, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
-    commandModifiesStack: false,
-    commandRequiresConfig: false
-  });
+  let stackWithoutOutputs = false;
+  try {
+    await initializeStackServicesForWorkingWithDeployedStack({
+      commandModifiesStack: false,
+      commandRequiresConfig: false
+    });
+  } catch (error) {
+    if (!isMissingStackOverview(error)) throw error;
+    stackWithoutOutputs = true;
+  }
+  const args = captureCommandArgs();
+  const stackContext = getStackContext();
 
-  initDebugAgentCredentials();
+  if (!stackWithoutOutputs) initDebugAgentCredentials();
 
   const commandArgs = args as StacktapeCliArgs & {
     service?: string;
@@ -95,6 +112,24 @@ export const commandAwsCall = async () => {
     });
   }
 
+  if (stackWithoutOutputs) {
+    inputObj = scopeToStackWithoutOutputs({
+      service,
+      command,
+      input: inputObj,
+      stackName: stackContext.stackName,
+      stackId: stackManager.existingStackDetails?.StackId
+    });
+  }
+
+  const batchScope =
+    resolveAwsServiceName(service) === 'batch'
+      ? scopeBatchCall({ command, input: inputObj, stackName: stackContext.stackName })
+      : {};
+  if ('refusal' in batchScope) {
+    throw new CliError({ category: 'CLI', code: 'CLI_AWS_CALL_COMMAND_NOT_ALLOWED', message: batchScope.refusal });
+  }
+
   // Get credentials (uses debug agent role if available, otherwise user credentials)
   const credentials = await getDebugAgentCredentials();
 
@@ -117,12 +152,14 @@ export const commandAwsCall = async () => {
     });
   }
 
+  const data = batchScope.filterResponse ? batchScope.filterResponse(result.data) : result.data;
+
   // Output
   if (isAgentMode()) {
-    tuiManager.info(JSON.stringify({ ok: true, service, command, data: result.data }, null, 2));
+    tuiManager.info(JSON.stringify({ ok: true, service, command, data }, null, 2));
   } else {
     tuiManager.info(`${service}.${command} result:\n`);
-    tuiManager.info(JSON.stringify(result.data, null, 2));
+    tuiManager.info(JSON.stringify(data, null, 2));
   }
 
   return null;

@@ -1,13 +1,16 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { configManager } from '@domain-services/config-manager';
 import {
+  LOCALLY_RUN_RESOURCE_TYPES,
   isResourceTypeExcludedInDevMode,
   isResourceTypeLocallyEmulatable,
   shouldDeployResourceInDevMode
 } from '@domain-services/config-manager/dev-mode';
 import { configErrors } from '@domain-services/config-manager/errors';
 import { getReferenceableParamNames, isReferenceableParam } from '@stacktape/config-authoring/resource-metadata';
+import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import { CliError } from '@utils/errors';
+import { LOCAL_SCRIPT_TYPES } from './dev-stack-config-fingerprint';
 import { getDevNetworkDemand } from './dev-network-session';
 import { getRelayedLocalResourceParamNames } from './local-resources';
 
@@ -232,3 +235,71 @@ export const prepareDevStackReferences = ({
       'local containers and functions use the deployed table too.'
   );
 };
+
+const CF_RESOURCE_PARAM = /\$CfResourceParam\(\s*(['"])([^'"]+)\1\s*,\s*(['"])([^'"]+)\3\s*\)/g;
+
+export type LocalCfResourceReference = { referencer: string; path: string; resourceName: string; property: string };
+
+const collectCfResourceParams = (
+  value: unknown,
+  path: string,
+  referencer: string,
+  into: LocalCfResourceReference[]
+) => {
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(CF_RESOURCE_PARAM)) {
+      into.push({ referencer, path, resourceName: match[2], property: match[4] });
+    }
+  } else if (Array.isArray(value)) {
+    value.forEach((item, index) => collectCfResourceParams(item, `${path}[${index}]`, referencer, into));
+  } else if (value && typeof value === 'object') {
+    for (const [key, child] of Object.entries(value))
+      collectCfResourceParams(child, `${path}.${key}`, referencer, into);
+  }
+};
+
+/**
+ * The `$CfResourceParam` references of what runs on this machine in dev mode: containers, frontends and scripts. They
+ * resolve from the dev stack's outputs (see `getCfResourceParamOutput`), which a deployment adds only for references
+ * that its template resolves; the template leaves these workloads out, so the dev stack adds their outputs itself.
+ */
+export const findLocalCfResourceReferences = (config: {
+  resources?: object;
+  scripts?: object;
+}): LocalCfResourceReference[] => {
+  const references: LocalCfResourceReference[] = [];
+  type Entry = { type?: unknown } | undefined;
+  for (const [name, resource] of Object.entries((config.resources ?? {}) as Record<string, Entry>)) {
+    if ((LOCALLY_RUN_RESOURCE_TYPES as string[]).includes(String(resource?.type))) {
+      collectCfResourceParams(resource, `resources.${name}`, name, references);
+    }
+  }
+  for (const [name, script] of Object.entries((config.scripts ?? {}) as Record<string, Entry>)) {
+    if (LOCAL_SCRIPT_TYPES.has(String(script?.type))) {
+      collectCfResourceParams(script, `scripts.${name}`, name, references);
+    }
+  }
+  return references;
+};
+
+/**
+ * The `$CfResourceParam` references of local workloads (`resource.property`) to deployed resources that the deployed
+ * dev stack has no output for. A resource that is not deployed is left to the update its configuration change causes.
+ */
+export const findMissingLocalCfResourceOutputs = ({
+  references,
+  isDeployed,
+  outputs
+}: {
+  references: LocalCfResourceReference[];
+  isDeployed: (resourceName: string) => boolean;
+  outputs: Record<string, unknown>;
+}): string[] => [
+  ...new Set(
+    references
+      .filter(
+        ({ resourceName, property }) => isDeployed(resourceName) && !outputs[getStackOutputName(resourceName, property)]
+      )
+      .map(({ resourceName, property }) => `${resourceName}.${property}`)
+  )
+];
