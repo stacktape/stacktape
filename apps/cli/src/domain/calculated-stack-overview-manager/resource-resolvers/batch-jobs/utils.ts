@@ -1,6 +1,4 @@
-import { isDeepStrictEqual } from 'node:util';
 import type { ContainerProperties, Secret } from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
-import type { ComputeEnvironmentProperties } from '@stacktape/cloudformation/resources/aws-batch-computeenvironment';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
@@ -8,7 +6,6 @@ import type { StpResourceScopableByConnectToAffectingRole } from '@domain-servic
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { templateManager } from '@domain-services/template-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -100,22 +97,9 @@ export const getBatchJobExecutionRole = ({
     accessToResourcesRequiringRoleChanges,
     accessToAwsServices
   });
-  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
-  if (secretResources.length || parameterResources.length) {
-    policies.push({
-      PolicyName: 'container-runtime-secrets',
-      PolicyDocument: {
-        Version: '2012-10-17',
-        Statement: [
-          ...(secretResources.length
-            ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
-            : []),
-          ...(parameterResources.length
-            ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
-            : [])
-        ]
-      }
-    });
+  const secretsPolicy = getContainerSecretsPolicy(containerSecretValueFroms);
+  if (secretsPolicy) {
+    policies.push(secretsPolicy);
   }
 
   return cfnResource('AWS::IAM::Role', {
@@ -129,10 +113,51 @@ export const getBatchJobExecutionRole = ({
       Version: '2012-10-17',
       Statement: [{ Effect: 'Allow', Principal: { Service: 'ecs-tasks.amazonaws.com' }, Action: 'sts:AssumeRole' }]
     },
-    // This role is also the job's execution role: the ECS agent pulls ECR images and writes the awslogs output with it.
-    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
     Policies: policies
   });
+};
+
+/**
+ * The role the ECS agent uses for a batch job: it pulls the image from ECR, writes the awslogs output and reads the
+ * container secrets with it. The job's own code uses the job role.
+ */
+export const getBatchJobTaskExecutionRole = ({
+  containerSecretValueFroms
+}: {
+  containerSecretValueFroms: string[];
+}) => {
+  const secretsPolicy = getContainerSecretsPolicy(containerSecretValueFroms);
+  return cfnResource('AWS::IAM::Role', {
+    Path: '/',
+    AssumeRolePolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [{ Effect: 'Allow', Principal: { Service: 'ecs-tasks.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+    },
+    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
+    Policies: secretsPolicy ? [secretsPolicy] : undefined
+  });
+};
+
+/** Read access to the secrets and parameters a job's container receives as environment variables. */
+const getContainerSecretsPolicy = (containerSecretValueFroms: string[]) => {
+  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
+  if (!secretResources.length && !parameterResources.length) {
+    return undefined;
+  }
+  return {
+    PolicyName: 'container-runtime-secrets',
+    PolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [
+        ...(secretResources.length
+          ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
+          : []),
+        ...(parameterResources.length
+          ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
+          : [])
+      ]
+    }
+  };
 };
 
 /**
@@ -211,50 +236,11 @@ const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
   };
 };
 
-/**
- * Keeps the image configuration a deployed compute environment was created with, typically Amazon Linux 2
- * (`ECS_AL2`, `ECS_AL2_NVIDIA`), while nothing else in it changes.
- *
- * AWS Batch has refused to create compute environments with its Amazon Linux 2 images since 30 June 2026, so new ones
- * use Amazon Linux 2023. Existing ones keep working. With the `BEST_FIT` allocation strategy, CloudFormation replaces a
- * compute environment for any image change, and deleting the old one can interrupt the jobs running on it. When another
- * change replaces the compute environment anyway, it gets the new image: AWS would reject an Amazon Linux 2 replacement.
- */
-const keepDeployedEc2Configuration = (cfLogicalName: string) => {
-  templateManager.addFinalTemplateOverrideFn(async (template) => {
-    const properties = template.Resources[cfLogicalName]?.Properties as ComputeEnvironmentProperties | undefined;
-    const deployedProperties = templateManager.oldTemplate.Resources?.[cfLogicalName]?.Properties as
-      | ComputeEnvironmentProperties
-      | undefined;
-    const computeResources = properties?.ComputeResources as Record<string, unknown> | undefined;
-    const deployedComputeResources = deployedProperties?.ComputeResources as Record<string, unknown> | undefined;
-    if (!computeResources || !deployedComputeResources) {
-      return;
-    }
-    const deployedEc2Configuration = deployedComputeResources.Ec2Configuration;
-    const keptProperties = {
-      ...properties,
-      ComputeResources: { ...computeResources, Ec2Configuration: deployedEc2Configuration }
-    };
-    if (isDeepStrictEqual(asTemplateJson(keptProperties), asTemplateJson(deployedProperties))) {
-      if (deployedEc2Configuration === undefined) {
-        delete computeResources.Ec2Configuration;
-      } else {
-        computeResources.Ec2Configuration = deployedEc2Configuration;
-      }
-    }
-  });
-};
-
-/** The value as CloudFormation stores it, without `undefined` properties. */
-const asTemplateJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown;
-
 export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: boolean }) => {
   const tagObject = {};
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  keepDeployedEc2Configuration(cfLogicalNames.batchComputeEnvironment(spot, gpu));
   return cfnResource('AWS::Batch::ComputeEnvironment', {
     // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(calculatedStackOverviewManager.context.stackName, spot, gpu),
     ServiceRole: getAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
@@ -338,7 +324,7 @@ const getBatchJobDefinitionContainerProperties = ({
     ],
     ResourceRequirements: workload.resources.gpu ? [{ Type: 'GPU', Value: `${workload.resources.gpu}` }] : [],
     JobRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn'),
-    ExecutionRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
+    ExecutionRoleArn: getAtt(cfLogicalNames.batchJobTaskExecutionRole(name), 'Arn')
   };
 };
 

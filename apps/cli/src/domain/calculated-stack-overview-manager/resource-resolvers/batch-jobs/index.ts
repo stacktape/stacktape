@@ -32,6 +32,7 @@ import {
   getBatchJobDefinition,
   getBatchJobExecutionRole,
   getBatchJobQueue,
+  getBatchJobTaskExecutionRole,
   getBatchServiceRole,
   getBatchSpotFleetRole,
   getBatchStateMachine,
@@ -240,6 +241,13 @@ export const resolveBatchJobs = async () => {
           accessToResourcesRequiringRoleChanges,
           iamRoleStatements: definition.iamRoleStatements,
           accessToAwsServices,
+          containerSecretValueFroms: (definition.container.secrets || []).map(({ valueFrom }) => valueFrom)
+        }),
+        nameChain
+      });
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.batchJobTaskExecutionRole(name),
+        resource: getBatchJobTaskExecutionRole({
           containerSecretValueFroms: (definition.container.secrets || []).map(({ valueFrom }) => valueFrom)
         }),
         nameChain

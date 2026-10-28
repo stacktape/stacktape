@@ -508,6 +508,14 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
     });
   },
+  /** The role the ECS agent uses to pull a batch job's image, write its logs and read its secrets. */
+  batchJobTaskExecutionRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'TaskExecution' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
   agentCoreRuntime(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
