@@ -282,8 +282,9 @@ export const postgresQuery = async (conn: PostgresConnectionOpts, opts: SqlQuery
   let client: PgClient | null = null;
 
   try {
-    // A writable session runs only SQL that cannot change data in bulk without confirmation.
-    const reason = getSqlConfirmationReason(opts.sql, 'postgres');
+    // A writable session runs only SQL that cannot change data in bulk without confirmation. A read-only one needs
+    // none: its transaction refuses every write.
+    const reason = opts.readOnly ? undefined : getSqlConfirmationReason(opts.sql, 'postgres');
     if (reason && !opts.confirm) {
       return {
         ok: false,
@@ -736,7 +737,7 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
   let connection: MysqlConnection | null = null;
 
   try {
-    const reason = getSqlConfirmationReason(opts.sql, 'mysql');
+    const reason = opts.readOnly ? undefined : getSqlConfirmationReason(opts.sql, 'mysql');
     if (reason && !opts.confirm) {
       return {
         ok: false,

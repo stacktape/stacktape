@@ -9,7 +9,7 @@ import { isDirAccessible } from './fs-utils';
 import { serialize } from './misc';
 import { CliError } from './errors';
 import { StreamTransformer } from './streams';
-import { stopProcessGroupOnExit, stopProcessTree } from './process-tree';
+import { stopProcessGroupOnExit, stopProcessTree, type ProcessTreeStopResult } from './process-tree';
 import { nextSubprocessOrdinal, startTiming } from './timings';
 
 EventEmitter.defaultMaxListeners = 0;
@@ -258,7 +258,7 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
 
   const childProcess = getChildProcess(command, args, params);
   const timeoutMs = params.rawOptions?.timeout;
-  let stopOnDeadline: Promise<boolean> | undefined;
+  let stopOnDeadline: Promise<ProcessTreeStopResult> | undefined;
   let removeExitHook = () => {};
   let deadline: ReturnType<typeof setTimeout> | undefined;
   if (timeoutMs !== undefined && childProcess.pid) {
@@ -285,9 +285,11 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
       settle();
       if (stopOnDeadline) {
         // A command that ends cleanly on SIGTERM still did not finish before its deadline.
+        const { stopped, survivingPids } = await stopOnDeadline;
         throw Object.assign(new Error(`Command \`${commandDescription}\` timed out after ${timeoutMs} ms.`), {
           timedOut: true,
-          processTreeStopped: await stopOnDeadline
+          processTreeStopped: stopped,
+          survivingPids
         });
       }
       logDetailsFn();
@@ -299,8 +301,10 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
       if (stopOnDeadline && err && typeof err === 'object' && !err.timedOut) {
         // Execa reports a signal; the deadline is the reason. Whether every process of the command stopped is known
         // only once the tree is checked.
+        const { stopped, survivingPids } = await stopOnDeadline;
         err.timedOut = true;
-        err.processTreeStopped = await stopOnDeadline;
+        err.processTreeStopped = stopped;
+        err.survivingPids = survivingPids;
       }
       logDetailsFn();
       endTiming({ exitCode: typeof err?.exitCode === 'number' ? err.exitCode : null, outcome: 'error' });

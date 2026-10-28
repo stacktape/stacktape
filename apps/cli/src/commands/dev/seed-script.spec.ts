@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -211,10 +212,17 @@ const withScripts = async (
   }
 };
 
+/** Whether `pid` runs; a zombie has exited and waits only to be reaped by whichever process adopted it. */
 const isRunning = (pid: number) => {
   try {
     process.kill(pid, 0);
-    return true;
+  } catch {
+    return false;
+  }
+  if (process.platform !== 'linux') return true;
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2)[0] !== 'Z';
   } catch {
     return false;
   }
@@ -249,6 +257,49 @@ describe('seed output and errors are masked before they reach an agent', () => {
         const result = await runSeedScript('seed');
         expect(result).toMatchObject({ ok: false, code: 'SCRIPT_FAILED' });
         expect(JSON.stringify(result)).not.toContain(canary);
+      }
+    );
+  });
+});
+
+// Review of #391: a grandchild that left the process group with setsid() and ignored SIGTERM kept running after the
+// seed answered that every process had stopped.
+const hasPython = Bun.which('python3') !== null;
+describe.skipIf(process.platform === 'win32' || !hasPython)('a seed whose grandchild leaves its process group', () => {
+  test('is stopped too, with SIGKILL when it ignores SIGTERM', async () => {
+    await withScripts(
+      (directory) => ({
+        seed: localScript({
+          executeCommand: `${JSON.stringify(process.execPath)} ${JSON.stringify(join(directory, 'parent.js'))}`
+        })
+      }),
+      async (directory) => {
+        const pidFile = join(directory, 'grandchild.pid');
+        const mutation = join(directory, 'mutation-after-timeout');
+        await writeFile(
+          join(directory, 'grandchild.py'),
+          `import os, pathlib, signal, time
+os.setsid()
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+pathlib.Path(${JSON.stringify(pidFile)}).write_text(str(os.getpid()))
+time.sleep(3)
+pathlib.Path(${JSON.stringify(mutation)}).write_text('late')
+time.sleep(8)
+`
+        );
+        await writeFile(
+          join(directory, 'parent.js'),
+          `const child = require('child_process').spawn('python3', [${JSON.stringify(join(directory, 'grandchild.py'))}], { stdio: 'ignore' });
+child.on('exit', () => process.exit(0));\n`
+        );
+        // The grandchild must have left the group before the deadline for this to test anything.
+        const result = await runSeedScript('seed', { timeoutSeconds: 0.8 });
+        expect(result).toMatchObject({ ok: false, code: 'SCRIPT_TIMEOUT' });
+        expect(result.ok === false && result.error).toContain('with every process it started');
+        const grandchildPid = Number(await Bun.file(pidFile).text());
+        expect(isRunning(grandchildPid)).toBe(false);
+        await Bun.sleep(3000);
+        expect(await Bun.file(mutation).exists()).toBe(false);
       }
     );
   });

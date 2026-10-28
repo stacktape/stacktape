@@ -1,59 +1,129 @@
+import { spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import killProcessTree from 'tree-kill';
 
-const STOP_GRACE_MS = 2000;
+/** How long a process gets to end on SIGTERM before SIGKILL: a timed-out script must stop writing soon. */
+const STOP_GRACE_MS = 500;
 const KILL_WAIT_MS = 1000;
+const POLL_MS = 50;
 
-const signalDescendants = (pid: number, signal: NodeJS.Signals) =>
-  new Promise<void>((resolveSignal) => {
-    killProcessTree(pid, signal, () => resolveSignal());
-  });
+type ProcessEntry = { pid: number; parentPid: number; groupId: number; zombie: boolean };
 
-const signalGroup = (pid: number, signal: NodeJS.Signals) => {
+/** `/proc/<pid>/stat`: the command name in parentheses can hold spaces, so the fields are read after its last `)`. */
+const readProcEntry = (pid: number): ProcessEntry | undefined => {
   try {
-    process.kill(-pid, signal);
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const [state, parentPid, groupId] = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+    return { pid, parentPid: Number(parentPid), groupId: Number(groupId), zombie: state === 'Z' };
   } catch {
-    // The group has no process left.
+    return undefined;
   }
 };
 
-/** Whether `pid` runs, or, with a negative pid, whether a process of that group still runs. */
-const isRunning = (pid: number) => {
+/** Every process of this user and others that the system lets this process see. */
+const listProcesses = (): ProcessEntry[] => {
+  if (process.platform === 'linux') {
+    return readdirSync('/proc')
+      .filter((name) => /^\d+$/.test(name))
+      .map((name) => readProcEntry(Number(name)))
+      .filter((entry): entry is ProcessEntry => Boolean(entry));
+  }
+  const listed = spawnSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,stat='], { encoding: 'utf8' });
+  return (listed.stdout ?? '')
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter((fields) => fields.length >= 4 && /^\d+$/.test(fields[0]!))
+    .map(([pid, parentPid, groupId, state]) => ({
+      pid: Number(pid),
+      parentPid: Number(parentPid),
+      groupId: Number(groupId),
+      zombie: state!.startsWith('Z')
+    }));
+};
+
+/** Adds to `tracked` every listed process below one it holds, and with `groupId` every member of that group. */
+const collect = (tracked: Set<number>, processes: ProcessEntry[], groupId?: number) => {
+  for (let added = true; added;) {
+    added = false;
+    for (const entry of processes) {
+      if (tracked.has(entry.pid)) continue;
+      if (tracked.has(entry.parentPid) || entry.groupId === groupId) {
+        tracked.add(entry.pid);
+        added = true;
+      }
+    }
+  }
+};
+
+const signal = (pid: number, name: NodeJS.Signals) => {
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    process.kill(pid, name);
+  } catch {
+    // It has exited.
   }
 };
 
-const waitUntilStopped = async (running: () => boolean, timeoutMs: number): Promise<boolean> => {
-  const deadline = Date.now() + timeoutMs;
-  while (running()) {
-    if (Date.now() >= deadline) return false;
-    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
-  }
-  return true;
+/** The tracked processes that still run; a zombie has exited and waits only for its parent. */
+const findRunning = (tracked: Set<number>, processes: ProcessEntry[]) => {
+  const listed = new Map(processes.map((entry) => [entry.pid, entry]));
+  return [...tracked].filter((pid) => {
+    const entry = listed.get(pid);
+    return entry !== undefined && !entry.zombie;
+  });
 };
+
+export type ProcessTreeStopResult = { stopped: boolean; survivingPids: number[] };
 
 /**
- * Stops `pid` and every process below it, first with SIGTERM and then with SIGKILL: its descendants (`taskkill /T` on
- * Windows), and on POSIX every process of the group `pid` leads when it was started detached. The group also holds
- * processes whose parent already exited. Returns whether nothing of it runs any more; on Windows, only `pid` itself
+ * Stops `pid` and every process below it, SIGTERM first and SIGKILL after a short grace. The process table is read
+ * before any signal, so a descendant that left the group with `setsid()` is still known by its parent; on POSIX every
+ * member of the group `pid` leads (when it was started detached) counts too, which also holds processes whose parent
+ * already exited. Processes started during the grace are added as they appear. `stopped` is true only once no tracked
+ * process runs; otherwise `survivingPids` lists them. On Windows, `taskkill /T` stops the tree and only `pid` itself
  * can be checked.
  */
-export const stopProcessTree = async (pid: number, { processGroup }: { processGroup: boolean }): Promise<boolean> => {
-  const usesGroup = processGroup && process.platform !== 'win32';
-  const running = () => isRunning(usesGroup ? -pid : pid);
-  for (const [signal, waitMs] of [
+export const stopProcessTree = async (
+  pid: number,
+  { processGroup }: { processGroup: boolean }
+): Promise<ProcessTreeStopResult> => {
+  if (process.platform === 'win32') {
+    await new Promise<void>((resolveKill) => killProcessTree(pid, 'SIGKILL', () => resolveKill()));
+    const running = (() => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    return { stopped: !running, survivingPids: running ? [pid] : [] };
+  }
+
+  const groupId = processGroup ? pid : undefined;
+  const tracked = new Set([pid]);
+  collect(tracked, listProcesses(), groupId);
+  let running: number[] = [];
+  for (const [name, waitMs] of [
     ['SIGTERM', STOP_GRACE_MS],
     ['SIGKILL', KILL_WAIT_MS]
   ] as const) {
-    // Descendants first: once the parent is gone, the ones in other groups can no longer be found.
-    await signalDescendants(pid, signal);
-    if (usesGroup) signalGroup(pid, signal);
-    if (await waitUntilStopped(running, waitMs)) return true;
+    const deadline = Date.now() + waitMs;
+    let processes = listProcesses();
+    collect(tracked, processes, groupId);
+    running = findRunning(tracked, processes);
+    for (const target of running) signal(target, name);
+    while (running.length && Date.now() < deadline) {
+      await new Promise((resolveWait) => setTimeout(resolveWait, POLL_MS));
+      processes = listProcesses();
+      const known = tracked.size;
+      collect(tracked, processes, groupId);
+      running = findRunning(tracked, processes);
+      // A process started after the signal was sent gets it too.
+      if (tracked.size > known) for (const target of running) signal(target, name);
+    }
+    if (!running.length) return { stopped: true, survivingPids: [] };
   }
-  return false;
+  return { stopped: false, survivingPids: running };
 };
 
 /**
@@ -62,7 +132,7 @@ export const stopProcessTree = async (pid: number, { processGroup }: { processGr
  */
 export const stopProcessGroupOnExit = (pid: number): (() => void) => {
   if (process.platform === 'win32') return () => {};
-  const stop = () => signalGroup(pid, 'SIGTERM');
+  const stop = () => signal(-pid, 'SIGTERM');
   process.once('exit', stop);
   return () => process.removeListener('exit', stop);
 };

@@ -16,7 +16,16 @@ export const MAX_SEED_TIMEOUT_SECONDS = 280;
 
 export type SeedScriptResult =
   | { ok: true; script: string; durationMs: number; output: string[]; omittedOutputLines?: number }
-  | { ok: false; code: string; error: string; hint?: string; available?: string[]; output?: string[] };
+  | {
+      ok: false;
+      code: string;
+      error: string;
+      hint?: string;
+      available?: string[];
+      output?: string[];
+      /** Processes a timed-out script started that still run. */
+      survivingPids?: number[];
+    };
 
 /**
  * Directives that read a resource or deployed CloudFormation state. Only `$ResourceParam` of a database running
@@ -218,7 +227,9 @@ export const runSeedScript = async (
       agentLog('dev', `Seed script refused: ${scriptName}`, 'warn');
       return { ok: false, code: 'NOT_LOCAL', error: error.message };
     }
-    const timeout = (error as { metadata?: { timedOut?: boolean; processTreeStopped?: boolean } }).metadata;
+    const timeout = (
+      error as { metadata?: { timedOut?: boolean; processTreeStopped?: boolean; survivingPids?: number[] } }
+    ).metadata;
     const timedOut = timeout?.timedOut === true || Date.now() - startedAt >= timeoutMs;
     agentLog('dev', `Seed script ${timedOut ? 'timed out' : 'failed'}: ${scriptName}`, 'error');
     if (!timedOut) {
@@ -230,16 +241,18 @@ export const runSeedScript = async (
       };
     }
     const stopped = timeout?.processTreeStopped !== false;
+    const survivors = timeout?.survivingPids ?? [];
     return {
       ok: false,
       code: 'SCRIPT_TIMEOUT',
       error: stopped
         ? `Script "${scriptName}" was stopped after ${timeoutSeconds} s, with every process it started.`
-        : `Script "${scriptName}" timed out after ${timeoutSeconds} s, and some of the processes it started could not be stopped; they may still be changing data.`,
+        : `Script "${scriptName}" timed out after ${timeoutSeconds} s, and ${survivors.length ? `processes ${survivors.join(', ')} it started still run` : 'some of the processes it started could not be stopped'}; they may still be changing data.`,
       hint: stopped
         ? `Pass a longer timeoutSeconds (at most ${MAX_SEED_TIMEOUT_SECONDS}) if the seed needs more time; the MCP client's own per-call timeout still applies.`
-        : 'Check for leftover processes of the script before running it again.',
-      output
+        : 'Stop the leftover processes of the script before running it again.',
+      output,
+      ...(survivors.length ? { survivingPids: survivors } : {})
     };
   }
   agentLog('dev', `Seed script finished: ${scriptName}`);
