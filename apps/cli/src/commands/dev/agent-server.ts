@@ -972,7 +972,7 @@ export const getDeployedResources = (
   });
 
 /** How long status waits for the last run of a batch job; status must answer even when AWS is slow. */
-const BATCH_JOB_LOOKUP_TIMEOUT_MS = 3000;
+const BATCH_JOB_LOOKUP_TIMEOUT_MS = 8000;
 
 type BatchJobRun = { status?: string; startedAt?: string; stoppedAt?: string; error?: string; cause?: string };
 

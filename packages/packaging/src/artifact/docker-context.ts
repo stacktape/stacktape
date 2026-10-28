@@ -78,6 +78,21 @@ const getDockerIgnorePath = async ({
  * exclude VCS, editor, dependency, or build-output directories: a custom Dockerfile can consume any of them. The
  * selected Dockerfile-specific ignore file takes precedence over the root `.dockerignore`, matching Docker.
  */
+/**
+ * The directories that exclusions drop as a whole, as globs that keep the inventory from reading them. Stacktape's local
+ * state in `.stacktape` holds the files of local databases, owned by the database container's user: reading them made
+ * the checksum of a batch job image built from the project root fail with EACCES once dev mode had run (r2mm). A `!`
+ * pattern can bring a file inside an excluded directory back, so with one every directory is read.
+ */
+export const getExcludedDirectoryGlobs = (patterns: string[]): string[] => {
+  const lines = patterns.map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+  if (lines.some((line) => line.startsWith('!'))) return [];
+  return lines
+    .map((line) => line.replace(/^\/+/, '').replace(/\/+$/, ''))
+    .filter((line) => /^(\*\*\/)?[^*?[\]\\/]+$/.test(line))
+    .map((line) => `${line}/**`);
+};
+
 export const getDockerContextChecksum = async ({
   absoluteBuildContextPath,
   dockerfilePath = 'Dockerfile',
@@ -107,9 +122,10 @@ export const getDockerContextChecksum = async ({
     applyDockerIgnore && ignorePatterns === undefined
       ? await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath })
       : undefined;
+  const patterns =
+    ignorePatterns ?? (dockerIgnorePath ? (await readFile(dockerIgnorePath, 'utf8')).split(/\r?\n/) : []);
   const matcher = dockerIgnore();
-  if (ignorePatterns !== undefined) matcher.add(ignorePatterns.join('\n'));
-  else if (dockerIgnorePath) matcher.add(await readFile(dockerIgnorePath, 'utf8'));
+  matcher.add(patterns.join('\n'));
 
   const contextEntries = await fastGlob('**/*', {
     cwd: absoluteBuildContextPath,
@@ -117,7 +133,8 @@ export const getDockerContextChecksum = async ({
     followSymbolicLinks: false,
     markDirectories: true,
     onlyFiles: false,
-    unique: true
+    unique: true,
+    ignore: getExcludedDirectoryGlobs(patterns)
   });
   const includedEntries = matcher
     .filter(contextEntries)
