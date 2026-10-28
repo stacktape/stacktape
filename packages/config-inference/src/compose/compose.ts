@@ -1528,6 +1528,15 @@ export const composeConfig = ({
       });
     }
     for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'http' || trigger.pathParameters === undefined) continue;
+      const missing = trigger.pathParameters.filter((parameter) => !trigger.path.includes(`{${parameter}}`));
+      if (missing.length === 0) continue;
+      gaps.push({
+        subject: `${service.name}.route`,
+        message: `${service.name} reads the path ${missing.length === 1 ? 'parameter' : 'parameters'} ${missing.join(', ')}, but init could not tell its route, so it takes every request on ${trigger.path} and ${missing.length === 1 ? 'that parameter arrives' : 'those parameters arrive'} empty. Before deploying, set its http-api-gateway event to the route that defines ${missing.map((parameter) => `{${parameter}}`).join(' and ')}.`
+      });
+    }
+    for (const trigger of service.functionTriggers) {
       if (trigger.type !== 'unmapped') continue;
       // The caller already gets the function's ARN and connectTo from the variable it reads.
       if (trigger.sourceType === DIRECT_INVOCATION_SOURCE && invokedByName.has(service.name)) continue;
@@ -1599,7 +1608,16 @@ export const composeConfig = ({
     });
   }
 
-  for (const handler of facts.unmappedHandlers) {
+  for (const handler of facts.handlerFindings) {
+    if (handler.reason === 'java-package') {
+      const folder = posix.basename(posix.dirname(handler.path));
+      const className = posix.basename(handler.path, '.java');
+      gaps.push({
+        subject: handler.path,
+        message: `${className} is in ${handler.packageName === undefined ? 'the default package' : `package ${handler.packageName}`}, but Stacktape currently builds a Java handler from the class's folder: ${folder}.${className}::handleRequest. Lambda cannot load that class, so every invocation fails. Until Stacktape builds the handler from the package, put ${className} in package ${folder}.`
+      });
+      continue;
+    }
     gaps.push({
       subject: handler.path,
       message:

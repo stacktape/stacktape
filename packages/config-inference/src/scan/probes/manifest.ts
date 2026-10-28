@@ -198,7 +198,10 @@ type ParsedManifest = {
   raw: string;
   name?: string;
   scripts: Record<string, string>;
+  /** `dependencies` and `devDependencies` together. */
   dependencies: Record<string, string>;
+  /** `dependencies` only: what the package needs when it runs. */
+  runtimeDependencies: Record<string, string>;
   workspaces?: string[];
   engines?: Record<string, string>;
   private?: boolean;
@@ -232,6 +235,7 @@ const parseManifest = (path: string, raw: string): ParsedManifest | undefined =>
       ...((parsed.dependencies ?? {}) as Record<string, string>),
       ...((parsed.devDependencies ?? {}) as Record<string, string>)
     },
+    runtimeDependencies: (parsed.dependencies ?? {}) as Record<string, string>,
     ...(workspaces === undefined ? {} : { workspaces }),
     ...(parsed.engines === undefined ? {} : { engines: parsed.engines as Record<string, string> }),
     ...(typeof parsed.private === 'boolean' ? { private: parsed.private } : {})
@@ -259,19 +263,16 @@ const SCRIPT_FILE =
   /^(?:node|bun(?:\s+run)?|tsx|ts-node|deno\s+run)(?:\s+-{1,2}[\w-]+(?:=\S+)?)*\s+(?:\.\/)?([\w./-]+\.[cm]?[jt]s)\s*$/;
 /** Code that keeps a process alive: a server, a timer, a loop, a consumer or a subscription. */
 const KEEPS_RUNNING =
-  /\.listen\s*\(|\bserve\s*\(|createServer\s*\(|setInterval\s*\(|while\s*\(\s*(?:true|1|!\w+)\s*\)|for\s*\(\s*;\s*;\s*\)|\bReceiveMessage(?:Command)?\b|\.(?:subscribe|consume|process|run)\s*\(\s*(?:\{\s*each|['"`\w]+\s*,\s*(?:async\s*)?\()|\bnew\s+Worker\s*\(|Consumer\.create\s*\(|\.on\s*\(\s*['"](?:message|data|job)['"]|\bcron\.schedule\s*\(|\bnew\s+CronJob\b/;
-/** The file's code does its work at the top level and ends: `await`, without a `main()` it hands off to elsewhere. */
-const TOP_LEVEL_AWAIT = /^(?:const|let|var|await)\b[^\n]*\bawait\b/m;
-/** A relative import: the work may live in another module the probe does not read. */
-const RELATIVE_IMPORT = /\bfrom\s+['"]\.{1,2}\/|\brequire\(\s*['"]\.{1,2}\//;
+  /\.listen\s*\(|\bserve\s*\(|createServer\s*\(|setInterval\s*\(|\bwhile\s*\(|for\s*\(\s*;\s*;\s*\)|\bfor\s+await\b|\bReceiveMessage(?:Command)?\b|\.(?:subscribe|consume|process|run)\s*\(\s*(?:\{\s*each|['"`\w]+\s*,\s*(?:async\s*)?\()|\bnew\s+Worker\s*\(|\bWorker\.create\s*\(|\bworker\.run\s*\(|Consumer\.create\s*\(|\.on\s*\(\s*['"](?:message|data|job)['"]|\bcron\.schedule\s*\(|\bnew\s+CronJob\b/;
 /** The file says it runs once: `// Batch job: ...`, `runs once`, `one-off`. */
 const ONE_SHOT_STATEMENT = /^\s*(?:\/\/|\/?\*|#)[^\n]*\b(?:batch job|one-?(?:shot|off)|runs? once|cron job)\b/im;
 /** A statement that each queue message starts the job: `runs for every message on the report queue`. */
 const RUNS_PER_MESSAGE = /\b(?:for |per )?(?:each|every)\b[^.\n]{0,40}\bmessage\b|\bper\b[^.\n]{0,20}\bmessage\b/i;
 
 /**
- * A package whose start script runs one file that does its work and exits: no server, timer, loop or consumer keeps
- * it alive. Such a process is a job, not a service: kept running, it would exit and be restarted forever.
+ * A package whose start script runs one file that says it is a job, or that each queue message starts it, and that
+ * nothing in the file keeps alive (no server, timer, loop or consumer). Kept running, such a process would exit and be
+ * restarted forever. Without that statement the process stays a worker: a job nothing starts never runs.
  */
 const oneShotScript = async (
   context: ProbeContext,
@@ -285,11 +286,9 @@ const oneShotScript = async (
   if (!context.files.includes(path)) return undefined;
   const raw = await readText(context, path, { fullFile: true });
   if (raw === undefined || KEEPS_RUNNING.test(raw)) return undefined;
-  const states = ONE_SHOT_STATEMENT.test(raw);
-  if (!states && (RELATIVE_IMPORT.test(raw) || !TOP_LEVEL_AWAIT.test(raw))) return undefined;
-  const evidence = citeFirstMatchOnly(path, raw, states ? ONE_SHOT_STATEMENT : TOP_LEVEL_AWAIT, 'executionModel');
+  const evidence = citeFirstMatchOnly(path, raw, ONE_SHOT_STATEMENT, 'executionModel');
   // Which queue the code does not say. The comment beside the code, or the README line about this package, can say
-  // that each message starts it.
+  // that each message starts it; the assembler binds it when the project has exactly one queue.
   const readme = context.files.includes('README.md') ? await readText(context, 'README.md') : undefined;
   const readmeLine = readme
     ?.split('\n')
@@ -303,7 +302,7 @@ const oneShotScript = async (
       : readmeLine !== undefined && readme !== undefined
         ? citeFirstMatchOnly('README.md', readme, new RegExp(escapeRegExp(readmeLine.trim())), 'functionTriggers')
         : undefined;
-  return { evidence, perMessage };
+  return evidence === undefined && perMessage === undefined ? undefined : { evidence, perMessage };
 };
 
 const escapeRegExp = (value: string): string => value.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -412,14 +411,15 @@ export const manifestProbe: Probe = {
     const importedMembers = new Set(
       isMonorepo
         ? manifests.flatMap((manifest) =>
-            Object.keys(manifest.dependencies).filter((name) => name !== manifest.name && memberPackageNames.has(name))
+            // A test package's `devDependencies` on the app it tests do not make the app a library.
+            Object.keys(manifest.runtimeDependencies).filter(
+              (name) => name !== manifest.name && memberPackageNames.has(name)
+            )
           )
         : []
     );
 
     const services: ServiceFactInput[] = [];
-    /** The queue whose messages start a job, when the job's comment or README line says so. */
-    const oneShotQueues: DependencyFact[] = [];
     const dependencyConsumers = new Map<
       DependencyKind,
       { consumers: Set<string>; addressedBy: Set<string>; evidence: Citation[] }
@@ -469,7 +469,13 @@ export const manifestProbe: Probe = {
       // build (`vite build`) does not make it a static site. A member with a server framework stays a candidate: a
       // frontend imports a Hono or tRPC API's types from it.
       const sharedLibrary =
-        manifest.name !== undefined && importedMembers.has(manifest.name) && !hasStart && !exposesHttp;
+        manifest.name !== undefined &&
+        importedMembers.has(manifest.name) &&
+        !hasStart &&
+        !exposesHttp &&
+        // A static site's own entry page: an app, whatever imports it.
+        !context.files.includes(`${manifestPrefix}index.html`) &&
+        !context.files.includes(`${manifestPrefix}public/index.html`);
       const runnable = !sharedLibrary && (staticSite !== undefined || hasStart || exposesHttp);
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
@@ -511,20 +517,7 @@ export const manifestProbe: Probe = {
         // oxlint-disable-next-line no-await-in-loop -- one entry file per package that starts a script.
         const oneShot = exposesHttp || staticSite !== undefined ? undefined : await oneShotScript(context, manifest);
         if (oneShot?.evidence !== undefined) evidence.push(oneShot.evidence);
-        if (oneShot?.perMessage !== undefined) {
-          const queue = defaultDependencyName('queue');
-          if (!oneShotQueues.some((dependency) => dependency.name === queue)) {
-            oneShotQueues.push({
-              name: queue,
-              kind: 'queue',
-              extensions: [],
-              consumedBy: [],
-              addressedBy: [],
-              evidence: [oneShot.perMessage],
-              source: 'probe'
-            });
-          }
-        }
+        if (oneShot?.perMessage !== undefined) evidence.push(oneShot.perMessage);
 
         services.push({
           name: serviceNameFor(manifest),
@@ -541,6 +534,7 @@ export const manifestProbe: Probe = {
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
           executionModel: oneShot === undefined ? 'long-running' : 'one-shot',
+          // Bound to a real queue by the assembler, which sees the project's queues.
           ...(oneShot?.perMessage === undefined
             ? {}
             : { functionTriggers: [{ type: 'queue' as const, dependencyName: defaultDependencyName('queue') }] }),
@@ -648,9 +642,6 @@ export const manifestProbe: Probe = {
       evidence: entry.evidence,
       source: 'probe'
     }));
-    for (const queue of oneShotQueues) {
-      if (!dependencies.some((dependency) => dependency.name === queue.name)) dependencies.push(queue);
-    }
 
     return {
       ...(packageManager ? { packageManager } : {}),

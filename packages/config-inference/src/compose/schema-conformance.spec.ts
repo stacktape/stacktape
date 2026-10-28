@@ -990,4 +990,47 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     ]);
     expect(result.gaps).toEqual([]);
   });
+
+  it('says when a catch-all route drops the path parameters a handler reads, and when a Java package will not load', () => {
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({
+            name: 'quote',
+            path: 'functions',
+            language: 'typescript',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/quote.ts',
+            functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}', pathParameters: ['sku'] }]
+          })
+        ],
+        handlerFindings: [
+          {
+            path: 'functions/tax/src/main/java/com/acme/tax/TaxHandler.java',
+            language: 'Java',
+            reason: 'java-package',
+            packageName: 'com.acme.tax'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    expect(result.gaps).toEqual([
+      {
+        subject: 'quote.route',
+        message:
+          'quote reads the path parameter sku, but init could not tell its route, so it takes every request on /{proxy+} and that parameter arrives empty. Before deploying, set its http-api-gateway event to the route that defines {sku}.'
+      },
+      {
+        subject: 'functions/tax/src/main/java/com/acme/tax/TaxHandler.java',
+        message:
+          "TaxHandler is in package com.acme.tax, but Stacktape currently builds a Java handler from the class's folder: tax.TaxHandler::handleRequest. Lambda cannot load that class, so every invocation fails. Until Stacktape builds the handler from the package, put TaxHandler in package tax."
+      }
+    ]);
+  });
 });

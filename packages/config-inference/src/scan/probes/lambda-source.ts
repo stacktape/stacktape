@@ -9,7 +9,7 @@ import {
   type FunctionTrigger,
   type ServiceFactInput
 } from '../../facts/service';
-import type { UnmappedHandler } from '../../facts/project-facts';
+import type { HandlerFinding } from '../../facts/project-facts';
 import type { Uncertainty } from '../../facts/uncertainty';
 import {
   citeFirstMatch,
@@ -594,66 +594,65 @@ const pathParametersIn = (raw: string): string[] => {
   return [...names];
 };
 
-/** The one HTTP method a handler compares the request's method with (`requestContext.http.method === 'GET'`). */
-const comparedMethod = (raw: string): string | undefined => {
-  const methods = new Set(
-    [
-      ...raw.matchAll(
-        new RegExp(
-          `(?:\\b(?:httpMethod|method|HttpMethod)\\b['"\\]]*\\s*(?:===?|!==?)\\s*['"](${HTTP_METHODS})['"]|getHttpMethod\\(\\)\\s*\\.equals(?:IgnoreCase)?\\(\\s*"(${HTTP_METHODS})")`,
-          'gi'
-        )
-      )
-    ].map((match) => (match[1] ?? match[2])!.toUpperCase())
+/**
+ * What a guard that turns other requests away looks like after its comparison: the end of the condition, then `return`,
+ * `throw` or `raise` (`if (method !== 'GET') return { statusCode: 405 }`, `if event['httpMethod'] != 'GET':\n  return`).
+ */
+const TURNS_AWAY = String.raw`[^\n]*?(?:\)\s*\{?|:)\s*(?:return|throw|raise)\b`;
+
+/**
+ * The one HTTP method a handler serves, when it turns every other method away. A method it only tests for
+ * (`if (method === 'OPTIONS') return cors()`, `if (method === 'POST') save(); else load();`) is one branch of several,
+ * so it pins nothing.
+ */
+const guardedMethod = (raw: string): string | undefined => {
+  const guard = new RegExp(
+    String.raw`(?:\b(?:httpMethod|method|HttpMethod)\b['"\]]*\s*!==?\s*['"](${HTTP_METHODS})['"]|!\s*[\w.]*getHttpMethod\(\)\s*\.equals(?:IgnoreCase)?\(\s*"(${HTTP_METHODS})"\s*\))${TURNS_AWAY}`,
+    'gi'
   );
+  const methods = new Set([...raw.matchAll(guard)].map((match) => (match[1] ?? match[2])!.toUpperCase()));
   return methods.size === 1 ? [...methods][0] : undefined;
 };
 
-/** Routes the source states, in a comment or a string: `// GET /quote/{sku}?quantity=12`. */
-const statedRoutes = (raw: string): Array<{ method: string; path: string }> => {
-  const routes = new Map<string, { method: string; path: string }>();
-  for (const match of raw.matchAll(new RegExp(`\\b(${HTTP_METHODS}|ANY)\\s+(\\/[\\w\\-./{}+]*)`, 'g'))) {
-    const path = match[2]!.replace(/(?<=.)\/$/, '');
-    routes.set(`${match[1]} ${path}`, { method: match[1] === 'ANY' ? '*' : match[1]!, path });
-  }
-  return [...routes.values()];
+/** The route key a handler turns every other request away from: `if (event.routeKey !== 'POST /broadcast') return`. */
+const guardedRouteKey = (raw: string): { method: string; path: string } | undefined => {
+  const guard = new RegExp(
+    String.raw`\brouteKey\b['"\]]*\s*!==?\s*['"\x60](${HTTP_METHODS}|ANY)\s+(\/[^'"\x60\s]*)['"\x60]${TURNS_AWAY}`,
+    'g'
+  );
+  const routes = new Map([...raw.matchAll(guard)].map((match) => [`${match[1]} ${match[2]}`, match] as const));
+  if (routes.size !== 1) return undefined;
+  const [match] = [...routes.values()];
+  return { method: match![1] === 'ANY' ? '*' : match![1]!, path: match![2]! };
 };
+
+/** Paths stated in the source, in a comment or a string: `// GET /quote/{sku}?quantity=12`. */
+const statedPaths = (raw: string): string[] => [
+  ...new Set(
+    [...raw.matchAll(new RegExp(String.raw`\b(?:${HTTP_METHODS}|ANY)\s+(\/[\w\-./{}+]*)`, 'g'))].map((match) =>
+      match[1]!.replace(/(?<=.)\/$/, '')
+    )
+  )
+];
 
 /** A handler comparing or switching on the request path: it serves several routes itself. */
 const ROUTES_ITSELF =
   /\b(?:rawPath|path|resource|routeKey)\b['"\]]*\s*(?:===?|!==?)|\b(?:rawPath|path)\b['"\]]*\s*\.\s*(?:startsWith|endsWith|match|includes|split)\s*\(|switch\s*\([^)]*\b(?:rawPath|path|routeKey)\b/;
 
-/** Words that name what a handler does rather than what it serves: `users/get.ts` serves `users`. */
-const ACTION_STEMS = /^(?:get|post|put|patch|delete|create|update|list|read|remove|handler|index|main|app|lambda)$/i;
-
 /**
- * The route an HTTP handler serves, from what it reads: a route the source states that holds every path parameter it
- * reads, or, for the project's only HTTP handler, `/<name>/{param}` for the parameters themselves (`pathParameters.sku`
- * in `functions/quote` serves `/quote/{sku}`). Undefined when the handler reads no path parameter and states no single route, or reads `proxy`:
- * it routes on its own.
+ * The route an HTTP handler serves, only where its code or its own comment leaves no doubt: the one route key it turns
+ * every other request away from, or the one stated path that holds every path parameter it reads (`// GET
+ * /quote/{sku}` above a handler reading `pathParameters.sku`). The method is pinned only when the handler turns every
+ * other method away. A handler that routes on its own (it compares the request path or reads `proxy`) has no single
+ * route, and a file name says too little: `getUser.ts` serves `GET /users/{id}`, not `/get-user/{id}`.
  */
-const handlerRoute = (
-  path: string,
-  raw: string,
-  { lone }: { lone: boolean }
-): { method: string; path: string } | undefined => {
+const handlerRoute = (raw: string): { method: string; path: string } | undefined => {
+  const routeKey = guardedRouteKey(raw);
+  if (routeKey !== undefined) return routeKey;
   const parameters = pathParametersIn(raw);
-  if (parameters.includes('proxy')) return undefined;
-  const method = comparedMethod(raw);
-  const stated = statedRoutes(raw).filter((route) =>
-    parameters.every((parameter) => route.path.includes(`{${parameter}}`))
-  );
-  if (stated.length === 1) return { method: method ?? stated[0]!.method, path: stated[0]!.path };
-  // Beside other handlers, a name says too little: `getUser.ts` serves `GET /users/{id}`, not `/get-user/{id}`. A
-  // handler that compares the request path routes on its own.
-  if (parameters.length === 0 || !lone || ROUTES_ITSELF.test(raw)) return undefined;
-  const segments = path.replace(/\.[^./]+$/, '').split('/');
-  const base = segments
-    .toReversed()
-    .find((segment) => !ACTION_STEMS.test(segment) && !GENERIC_DIRECTORIES.has(segment.toLowerCase()));
-  if (base === undefined) return undefined;
-  const resource = base.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-  return { method: method ?? '*', path: `/${resource}/${parameters.map((name) => `{${name}}`).join('/')}` };
+  if (parameters.length === 0 || parameters.includes('proxy') || ROUTES_ITSELF.test(raw)) return undefined;
+  const stated = statedPaths(raw).filter((path) => parameters.every((parameter) => path.includes(`{${parameter}}`)));
+  return stated.length === 1 ? { method: guardedMethod(raw) ?? '*', path: stated[0]! } : undefined;
 };
 
 /** Event classes from `aws-lambda-java-events` and `Amazon.Lambda.*Events`, by the trigger each implies. */
@@ -883,7 +882,7 @@ export const lambdaSourceProbe: Probe = {
       pythonHandler: string | undefined;
       compiled?: CompiledHandler;
     }> = [];
-    const unmappedHandlers: UnmappedHandler[] = [];
+    const handlerFindings: HandlerFinding[] = [];
     const claimed = new Set<string>();
     const publishers = new Map<string, Publisher>();
     const workflowStarts: WorkflowStart[] = [];
@@ -1009,8 +1008,19 @@ export const lambdaSourceProbe: Probe = {
         // oxlint-disable-next-line no-await-in-loop -- the build file read belongs to this candidate.
         const compiled = await (path.endsWith('.java') ? javaHandler : dotnetHandler)(context, path, raw);
         if (compiled === 'no-build-file') {
-          unmappedHandlers.push({ path, language: path.endsWith('.java') ? 'Java' : '.NET', reason: 'no-build-file' });
+          handlerFindings.push({ path, language: path.endsWith('.java') ? 'Java' : '.NET', reason: 'no-build-file' });
         } else if (compiled !== undefined) {
+          // Stacktape puts the containing folder's name in front of a Java handler: `shelf/TaxHandler.java` gets
+          // `shelf.TaxHandler::handleRequest`. That is the class only when its package is exactly that folder.
+          const packageName = /^\s*package\s+([\w.]+)\s*;/m.exec(raw)?.[1];
+          if (compiled.language === 'java' && packageName !== posix.basename(posix.dirname(path))) {
+            handlerFindings.push({
+              path,
+              language: 'Java',
+              reason: 'java-package',
+              ...(packageName === undefined ? {} : { packageName })
+            });
+          }
           handlers.push({
             path,
             raw,
@@ -1024,8 +1034,7 @@ export const lambdaSourceProbe: Probe = {
         continue;
       }
       const other = OTHER_HANDLER_SHAPES.find((shape) => shape.extension.test(path) && shape.pattern.test(raw));
-      if (other !== undefined)
-        unmappedHandlers.push({ path, language: other.language, reason: 'unsupported-language' });
+      if (other !== undefined) handlerFindings.push({ path, language: other.language, reason: 'unsupported-language' });
     }
 
     // Every HTTP handler would otherwise get the catch-all route on the one HTTP API, and CloudFormation rejects two
@@ -1034,10 +1043,7 @@ export const lambdaSourceProbe: Probe = {
     const httpHandlerCount = handlers.filter(({ family }) => family?.trigger === 'http').length;
     const routes = new Map(
       handlers.flatMap((handler) => {
-        const route =
-          handler.family?.trigger === 'http'
-            ? handlerRoute(handler.path, handler.raw, { lone: httpHandlerCount === 1 })
-            : undefined;
+        const route = handler.family?.trigger === 'http' ? handlerRoute(handler.raw) : undefined;
         return route === undefined ? [] : [[handler.path, route] as const];
       })
     );
@@ -1080,12 +1086,20 @@ export const lambdaSourceProbe: Probe = {
       const triggers: FunctionTrigger[] = [];
       if (family?.trigger === 'http') {
         const route = routes.get(path);
+        const readParameters = pathParametersIn(raw).filter((parameter) => parameter !== 'proxy');
         triggers.push(
           route !== undefined
             ? { type: 'http', ...route, payloadFormat: family.payloadFormat }
             : httpHandlerCount === 1
-              ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it.
-                { type: 'http', method: '*', path: '/{proxy+}', payloadFormat: family.payloadFormat }
+              ? // The handler routes on its own (`event.rawPath`), so every method and path reaches it. Path parameters it
+                // reads by name arrive empty on this route, which composition reports.
+                {
+                  type: 'http',
+                  method: '*',
+                  path: '/{proxy+}',
+                  payloadFormat: family.payloadFormat,
+                  ...(readParameters.length === 0 ? {} : { pathParameters: readParameters })
+                }
               : { type: 'unmapped', sourceType: UNROUTED_HTTP_SOURCE }
         );
       } else if (family?.trigger === 'schedule') {
@@ -1296,13 +1310,13 @@ export const lambdaSourceProbe: Probe = {
       });
     }
 
-    return services.length === 0 && dependencies.length === 0 && unmappedHandlers.length === 0
+    return services.length === 0 && dependencies.length === 0 && handlerFindings.length === 0
       ? {}
       : {
           services,
           ...(dependencies.length === 0 ? {} : { dependencies }),
           ...(uncertainties.length === 0 ? {} : { uncertainties }),
-          ...(unmappedHandlers.length === 0 ? {} : { unmappedHandlers })
+          ...(handlerFindings.length === 0 ? {} : { handlerFindings })
         };
   }
 };

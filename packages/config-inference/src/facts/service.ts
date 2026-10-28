@@ -187,7 +187,9 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
      * The API Gateway event shape the handler is written for. `2.0` when it reads `APIGatewayProxyEventV2`
      * (`event.requestContext.http.method`, `event.rawPath`); Stacktape's HTTP API defaults to `1.0`.
      */
-    payloadFormat: z.enum(['1.0', '2.0']).optional()
+    payloadFormat: z.enum(['1.0', '2.0']).optional(),
+    /** Path parameters the handler reads by name (`event.pathParameters.sku`), which its route has to define. */
+    pathParameters: z.array(z.string().min(1)).optional()
   }),
   z.object({
     type: z.literal('queue'),

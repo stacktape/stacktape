@@ -325,7 +325,8 @@ describe('init writes a config stacktape dev can run', () => {
     });
     expect(resources.api!.properties.connectTo).toEqual(expect.arrayContaining(['jobQueue', tableName]));
     expect(resources.worker!.properties.connectTo).toEqual(expect.arrayContaining([tableName]));
-    expect(result.composition.gaps).toEqual([]);
+    // The API routes on its own, but reads `pathParameters.id`, which the catch-all route never fills.
+    expect(result.composition.gaps.map((gap) => gap.subject)).toEqual(['api.route']);
   });
 
   // The r2w dogfood run needed ten hand edits to this app's init output (round2/r2w/report.md, "Hand edits"). H1–H6 are
@@ -584,11 +585,12 @@ describe('init writes a config stacktape dev can run', () => {
       events: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }],
       connectTo: ['mainDatabase', 'storageBucket']
     });
-    // H4: the route from `pathParameters.sku` and the comment above the handler.
+    // H4: the path from the comment above the handler, which holds the `pathParameters.sku` it reads. Nothing turns
+    // other methods away, so every method reaches it.
     expect(resources.quote!.properties.events).toEqual([
       {
         type: 'http-api-gateway',
-        properties: { httpApiGatewayName: 'httpApiGateway', method: 'GET', path: '/quote/{sku}', payloadFormat: '2.0' }
+        properties: { httpApiGatewayName: 'httpApiGateway', method: '*', path: '/quote/{sku}', payloadFormat: '2.0' }
       }
     ]);
     // H5: the Astro server's quote address is the HTTP API in front of the function.

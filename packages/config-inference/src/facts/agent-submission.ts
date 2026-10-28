@@ -425,7 +425,7 @@ export const mergeAgentSubmission = ({
     // Not on the agent's schema: read from manifests by the scan.
     localScripts: baseline.localScripts,
     // Not on the agent's schema: handler files the scan found and could not map.
-    unmappedHandlers: baseline.unmappedHandlers,
+    handlerFindings: baseline.handlerFindings,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
     // has no route to the user, not even an advisory one.
