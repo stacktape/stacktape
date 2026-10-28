@@ -76,6 +76,15 @@ const serviceReference = (name: string, targetServiceName: string, targetService
   evidence: []
 });
 
+const dependency = (name: string, kind: 'queue' | 'topic' | 'object-storage', consumedBy: string[]) => ({
+  name,
+  kind,
+  extensions: [],
+  consumedBy,
+  evidence: [],
+  source: 'probe' as const
+});
+
 describe('composed configuration conforms to the Stacktape schema', () => {
   it('a service that keeps its SQLite file on a mounted disk', () => {
     expectValid(
@@ -179,6 +188,116 @@ describe('composed configuration conforms to the Stacktape schema', () => {
         ]
       })
     );
+  });
+
+  it('imported trigger settings, function sizing, a FIFO queue and Compose volumes', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        service({
+          name: 'admin',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/admin.ts',
+          functionHandler: 'main',
+          functionTimeoutSeconds: 120,
+          functionMemoryMb: 2048,
+          functionTriggers: [
+            { type: 'http', method: 'GET', path: '/admin', authorization: 'aws-iam' },
+            { type: 'queue', dependencyName: 'jobQueue', batchSize: 10, reportBatchItemFailures: true },
+            { type: 'topic', dependencyName: 'notificationsTopic', filterPolicy: { kind: ['paid'] } },
+            { type: 'object-storage', dependencyName: 'storageBucket', keyPrefix: 'incoming/', keySuffix: '.csv' },
+            { type: 'schedule', rate: 'rate(1 hour)', enabled: false, input: { operation: 'settle' } },
+            { type: 'schedule', rate: 'rate(1 day)', inputPath: '$.detail' },
+            {
+              type: 'unmapped',
+              reason: 'protected-route',
+              sourceType: 'the HTTP route GET /me, which serverless.yml protects with the "jwt" authorizer'
+            },
+            { type: 'unmapped', reason: 'disabled', sourceType: 'the event from the jobQueue queue' }
+          ]
+        }),
+        service({
+          name: 'uploads',
+          path: 'apps/uploads',
+          port: 3000,
+          persistentVolumes: [
+            { name: 'files', mountPath: '/app/uploads' },
+            { name: 'files', mountPath: '/app/archives', readOnly: true, subpath: 'archives/' }
+          ]
+        }),
+        service({
+          name: 'thumbnails',
+          path: 'apps/thumbnails',
+          exposesHttp: false,
+          persistentVolumes: [
+            { name: 'files', mountPath: '/data' },
+            { name: 'files', mountPath: '/escape', subpath: '../outside' }
+          ]
+        })
+      ],
+      dependencies: [
+        {
+          ...dependency('jobQueue', 'queue', ['admin']),
+          queueSettings: { fifo: true, contentBasedDeduplication: true, visibilityTimeoutSeconds: 60 }
+        },
+        dependency('notificationsTopic', 'topic', ['admin']),
+        dependency('storageBucket', 'object-storage', ['admin'])
+      ]
+    });
+    const result = composeConfig({ facts, projectName: 'demo' });
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.admin?.properties).toMatchObject({
+      packaging: { properties: { handlerFunction: 'main' } },
+      timeout: 120,
+      memory: 2048
+    });
+    expect(
+      (resources.admin!.properties.events as Array<{ properties: unknown }>).map((event) => event.properties)
+    ).toEqual([
+      { httpApiGatewayName: 'httpApiGateway', method: 'GET', path: '/admin', authorizer: { type: 'aws-iam' } },
+      { sqsQueueName: 'jobQueue', batchSize: 10, reportBatchItemFailures: true },
+      { snsTopicName: 'notificationsTopic', filterPolicy: { kind: ['paid'] } },
+      {
+        bucketArn: "$ResourceParam('storageBucket', 'arn')",
+        s3EventType: 's3:ObjectCreated:*',
+        filterRule: { prefix: 'incoming/', suffix: '.csv' }
+      },
+      { scheduleRate: 'rate(1 hour)', enabled: false, input: { operation: 'settle' } },
+      { scheduleRate: 'rate(1 day)', inputPath: '$.detail' }
+    ]);
+    // A 120-second consumer needs the queue to hide a message longer than the declared 60 seconds.
+    expect(resources.jobQueue?.properties).toEqual({
+      fifoEnabled: true,
+      contentBasedDeduplication: true,
+      visibilityTimeoutSeconds: 720
+    });
+    // Both services mount the one disk their shared Compose volume became.
+    expect(resources.filesVolume).toEqual({ type: 'efs-filesystem', properties: { backupEnabled: true } });
+    expect(resources.uploads?.properties.volumeMounts).toEqual([
+      { type: 'efs', properties: { efsFilesystemName: 'filesVolume', mountPath: '/app/uploads' } },
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'filesVolume',
+          rootDirectory: '/archives',
+          mountPath: '/app/archives',
+          readOnly: true
+        }
+      }
+    ]);
+    expect(resources.thumbnails?.properties.volumeMounts).toEqual([
+      { type: 'efs', properties: { efsFilesystemName: 'filesVolume', mountPath: '/data' } }
+    ]);
+    expect(result.gaps.map((gap) => gap.subject)).toEqual(expect.arrayContaining(['admin.trigger']));
+    expect(result.gaps.find((gap) => gap.subject === 'thumbnails.volume')?.message).toBe(
+      'thumbnails mounts ../outside of the files volume at /escape, a path outside the volume, so we did not mount it. Before deploying, give it a subpath inside the volume.'
+    );
+    expect(result.gaps.filter((gap) => gap.subject === 'admin.trigger').map((gap) => gap.message)).toEqual([
+      'admin serves the HTTP route GET /me, which serverless.yml protects with the "jwt" authorizer. Stacktape cannot reproduce that protection, so we left the route out rather than make it public. Before deploying, add it back to the function\'s http-api-gateway events with a Stacktape authorizer (cognito, lambda or aws-iam).',
+      "Your deployment files disable the event from the jobQueue queue for admin, so we left it out and it does not start running. Add it to the function's events when you want it on."
+    ]);
   });
 
   it('a scheduled batch job', () => {

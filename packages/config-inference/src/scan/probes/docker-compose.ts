@@ -145,6 +145,60 @@ type ComposeService = {
   depends_on?: unknown;
   environment?: unknown;
   labels?: unknown;
+  volumes?: unknown;
+};
+
+/**
+ * Directories a named volume commonly shadows only for local development: installed dependencies, package-manager and
+ * build caches, and runtime scratch space. On AWS the image already holds the first, the rest need not outlive the
+ * container, and an empty network disk mounted over an image directory would hide what the build installed.
+ */
+const isDevelopmentVolumeTarget = (mountPath: string): boolean => {
+  const segments = mountPath.split('/').filter(Boolean);
+  if (segments.includes('node_modules')) return true;
+  if (/^\/(?:tmp|var\/tmp|run|var\/run|var\/cache|dev\/shm)(?:\/|$)/.test(mountPath)) return true;
+  // Dot-directories in a home directory are tool caches and settings (`/root/.npm`, `/home/app/.cache`).
+  if (/^\/(?:root|home\/[^/]+)\/\./.test(mountPath)) return true;
+  return /^(?:\.venv|venv|vendor|__pycache__|\.next|\.nuxt|\.cache|cache|tmp)$/.test(segments.at(-1) ?? '');
+};
+
+type PersistentVolume = NonNullable<ServiceFactInput['persistentVolumes']>[number];
+
+/**
+ * The named volumes a service mounts (`uploads:/app/uploads:ro`), limited to volumes the file declares, with the
+ * read-only option and the subdirectory of the volume (`volume.subpath`) each mount uses.
+ */
+const persistentVolumesOf = (service: ComposeService, declaredVolumes: ReadonlySet<string>): PersistentVolume[] => {
+  const entries = Array.isArray(service.volumes) ? service.volumes : [];
+  const mounts = entries.flatMap((entry): PersistentVolume[] => {
+    let source: unknown;
+    let target: unknown;
+    let readOnly = false;
+    let subpath: unknown;
+    if (typeof entry === 'string') {
+      const [entrySource, entryTarget, options = ''] = entry.split(':');
+      source = entrySource;
+      target = entryTarget;
+      readOnly = options.split(',').includes('ro');
+    } else if (isRecord(entry) && (entry.type === undefined || entry.type === 'volume')) {
+      source = entry.source;
+      target = entry.target;
+      readOnly = entry.read_only === true || entry.read_only === 'true';
+      subpath = isRecord(entry.volume) ? entry.volume.subpath : undefined;
+    }
+    if (typeof source !== 'string' || typeof target !== 'string' || !declaredVolumes.has(source)) return [];
+    const mountPath = posix.normalize(target).replace(/\/$/, '');
+    if (!mountPath.startsWith('/') || mountPath === '/' || isDevelopmentVolumeTarget(mountPath)) return [];
+    return [
+      {
+        name: source,
+        mountPath,
+        ...(readOnly ? { readOnly: true as const } : {}),
+        ...(typeof subpath === 'string' && subpath !== '' ? { subpath } : {})
+      }
+    ];
+  });
+  return [...new Map(mounts.map((mount) => [mount.mountPath, mount])).values()];
 };
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
@@ -423,6 +477,8 @@ export const dockerComposeProbe: Probe = {
 
     const declaredServices = (parsed as { services?: Record<string, ComposeService> } | null)?.services;
     if (declaredServices === null || typeof declaredServices !== 'object') return {};
+    const topLevelVolumes = (parsed as { volumes?: unknown }).volumes;
+    const declaredVolumes = new Set(isRecord(topLevelVolumes) ? Object.keys(topLevelVolumes) : []);
 
     const dependencyDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
       const image = service?.image;
@@ -657,6 +713,7 @@ export const dockerComposeProbe: Probe = {
         }
       }
 
+      const persistentVolumes = persistentVolumesOf(service, declaredVolumes);
       const citation = citeFirstMatchOnly(path, raw, new RegExp(`^\\s*${escapeForPattern(composeName)}:`));
       serviceFacts.push({
         name,
@@ -672,6 +729,7 @@ export const dockerComposeProbe: Probe = {
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(persistentVolumes.length === 0 ? {} : { persistentVolumes }),
         environmentVariables: variables,
         evidence: citation === undefined ? [] : [citation],
         source: 'probe'

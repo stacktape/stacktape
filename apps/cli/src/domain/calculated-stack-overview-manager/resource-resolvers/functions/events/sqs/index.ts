@@ -79,7 +79,8 @@ const getEventSourceMapping = ({
     MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds,
     EventSourceArn: queueArn,
     Enabled: true,
-    FunctionName: lambdaEndpointArn
+    FunctionName: lambdaEndpointArn,
+    FunctionResponseTypes: eventDetails.reportBatchItemFailures ? ['ReportBatchItemFailures'] : undefined
   });
   return resource;
 };

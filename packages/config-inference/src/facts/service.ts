@@ -189,20 +189,44 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
      */
     payloadFormat: z.enum(['1.0', '2.0']).optional(),
     /** Path parameters the handler reads by name (`event.pathParameters.sku`), which its route has to define. */
-    pathParameters: z.array(z.string().min(1)).optional()
+    pathParameters: z.array(z.string().min(1)).optional(),
+    /** The route accepts only requests signed with AWS credentials (an `aws_iam`/`AWS_IAM` authorizer). */
+    authorization: z.literal('aws-iam').optional()
   }),
   z.object({
     type: z.literal('queue'),
     dependencyName: z.string().min(1),
-    batchSize: z.number().int().positive().optional()
+    batchSize: z.number().int().positive().optional(),
+    /**
+     * The handler returns `batchItemFailures` and the event source is told to read them
+     * (`ReportBatchItemFailures`). Without that setting a handler that reports failures acknowledges the whole batch.
+     */
+    reportBatchItemFailures: z.literal(true).optional()
   }),
-  z.object({ type: z.literal('topic'), dependencyName: z.string().min(1) }),
+  z.object({
+    type: z.literal('topic'),
+    dependencyName: z.string().min(1),
+    /** The subscription's attribute filter policy, in SNS syntax. Without it the handler receives every message. */
+    filterPolicy: z.record(z.string(), z.unknown()).optional()
+  }),
   z.object({
     type: z.literal('object-storage'),
     dependencyName: z.string().min(1),
-    eventType: z.string().min(1).optional()
+    eventType: z.string().min(1).optional(),
+    /** Object-key prefix and suffix the notification is limited to. */
+    keyPrefix: z.string().min(1).optional(),
+    keySuffix: z.string().min(1).optional()
   }),
-  z.object({ type: z.literal('schedule'), rate: z.string().min(1) }),
+  z.object({
+    type: z.literal('schedule'),
+    rate: z.string().min(1),
+    /** The descriptor deploys the schedule switched off. */
+    enabled: z.literal(false).optional(),
+    /** The fixed event payload the schedule sends instead of the default scheduled event. */
+    input: z.union([z.record(z.string(), z.unknown()), z.string().min(1)]).optional(),
+    /** A JSONPath selecting the part of the scheduled event that is sent. */
+    inputPath: z.string().min(1).optional()
+  }),
   /** The function's own HTTPS endpoint (a Lambda function URL), for a handler written for `LambdaFunctionURLEvent`. */
   z.object({ type: z.literal('url') }),
   z.object({
@@ -230,7 +254,12 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('unmapped'),
     /** Human-readable event kind read from a descriptor that composition cannot represent yet. */
-    sourceType: z.string().min(1)
+    sourceType: z.string().min(1),
+    /**
+     * Why it was left out, when the event was translatable but leaving it out is the safe choice: a route behind an
+     * authorizer init cannot reproduce would otherwise become public, and a disabled event would start running.
+     */
+    reason: z.enum(['protected-route', 'disabled']).optional()
   })
 ]);
 
@@ -331,6 +360,23 @@ export const serviceShape = {
     .optional(),
 
   /**
+   * Named volumes a deployment manifest mounts into the container (Compose `uploads:/app/uploads`). What the process
+   * writes there must survive restarts and redeploys, which the container's own filesystem does not.
+   */
+  persistentVolumes: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/),
+        mountPath: z.string().startsWith('/'),
+        /** The container may read the volume but not write it (`:ro`, `read_only: true`). */
+        readOnly: z.literal(true).optional(),
+        /** The directory inside the volume the mount exposes (`volume.subpath`), as the manifest states it. */
+        subpath: z.string().min(1).optional()
+      })
+    )
+    .optional(),
+
+  /**
    * The HTTP methods of the presigned S3 upload URLs the service hands out: PUT for `getSignedUrl` with a
    * `PutObjectCommand` or boto3's `generate_presigned_url('put_object', ...)`, POST for a presigned POST form. A browser uploading with one needs CORS on the bucket; without
    * it the upload fails in the browser while the same request works from curl.
@@ -355,9 +401,15 @@ export const serviceShape = {
   functionEntrypoint: repositoryPathSchema.optional(),
   /**
    * The handler as the platform names it, when the entry file alone does not identify it. A .NET function is
-   * `Assembly::Namespace.Class::Method`; nothing in `LambdaEntryPoint.cs` says which method the runtime calls.
+   * `Assembly::Namespace.Class::Method`; nothing in `LambdaEntryPoint.cs` says which method the runtime calls. For
+   * JavaScript, TypeScript, Python and Ruby it is the exported function's name (`main` for `handler.main`), present
+   * only when it is not the runtime's default `handler`.
    */
   functionHandler: z.string().min(1).optional(),
+  /** The function timeout a deployment manifest declares, in seconds. */
+  functionTimeoutSeconds: z.number().int().positive().max(900).optional(),
+  /** The function memory a deployment manifest declares, in MB. */
+  functionMemoryMb: z.number().int().min(128).max(10240).optional(),
   /** Repository-declared events that invoke `functionEntrypoint`, or that start a `one-shot` service. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */

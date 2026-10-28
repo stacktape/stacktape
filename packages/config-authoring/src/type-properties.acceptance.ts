@@ -48,7 +48,12 @@ const topicSetup = new DeploymentScript({
   joinDefaultVpc: true,
   connectTo: [kafkaCluster]
 });
-const integration = new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' });
+const integration = new HttpApiIntegration({
+  httpApiGatewayName: api,
+  method: 'GET',
+  path: '/',
+  authorizer: { type: 'aws-iam' }
+});
 const realtime = new WebSocketApiGateway({});
 const websocketIntegration = new WebSocketApiIntegration({
   websocketApiGatewayName: realtime,

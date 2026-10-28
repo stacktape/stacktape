@@ -6,6 +6,14 @@ import type { EnvironmentVariableUse, FunctionTrigger, ServiceFactInput } from '
 import { parseCloudFormationYaml } from '../cloudformation-yaml';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { declaredEnvironmentVariable } from './declared-environment';
+import {
+  declaredHandlerExport,
+  declaredQueueSettings,
+  declaredSizing,
+  resolveDeclaredValue,
+  UNRESOLVED,
+  type TemplateScope
+} from './declared-function';
 
 type RecordValue = Record<string, unknown>;
 type SamResource = { Type?: unknown; Properties?: RecordValue };
@@ -185,23 +193,137 @@ const environmentVariablesFor = ({
   });
 };
 
-const triggersFor = (eventsValue: unknown, dependencyNames: ReadonlyMap<string, string>): FunctionTrigger[] => {
+/**
+ * SAM's `Globals` rule: maps merge key by key with the resource's value winning, lists append, and any other value
+ * replaces the global one. A resource `Auth` that sets one key therefore keeps the global `DefaultAuthorizer`.
+ */
+const mergeSamGlobals = (globalValue: unknown, localValue: unknown): unknown => {
+  if (localValue === undefined) return globalValue;
+  if (isRecord(globalValue) && isRecord(localValue)) {
+    const merged: RecordValue = { ...globalValue };
+    for (const [key, value] of Object.entries(localValue)) merged[key] = mergeSamGlobals(globalValue[key], value);
+    return merged;
+  }
+  if (Array.isArray(globalValue) && Array.isArray(localValue)) return [...globalValue, ...localValue];
+  return localValue;
+};
+
+/**
+ * The authorization a SAM `Api`/`HttpApi` event inherits: its own `Auth`, else the `Auth` defaults of the API it names
+ * through `RestApiId`/`ApiId`, else the `Globals` defaults for that API type.
+ */
+const routeProtection = (
+  eventType: string,
+  properties: RecordValue,
+  resources: Readonly<Record<string, SamResource>>,
+  globals: RecordValue
+): 'aws-iam' | string | undefined => {
+  const apiReference = eventType === 'Api' ? properties.RestApiId : properties.ApiId;
+  // The template parser reads `!Ref Gateway` as the logical ID itself.
+  const apiId =
+    typeof apiReference === 'string'
+      ? apiReference
+      : isRecord(apiReference) && typeof apiReference.Ref === 'string'
+        ? apiReference.Ref
+        : undefined;
+  const apiAuth = apiId === undefined ? undefined : resources[apiId]?.Properties?.Auth;
+  const globalApi = globals[eventType];
+  const globalAuth = isRecord(globalApi) ? globalApi.Auth : undefined;
+  const auth = isRecord(properties.Auth) ? properties.Auth : {};
+  // The implicit API of events without RestApiId/ApiId takes the Globals as they are.
+  const mergedDefaults = mergeSamGlobals(globalAuth, apiAuth);
+  const defaults = isRecord(mergedDefaults) ? mergedDefaults : {};
+  if ((auth.ApiKeyRequired ?? defaults.ApiKeyRequired) === true) return 'an API key (ApiKeyRequired)';
+  const authorizer = auth.Authorizer ?? defaults.DefaultAuthorizer;
+  if (authorizer === undefined || authorizer === 'NONE') return undefined;
+  if (authorizer === 'AWS_IAM') return 'aws-iam';
+  return typeof authorizer === 'string' ? `the ${JSON.stringify(authorizer)} authorizer` : 'an authorizer';
+};
+
+/** `Enabled: false` or `State: DISABLED`; anything that is not literally on counts as off. */
+const isDisabled = (properties: RecordValue): boolean =>
+  (properties.Enabled !== undefined && properties.Enabled !== true && properties.Enabled !== 'true') ||
+  (properties.State !== undefined && properties.State !== 'ENABLED');
+
+/**
+ * The `Filter.S3Key.Rules` of an S3 event as a prefix and a suffix, or `UNRESOLVED` when a filter is declared that
+ * init cannot read: subscribing without it would deliver every object.
+ */
+const keyFilter = (
+  filter: unknown,
+  scope: TemplateScope
+): { keyPrefix?: string; keySuffix?: string } | typeof UNRESOLVED => {
+  if (filter === undefined) return {};
+  const resolved = resolveDeclaredValue(filter, scope);
+  if (resolved === UNRESOLVED || !isRecord(resolved) || !isRecord(resolved.S3Key)) return UNRESOLVED;
+  const rules = resolved.S3Key.Rules;
+  if (!Array.isArray(rules)) return UNRESOLVED;
+  const values: { keyPrefix?: string; keySuffix?: string } = {};
+  for (const rule of rules) {
+    const name = isRecord(rule) && typeof rule.Name === 'string' ? rule.Name.toLowerCase() : undefined;
+    const value = isRecord(rule) ? rule.Value : undefined;
+    if ((name !== 'prefix' && name !== 'suffix') || (typeof value !== 'string' && typeof value !== 'number')) {
+      return UNRESOLVED;
+    }
+    if (String(value) !== '') values[name === 'prefix' ? 'keyPrefix' : 'keySuffix'] = String(value);
+  }
+  return values;
+};
+
+const triggersFor = (
+  eventsValue: unknown,
+  dependencyNames: ReadonlyMap<string, string>,
+  resources: Readonly<Record<string, SamResource>>,
+  globals: RecordValue,
+  scope: TemplateScope
+): FunctionTrigger[] => {
   if (!isRecord(eventsValue)) return [];
   const triggers: FunctionTrigger[] = [];
   for (const event of Object.values(eventsValue)) {
     if (!isRecord(event) || typeof event.Type !== 'string') continue;
     const properties = isRecord(event.Properties) ? event.Properties : {};
     if ((event.Type === 'Api' || event.Type === 'HttpApi') && typeof properties.Path === 'string') {
-      triggers.push({
-        type: 'http',
+      const route = {
         method: typeof properties.Method === 'string' ? properties.Method : '*',
         path: properties.Path
-      });
+      };
+      const protection = routeProtection(event.Type, properties, resources, globals);
+      if (protection === undefined) triggers.push({ type: 'http', ...route });
+      else if (protection === 'aws-iam') triggers.push({ type: 'http', ...route, authorization: 'aws-iam' });
+      else {
+        triggers.push({
+          type: 'unmapped',
+          reason: 'protected-route',
+          sourceType: `the HTTP route ${route.method.toUpperCase()} ${route.path}, which your SAM template protects with ${protection}`
+        });
+      }
       continue;
     }
     const schedule = properties.Schedule ?? properties.ScheduleExpression;
     if ((event.Type === 'Schedule' || event.Type === 'ScheduleV2') && typeof schedule === 'string') {
-      triggers.push({ type: 'schedule', rate: schedule });
+      // EventBridge rules run in UTC.
+      if (typeof properties.ScheduleExpressionTimezone === 'string') {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `the schedule ${schedule} in the ${properties.ScheduleExpressionTimezone} time zone`
+        });
+        continue;
+      }
+      const declaredInput = properties.Input === undefined ? undefined : resolveDeclaredValue(properties.Input, scope);
+      const input = typeof declaredInput === 'string' ? declaredInput : undefined;
+      if (declaredInput !== undefined && input === undefined) {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `the schedule ${schedule} with an Input payload init cannot resolve`
+        });
+        continue;
+      }
+      triggers.push({
+        type: 'schedule',
+        rate: schedule,
+        ...(isDisabled(properties) ? { enabled: false } : {}),
+        ...(input === undefined || input === '' ? {} : { input })
+      });
       continue;
     }
     const referenceField = event.Type === 'SQS' ? 'Queue' : event.Type === 'SNS' ? 'Topic' : 'Bucket';
@@ -214,20 +336,59 @@ const triggersFor = (eventsValue: unknown, dependencyNames: ReadonlyMap<string, 
       });
       continue;
     }
-    if (event.Type === 'SQS') {
+    if (event.Type === 'SQS' && isDisabled(properties)) {
+      triggers.push({ type: 'unmapped', reason: 'disabled', sourceType: `the event from the ${dependencyName} queue` });
+    } else if (event.Type === 'SQS' && properties.FilterCriteria !== undefined) {
+      triggers.push({
+        type: 'unmapped',
+        sourceType: `messages from the ${dependencyName} queue that match its FilterCriteria, which Stacktape cannot filter`
+      });
+    } else if (event.Type === 'SQS') {
+      const responseTypes = Array.isArray(properties.FunctionResponseTypes) ? properties.FunctionResponseTypes : [];
       triggers.push({
         type: 'queue',
         dependencyName,
-        ...(typeof properties.BatchSize === 'number' ? { batchSize: properties.BatchSize } : {})
+        ...(typeof properties.BatchSize === 'number' ? { batchSize: properties.BatchSize } : {}),
+        ...(responseTypes.includes('ReportBatchItemFailures') ? { reportBatchItemFailures: true } : {})
+      });
+    } else if (event.Type === 'SNS' && properties.FilterPolicyScope === 'MessageBody') {
+      triggers.push({
+        type: 'unmapped',
+        sourceType: `messages from the ${dependencyName} topic whose body matches its FilterPolicy, which Stacktape cannot filter`
       });
     } else if (event.Type === 'SNS') {
-      triggers.push({ type: 'topic', dependencyName });
+      const declaredPolicy =
+        properties.FilterPolicy === undefined ? undefined : resolveDeclaredValue(properties.FilterPolicy, scope);
+      const filterPolicy = isRecord(declaredPolicy) ? declaredPolicy : undefined;
+      if (declaredPolicy !== undefined && filterPolicy === undefined) {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `messages from the ${dependencyName} topic that match a FilterPolicy init cannot resolve`
+        });
+      } else {
+        triggers.push({ type: 'topic', dependencyName, ...(filterPolicy === undefined ? {} : { filterPolicy }) });
+      }
     } else if (event.Type === 'S3') {
-      triggers.push({
-        type: 'object-storage',
-        dependencyName,
-        ...(typeof properties.Events === 'string' ? { eventType: properties.Events } : {})
-      });
+      // One Stacktape S3 event takes one event type; a list becomes one event per type rather than the default.
+      const eventTypes = (Array.isArray(properties.Events) ? properties.Events : [properties.Events]).filter(
+        (eventType): eventType is string => typeof eventType === 'string' && eventType !== ''
+      );
+      const filter = keyFilter(properties.Filter, scope);
+      if (filter === UNRESOLVED) {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `objects in the ${dependencyName} bucket that match a key filter init cannot resolve`
+        });
+        continue;
+      }
+      for (const eventType of eventTypes.length === 0 ? [undefined] : eventTypes) {
+        triggers.push({
+          type: 'object-storage',
+          dependencyName,
+          ...(eventType === undefined ? {} : { eventType }),
+          ...filter
+        });
+      }
     } else {
       triggers.push({ type: 'unmapped', sourceType: `a ${event.Type} event` });
     }
@@ -258,7 +419,12 @@ export const awsSamProbe: Probe = {
       }
       if (!isRecord(parsed) || !isRecord(parsed.Resources)) continue;
       const resources = parsed.Resources as Record<string, SamResource>;
-      const globals = isRecord(parsed.Globals) && isRecord(parsed.Globals.Function) ? parsed.Globals.Function : {};
+      const templateGlobals = isRecord(parsed.Globals) ? parsed.Globals : {};
+      const scope: TemplateScope = {
+        parameters: isRecord(parsed.Parameters) ? parsed.Parameters : {},
+        logicalIds: new Set(Object.keys(parsed.Resources))
+      };
+      const globals = isRecord(templateGlobals.Function) ? templateGlobals.Function : {};
       const templateDirectory = posix.dirname(templatePath) === '' ? '.' : posix.dirname(templatePath);
 
       const dependencyNames = new Map<string, string>();
@@ -277,13 +443,15 @@ export const awsSamProbe: Probe = {
       for (const [logicalId, resource] of Object.entries(resources)) {
         if (resource?.Type !== 'AWS::Serverless::Function') continue;
         const properties = isRecord(resource.Properties) ? resource.Properties : {};
+        const mergedProperties = mergeSamGlobals(globals, properties);
+        const declared = isRecord(mergedProperties) ? mergedProperties : properties;
         const entrypoint = entrypointFor(
           context.files,
           templateDirectory,
-          properties.CodeUri ?? globals.CodeUri,
+          declared.CodeUri,
           // `Globals.Function` supplies whatever a function leaves out; Rust templates put `Handler: bootstrap` there.
-          properties.Handler ?? globals.Handler,
-          properties.Runtime ?? globals.Runtime
+          declared.Handler,
+          declared.Runtime
         );
         if (entrypoint === undefined) continue;
         const name = lowerFirst(logicalId.replace(/Function$/, ''));
@@ -298,11 +466,16 @@ export const awsSamProbe: Probe = {
                 /(?:export\s+(?:const|async\s+function|function)\s+\w+|def\s+\w+\s*\(|(?:module\.)?exports(?:\.\w+)?\s*=|class\s+\w+)/,
                 'functionEntrypoint'
               );
-        const handler = properties.Handler ?? globals.Handler;
-        const runtimeName = String(properties.Runtime ?? globals.Runtime ?? '');
-        // .NET's handler names the method; every other runtime's handler is implied by the entry file.
-        const functionHandler = runtimeName.startsWith('dotnet') && typeof handler === 'string' ? handler : undefined;
-        const functionTriggers = triggersFor(properties.Events, dependencyNames);
+        const handler = declared.Handler;
+        const runtimeName = String(declared.Runtime ?? '');
+        // .NET's handler names the method; script runtimes' handler names an export of the entry file.
+        const functionHandler =
+          typeof handler !== 'string'
+            ? undefined
+            : runtimeName.startsWith('dotnet')
+              ? handler
+              : declaredHandlerExport(handler, entrypoint);
+        const functionTriggers = triggersFor(properties.Events, dependencyNames, resources, templateGlobals, scope);
         const environmentVariables = environmentVariablesFor({
           file: templatePath,
           raw,
@@ -338,6 +511,7 @@ export const awsSamProbe: Probe = {
           executionModel: 'per-request',
           functionEntrypoint: entrypoint,
           ...(functionHandler === undefined ? {} : { functionHandler }),
+          ...declaredSizing(declared.Timeout, declared.MemorySize),
           functionTriggers,
           environmentVariables,
           evidence: [sourceCitation, ...samEvidence].filter((citation) => citation !== undefined),
@@ -363,9 +537,11 @@ export const awsSamProbe: Probe = {
         const evidence = [
           citeInBlock(templatePath, raw, logicalId, new RegExp(escapeRegExp(String(resource?.Type))))
         ].filter((citation) => citation !== undefined);
+        const queueSettings = kind === 'queue' ? declaredQueueSettings(resource?.Properties) : undefined;
         dependencies.push({
           name,
           kind,
+          ...(queueSettings === undefined ? {} : { queueSettings }),
           extensions: [],
           consumedBy: consumers,
           addressedBy: [

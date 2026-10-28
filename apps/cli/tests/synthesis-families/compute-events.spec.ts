@@ -9,8 +9,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   BatchJob,
+  DynamoDbIntegration,
   DynamoDbTable,
+  HttpApiGateway,
+  HttpApiIntegration,
   ScheduleIntegration,
+  SqsIntegration,
+  SqsQueue,
   StateMachine,
   LambdaFunction,
   JsBundleLambdaPackaging,
@@ -420,5 +425,68 @@ describe('Batch and Step Functions family', () => {
     await expect(synthesizeFamily('invalid-batch-schedule', config(true))).rejects.toMatchObject({
       code: 'CONFIG_SCHEDULE_INPUT_CONFLICT'
     });
+  });
+});
+
+describe('Lambda event delivery settings', () => {
+  test('IAM-protected routes, partial batch responses and a paused schedule reach their AWS resources', async () => {
+    const template = await synthesizeFamily(
+      'lambda-event-delivery',
+      defineConfig(() => {
+        const api = new HttpApiGateway({});
+        const jobs = new SqsQueue({});
+        const changes = new DynamoDbTable({
+          primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+          streamType: 'NEW_IMAGE'
+        });
+        const handler = new LambdaFunction({
+          packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
+          events: [
+            new HttpApiIntegration({
+              httpApiGatewayName: 'api',
+              method: 'GET',
+              path: '/admin',
+              authorizer: { type: 'aws-iam' }
+            }),
+            new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'GET', path: '/health' }),
+            new SqsIntegration({ sqsQueueName: 'jobs', reportBatchItemFailures: true }),
+            new DynamoDbIntegration({
+              streamArn: "$ResourceParam('changes', 'streamArn')",
+              reportBatchItemFailures: true
+            }),
+            new ScheduleIntegration({ scheduleRate: 'rate(1 day)', enabled: false }),
+            new ScheduleIntegration({ scheduleRate: 'rate(1 hour)' })
+          ]
+        });
+        return { resources: { api, jobs, changes, handler } };
+      })
+    );
+    expectReferencesResolve(template);
+
+    const routes = Object.fromEntries(
+      resourcesOfType(template, 'AWS::ApiGatewayV2::Route').map(([, resource]) => [
+        literal(resource.Properties.RouteKey),
+        resource.Properties
+      ])
+    );
+    expect(routes['GET /admin']).toMatchObject({ AuthorizationType: 'AWS_IAM' });
+    expect(routes['GET /admin']?.AuthorizerId).toBeUndefined();
+    expect(routes['GET /health']?.AuthorizationType).toBeUndefined();
+    // IAM authorization is a property of the route; it creates no authorizer.
+    expect(resourcesOfType(template, 'AWS::ApiGatewayV2::Authorizer')).toEqual([]);
+
+    const mappings = resourcesOfType(template, 'AWS::Lambda::EventSourceMapping').map(
+      ([, resource]) => resource.Properties
+    );
+    expect(mappings).toHaveLength(2);
+    for (const mapping of mappings) expect(mapping.FunctionResponseTypes).toEqual(['ReportBatchItemFailures']);
+
+    const states = Object.fromEntries(
+      resourcesOfType(template, 'AWS::Events::Rule').map(([, resource]) => [
+        literal(resource.Properties.ScheduleExpression),
+        resource.Properties.State
+      ])
+    );
+    expect(states).toEqual({ 'rate(1 day)': 'DISABLED', 'rate(1 hour)': 'ENABLED' });
   });
 });

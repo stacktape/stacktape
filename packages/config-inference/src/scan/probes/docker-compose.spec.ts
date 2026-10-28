@@ -57,6 +57,90 @@ describe('the compose probe', () => {
     expect(isThirdPartyUtilityDockerfile(['FROM node:24-alpine', 'RUN npm i -g .', 'CMD app'].join('\n'))).toBe(false);
   });
 
+  it('keeps the named volumes an app mounts, not bind mounts, database volumes or dependency directories', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    volumes:',
+        '      - .:/app',
+        '      - uploads:/app/uploads/',
+        '      - node_modules:/app/node_modules',
+        '      - type: volume',
+        '        source: reports',
+        '        target: /srv/reports',
+        '        read_only: false',
+        '      - undeclared:/app/other',
+        '  db:',
+        '    image: postgres:16',
+        '    volumes: ["pgdata:/var/lib/postgresql/data"]',
+        'volumes:',
+        '  uploads:',
+        '  node_modules:',
+        '  reports:',
+        '  pgdata:',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.persistentVolumes).toEqual([
+      { name: 'uploads', mountPath: '/app/uploads' },
+      { name: 'reports', mountPath: '/srv/reports' }
+    ]);
+  });
+
+  it('keeps read-only and subpath options and skips caches, runtime directories and installed dependencies', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    volumes:',
+        '      - uploads:/app/uploads:ro',
+        '      - type: volume',
+        '        source: shared',
+        '        target: /app/archives',
+        '        read_only: true',
+        '        volume:',
+        '          subpath: archives',
+        '      - type: volume',
+        '        source: shared',
+        '        target: /app/exports',
+        '        volume:',
+        '          subpath: exports',
+        '      - cache:/root/.npm',
+        '      - cache:/home/node/.cache/pip',
+        '      - sockets:/run/app',
+        '      - sockets:/var/run/app',
+        '      - scratch:/var/tmp',
+        '      - sharp:/app/node_modules/sharp',
+        '      - sharp:/app/node_modules/.cache',
+        'volumes:',
+        '  uploads:',
+        '  shared:',
+        '  cache:',
+        '  sockets:',
+        '  scratch:',
+        '  sharp:',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.services[0]?.persistentVolumes).toEqual([
+      { name: 'uploads', mountPath: '/app/uploads', readOnly: true },
+      { name: 'shared', mountPath: '/app/archives', readOnly: true, subpath: 'archives' },
+      { name: 'shared', mountPath: '/app/exports', subpath: 'exports' }
+    ]);
+  });
+
   it('reads the dependency list, with the version the file states', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,

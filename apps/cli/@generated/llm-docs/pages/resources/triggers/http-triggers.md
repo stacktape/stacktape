@@ -96,6 +96,8 @@ Set `payloadFormat` on the HTTP API integration when a Lambda handler needs a sp
 
 HTTP API Gateway integrations support an optional `authorizer` to protect individual routes. When configured, unauthorized requests are rejected with a `401 Unauthorized` response before they reach your function — saving invocation costs and reducing attack surface. For details on setting up authorizers, see [User auth pools](/resources/security/user-auth-pool).
 
+For routes that other AWS workloads or internal tools call, use `authorizer: { type: 'aws-iam' }`. Callers then sign each request with AWS Signature Version 4, using credentials allowed to call `execute-api:Invoke`; API Gateway rejects every other request with `403 Forbidden`.
+
 Application Load Balancer integrations do not support built-in authorizers. If you use an ALB, handle authentication in your application code or a middleware layer.
 
 ## ALB integration
@@ -182,7 +184,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `httpApiGatewayName` | yes | `string` | - |
 | `method` | yes | `string: "*" \| "DELETE" \| "GET" \| "HEAD" \| "OPTIONS" \| "PATCH" \| "POST" \| "PUT"` | - |
 | `path` | yes | `string` | - |
-| `authorizer` | no | `cognito \| lambda` | - |
+| `authorizer` | no | `cognito \| lambda \| aws-iam` | - |
 | `payloadFormat` | no | `string: "1.0" \| "2.0"` | `1.0` |
 
 

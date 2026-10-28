@@ -32,15 +32,26 @@ import type { Uncertainty } from './uncertainty';
 /**
  * The service shape the facts document uses, minus probe-only retained literals and `source`.
  * An agent may classify a variable, but prompt-injected repository text must not choose a value
- * that reaches the generated deployment configuration.
+ * that reaches the generated deployment configuration. The same holds for what a deployment
+ * manifest declares verbatim: sizing, volume mounts and schedule payloads come from probes only.
  */
 const agentServiceSchema = z
   .object({
     ...serviceShape,
     environmentVariables: z.array(environmentVariableUseSchema.omit({ safeLiteralValue: true })).default([])
   })
+  .omit({ functionTimeoutSeconds: true, functionMemoryMb: true, persistentVolumes: true })
   .superRefine((service, ctx) => {
     checkServiceConsistency(service, ctx);
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type === 'schedule' && (trigger.input !== undefined || trigger.inputPath !== undefined)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['functionTriggers'],
+          message: 'Leave out `input` and `inputPath`: a schedule payload is read from the deployment manifest only.'
+        });
+      }
+    }
     // Stricter than the facts schema on purpose. A probe-built document may leave a cross-service
     // target open, and `checkFactsCompleteness` turns that into a decision; the agent is the one
     // reader that can go and look, so it has to either name the service or say it could not.

@@ -183,6 +183,10 @@ Set `maximumRetryAttempts` to cap how many times a failed batch is retried. In A
 
 Enable `bisectBatchOnFunctionError` to split a failed batch in two before retrying. This narrows down the failing records when only part of a large batch causes an error. Pair it with `maximumRetryAttempts` and `onFailure` when you want failed batches to stop retrying indefinitely and be sent to a destination after retries are exhausted.
 
+### Reporting the failed record
+
+Set `reportBatchItemFailures: true` when the handler returns `{ batchItemFailures: [{ itemIdentifier }] }` with the sequence number of the first record it could not process. Lambda then retries from that record instead of replaying the whole batch. A handler that returns nothing with this setting on is treated as having processed every record.
+
 ### Failure destination
 
 Configure `onFailure` when you want batches that fail after all retry attempts to be sent to an [SQS queue](/resources/messaging/sqs-queue) or [SNS topic](/resources/messaging/sns-topic) for inspection and manual reprocessing.
@@ -211,6 +215,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `maximumRetryAttempts` | no | `number` | - |
 | `onFailure` | no | `DestinationOnFailure` | - |
 | `parallelizationFactor` | no | `number` | - |
+| `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string: "LATEST" \| "TRIM_HORIZON"` | `TRIM_HORIZON` |
 | `streamArn` | no | `string` | - |
 

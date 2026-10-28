@@ -273,6 +273,47 @@ stackConfig:
   expect(zonesOf(template, serviceSubnets)).toEqual(mountTargetZones);
 });
 
+test('a container mounts a read-only subdirectory of a filesystem beside a writable root', async () => {
+  const template = await synthesize(`resources:
+  files:
+    type: efs-filesystem
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: example.invalid/image:tag
+      resources: { cpu: 0.25, memory: 512 }
+      volumeMounts:
+        - type: efs
+          properties:
+            efsFilesystemName: files
+            mountPath: /data
+        - type: efs
+          properties:
+            efsFilesystemName: files
+            rootDirectory: /archives
+            mountPath: /archives
+            readOnly: true
+`);
+  const taskDefinition = Object.values(template.Resources).find(({ Type }) => Type === 'AWS::ECS::TaskDefinition') as {
+    Properties: {
+      ContainerDefinitions: { MountPoints?: { SourceVolume: string; ContainerPath: string; ReadOnly: boolean }[] }[];
+      Volumes: { Name: string }[];
+    };
+  };
+  expect(taskDefinition.Properties.ContainerDefinitions[0]?.MountPoints).toEqual([
+    { SourceVolume: 'efs-files-Root', ContainerPath: '/data', ReadOnly: false },
+    { SourceVolume: 'efs-files-archives', ContainerPath: '/archives', ReadOnly: true }
+  ]);
+  expect(taskDefinition.Properties.Volumes.map(({ Name }) => Name)).toEqual(['efs-files-Root', 'efs-files-archives']);
+  const accessPointPaths = Object.values(template.Resources)
+    .filter(({ Type }) => Type === 'AWS::EFS::AccessPoint')
+    .map((resource) => (resource as { Properties: { RootDirectory: { Path: string } } }).Properties.RootDirectory.Path);
+  expect(accessPointPaths.toSorted()).toEqual(['/', '/archives']);
+});
+
 test('DSQL defaults and advanced settings reach the cluster and its connection metadata', async () => {
   const template = await synthesize(`resources:
   primary:

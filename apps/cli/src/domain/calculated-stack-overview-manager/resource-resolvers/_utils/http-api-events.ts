@@ -30,7 +30,7 @@ export const getHttpApiLambdaPermission = ({
 };
 
 export const getHttpApiAuthorizerResource = (
-  authorizerConfig: StpAuthorizer,
+  authorizerConfig: Exclude<StpAuthorizer, { type: 'aws-iam' }>,
   authorizerName: string,
   stpResourceName: string
 ) => {
@@ -95,20 +95,23 @@ export const getHttpApiRoute = ({
   return cfnResource('AWS::ApiGatewayV2::Route', {
     ApiId: ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
     RouteKey: routeKey,
-    ...(authorizer && {
-      AuthorizerId: ref(
-        cfLogicalNames.httpApiAuthorizer({
-          path,
-          method,
-          stpResourceName: httpApiGatewayInfo.name
-        })
-      ),
-      AuthorizationType: {
-        cognito: 'JWT',
-        lambda: 'CUSTOM'
-        // @todo scopes?
-      }[authorizer.type]
-    }),
+    // IAM authorization signs requests with the caller's AWS credentials; there is no authorizer resource to point at.
+    ...(authorizer?.type === 'aws-iam' && { AuthorizationType: 'AWS_IAM' }),
+    ...(authorizer &&
+      authorizer.type !== 'aws-iam' && {
+        AuthorizerId: ref(
+          cfLogicalNames.httpApiAuthorizer({
+            path,
+            method,
+            stpResourceName: httpApiGatewayInfo.name
+          })
+        ),
+        AuthorizationType: {
+          cognito: 'JWT',
+          lambda: 'CUSTOM'
+          // @todo scopes?
+        }[authorizer.type]
+      }),
     Target: join('/', [
       'integrations',
       ref(

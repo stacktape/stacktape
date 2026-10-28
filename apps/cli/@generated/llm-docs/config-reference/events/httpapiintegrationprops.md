@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { CognitoAuthorizer, LambdaAuthorizer } from 'stacktape';
+import type { CognitoAuthorizer, IamAuthorizer, LambdaAuthorizer } from 'stacktape';
 
 type HttpApiIntegrationProps = {
   /** The name of the HTTP API Gateway. */
@@ -21,7 +21,8 @@ type HttpApiIntegrationProps = {
 /** Union choices used by the properties above. */
 type HttpApiIntegrationAuthorizer =
   | CognitoAuthorizer
-  | LambdaAuthorizer;
+  | LambdaAuthorizer
+  | IamAuthorizer;
 ```
 
 ## Property: `httpApiGatewayName`
@@ -54,15 +55,18 @@ The URL path that will trigger this integration.
 ## Property: `authorizer`
 
 - Required: no
-- Type: `cognito | lambda`
+- Type: `cognito | lambda | aws-iam`
 
 An authorizer to protect this route.
 
-Unauthorized requests will be rejected with a `401 Unauthorized` response.
+Cognito and Lambda authorizers reject unauthorized requests with `401 Unauthorized`. With `aws-iam`, callers sign
+requests with AWS credentials allowed to call `execute-api:Invoke`, and API Gateway rejects the rest with
+`403 Forbidden`.
 
 Choices:
 - `cognito` (`CognitoAuthorizer`). Properties: `userPoolName: string`, `identitySources?: Array<string>`.
 - `lambda` (`LambdaAuthorizer`). Properties: `functionName: string`, `iamResponse?: boolean`, `identitySources?: Array<string>`, `cacheResultSeconds?: number`.
+- `aws-iam` (`IamAuthorizer`)
 
 ## Property: `payloadFormat`
 

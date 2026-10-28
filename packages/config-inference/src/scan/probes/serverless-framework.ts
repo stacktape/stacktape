@@ -19,6 +19,13 @@ import { parseCloudFormationYaml } from '../cloudformation-yaml';
 import { citeFirstMatchOnly, readText } from '../probe';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
 import { declaredEnvironmentVariable } from './declared-environment';
+import {
+  declaredHandlerExport,
+  declaredQueueSettings,
+  declaredSizing,
+  resolveDeclaredValue,
+  type TemplateScope
+} from './declared-function';
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -49,10 +56,12 @@ const factName = (value: string): string => {
 const manifestDependencyFact = (
   name: string,
   kind: DependencyKind,
-  citation: ReturnType<typeof citeFirstMatchOnly>
+  citation: ReturnType<typeof citeFirstMatchOnly>,
+  queueSettings?: DependencyFact['queueSettings']
 ): DependencyFact => ({
   name,
   kind,
+  ...(queueSettings === undefined ? {} : { queueSettings }),
   extensions: [],
   consumedBy: [],
   addressedBy: [],
@@ -159,7 +168,71 @@ const environmentDependencyNamesFor = (
   );
 };
 
-const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, string>): FunctionTrigger[] => {
+/**
+ * How a Serverless HTTP event protects its route: `aws-iam`, a description of protection Stacktape cannot express,
+ * or nothing for a public route. Serverless accepts `aws_iam` both as the authorizer string and as its `type`.
+ */
+const routeProtection = (http: RecordValue): 'aws-iam' | string | undefined => {
+  if (http.private === true) return 'an API key (private: true)';
+  const authorizer = http.authorizer;
+  if (authorizer === undefined || authorizer === null) return undefined;
+  const type = typeof authorizer === 'string' ? authorizer : isRecord(authorizer) ? authorizer.type : undefined;
+  if (typeof type === 'string' && type.toLowerCase() === 'aws_iam') return 'aws-iam';
+  const name =
+    typeof authorizer === 'string'
+      ? authorizer
+      : isRecord(authorizer) && typeof authorizer.name === 'string'
+        ? authorizer.name
+        : undefined;
+  return name === undefined ? 'an authorizer' : `the ${JSON.stringify(name)} authorizer`;
+};
+
+/** A switch that is not literally on. A variable (`${self:custom.enabled}`) may resolve either way, so it counts as off. */
+const isDisabled = (value: unknown): boolean => value !== undefined && value !== true && value !== 'true';
+
+/** Every expression of a `schedule` event, each with the state and payload the declaration gives them all. */
+const scheduleTriggers = (schedule: RecordValue, scope: TemplateScope): FunctionTrigger[] => {
+  const rates = (Array.isArray(schedule.rate) ? schedule.rate : [schedule.rate]).filter(
+    (rate): rate is string => typeof rate === 'string' && rate !== ''
+  );
+  if (rates.length === 0) return [];
+  // EventBridge rules run in UTC; a payload rewritten per event needs the transformer Stacktape has no fact for yet.
+  const unsupported =
+    typeof schedule.timezone === 'string'
+      ? `the ${schedule.timezone} time zone`
+      : schedule.inputTransformer !== undefined
+        ? 'an inputTransformer'
+        : undefined;
+  if (unsupported !== undefined) {
+    return rates.map((rate) => ({ type: 'unmapped', sourceType: `the schedule ${rate} with ${unsupported}` }));
+  }
+  const declaredInput = schedule.input === undefined ? undefined : resolveDeclaredValue(schedule.input, scope);
+  const declaredInputPath =
+    schedule.inputPath === undefined ? undefined : resolveDeclaredValue(schedule.inputPath, scope);
+  const input = isRecord(declaredInput) || typeof declaredInput === 'string' ? declaredInput : undefined;
+  const inputPath = typeof declaredInputPath === 'string' ? declaredInputPath : undefined;
+  if (
+    (declaredInput !== undefined && input === undefined) ||
+    (declaredInputPath !== undefined && inputPath === undefined)
+  ) {
+    return rates.map((rate) => ({
+      type: 'unmapped',
+      sourceType: `the schedule ${rate} with an input init cannot resolve`
+    }));
+  }
+  const settings = {
+    ...(isDisabled(schedule.enabled) ? { enabled: false as const } : {}),
+    ...(input === undefined || input === '' ? {} : { input }),
+    ...(inputPath === undefined || inputPath === '' ? {} : { inputPath })
+  };
+  return rates.map((rate) => Object.assign({ type: 'schedule' as const, rate }, settings));
+};
+
+const triggersFor = (
+  events: unknown,
+  dependencyNames: ReadonlyMap<string, string>,
+  scope: TemplateScope
+): FunctionTrigger[] => {
   if (!Array.isArray(events)) return [];
   const triggers: FunctionTrigger[] = [];
   const known = new Set(dependencyNames.keys());
@@ -187,54 +260,108 @@ const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, strin
       const method = typeof http.method === 'string' ? http.method : undefined;
       const path = typeof http.path === 'string' ? http.path : undefined;
       if (method !== undefined && path !== undefined) {
-        triggers.push({
-          type: 'http',
-          method: method.toUpperCase(),
-          path: path.startsWith('/') ? path : `/${path}`
-        });
+        const route = { method: method.toUpperCase(), path: path.startsWith('/') ? path : `/${path}` };
+        const protection = routeProtection(http);
+        if (protection === undefined) triggers.push({ type: 'http', ...route });
+        else if (protection === 'aws-iam') triggers.push({ type: 'http', ...route, authorization: 'aws-iam' });
+        else {
+          triggers.push({
+            type: 'unmapped',
+            reason: 'protected-route',
+            sourceType: `the HTTP route ${route.method} ${route.path}, which serverless.yml protects with ${protection}`
+          });
+        }
       }
       continue;
     }
 
     const schedule = event.schedule;
-    const rate =
-      typeof schedule === 'string'
-        ? schedule
-        : isRecord(schedule) && typeof schedule.rate === 'string'
-          ? schedule.rate
-          : isRecord(schedule) && Array.isArray(schedule.rate) && typeof schedule.rate[0] === 'string'
-            ? schedule.rate[0]
-            : undefined;
-    if (rate !== undefined) triggers.push({ type: 'schedule', rate });
+    if (typeof schedule === 'string') triggers.push({ type: 'schedule', rate: schedule });
+    if (isRecord(schedule)) triggers.push(...scheduleTriggers(schedule, scope));
 
     const sqs = isRecord(event.sqs) ? event.sqs.arn : event.sqs;
     const sqsLogicalId = referencedLogicalId(sqs, known);
     const queueName = sqsLogicalId === undefined ? undefined : dependencyNames.get(sqsLogicalId);
     if (queueName !== undefined) {
-      const batchSize =
-        isRecord(event.sqs) && typeof event.sqs.batchSize === 'number' ? event.sqs.batchSize : undefined;
-      triggers.push({
-        type: 'queue',
-        dependencyName: queueName,
-        ...(batchSize === undefined ? {} : { batchSize })
-      });
+      const options = isRecord(event.sqs) ? event.sqs : {};
+      if (isDisabled(options.enabled)) {
+        triggers.push({ type: 'unmapped', reason: 'disabled', sourceType: `the event from the ${queueName} queue` });
+      } else if (options.filterPatterns !== undefined) {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `messages from the ${queueName} queue that match its filterPatterns, which Stacktape cannot filter`
+        });
+      } else {
+        triggers.push({
+          type: 'queue',
+          dependencyName: queueName,
+          ...(typeof options.batchSize === 'number' ? { batchSize: options.batchSize } : {}),
+          ...(options.functionResponseType === 'ReportBatchItemFailures' ? { reportBatchItemFailures: true } : {})
+        });
+      }
     }
 
     const sns = isRecord(event.sns) ? event.sns.arn : event.sns;
     const snsLogicalId = referencedLogicalId(sns, known);
     const topicName = snsLogicalId === undefined ? undefined : dependencyNames.get(snsLogicalId);
-    if (topicName !== undefined) triggers.push({ type: 'topic', dependencyName: topicName });
+    if (topicName !== undefined) {
+      const options = isRecord(event.sns) ? event.sns : {};
+      if (options.filterPolicyScope === 'MessageBody') {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `messages from the ${topicName} topic whose body matches its filterPolicy, which Stacktape cannot filter`
+        });
+      } else {
+        const declaredPolicy =
+          options.filterPolicy === undefined ? undefined : resolveDeclaredValue(options.filterPolicy, scope);
+        const filterPolicy = isRecord(declaredPolicy) ? declaredPolicy : undefined;
+        if (declaredPolicy !== undefined && filterPolicy === undefined) {
+          triggers.push({
+            type: 'unmapped',
+            sourceType: `messages from the ${topicName} topic that match a filterPolicy init cannot resolve`
+          });
+        } else {
+          triggers.push({
+            type: 'topic',
+            dependencyName: topicName,
+            ...(filterPolicy === undefined ? {} : { filterPolicy })
+          });
+        }
+      }
+    }
 
     const s3 = isRecord(event.s3) ? event.s3.bucket : event.s3;
     const s3LogicalId = referencedLogicalId(s3, known);
     const bucketName = s3LogicalId === undefined ? undefined : dependencyNames.get(s3LogicalId);
     if (bucketName !== undefined) {
       const eventType = isRecord(event.s3) && typeof event.s3.event === 'string' ? event.s3.event : undefined;
-      triggers.push({
-        type: 'object-storage',
-        dependencyName: bucketName,
-        ...(eventType === undefined ? {} : { eventType })
-      });
+      const declaredRules = isRecord(event.s3) ? event.s3.rules : undefined;
+      const rules = declaredRules === undefined ? [] : resolveDeclaredValue(declaredRules, scope);
+      // Each rule is `{ prefix }` or `{ suffix }`; anything else would be dropped and the subscription widened.
+      const readable =
+        Array.isArray(rules) &&
+        rules.every(
+          (rule) =>
+            isRecord(rule) &&
+            Object.keys(rule).length === 1 &&
+            (typeof rule.prefix === 'string' || typeof rule.suffix === 'string')
+        );
+      if (!readable) {
+        triggers.push({
+          type: 'unmapped',
+          sourceType: `objects in the ${bucketName} bucket that match key rules init cannot resolve`
+        });
+      } else {
+        const keyPrefix = rules.map((rule) => (rule as RecordValue).prefix).find((value) => typeof value === 'string');
+        const keySuffix = rules.map((rule) => (rule as RecordValue).suffix).find((value) => typeof value === 'string');
+        triggers.push({
+          type: 'object-storage',
+          dependencyName: bucketName,
+          ...(eventType === undefined ? {} : { eventType }),
+          ...(typeof keyPrefix !== 'string' || keyPrefix === '' ? {} : { keyPrefix }),
+          ...(typeof keySuffix !== 'string' || keySuffix === '' ? {} : { keySuffix })
+        });
+      }
     }
     if (triggers.length === triggerCountBefore) {
       const sourceType =
@@ -306,11 +433,16 @@ export const serverlessFrameworkProbe: Probe = {
       const directory = posix.dirname(file) === '' ? '.' : posix.dirname(file);
       const runtime =
         isRecord(parsed.provider) && typeof parsed.provider.runtime === 'string' ? parsed.provider.runtime : undefined;
-      const providerEnvironment =
-        isRecord(parsed.provider) && isRecord(parsed.provider.environment) ? parsed.provider.environment : {};
+      const providerSettings = isRecord(parsed.provider) ? parsed.provider : {};
+      const providerEnvironment = isRecord(providerSettings.environment) ? providerSettings.environment : {};
 
       const cloudFormationResources =
         isRecord(parsed.resources) && isRecord(parsed.resources.Resources) ? parsed.resources.Resources : {};
+      const scope: TemplateScope = {
+        parameters:
+          isRecord(parsed.resources) && isRecord(parsed.resources.Parameters) ? parsed.resources.Parameters : {},
+        logicalIds: new Set(Object.keys(cloudFormationResources))
+      };
       const resourceEntries = Object.entries(cloudFormationResources).filter(
         (entry): entry is [string, RecordValue] => isRecord(entry[1]) && typeof entry[1].Type === 'string'
       );
@@ -327,7 +459,14 @@ export const serverlessFrameworkProbe: Probe = {
         const name = (kindCounts.get(kind) ?? 0) === 1 ? defaultDependencyName(kind) : factName(logicalId);
         dependencyNames.set(logicalId, name);
         const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(logicalId)}:`));
-        manifestDependencies.push(manifestDependencyFact(name, kind, citation));
+        manifestDependencies.push(
+          manifestDependencyFact(
+            name,
+            kind,
+            citation,
+            kind === 'queue' ? declaredQueueSettings(resource.Properties) : undefined
+          )
+        );
       }
       const constructs = isRecord(parsed.constructs) ? parsed.constructs : {};
       const constructEntries = Object.entries(constructs).filter(
@@ -390,7 +529,8 @@ export const serverlessFrameworkProbe: Probe = {
           dependencyNames,
           environmentDependencyNames
         });
-        const functionTriggers = triggersFor(declaration.events, dependencyNames);
+        const functionTriggers = triggersFor(declaration.events, dependencyNames, scope);
+        const handlerExport = declaredHandlerExport(declaration.handler, entrypoint);
         const serviceName = factName(functionName);
         for (const variable of environmentVariables) {
           if (variable.role !== 'infra-dependency' || variable.dependencyName === undefined) continue;
@@ -419,6 +559,11 @@ export const serverlessFrameworkProbe: Probe = {
           exposesHttp: false,
           executionModel: 'per-request',
           functionEntrypoint: entrypoint,
+          ...(handlerExport === undefined ? {} : { functionHandler: handlerExport }),
+          ...declaredSizing(
+            declaration.timeout ?? providerSettings.timeout,
+            declaration.memorySize ?? providerSettings.memorySize
+          ),
           functionTriggers,
           environmentVariables,
           evidence: citation === undefined ? [] : [citation],
