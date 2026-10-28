@@ -29,14 +29,20 @@ import {
   buildAgentReadyMessage,
   capDaemonOutputFiles,
   buildAgentReadyPayload,
-  deleteAgentLockFile,
+  compareSessionTarget,
+  type DevSessionTarget,
+  acquireAgentLockFile,
+  findLiveStageSession,
   findOrphanedDevBoxSession,
   getLockFilePath,
   getCustomArgsSuffix,
   type ForwardedChildRecord,
   getRunningAgent,
+  isOwnSessionStopping,
+  registerOwnLockCleanup,
   requestDevAgent,
   spawnAgentDaemon,
+  waitForStoppingSession,
   writeAgentLockFile,
   type AgentLockFile
 } from './agent-daemon';
@@ -442,6 +448,127 @@ export const reportRunningAgent = async (agent: AgentLockFile) => {
   return readyPayload;
 };
 
+/** The AWS profile a start selects explicitly; `default` by itself selects nothing worth comparing. */
+const explicitProfile = () => globalStateManager.rawArgs?.profile || process.env.AWS_PROFILE || undefined;
+
+const resolvedRegion = () => {
+  try {
+    return globalStateManager.region;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The target a start asks for before it loads its credentials. With `--awsAccount` the Console account supplies them,
+ * and a profile is ignored. With local credentials, the account comes from the profile or one STS call.
+ */
+const requestedSessionTarget = async (): Promise<Partial<DevSessionTarget>> => {
+  const awsAccountName = globalStateManager.args.awsAccount;
+  if (awsAccountName) return { region: resolvedRegion(), awsAccountName };
+  const awsAccountId = await globalStateManager.resolveLocalAwsAccountId().catch(() => undefined);
+  return { region: resolvedRegion(), profile: explicitProfile(), awsAccountId };
+};
+
+/** The target this session runs against, recorded in its lock file once the credentials are loaded. */
+const ownSessionTarget = (): DevSessionTarget => {
+  let account: { awsAccountId?: string; name?: string } | undefined;
+  try {
+    account = globalStateManager.targetAwsAccount;
+  } catch {
+    account = undefined;
+  }
+  // Local credentials get a `local:` account; a Console account supplies the credentials whatever the profile.
+  const viaConsole = account?.name !== undefined && !account.name.startsWith('local:');
+  return {
+    region: resolvedRegion() ?? '',
+    awsAccountId: account?.awsAccountId,
+    ...(viaConsole ? { awsAccountName: account!.name } : { profile: explicitProfile() })
+  };
+};
+
+/**
+ * r2rr: a start for another region, profile or account of the same project and stage reused the running session, and
+ * the client then worked against the wrong one. The two cannot run side by side: they share the lock file and the
+ * local containers of the stage.
+ */
+const targetMismatchError = (session: AgentLockFile, mismatch: string[]) =>
+  new CliError({
+    category: 'CLI',
+    code: 'DEV_SESSION_TARGET_MISMATCH',
+    message: `Dev mode for stage ${session.stage} already runs in this directory (process ${session.pid}${session.port ? `, agent port ${session.port}` : ''}) against another target: ${mismatch.join(', ')}.`,
+    hints: [
+      `Stop it first with \`stacktape dev stop${session.port ? ` --agent-port ${session.port}` : ''}\`, or run this target under another stage.`
+    ]
+  });
+
+/**
+ * The running agent of this project and stage, which a start reports instead of starting one, if it runs against the
+ * requested target. When the target cannot be compared before the credentials load, this returns null: the start goes
+ * on, and once its credentials are loaded it reports the agent or refuses (`refuseStageRunningHere`).
+ */
+export const findReusableAgent = async (): Promise<AgentLockFile | null> => {
+  const agent = await getRunningAgent();
+  if (!agent) return null;
+  const { comparable, mismatch } = compareSessionTarget(agent, await requestedSessionTarget());
+  if (!comparable) return null;
+  if (mismatch.length > 0) throw targetMismatchError(agent, mismatch);
+  return agent;
+};
+
+/**
+ * Creates this session's lock file, or refuses the start while another session of the stage holds it. A session that
+ * stops is waited for, and the lock file is then tried once more.
+ */
+export const acquireSessionLock = async (lock: AgentLockFile) => {
+  if (!(await acquireAgentLockFile(lock))) return;
+  await refuseStageRunningHere({ projectName: lock.projectName, stage: lock.stage });
+  const holder = await acquireAgentLockFile(lock);
+  if (holder) throw stageRunningHereError(holder, lock.projectName, lock.stage);
+};
+
+/** How long a start waits for the stopping previous session of its stage; MCP's stop waits as long for an agent. */
+const STOPPING_SESSION_WAIT_MS = 30_000;
+
+/**
+ * Refuses a session of this stage while another process runs one in this directory. One that is stopping is waited
+ * for first. The two would share the lock file and the local containers.
+ */
+export const refuseStageRunningHere = async ({ projectName, stage }: { projectName: string; stage: string }) => {
+  const stopping = await waitForStoppingSession({
+    projectName,
+    stage,
+    timeoutMs: STOPPING_SESSION_WAIT_MS,
+    onWait: ({ pid }) =>
+      tuiManager.info(`Waiting for the previous dev session of this stage (process ${pid}) to finish stopping.`)
+  });
+  const session = stopping ?? (await findLiveStageSession(projectName, stage));
+  if (!session) return;
+  const { mismatch } = compareSessionTarget(session, ownSessionTarget());
+  if (mismatch.length > 0) throw targetMismatchError(session, mismatch);
+  if (stopping)
+    throw new CliError({
+      category: 'CLI',
+      code: 'DEV_SESSION_STILL_STOPPING',
+      message: `The previous dev session of this stage (process ${session.pid}) is still stopping after ${STOPPING_SESSION_WAIT_MS / 1000} s.`,
+      hints: stageRunningHereHints(session, projectName, stage)
+    });
+  throw stageRunningHereError(session, projectName, stage);
+};
+
+const stageRunningHereHints = (session: AgentLockFile, projectName: string, stage: string) => [
+  `Stop it with \`stacktape dev stop${session.port ? ` --agent-port ${session.port}` : ''}\`, or use another stage.`,
+  `If no dev session runs, delete ${getLockFilePath(projectName, stage)}.`
+];
+
+const stageRunningHereError = (session: AgentLockFile, projectName: string, stage: string) =>
+  new CliError({
+    category: 'CLI',
+    code: 'DEV_STAGE_RUNNING_HERE',
+    message: `Dev mode for stage ${stage} already runs in this directory (process ${session.pid}${session.port ? `, agent port ${session.port}` : ''}).`,
+    hints: stageRunningHereHints(session, projectName, stage)
+  });
+
 export const commandDev = async () => {
   const initialArgs = captureCommandArgs();
   const agentPortArg = initialArgs.agentPort;
@@ -451,8 +578,21 @@ export const commandDev = async () => {
   // Handle --agent (without --agent-child): spawn daemon and exit
   // The daemon child will have --agent-child flag set
   if (agentEnabled && !isAgentChild) {
+    const stillStopping = await waitForStoppingSession({
+      timeoutMs: STOPPING_SESSION_WAIT_MS,
+      onWait: ({ pid }) =>
+        tuiManager.info(`Waiting for the previous dev session of this stage (process ${pid}) to finish stopping.`)
+    });
+    if (stillStopping) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'DEV_SESSION_STILL_STOPPING',
+        message: `The previous dev session of this stage (process ${stillStopping.pid}) is still stopping after ${STOPPING_SESSION_WAIT_MS / 1000} s.`,
+        hints: 'Start dev mode again once it has exited. `stacktape dev stop` ends it if it does not.'
+      });
+    }
     // Check if agent is already running
-    const runningAgent = await getRunningAgent();
+    const runningAgent = await findReusableAgent();
     if (runningAgent) return reportRunningAgent(runningAgent);
 
     // Find available port
@@ -623,28 +763,15 @@ export const commandDev = async () => {
   }
 
   const orphanedDevBoxSessionId = findOrphanedDevBoxSession(stackContext.projectName, stackContext.stage);
-  // Every session, terminal or agent, records itself before it starts anything, and labels its containers with that
-  // record, so `dev:stop --cleanupContainers` can tell a live session's containers from abandoned ones.
-  writeAgentLockFile({
-    pid: process.pid,
-    port: getAgentPort() ?? 0,
-    phase: 'starting',
-    projectName: stackContext.projectName,
-    stage: stackContext.stage,
-    region: stackContext.region,
-    startedAt: new Date().toISOString(),
-    workloads: [],
-    databases: [],
-    sessionId: getAgentSessionId()
-  });
-  setDevSessionOwner({
-    lockFile: getLockFilePath(stackContext.projectName, stackContext.stage),
-    pid: process.pid,
-    stage: stackContext.stage
-  });
-  applicationManager.registerCleanUpHook(async () => {
-    deleteAgentLockFile(stackContext.projectName, stackContext.stage);
-  });
+  // The parent could not compare the target before the credentials loaded (`findReusableAgent`): an agent of this stage
+  // with the same target is reported as this start's result.
+  if (isAgentChild) {
+    const running = await getRunningAgent(stackContext.projectName, stackContext.stage);
+    const target = running && compareSessionTarget(running, ownSessionTarget());
+    if (running && target?.comparable && target.mismatch.length === 0) return reportRunningAgent(running);
+  }
+  // Another session of this stage in this directory shares its lock file and containers: refused before anything else.
+  await refuseStageRunningHere({ projectName: stackContext.projectName, stage: stackContext.stage });
 
   const devHeader = {
     action: 'RUNNING DEV MODE',
@@ -718,6 +845,30 @@ export const commandDev = async () => {
   if (Object.keys(getDevNetworkDemand({ noTunnel: Boolean(args.noTunnel) }).functions).length) {
     await refuseStageHeldElsewhere({ stackName: stackContext.stackName, takeOver: Boolean(args.takeOver) });
   }
+
+  // Every session, terminal or agent, records itself before it starts anything, and labels its containers with that
+  // record, so `dev:stop --cleanupContainers` can tell a live session's containers from abandoned ones. Only after the
+  // stage checks: r2rr, a refused second start overwrote the running session's lock file and then deleted it. Created
+  // exclusively: of two starts that passed the checks, one gets it.
+  await acquireSessionLock({
+    pid: process.pid,
+    port: getAgentPort() ?? 0,
+    phase: 'starting',
+    projectName: stackContext.projectName,
+    stage: stackContext.stage,
+    ...ownSessionTarget(),
+    region: stackContext.region,
+    startedAt: new Date().toISOString(),
+    workloads: [],
+    databases: [],
+    sessionId: getAgentSessionId()
+  });
+  setDevSessionOwner({
+    lockFile: getLockFilePath(stackContext.projectName, stackContext.stage),
+    pid: process.pid,
+    stage: stackContext.stage
+  });
+  registerOwnLockCleanup({ projectName: stackContext.projectName, stage: stackContext.stage });
 
   // Phase 2 reads the dev stack and its metadata from AWS. The secret and parameter checks and the dev network need
   // nothing of it, so it runs in the background meanwhile; it is awaited before the dev stack is checked.
@@ -966,6 +1117,9 @@ export const commandDev = async () => {
     stageName,
     onReady: agentEnabled
       ? () => {
+          // A stop during the start cancels it: the daemon reports the interruption once its cleanup ends, not ready.
+          // `/stop` answers before its interrupt arrives, so the session's own stop mark counts too.
+          if (applicationManager.isInterrupted || isOwnSessionStopping()) return;
           const port = getAgentPort();
 
           // Write lock file for discovery by other processes
@@ -975,6 +1129,7 @@ export const commandDev = async () => {
             phase: 'ready',
             projectName,
             stage: stageName,
+            ...ownSessionTarget(),
             region: stackContext.region,
             startedAt: new Date().toISOString(),
             workloads: workloadInfos.map((w) => w.name),
@@ -1015,6 +1170,7 @@ export const commandDev = async () => {
               : { message: 'Dev session ready' })
           });
           stopDevStartupReporting();
+          if (applicationManager.isInterrupted || isOwnSessionStopping()) return;
           process.stdout.write(
             `${buildAgentReadyMessage({
               port: port!,
@@ -1064,11 +1220,6 @@ export const commandDev = async () => {
   }
 
   applicationManager.registerCleanUpHook(async () => {
-    // Delete lock file when agent stops
-    if (agentEnabled) {
-      deleteAgentLockFile();
-    }
-
     // Snapshot state before stopping the TUI (stop() resets state)
     const state = devTuiState.getState();
     const cleanupLines: string[] = [];

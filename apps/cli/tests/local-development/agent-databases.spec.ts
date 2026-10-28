@@ -53,6 +53,10 @@ import { configManager } from ${src('domain/config-manager/index.ts')};
 import { deployedStackOverviewManager } from ${src('domain/deployed-stack-overview-manager/index.ts')};
 import { startLocalResources, registerLocalResourceCleanupHook } from ${src('commands/dev/local-resources/index.ts')};
 import { startAgentServer, updateAgentState, registerAgentCleanupHook } from ${src('commands/dev/agent-server.ts')};
+import { buildSource } from ${JSON.stringify(join(CLI_DIRECTORY, 'scripts/dev.ts'))};
+// The source dev runner (\`bun dev\`) builds the CLI in the process that then runs it. The agent here runs after the
+// same build, whose Babel once left a stack-trace hook behind that failed every mysql2 call.
+await buildSource({ outdir: ${JSON.stringify(join(root, 'dev-bundle'))} });
 const project = ${JSON.stringify(project)};
 const DEPLOYED_HOST = 'agentdb-deployed.cxyz.ca-central-1.rds.amazonaws.com';
 await applicationManager.init();

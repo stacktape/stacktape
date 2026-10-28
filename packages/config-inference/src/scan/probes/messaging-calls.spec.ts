@@ -7,9 +7,12 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts, createProbeContext } from '../assemble';
 import { languageManifestProbe } from './language-manifests';
+import { manifestProbe } from './manifest';
 import { messagingCallsProbe } from './messaging-calls';
+import { serverEntrypointProbe } from './server-entrypoint';
 
 let root: string | undefined;
 
@@ -35,6 +38,13 @@ const run = async (files: Record<string, string>) => {
     evidence: evidence.map(({ file, quote }) => ({ file, quote }))
   }));
 };
+
+const railsPublisher = (calls: string) => ({
+  Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "aws-sdk-sns"\ngem "aws-sdk-sqs"\n',
+  'app/models/order.rb': `class Order\n  def placed!\n${calls}  end\nend\n`
+});
+const publish = (variable: string) => `    sns.publish(topic_arn: ENV.fetch('${variable}'), message: id.to_s)\n`;
+const send = (variable: string) => `    sqs.send_message(queue_url: ENV.fetch('${variable}'), message_body: id.to_s)\n`;
 
 // The variable is cited, and left to the source scan to bind to the services that read it.
 describe('the messaging-calls probe', () => {
@@ -108,14 +118,44 @@ describe('the messaging-calls probe', () => {
     ]);
   });
 
-  it('claims nothing it cannot tie to one variable, and leaves declared infrastructure to its own probe', async () => {
-    // Two topic variables may be two topics or one.
+  it('gives each variable a call targets its own resource, named after the variable and addressed by it', async () => {
     expect(
       await run({
         'app/notify.py':
-          "sns = boto3.client('sns')\nsns.publish(TopicArn=os.environ['ORDERS_TOPIC_ARN'], Message='a')\nsns.publish(TopicArn=os.environ['REFUNDS_TOPIC_ARN'], Message='b')\n"
+          "sns = boto3.client('sns')\nsns.publish(TopicArn=os.environ['ORDERS_TOPIC_ARN'], Message='a')\nsns.publish(TopicArn=os.environ['REFUNDS_TOPIC_ARN'], Message='b')\nsns.publish(TopicArn=os.environ['ORDERS_TOPIC_ARN'], Message='c')\n",
+        // A name with nothing of its own is the whole variable's.
+        'app/jobs.py':
+          "sqs.send_message(QueueUrl=os.environ['SQS_QUEUE_URL'], MessageBody='a')\nsqs.send_message(QueueUrl=os.environ['QUEUE_URL'], MessageBody='b')\n"
       })
-    ).toEqual([]);
+    ).toEqual([
+      {
+        name: 'ordersTopic',
+        kind: 'topic',
+        addressedBy: ['ORDERS_TOPIC_ARN'],
+        evidence: [{ file: 'app/notify.py', quote: "os.environ['ORDERS_TOPIC_ARN'" }]
+      },
+      {
+        name: 'refundsTopic',
+        kind: 'topic',
+        addressedBy: ['REFUNDS_TOPIC_ARN'],
+        evidence: [{ file: 'app/notify.py', quote: "os.environ['REFUNDS_TOPIC_ARN'" }]
+      },
+      {
+        name: 'sqsQueueUrl',
+        kind: 'queue',
+        addressedBy: ['SQS_QUEUE_URL'],
+        evidence: [{ file: 'app/jobs.py', quote: "os.environ['SQS_QUEUE_URL'" }]
+      },
+      {
+        name: 'queueUrl',
+        kind: 'queue',
+        addressedBy: ['QUEUE_URL'],
+        evidence: [{ file: 'app/jobs.py', quote: "os.environ['QUEUE_URL'" }]
+      }
+    ]);
+  });
+
+  it('claims nothing no call ties to a variable, and leaves declared infrastructure to its own probe', async () => {
     // A hard-coded or computed ARN names no variable; a field elsewhere on the line is not the target.
     expect(
       await run({
@@ -156,13 +196,8 @@ describe('the messaging-calls probe', () => {
     ]);
   });
 
-  it('a root Gemfile and two topic variables bind neither variable to a guessed topic', async () => {
+  const assemble = async (files: Record<string, string>) => {
     root = await mkdtemp(join(tmpdir(), 'stp-messaging-calls-'));
-    const files: Record<string, string> = {
-      Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "aws-sdk-sns"\n',
-      'app/models/order.rb':
-        "class Order\n  def placed!\n    sns.publish(topic_arn: ENV.fetch('ORDERS_TOPIC_ARN'), message: id.to_s)\n  end\n  def refunded!\n    sns.publish(topic_arn: ENV.fetch('REFUNDS_TOPIC_ARN'), message: id.to_s)\n  end\nend\n"
-    };
     const directory = root;
     await Promise.all(
       Object.entries(files).map(async ([path, contents]) => {
@@ -170,14 +205,114 @@ describe('the messaging-calls probe', () => {
         await writeFile(join(directory, path), contents, 'utf8');
       })
     );
-    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe, messagingCallsProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, languageManifestProbe, serverEntrypointProbe, messagingCallsProbe]
+    });
+    const variables = facts.services.flatMap((service) =>
+      service.environmentVariables.map(({ name, role, dependencyName }) => ({ name, role, dependencyName }))
+    );
+    return { facts, variables };
+  };
 
-    expect(facts.dependencies.filter(({ kind }) => kind === 'topic')).toEqual([]);
+  const twoPublishers = {
+    'src/orders.ts':
+      "import { PublishCommand } from '@aws-sdk/client-sns';\nexport const placed = (id: string) => sns.send(new PublishCommand({ TopicArn: process.env.ORDERS_TOPIC_ARN, Message: id }));\n",
+    'src/refunds.ts':
+      "import { PublishCommand } from '@aws-sdk/client-sns';\nexport const refunded = (id: string) => sns.send(new PublishCommand({ TopicArn: process.env.REFUNDS_TOPIC_ARN, Message: id }));\n"
+  };
+
+  // r2pp: with a root `@aws-sdk/client-sns`, the manifest's one topic took both variables. Review of #385: a variable
+  // that named no resource of its own got the default name, which assembly folded into the other resource.
+  it.each([
+    [
+      'a root package.json',
+      {
+        'package.json': JSON.stringify({
+          name: 'shop',
+          scripts: { start: 'node server.js' },
+          dependencies: { express: '^4.0.0', '@aws-sdk/client-sns': '^3.0.0' }
+        }),
+        'server.js': "require('express')().listen(process.env.PORT ?? 3000);\n",
+        ...twoPublishers
+      },
+      { ORDERS_TOPIC_ARN: 'ordersTopic', REFUNDS_TOPIC_ARN: 'refundsTopic' }
+    ],
+    [
+      'a root Gemfile',
+      railsPublisher(publish('ORDERS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { ORDERS_TOPIC_ARN: 'ordersTopic', REFUNDS_TOPIC_ARN: 'refundsTopic' }
+    ],
+    [
+      'a variable that names no topic of its own',
+      railsPublisher(publish('SNS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { REFUNDS_TOPIC_ARN: 'refundsTopic', SNS_TOPIC_ARN: 'snsTopicArn' }
+    ],
+    [
+      "a variable that reduces to the kind's default name",
+      railsPublisher(publish('NOTIFICATIONS_TOPIC_ARN') + publish('REFUNDS_TOPIC_ARN')),
+      { NOTIFICATIONS_TOPIC_ARN: 'notificationsTopicArn', REFUNDS_TOPIC_ARN: 'refundsTopic' }
+    ],
+    [
+      'queues',
+      railsPublisher(send('SQS_QUEUE_URL') + send('JOB_QUEUE_URL') + send('REPORTS_QUEUE_URL')),
+      { JOB_QUEUE_URL: 'jobQueueUrl', REPORTS_QUEUE_URL: 'reportsQueue', SQS_QUEUE_URL: 'sqsQueueUrl' }
+    ]
+  ])('each variable a call targets gets its own resource, with %s', async (_label, files, expected) => {
+    const { facts, variables } = await assemble(files);
+
+    const names = Object.values(expected).toSorted();
     expect(
-      facts.services[0]!.environmentVariables.map(({ name, role, dependencyName }) => ({ name, role, dependencyName }))
-    ).toEqual([
-      { name: 'ORDERS_TOPIC_ARN', role: 'runtime-config', dependencyName: undefined },
-      { name: 'REFUNDS_TOPIC_ARN', role: 'runtime-config', dependencyName: undefined }
+      facts.dependencies
+        .filter(({ kind }) => kind === 'topic' || kind === 'queue')
+        .map(({ name }) => name)
+        .toSorted()
+    ).toEqual(names);
+    expect(variables).toEqual(
+      Object.entries(expected).map(([name, dependencyName]) => ({ name, role: 'infra-dependency', dependencyName }))
+    );
+    const { config, gaps } = composeConfig({ facts });
+    expect(
+      Object.entries(config.resources)
+        .flatMap(([name, { type }]) => (type === 'sns-topic' || type === 'sqs-queue' ? [name] : []))
+        .toSorted()
+    ).toEqual(names);
+    expect(gaps.filter(({ subject }) => /TOPIC|QUEUE/.test(subject))).toEqual([]);
+  });
+
+  it('an SNS or SQS client in package.json alone creates no resource, and the variables it would have taken get a gap', async () => {
+    const { facts, variables } = await assemble({
+      'package.json': JSON.stringify({
+        name: 'shop',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '^4.0.0', '@aws-sdk/client-sns': '^3.0.0', '@aws-sdk/client-sqs': '^3.0.0' }
+      }),
+      'server.js':
+        "require('express')().listen(process.env.PORT ?? 3000);\nconst topics = [process.env.ORDERS_TOPIC_ARN, process.env.REFUNDS_TOPIC_ARN];\nconst queue = process.env.JOBS_QUEUE_URL;\n// An IoT topic, not SNS: only an ARN or a queue URL is surely SNS or SQS.\nconst channel = process.env.REALTIME_TOPIC;\n"
+    });
+
+    expect(facts.dependencies.filter(({ kind }) => kind === 'topic' || kind === 'queue')).toEqual([]);
+    expect(variables.map(({ role }) => role)).toEqual([
+      'runtime-config',
+      'runtime-config',
+      'runtime-config',
+      'runtime-config'
+    ]);
+    const { gaps, unsetSettings } = composeConfig({ facts });
+    expect(unsetSettings.map(({ variableName }) => variableName)).toEqual(['REALTIME_TOPIC']);
+    expect(gaps.filter(({ subject }) => /TOPIC|QUEUE/.test(subject))).toEqual([
+      expect.objectContaining({
+        subject: 'shop.JOBS_QUEUE_URL',
+        message: expect.stringContaining(
+          "add an sqs-queue, list it in connectTo on shop and set JOBS_QUEUE_URL to $ResourceParam('<queue name>', 'url')"
+        )
+      }),
+      {
+        subject: 'shop.ORDERS_TOPIC_ARN',
+        message:
+          "ORDERS_TOPIC_ARN names an SNS topic, but no publish call in the code takes its target from it, so init created none. If the app owns it, add an sns-topic, list it in connectTo on shop and set ORDERS_TOPIC_ARN to $ResourceParam('<topic name>', 'arn'). If it belongs to another project, set ORDERS_TOPIC_ARN to its address. Do this before deploying."
+      },
+      expect.objectContaining({ subject: 'shop.REFUNDS_TOPIC_ARN' })
     ]);
   });
 });

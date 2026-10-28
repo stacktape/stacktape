@@ -170,6 +170,30 @@ describe('documented overrides', () => {
     });
   });
 
+  // r2pp: `{ SomeLogicalId: { Properties: { ... } } }` passed validate and failed in CloudFormation.
+  test('an override object with a Properties key is rejected, with the keys to move up', async () => {
+    const config = defineConfig(() => {
+      const mainTable = new DynamoDbTable({
+        primaryKey: { partitionKey: { name: 'id', type: 'string' } },
+        overrides: {
+          MainTableGlobalTable: {
+            Properties: {
+              TimeToLiveSpecification: { Enabled: true, AttributeName: 'expiresAt' },
+              TableClass: 'STANDARD'
+            }
+          }
+        }
+      });
+      return { resources: { mainTable } };
+    });
+    await expect(synthesizeFixture({ compiledConfig: config(authoringParams), workingDir })).rejects.toMatchObject({
+      code: 'CONFIG_RESOURCE_OVERRIDE_PATH_INVALID',
+      hints: [
+        'Remove the `Properties` level and put `TimeToLiveSpecification`, `TableClass` directly under `MainTableGlobalTable`.'
+      ]
+    });
+  });
+
   // Review of #384: a custom resource's provider defines its properties, and one of them may be named `Properties`.
   test('a custom resource accepts overrides of a property named Properties', async () => {
     const config = (overrides?: Record<string, Record<string, unknown>>) =>
@@ -195,6 +219,13 @@ describe('documented overrides', () => {
     });
     expect((template.Resources[instanceId] as { Properties: Record<string, any> }).Properties.Properties).toEqual({
       mode: 'strict'
+    });
+    const bareKey = await synthesizeFixture({
+      compiledConfig: config({ [instanceId]: { Properties: { mode: 'lenient' } } }),
+      workingDir
+    });
+    expect((bareKey.Resources[instanceId] as { Properties: Record<string, any> }).Properties.Properties).toEqual({
+      mode: 'lenient'
     });
   });
 

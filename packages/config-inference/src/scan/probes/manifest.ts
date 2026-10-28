@@ -23,7 +23,8 @@ import { withoutSampleDirectories } from '../service-root';
  * Matched against the exact package name, not a substring, so `redis-mock` and `eslint-plugin-n`
  * do not produce infrastructure. The right-hand side is what the package *proves* — `bullmq`
  * proves Redis, not SQS; replacing one queue protocol with another produces infrastructure the
- * application cannot use.
+ * application cannot use. The SNS and SQS clients prove no topic or queue of the project's own: the calls that publish
+ * or send prove those (`messaging-calls.ts`).
  */
 const DEPENDENCY_SIGNALS: ReadonlyArray<{
   packages: readonly string[];
@@ -39,8 +40,6 @@ const DEPENDENCY_SIGNALS: ReadonlyArray<{
   { packages: ['better-sqlite3', 'sqlite3', 'node:sqlite'], kinds: ['sqlite'] },
   { packages: ['redis', 'ioredis', '@upstash/redis'], kinds: ['redis'] },
   { packages: ['bullmq', 'bull', 'bee-queue'], kinds: ['redis'] },
-  { packages: ['@aws-sdk/client-sqs'], kinds: ['queue'] },
-  { packages: ['@aws-sdk/client-sns'], kinds: ['topic'] },
   {
     packages: ['@aws-sdk/client-s3', 'minio', 'aws-sdk'],
     kinds: ['object-storage']

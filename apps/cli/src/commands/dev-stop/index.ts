@@ -96,7 +96,7 @@ export const commandDevStop = async (): Promise<{ stopped: StoppedAgent[]; remov
         projectDirectory
       })
     ) {
-      deleteAgentLockFile(agent.projectName, agent.stage);
+      deleteAgentLockFile({ projectName: agent.projectName, stage: agent.stage, ownerPid: agent.pid });
       return false;
     }
     return true;

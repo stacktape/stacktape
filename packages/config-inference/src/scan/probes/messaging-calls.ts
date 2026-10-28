@@ -3,10 +3,11 @@
  * `publish(topic_arn: ENV.fetch('PARCEL_TOPIC_ARN'), ...)`, `new PublishCommand({ TopicArn: process.env.TOPIC_ARN })`,
  * `sqs.send_message(QueueUrl=os.environ['JOBS_QUEUE_URL'])`.
  *
- * The call proves the resource exists, in every language. A package manifest proves it only for JavaScript, and only
- * at the root or a workspace member: a Rails service in `api/` with `aws-sdk-sns` in its own Gemfile otherwise
- * produced no topic at all. The variable is not claimed as the resource's address: the source scan binds it to the
- * services that read it, where `addressedBy` would hand it to every service near the resource as well.
+ * The call proves the resource exists, in every language; a package manifest proves nothing. Each variable a call
+ * takes its target from is one resource. One variable is the project's topic (or queue), which every other probe calls
+ * by the same default name, and the source scan binds it to the services that read it. Several variables get a
+ * resource each, named after the variable and addressed by it. Before, a root `@aws-sdk/client-sns` gave both of two
+ * `*_TOPIC_ARN` variables the same topic.
  */
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
@@ -160,6 +161,31 @@ const targetVariable = (raw: string, valueStart: number): string | undefined => 
   return assignment === null ? undefined : variableIn(assignment[1]!);
 };
 
+/** Words of a variable name that say what it holds rather than which resource: `SNS`, `TOPIC`, `ARN`, `URL`. */
+const ADDRESS_WORDS = /^(?:sns|sqs|topic|queue|arn|url|name)$/;
+
+const camelCase = (words: readonly string[]) =>
+  words.map((word, index) => (index === 0 ? word : word[0]!.toUpperCase() + word.slice(1))).join('');
+
+/**
+ * The resource name for one of several variables: `ORDER_EVENTS_TOPIC_ARN` → `orderEventsTopic`, otherwise the whole
+ * variable (`SNS_TOPIC_ARN` → `snsTopicArn`, `NOTIFICATIONS_TOPIC_ARN` → `notificationsTopicArn`). Never the kind's
+ * default name or a `taken` one: assembly folds a default-named resource into the one other resource of its kind, and
+ * both variables then addressed the same topic.
+ */
+const nameFromVariable = (kind: 'topic' | 'queue', variable: string, taken: ReadonlySet<string>): string => {
+  const words = variable.toLowerCase().split('_').filter(Boolean);
+  const own = words.filter((word) => !ADDRESS_WORDS.test(word));
+  const whole = camelCase(words);
+  const candidates = [...(own.length > 0 ? [`${camelCase(own)}${kind === 'topic' ? 'Topic' : 'Queue'}`] : []), whole];
+  const usable = (name: string) => name !== defaultDependencyName(kind) && !taken.has(name);
+  const named = candidates.find(usable);
+  if (named !== undefined) return named;
+  let suffix = 2;
+  while (!usable(`${whole}${suffix}`)) suffix += 1;
+  return `${whole}${suffix}`;
+};
+
 export const messagingCallsProbe: Probe = {
   name: 'messaging-calls',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -197,23 +223,22 @@ export const messagingCallsProbe: Probe = {
         found.set(kind, variables);
       }
     }
-    // One variable names the project's one topic (or queue), which every other probe calls by the same default name.
-    // Two variables can be two resources or one, and the source scan could bind neither, so neither is claimed.
     const dependencies: DependencyFact[] = [...found].flatMap(([kind, variables]) => {
-      const [only, ...others] = variables;
-      if (only === undefined || others.length > 0) return [];
-      const [, evidence] = only;
-      return [
-        {
-          name: defaultDependencyName(kind),
+      const several = variables.size > 1;
+      const names = new Set<string>();
+      return [...variables].map(([variable, evidence]) => {
+        const name = several ? nameFromVariable(kind, variable, names) : defaultDependencyName(kind);
+        names.add(name);
+        return {
+          name,
           kind,
           extensions: [],
           consumedBy: [],
-          addressedBy: [],
+          addressedBy: several ? [variable] : [],
           evidence,
           source: 'probe' as const
-        }
-      ];
+        };
+      });
     });
     return dependencies.length === 0 ? {} : { dependencies };
   }

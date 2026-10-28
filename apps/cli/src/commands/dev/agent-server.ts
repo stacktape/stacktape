@@ -12,6 +12,7 @@ import { isResourceTypeExcludedInDevMode } from '@domain-services/config-manager
 import { AWS_READ_ONLY_OPERATIONS } from '@stacktape/aws-read-only/operations';
 import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import { localStatePaths } from 'src/config/local-state-paths';
+import { markOwnAgentLockStopping } from './agent-daemon';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -508,6 +509,8 @@ addRoute('POST', '/stop', async () => {
   }
 
   agentState.phase = 'stopping';
+  // Before the response, so a start that follows it waits for this session.
+  markOwnAgentLockStopping();
   // On Windows, process.kill(pid, 'SIGINT') doesn't emit the SIGINT event properly
   // Use process.emit('SIGINT') instead to trigger registered handlers
   setTimeout(() => {
