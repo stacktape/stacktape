@@ -235,17 +235,11 @@ describe('Batch and Step Functions family', () => {
     expect(
       tableAccess.every(({ resource }) => resource.includes('ResultsGlobalTable') && !resource.includes('"*"'))
     ).toBe(true);
-    // The ECS agent writes the job's awslogs output with the execution role, which is the job role.
+    // The ECS agent pulls ECR images and writes the awslogs output with the execution role, which is the job role.
     const containerProperties = literal(job.resource.Properties.ContainerProperties);
     expect(containerProperties.ExecutionRoleArn).toEqual(containerProperties.JobRoleArn);
-    const logGroup = literal(literal(containerProperties.LogConfiguration).Options)['awslogs-group'] as { Ref: string };
-    expect(
-      roleStatements(template, jobRole).filter(({ actions }) => actions.some((action) => action.startsWith('logs:')))
-    ).toEqual([
-      {
-        actions: ['logs:CreateLogStream', 'logs:PutLogEvents'],
-        resource: json({ 'Fn::GetAtt': [logGroup.Ref, 'Arn'] })
-      }
+    expect((template.Resources[jobRole].Properties as { ManagedPolicyArns?: string[] }).ManagedPolicyArns).toEqual([
+      'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
     ]);
     const workflow = stateMachines.find(([, resource]) => resource.Properties?.Definition)!;
     expect(workflow[1].Properties?.Definition).toEqual({

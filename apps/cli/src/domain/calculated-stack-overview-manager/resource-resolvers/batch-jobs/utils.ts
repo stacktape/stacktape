@@ -87,38 +87,19 @@ export const getBatchJobExecutionRole = ({
   iamRoleStatements,
   accessToResourcesRequiringRoleChanges,
   accessToAwsServices,
-  containerSecretValueFroms,
-  logGroupCfLogicalName
+  containerSecretValueFroms
 }: {
   workloadName: string;
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: never[];
   containerSecretValueFroms: string[];
-  /** The job's log group. The ECS agent writes the `awslogs` output with the execution role, which is this role. */
-  logGroupCfLogicalName?: string;
 }) => {
   const policies = getPoliciesForRoles({
     iamRoleStatements,
     accessToResourcesRequiringRoleChanges,
     accessToAwsServices
   });
-  if (logGroupCfLogicalName) {
-    policies.push({
-      PolicyName: 'container-logs',
-      PolicyDocument: {
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Action: ['logs:CreateLogStream', 'logs:PutLogEvents'],
-            // The log group's `Arn` attribute ends in `:*`, which covers the group's log streams.
-            Resource: getAtt(logGroupCfLogicalName, 'Arn')
-          }
-        ]
-      }
-    });
-  }
   const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
   if (secretResources.length || parameterResources.length) {
     policies.push({
@@ -148,6 +129,8 @@ export const getBatchJobExecutionRole = ({
       Version: '2012-10-17',
       Statement: [{ Effect: 'Allow', Principal: { Service: 'ecs-tasks.amazonaws.com' }, Action: 'sts:AssumeRole' }]
     },
+    // This role is also the job's execution role: the ECS agent pulls ECR images and writes the awslogs output with it.
+    ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
     Policies: policies
   });
 };
