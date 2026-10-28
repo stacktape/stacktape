@@ -63,7 +63,11 @@ test('a stage deletes a secret it alone uses, and a stage that needs one restore
   const generated = await value('shop-cache');
 
   // Deleting the stage schedules it for deletion; the next session of a stage that uses it restores the same value.
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: ['shop-cache'], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({
+    deleted: ['shop-cache'],
+    kept: [],
+    retained: []
+  });
   expect((await state('shop-cache'))?.deleted).toBe(true);
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   const restored = await state('shop-cache');
@@ -83,21 +87,28 @@ test('a secret two dev stages use is deleted with the last of them, also when bo
 
   expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({
     deleted: [],
-    kept: [{ name: 'shop-session', usedBy: ['shop-bob'] }]
+    kept: [{ name: 'shop-session', usedBy: ['shop-bob'] }],
+    retained: []
   });
   expect(await state('shop-session')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-bob') });
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: ['shop-session'], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({
+    deleted: ['shop-session'],
+    kept: [],
+    retained: []
+  });
   expect((await state('shop-session'))?.deleted).toBe(true);
 
-  // Both stages again, deleted in parallel: whichever removes its tag last schedules the deletion.
+  // Both stages again, deleted in parallel. A stage that still sees the other's tag keeps the secret; when both do,
+  // it stays, which is the conservative side.
   referenceSecrets('shop-jobs');
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
   const results = await Promise.all(
     ['shop-alice', 'shop-bob'].map((stackName) => deleteDevGeneratedSecrets({ stackName }))
   );
-  expect(results.flatMap(({ deleted }) => deleted)).toContain('shop-jobs');
-  expect((await state('shop-jobs'))?.deleted).toBe(true);
+  const scheduled = results.some(({ deleted }) => deleted.includes('shop-jobs'));
+  expect((await state('shop-jobs'))?.deleted).toBe(scheduled);
+  if (!scheduled) expect(results.every(({ kept }) => kept.some(({ name }) => name === 'shop-jobs'))).toBe(true);
 });
 
 test('a deployment that is not a dev session takes a dev secret out of dev ownership', async () => {
@@ -107,8 +118,8 @@ test('a deployment that is not a dev session takes a dev secret out of dev owner
   await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
   await ensureMissingSecretsCreated();
   expect(await state('shop-search')).toEqual({ deleted: false, tags: [released] });
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: [], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [], retained: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-bob' })).toEqual({ deleted: [], kept: [], retained: [] });
   expect((await state('shop-search'))?.deleted).toBe(false);
 });
 
@@ -130,7 +141,7 @@ test('a secret shared by more dev stages than its tags can record is kept, and n
     awsSdkManager.secrets.tag = tag;
   }
   expect((await state('shop-shared'))?.tags.filter(({ Key }) => Key !== released.Key)).toEqual([]);
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [], retained: [] });
   expect((await state('shop-shared'))?.deleted).toBe(false);
 });
 
@@ -151,7 +162,11 @@ test('a deployment that may not untag a dev secret marks it released, and deleti
     awsSdkManager.secrets.untag = untag;
   }
   expect((await state('shop-db'))?.tags).toEqual(expect.arrayContaining([released]));
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: [], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({
+    deleted: [],
+    kept: [],
+    retained: [{ name: 'shop-db', usedBy: 'a deployment outside dev mode' }]
+  });
   expect((await state('shop-db'))?.deleted).toBe(false);
 });
 
@@ -161,7 +176,11 @@ test('a stage that uses a dev secret only inside $CfFormat restores it and keeps
   await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
   const generated = await value('shop-queue');
   for (const key of overridden.splice(0)) delete (configManager as unknown as Record<PropertyKey, unknown>)[key];
-  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({ deleted: ['shop-queue'], kept: [] });
+  expect(await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).toEqual({
+    deleted: ['shop-queue'],
+    kept: [],
+    retained: []
+  });
 
   configManager.config = {
     resources: {},
@@ -197,14 +216,16 @@ const interleave = <K extends 'untag' | 'tag' | 'delete'>(
   return () => ((awsSdkManager.secrets as unknown as Record<string, unknown>)[method] = original);
 };
 
-// r2rr bug hunt, finding 2: a normal deployment adopted a dev secret while its dev stage was being deleted, and the
-// deletion put the generator tag back and scheduled the adopted secret for deletion.
-test('a deployment that adopts a dev secret while its stage is deleted keeps it, whenever it runs', async () => {
+// r2rr bug hunt, finding 2, and the review of #388: a deployment outside dev mode adopted a dev secret while its dev
+// stage was being deleted, and the deletion scheduled the adopted secret. A deletion now schedules a secret only when,
+// right before DeleteSecret, dev mode generated it, nothing adopted it and no other stage uses it. What races that check
+// is restored by the next command that needs the secret.
+test('a deployment that adopts a dev secret while its stage is deleted keeps it, at the latest on its next run', async () => {
   const { state, value } = useAccount(ministack.account());
   const userTag = (stack: string) => (input: { tagKeys?: string[] }) =>
     Boolean(input.tagKeys?.includes(tagNames.devSecretUser(stack)));
   const scenarios = [
-    // Between the deletion's removal of its own tag and its check of the remaining tags.
+    // Between the deletion's removal of its own tag and its check of the remaining tags: the check keeps it.
     [
       'shop-orders',
       () => interleave('untag', userTag('shop-orders-dev'), () => ensureMissingSecretsCreated(), { after: true })
@@ -241,8 +262,101 @@ test('a deployment that adopts a dev secret while its stage is deleted keeps it,
     } finally {
       restore();
     }
-    const after = await state(name);
-    expect({ name, ...after }).toEqual({ name, deleted: false, tags: [released] });
+    if (name === 'shop-orders') expect((await state(name))?.deleted).toBe(false);
+    // The deployment's next run needs the secret and restores it.
+    await ensureMissingSecretsCreated();
+    expect({ name, ...(await state(name)) }).toEqual({ name, deleted: false, tags: [released] });
     expect(await value(name)).toBe(generated);
   }
+});
+
+test('a release that cannot write its marker still keeps the secret, or the next deployment restores it', async () => {
+  const { state, value } = useAccount(ministack.account());
+  const tagLimit = () => {
+    throw Object.assign(new Error('Number of tags exceeds the limit of 50 tags for the secret.'), {
+      name: 'ValidationException'
+    });
+  };
+  const denied = () => {
+    throw Object.assign(new Error('not authorized to perform: secretsmanager:UntagResource'), {
+      name: 'AccessDeniedException'
+    });
+  };
+  const { tag, untag } = awsSdkManager.secrets;
+
+  // The marker fails at the tag limit, the dev tags go: no generator tag, so the deletion keeps it.
+  referenceSecrets('shop-tags');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-tags-dev' });
+  awsSdkManager.secrets.tag = tagLimit;
+  try {
+    await ensureMissingSecretsCreated();
+  } finally {
+    awsSdkManager.secrets.tag = tag;
+  }
+  expect((await deleteDevGeneratedSecrets({ stackName: 'shop-tags-dev' })).deleted).toEqual([]);
+  expect((await state('shop-tags'))?.deleted).toBe(false);
+
+  // Neither the marker nor the untag works: the deletion schedules it, and the deployment's next run restores it.
+  referenceSecrets('shop-locked');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-locked-dev' });
+  const generated = await value('shop-locked');
+  Object.assign(awsSdkManager.secrets, { tag: tagLimit, untag: denied });
+  try {
+    await ensureMissingSecretsCreated();
+  } finally {
+    Object.assign(awsSdkManager.secrets, { tag, untag });
+  }
+  expect((await deleteDevGeneratedSecrets({ stackName: 'shop-locked-dev' })).deleted).toEqual(['shop-locked']);
+  await ensureMissingSecretsCreated();
+  expect((await state('shop-locked'))?.deleted).toBe(false);
+  expect(await value('shop-locked')).toBe(generated);
+});
+
+test("a dev start that takes up a secret during another stage's deletion gets it back on its next start", async () => {
+  const { state, value } = useAccount(ministack.account());
+  referenceSecrets('shop-cart');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-alice' });
+  const generated = await value('shop-cart');
+  // Bob's session starts between Alice's check and her DeleteSecret call.
+  const restore = interleave(
+    'delete',
+    () => true,
+    () => ensureMissingSecretsCreated({ devStackName: 'shop-bob' })
+  );
+  try {
+    expect((await deleteDevGeneratedSecrets({ stackName: 'shop-alice' })).deleted).toEqual(['shop-cart']);
+  } finally {
+    restore();
+  }
+  await ensureMissingSecretsCreated({ devStackName: 'shop-bob' });
+  const after = await state('shop-cart');
+  expect(after?.deleted).toBe(false);
+  expect(after?.tags).toEqual(expect.arrayContaining([{ Key: tagNames.devSecretUser('shop-bob'), Value: 'shop-bob' }]));
+  expect(await value('shop-cart')).toBe(generated);
+});
+
+test('an older CLI that schedules an adopted secret is undone by the next deployment, and no new CLI deletes it', async () => {
+  const { state, value } = useAccount(ministack.account());
+  referenceSecrets('shop-users');
+  await ensureMissingSecretsCreated({ devStackName: 'shop-users-dev' });
+  const generated = await value('shop-users');
+  await ensureMissingSecretsCreated();
+  // What an older CLI's deletion of the stage does: it adds the generator tag back and schedules the secret.
+  await awsSdkManager.secrets.tag({
+    secretId: 'shop-users',
+    tags: [{ Key: tagNames.devGeneratedSecret(), Value: 'shop-users-dev' }]
+  });
+  await awsSdkManager.secrets.delete({ secretId: 'shop-users', recoveryWindowInDays: 7 });
+
+  await ensureMissingSecretsCreated();
+  expect((await state('shop-users'))?.deleted).toBe(false);
+  expect(await value('shop-users')).toBe(generated);
+  await awsSdkManager.secrets.tag({
+    secretId: 'shop-users',
+    tags: [{ Key: tagNames.devSecretUser('shop-users-dev'), Value: 'shop-users-dev' }]
+  });
+  expect((await deleteDevGeneratedSecrets({ stackName: 'shop-users-dev' })).retained).toEqual([
+    { name: 'shop-users', usedBy: 'a deployment outside dev mode' }
+  ]);
+  expect((await state('shop-users'))?.deleted).toBe(false);
 });
