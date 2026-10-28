@@ -23,7 +23,17 @@ export type JsonlEventStatus = 'started' | 'running' | 'completed';
  * Used for CloudFormation progress updates and for the agent a starting dev session runs.
  * Discriminated by the `kind` field — consumers should ignore unknown kinds.
  */
-export type JsonlEventDetail = JsonlCloudFormationDetail | JsonlDevAgentDetail;
+export type JsonlEventDetail = JsonlCloudFormationDetail | JsonlDevAgentDetail | JsonlDevTargetDetail;
+
+/** The project, stage and region a starting dev session resolved, reported before it deploys anything. */
+type JsonlDevTargetDetail = {
+  kind: 'dev-target';
+  projectName: string;
+  stage: string;
+  region: string;
+  /** The configuration file the session read. */
+  configPath?: string;
+};
 
 /** The dev agent a starting `dev --agent` session runs, reported before it is ready. */
 type JsonlDevAgentDetail = {

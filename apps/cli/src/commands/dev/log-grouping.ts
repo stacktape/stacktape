@@ -42,10 +42,31 @@ const RAKE_TRACE_HINT_LINE = /^\(See full trace by running task with --trace\)$/
 /** The longest pause in a Ruby error's output: Rails's exception and frames came 51 ms after its `ERROR` line. */
 const RUBY_ERROR_QUIET_MS = 300;
 
+/** An exception's line as Rails logs it, `NoMethodError (undefined method 'order' ...):`, or Rake, `PG::Error: ...`. */
+const RUBY_EXCEPTION_LINE = /^(?:[A-Z]\w*::)*[A-Z]\w*(?: \(.*\):?|: .+)$/;
+/** A Ruby backtrace line: `app/controllers/parcels_controller.rb:6:in 'ParcelsController#index'`. */
+const RUBY_FRAME_LINE = /^\S+:\d+:in [`']/;
+/** A line that starts a leveled message of another logger: `INFO:     Started server process [1]`, `[WARN] ...`. */
+const LEVEL_WORD_LINE = /^\[?\s*(?:DEBUG|INFO|NOTICE|WARN|WARNING|ERROR|ERR|FATAL|CRITICAL|TRACE)\b/i;
+
 /** Lines of a Ruby error that is still being printed: a warning or error of Ruby's `Logger`, or a task Rake aborted. */
 const isOpenRubyError = (entry: string[]) =>
   /^(WARN|ERROR|FATAL)$/.test(entry[0]!.match(RUBY_LOGGER_LINE)?.[1] ?? '') ||
   (RAKE_ABORTED_LINE.test(entry[0]!) && !RAKE_TRACE_HINT_LINE.test(entry.at(-1)!));
+
+/**
+ * Whether `line` belongs to the open Ruby error `entry`: an exception line or a backtrace line, and under Rake's
+ * `aborted!` also the cause, the task list and the help line. Other lines that arrive while the error waits for its
+ * frames start their own entry.
+ */
+const continuesRubyError = (line: string, entry: string[]) => {
+  if (LEVEL_WORD_LINE.test(line)) return false;
+  if (RUBY_FRAME_LINE.test(line) || RUBY_EXCEPTION_LINE.test(line)) return true;
+  return (
+    RAKE_ABORTED_LINE.test(entry[0]!) &&
+    (entry.length === 1 || /^Tasks: /.test(line) || RAKE_TRACE_HINT_LINE.test(line))
+  );
+};
 
 /** Whether `line` continues the entry whose lines are `entry`, instead of starting a new one. */
 export const isContinuationLine = (line: string, entry: string[]): boolean => {
@@ -53,7 +74,7 @@ export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (NEXT_MESSAGE_LINE.test(line) || ACCESS_LOG_LINE.test(line) || RUBY_LOGGER_LINE.test(line)) return false;
   // Rails logs an exception as an `ERROR` line followed by its class and message and its application frames, all
   // unindented; Rake prints the cause and backtrace of an aborted task under `bin/rails aborted!`.
-  if (isOpenRubyError(entry)) return true;
+  if (isOpenRubyError(entry) && continuesRubyError(line, entry)) return true;
   // Stack frames, object properties and traceback lines are indented; a pretty-printed object closes unindented.
   if (/^\s/.test(line) || /^[\]})]/.test(line)) return true;
   if (/^caused by\b/i.test(line)) return true;

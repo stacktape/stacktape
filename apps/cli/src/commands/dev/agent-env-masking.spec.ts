@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { getSecretSourcedEnvNames, maskAgentEnvironment } from './agent-env-masking';
+import { describeContainerExit } from './container/exit-reason';
+import { getSecretSourcedEnvNames, maskAgentEnvironment, maskEnvironmentValuesInText } from './agent-env-masking';
 
 describe('dev agent environment masking', () => {
   test.each([
@@ -66,4 +67,42 @@ describe('dev agent environment masking', () => {
       )
     ).toEqual({ PAYMENT_WEBHOOK: '[redacted]', SIGNING_HOST: '[redacted]', LOG_LEVEL: 'debug' });
   });
+});
+
+// #382 review: a Rails startup that raised `ENV.inspect` quoted the database password in the rebuild summary, which
+// reaches the workload status, MCP results and the log. The summary keeps one shortened exception line, and the values
+// the container received are masked in it as `/env` masks them.
+test('a crash summary that quotes an environment dump masks the secret values the container received', () => {
+  const password = 'hunter2-db-password';
+  const environment = {
+    DATABASE_PASSWORD: password,
+    DATABASE_URL: `postgresql://app:${password}@10.230.4.17:5432/app`,
+    STRIPE_KEY: 'sk_live_51HxExampleSecretKey00',
+    WEBHOOK: 'whsec-plain-webhook-value',
+    RAILS_ENV: 'development',
+    PORT: '3000',
+    PATH: '/usr/local/bundle/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+  };
+  const dump = `{${Object.entries(environment)
+    .map(([name, value]) => `"${name}" => "${value}"`)
+    .join(', ')}}`;
+  const stderr = [
+    'bin/rails aborted!',
+    dump,
+    "/app/config/application.rb:6:in '<top (required)>'",
+    "/usr/local/bundle/gems/railties-8.0.5.1/lib/rails/command.rb:150:in 'Rails::Command.invoke_rake'",
+    '(See full trace by running task with --trace)'
+  ].join('\n');
+  const summary = maskEnvironmentValuesInText(describeContainerExit(stderr)!, environment, new Set(['WEBHOOK']));
+  for (const secret of ['hunter2-db-password', 'sk_live_51HxExampleSecretKey00', 'whsec-plain-webhook-value']) {
+    expect(summary).not.toContain(secret);
+  }
+  expect(summary).toContain('"RAILS_ENV" => "development"');
+  expect(summary.split('\n')).toEqual([
+    'bin/rails aborted!',
+    expect.stringMatching(/^\{"DATABASE_PASSWORD" .{200,300}\.\.\.$/),
+    "/app/config/application.rb:6:in '<top (required)>'"
+  ]);
+  // Short values such as ports also appear as line numbers; they stay as they are.
+  expect(maskEnvironmentValuesInText('main.rb:3000', { API_TOKEN_TTL: '3000' })).toBe('main.rb:3000');
 });

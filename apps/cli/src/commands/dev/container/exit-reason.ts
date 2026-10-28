@@ -126,21 +126,24 @@ const RUBY_FRAME = /^\S+:\d+:in [`']/;
 /** Frames of Ruby, installed gems and the binstubs that start them, which an app's error is rarely about. */
 const RUBY_LIBRARY_FRAME = /\/gems\/|\/lib\/ruby\/|\/rubygems\/|^(?:\S*\/)?bin\/(?:rails|rake|bundle)\b|^<internal:/;
 
+/** The longest quoted cause: an exception message can hold anything the app put in it. */
+const MAX_CAUSE_CHARS = 300;
+
 /**
- * Rake prints `bin/rails aborted!`, the exception, its backtrace, `Tasks: TOP => ...` and a help line. The cause and the
- * first frame of the app's own code explain the failure; the help line does not.
+ * Rake prints `bin/rails aborted!`, the exception, its backtrace, `Tasks: TOP => ...` and a help line. The exception's
+ * line and the first frame of the app's own code explain the failure; the help line does not. Only the exception's
+ * first line is quoted, shortened: a message that prints a whole object, such as `ENV.inspect`, would otherwise fill
+ * the summary.
  */
 const describeRakeAbort = (lines: string[]): string | undefined => {
   const abortedIndex = lines.findLastIndex((line) => RAKE_ABORTED_LINE.test(line));
   if (abortedIndex < 0) return undefined;
   const rest = lines.slice(abortedIndex + 1);
-  const firstFrame = rest.findIndex((line) => RUBY_FRAME.test(line));
-  const cause = (firstFrame < 0 ? rest : rest.slice(0, firstFrame))
-    .filter((line) => line.trim() && !/^Tasks: /.test(line) && !/^\(See full trace/.test(line))
-    .slice(0, MAX_FRAME_LINES);
-  const frames = firstFrame < 0 ? [] : rest.slice(firstFrame).filter((line) => RUBY_FRAME.test(line));
-  const appFrame = frames.find((line) => !RUBY_LIBRARY_FRAME.test(line));
-  return [lines[abortedIndex]!, ...cause, ...(appFrame ? [appFrame] : [])].join('\n');
+  const cause = rest.find((line) => line.trim() && !RUBY_FRAME.test(line) && !/^\(See full trace/.test(line));
+  const appFrame = rest.find((line) => RUBY_FRAME.test(line) && !RUBY_LIBRARY_FRAME.test(line));
+  const quotedCause =
+    cause && cause.length > MAX_CAUSE_CHARS ? `${cause.slice(0, MAX_CAUSE_CHARS).trimEnd()}...` : cause;
+  return [lines[abortedIndex]!, ...(quotedCause ? [quotedCause] : []), ...(appFrame ? [appFrame] : [])].join('\n');
 };
 
 export const describeContainerExit = (stderr: string): string | undefined => {

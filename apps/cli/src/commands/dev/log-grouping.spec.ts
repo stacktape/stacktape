@@ -333,3 +333,29 @@ test.each([
 ] as const)('frontend standard error %s shows an error value: %s', (line, failure) => {
   expect(isFrontendServerFailure(line)).toBe(failure);
 });
+
+// #382 review: while a Ruby warning waited for its frames, any line in the next 300 ms joined it, also another
+// logger's `INFO:` line. Only exception and backtrace lines continue it.
+test('lines that start another message do not join a Ruby error that waits for its frames', async () => {
+  const warning = 'W, [2026-10-28T12:19:47.122000 #1]  WARN -- : DEPRECATION WARNING: something';
+  const failure = [
+    'E, [2026-10-28T12:19:46.265354 #1] ERROR -- :   ',
+    "ActiveRecord::RecordNotFound (Couldn't find Parcel with 'id'=7):",
+    "app/controllers/parcels_controller.rb:9:in 'ParcelsController#show'"
+  ];
+  expect(
+    await collect('stdout', [
+      warning,
+      'INFO:     Started server process [1]',
+      'Puma starting in single mode...',
+      ...failure,
+      '[WARN] cache miss'
+    ])
+  ).toEqual([
+    { message: warning, level: 'warn' },
+    { message: 'INFO:     Started server process [1]', level: 'info' },
+    { message: 'Puma starting in single mode...', level: 'info' },
+    { message: failure.join('\n'), level: 'error' },
+    { message: '[WARN] cache miss', level: 'warn' }
+  ]);
+});

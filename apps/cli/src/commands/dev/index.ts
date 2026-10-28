@@ -552,6 +552,22 @@ export const commandDev = async () => {
   // This also prompts for stage if not provided
   const { args, stackContext } = await initializeStackServicesForDevPhase1();
   captureSessionConfig();
+  // A client that started this session can still read what it deployed when the start fails later.
+  if (agentEnabled) {
+    tuiManager.emitEvent({
+      phase: 'DEV_STARTUP',
+      eventType: 'DEV_SESSION',
+      status: 'running',
+      message: `Dev session for project ${stackContext.projectName}, stage ${stackContext.stage} in ${stackContext.region}`,
+      detail: {
+        kind: 'dev-target',
+        projectName: stackContext.projectName,
+        stage: stackContext.stage,
+        region: stackContext.region,
+        ...(globalStateManager.configPath ? { configPath: globalStateManager.configPath } : {})
+      }
+    });
+  }
 
   // Set agent mode early so spinners use plain text output
   if (agentEnabled) {

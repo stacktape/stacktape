@@ -73,7 +73,7 @@ import {
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
 import { startSourceWatcher } from '../source-watcher';
-import { getSecretSourcedEnvNames } from '../agent-env-masking';
+import { getSecretSourcedEnvNames, maskEnvironmentValuesInText } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
@@ -813,15 +813,20 @@ const startContainerWorkload = async (
     /** Dev mode stops it: its exit is no crash. */
     stopping: boolean;
     stderr: () => string;
+    /** What the run received, to mask its secret values where its output is quoted. */
+    environment: Record<string, string>;
   };
   let current: ContainerRun | undefined;
-  const describeExit = (stderr: string) => {
-    const reason = describeContainerExit(stderr);
+  /** Why `run` exited, with the secret values it received masked: the summary reaches the status, MCP and the log. */
+  const describeExit = (run: ContainerRun) => {
+    const described = describeContainerExit(run.stderr());
+    const reason =
+      described && maskEnvironmentValuesInText(described, run.environment, getWorkloadSecretEnvNames(resourceName));
     return reason ? `:${reason.includes('\n') ? '\n' : ' '}${reason}` : '.';
   };
   const reportUnexpectedExit = (run: ContainerRun) => {
     if (run !== current || run.stopping || applicationManager.isInterrupted) return;
-    reportWorkloadError(`Container stopped unexpectedly${describeExit(run.stderr())}`);
+    reportWorkloadError(`Container stopped unexpectedly${describeExit(run)}`);
   };
   const reportWorkloadError = (error: string) => {
     if (useDevTui) {
@@ -882,7 +887,8 @@ const startContainerWorkload = async (
       exited: false,
       served: false,
       stopping: false,
-      stderr: output.stderr
+      stderr: output.stderr,
+      environment: containerEnvironment
     };
     dockerRun({
       name,
@@ -1111,7 +1117,7 @@ const startContainerWorkload = async (
       await routeTo(run);
       if (previous) await stopRun(previous);
       if (run.exited && !applicationManager.isInterrupted) {
-        const failure = `Container "${resourceName}" exited right after it started serving${describeExit(run.stderr())}`;
+        const failure = `Container "${resourceName}" exited right after it started serving${describeExit(run)}`;
         if (previous) await restartPrevious(previous, previousImageId, containerEnvironment, failure);
         throw new ExpectedError('DOCKER', failure);
       }
@@ -1136,7 +1142,7 @@ const startContainerWorkload = async (
     }
     throw new ExpectedError(
       'DOCKER',
-      `Container "${resourceName}" exited before it served${describeExit(run.stderr())}${stillServes}`
+      `Container "${resourceName}" exited before it served${describeExit(run)}${stillServes}`
     );
   };
 
@@ -1159,7 +1165,7 @@ const startContainerWorkload = async (
       return;
     }
     if (applicationManager.isInterrupted) return;
-    const exitError = `Container "${resourceName}" exited before it served${describeExit(run.stderr())}`;
+    const exitError = `Container "${resourceName}" exited before it served${describeExit(run)}`;
     if (!previous) throw new ExpectedError('DOCKER', exitError);
     await restartPrevious(previous, previousImageId, containerEnvironment, exitError);
   };
@@ -1196,7 +1202,7 @@ const startContainerWorkload = async (
     if (current?.exited && !applicationManager.isInterrupted) {
       throw new ExpectedError(
         'DOCKER',
-        `Container "${resourceName}" stopped during the rebuild${describeExit(current.stderr())}`
+        `Container "${resourceName}" stopped during the rebuild${describeExit(current)}`
       );
     }
 

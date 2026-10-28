@@ -29,19 +29,26 @@ type DevSession = {
   knownSince: string;
 };
 
-/** A start that failed: the project and the arguments that chose its stage, region and AWS credentials. */
+/** The project, stage and region a starting dev session resolved, as its daemon reports them. */
+type DevTarget = { projectName: string; stage: string; region: string; configPath?: string };
+
+/** A start that failed: what it targeted, when known, and the arguments that chose its AWS credentials. */
 type FailedStartTarget = {
   devSessionId: string;
   cwd: string;
-  args: Record<string, unknown>;
-  stage?: string;
+  /** Unknown when the start failed before it resolved its project, stage and region. */
+  target?: DevTarget;
+  /** The stage the start asked for, when it failed before it resolved one. */
+  requestedStage?: string;
+  credentialArgs: Record<string, unknown>;
   finishedAt: number;
 };
 
-/** The start arguments that `aws:call` also takes: they choose the stack, its region and the AWS credentials. */
-const STAGE_ARG_NAMES = ['stage', 'region', 'projectName', 'profile', 'awsAccount'] as const;
-const pickStageArgs = (args: Record<string, unknown>) =>
-  Object.fromEntries(STAGE_ARG_NAMES.flatMap((name) => (args[name] === undefined ? [] : [[name, args[name]]])));
+/**
+ * How long an aws call can still read a failed start's stage. Long enough to investigate the failure; after that the
+ * assistant has usually started again or moved on, and an old failure must not answer for a newer one.
+ */
+const FAILED_START_TARGET_RETENTION_MS = 15 * 60 * 1000;
 
 type DevApiRequest = (input: {
   port: number;
@@ -943,8 +950,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   // A start that failed after its tool call returned DEV_STARTING keeps its error here until a call reads it.
   const failedStarts = new Map<string, { output: ToolOutput; finishedAt: number }>();
   /**
-   * The project and stage of each start that failed. No dev agent runs for it, but its dev stack, rolled back or partly
-   * created, is what an assistant needs to read: an aws call about the start reads that stage through `aws:call`.
+   * What each start that failed targeted. No dev agent runs for it, but its dev stack, rolled back or partly created, is
+   * what an assistant needs to read: an aws call about the start reads exactly that stack through `aws:call`.
    */
   const failedStartTargets = new Map<string, FailedStartTarget>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
@@ -1061,23 +1068,31 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   };
 
   /**
-   * A read-only AWS call for a start that failed: `stacktape aws:call` with the start's project, stage, region and
-   * credentials. It accepts the same reviewed read-only operations as the dev agent's `/aws/sdk`.
+   * A read-only AWS call for a start that failed: `stacktape aws:call` against the project, stage and region the start
+   * resolved, with the start's AWS credential arguments. It accepts the same reviewed read-only operations as the dev
+   * agent's `/aws/sdk`.
    */
   const callAwsForFailedStart = async ({
-    target,
+    failedStart,
     toolArgs,
     startError,
     signal,
     clientName
   }: {
-    target: FailedStartTarget;
+    failedStart: FailedStartTarget;
     toolArgs: Record<string, unknown>;
     startError?: ToolOutput;
     signal?: AbortSignal;
     clientName?: string;
   }): Promise<ToolOutput> => {
     const { service, command, input, region } = toolArgs;
+    const { devSessionId, target } = failedStart;
+    const failedStartData = {
+      devSessionId,
+      cwd: failedStart.cwd,
+      ...(target ?? {}),
+      ...(startError ? { startError } : {})
+    };
     if (typeof service !== 'string' || typeof command !== 'string') {
       return {
         ok: false,
@@ -1086,16 +1101,35 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           'args.service and args.command are required for aws, for example service "logs" and command "FilterLogEvents".'
       };
     }
+    if (!target) {
+      return {
+        ok: false,
+        code: 'DEV_TARGET_UNKNOWN',
+        message: `Dev session ${devSessionId} failed before it resolved its project, stage and region, so it deployed nothing to read.`,
+        data: { failedStart: failedStartData },
+        nextActions: ["Fix the start's error and start dev mode again."]
+      };
+    }
+    if (typeof region === 'string' && region !== target.region) {
+      return {
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        message: `Dev session ${devSessionId} failed to start in ${target.region}; aws reads its stack there, not in ${region}.`,
+        data: { failedStart: failedStartData }
+      };
+    }
     const result = await runCli({
       command: 'aws:call',
       args: {
-        ...target.args,
-        ...(typeof region === 'string' ? { region } : {}),
+        ...failedStart.credentialArgs,
+        projectName: target.projectName,
+        stage: target.stage,
+        region: target.region,
         service,
         command,
         ...(input === undefined ? {} : { input: typeof input === 'string' ? input : JSON.stringify(input) })
       },
-      cwd: target.cwd,
+      cwd: failedStart.cwd,
       signal,
       tool: 'stacktape_dev',
       clientName
@@ -1105,20 +1139,53 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       command: 'aws:call',
       policy: { category: 'diagnostics', safety: 'diagnostic' }
     });
-    const stage = target.stage ? `stage ${target.stage}` : 'the stage of that start';
     return {
       ...output,
       message: output.ok
-        ? `Called ${service} ${command} for ${stage}. Dev session ${target.devSessionId} failed to start, so no dev agent runs; the call used stacktape aws:call.`
+        ? `Called ${service} ${command} for project ${target.projectName}, stage ${target.stage} in ${target.region}. Dev session ${devSessionId} failed to start, so no dev agent runs; the call used stacktape aws:call.`
         : output.message,
-      data: {
-        ...output.data,
-        failedStart: {
-          devSessionId: target.devSessionId,
-          cwd: target.cwd,
-          ...(target.stage ? { stage: target.stage } : {})
+      data: { ...output.data, failedStart: failedStartData }
+    };
+  };
+
+  /**
+   * The failed start an aws call without a devSessionId means: one of this server's projects (or of args.cwd), and of
+   * args.stage when given. Several match: the call has to name one.
+   */
+  const selectFailedStart = async (
+    toolArgs: Record<string, unknown>,
+    getProjectRoots: () => Promise<string[]>
+  ): Promise<{ failedStart?: FailedStartTarget; ambiguous?: ToolOutput }> => {
+    const roots = await getProjectRoots().catch(() => []);
+    const inScope = ({ cwd }: FailedStartTarget) =>
+      typeof toolArgs.cwd === 'string'
+        ? isSameDirectory(cwd, toolArgs.cwd)
+        : [serverDirectory(), ...roots].some((root) => isProjectDirectoryOf(cwd, root));
+    const matching = [...failedStartTargets.values()].filter(
+      (failedStart) =>
+        inScope(failedStart) &&
+        (typeof toolArgs.stage !== 'string' ||
+          (failedStart.target?.stage ?? failedStart.requestedStage) === toolArgs.stage)
+    );
+    if (matching.length <= 1) return { failedStart: matching[0] };
+    return {
+      ambiguous: {
+        ok: false,
+        code: 'DEV_SESSION_ID_REQUIRED',
+        message: `Several dev sessions of this project failed to start: ${matching
+          .map(
+            ({ devSessionId, target, requestedStage }) =>
+              `${devSessionId} (stage ${target?.stage ?? requestedStage ?? 'unknown'})`
+          )
+          .join(', ')}.`,
+        data: {
+          failedStarts: matching.map(({ devSessionId, cwd, target, requestedStage }) => ({
+            devSessionId,
+            cwd,
+            ...(target ?? (requestedStage ? { stage: requestedStage } : {}))
+          }))
         },
-        ...(startError ? { startError } : {})
+        nextActions: ['Pass args.devSessionId of the start whose stage you mean, or args.stage.']
       }
     };
   };
@@ -1169,6 +1236,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       // The agent adopts this ID, reports it in its status, and a restarted MCP server finds the session by it again.
       const devSessionId = createId();
       const startedAt = now().toISOString();
+      /** What the session resolved to deploy, once its daemon reports it. */
+      let target: DevTarget | undefined;
       const session: DevSession = {
         devSessionId,
         agentSessionId: devSessionId,
@@ -1204,8 +1273,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           failedStartTargets.set(devSessionId, {
             devSessionId,
             cwd: session.cwd,
-            args: pickStageArgs(devCliArgs),
-            stage: session.stage,
+            ...(target ? { target } : {}),
+            ...(session.stage ? { requestedStage: session.stage } : {}),
+            credentialArgs: Object.fromEntries(
+              (['profile', 'awsAccount'] as const).flatMap((name) =>
+                devCliArgs[name] === undefined ? [] : [[name, devCliArgs[name]]]
+              )
+            ),
             finishedAt: Date.now()
           });
         }
@@ -1235,6 +1309,10 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           });
           if (startup.progress.length > MAX_STARTUP_PROGRESS) startup.progress.shift();
           if (event.detail?.kind === 'dev-agent') session.agentPort = event.detail.agentPort;
+          if (event.detail?.kind === 'dev-target') {
+            const { projectName, stage, region, configPath } = event.detail;
+            target = { projectName, stage, region, ...(configPath ? { configPath } : {}) };
+          }
           if (clientWaiting) await onProgress?.({ message: event.message });
         }
       });
@@ -1348,10 +1426,11 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
     }
 
     const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
-    for (const failed of [failedStarts, failedStartTargets]) {
-      for (const [id, { finishedAt }] of failed) {
-        if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failed.delete(id);
-      }
+    for (const [id, { finishedAt }] of failedStarts) {
+      if (Date.now() - finishedAt > FAILED_START_RETENTION_MS) failedStarts.delete(id);
+    }
+    for (const [id, { finishedAt }] of failedStartTargets) {
+      if (Date.now() - finishedAt > FAILED_START_TARGET_RETENTION_MS) failedStartTargets.delete(id);
     }
     const failedStartTarget = devSessionId === undefined ? undefined : failedStartTargets.get(devSessionId);
     if (action === 'aws' && failedStartTarget) {
@@ -1359,7 +1438,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       const startError = failedStarts.get(failedStartTarget.devSessionId)?.output;
       failedStarts.delete(failedStartTarget.devSessionId);
       return toToolText(
-        await callAwsForFailedStart({ target: failedStartTarget, toolArgs, startError, signal, clientName })
+        await callAwsForFailedStart({ failedStart: failedStartTarget, toolArgs, startError, signal, clientName })
       );
     }
     // A start that failed in the background: the next call about it gets the start's own error, code and hints. Without
@@ -1392,17 +1471,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       getProjectRoots
     });
     if (sessionResult.ok === false) {
-      // Without an ID, an aws call reads the stage of the last start that failed in the project it addresses.
-      const lastFailedStart =
-        action === 'aws' && devSessionId === undefined
-          ? [...failedStartTargets.values()]
-              .filter(({ cwd }) =>
-                typeof toolArgs.cwd === 'string' ? isSameDirectory(cwd, toolArgs.cwd) : activeDevSessions.size === 0
-              )
-              .at(-1)
-          : undefined;
-      if (lastFailedStart) {
-        return toToolText(await callAwsForFailedStart({ target: lastFailedStart, toolArgs, signal, clientName }));
+      // Without an ID, an aws call reads the stage of the one start that failed in the project and stage it addresses.
+      if (action === 'aws' && devSessionId === undefined) {
+        const { failedStart, ambiguous } = await selectFailedStart(toolArgs, getProjectRoots);
+        if (ambiguous) return toToolText(ambiguous);
+        if (failedStart) {
+          return toToolText(await callAwsForFailedStart({ failedStart, toolArgs, signal, clientName }));
+        }
       }
       return toToolText(sessionResult.output);
     }

@@ -632,19 +632,33 @@ describe('MCP dev session routing', () => {
   });
 
   // r2ll: a start whose dev stack update failed left no dev agent, and aws reads about it answered NOT_FOUND "No active
-  // dev session". The rolled-back dev stack is what the assistant has to inspect.
-  test('aws after a failed start reads the stage of that start through aws:call', async () => {
+  // dev session". The rolled-back dev stack is what the assistant has to inspect. #382 review: the read must target what
+  // the start resolved (an alternate config's project and region), and pick a start only by its ID or exact stage.
+  const failingStarts = () => {
     const calls: Array<{ command: string; args?: Record<string, unknown>; cwd?: string }> = [];
-    const runCli: RunCli = async ({ command, args, cwd }) => {
+    const runCli: RunCli = async ({ command, args, cwd, onProgress }) => {
       calls.push({ command, args, cwd });
       const context = { events: [], logEvents: [], outputEvents: [], resolvedContext: { cwd: cwd || process.cwd() } };
       if (command === 'dev') {
-        return {
-          ok: false,
-          code: 'CLI_DEPLOYMENT_FAILED',
-          message: 'Dev stack update failed: MainTableGlobalTable.',
-          ...context
-        };
+        // The daemon resolves the project and region from the config the start names; no target when it fails earlier.
+        if (args?.stage !== 'broken') {
+          await onProgress?.({
+            type: 'event',
+            ts: new Date().toISOString(),
+            phase: 'DEV_STARTUP',
+            eventType: 'DEV_SESSION',
+            status: 'running',
+            message: 'Dev session target',
+            detail: {
+              kind: 'dev-target',
+              projectName: args?.configPath ? 'test-app' : 'production-app',
+              stage: String(args?.stage),
+              region: args?.configPath ? 'eu-central-1' : 'eu-west-1',
+              ...(args?.configPath ? { configPath: String(args.configPath) } : {})
+            }
+          });
+        }
+        return { ok: false, code: 'CLI_DEPLOYMENT_FAILED', message: 'Dev stack update failed.', ...context };
       }
       return {
         ok: true,
@@ -656,55 +670,129 @@ describe('MCP dev session routing', () => {
         ...context
       };
     };
-    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+    return { calls, runCli };
+  };
+  const describeEvents = { service: 'cloudformation', command: 'DescribeStackEvents', input: { StackName: 'stack' } };
+
+  test('aws after a failed start reads the project, stage and region that start resolved', async () => {
+    const { calls, runCli } = failingStarts();
     const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-failed-start-'));
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [], serverDirectory: () => directory });
     try {
       const failed = (
         await handler({
           action: 'start',
-          args: { cwd: directory, stage: 'r2nnb', region: 'eu-central-1', profile: 'stacktape-e2e', watch: true }
+          args: {
+            cwd: directory,
+            stage: 'r2nnb',
+            configPath: 'stacktape.test.yml',
+            profile: 'stacktape-e2e',
+            watch: true
+          }
         })
       ).structuredContent;
       expect(failed.code).toBe('CLI_DEPLOYMENT_FAILED');
-      expect(failed.nextActions?.join(' ')).toContain('action=aws');
+      const hint = failed.nextActions?.join(' ') ?? '';
+      const devSessionId = hint.match(/args\.devSessionId=([\w-]+)/)?.[1];
+      expect(devSessionId).toBeDefined();
 
-      const input = { StackName: 'parcel-r2nnb' };
-      const read = async (args: Record<string, unknown>) =>
-        (
-          await handler({
-            action: 'aws',
-            args: { service: 'cloudformation', command: 'DescribeStackEvents', input, ...args }
-          })
-        ).structuredContent;
-
-      const byCwd = await read({ cwd: directory });
-      expect(byCwd).toMatchObject({ ok: true, code: 'OK', data: { failedStart: { stage: 'r2nnb' } } });
-      expect(byCwd.message).toContain('stage r2nnb');
-      const call = calls.at(-1)!;
-      expect(call.command).toBe('aws:call');
-      expect(call.args).toEqual({
-        stage: 'r2nnb',
-        region: 'eu-central-1',
-        profile: 'stacktape-e2e',
-        service: 'cloudformation',
-        command: 'DescribeStackEvents',
-        input: JSON.stringify(input)
-      });
-
-      const failedStartId = (byCwd.data?.failedStart as { devSessionId: string }).devSessionId;
-      expect(await read({ devSessionId: failedStartId })).toMatchObject({
+      const read = (await handler({ action: 'aws', args: { ...describeEvents, devSessionId } })).structuredContent;
+      expect(read).toMatchObject({
         ok: true,
-        data: { failedStart: { devSessionId: failedStartId } }
+        data: {
+          failedStart: {
+            devSessionId,
+            projectName: 'test-app',
+            stage: 'r2nnb',
+            region: 'eu-central-1',
+            configPath: 'stacktape.test.yml'
+          }
+        }
       });
-      // Other actions of the failed session still answer that it does not run.
+      expect(calls.at(-1)).toEqual({
+        command: 'aws:call',
+        cwd: directory,
+        args: {
+          profile: 'stacktape-e2e',
+          projectName: 'test-app',
+          stage: 'r2nnb',
+          region: 'eu-central-1',
+          service: 'cloudformation',
+          command: 'DescribeStackEvents',
+          input: JSON.stringify(describeEvents.input)
+        }
+      });
+      // The SDK call's region is the stack's; another one would read a different stack.
       expect(
-        (await handler({ action: 'env', args: { devSessionId: failedStartId, workload: 'api' } })).structuredContent
-          .code
+        (await handler({ action: 'aws', args: { ...describeEvents, devSessionId, region: 'eu-west-1' } }))
+          .structuredContent.code
+      ).toBe('VALIDATION_ERROR');
+      // Other actions of the failed session still answer that it does not run, and an unknown ID is no failed start.
+      expect((await handler({ action: 'env', args: { devSessionId, workload: 'api' } })).structuredContent.code).toBe(
+        'NOT_FOUND'
+      );
+      expect(
+        (await handler({ action: 'aws', args: { ...describeEvents, devSessionId: 'unknown' } })).structuredContent.code
       ).toBe('NOT_FOUND');
-      // A session ID nobody started is no failed start.
-      expect((await read({ devSessionId: 'unknown' })).code).toBe('NOT_FOUND');
+
+      // A start that failed before it resolved its target deployed nothing; its read is refused, not guessed.
+      const broken = (await handler({ action: 'start', args: { cwd: directory, stage: 'broken' } })).structuredContent;
+      const brokenId = (broken.nextActions?.join(' ') ?? '').match(/args\.devSessionId=([\w-]+)/)?.[1];
+      const callsBefore = calls.length;
+      expect(
+        (await handler({ action: 'aws', args: { ...describeEvents, devSessionId: brokenId } })).structuredContent.code
+      ).toBe('DEV_TARGET_UNKNOWN');
+      expect(calls).toHaveLength(callsBefore);
     } finally {
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("aws without an ID picks a failed start only by exact stage, in this server's projects", async () => {
+    const { calls, runCli } = failingStarts();
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-failed-starts-'));
+    const elsewhere = await mkdtemp(join(tmpdir(), 'stacktape-mcp-elsewhere-'));
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [], serverDirectory: () => directory });
+    try {
+      await handler({ action: 'start', args: { cwd: directory, stage: 'alice', profile: 'profile-a' } });
+      await handler({ action: 'start', args: { cwd: directory, stage: 'bob', profile: 'profile-b' } });
+
+      const ambiguous = (await handler({ action: 'aws', args: describeEvents })).structuredContent;
+      expect(ambiguous.code).toBe('DEV_SESSION_ID_REQUIRED');
+      expect(ambiguous.message).toContain('stage alice');
+      expect(ambiguous.message).toContain('stage bob');
+
+      expect(
+        (await handler({ action: 'aws', args: { ...describeEvents, cwd: directory, stage: 'alice' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      expect(calls.at(-1)?.args).toMatchObject({ stage: 'alice', profile: 'profile-a' });
+      expect((await handler({ action: 'aws', args: { ...describeEvents, stage: 'bob' } })).structuredContent.ok).toBe(
+        true
+      );
+      expect(calls.at(-1)?.args).toMatchObject({ stage: 'bob', profile: 'profile-b' });
+
+      // A server in another directory, whose client names no roots, reads none of them without an ID.
+      const other = createDevToolHandler({ runCli, discoverAgents: async () => [], serverDirectory: () => elsewhere });
+      await other({ action: 'start', args: { cwd: directory, stage: 'carol', profile: 'profile-c' } });
+      const callsBefore = calls.length;
+      expect((await other({ action: 'aws', args: { ...describeEvents, stage: 'carol' } })).structuredContent.ok).toBe(
+        false
+      );
+      expect(calls).toHaveLength(callsBefore);
+      // The client's roots make the project its own.
+      expect(
+        (
+          await other({
+            action: 'aws',
+            args: { ...describeEvents, stage: 'carol' },
+            getProjectRoots: async () => [directory]
+          })
+        ).structuredContent.ok
+      ).toBe(true);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+      await rm(elsewhere, { recursive: true, force: true });
     }
   });
 

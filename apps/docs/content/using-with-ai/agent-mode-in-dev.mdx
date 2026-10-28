@@ -52,7 +52,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 
 | `eventType`    | Reports                                                                                         |
 | -------------- | ----------------------------------------------------------------------------------------------- |
-| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), a heartbeat every 20 s, and "Dev session ready" |
+| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), the project, stage, region and config file the session resolved (`detail.kind: "dev-target"`), a heartbeat every 20 s, and "Dev session ready" |
 | `DEV_NETWORK`  | Creating, updating or reusing the dev network                                                   |
 | `DEV_BOX`      | Starting the dev box and connecting to it                                                       |
 | `DEV_STACK`    | Creating or updating the dev stack; CloudFormation `UPDATE_STACK` events carry resource counts  |
