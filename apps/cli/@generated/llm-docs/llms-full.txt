@@ -5322,7 +5322,7 @@ destructive flag is `--initialize-project-to`, which empties the directory you p
 Source: `apps/docs/content/cli/login.mdx`
 Route: `/cli/login`
 
-The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively and let the CLI handle browser/email sign-in and local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
+The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively: you approve the sign-in in your browser, and the CLI keeps the local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
 
 ## Usage
 
@@ -5330,7 +5330,12 @@ The `stacktape login` command authenticates the Stacktape CLI on the current sys
 stacktape login
 ```
 
-In interactive mode (the default), the command launches an auth flow that supports Google sign-in, email signup, email login, or manual API key entry. After successful authentication, Stacktape displays your user name and organization.
+In interactive mode (the default), the command asks how you want to sign in:
+
+- **Sign in with the browser** (recommended). The CLI prints an address and a code, and opens the address in your browser. Sign in to the Stacktape Console there with any sign-in method, or create an account. Check that the Console shows the same code as your terminal, then approve. The CLI continues by itself. Never approve a code that someone else sent you.
+- **Enter API key manually**. Paste an API key created in the [Stacktape Console](/stacktape-console/api-keys).
+
+Over SSH, in a container or on a machine without a browser, the browser sign-in still works: open the printed address on any device. Pass `--no-browser` to only print it. If your account belongs to several organizations, the CLI asks which one this machine works in. After successful authentication, Stacktape displays your user name and organization.
 
 For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner environment. If you need an explicit login step, pass the key from the CI secret variable. Never paste an API key into an AI chat, issue tracker, shell transcript, or log.
 
@@ -5344,7 +5349,7 @@ You can create CI keys from the [Stacktape Console's API keys page](/stacktape-c
 
 Stacktape performs these steps when you run `login`:
 
-1. **Authenticates you** — through the interactive Cognito-backed auth flow, or by verifying the API key supplied by a CI secret.
+1. **Authenticates you** — through the browser sign-in, which the CLI exchanges for a CLI session for the organization you choose, or by verifying the API key supplied by a CI secret. The short-lived sign-in from the browser is never stored.
 2. **Stores local auth state** — keeps the CLI session in the operating system's credential store (macOS Keychain, Windows Credential Manager or the Linux Secret Service). Where that store is unavailable, as is common in WSL, SSH sessions and containers, the session is kept in `~/.stacktape/persisted-state.json`, readable only by your user. Set `STACKTAPE_CREDENTIAL_STORE=file` to always use the file, for example on a machine whose credential store asks for a password on every command.
 3. **Verifies access** — calls the Stacktape API to confirm your user, organization, and permissions.
 4. **Displays your identity** — prints your user name and the organization the current auth state belongs to.
@@ -5382,6 +5387,7 @@ stacktape login --api-key "$STACKTAPE_API_KEY" --agent
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
@@ -5390,7 +5396,7 @@ stacktape login --api-key "$STACKTAPE_API_KEY" --agent
 
 ### Interactive login
 
-Run `login` with no flags to start the interactive authentication flow. You will be guided through sign-in options including Google, email, or manual API key entry.
+Run `login` with no flags to start the interactive authentication flow. Choose the browser sign-in, or enter an API key manually.
 
 ```bash
 stacktape login
@@ -5447,7 +5453,7 @@ For local development, run `stacktape login` again and choose the desired accoun
 
 ### Does login expire?
 
-Interactive local auth state remains available until you replace or remove it. Manual API keys used in CI expire according to the key's expiration setting. Use [`logout`](/cli/logout) to remove local auth state.
+Yes. A CLI session from an interactive login ends 90 days after login, or after 30 days without use, whichever comes first. Manual API keys used in CI expire according to the key's expiration setting. Use [`logout`](/cli/logout) to end the CLI session and remove local auth state.
 
 ### Does `login` connect my AWS account?
 

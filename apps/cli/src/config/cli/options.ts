@@ -366,7 +366,7 @@ If \`true\`, runs \`init\` entirely in the terminal instead of opening the brows
 
 export const noBrowser = z.boolean().describe(`#### No Browser
 ---
-If \`true\`, \`init\` starts the wizard and prints its address instead of opening a browser. Use this when the browser you want is not this machine's default, or when the wizard runs behind a forwarded port.`);
+If \`true\`, prints the address instead of opening a browser: \`init\` still starts the wizard, and \`login\` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port.`);
 
 export const infrastructureType = z.enum(['low-cost', 'standard', 'production']).describe(`#### Infrastructure Type
 ---

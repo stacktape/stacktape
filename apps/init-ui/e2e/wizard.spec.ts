@@ -195,11 +195,15 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
     });
   }).toPass();
 
-  // Switch the panel from creating an account to signing in, then sign in.
+  // "Sign in" opens the Console's device page in a new tab with the code filled in; the page shows the same code and
+  // continues by itself once it is approved there.
+  const consoleTab = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByLabel('Email').fill('dev@acme.io');
-  await page.getByLabel('Password', { exact: true }).fill('correct-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const approval = await consoleTab;
+  await expect(page.getByRole('status', { name: 'Sign-in code' })).toHaveText('WDJB-MJHT');
+  await expect(approval).toHaveURL(/\/device\?user_code=WDJB-MJHT$/);
+  await approval.getByRole('button', { name: 'Approve' }).click();
+  await expect(approval.getByText('Approved. Return to the wizard.')).toBeVisible();
   await expect(action).toBeEnabled({ timeout: 10_000 });
   await action.click();
   await page.getByRole('button', { name: 'Create new stack' }).click();

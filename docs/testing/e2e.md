@@ -133,12 +133,15 @@ pnpm --filter @stacktape/console-api-app test:db --isolated-browser
 
 The runner owns a disposable PostgreSQL container. Each journey in `apps/console/ui/e2e/isolated-*.test.ts` starts the
 real Fastify/tRPC API and Vite UI through
-[the isolated Console fixtures](../../apps/console/ui/e2e/isolated-console-fixtures.ts) and installs locally signed
-Cognito-shaped tokens where Amplify expects them. Journeys seed their own tenants, drive the browser, check the database
-and reload, and prove that another tenant is denied through the same server. AWS credential endpoints and CloudWatch
-responses are synthetic; the Console API remains real. Journey files run in separate processes because their API
-environment and module graphs are process-wide. Only PostgreSQL's TLS options are substituted; Prisma, token
-verification, authorization and the router are production code. It needs no AWS credentials or reservation.
+[the isolated Console fixtures](../../apps/console/ui/e2e/isolated-console-fixtures.ts). The UI runs on `localhost` and
+proxies `/auth` and tRPC to the API, as `pnpm dev:console` does. Journeys install Better Auth sessions the fixture
+stores (`installSession`, a session row and its cookie signed with the run's secret); `isolated-sign-in.test.ts` drives
+the real sign-up, sign-in, Account settings and `/device` pages instead, with passkeys on Chromium's virtual
+authenticator. Journeys seed their own tenants, drive the browser, check the database and reload, and prove that another
+tenant is denied through the same server. AWS credential endpoints, SES, CloudWatch and Have I Been Pwned responses are
+synthetic; the Console API remains real. Journey files run in separate processes because their API environment and
+module graphs are process-wide. Only PostgreSQL's TLS options are substituted; Prisma, session verification,
+authorization and the router are production code. It needs no AWS credentials or reservation.
 
 The Console's [UI review procedure](../../apps/console/e2e/README.md#agent-ui-review) combines these journeys with
 visual and product critique and describes which findings should become repeatable browser assertions.
@@ -151,8 +154,9 @@ overlays. Its helper qualification runs through the same offline `--ui-capture` 
 `STP_ISOLATED_BROWSER_FAIL_AFTER_START=1` forces a failure after startup to check teardown; the run must fail and still
 report the container removed.
 
-Local token issuance proves our verification and authorization, not Cognito's hosted login, refresh or federation. Keep
-those, provider callbacks, AWS execution and deployed configuration in the shared-dev and live lanes.
+Stored sessions prove session verification and authorization; the sign-in journey proves the email, authenticator,
+passkey and device flows. Google and GitHub callbacks, AWS execution and deployed configuration stay in the shared-dev
+and live lanes.
 
 ## Init model qualification
 
@@ -204,10 +208,10 @@ scenarios under [`packages/ui-react/e2e`](../../packages/ui-react/e2e) with its 
 
 The Console offline lane: `pnpm test:console:browser:offline` runs
 [`playwright.offline.config.ts`](../../apps/console/ui/playwright.offline.config.ts). Its specs render real Console
-pages and sign-in screens and answer their own API and Cognito requests; the browser refuses every other non-loopback
-request. It needs no credentials or reservation. Signed-in specs run from the Console's other Playwright configurations,
-each through its own package script; live, cost-bearing specs are only in `playwright.live*.config.ts`, so a bare
-`playwright test` cannot start one.
+pages and sign-in screens and answer their own `/api` and `/auth` requests; the UI proxies the rest to a closed port and
+the browser refuses every other non-loopback request. It needs no credentials or reservation. Signed-in specs run from
+the Console's other Playwright configurations, each through its own package script; live, cost-bearing specs are only in
+`playwright.live*.config.ts`, so a bare `playwright test` cannot start one.
 
 ## Authoring with agents
 

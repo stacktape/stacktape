@@ -5,7 +5,18 @@ import type { GreenfieldResult } from '../missions/greenfield';
 import { INIT_TARGET_SCHEMA_VERSION } from '../deploy/stack-expectation';
 import type { WizardState } from './wizard-server';
 import { startWizardSession, toTimelineEntry, type WizardSession } from './wizard-session';
-import type { SignInFailure, WizardSignInDependencies } from './wizard-sign-in';
+import {
+  developerIdentity,
+  LOOPBACK_DEVICE_CODE,
+  LOOPBACK_SESSION_TOKEN,
+  LOOPBACK_USER_CODE,
+  LOOPBACK_VERIFICATION_URI,
+  scriptDeviceAuthorization,
+  startLoopbackConsole,
+  type DevicePollAnswer,
+  type LoopbackConsole
+} from '../../../scripts/operations/loopback-console';
+import { createWizardSignInDependencies } from '../../commands/init/wizard-sign-in';
 
 let session: WizardSession | undefined;
 
@@ -1366,112 +1377,83 @@ describe('the local try-out', () => {
 });
 
 describe('signing in to Stacktape from the page', () => {
-  /** Distinctive, so finding any of them in something the page was sent is unambiguous. */
-  const PASSWORD = 'pw-Secret-93!x';
-  const EMAIL_CODE = '482913';
-  const TOTP_CODE = '771204';
-
-  type FakeUser = {
-    password: string;
-    confirmed: boolean;
-    totp?: string;
-    organizations: Array<{ id: string; name: string }>;
-  };
+  type Organization = { id: string; name: string };
 
   /**
-   * Cognito, the control plane and the CLI's persisted state, as one in-memory directory.
-   *
-   * It keeps the rules that matter to the flow — an unconfirmed email cannot sign in, a wrong code
-   * is refused, a user in two organizations has to choose — so the scenarios below run the real
-   * session, flow and HTTP server against something that can say no.
+   * The Stacktape API as one loopback server: Better Auth's device routes answering polls from a script, and the
+   * anonymous tRPC exchange issuing a key per organization. The wizard reaches it through the same dependencies
+   * `stacktape init` uses; only where the key is saved is replaced, by a list the account check below reads.
    */
-  const fakeStacktape = (users: Record<string, FakeUser> = {}) => {
+  const fakeStacktape = async ({
+    answers = ['authorization_pending', 'approve'],
+    organizations = [{ id: 'org_1', name: 'Acme' }],
+    exchange
+  }: {
+    answers?: DevicePollAnswer[];
+    organizations?: Organization[];
+    exchange?: (input: Record<string, unknown>) => unknown;
+  } = {}) => {
+    const api: LoopbackConsole = await startLoopbackConsole({ identity: developerIdentity({ projectName: 'demo' }) });
+    stopApi.push(() => api.close());
+    const device = scriptDeviceAuthorization(api, { answers });
+    const apiKeyFor = (organizationId: string) => `api-key-secret:${organizationId}`;
+    api.on(
+      'exchangeTokenForApiKey',
+      exchange ??
+        ((input) => {
+          const { sessionToken, organizationId, listOrganizationsOnly } = input as Record<string, unknown>;
+          if (sessionToken !== LOOPBACK_SESSION_TOKEN) return { success: false, error: 'Invalid session.' };
+          if (listOrganizationsOnly === true) return { success: true, apiKeys: [], organizations };
+          const organization = organizations.find(({ id }) => id === organizationId);
+          if (!organization) return { success: false, error: 'Not a member of that organization.' };
+          return {
+            success: true,
+            apiKeys: [
+              {
+                id: apiKeyFor(organization.id),
+                createdAt: '2026-10-28T00:00:00.000Z',
+                updatedAt: '2026-10-28T00:00:00.000Z',
+                lastUsed: null,
+                name: 'CLI login',
+                userId: 'user_1',
+                organizationId: organization.id,
+                organizationName: organization.name
+              }
+            ]
+          };
+        })
+    );
     const savedKeys: string[] = [];
-    const codesSentTo: string[] = [];
-    const google = {
-      cancelled: 0,
-      finish: (_outcome: { ok: true; idToken: string } | SignInFailure): void => {}
-    };
-    const idTokenFor = (email: string) => `id-token-secret:${email}`;
-    const apiKeyFor = (email: string, organizationId: string) => `api-key-secret:${email}:${organizationId}`;
-
-    const dependencies: WizardSignInDependencies = {
-      startGoogle: async () => ({
-        ok: true,
-        authorizationUrl: 'https://login.example.test/oauth2/authorize?identity_provider=Google',
-        completed: new Promise((resolve) => {
-          google.finish = resolve;
-        }),
-        cancel: () => {
-          google.cancelled += 1;
+    let saveFailure: Error | undefined;
+    return {
+      api,
+      device,
+      savedKeys,
+      apiKeyFor,
+      failSavingWith: (error: Error) => {
+        saveFailure = error;
+      },
+      dependencies: createWizardSignInDependencies({
+        endpoint: api.endpoint,
+        saveApiKey: async (apiKey) => {
+          if (saveFailure) throw saveFailure;
+          savedKeys.push(apiKey);
         }
       }),
-      signUp: async ({ email, password }) => {
-        if (users[email] !== undefined) return { ok: false, code: 'account-exists' };
-        if (password.length < 8) return { ok: false, code: 'password-rejected' };
-        users[email] = {
-          password,
-          confirmed: false,
-          organizations: [{ id: 'org_personal', name: 'dev-personal-org' }]
-        };
-        codesSentTo.push(email);
-        return { ok: true, confirmed: false };
-      },
-      confirmSignUp: async ({ email, code }) => {
-        const user = users[email];
-        if (user === undefined || code !== EMAIL_CODE) return { ok: false, code: 'code-mismatch' };
-        user.confirmed = true;
-        return { ok: true };
-      },
-      resendCode: async ({ email }) => {
-        codesSentTo.push(email);
-        return { ok: true };
-      },
-      signIn: async ({ email, password }) => {
-        const user = users[email];
-        if (user === undefined || user.password !== password) return { ok: false, code: 'invalid-credentials' };
-        if (!user.confirmed) return { ok: true, next: 'confirm-email' };
-        if (user.totp !== undefined) {
-          return { ok: true, next: 'mfa', challenge: { username: email, session: `mfa-session-secret:${email}` } };
-        }
-        return { ok: true, next: 'authenticated', idToken: idTokenFor(email) };
-      },
-      answerMfa: async ({ username, session, code }) => {
-        if (session !== `mfa-session-secret:${username}`) return { ok: false, code: 'session-expired' };
-        if (users[username]?.totp !== code) return { ok: false, code: 'mfa-code-mismatch' };
-        return { ok: true, idToken: idTokenFor(username) };
-      },
-      exchange: async (idToken) => {
-        const email = idToken.replace('id-token-secret:', '');
-        const organizations = users[email]?.organizations ?? [];
-        if (organizations.length === 0) return { ok: false, code: 'exchange-failed', detail: 'No organization found.' };
-        if (organizations.length === 1) return { ok: true, apiKey: apiKeyFor(email, organizations[0]!.id) };
-        return {
-          ok: true,
-          organizations,
-          choose: async (organizationId) => ({ ok: true, apiKey: apiKeyFor(email, organizationId) })
-        };
-      },
-      saveApiKey: async (apiKey) => {
-        savedKeys.push(apiKey);
-      }
-    };
-
-    return {
-      dependencies,
-      savedKeys,
-      codesSentTo,
-      google,
-      idTokenFor,
       // The account check reads what was saved, the way `info:whoami` reads the persisted key.
       stacktapeAccount: async () =>
         savedKeys.length === 0
           ? { signedIn: false, detail: 'Not signed in.' }
-          : { signedIn: true, detail: 'Signed in.', email: savedKeys.at(-1)!.split(':')[1]!, organization: 'Acme' }
+          : { signedIn: true, detail: 'Signed in.', email: 'dev@example.com', organization: 'Acme' }
     };
   };
 
-  const open = async (fake: ReturnType<typeof fakeStacktape>) => {
+  const stopApi: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const stop of stopApi.splice(0)) await stop();
+  });
+
+  const open = async (fake: Pick<Awaited<ReturnType<typeof fakeStacktape>>, 'dependencies' | 'stacktapeAccount'>) => {
     let deployCalls = 0;
     session = await startWizardSession({
       projectName: 'demo',
@@ -1522,10 +1504,10 @@ describe('signing in to Stacktape from the page', () => {
 
     const state = async (): Promise<WizardState> => JSON.parse(await read('/api/state')) as WizardState;
     const until = async (accept: (candidate: WizardState) => boolean): Promise<WizardState> => {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
+      for (let attempt = 0; attempt < 300; attempt += 1) {
         const candidate = await state();
         if (accept(candidate)) return candidate;
-        await new Promise((settle) => setTimeout(settle, 10));
+        await new Promise((settle) => setTimeout(settle, 20));
       }
       throw new Error('The wizard never reached the expected state.');
     };
@@ -1554,8 +1536,10 @@ describe('signing in to Stacktape from the page', () => {
     };
   };
 
-  it('signs a new user up with a code, and only then lets the deploy through', async () => {
-    const fake = fakeStacktape();
+  const errorOf = (state: WizardState) => (state.signIn as { error?: { code: string; message: string } }).error;
+
+  it('signs in through the Console tab, and only then lets the deploy through', async () => {
+    const fake = await fakeStacktape({ answers: ['authorization_pending', 'authorization_pending', 'approve'] });
     const page = await open(fake);
     await page.post('/api/write', { format: 'yaml' });
     const deploy = () => page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
@@ -1564,126 +1548,61 @@ describe('signing in to Stacktape from the page', () => {
     await deploy();
     expect(page.deployCalls()).toBe(0);
 
-    const signedUp = await page.signIn('email', { intent: 'sign-up', email: 'new@example.com', password: PASSWORD });
-    expect(signedUp.state.signIn).toEqual({ step: 'needs-code', email: 'new@example.com' });
-    expect(fake.codesSentTo).toEqual(['new@example.com']);
-
-    // A wrong code is an error on the same step, not a reason to start again.
-    const wrong = await page.signIn('code', { code: '000000' });
-    expect(wrong.state.signIn).toMatchObject({
-      step: 'needs-code',
-      email: 'new@example.com',
-      error: { code: 'code-mismatch' }
+    const started = await page.signIn('start');
+    // The page opens the Console with the code filled in, and shows the code to compare.
+    expect(started.state.signIn).toMatchObject({
+      step: 'waiting',
+      userCode: LOOPBACK_USER_CODE,
+      verificationUri: LOOPBACK_VERIFICATION_URI,
+      verificationUriComplete: `${LOOPBACK_VERIFICATION_URI}?user_code=${LOOPBACK_USER_CODE}`
     });
-    expect(fake.savedKeys).toEqual([]);
+    expect((started.state.signIn as { expiresAt: number }).expiresAt).toBeGreaterThan(Date.now());
 
-    const confirmed = await page.signIn('code', { code: EMAIL_CODE });
-    expect(confirmed.state.stacktapeAccount).toMatchObject({ signedIn: true, email: 'new@example.com' });
-    // Signed in: there is no step left to render.
-    expect(confirmed.state.signIn).toBeUndefined();
-    expect(fake.savedKeys).toEqual(['api-key-secret:new@example.com:org_personal']);
+    // Nobody is holding a request open for the approval; the page learns it from the pushed state.
+    const signedIn = await page.until((candidate) => candidate.stacktapeAccount?.signedIn === true);
+    expect(signedIn.signIn).toBeUndefined();
+    expect(fake.device.polls).toHaveLength(3);
+    expect(fake.savedKeys).toEqual([fake.apiKeyFor('org_1')]);
 
     await deploy();
     expect(page.deployCalls()).toBe(1);
   });
 
-  it('keeps passwords, codes, tokens and the API key out of everything the page is sent', async () => {
-    const fake = fakeStacktape({
-      'mfa@example.com': {
-        password: PASSWORD,
-        confirmed: true,
-        totp: TOTP_CODE,
-        organizations: [
-          { id: 'org_a', name: 'Acme' },
-          { id: 'org_b', name: 'Globex' }
-        ]
-      }
+  it('keeps the device code, the session token and the API key out of everything the page is sent', async () => {
+    const fake = await fakeStacktape({
+      organizations: [
+        { id: 'org_a', name: 'Acme' },
+        { id: 'org_b', name: 'Globex' }
+      ]
     });
     const page = await open(fake);
 
-    // Sign-up through a wrong and a right code, then abandon it, then every remaining step once.
-    await page.signIn('email', { intent: 'sign-up', email: 'new@example.com', password: PASSWORD });
-    await page.signIn('code', { code: '000000' });
-    await page.signIn('code/resend');
-    await page.signIn('cancel');
-    await page.signIn('email', { intent: 'sign-in', email: 'mfa@example.com', password: PASSWORD });
-    await page.signIn('mfa', { code: TOTP_CODE });
+    await page.signIn('start');
+    await page.until((candidate) => candidate.signIn?.step === 'needs-organization');
     await page.signIn('organization', { organizationId: 'org_b' });
-    expect(fake.savedKeys).toEqual(['api-key-secret:mfa@example.com:org_b']);
+    expect(fake.savedKeys).toEqual([fake.apiKeyFor('org_b')]);
 
     const sent = await page.sentToPage();
-    for (const secret of [
-      PASSWORD,
-      EMAIL_CODE,
-      TOTP_CODE,
-      '000000',
-      'id-token-secret',
-      'api-key-secret',
-      'mfa-session-secret'
-    ]) {
+    for (const secret of [LOOPBACK_DEVICE_CODE, LOOPBACK_SESSION_TOKEN, 'api-key-secret']) {
       expect(sent).not.toContain(secret);
     }
     // The search above means something only if the page really was sent these states.
-    expect(sent).toContain('"step":"needs-code"');
+    expect(sent).toContain('"step":"waiting"');
     expect(sent).toContain('"step":"needs-organization"');
   });
 
-  it('sends a fresh code when an existing account never confirmed its email', async () => {
-    const fake = fakeStacktape({
-      'late@example.com': { password: PASSWORD, confirmed: false, organizations: [{ id: 'org_1', name: 'Acme' }] }
-    });
-    const page = await open(fake);
-
-    const signedIn = await page.signIn('email', { intent: 'sign-in', email: 'late@example.com', password: PASSWORD });
-    expect(signedIn.state.signIn).toEqual({ step: 'needs-code', email: 'late@example.com' });
-    expect(fake.codesSentTo).toEqual(['late@example.com']);
-
-    await page.signIn('code/resend');
-    expect(fake.codesSentTo).toEqual(['late@example.com', 'late@example.com']);
-
-    const confirmed = await page.signIn('code', { code: EMAIL_CODE });
-    expect(confirmed.state.stacktapeAccount?.signedIn).toBe(true);
-    expect(fake.savedKeys).toEqual(['api-key-secret:late@example.com:org_1']);
-  });
-
-  it('asks for the authenticator code when the account has one, and keeps the step on a wrong code', async () => {
-    const fake = fakeStacktape({
-      'mfa@example.com': {
-        password: PASSWORD,
-        confirmed: true,
-        totp: TOTP_CODE,
-        organizations: [{ id: 'org_1', name: 'Acme' }]
-      }
-    });
-    const page = await open(fake);
-
-    const challenged = await page.signIn('email', { intent: 'sign-in', email: 'mfa@example.com', password: PASSWORD });
-    expect(challenged.state.signIn).toEqual({ step: 'needs-mfa', email: 'mfa@example.com' });
-
-    const wrong = await page.signIn('mfa', { code: '000000' });
-    expect(wrong.state.signIn).toMatchObject({ step: 'needs-mfa', error: { code: 'mfa-code-mismatch' } });
-    expect(fake.savedKeys).toEqual([]);
-
-    const answered = await page.signIn('mfa', { code: TOTP_CODE });
-    expect(answered.state.stacktapeAccount?.signedIn).toBe(true);
-    expect(fake.savedKeys).toEqual(['api-key-secret:mfa@example.com:org_1']);
-  });
-
   it('asks which organization when there are several, and accepts only one it offered', async () => {
-    const fake = fakeStacktape({
-      'two@example.com': {
-        password: PASSWORD,
-        confirmed: true,
-        organizations: [
-          { id: 'org_a', name: 'Acme' },
-          { id: 'org_b', name: 'Globex' }
-        ]
-      }
+    const fake = await fakeStacktape({
+      organizations: [
+        { id: 'org_a', name: 'Acme' },
+        { id: 'org_b', name: 'Globex' }
+      ]
     });
     const page = await open(fake);
 
-    const asked = await page.signIn('email', { intent: 'sign-in', email: 'two@example.com', password: PASSWORD });
-    expect(asked.state.signIn).toEqual({
+    await page.signIn('start');
+    const asked = await page.until((candidate) => candidate.signIn?.step === 'needs-organization');
+    expect(asked.signIn).toEqual({
       step: 'needs-organization',
       organizations: [
         { id: 'org_a', name: 'Acme' },
@@ -1696,103 +1615,104 @@ describe('signing in to Stacktape from the page', () => {
 
     const chosen = await page.signIn('organization', { organizationId: 'org_b' });
     expect(chosen.state.stacktapeAccount?.signedIn).toBe(true);
-    expect(fake.savedKeys).toEqual(['api-key-secret:two@example.com:org_b']);
+    expect(fake.savedKeys).toEqual([fake.apiKeyFor('org_b')]);
   });
 
-  it('reports a failure on the step it happened at, with a way forward', async () => {
-    const fake = fakeStacktape({
-      'known@example.com': { password: PASSWORD, confirmed: true, organizations: [{ id: 'org_1', name: 'Acme' }] }
+  for (const { answer, code, says } of [
+    { answer: 'expired_token', code: 'expired', says: 'expired before it was approved' },
+    { answer: 'access_denied', code: 'denied', says: 'denied in the Stacktape Console' }
+  ] as const) {
+    it(`says so when the code is ${code}, and can start again`, async () => {
+      const fake = await fakeStacktape({ answers: ['authorization_pending', answer] });
+      const page = await open(fake);
+
+      await page.signIn('start');
+      const failed = await page.until((candidate) => candidate.signIn?.step === 'signed-out');
+      expect(errorOf(failed)).toMatchObject({ code });
+      expect(errorOf(failed)?.message).toContain(says);
+      expect(fake.savedKeys).toEqual([]);
+
+      // A new attempt gets a new code; the failure is not a dead end.
+      expect((await page.signIn('start')).state.signIn).toMatchObject({ step: 'waiting' });
+    });
+  }
+
+  it('says when Stacktape cannot be reached', async () => {
+    const fake = await fakeStacktape();
+    // The API goes away before the person presses "Sign in".
+    await fake.api.close();
+    const page = await open(fake);
+
+    const started = await page.signIn('start');
+    expect(started.state.signIn).toMatchObject({ step: 'signed-out', error: { code: 'network' } });
+  });
+
+  it('says when the approved sign-in could not be turned into credentials', async () => {
+    const fake = await fakeStacktape({
+      exchange: () => ({ success: false, error: 'Your organization requires two-factor sign-in' })
     });
     const page = await open(fake);
 
-    const exists = await page.signIn('email', { intent: 'sign-up', email: 'known@example.com', password: PASSWORD });
-    expect(exists.state.signIn).toMatchObject({ step: 'signed-out', error: { code: 'account-exists' } });
-
-    const wrong = await page.signIn('email', { intent: 'sign-in', email: 'known@example.com', password: 'not-it' });
-    expect(wrong.state.signIn).toMatchObject({ step: 'signed-out', error: { code: 'invalid-credentials' } });
-    // The sentence has to cover the commonest reason a password is "wrong": there never was one.
-    expect((wrong.state.signIn as { error: { message: string } }).error.message).toContain('Continue with Google');
+    await page.signIn('start');
+    const failed = await page.until((candidate) => candidate.signIn?.step === 'signed-out');
+    expect(errorOf(failed)).toMatchObject({ code: 'exchange-failed' });
+    expect(errorOf(failed)?.message).toContain('two-factor');
     expect(fake.savedKeys).toEqual([]);
   });
 
-  it('waits for Google in another tab, and signs in when it answers', async () => {
-    const fake = fakeStacktape({
-      'g@example.com': { password: '', confirmed: true, organizations: [{ id: 'org_1', name: 'Acme' }] }
-    });
+  it('says when the credentials could not be saved on this machine', async () => {
+    const fake = await fakeStacktape();
+    fake.failSavingWith(new Error('EACCES: permission denied'));
     const page = await open(fake);
 
-    const started = await page.signIn('google');
-    // The address stays in the state so the page can open the tab again, also after a reload.
-    expect(started.state.signIn).toEqual({
-      step: 'google-pending',
-      authorizationUrl: 'https://login.example.test/oauth2/authorize?identity_provider=Google'
-    });
-
-    fake.google.finish({ ok: true, idToken: fake.idTokenFor('g@example.com') });
-    // Nobody is holding a request open for this; the page learns it from the pushed state.
-    const signedIn = await page.until((candidate) => candidate.stacktapeAccount?.signedIn === true);
-    expect(signedIn.signIn).toBeUndefined();
-    expect(fake.savedKeys).toEqual(['api-key-secret:g@example.com:org_1']);
-  });
-
-  it('says why when Google does not finish', async () => {
-    const fake = fakeStacktape();
-    const page = await open(fake);
-
-    await page.signIn('google');
-    fake.google.finish({ ok: false, code: 'google-failed', detail: 'access_denied' });
-
+    await page.signIn('start');
     const failed = await page.until((candidate) => candidate.signIn?.step === 'signed-out');
-    expect(failed.signIn).toMatchObject({ step: 'signed-out', error: { code: 'google-failed' } });
-    expect((failed.signIn as { error: { message: string } }).error.message).toContain('access_denied');
+    expect(errorOf(failed)).toMatchObject({ code: 'save-failed' });
+    expect(errorOf(failed)?.message).toContain('EACCES');
   });
 
-  it('cancels a pending attempt, and ignores an answer that arrives afterwards', async () => {
-    const fake = fakeStacktape({
-      'g@example.com': { password: '', confirmed: true, organizations: [{ id: 'org_1', name: 'Acme' }] }
-    });
+  it('cancels a pending attempt: polling stops and a later approval is never asked for', async () => {
+    const fake = await fakeStacktape({ answers: ['authorization_pending'] });
     const page = await open(fake);
 
-    await page.signIn('google');
+    await page.signIn('start');
+    for (let wait = 0; wait < 100 && fake.device.polls.length < 2; wait += 1) await Bun.sleep(20);
     const cancelled = await page.signIn('cancel');
     expect(cancelled.state.signIn).toEqual({ step: 'signed-out' });
-    expect(fake.google.cancelled).toBe(1);
 
-    fake.google.finish({ ok: true, idToken: fake.idTokenFor('g@example.com') });
-    await new Promise((settle) => setTimeout(settle, 30));
+    const pollsAtCancel = fake.device.polls.length;
+    await Bun.sleep(300);
+    expect(fake.device.polls).toHaveLength(pollsAtCancel);
     expect(fake.savedKeys).toEqual([]);
     expect((await page.state()).stacktapeAccount?.signedIn).toBe(false);
-
-    // Cancelling the code step forgets the address and the password kept for it.
-    await page.signIn('email', { intent: 'sign-up', email: 'new@example.com', password: PASSWORD });
-    await page.signIn('cancel');
-    const afterCancel = await page.signIn('code', { code: EMAIL_CODE });
-    expect(afterCancel.state.signIn).toEqual({ step: 'signed-out' });
-    expect(fake.savedKeys).toEqual([]);
   });
 
-  it('stops waiting for Google when the session ends', async () => {
-    const fake = fakeStacktape();
+  it('stops polling when the session ends', async () => {
+    const fake = await fakeStacktape({ answers: ['authorization_pending'] });
     const page = await open(fake);
-    await page.signIn('google');
+    await page.signIn('start');
 
     await session!.close();
     session = undefined;
 
-    expect(fake.google.cancelled).toBe(1);
+    const pollsAtClose = fake.device.polls.length;
+    await Bun.sleep(300);
+    expect(fake.device.polls).toHaveLength(pollsAtClose);
   });
 
   it('notices a sign-in made in a terminal, and drops the attempt it was in the middle of', async () => {
-    const fake = fakeStacktape();
+    const fake = await fakeStacktape({ answers: ['authorization_pending'] });
     const page = await open(fake);
-    await page.signIn('email', { intent: 'sign-up', email: 'new@example.com', password: PASSWORD });
+    await page.signIn('start');
 
     // `stacktape login` in a terminal writes the key the account check reads.
-    fake.savedKeys.push('api-key-secret:elsewhere@example.com:org_1');
+    fake.savedKeys.push('api-key-secret:elsewhere');
     await page.post('/api/recheck');
 
     const rechecked = await page.until((candidate) => candidate.stacktapeAccount?.signedIn === true);
     expect(rechecked.signIn).toBeUndefined();
-    expect(rechecked.stacktapeAccount).toMatchObject({ email: 'elsewhere@example.com' });
+    const pollsAtRecheck = fake.device.polls.length;
+    await Bun.sleep(300);
+    expect(fake.device.polls).toHaveLength(pollsAtRecheck);
   });
 });

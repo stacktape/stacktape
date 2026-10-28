@@ -954,8 +954,7 @@
 
   /* ── Signing in ────────────────────────────────────────────────────────────────────────────── */
 
-  /* A form, so it is narrower than the prose around it: a 68-character password field is a field
-   * nobody can find the end of. */
+  /* Narrower than the prose around it, so the panel reads as one step. */
   .wizard-signin {
     display: flex;
     flex-direction: column;
@@ -965,24 +964,16 @@
     padding: 20px;
   }
 
-  .wizard-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--stp-text-subtle);
-    font-size: 0.8rem;
+  /* The code the person compares with the Console page: large enough to read at a glance. */
+  .wizard-signin-code {
+    display: block;
+    color: var(--stp-text-primary);
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
   }
 
-  .wizard-divider::before,
-  .wizard-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  /* The way back for someone who signed in somewhere else. Set apart from the form by the same
-   * hairline, because it is not part of signing in here. */
+  /* The other ways in. Set apart by a hairline, because they are not part of signing in here. */
   .wizard-signin-footnote {
     margin: 0;
     padding-top: 14px;

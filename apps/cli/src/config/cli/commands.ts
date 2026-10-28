@@ -838,10 +838,11 @@ To install a specific version instead, pass it as an argument, for example \`sta
   login: {
     description: `Authenticates this system with Stacktape.
 
-In a local terminal, this starts the Stacktape login flow and stores the CLI login session for subsequent commands in the operating system's credential store, or in a file only you can read where no credential store is available. In CI, configure a dedicated Stacktape API key as a masked secret such as \`STACKTAPE_API_KEY\`; do not paste API keys into chat transcripts or command logs. Manual API keys are bearer secrets and are shown only once when created.`,
+In a local terminal, this prints a sign-in address and a code, and opens the address in your browser. Sign in to the Stacktape Console there with any sign-in method, check that it shows the same code, and approve. Over SSH or without a browser, open the address on any device. The CLI then stores the CLI login session for subsequent commands in the operating system's credential store, or in a file only you can read where no credential store is available. In CI, configure a dedicated Stacktape API key as a masked secret such as \`STACKTAPE_API_KEY\`; do not paste API keys into chat transcripts or command logs. Manual API keys are bearer secrets and are shown only once when created.`,
     args: {
       ...universalArgs,
-      apiKey: apiKey.optional()
+      apiKey: apiKey.optional(),
+      noBrowser: noBrowser.optional()
     },
     requiredArgs: [] as const
   },

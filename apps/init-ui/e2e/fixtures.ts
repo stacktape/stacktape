@@ -28,6 +28,8 @@ export type ScriptedWizard = {
   /** The URL the CLI would open, with the one-time token in its fragment. */
   url: string;
   origin: string;
+  /** The stand-in for the Console's device page, which signing in opens in a new tab. */
+  consoleOrigin: string;
   /** Lets a held step continue: `scan` or `deploy`. */
   release: (step: 'scan' | 'deploy') => void;
   /** Stops the CLI side, as Ctrl+C in the terminal would. */
@@ -58,12 +60,12 @@ const startScriptedWizard = async (
   child.stderr.on('data', (chunk: Buffer) => {
     stderr += chunk.toString('utf8');
   });
-  const url = await new Promise<string>((resolve, reject) => {
+  const started = await new Promise<{ url: string; consoleOrigin: string }>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`The wizard fixture did not start.\n${stderr}`)), 20_000);
     createInterface({ input: child.stdout }).once('line', (line) => {
       clearTimeout(timer);
       try {
-        resolve((JSON.parse(line) as { url: string }).url);
+        resolve(JSON.parse(line) as { url: string; consoleOrigin: string });
       } catch {
         reject(new Error(`Unexpected fixture output: ${line}\n${stderr}`));
       }
@@ -74,8 +76,9 @@ const startScriptedWizard = async (
   return {
     child,
     wizard: {
-      url,
-      origin: new URL(url).origin,
+      url: started.url,
+      origin: new URL(started.url).origin,
+      consoleOrigin: new URL(started.consoleOrigin).origin,
       release: (step) => child.stdin.write(`${step}\n`),
       stop: async () => {
         if (child.exitCode === null) {
@@ -106,6 +109,7 @@ export const test = base.extend<{ startWizard: (scenario: WizardScenario) => Pro
       const { wizard, child } = await startScriptedWizard(scenario);
       children.push(child);
       allowedOrigins.add(wizard.origin);
+      allowedOrigins.add(wizard.consoleOrigin);
       return wizard;
     });
     await Promise.all(

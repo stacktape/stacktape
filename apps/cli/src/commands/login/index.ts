@@ -1,6 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { CliError } from '@utils/errors';
 import { aliasPostHogUser, identifyPostHogUser } from '@utils/telemetry';
 import { runAuthFlow } from '../_utils/auth';
 
@@ -10,11 +11,13 @@ export const commandLogin = async () => {
   let apiKey = globalStateManager.args.apiKey;
 
   if (!apiKey) {
-    // Run interactive auth flow (Google, email signup, email login, or manual API key)
-    const authResult = await runAuthFlow({ command: 'login' });
+    // Sign in with the browser (device code), or paste an API key.
+    const authResult = await runAuthFlow({
+      command: 'login',
+      openInBrowser: globalStateManager.args.noBrowser !== true
+    });
     if (!authResult.success || !authResult.apiKey) {
-      tuiManager.error(authResult.error || 'Authentication failed');
-      return;
+      throw new CliError({ category: 'LOGIN', code: 'LOGIN_FAILED', message: authResult.error || 'Login failed.' });
     }
     apiKey = authResult.apiKey;
   }

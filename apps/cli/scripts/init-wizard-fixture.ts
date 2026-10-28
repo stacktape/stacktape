@@ -13,7 +13,7 @@
  * `--signed-out` starts without a Stacktape account, so the Deploy step shows the sign-in panel. What
  * each input does is printed when the fixture starts; see `fixtureSignIn` below.
  *
- * Development tooling. Nothing here ships, and nothing here talks to AWS or Cognito.
+ * Development tooling. Nothing here ships, and nothing here talks to AWS or the Stacktape API.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -26,52 +26,26 @@ import { startWizardSession } from '../src/init/server/wizard-session';
 import { findWizardBundle } from '../src/init/run-init';
 import { INIT_TARGET_SCHEMA_VERSION } from '../src/init/deploy/stack-expectation';
 import type { SignInFailure, WizardSignInDependencies } from '../src/init/server/wizard-sign-in';
-import { oauthCallbackHeaders, renderOAuthCallbackPage } from '../src/commands/_utils/auth/oauth-callback-page';
 
 const failed = process.argv.includes('--failed');
 const signedOut = process.argv.includes('--signed-out');
 
-const FIXTURE_PASSWORD = 'password1';
-const FIXTURE_CODE = '123456';
-
 const SIGN_IN_CHEAT_SHEET = `
 Sign-in fixture. Nothing leaves this machine.
-  Continue with Google       opens a stand-in page with "Allow" and "Deny"
-  any new email              create account -> code step; the code is ${FIXTURE_CODE}
-  taken@example.com          "account exists" on create; signs in with ${FIXTURE_PASSWORD}
-  unconfirmed@example.com    sign in (${FIXTURE_PASSWORD}) -> code step
-  mfa@example.com            sign in (${FIXTURE_PASSWORD}) -> authenticator step; the code is ${FIXTURE_CODE}
-  orgs@example.com           sign in (${FIXTURE_PASSWORD}) -> choose one of three organizations
-  sms@example.com            sign in (${FIXTURE_PASSWORD}) -> an unsupported sign-in step
-  any other password         "email and password do not match"
+  Sign in          opens a stand-in for the Console's /device page, which shows the code
+  approve-one      signs in to one organization
+  approve-three    leads to the organization choice
+  deny / expire    the "denied" and "expired" errors
+  unreachable      the "network" error
 `;
 
 /**
- * A stand-in for Cognito, the control plane and the CLI's persisted state.
+ * A stand-in for the Console's device page, the Stacktape API and the CLI's persisted state.
  *
- * Shaped like the real dependencies and slow enough that every waiting state can be seen. The
- * account check below reads `signedInAs`, the way the real one reads the key `saveApiKey` wrote.
+ * Shaped like the real dependencies and slow enough that every waiting state can be seen. The account check below
+ * reads `signedInAs`, the way the real one reads the key `saveApiKey` wrote.
  */
 const fixtureSignIn = () => {
-  type Account = {
-    password: string;
-    confirmed: boolean;
-    totp?: boolean;
-    challenge?: string;
-    organizations: string[];
-  };
-  const canned = (account: Omit<Account, 'password' | 'confirmed'> & { confirmed?: boolean }): Account => ({
-    password: FIXTURE_PASSWORD,
-    confirmed: true,
-    ...account
-  });
-  const accounts: Record<string, Account> = {
-    'taken@example.com': canned({ organizations: ['taken-personal-org'] }),
-    'unconfirmed@example.com': canned({ confirmed: false, organizations: ['unconfirmed-personal-org'] }),
-    'mfa@example.com': canned({ totp: true, organizations: ['mfa-personal-org'] }),
-    'orgs@example.com': canned({ organizations: ['orgs-personal-org', 'Acme', 'Globex Engineering'] }),
-    'sms@example.com': canned({ challenge: 'SMS_MFA', organizations: ['sms-personal-org'] })
-  };
   let signedInAs: { email: string; organization: string } | undefined;
 
   const pause = () => new Promise((settle) => setTimeout(settle, 500));
@@ -80,82 +54,58 @@ const fixtureSignIn = () => {
     code,
     ...(detail === undefined ? {} : { detail })
   });
+  const organizationsBySession: Record<string, string[]> = {
+    one: ['dev-personal-org'],
+    three: ['dev-personal-org', 'Acme', 'Globex Engineering']
+  };
 
   const dependencies: WizardSignInDependencies = {
-    startGoogle: async () => {
-      let answer: (outcome: { ok: true; idToken: string } | SignInFailure) => void = () => {};
-      const completed = new Promise<{ ok: true; idToken: string } | SignInFailure>((settle) => {
+    start: async () => {
+      await pause();
+      let answer: (outcome: { ok: true; sessionToken: string } | SignInFailure) => void = () => {};
+      const completed = new Promise<{ ok: true; sessionToken: string } | SignInFailure>((settle) => {
         answer = settle;
       });
-      // Serves what the real loopback listener serves, so the callback page can be worked on too.
-      const google = createServer((request, response) => {
-        const nonce = randomBytes(16).toString('base64');
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-        if (url.pathname !== '/callback') {
-          response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      const userCode = `${randomBytes(2).toString('hex')}-${randomBytes(2).toString('hex')}`.toUpperCase();
+      const page = createServer((request, response) => {
+        const outcome = new URL(request.url ?? '/', 'http://127.0.0.1').searchParams.get('outcome');
+        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        if (outcome === null) {
           response.end(
-            '<body style="font-family: system-ui; padding: 40px"><h1>Stand-in for Google</h1>' +
-              '<p><a href="/callback?outcome=success">Allow</a> &nbsp; <a href="/callback?outcome=failure">Deny</a></p></body>'
+            `<body style="font-family: system-ui; padding: 40px"><h1>Stand-in for the Console's device page</h1>` +
+              `<p>Code: <strong>${userCode}</strong></p><p>` +
+              ['approve-one', 'approve-three', 'deny', 'expire', 'unreachable']
+                .map((choice) => `<a href="/?outcome=${choice}">${choice}</a>`)
+                .join(' &nbsp; ') +
+              '</p></body>'
           );
           return;
         }
-        const allowed = url.searchParams.get('outcome') === 'success';
-        response.writeHead(200, oauthCallbackHeaders(nonce));
-        response.end(
-          renderOAuthCallbackPage(
-            allowed
-              ? { outcome: 'success', returnTo: 'wizard' }
-              : { outcome: 'failure', returnTo: 'wizard', reason: 'access_denied' },
-            nonce
-          )
-        );
-        google.close();
-        accounts['google@example.com'] ??= canned({ organizations: ['google-personal-org'] });
-        answer(allowed ? { ok: true, idToken: 'google@example.com' } : failure('google-failed', 'access_denied'));
+        response.end('<body style="font-family: system-ui; padding: 40px"><p>Done. Return to the wizard.</p></body>');
+        page.close();
+        if (outcome === 'approve-one') answer({ ok: true, sessionToken: 'one' });
+        else if (outcome === 'approve-three') answer({ ok: true, sessionToken: 'three' });
+        else if (outcome === 'deny') answer(failure('denied'));
+        else if (outcome === 'expire') answer(failure('expired'));
+        else answer(failure('network'));
       });
-      await new Promise<void>((listening) => google.listen(0, '127.0.0.1', () => listening()));
+      await new Promise<void>((listening) => page.listen(0, '127.0.0.1', () => listening()));
+      const verificationUri = `http://127.0.0.1:${(page.address() as AddressInfo).port}/`;
       return {
         ok: true,
-        authorizationUrl: `http://127.0.0.1:${(google.address() as AddressInfo).port}/`,
+        userCode,
+        verificationUri,
+        verificationUriComplete: `${verificationUri}?user_code=${userCode}`,
+        expiresAt: Date.now() + 10 * 60 * 1000,
         completed,
-        cancel: () => google.close()
+        cancel: () => page.close()
       };
     },
-    signUp: async ({ email, password }) => {
+    exchange: async (sessionToken) => {
       await pause();
-      if (accounts[email] !== undefined) return failure('account-exists');
-      if (password.length < 8) return failure('password-rejected');
-      accounts[email] = { password, confirmed: false, organizations: [`${email.split('@')[0]}-personal-org`] };
-      return { ok: true, confirmed: false };
-    },
-    confirmSignUp: async ({ email, code }) => {
-      await pause();
-      if (code !== FIXTURE_CODE) return failure('code-mismatch');
-      accounts[email]!.confirmed = true;
-      return { ok: true };
-    },
-    resendCode: async () => {
-      await pause();
-      return { ok: true };
-    },
-    signIn: async ({ email, password }) => {
-      await pause();
-      const account = accounts[email];
-      if (account === undefined || account.password !== password) return failure('invalid-credentials');
-      if (!account.confirmed) return { ok: true, next: 'confirm-email' };
-      if (account.challenge !== undefined) return failure('unsupported-challenge', account.challenge);
-      if (account.totp === true) return { ok: true, next: 'mfa', challenge: { username: email, session: 'fixture' } };
-      return { ok: true, next: 'authenticated', idToken: email };
-    },
-    answerMfa: async ({ username, code }) => {
-      await pause();
-      return code === FIXTURE_CODE ? { ok: true, idToken: username } : failure('mfa-code-mismatch');
-    },
-    exchange: async (email) => {
-      await pause();
-      const organizations = accounts[email]?.organizations ?? [];
+      const organizations = organizationsBySession[sessionToken] ?? [];
       const issue = (organization: string) => {
-        signedInAs = { email, organization };
+        signedInAs = { email: 'dev@example.com', organization };
         return { ok: true as const, apiKey: 'fixture' };
       };
       if (organizations.length === 0) return failure('exchange-failed', 'No organization found.');

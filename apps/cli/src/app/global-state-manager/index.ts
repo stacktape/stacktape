@@ -235,7 +235,7 @@ export class GlobalStateManager {
     this.apiKey = runnerCredentials.apiKey || (await this.loadStoredApiKey());
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
-        // Run interactive auth flow (sign up, login, or Google OAuth)
+        // Interactive sign-in: the browser (device code) or a pasted API key.
         const { runAuthFlow } = await import('../../commands/_utils/auth');
         const authResult = await runAuthFlow({ command: this.command });
         if (!authResult.success || !authResult.apiKey) {
