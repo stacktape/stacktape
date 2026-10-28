@@ -54,6 +54,13 @@ const CASES: ReadonlyArray<{
     strings: ['[\'"]']
   },
   {
+    // After the condition of an `if`, a `/` starts a regular expression, and its backtick opens no template.
+    language: 'javascript',
+    raw: "if (process.env.DEBUG) /`/.test('md'); server.listen(8080);",
+    comments: [],
+    strings: ['`', 'md']
+  },
+  {
     // A division is not a regular expression.
     language: 'javascript',
     raw: "const half = total / 2; const s = 'a/b';",

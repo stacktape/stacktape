@@ -156,14 +156,32 @@ const viteOutput = async (
   const raw = await readText(context, config, { fullFile: true });
   if (raw === undefined) return { outputDirectory: 'dist' };
   const code = maskFile(config, raw, 'keep');
-  const literal = (key: string) => new RegExp(`\\b${key}\\s*:\\s*(['"\`])([^'"\`$]+)\\1\\s*[,}\\n]`).exec(code)?.[2];
-  const root = literal('root');
+  // Brace depth at an offset, counted with strings blanked. The config object's own keys sit at depth 1
+  // (`export default {`, `defineConfig({`), so `resolve: { alias: { root } }` is no project root.
+  const structure = maskFile(config, raw, 'blank');
+  const depthAt = (offset: number) => {
+    let depth = 0;
+    for (const character of structure.slice(0, offset)) depth += character === '{' ? 1 : character === '}' ? -1 : 0;
+    return depth;
+  };
+  /** The key's occurrences (`root: x`, or the shorthand `root,`), at one depth when given. */
+  const keyed = (key: string, depth?: number) =>
+    [...code.matchAll(new RegExp(`\\b${key}\\b(?=\\s*[:,}])`, 'g'))].filter(
+      (match) => depth === undefined || depthAt(match.index ?? 0) === depth
+    );
+  const literal = (key: string, depth?: number) =>
+    keyed(key, depth)
+      .map(
+        (match) => /^\s*:\s*(['"`])([^'"`$]+)\1\s*[,}\n]/.exec(code.slice((match.index ?? 0) + match[0].length))?.[2]
+      )
+      .find((value) => value !== undefined);
+  const root = literal('root', 1);
   const outDir = literal('outDir');
   // `outDir` is relative to `root`: `root: './src'` with `outDir: '../dist'` writes `dist`.
   const output = posix.normalize(posix.join(root ?? '.', outDir ?? 'dist')).replace(/\/$/, '');
   const unreadable =
-    (/\broot\s*:/.test(code) && root === undefined) ||
-    (/\boutDir\b/.test(code) && outDir === undefined) ||
+    (keyed('root', 1).length > 0 && root === undefined) ||
+    (keyed('outDir').length > 0 && outDir === undefined) ||
     output.startsWith('..') ||
     output.startsWith('/') ||
     output === '.';

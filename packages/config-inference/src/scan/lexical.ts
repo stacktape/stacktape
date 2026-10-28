@@ -27,6 +27,23 @@ const REGEX_KEYWORD = /(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|new|delet
 const blank = (text: string): string => text.replace(/[^\n]/g, ' ');
 
 /**
+ * Whether code ending in `)` ends the condition of `if`, `while`, `for` or `with`: a `/` after it starts a regular
+ * expression (`if (debug) /x/.test(s)`), where after any other `)` it divides.
+ */
+const closesControlCondition = (before: string): boolean => {
+  const text = before.trimEnd();
+  let depth = 0;
+  for (let index = text.length - 1; index >= 0; index -= 1) {
+    if (text[index] === ')') depth += 1;
+    else if (text[index] === '(') {
+      depth -= 1;
+      if (depth === 0) return /(?:^|[^\w$.])(?:if|while|for|with)\s*$/.test(text.slice(0, index));
+    }
+  }
+  return false;
+};
+
+/**
  * `raw` with comments replaced by spaces, and string, template and regular-expression contents too when `strings` is
  * `blank`. Quote characters stay, so `listen(":8080")` keeps its shape. Template substitutions (`${...}`) stay code.
  */
@@ -153,7 +170,12 @@ export const maskSource = (
           continue;
         }
       }
-      if (character === '/' && (/(?:^|[(,=:[!&|?{};+\-*%<>~^])$/.test(lastCode()) || REGEX_KEYWORD.test(lastCode()))) {
+      if (
+        character === '/' &&
+        (/(?:^|[(,=:[!&|?{};+\-*%<>~^])$/.test(lastCode()) ||
+          REGEX_KEYWORD.test(lastCode()) ||
+          (lastCode().endsWith(')') && closesControlCondition(out.join(''))))
+      ) {
         // A regular expression literal: up to its closing slash, outside a character class, on this line.
         let end = index + 1;
         let inClass = false;

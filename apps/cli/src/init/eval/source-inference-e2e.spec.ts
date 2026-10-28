@@ -401,6 +401,74 @@ const CASES: EvalCase[] = [
       resources: { api: 'function', worker: 'function', jobQueue: 'sqs-queue' },
       resourceProperties: [{ resource: 'worker', path: 'events.0.properties.sqsQueueName', value: 'jobQueue' }]
     }
+  },
+  {
+    name: 'review: a regular expression after if (...) does not hide the code after it',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node server.js' } }),
+      'server.js': lines(
+        "import http from 'node:http';",
+        "if (process.env.DEBUG) /`/.test('markdown');",
+        "http.createServer((req, res) => res.end('ok')).listen(8080);"
+      )
+    },
+    expect: { resources: { fixtureApp: 'web-service' }, servicePorts: [{ resource: 'fixtureApp', port: 8080 }] }
+  },
+  {
+    name: 'review: a computed Hono port is not its first number',
+    files: {
+      'package.json': packageJson({
+        dependencies: { hono: '4.0.0', '@hono/node-server': '1.0.0' },
+        scripts: { start: 'node server.js' }
+      }),
+      'server.js':
+        "import { Hono } from 'hono'; import { serve } from '@hono/node-server'; const app = new Hono(); serve({ fetch: app.fetch, port: 8000 + 1 });\n"
+    },
+    expect: { resourceProperties: [{ resource: 'fixtureApp', path: 'port', value: undefined }] }
+  },
+  {
+    name: 'review: a Serverless MariaDB instance stays MariaDB',
+    files: {
+      'package.json': packageJson({}),
+      'handler.js': 'export async function handler(event) { return { statusCode: 200, body: "ok" }; }\n',
+      'serverless.yml': lines(
+        'service: db-app',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        'resources:',
+        '  Resources:',
+        '    Database:',
+        '      Type: AWS::RDS::DBInstance',
+        '      Properties:',
+        '        Engine: mariadb'
+      )
+    },
+    expect: {
+      dependencyKinds: ['mysql'],
+      absentDependencyKinds: ['postgres'],
+      resourceProperties: [{ resource: 'mainDatabase', path: 'engine.type', value: 'mariadb' }]
+    }
+  },
+  {
+    name: 'review: a root key under resolve.alias is no Vite root',
+    files: {
+      'package.json': packageJson({ dependencies: { vite: '6.0.0' }, scripts: { build: 'vite build' } }),
+      'index.html': '<!doctype html><html>App</html>\n',
+      'vite.config.js': "export default { resolve: { alias: { root: 'src' } } };\n"
+    },
+    expect: { resourceProperties: [{ resource: 'fixtureApp', path: 'uploadDirectoryPath', value: 'dist' }] }
+  },
+  {
+    name: 'review: a README about template test fixtures publishes no static site',
+    files: {
+      'package.json': packageJson({ dependencies: { express: '4.21.0' }, scripts: { start: 'node server.js' } }),
+      'server.js': "import express from 'express'; express().listen(3000);\n",
+      'README.md':
+        'The templates directory contains test fixtures for the static site generator, not a deployable website.\n',
+      'templates/index.html': '<!doctype html><html>Test fixture</html>\n'
+    },
+    expect: { resourceProperties: [{ resource: 'templates', path: 'uploadDirectoryPath', value: undefined }] }
   }
 ];
 
@@ -454,10 +522,30 @@ const ledger = (overrides: Record<string, string | undefined> = {}): Record<stri
   return Object.fromEntries(Object.entries(files).filter((entry): entry is [string, string] => entry[1] !== undefined));
 };
 
+const OWNS_POOL = lines(
+  '# Ledger',
+  'Login uses Cognito USER_PASSWORD_AUTH, then calls GET /me behind a JWT authorizer.',
+  'The stack creates its own Cognito user pool for these accounts.',
+  'docs/ is a static site served by a hosting-bucket with CDN.'
+);
+
+/** The reviewer's existing-pool repro: sign-in and token verification against a pool another repository owns. */
+const existingPoolServer = lines(
+  "import express from 'express';",
+  "import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';",
+  "import { CognitoJwtVerifier } from 'aws-jwt-verify';",
+  'const app = express();',
+  'const cognito = new CognitoIdentityProviderClient({});',
+  "const verifier = CognitoJwtVerifier.create({ userPoolId: process.env.AUTH_POOL_ID, clientId: process.env.AUTH_CLIENT_ID, tokenUse: 'access' });",
+  "app.post('/login', async (req, res) => res.json(await cognito.send(new InitiateAuthCommand({ ClientId: process.env.AUTH_CLIENT_ID, AuthFlow: 'USER_PASSWORD_AUTH', AuthParameters: req.body }))));",
+  "app.get('/me', async (req, res) => res.json(await verifier.verify(req.headers.authorization)));",
+  'app.listen(3000);'
+);
+
 const DOGFOOD_CASES: EvalCase[] = [
   {
-    name: 'r2qq: a project that signs users in and checks their tokens gets its own user pool',
-    files: ledger(),
+    name: 'r2qq: a project whose README says it creates its user pool gets one',
+    files: ledger({ 'README.md': OWNS_POOL }),
     expect: {
       dependencyKinds: ['user-pool'],
       resources: {
@@ -470,7 +558,6 @@ const DOGFOOD_CASES: EvalCase[] = [
       },
       serviceEnvironment: [
         { resource: 'ledgerWeb', name: 'AUTH_CLIENT_ID', value: "$ResourceParam('userPool', 'clientId')" },
-        { resource: 'ledgerWeb', name: 'API_URL', value: "$ResourceParam('ledgerApi', 'url')" },
         { resource: 'ledgerWeb', name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
       ],
       resourceProperties: [
@@ -485,26 +572,131 @@ const DOGFOOD_CASES: EvalCase[] = [
         // The Lambda image's Dockerfile is no always-running worker.
         { resource: 'ledger', path: 'packaging', value: undefined }
       ],
-      gapsInclude: ['functions/image/Dockerfile builds a container-image Lambda function']
+      gapsInclude: [
+        'functions/image/Dockerfile builds a container-image Lambda function',
+        // Two backends, the me function and the API: which one API_URL means is the user's call.
+        'reads API_URL, an address nothing in the configuration sets'
+      ]
     }
   },
   {
-    name: 'r2qq: sign-in alone does not prove the user pool belongs to the project',
-    files: ledger({ 'functions/me.ts': undefined }),
+    name: 'r2qq: a script that creates users proves the pool is the project’s',
+    files: ledger({
+      'scripts/seed-users.mjs': lines(
+        "import { CognitoIdentityProviderClient, AdminCreateUserCommand } from '@aws-sdk/client-cognito-identity-provider';",
+        "await new CognitoIdentityProviderClient({}).send(new AdminCreateUserCommand({ UserPoolId: process.env.AUTH_POOL_ID, Username: 'admin' }));"
+      )
+    }),
+    expect: { resources: { userPool: 'user-auth-pool' } }
+  },
+  {
+    name: 'r2qq review: sign-in and token checks against an existing pool create no pool',
+    files: {
+      'package.json': packageJson({
+        name: 'review-app',
+        scripts: { start: 'node server.js' },
+        dependencies: {
+          express: '4.21.0',
+          '@aws-sdk/client-cognito-identity-provider': '3.0.0',
+          'aws-jwt-verify': '5.0.0'
+        }
+      }),
+      'README.md':
+        'Uses the existing company Cognito pool, maintained in a separate infrastructure repository. Set AUTH_CLIENT_ID and AUTH_POOL_ID.\n',
+      'server.js': existingPoolServer
+    },
     expect: {
       resourceProperties: [
         { resource: 'userPool', path: 'allowOnlyAdminsToCreateAccount', value: undefined },
-        { resource: 'ledgerWeb', path: 'environment.0.name', value: 'API_URL' }
+        // Neither ID is rewired to a new pool, and neither becomes a secret.
+        { resource: 'reviewApp', path: 'environment', value: undefined }
       ],
-      gapsInclude: ['nothing else in the project shows the user pool is its own', 'set AUTH_CLIENT_ID to your pool']
+      gapsInclude: ['Nothing in the repository creates that pool', 'set AUTH_CLIENT_ID and AUTH_POOL_ID']
     }
   },
   {
-    name: 'r2qq: a handler reading JWT claims without a pool of the project gets no public route',
-    files: ledger({ 'web/app/actions.js': 'export async function noop() { return process.env.ME_URL; }\n' }),
+    name: 'r2qq: a handler reading JWT claims without a pool of the project keeps its route, with a gap',
+    files: ledger(),
     expect: {
-      resourceProperties: [{ resource: 'me', path: 'events', value: undefined }],
+      resourceProperties: [
+        { resource: 'userPool', path: 'allowOnlyAdminsToCreateAccount', value: undefined },
+        { resource: 'me', path: 'events.0.properties.path', value: '/{proxy+}' },
+        { resource: 'me', path: 'events.0.properties.authorizer', value: undefined }
+      ],
       gapsInclude: ['me reads the claims of a JWT authorizer']
+    }
+  },
+  {
+    name: 'r2qq review: a comment about JWT claims leaves a public route public',
+    files: {
+      'package.json': packageJson({ name: 'review-app' }),
+      'README.md': 'The stack creates its own Cognito user pool.\n',
+      'handler.ts': lines(
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        '// Public endpoint: unlike private handlers, do not read event.requestContext.authorizer.jwt.claims.',
+        'export const handler: APIGatewayProxyHandlerV2 = async (event) => ({ statusCode: 200, body: event.rawPath });'
+      ),
+      'login.ts': lines(
+        "import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';",
+        "export const login = () => new CognitoIdentityProviderClient({}).send(new InitiateAuthCommand({ ClientId: process.env.AUTH_CLIENT_ID, AuthFlow: 'USER_PASSWORD_AUTH' }));"
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'handler', path: 'events.0.properties.path', value: '/{proxy+}' },
+        { resource: 'handler', path: 'events.0.properties.authorizer', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'r2qq review: claims read optionally are a public route',
+    files: {
+      'package.json': packageJson({ name: 'review-app' }),
+      'handler.ts': lines(
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        "export const handler: APIGatewayProxyHandlerV2 = async (event) => ({ statusCode: 200, body: event.requestContext.authorizer?.jwt?.claims?.sub ?? 'guest' });"
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'handler', path: 'events.0.properties.path', value: '/{proxy+}' },
+        { resource: 'handler', path: 'events.0.properties.authorizer', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'r2qq review: API_URL with two backends stays unset, with a gap',
+    files: {
+      'package.json': packageJson({ name: 'multi-app', workspaces: ['apps/*'] }),
+      'apps/accounts/package.json': JSON.stringify({
+        name: 'accounts',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '4.21.0' }
+      }),
+      'apps/accounts/server.js': "import express from 'express'; const app = express(); app.listen(3000);\n",
+      'apps/metrics/package.json': JSON.stringify({
+        name: 'metrics',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '4.21.0' }
+      }),
+      'apps/metrics/server.js': "import express from 'express'; const app = express(); app.listen(3000);\n",
+      'apps/web/package.json': JSON.stringify({
+        name: 'web',
+        scripts: { start: 'next start', build: 'next build' },
+        dependencies: { next: '15.0.0', react: '19.0.0' }
+      }),
+      'apps/web/app/page.tsx': lines(
+        'export default async function Page() {',
+        "  await fetch(process.env.ACCOUNTS_URL + '/health');",
+        "  const users = await fetch(process.env.API_URL + '/users');",
+        '  return <p>{await users.text()}</p>;',
+        '}'
+      )
+    },
+    expect: {
+      serviceEnvironment: [{ resource: 'web', name: 'ACCOUNTS_URL', value: "$ResourceParam('accounts', 'url')" }],
+      resourceProperties: [{ resource: 'web', path: 'environment.1', value: undefined }],
+      gapsInclude: ['web reads API_URL, an address nothing in the configuration sets']
     }
   },
   {

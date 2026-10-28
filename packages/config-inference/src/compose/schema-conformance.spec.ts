@@ -1270,6 +1270,14 @@ describe('composed configuration conforms to the Stacktape schema', () => {
         ],
         dependencies: [
           {
+            name: 'mainDatabase',
+            kind: 'mysql',
+            mysqlEngine: 'mariadb',
+            engineVersion: '10.11',
+            evidence: [],
+            source: 'probe'
+          },
+          {
             name: 'userPool',
             kind: 'user-pool',
             addressedBy: ['AUTH_CLIENT_ID'],
@@ -1288,6 +1296,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     expectValid(result.config);
     const { resources } = result.config;
     expect(resources.realtime?.properties.loadBalancing).toEqual({ type: 'application-load-balancer' });
+    expect(resources.mainDatabase?.properties.engine).toMatchObject({ type: 'mariadb' });
     expect(resources.userPool).toEqual({
       type: 'user-auth-pool',
       properties: { allowOnlyAdminsToCreateAccount: true }

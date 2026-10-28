@@ -176,6 +176,8 @@ export const dependencyFactSchema = z.object({
    * `unproven` when the code only signs in against a client ID it reads, which an existing pool can just as well own.
    */
   userPoolOwnership: z.enum(['project', 'unproven']).optional(),
+  /** A MySQL-compatible database a deployment manifest declares as MariaDB, which a MySQL engine does not replace. */
+  mysqlEngine: z.literal('mariadb').optional(),
   /** The code calls `SignUp`: the pool has to let users create their own accounts. */
   userPoolSelfSignUp: z.literal(true).optional(),
   queueSettings: z

@@ -191,7 +191,8 @@ const javascriptListenPort = (path: string, raw: string, code: string): ListenPo
   const direct =
     /\.listen\(\s*(\d{2,5})\b/.exec(code) ??
     /\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*(\d{2,5})\b/.exec(code) ??
-    /(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*(?:[^,}]*?(?:\|\||\?\?)\s*)?(\d{2,5})\b/.exec(
+    // Only a literal number is a port: `port: 8000 + 1` is not 8000.
+    /(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*(?:[^,}]*?(?:\|\||\?\?)\s*)?(\d{2,5})\s*[,}\n]/.exec(
       code
     );
   if (direct !== null) return matchedPort(path, raw, direct);
@@ -205,7 +206,9 @@ const javascriptListenPort = (path: string, raw: string, code: string): ListenPo
   return matchedPort(
     path,
     raw,
-    new RegExp(`\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\b`).exec(code)
+    new RegExp(
+      `\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\s*(?:[;,)\\n]|$)`
+    ).exec(code)
   );
 };
 

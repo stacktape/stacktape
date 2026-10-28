@@ -287,9 +287,6 @@ export const invokingDependencyName = (trigger: FunctionTrigger): string | undef
  */
 export const UNROUTED_HTTP_SOURCE = 'HTTP requests on a route the code does not name';
 
-/** The `unmapped` source of an HTTP handler that reads JWT authorizer claims, when init has no pool to check them. */
-export const JWT_ROUTE_SOURCE = 'an HTTP route behind a JWT authorizer';
-
 /** The `unmapped` source of a function the repository's own code invokes with the Lambda `Invoke` API. */
 export const DIRECT_INVOCATION_SOURCE = 'a direct Lambda invocation from your code';
 

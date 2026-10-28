@@ -665,8 +665,7 @@ const API_ADDRESS_VARIABLE =
  *
  * Without it the frontend builds, deploys and starts in `stacktape dev` with an empty API address. Only one backend
  * qualifies: every HTTP-triggered function shares one API gateway, so they count as one, and a project with both such
- * functions and an HTTP container, or several containers, is left for the user to wire. A backend the frontend already
- * reaches through a variable naming it (`ME_URL` for the `me` function) is not the one its `API_URL` means.
+ * functions and an HTTP container, or several containers, is left for the user to wire.
  */
 const isFrontend = (service: ServiceFactInput): boolean =>
   (service.servesStaticAssets !== undefined && !service.exposesHttp) ||
@@ -680,23 +679,17 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): Set<Va
   const httpServices = services.filter(
     (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
   );
-  const backends = [...(httpFunctions.length > 0 ? [httpFunctions] : []), ...httpServices.map((service) => [service])];
+  const backends = [...(httpFunctions.length > 0 ? [httpFunctions[0]!] : []), ...httpServices];
+  if (backends.length !== 1) return linked;
+  const [backend] = backends;
   for (const service of services) {
-    if (!isFrontend(service)) continue;
-    const variables = service.environmentVariables ?? [];
-    const named = new Set(variables.flatMap((variable) => variable.targetServiceName ?? []));
-    const own = backends.filter((backend) => !backend.includes(service));
-    // With one backend, every address is that one. With several, the ones other variables name are spoken for.
-    const candidates =
-      own.length === 1 ? own : own.filter((backend) => !backend.some((member) => named.has(member.name)));
-    if (candidates.length !== 1) continue;
-    const backend = candidates[0]![0]!;
-    for (const variable of variables) {
+    if (!isFrontend(service) || service === backend) continue;
+    for (const variable of service.environmentVariables ?? []) {
       if (variable.targetServiceName !== undefined || !API_ADDRESS_VARIABLE.test(variable.name)) continue;
-      if (variable.role === 'build-time') variable.targetServiceName = backend.name;
+      if (variable.role === 'build-time') variable.targetServiceName = backend!.name;
       if (variable.role === 'runtime-config') {
         variable.role = 'cross-service-reference';
-        variable.targetServiceName = backend.name;
+        variable.targetServiceName = backend!.name;
         linked.add(variable);
       }
     }
@@ -1075,9 +1068,9 @@ export const assembleCandidateFacts = async ({
   }
 
   applyStacktapeReferences({ services, dependencies });
-  // Names first: a variable that names its backend settles that one, and `API_URL` can only mean another.
+  const frontendAddresses = linkFrontendApiAddresses(services);
   const linkedAddresses = linkServiceAddresses(services);
-  for (const variable of linkFrontendApiAddresses(services)) linkedAddresses.add(variable);
+  for (const variable of frontendAddresses) linkedAddresses.add(variable);
   linkFunctionReferences(services);
   await markInternalServices({
     services,

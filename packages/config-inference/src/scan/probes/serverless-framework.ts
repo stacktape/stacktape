@@ -44,7 +44,10 @@ const RESOURCE_KINDS: Readonly<Record<string, DependencyKind>> = {
   'AWS::Elasticsearch::Domain': 'search'
 };
 
-/** RDS `Engine` values, in our vocabulary. Anything else, or an engine that is not a literal, is no claim at all. */
+/**
+ * RDS `Engine` values, in our vocabulary. Anything else, or an engine that is not a literal, is no claim at all. MariaDB
+ * is MySQL-compatible, and keeps its engine through `mysqlEngine`.
+ */
 const RDS_ENGINES: Readonly<Record<string, DependencyKind>> = {
   postgres: 'postgres',
   'aurora-postgresql': 'postgres',
@@ -484,6 +487,7 @@ export const serverlessFrameworkProbe: Probe = {
         dependencyNames.set(logicalId, name);
         const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(logicalId)}:`));
         const engineVersion = engineVersionOf(resource);
+        const mariadb = isRecord(resource.Properties) && String(resource.Properties.Engine).toLowerCase() === 'mariadb';
         manifestDependencies.push({
           ...manifestDependencyFact(
             name,
@@ -491,7 +495,8 @@ export const serverlessFrameworkProbe: Probe = {
             citation,
             kind === 'queue' ? declaredQueueSettings(resource.Properties) : undefined
           ),
-          ...(engineVersion === undefined ? {} : { engineVersion })
+          ...(engineVersion === undefined ? {} : { engineVersion }),
+          ...(mariadb ? { mysqlEngine: 'mariadb' as const } : {})
         });
       }
       const constructs = isRecord(parsed.constructs) ? parsed.constructs : {};

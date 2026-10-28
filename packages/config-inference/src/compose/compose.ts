@@ -18,7 +18,6 @@ import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
 import {
   DIRECT_INVOCATION_SOURCE,
-  JWT_ROUTE_SOURCE,
   invokingDependencyName,
   UNROUTED_HTTP_SOURCE,
   type FunctionTrigger,
@@ -620,7 +619,8 @@ const composeDependency = (
   /** The stream a table needs for the handlers its stream invokes. */
   streamType: StreamType | undefined
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
-  const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
+  const rdsEngine =
+    dependency.kind === 'mysql' && dependency.mysqlEngine === 'mariadb' ? 'mariadb' : RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
     const resolved = resolveEngineVersion({
       engine: rdsEngine,
@@ -676,7 +676,7 @@ const composeDependency = (
           ]
         }
       },
-      reason: `Your code connects to a ${dependencyLabel(dependency.kind)} database.${
+      reason: `Your code connects to a ${rdsEngine === 'mariadb' ? 'MariaDB' : dependencyLabel(dependency.kind)} database.${
         resolved.movedOffPin
           ? ` Version ${dependency.engineVersion} is no longer offered on RDS, so ${resolved.version} is used instead.`
           : ''
@@ -755,8 +755,8 @@ const composeDependency = (
         reason: 'Your functions handle WebSocket connections and messages.'
       };
     case 'user-pool': {
-      const variables = dependency.addressedBy.filter((name) => /CLIENT_?ID$/.test(name));
-      const client = variables[0] ?? 'the client ID variable';
+      const variables = dependency.addressedBy;
+      const client = variables.find((name) => /CLIENT_?ID$/.test(name)) ?? 'the client ID variable';
       return dependency.userPoolOwnership === 'project'
         ? {
             resource: {
@@ -765,10 +765,10 @@ const composeDependency = (
               // anyone sign up through the Cognito API and pass the API's token check.
               properties: dependency.userPoolSelfSignUp === true ? {} : { allowOnlyAdminsToCreateAccount: true }
             },
-            reason: `Your code signs users in with Cognito and your API checks their tokens, so this creates the user pool and the app client ${client} names.`
+            reason: `Your code signs users in with Cognito, and the repository creates its own user pool, so this creates the pool and the app client ${client} names.`
           }
         : {
-            unsupported: `Your code signs users in with Cognito using ${variables.join(' and ') || 'an app client ID'}, but nothing else in the project shows the user pool is its own, so init created none and set no value. Before deploying, set ${client} to your pool's app client ID. If the pool should belong to this project, add a user-auth-pool resource and set ${client} to $ResourceParam('<pool name>', 'clientId').`
+            unsupported: `Your code signs users in with a Cognito user pool through ${variables.join(' and ')}. Nothing in the repository creates that pool, so it is probably an existing one with its users, and init created none and set no value. Before deploying, set ${variables.join(' and ')} to your pool's values. If this project should own a new, empty pool, add a user-auth-pool resource and set ${client} to $ResourceParam('<pool name>', 'clientId').`
           };
     }
     case 'state-machine':
@@ -865,17 +865,6 @@ const uniqueName = (preferred: string, taken: Set<string>): string => {
   }
 };
 
-/** A handler's JWT-protected route, left out: without the project's user pool nothing would check its tokens. */
-const withoutJwtRoutes = (service: ServiceFact): ServiceFact => {
-  const copy = structuredClone(service);
-  copy.functionTriggers = copy.functionTriggers.map((trigger) =>
-    trigger.type === 'http' && trigger.authorization === 'jwt'
-      ? { type: 'unmapped', sourceType: JWT_ROUTE_SOURCE, reason: 'protected-route' }
-      : trigger
-  );
-  return copy;
-};
-
 export const composeConfig = ({
   facts: input,
   projectName,
@@ -905,17 +894,11 @@ export const composeConfig = ({
 }): CompositionResult => {
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
-  const resolved = resolveAssumptions(input, decisions);
-  const { assumptions } = resolved;
-  // A handler that reads JWT authorizer claims gets its route only behind the project's own user pool. Without one the
-  // route would be public, so it is left out and reported.
-  const projectUserPools = resolved.facts.dependencies.filter(
+  const { facts, assumptions } = resolveAssumptions(input, decisions);
+  // A handler that reads JWT authorizer claims gets its route behind the project's own user pool, when there is one.
+  const projectUserPools = facts.dependencies.filter(
     (dependency) => dependency.kind === 'user-pool' && dependency.userPoolOwnership === 'project'
   );
-  const facts: ProjectFacts =
-    projectUserPools.length === 1
-      ? resolved.facts
-      : { ...resolved.facts, services: resolved.facts.services.map(withoutJwtRoutes) };
   const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
@@ -1770,6 +1753,16 @@ export const composeConfig = ({
         message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
       });
     }
+    // Without the project's own pool there is nothing init can attach; the route stays as it is on main, public.
+    if (
+      projectUserPools.length !== 1 &&
+      service.functionTriggers.some((trigger) => trigger.type === 'http' && trigger.authorization === 'jwt')
+    ) {
+      gaps.push({
+        subject: `${service.name}.authorizer`,
+        message: `${service.name} reads the claims of a JWT authorizer, but init found no user pool this project creates, so its route has no authorizer: anyone can call it and the claims arrive empty. Before deploying, add a cognito authorizer for your user pool, or a lambda authorizer that checks your tokens, to its http-api-gateway event.`
+      });
+    }
     for (const trigger of service.functionTriggers) {
       if (trigger.type !== 'http' || trigger.pathParameters === undefined) continue;
       const missing = trigger.pathParameters.filter((parameter) => !trigger.path.includes(`{${parameter}}`));
@@ -1787,11 +1780,9 @@ export const composeConfig = ({
         gaps.push({
           subject: `${service.name}.trigger`,
           message:
-            trigger.reason === 'protected-route' && trigger.sourceType === JWT_ROUTE_SOURCE
-              ? `${service.name} reads the claims of a JWT authorizer, but init found no user pool of this project to check the tokens, so we left its route out rather than make it public. Before deploying, add its http-api-gateway event with a cognito authorizer for your user pool, or a lambda authorizer that checks your tokens.`
-              : trigger.reason === 'protected-route'
-                ? `${service.name} serves ${trigger.sourceType}. Stacktape cannot reproduce that protection, so we left the route out rather than make it public. Before deploying, add it back to the function's http-api-gateway events with a Stacktape authorizer (cognito, lambda or aws-iam).`
-                : `Your deployment files disable ${trigger.sourceType} for ${service.name}, so we left it out and it does not start running. Add it to the function's events when you want it on.`
+            trigger.reason === 'protected-route'
+              ? `${service.name} serves ${trigger.sourceType}. Stacktape cannot reproduce that protection, so we left the route out rather than make it public. Before deploying, add it back to the function's http-api-gateway events with a Stacktape authorizer (cognito, lambda or aws-iam).`
+              : `Your deployment files disable ${trigger.sourceType} for ${service.name}, so we left it out and it does not start running. Add it to the function's events when you want it on.`
         });
         continue;
       }

@@ -8,14 +8,20 @@ import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutp
 const HTML = /<html\b|<!doctype\s+html/i;
 /** A README sentence calling something a static site: `docs/ is a static site served from a CDN`. */
 const STATIC_STATEMENT = /\bstatic\s+(?:site|website|web\s+site|pages|html)\b/i;
-const NOT_SOURCE = /(?:^|\/)(?:node_modules|dist|build|out|\.next|\.output|coverage|vendor|\.stacktape)(?:\/|$)/;
+/** The sentence says the site is served: `served by a CDN`, `deployed to S3`, `hosted on ...`. */
+const SERVED = /\b(?:serve[sd]?|host(?:s|ed|ing)?|deploy(?:s|ed)?|publish(?:es|ed)?|CDN)\b/i;
+/** A sentence about fixtures, examples or what is not deployed states no site to publish. */
+const NOT_PUBLISHED = /\b(?:not|never|fixtures?|tests?|examples?|samples?)\b/i;
+const NOT_SOURCE =
+  /(?:^|\/)(?:node_modules|dist|build|out|\.next|\.output|coverage|vendor|\.stacktape|fixtures?|__fixtures__|tests?|__tests__|spec|templates?|examples?|samples?|demos?)(?:\/|$)/i;
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Directories the root README says are a static site, and that hold an `index.html` and no package manifest of their
- * own: `docs/index.html` with "docs/ is a static site served by a CDN". A directory of HTML alone is no such statement:
- * generated API references and GitHub Pages sources look the same.
+ * Directories the root README says are a static site that is served, and that hold an `index.html` and no package
+ * manifest of their own: `docs/index.html` with "docs/ is a static site served by a CDN". A directory of HTML alone is
+ * no such statement: generated API references and GitHub Pages sources look the same. Fixture, test, template and
+ * example directories are never one.
  */
 const statedStaticDirectories = async (
   context: ProbeContext
@@ -24,7 +30,9 @@ const statedStaticDirectories = async (
   if (readme === undefined) return [];
   const raw = await readText(context, readme, { fullFile: true });
   if (raw === undefined) return [];
-  const sentences = raw.split(/(?<=[.!?])\s+|\r?\n/).filter((sentence) => STATIC_STATEMENT.test(sentence));
+  const sentences = raw
+    .split(/(?<=[.!?])\s+|\r?\n/)
+    .filter((sentence) => STATIC_STATEMENT.test(sentence) && SERVED.test(sentence) && !NOT_PUBLISHED.test(sentence));
   if (sentences.length === 0) return [];
   const directories = context.files
     .filter((path) => posix.basename(path) === 'index.html' && path.includes('/') && !NOT_SOURCE.test(path))

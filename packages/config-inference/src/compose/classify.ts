@@ -136,7 +136,7 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
   if (service.longLivedConnections !== 'none') {
     return {
       resourceType: 'web-service',
-      reason: `This holds ${service.longLivedConnections === 'websocket' ? 'WebSocket' : 'streaming'} connections open, so it runs as a container behind an Application Load Balancer, which keeps them open. The load balancer costs a flat fee of about $18 a month rather than a price per request.`,
+      reason: `This holds ${service.longLivedConnections === 'websocket' ? 'WebSocket' : 'streaming'} connections open, so it runs as a container behind an Application Load Balancer, which keeps them open. A load balancer is billed by the hour, plus usage (LCUs) and its public IPv4 addresses, rather than per request.`,
       evidence: evidenceFor(service, ['longLivedConnections'])
     };
   }

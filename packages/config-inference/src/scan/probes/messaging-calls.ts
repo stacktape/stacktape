@@ -138,7 +138,7 @@ const NON_APPLICATION_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$|(?:^|\/)(
 const MAX_FILES = 400;
 
 /** Infrastructure code declares its own topics, queues and pools; those probes name them, so these stay out of the way. */
-export const declaresInfrastructure = (files: readonly string[]): boolean =>
+const declaresInfrastructure = (files: readonly string[]): boolean =>
   files.some(
     (path) =>
       /(?:^|\/)serverless\.ya?ml$|(?:^|\/)[^/]+\.tf$|^Pulumi\.ya?ml$/.test(path) ||

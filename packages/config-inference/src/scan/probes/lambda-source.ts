@@ -278,19 +278,31 @@ const requestContextDestructuring = (name: string) =>
 const readsRequestContext = (raw: string, name: string): boolean =>
   /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
 
-/** Fields only an HTTP API (payload 2.0) event has, including the claims its JWT authorizer adds. */
+/** Fields only an HTTP API (payload 2.0) event has. */
 const HTTP_V2_EVENT: readonly RegExp[] = [
   new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
-  new RegExp(field('rawPath')),
-  new RegExp(`requestContext['"\\]]*\\s*\\??\\.?\\s*(?:\\[\\s*['"])?authorizer\\b[^\\n;]{0,8}?jwt\\b`)
+  new RegExp(field('rawPath'))
 ];
 
 /** Handler types for a route behind a JWT or Cognito authorizer: the handler relies on its claims. */
 const JWT_HANDLER_TYPE =
   /\bAPIGatewayProxy(?:EventV2|HandlerV2)WithJWTAuthorizer\b|\bAPIGatewayProxyWithCognitoAuthorizer(?:Event|Handler)\b/;
 
-/** The route has to sit behind an authorizer: the handler reads its JWT claims, or is typed for them. */
-const readsJwtClaims = (raw: string): boolean => JWT_HANDLER_TYPE.test(raw) || JWT_CLAIMS_READ.test(raw);
+/**
+ * The route has to sit behind an authorizer: the handler's code reads its JWT claims, or is typed for them. A comment
+ * that mentions the claims is no read.
+ */
+const readsJwtClaims = (path: string, raw: string): boolean => {
+  const code = maskFile(path, raw, 'keep');
+  return JWT_HANDLER_TYPE.test(code) || JWT_CLAIMS_READ.test(code);
+};
+
+/** An untyped handler that reads JWT authorizer claims handles HTTP API (payload 2.0) requests. */
+const inferWithClaims = (path: string, raw: string): { family: EventFamily; pattern: RegExp } | undefined =>
+  inferEventFamily(raw) ??
+  (readsJwtClaims(path, raw)
+    ? { family: { trigger: 'http', payloadFormat: '2.0' }, pattern: JWT_CLAIMS_READ }
+    : undefined);
 /** A WebSocket lifecycle route, or the event type a WebSocket event carries. */
 const WEBSOCKET_ROUTE = /['"`]\$(?:connect|disconnect|default)['"`]/;
 const WEBSOCKET_EVENT_TYPE = /\beventType\b[^\n]{0,12}['"`](?:CONNECT|DISCONNECT|MESSAGE)['"`]/;
@@ -1011,7 +1023,7 @@ export const lambdaSourceProbe: Probe = {
       if (!HANDLER_DIRECTORY.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
       claimed.add(path);
       const typed = typedHandler(path, raw, code);
-      const inferred = typed === undefined ? inferEventFamily(raw) : undefined;
+      const inferred = typed === undefined ? inferWithClaims(path, raw) : undefined;
       handlers.push({
         path,
         raw,
@@ -1058,7 +1070,7 @@ export const lambdaSourceProbe: Probe = {
       }
       const exported = untypedExport(path, code);
       if (exported === undefined || !exported.eventParameter) continue;
-      const inferred = inferEventFamily(raw);
+      const inferred = inferWithClaims(path, raw);
       // `(event, context)` is the Lambda signature itself; a schedule literal alone proves nothing about the export.
       if (
         !exported.contextParameter &&
@@ -1192,7 +1204,7 @@ export const lambdaSourceProbe: Probe = {
       if (family?.trigger === 'http') {
         const route = routes.get(path);
         const readParameters = pathParametersIn(raw).filter((parameter) => parameter !== 'proxy');
-        const authorization = readsJwtClaims(raw) ? { authorization: 'jwt' as const } : {};
+        const authorization = readsJwtClaims(path, raw) ? { authorization: 'jwt' as const } : {};
         triggers.push(
           route !== undefined
             ? { type: 'http', ...route, payloadFormat: family.payloadFormat, ...authorization }
