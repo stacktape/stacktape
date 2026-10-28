@@ -377,7 +377,7 @@ addRoute('GET', '/status', async ({ query }) => {
       localResources: agentState.localResources,
       deployedDatabases: getDeployedDynamoTables(),
       deployedResources: getDeployedResources(),
-      ...(configManager.batchJobs.length ? { batchJobs: await getDeployedBatchJobs() } : {}),
+      ...(getConfiguredBatchJobs().length ? { batchJobs: await getDeployedBatchJobs() } : {}),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...getDevBoxStatus(),
@@ -477,7 +477,7 @@ addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   if (workloadName === 'all') return toRebuildResponse(await rebuildAllWorkloads());
 
   const workload = agentState.workloads.find((w) => w.name === workloadName);
-  if (!workload && configManager.batchJobs.some(({ name }) => name === workloadName)) {
+  if (!workload && getConfiguredBatchJobs().some(({ name }) => name === workloadName)) {
     return {
       ok: false,
       code: 'DEV_BATCH_JOB_NEEDS_RESTART',
@@ -971,6 +971,9 @@ export const getDeployedResources = (
     return [{ name, type, ...Object.fromEntries(Object.entries(address).filter(([, value]) => value !== undefined)) }];
   });
 
+/** The batch jobs of the session's configuration; none before the configuration is loaded. */
+const getConfiguredBatchJobs = () => (configManager.config?.resources ? configManager.batchJobs : []);
+
 /** How long status waits for the last run of a batch job; status must answer even when AWS is slow. */
 const BATCH_JOB_LOOKUP_TIMEOUT_MS = 8000;
 
@@ -1038,7 +1041,7 @@ export const getDeployedBatchJobs = async () => {
   const { stackName } = globalStateManager.targetStack;
   const deployed = deployedStackOverviewManager.stackInfoMap?.resources ?? {};
   return Promise.all(
-    configManager.batchJobs.map(async ({ name, useSpotInstances, resources }) => {
+    getConfiguredBatchJobs().map(async ({ name, useSpotInstances, resources }) => {
       const params = (deployed[name]?.referencableParams ?? {}) as Record<string, { value?: unknown } | undefined>;
       const param = (key: string) =>
         typeof params[key]?.value === 'string' ? (params[key]!.value as string) : undefined;

@@ -45,7 +45,7 @@ export const addInstanceProfile = ({
   /** The `AWS::IAM::InstanceProfile` properties a deployed profile was created with. */
   cloudformationProperties: InstanceProfileProperties;
   /** Where the dry-run launches happen: a subnet the profile's instances run in. Default: the stack's first public one. */
-  probeSubnetId?: string;
+  probeSubnetId?: ReturnType<typeof vpcManager.getPublicSubnetIds>[number];
 }) => {
   if (isDeployedAsCloudformationInstanceProfile(cfLogicalName)) {
     calculatedStackOverviewManager.addCfChildResource({

@@ -7,8 +7,12 @@ import { getDockerContextChecksum, getExcludedDirectoryGlobs } from './docker-co
 const roots: string[] = [];
 
 afterEach(async () => {
-  for (const root of roots) await chmod(join(root, '.stacktape', 'dev-data'), 0o755).catch(() => {});
-  await Promise.all(roots.map((root) => rm(root, { force: true, recursive: true })));
+  await Promise.all(
+    roots.map(async (root) => {
+      await chmod(join(root, '.stacktape', 'dev-data'), 0o755).catch(() => {});
+      await rm(root, { force: true, recursive: true });
+    })
+  );
   roots.length = 0;
 });
 
