@@ -47,7 +47,10 @@ client
     driver,
     `
 import { createServer } from 'node:net';
+import { createServer as createHttpServer } from 'node:http';
 import { applicationManager } from ${src('app/application-manager/index.ts')};
+import { awsSdkManager } from ${src('utils/aws-sdk-manager/index.ts')};
+import { initDevAgentCredentials } from ${src('commands/dev/dev-agent-credentials.ts')};
 import { globalStateManager } from ${src('app/global-state-manager/index.ts')};
 import { configManager } from ${src('domain/config-manager/index.ts')};
 import { deployedStackOverviewManager } from ${src('domain/deployed-stack-overview-manager/index.ts')};
@@ -96,10 +99,21 @@ deployedStackOverviewManager.injectLocalResourceInfo(instances.map((r) => ({ nam
 // The stage's deployed database, as dev mode knows it when the session connects to it with remoteResources.
 deployedStackOverviewManager.stackInfoMap.resources.deployedDb = { resourceType: 'relational-database', referencableParams: { host: { value: DEPLOYED_HOST } } };
 // The dev stack's deployed orders table (a remote resource). Its "AWS" is a second table in the events DynamoDB Local,
-// which this endpoint opts into for this process only; the dummy credentials stand for the dev agent role's.
+// which this endpoint opts into for this process only. The agent reads it with the dev agent role, which a loopback
+// STS assumes for the selected credentials and answers with the dummy credentials DynamoDB Local accepts.
+const sts = createHttpServer((request, response) => {
+  response.setHeader('content-type', 'text/xml');
+  response.end('<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/"><AssumeRoleResult><Credentials><AccessKeyId>local</AccessKeyId><SecretAccessKey>local</SecretAccessKey><SessionToken>local</SessionToken><Expiration>2099-01-01T00:00:00Z</Expiration></Credentials></AssumeRoleResult><ResponseMetadata><RequestId>1</RequestId></ResponseMetadata></AssumeRoleResponse>');
+});
+await new Promise((resolve) => sts.listen(0, '127.0.0.1', resolve));
+sts.unref();
 process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'false';
 process.env.AWS_ENDPOINT_URL_DYNAMODB = 'http://127.0.0.1:' + instances.find((r) => r.name === 'events').actualPort;
-globalStateManager.credentials = { ...globalStateManager.credentials, accessKeyId: 'local', secretAccessKey: 'local' };
+process.env.AWS_ENDPOINT_URL_STS = 'http://127.0.0.1:' + sts.address().port;
+awsSdkManager.init({ credentials: { accessKeyId: 'developer', secretAccessKey: 'developer' }, region: 'eu-west-1' });
+deployedStackOverviewManager.stackInfoMap.customOutputs = { ...deployedStackOverviewManager.stackInfoMap.customOutputs, DevAgentRoleArn: 'arn:aws:iam::000000000000:role/${PROJECT_NAME}-test-dev-agent' };
+deployedStackOverviewManager.stackInfoMap.metadata = { ...deployedStackOverviewManager.stackInfoMap.metadata, devAgentRoleExternalId: { value: 'test' } };
+initDevAgentCredentials();
 deployedStackOverviewManager.stackInfoMap.resources.orders = { resourceType: 'dynamo-db-table', referencableParams: { name: { value: '${PROJECT_NAME}-test-orders' } } };
 const probe = createServer();
 await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));

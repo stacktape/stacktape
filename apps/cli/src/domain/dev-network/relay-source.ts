@@ -15,7 +15,14 @@
  *   that lost its SSM session comes back before the old session's sockets close. With `takeOver`, every tunnel of the
  *   stack that another process holds is closed at once, with the connections it carries (a warm function's pooled
  *   database connection included); each is told `{"TakenOver": {"label"}}` first, and its session must end.
- * - `{"Presence": {"owner", "label", "session", "stack"}}` keeps the box awake while a dev session runs.
+ * - `{"Presence": {"owner", "label", "session", "stack", "exclusive", "held", "takeOver"}}` keeps the box awake while
+ *   a dev session runs, and answers `{"Pong": {"version"}}`. An `exclusive` presence (version 4) also holds the stage,
+ *   like a lease: while another process holds a tunnel or an exclusive presence of the stack, it is refused with
+ *   `{"Refused": {...}}`, naming the holder's owner and session too. With `takeOver`, it replaces them, each told
+ *   `{"TakenOver": {"label"}}` first, so a session whose functions only need the box as NAT is stopped like one with
+ *   tunnels. A lease is refused by, or takes over, the exclusive presences of other processes in the same way. A
+ *   presence of an older CLI (not exclusive) refuses a session's first claim of the stack (`held` false); a take-over
+ *   closes it. Such a CLI cannot be told to stop: it only sees its connection drop.
  * - `{"Sessions": {"stack"}}` answers the live sessions of one stack (all stacks when it is empty) and closes.
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
  * - `{"Hello": port}` and `{"Accept": id}` are bore's own messages.
@@ -28,7 +35,7 @@
  * The box stops itself: once no tunnel and no presence connection has been open for the idle time, the relay runs the
  * shutdown command, and `InstanceInitiatedShutdownBehavior: stop` turns that into an EC2 stop.
  */
-export const DEV_BOX_RELAY_VERSION = 3;
+export const DEV_BOX_RELAY_VERSION = 4;
 
 export const DEV_BOX_RELAY_SOURCE = String.raw`#!/usr/bin/env python3
 import asyncio
@@ -192,6 +199,34 @@ def stack_of(key):
     return key.split('/')[0] if key else ''
 
 
+def rival_presences(stack, owner, session, exclusive=True):
+    """The exclusive presences of other processes that hold this stack, or with exclusive=False those of older CLIs."""
+    return [presence for presence in presences.values()
+            if stack and presence['exclusive'] == exclusive and presence['stack'] == stack
+            and not (presence['owner'] == owner and presence['session'] == session)]
+
+
+def close_legacy_presences(stack, owner, session, label):
+    for presence in rival_presences(stack, owner, session, exclusive=False):
+        log('presence of %s on %s (older CLI) closed by the take-over of %s' % (presence['label'] or '-', stack,
+                                                                               label or '-'))
+        presences.pop(id(presence['writer']), None)
+        presence['writer'].close()
+
+
+def refuse(writer, port, key, holder):
+    writer.write(frame({'Refused': {'port': port, 'key': key, 'label': holder['label'], 'since': holder['since'],
+                                    'owner': holder['owner'], 'session': holder['session']}}))
+    writer.close()
+
+
+def take_over_presence(presence, label):
+    log('presence of %s on %s taken over by %s' % (presence['label'] or '-', presence['stack'], label or '-'))
+    presences.pop(id(presence['writer']), None)
+    presence['writer'].write(frame({'TakenOver': {'label': label}}))
+    presence['writer'].close()
+
+
 async def run_tunnel(reader, writer, port, key, owner, label, session, take_over):
     stack = stack_of(key)
     others = sorted(
@@ -199,11 +234,10 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
          if (held_port == port or (stack and stack_of(held['key']) == stack))
          and not (held['owner'] == owner and held['session'] == session)],
         key=lambda entry: entry[1]['since'])
-    if others and not take_over:
-        holder = others[0][1]
-        writer.write(frame({'Refused': {'port': port, 'key': holder['key'], 'label': holder['label'],
-                                        'since': holder['since']}}))
-        writer.close()
+    rivals = rival_presences(stack, owner, session)
+    if (others or rivals) and not take_over:
+        holder = min([held for _, held in others] + rivals, key=lambda entry: entry['since'])
+        refuse(writer, port, holder.get('key') or stack, holder)
         return
     same_session = tunnels.get(port) if port else None
     # Everything up to the reservation below runs without an await, so a concurrent lease of another session sees
@@ -216,6 +250,10 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
         held['writer'].write(frame({'TakenOver': {'label': label}}))
         del tunnels[held_port]
         replaced.append(held)
+    for presence in rivals:
+        take_over_presence(presence, label)
+    if take_over:
+        close_legacy_presences(stack, owner, session, label)
     if same_session and same_session not in replaced:
         log('port %d taken over by a new connection of the same session' % port)
         del tunnels[port]
@@ -275,11 +313,34 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
         writer.close()
 
 
-async def run_presence(reader, writer, owner, label, session, stack):
+async def run_presence(reader, writer, owner, label, session, stack, exclusive, held_before, take_over):
+    replaced = []
+    if exclusive and stack:
+        # As in run_tunnel, nothing awaits between the check and the registration below.
+        others = [(held_port, held) for held_port, held in tunnels.items()
+                  if stack_of(held['key']) == stack and not (held['owner'] == owner and held['session'] == session)]
+        rivals = rival_presences(stack, owner, session)
+        # An older CLI reconnects after a take-over closed its presence: it must not cost the holder its stage.
+        legacy = [] if held_before else rival_presences(stack, owner, session, exclusive=False)
+        if (others or rivals or legacy) and not take_over:
+            refuse(writer, 0, stack,
+                   min([held for _, held in others] + rivals + legacy, key=lambda entry: entry['since']))
+            return
+        for held_port, held in others:
+            log('port %d taken over by %s' % (held_port, label or '-'))
+            held['writer'].write(frame({'TakenOver': {'label': label}}))
+            del tunnels[held_port]
+            replaced.append(held)
+        for presence in rivals:
+            take_over_presence(presence, label)
+        if take_over:
+            close_legacy_presences(stack, owner, session, label)
     presences[id(writer)] = {'owner': owner, 'label': label, 'session': session, 'stack': stack,
-                             'since': int(time.time())}
+                             'since': int(time.time()), 'exclusive': exclusive and bool(stack), 'writer': writer}
     touch()
     writer.write(frame({'Pong': {'version': VERSION}}))
+    for held in replaced:
+        await close_tunnel(held)
     try:
         await hold(reader, writer)
     finally:
@@ -323,7 +384,8 @@ async def handle(reader, writer):
         await run_tunnel(reader, writer, int(value or 0), '', '', '', '', False)
     elif kind == 'Presence' and isinstance(value, dict):
         await run_presence(reader, writer, str(value.get('owner') or ''), str(value.get('label') or ''),
-                           str(value.get('session') or ''), str(value.get('stack') or ''))
+                           str(value.get('session') or ''), str(value.get('stack') or ''),
+                           value.get('exclusive') is True, value.get('held') is True, value.get('takeOver') is True)
     elif kind == 'Sessions':
         stack = str(value.get('stack') or '') if isinstance(value, dict) else ''
         writer.write(frame({'Sessions': live_sessions(stack)}))

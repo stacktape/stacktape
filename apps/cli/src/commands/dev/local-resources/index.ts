@@ -72,6 +72,8 @@ export type LocalResourceInstance = LocalResourceConfig & {
 };
 
 const localResourceInstances: LocalResourceInstance[] = [];
+/** The containers of databases whose start failed: the start may have created one, which the cleanup removes too. */
+const failedContainerNames = new Set<string>();
 /** Configs whose data directory and password are settled for this session; see `prepareLocalResource`. */
 const preparedConfigs = new Map<string, LocalResourceConfig>();
 
@@ -553,6 +555,7 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
 
       return instance;
     } catch (err) {
+      failedContainerNames.add(containerName);
       const friendlyError = parseDockerError(err);
       if (useDevTui) {
         devTuiManager.setLocalResourceStatus(resourceName, 'error', { error: friendlyError });
@@ -595,10 +598,11 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
  * creates a new container in any case, so a stopped container only piled up: one per database, stage and checkout.
  */
 const stopLocalResources = async (): Promise<void> => {
-  if (localResourceInstances.length === 0) return;
-
   // Local tables share one DynamoDB Local container.
-  const containerNames = [...new Set(localResourceInstances.map(({ containerName }) => containerName))];
+  const containerNames = [
+    ...new Set([...localResourceInstances.map(({ containerName }) => containerName), ...failedContainerNames])
+  ];
+  if (containerNames.length === 0) return;
   await Promise.all(
     containerNames.map((containerName) =>
       // Stops the database gracefully first. The container may have already stopped or been removed.
@@ -606,6 +610,7 @@ const stopLocalResources = async (): Promise<void> => {
     )
   );
   localResourceInstances.length = 0;
+  failedContainerNames.clear();
   preparedConfigs.clear();
 };
 

@@ -65,3 +65,25 @@ test('a log over the size limit moves to <file>.1 when the next session starts',
   expect(entries).toHaveLength(1);
   expect(entries[0].session).toEqual({ sessionId: 'next' });
 });
+
+// r2rr bug hunt: a noisy session that ran for days grew its log without limit, and every MCP logs call read it whole.
+test('a session whose lines reach the size limit continues in a new file, with the earlier lines in <file>.1', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-log-'));
+  const file = join(directory, '7331-logs.txt');
+  initAgentLogger(file, { sessionId: 'noisy' });
+  const chunk = 'y'.repeat(256 * 1024);
+  for (let line = 0; line * chunk.length < AGENT_LOG_ROTATE_BYTES * 2.5; line++) agentLog('api', `${line} ${chunk}`);
+  agentLog('api', 'last line', 'error');
+
+  expect((await stat(file)).size).toBeLessThanOrEqual(AGENT_LOG_ROTATE_BYTES);
+  expect((await stat(`${file}.1`)).size).toBeLessThanOrEqual(AGENT_LOG_ROTATE_BYTES);
+  const entries = await readEntries(file);
+  // The first line counts the lines of the earlier copies, so a reader's cursor stays valid across rotations.
+  const archived = await readEntries(`${file}.1`);
+  expect(entries[0]).toMatchObject({
+    source: 'dev',
+    msg: 'Earlier lines of this session are in 7331-logs.txt.1',
+    lineOffset: (archived[0] as { lineOffset?: number }).lineOffset! + archived.length
+  });
+  expect(entries.at(-1)).toMatchObject({ source: 'api', level: 'error', msg: 'last line' });
+});

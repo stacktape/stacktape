@@ -67,7 +67,7 @@ type DeleteExecutionOperation = {
     existingStackResources: EnrichedStackResourceInfo[];
   };
   stackName: string;
-  tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'setPendingCompletion'>;
+  tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'prettyCommand' | 'setPendingCompletion'>;
   retainedSharedResources?: RetainedSharedResource[];
 };
 
@@ -130,7 +130,7 @@ export const commandDelete = async () => {
       tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
     }
     try {
-      const { deleted, kept } = await deleteDevGeneratedSecrets({ stackName });
+      const { deleted, kept, retained } = await deleteDevGeneratedSecrets({ stackName });
       if (deleted.length) {
         tui.info(
           `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deleted.join(', ')}. ` +
@@ -140,6 +140,11 @@ export const commandDelete = async () => {
       for (const { name, usedBy } of kept) {
         tui.info(
           `Kept secret ${name}, which dev mode generated: ${usedBy.length === 1 ? `the dev stack ${usedBy[0]} still uses` : `the dev stacks ${usedBy.join(' and ')} still use`} it.`
+        );
+      }
+      for (const { name, usedBy } of retained) {
+        tui.info(
+          `Kept generated secret ${name} (used by ${usedBy}); delete it with ${tui.prettyCommand('secret:delete')} when no longer needed.`
         );
       }
     } catch (err) {

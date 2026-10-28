@@ -31,7 +31,7 @@ export type RelaySessionInfo = { stack: string; session: string; owner: string; 
 
 type ClientMessage =
   | { type: 'Lease'; port: number; key: string; owner: RelayOwner; takeOver: boolean }
-  | { type: 'Presence'; owner: RelayOwner; stack?: string }
+  | { type: 'Presence'; owner: RelayOwner; stack?: string; held: boolean; takeOver: boolean }
   | { type: 'Sessions'; stack?: string }
   | { type: 'Ping' }
   | { type: 'Accept'; connectionId: string };
@@ -41,7 +41,7 @@ type ServerMessage =
   | { type: 'Heartbeat' }
   | { type: 'Connection'; connectionId: string }
   | { type: 'Pong'; version: number }
-  | { type: 'Refused'; port: number; key: string; label: string; since: number }
+  | { type: 'Refused'; port: number; key: string; label: string; since: number; owner: string; session: string }
   | { type: 'TakenOver'; label: string }
   | { type: 'Sessions'; sessions: RelaySessionInfo[] }
   | { type: 'Error'; message: string };
@@ -115,7 +115,11 @@ const serializeClientMessage = (message: ClientMessage): string => {
           owner: message.owner.id,
           label: message.owner.label,
           session: message.owner.session,
-          stack: message.stack
+          stack: message.stack,
+          // Relay version 4 holds the stage with it; older relays ignore both fields.
+          exclusive: true,
+          held: message.held,
+          takeOver: message.takeOver
         }
       });
     case 'Sessions':
@@ -152,13 +156,16 @@ const parseServerMessage = (message: string): ServerMessage => {
   }
 
   if ('Refused' in parsed && typeof parsed.Refused === 'object' && parsed.Refused !== null) {
-    const { port, key, label, since } = parsed.Refused as Record<string, unknown>;
+    const { port, key, label, since, owner, session } = parsed.Refused as Record<string, unknown>;
     return {
       type: 'Refused',
       port: Number(port),
       key: String(key ?? ''),
       label: String(label || 'another developer'),
-      since: Number(since)
+      since: Number(since),
+      // Sent by relay version 4 and later.
+      owner: String(owner ?? ''),
+      session: String(session ?? '')
     };
   }
 
@@ -732,31 +739,53 @@ export const listRelaySessions = async (
   }
 };
 
+/** The session that holds a stage, as the relay names it when it refuses a presence. */
+export type RelayStageHolder = Pick<RelaySessionInfo, 'label' | 'since' | 'owner' | 'session'>;
+
+/** How a presence connection ended, when the relay ended it: the stage is another session's. */
+export type RelayPresenceOutcome = { takenOverBy: string } | { refusedBy: RelayStageHolder };
+
 /**
  * Holds a presence connection: the box stays awake while it is open, also for a session without tunnels whose VPC
- * functions only need the box as NAT. The stack lets another session of the same stage find this one. Resolves when
- * the connection ends.
+ * functions only need the box as NAT. With a stack, it holds that stage like a tunnel does (relay version 4): another
+ * session's presence or tunnel of the stack refuses it, or with `takeOver` is replaced. `held` says this session held
+ * the stage before, so a presence of an older CLI does not refuse its reconnect. `onHeld` runs once the relay accepted
+ * it. Resolves when the connection ends, with the reason when the relay refused it or another session took
+ * the stage over.
  */
 export const holdRelayPresence = async ({
   relay,
   owner,
   stack,
-  signal
+  held = false,
+  takeOver = false,
+  signal,
+  onHeld
 }: {
   relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
   owner: RelayOwner;
   stack?: string;
+  held?: boolean;
+  takeOver?: boolean;
   signal: AbortSignal;
-}) => {
+  onHeld?: () => void;
+}): Promise<RelayPresenceOutcome | undefined> => {
   const socket = await DelimitedSocket.connect({ host: relay.controlHost, port: relay.controlPort });
   const abort = () => socket.destroy();
   signal.addEventListener('abort', abort, { once: true });
   try {
-    await socket.send({ type: 'Presence', owner, stack });
+    await socket.send({ type: 'Presence', owner, stack, held, takeOver });
     while (!signal.aborted) {
       const message = await socket.recv();
-      if (!message) return;
+      if (!message) return undefined;
+      if (message.type === 'Pong') onHeld?.();
+      if (message.type === 'TakenOver') return { takenOverBy: message.label };
+      if (message.type === 'Refused') {
+        const { label, since, owner: holderOwner, session } = message;
+        return { refusedBy: { label, since, owner: holderOwner, session } };
+      }
     }
+    return undefined;
   } finally {
     signal.removeEventListener('abort', abort);
     socket.destroy();

@@ -259,12 +259,13 @@ test('a second session of the stage is refused for every port, and --take-over m
     laptopTunnels.every(({ process }) => process.takenOverBy === desktop.label)
   );
   await new Promise((resolve) => setTimeout(resolve, 1500));
-  expect(relayOutput.match(/taken over by/g)).toHaveLength(2);
+  // Both ports and the laptop's presence.
+  expect(relayOutput.match(/taken over by/g)).toHaveLength(3);
+  expect(await held).toEqual({ takenOverBy: desktop.label });
   expect(getActiveTunnels()).toEqual([('tunnel' in tookOver && tookOver.tunnel) as never]);
   expect(String(await query(dbPort, Buffer.from('select 2')))).toBe('db:select 2');
 
   presence.abort();
-  await held;
   await cleanUpTunnels();
   await stopRelay();
 }, 30_000);
@@ -381,6 +382,213 @@ test('a session that took the stage over does not take it back when it reconnect
     await stopRelay();
   }
 }, 40_000);
+
+// r2rr bug hunt, finding 8: a stage whose functions only use the box as NAT has a presence and no tunnel, and a
+// take-over left the replaced session running, where it could redeploy functions over the new holder's.
+test('a presence holds its stage: another session is refused, and a take-over ends the old presence', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  try {
+    const aliceStop = new AbortController();
+    let aliceHeld = false;
+    const alicePresence = holdRelayPresence({
+      relay: relay(),
+      owner: alice,
+      stack: 'vpc-dev',
+      signal: aliceStop.signal,
+      onHeld: () => (aliceHeld = true)
+    });
+    await waitFor('the first presence to be held', () => aliceHeld);
+
+    // Refused, and told who holds the stage, so a start can tell an exited holder from a live one.
+    const refused = await holdRelayPresence({
+      relay: relay(),
+      owner: bob,
+      stack: 'vpc-dev',
+      signal: new AbortController().signal
+    });
+    expect(refused).toEqual({
+      refusedBy: { label: alice.label, since: expect.any(Number), owner: alice.id, session: alice.session }
+    });
+    // Another stack, and the same session reconnecting, are not affected.
+    const other = new AbortController();
+    let otherHeld = false;
+    const otherPresence = holdRelayPresence({
+      relay: relay(),
+      owner: bob,
+      stack: 'other-dev',
+      signal: other.signal,
+      onHeld: () => (otherHeld = true)
+    });
+    await waitFor('the other stack to be held', () => otherHeld);
+
+    const bobStop = new AbortController();
+    let bobHeld = false;
+    const bobPresence = holdRelayPresence({
+      relay: relay(),
+      owner: bob,
+      stack: 'vpc-dev',
+      takeOver: true,
+      signal: bobStop.signal,
+      onHeld: () => (bobHeld = true)
+    });
+    expect(await alicePresence).toEqual({ takenOverBy: bob.label });
+    await waitFor('the take-over to be held', () => bobHeld);
+    expect((await listRelaySessions(relay(), 'vpc-dev')).map(({ session }) => session)).toEqual([bob.session]);
+
+    // A lease of another session is refused by the presence too, and a lease take-over ends it.
+    const localPort = (database.address() as AddressInfo).port;
+    const lease = { port: await freePort(), key: 'vpc-dev/db' };
+    expect(await startTunnel({ resourceName: 'db', localPort, lease, owner: alice, relay: relay() })).toMatchObject({
+      refused: { label: bob.label }
+    });
+    expect(
+      'tunnel' in
+        (await startTunnel({ resourceName: 'db', localPort, lease, owner: alice, relay: relay(), takeOver: true }))
+    ).toBe(true);
+    expect(await bobPresence).toEqual({ takenOverBy: alice.label });
+    other.abort();
+    await otherPresence;
+  } finally {
+    await cleanUpTunnels();
+    await stopRelay();
+  }
+}, 30_000);
+
+/** A presence of a CLI before relay version 4: not exclusive, and it ignores every message. */
+const legacyPresence = async (owner: typeof alice, stack: string) => {
+  const socket = createConnection({ host: '127.0.0.1', port: controlPort });
+  socket.on('error', () => {});
+  const state = { closed: false };
+  socket.on('close', () => (state.closed = true));
+  // Heartbeats are read and dropped, so the end of the connection is seen.
+  socket.resume();
+  socket.write(
+    `${JSON.stringify({ Presence: { owner: owner.id, label: owner.label, session: owner.session, stack } })}\0`
+  );
+  await waitFor('the older presence to be listed', async () =>
+    (await listRelaySessions(relay(), stack)).some(({ session }) => session === owner.session)
+  );
+  return { socket, state };
+};
+
+// Review of #388: an older CLI that held a VPC-only stage stayed after a take-over, next to the new holder.
+test('a presence of an older CLI refuses a first claim, a take-over closes it, and it never costs the holder its stage', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const stops: AbortController[] = [];
+  const presence = (owner: typeof alice, options: { held?: boolean; takeOver?: boolean } = {}) => {
+    const stop = new AbortController();
+    stops.push(stop);
+    const state = { held: false };
+    const ended = holdRelayPresence({
+      relay: relay(),
+      owner,
+      stack: 'vpc-dev',
+      signal: stop.signal,
+      onHeld: () => (state.held = true),
+      ...options
+    });
+    return { state, ended };
+  };
+  try {
+    const old = await legacyPresence(alice, 'vpc-dev');
+    expect(await presence(bob).ended).toMatchObject({ refusedBy: { label: alice.label, session: alice.session } });
+
+    const holder = presence(bob, { takeOver: true });
+    await waitFor('the take-over to be held', () => holder.state.held);
+    await waitFor('the older presence to be closed', () => old.state.closed);
+
+    // The older CLI reconnects; the holder's own reconnect after a lost SSM session keeps the stage.
+    const reconnected = await legacyPresence(alice, 'vpc-dev');
+    const holderAgain = presence(bob, { held: true });
+    await waitFor('the holder to be held again', () => holderAgain.state.held);
+    reconnected.socket.destroy();
+  } finally {
+    for (const stop of stops) stop.abort();
+    await stopRelay();
+  }
+}, 30_000);
+
+/** A dev session's connection to the relay, as `stacktape dev` holds it, with its SSM session substituted. */
+const devBoxConnection = (
+  owner: typeof alice,
+  deps: Pick<ConstructorParameters<typeof DevBoxConnection>[0]['deps'], 'mayTakeOverStage' | 'onStageLost'>
+) =>
+  new DevBoxConnection({
+    network: {
+      stackName: 'stacktape-dev-network',
+      vpcId: 'vpc-1',
+      privateSubnetIds: ['subnet-a'],
+      lambdaSecurityGroupId: 'sg-1',
+      boxInstanceId: 'i-box',
+      boxPrivateIp: '127.0.0.1',
+      keeperFunctionName: 'keeper'
+    },
+    owner,
+    stackName: 'vpc-dev',
+    deps: {
+      aws: {
+        describeBox: async () => ({ state: 'running' }),
+        isBoxOnline: async () => true
+      } as unknown as DevNetworkAws,
+      pollMs: 20,
+      findFreePort: async () => controlPort,
+      openSession: async () => {
+        let exit!: () => void;
+        const exited = new Promise<void>((resolve) => (exit = resolve));
+        return { sessionId: `session-${owner.session}`, waitForExit: () => exited, kill: async () => exit() };
+      },
+      pingRelay,
+      holdPresence: holdRelayPresence,
+      listSessions: listRelaySessions,
+      releaseTimeoutMs: 1000,
+      ...deps
+    }
+  });
+
+test('a session that takes over a presence-only stage ends the old one; a refused start ends itself', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const lost: Record<string, { label: string; since?: number; refused: boolean }[]> = { alice: [], bob: [], carol: [] };
+  const carol = { id: 'user-carol', label: 'Carol (carol-laptop)', session: 'carol-laptop-session' };
+  const connections: DevBoxConnection[] = [];
+  try {
+    const first = devBoxConnection(alice, { onStageLost: (input) => lost.alice.push(input) });
+    connections.push(first);
+    await first.connect();
+    await waitFor('the first session to hold the stage', async () =>
+      (await listRelaySessions(relay(), 'vpc-dev')).some(({ session }) => session === alice.session)
+    );
+
+    // Started without --take-over, and the stage check allows no take-over: the start ends itself.
+    const refusedStart = devBoxConnection(carol, {
+      mayTakeOverStage: async () => false,
+      onStageLost: (input) => lost.carol.push(input)
+    });
+    connections.push(refusedStart);
+    await refusedStart.connect();
+    await waitFor('the refused start to give up', () => lost.carol.length > 0);
+    expect(lost.carol).toEqual([{ label: alice.label, since: expect.any(Number), refused: true }]);
+
+    // --take-over: the relay ends the first session's presence, and that session learns it lost the stage.
+    const asked: string[] = [];
+    const takeOver = devBoxConnection(bob, {
+      mayTakeOverStage: async (holder) => (asked.push(holder.session), true),
+      onStageLost: (input) => lost.bob.push(input)
+    });
+    connections.push(takeOver);
+    await takeOver.connect();
+    await waitFor('the first session to learn it lost the stage', () => lost.alice.length > 0);
+    expect(asked).toEqual([alice.session]);
+    expect(lost.alice).toEqual([{ label: bob.label, refused: false }]);
+    expect(lost.bob).toEqual([]);
+    await waitFor(
+      'the relay to list only the new holder',
+      async () => (await listRelaySessions(relay(), 'vpc-dev')).map(({ session }) => session).join() === bob.session
+    );
+  } finally {
+    await Promise.all(connections.map((connection) => connection.stop()));
+    await stopRelay();
+  }
+}, 30_000);
 
 /** A function's connection that sends one request and resolves with the answer, or with how the connection ended. */
 const requestThrough = (port: number, payload: string) =>

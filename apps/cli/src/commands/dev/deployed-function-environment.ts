@@ -1,26 +1,19 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { GetFunctionConfigurationCommand, LambdaClient, ResourceNotFoundException } from '@aws-sdk/client-lambda';
-import { createFetchHandler } from 'src/aws/fetch-handler';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 /**
- * The environment of a deployed dev function, as AWS has it. Returns null if the function does not exist or no region
- * is configured.
+ * The environment of a deployed dev function, as AWS has it, read with the credentials and region this CLI selected.
+ * Returns null if the function does not exist.
  */
 export const getLambdaEnvVars = async (stpResourceName: string): Promise<Record<string, string> | null> => {
-  const region = globalStateManager.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
-  if (!region) return null;
-  const client = new LambdaClient({ region, requestHandler: createFetchHandler() });
   try {
-    const config = await client.send(
-      new GetFunctionConfigurationCommand({
-        FunctionName: `${globalStateManager.targetStack.stackName}-${stpResourceName}`
-      })
-    );
+    const config = await awsSdkManager.lambda.getFunction({
+      lambdaResourceName: `${globalStateManager.targetStack.stackName}-${stpResourceName}`
+    });
     return config.Environment?.Variables || {};
   } catch (err) {
-    if (err instanceof ResourceNotFoundException) return null;
+    const cause = (err as { cause?: unknown }).cause ?? err;
+    if ((cause as Error).name === 'ResourceNotFoundException') return null;
     throw err;
-  } finally {
-    client.destroy();
   }
 };

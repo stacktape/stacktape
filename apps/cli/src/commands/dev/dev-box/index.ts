@@ -1,5 +1,5 @@
 import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
-import type { RelayEndpoint, RelayOwner } from '../tunnel-manager';
+import type { RelayEndpoint, RelayOwner, RelayPresenceOutcome, RelayStageHolder } from '../tunnel-manager';
 import { setTimeout as delay } from 'node:timers/promises';
 import { DEV_BOX_RELAY_CONTROL_PORT } from '@domain-services/dev-network/boot-script';
 import { wakeDevBox, waitForDevBoxOnline } from '@domain-services/dev-network';
@@ -30,8 +30,21 @@ export type DevBoxDependencies = {
     relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
     owner: RelayOwner;
     stack?: string;
+    held?: boolean;
+    takeOver?: boolean;
     signal: AbortSignal;
-  }) => Promise<void>;
+    onHeld?: () => void;
+  }) => Promise<RelayPresenceOutcome | undefined | void>;
+  /**
+   * Asked when the relay refuses this session's first presence because another session holds the stage: resolves true
+   * to take the stage over (`--take-over`, or a holder whose process has exited), false to give up.
+   */
+  mayTakeOverStage?: (holder: RelayStageHolder) => Promise<boolean>;
+  /**
+   * Called once when this session loses its stage: another session took it over, or held it when this session's
+   * presence was refused. The connection then holds no presence any more and waits for `stop`.
+   */
+  onStageLost?: (input: { label: string; since?: number; refused: boolean }) => void;
   /** Lists the relay's sessions of a stack; `stop` waits with it until the relay has let go of this session. */
   listSessions?: (
     relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>,
@@ -142,6 +155,9 @@ export class DevBoxConnection {
   #localPort: number | undefined;
   #status: DevBoxStatus | undefined;
   #onStatus: ((status: DevBoxStatus) => void) | undefined;
+  /** The relay accepted a presence of this session once: from then on, a refusal means the stage was lost. */
+  #heldStage = false;
+  #lostStage = false;
 
   constructor({
     deps,
@@ -268,15 +284,47 @@ export class DevBoxConnection {
     return relay;
   };
 
-  /** Holds the presence connection until the session or the presence ends. */
+  /**
+   * Holds the presence connection until the session or the presence ends, or until the stage is another session's.
+   * Only a first presence that the relay refused may take the stage over, and only when `mayTakeOverStage` allows it: a
+   * session that held the stage and finds it held by another after a lost connection never takes it back.
+   */
   #hold = async (session: RelaySession) => {
-    const presence = new AbortController();
-    this.#presence = presence;
-    const presenceEnded = this.#deps
-      .holdPresence({ relay: this.#endpoint(), owner: this.#owner, stack: this.#stackName, signal: presence.signal })
-      .catch(() => {});
-    await Promise.race([session.waitForExit(), presenceEnded]);
-    presence.abort();
+    for (let takeOver = false; ; takeOver = true) {
+      const presence = new AbortController();
+      this.#presence = presence;
+      const result: { outcome?: RelayPresenceOutcome } = {};
+      const presenceEnded = this.#deps
+        .holdPresence({
+          relay: this.#endpoint(),
+          owner: this.#owner,
+          stack: this.#stackName,
+          held: this.#heldStage,
+          takeOver,
+          signal: presence.signal,
+          onHeld: () => (this.#heldStage = true)
+        })
+        .then(
+          (outcome) => (result.outcome = outcome || undefined),
+          () => {}
+        );
+      await Promise.race([session.waitForExit(), presenceEnded]);
+      presence.abort();
+      const { outcome } = result;
+      if (!outcome || this.#stopped.signal.aborted) return;
+      if ('refusedBy' in outcome && !this.#heldStage && !takeOver) {
+        const mayTakeOver = (await this.#deps.mayTakeOverStage?.(outcome.refusedBy)) ?? false;
+        if (this.#stopped.signal.aborted) return;
+        if (mayTakeOver) continue;
+      }
+      this.#lostStage = true;
+      this.#deps.onStageLost?.(
+        'takenOverBy' in outcome
+          ? { label: outcome.takenOverBy, refused: false }
+          : { label: outcome.refusedBy.label, since: outcome.refusedBy.since, refused: !this.#heldStage }
+      );
+      return;
+    }
   };
 
   /** Ends the server-side session too: a killed plugin leaves it open, and its agent keeps the old relay sockets. */
@@ -295,6 +343,11 @@ export class DevBoxConnection {
         onReady(relay);
         await this.#hold(this.#session!);
         if (signal.aborted) return;
+        if (this.#lostStage) {
+          // The session ends on its own (`onStageLost`); a new presence would only be refused.
+          await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+          return;
+        }
         this.#setStatus({ phase: 'reconnecting', reason: 'the connection to the dev box was lost' });
         await this.#endSession();
       } catch (error) {

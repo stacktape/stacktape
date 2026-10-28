@@ -157,24 +157,21 @@ const handleHealthResult = async (name: string, isHealthy: boolean): Promise<voi
   // Health check failed
   resource.consecutiveFailures++;
 
-  if (resource.consecutiveFailures >= HEALTH_CONFIG.failureThreshold) {
+  if (resource.consecutiveFailures < HEALTH_CONFIG.failureThreshold) return;
+  if (resource.status === 'healthy' || resource.status === 'recovering') {
+    resource.status = 'unhealthy';
     const errorMsg = `Health check failed ${resource.consecutiveFailures} times`;
-
-    if (resource.status === 'healthy' || resource.status === 'recovering') {
-      resource.status = 'unhealthy';
-      tuiManager.warn(`${name} is unhealthy: ${errorMsg}`);
-      updateDevTuiStatus(name, 'error', errorMsg);
-
-      // Attempt auto-restart if enabled
-      if (HEALTH_CONFIG.autoRestart && resource.restartAttempts < HEALTH_CONFIG.maxRestartAttempts) {
-        await attemptRestart(name);
-      } else if (resource.restartAttempts >= HEALTH_CONFIG.maxRestartAttempts) {
-        resource.status = 'failed';
-        const failMsg = `Failed after ${resource.restartAttempts} restart attempts`;
-        tuiManager.warn(`${name} ${failMsg}. Manual intervention required.`);
-        updateDevTuiStatus(name, 'error', failMsg);
-      }
-    }
+    tuiManager.warn(`${name} is unhealthy: ${errorMsg}`);
+    updateDevTuiStatus(name, 'error', errorMsg);
+  }
+  // A restart that did not help leaves the resource unhealthy: every later failed check tries again, up to the limit.
+  if (HEALTH_CONFIG.autoRestart && resource.restartAttempts < HEALTH_CONFIG.maxRestartAttempts) {
+    await attemptRestart(name);
+  } else if (resource.restartAttempts >= HEALTH_CONFIG.maxRestartAttempts) {
+    resource.status = 'failed';
+    const failMsg = `Failed after ${resource.restartAttempts} restart attempts`;
+    tuiManager.warn(`${name} ${failMsg}. Manual intervention required.`);
+    updateDevTuiStatus(name, 'error', failMsg);
   }
 };
 
@@ -197,7 +194,7 @@ const attemptRestart = async (name: string): Promise<void> => {
     await execDocker(['start', resource.instance.containerName], { skipHandleError: true });
 
     // Wait a bit for the container to initialize
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, HEALTH_CONFIG.restartSettleMs));
 
     // Check if it's healthy now
     const isHealthy = await checkResourceHealth(resource);

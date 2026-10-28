@@ -23,7 +23,7 @@ export const tagNames = {
   /**
    * Set on a secret that `stacktape dev` generated (a database password), with the dev stack's name. It marks the
    * secret as owned by dev stages (see `devSecretUser`); a deployment that is not a dev session takes the secret out of
-   * that ownership by removing this tag and the user tags, so the secret stays.
+   * that ownership by marking it released (`devSecretReleased`) and removing this tag and the user tags, so it stays.
    */
   devGeneratedSecret() {
     return 'stp:dev-generated-for';
@@ -38,6 +38,13 @@ export const tagNames = {
   },
   devSecretUserPrefix() {
     return 'stp:dev-used-by:';
+  },
+  /**
+   * Set on a dev-generated secret by a deployment that is not a dev session, before it removes the dev tags. A dev
+   * stage's deletion that runs at the same time sees it and leaves the secret.
+   */
+  devSecretReleased() {
+    return 'stp:dev-released';
   },
   codeDigest() {
     return 'stp:code-digest';

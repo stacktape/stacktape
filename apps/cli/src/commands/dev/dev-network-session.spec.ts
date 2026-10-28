@@ -216,6 +216,19 @@ describe('a session whose stage another session took over', () => {
       expect(message).toContain('--take-over');
       const recorded = JSON.parse(readFileSync(localStatePaths.devAgentStopReasonFile({ port: 7400 }), 'utf-8'));
       expect(recorded).toMatchObject({ code: 'DEV_STAGE_TAKEN_OVER', message, pid: process.pid });
+
+      // A session the relay refused because another one started at the same time never had the stage.
+      const refused = endSessionForLostStage({
+        stackName: 'shop-alice',
+        label: 'Alice (alice-laptop)',
+        agentPort: 7401,
+        refused: true,
+        stop: () => stops++
+      });
+      expect(refused).toContain('Dev mode for shop-alice already runs in another session: Alice (alice-laptop)');
+      expect(JSON.parse(readFileSync(localStatePaths.devAgentStopReasonFile({ port: 7401 }), 'utf-8'))).toMatchObject({
+        code: 'DEV_STAGE_RUNNING_ELSEWHERE'
+      });
     } finally {
       if (original === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
       else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = original;

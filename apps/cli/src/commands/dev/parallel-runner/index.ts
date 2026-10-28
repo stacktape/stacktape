@@ -29,7 +29,8 @@ import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage, type PrepareImageResult } from '../container';
 import { summarizeDockerBuildError } from '../container/build-error';
-import { describeMaskedContainerExit } from '../container/exit-reason';
+import { snapshotRunBundle } from '../container/bundle-snapshot';
+import { createOutputTail, describeMaskedContainerExit } from '../container/exit-reason';
 import { startCommandMayChangeData, waitUntilRunServes } from '../container/run-readiness';
 import {
   DOCKER_HOST_NAME,
@@ -817,6 +818,8 @@ const startContainerWorkload = async (
     stderr: () => string;
     /** What the run received, to mask its secret values where its output is quoted. */
     environment: Record<string, string>;
+    /** The copy of the build's bundle the run mounts (see `snapshotRunBundle`). */
+    bundle?: string;
   };
   let current: ContainerRun | undefined;
   /** Why `run` exited, with the secret values it received masked: the summary reaches the status, MCP and the log. */
@@ -846,10 +849,10 @@ const startContainerWorkload = async (
   };
 
   // The container's output of one run. With the dev TUI, lines of one message (a stack trace, a printed object) become
-  // one log entry with the level its text shows; without it, they go to the terminal as they are. Standard error is
-  // also kept, to explain an exit.
+  // one log entry with the level its text shows; without it, they go to the terminal as they are. The end of standard
+  // error is also kept, to explain an exit.
   const captureContainerOutput = () => {
-    let stderr = '';
+    const stderr = createOutputTail();
     const log = (message: string, level: LogLevel) => devTuiManager.log(resourceName, message, level);
     const stdoutGrouper = createLogLineGrouper({ stream: 'stdout', onEntry: log });
     const stderrGrouper = createLogLineGrouper({ stream: 'stderr', onEntry: log });
@@ -861,7 +864,7 @@ const startContainerWorkload = async (
           }
         : undefined,
       transformStderrLine: (line: string) => {
-        stderr += `${line}\n`;
+        stderr.push(line);
         if (!useDevTui) return line;
         stderrGrouper.push(line);
         return null;
@@ -870,17 +873,26 @@ const startContainerWorkload = async (
         stdoutGrouper.flush();
         stderrGrouper.flush();
       },
-      stderr: () => stderr
+      stderr: stderr.text
     };
   };
 
-  /** Starts a run of `image` named `name`; `waitUntilServing` tells when it serves. */
+  /**
+   * Starts a run of `image` named `name`; `waitUntilServing` tells when it serves. A previous build started again passes
+   * the `bundle` its run had.
+   */
   const launchContainer = async (
     image: PrepareImageResult,
     containerEnvironment: Record<string, any>,
-    name: string
+    name: string,
+    bundle?: string
   ): Promise<ContainerRun> => {
     const command = (containerDefinition.packaging as any)?.properties?.command;
+    const mountedBundle =
+      bundle ??
+      (image.distFolderPath
+        ? await snapshotRunBundle({ distFolderPath: image.distFolderPath, keep: current?.bundle })
+        : undefined);
     const output = captureContainerOutput();
     const publishedPorts = switched ? await Promise.all(ports.map(() => findSpareLoopbackPort())) : hostPorts;
     const run: ContainerRun = {
@@ -891,7 +903,8 @@ const startContainerWorkload = async (
       served: false,
       stopping: false,
       stderr: output.stderr,
-      environment: containerEnvironment
+      environment: containerEnvironment,
+      bundle: mountedBundle
     };
     dockerRun({
       name,
@@ -907,7 +920,7 @@ const startContainerWorkload = async (
       })),
       // /app/dist rather than /app: the dev base image installs docker-required dependencies into
       // /app/node_modules, and a mount over /app would shadow them (the image CMD runs dist/index.js).
-      volumeMounts: image.distFolderPath ? [{ hostPath: image.distFolderPath, containerPath: '/app/dist' }] : [],
+      volumeMounts: mountedBundle ? [{ hostPath: mountedBundle, containerPath: '/app/dist' }] : [],
       transformStdoutLine: output.transformStdoutLine,
       transformStderrLine: output.transformStderrLine,
       args: containerArgs
@@ -1074,7 +1087,8 @@ const startContainerWorkload = async (
     const restored = await launchContainer(
       { ...previous.image, imageName: previousImageId },
       containerEnvironment,
-      previous.name
+      previous.name,
+      previous.bundle
     );
     await routeTo(restored);
     const restoredResult = await waitUntilServing(restored);

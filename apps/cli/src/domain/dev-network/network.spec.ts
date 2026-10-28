@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { SharedStackDetails } from '@domain-services/shared-resource-stack-manager';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
@@ -13,7 +14,9 @@ import {
   type DevNetworkAws,
   type LiveDevSession
 } from './index';
-import { DEV_NETWORK_CONTRACT_VERSION, DEV_NETWORK_KIND } from './template';
+import { encodeRelayForUserData } from './boot-script';
+import { DEV_BOX_RELAY_SOURCE } from './relay-source';
+import { buildDevNetworkTemplate, DEV_NETWORK_CONTRACT_VERSION, DEV_NETWORK_KIND } from './template';
 
 // CloudFormation, EC2 and SSM as the network commands see them: a stack whose status moves on each read, a box state,
 // and lease parameters. Stack operations from other machines are scripted as status sequences.
@@ -478,5 +481,48 @@ describe('a network whose creation failed', () => {
       await failure(deleteFailedDevNetwork({ aws: foreign.aws, failed: (await readFailedDevNetwork(foreign.aws))! }))
     ).toMatchObject({ code: 'DEV_NETWORK_FOREIGN' });
     expect(foreign.calls.deletes).toBe(0);
+  });
+});
+
+// Review of #388: the relay changed to version 4 while the network contract stayed at 4, so no existing network was
+// updated and its box kept the old relay.
+describe('a network of an older contract', () => {
+  test('is updated once, for example to install a new relay on its box', async () => {
+    const { aws, calls } = fakeAws({ statuses: ['CREATE_COMPLETE'] });
+    const get = aws.stacks.get;
+    let updated = false;
+    aws.stacks.get = async (name) => {
+      const stack = await get(name);
+      if (!stack || updated) return stack;
+      return {
+        ...stack,
+        Outputs: stack.Outputs!.map((output) =>
+          output.OutputKey === 'ContractVersion' ? { ...output, OutputValue: '4' } : output
+        )
+      };
+    };
+    const update = aws.stacks.update;
+    aws.stacks.update = async (input) => {
+      updated = true;
+      return update(input);
+    };
+    const { action, ready } = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    await ready;
+    expect({ action, updates: calls.updates }).toEqual({ action: 'upgrade', updates: 1 });
+  });
+
+  test('the template a contract version stands for does not change without a new version', () => {
+    // Changing the template, the relay or the boot script included, changes this hash: increment
+    // DEV_NETWORK_CONTRACT_VERSION, so existing networks are updated, then record the new pair here.
+    // The relay is hashed as source: its gzip encoding in the user data may differ between zlib versions.
+    const encodedRelay = JSON.stringify(encodeRelayForUserData(DEV_BOX_RELAY_SOURCE)).slice(1, -1);
+    const template = JSON.stringify(buildDevNetworkTemplate({ networkName: stackName }));
+    expect(template).toContain(encodedRelay);
+    const hash = createHash('sha256')
+      .update(template.replace(encodedRelay, ''))
+      .update(DEV_BOX_RELAY_SOURCE)
+      .digest('hex')
+      .slice(0, 16);
+    expect({ contract: DEV_NETWORK_CONTRACT_VERSION, hash }).toEqual({ contract: 5, hash: '6ca336e00cd5bfbb' });
   });
 });

@@ -2,8 +2,11 @@ import { base64, getAtt, getAzs, join, ref, select, sub } from '@stacktape/cloud
 import { cfnResource, type CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { getDevBoxUserData } from './boot-script';
 
-/** Increment when the template changes: an older network is updated on the next `stacktape dev` that uses it. */
-export const DEV_NETWORK_CONTRACT_VERSION = 4;
+/**
+ * Increment when the template changes, the relay in the box user data included (`DEV_BOX_RELAY_VERSION`): an older
+ * network is updated on the next `stacktape dev` that uses it.
+ */
+export const DEV_NETWORK_CONTRACT_VERSION = 5;
 export const DEV_NETWORK_KIND = 'dev-network';
 export const DEV_BOX_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
 export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';

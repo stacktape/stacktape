@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
-import { appendFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
@@ -381,6 +381,25 @@ describe('MCP dev session routing', () => {
       expect((await read({ cursor: first.nextCursor, workload: 'api' })).entries).toEqual([
         { source: 'api', message: 'TypeError: x is undefined' }
       ]);
+      // One more line, then the logger rotates the file: its new first line counts the 6 lines before it. A cursor into
+      // the rotated copy reads the rest of it first, then the new file.
+      await appendFile(logFile, line('api', 'GET /late 200'));
+      await rename(logFile, `${logFile}.1`);
+      await writeFile(
+        logFile,
+        `${JSON.stringify({ source: 'dev', message: 'Earlier lines are in dev.jsonl.1', lineOffset: 6 })}\n` +
+          line('api', 'GET /orders 200')
+      );
+      const rotated = await read({ cursor: next.nextCursor });
+      expect(rotated.entries.map(({ message }) => message)).toEqual([
+        'GET /late 200',
+        'Earlier lines are in dev.jsonl.1',
+        'GET /orders 200'
+      ]);
+      expect(rotated.nextCursor).toBe(8);
+      expect((await read({ cursor: rotated.nextCursor })).entries).toEqual([]);
+      // Without a cursor, the newest lines come from the new file.
+      expect((await read({})).nextCursor).toBe(8);
       await handler({ action: 'stop', args: { devSessionId } });
     } finally {
       await dev.close();
