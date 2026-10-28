@@ -10,6 +10,8 @@ type ContainerEfsMountProps = {
   efsFilesystemName: string;
   /** Absolute path inside the container where the volume is mounted (e.g., `/data`). */
   mountPath: string;
+  /** Mount the volume read-only, so the container can read its files but not change them. */
+  readOnly?: boolean;
   /** Subdirectory within the EFS filesystem to mount. Restricts access to that directory. */
   rootDirectory?: string;
 };
@@ -136,6 +138,16 @@ export default defineConfig(() => {
   return { resources: { app, sharedStorage } };
 });
 ```
+
+## Property: `readOnly`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Mount the volume read-only, so the container can read its files but not change them.
+
+Use it for a container that only consumes files another workload writes to the same filesystem.
 
 ## Property: `rootDirectory`
 

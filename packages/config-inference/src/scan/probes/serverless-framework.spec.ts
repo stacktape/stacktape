@@ -149,6 +149,65 @@ describe('the serverless framework probe', () => {
     ]);
   });
 
+  it('refuses filters and payloads whose values are Serverless variables', async () => {
+    root = await makeRepo({
+      'serverless.yml': [
+        'service: orders',
+        'provider:',
+        '  name: aws',
+        'functions:',
+        '  api:',
+        '    handler: handler.handler',
+        '    events:',
+        '      - s3:',
+        '          bucket: !Ref Files',
+        '          event: s3:ObjectCreated:*',
+        '          rules:',
+        '            - prefix: ${self:custom.prefix}',
+        '      - s3:',
+        '          bucket: !Ref Files',
+        '          event: s3:ObjectRemoved:*',
+        '          rules:',
+        '            - prefix: incoming/',
+        '            - suffix: .csv',
+        '      - sns:',
+        '          arn: !Ref Orders',
+        '          filterPolicy:',
+        '            stage:',
+        '              - ${sls:stage}',
+        '      - schedule:',
+        '          rate: rate(1 hour)',
+        '          input:',
+        '            tenant: ${env:TENANT}',
+        'resources:',
+        '  Resources:',
+        '    Files:',
+        '      Type: AWS::S3::Bucket',
+        '    Orders:',
+        '      Type: AWS::SNS::Topic',
+        ''
+      ].join('\n'),
+      'handler.js': 'exports.handler = async () => undefined;'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    expect(facts.services[0]?.functionTriggers).toEqual([
+      { type: 'unmapped', sourceType: 'objects in the storageBucket bucket that match key rules init cannot resolve' },
+      {
+        type: 'object-storage',
+        dependencyName: 'storageBucket',
+        eventType: 's3:ObjectRemoved:*',
+        keyPrefix: 'incoming/',
+        keySuffix: '.csv'
+      },
+      {
+        type: 'unmapped',
+        sourceType: 'messages from the notificationsTopic topic that match a filterPolicy init cannot resolve'
+      },
+      { type: 'unmapped', sourceType: 'the schedule rate(1 hour) with an input init cannot resolve' }
+    ]);
+  });
+
   it('skips a function whose handler file does not exist, rather than fabricating a path', async () => {
     root = await makeRepo({
       'serverless.yml': ['service: orders', 'functions:', '  ghost:', '    handler: src/missing.main', ''].join('\n')

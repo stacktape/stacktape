@@ -1572,6 +1572,19 @@ export const composeConfig = ({
         });
         continue;
       }
+      // A subpath is a directory of the volume; the disk's access point roots the mount there.
+      const subdirectory =
+        volume.subpath === undefined ? undefined : posix.normalize(volume.subpath).replace(/\/$/, '');
+      if (
+        subdirectory !== undefined &&
+        (subdirectory.startsWith('/') || subdirectory === '..' || subdirectory.startsWith('../'))
+      ) {
+        gaps.push({
+          subject: `${service.name}.volume`,
+          message: `${service.name} mounts ${volume.subpath} of the ${volume.name} volume at ${volume.mountPath}, a path outside the volume, so we did not mount it. Before deploying, give it a subpath inside the volume.`
+        });
+        continue;
+      }
       let filesystemName = persistentVolumeResources.get(volume.name);
       if (filesystemName === undefined) {
         filesystemName = uniqueName(`${volume.name}Volume`, taken);
@@ -1585,7 +1598,15 @@ export const composeConfig = ({
       const properties = resources[name]!.properties;
       properties.volumeMounts = [
         ...((properties.volumeMounts as unknown[] | undefined) ?? []),
-        { type: 'efs', properties: { efsFilesystemName: filesystemName, mountPath: volume.mountPath } }
+        {
+          type: 'efs',
+          properties: {
+            efsFilesystemName: filesystemName,
+            ...(subdirectory === undefined || subdirectory === '.' ? {} : { rootDirectory: `/${subdirectory}` }),
+            mountPath: volume.mountPath,
+            ...(volume.readOnly === true ? { readOnly: true } : {})
+          }
+        }
       ];
     }
 

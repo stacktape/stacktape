@@ -221,13 +221,19 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           name: 'uploads',
           path: 'apps/uploads',
           port: 3000,
-          persistentVolumes: [{ name: 'files', mountPath: '/app/uploads' }]
+          persistentVolumes: [
+            { name: 'files', mountPath: '/app/uploads' },
+            { name: 'files', mountPath: '/app/archives', readOnly: true, subpath: 'archives/' }
+          ]
         }),
         service({
           name: 'thumbnails',
           path: 'apps/thumbnails',
           exposesHttp: false,
-          persistentVolumes: [{ name: 'files', mountPath: '/data' }]
+          persistentVolumes: [
+            { name: 'files', mountPath: '/data' },
+            { name: 'files', mountPath: '/escape', subpath: '../outside' }
+          ]
         })
       ],
       dependencies: [
@@ -270,12 +276,24 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     // Both services mount the one disk their shared Compose volume became.
     expect(resources.filesVolume).toEqual({ type: 'efs-filesystem', properties: { backupEnabled: true } });
     expect(resources.uploads?.properties.volumeMounts).toEqual([
-      { type: 'efs', properties: { efsFilesystemName: 'filesVolume', mountPath: '/app/uploads' } }
+      { type: 'efs', properties: { efsFilesystemName: 'filesVolume', mountPath: '/app/uploads' } },
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'filesVolume',
+          rootDirectory: '/archives',
+          mountPath: '/app/archives',
+          readOnly: true
+        }
+      }
     ]);
     expect(resources.thumbnails?.properties.volumeMounts).toEqual([
       { type: 'efs', properties: { efsFilesystemName: 'filesVolume', mountPath: '/data' } }
     ]);
     expect(result.gaps.map((gap) => gap.subject)).toEqual(expect.arrayContaining(['admin.trigger']));
+    expect(result.gaps.find((gap) => gap.subject === 'thumbnails.volume')?.message).toBe(
+      'thumbnails mounts ../outside of the files volume at /escape, a path outside the volume, so we did not mount it. Before deploying, give it a subpath inside the volume.'
+    );
     expect(result.gaps.filter((gap) => gap.subject === 'admin.trigger').map((gap) => gap.message)).toEqual([
       'admin serves the HTTP route GET /me, which serverless.yml protects with the "jwt" authorizer. Stacktape cannot reproduce that protection, so we left the route out rather than make it public. Before deploying, add it back to the function\'s http-api-gateway events with a Stacktape authorizer (cognito, lambda or aws-iam).',
       "Your deployment files disable the event from the jobQueue queue for admin, so we left it out and it does not start running. Add it to the function's events when you want it on."

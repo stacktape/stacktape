@@ -342,6 +342,102 @@ describe('the AWS SAM probe', () => {
     });
   });
 
+  it('merges API Auth with its Globals and resolves or refuses intrinsic filter values', async () => {
+    const repositoryRoot = await makeRepo({
+      'handler.js': 'export async function handler() {}\n',
+      'template.yaml': [
+        'Transform: AWS::Serverless-2016-10-31',
+        'Parameters:',
+        '  Prefix:',
+        '    Type: String',
+        '    Default: incoming/',
+        '  Kind:',
+        '    Type: String',
+        '    Default: paid',
+        '  Stage:',
+        '    Type: String',
+        'Globals:',
+        '  Api:',
+        '    Auth:',
+        '      DefaultAuthorizer: AWS_IAM',
+        'Resources:',
+        '  Gateway:',
+        '    Type: AWS::Serverless::Api',
+        '    Properties:',
+        '      StageName: prod',
+        '      Auth:',
+        '        AddDefaultAuthorizerToCorsPreflight: false',
+        '  Files:',
+        '    Type: AWS::S3::Bucket',
+        '  Orders:',
+        '    Type: AWS::SNS::Topic',
+        '  WorkerFunction:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      Runtime: nodejs22.x',
+        '      Handler: handler.handler',
+        '      Events:',
+        '        Admin:',
+        '          Type: Api',
+        '          Properties:',
+        '            RestApiId: !Ref Gateway',
+        '            Path: /admin',
+        '            Method: get',
+        '        LongForm:',
+        '          Type: S3',
+        '          Properties:',
+        '            Bucket: !Ref Files',
+        '            Events: s3:ObjectCreated:*',
+        '            Filter:',
+        '              S3Key:',
+        '                Rules:',
+        '                  - Name: prefix',
+        '                    Value:',
+        '                      Ref: Prefix',
+        '                  - Name: suffix',
+        '                    Value: !Ref Stage',
+        '        ShortForm:',
+        '          Type: S3',
+        '          Properties:',
+        '            Bucket: !Ref Files',
+        '            Events: s3:ObjectRemoved:*',
+        '            Filter:',
+        '              S3Key:',
+        '                Rules:',
+        '                  - Name: prefix',
+        '                    Value: !Ref Prefix',
+        '        Paid:',
+        '          Type: SNS',
+        '          Properties:',
+        '            Topic: !Ref Orders',
+        '            FilterPolicy:',
+        '              kind: [!Ref Kind]',
+        '        Computed:',
+        '          Type: SNS',
+        '          Properties:',
+        '            Topic: !Ref Orders',
+        '            FilterPolicy:',
+        '              stage: [!Sub "${Stage}-orders"]'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+    expect(facts.services[0]?.functionTriggers).toEqual([
+      // The API's own Auth adds a key; the global DefaultAuthorizer still applies.
+      { type: 'http', method: 'get', path: '/admin', authorization: 'aws-iam' },
+      // A parameter without a default could be anything, so the subscription is not created unfiltered.
+      { type: 'unmapped', sourceType: 'objects in the files bucket that match a key filter init cannot resolve' },
+      {
+        type: 'object-storage',
+        dependencyName: 'files',
+        eventType: 's3:ObjectRemoved:*',
+        keyPrefix: 'incoming/'
+      },
+      { type: 'topic', dependencyName: 'orders', filterPolicy: { kind: ['paid'] } },
+      { type: 'unmapped', sourceType: 'messages from the orders topic that match a FilterPolicy init cannot resolve' }
+    ]);
+  });
+
   it('imports EventBridge Scheduler ScheduleV2 events', async () => {
     const repositoryRoot = await makeRepo({
       'src/main.go': 'package main\nfunc main() {}\n',

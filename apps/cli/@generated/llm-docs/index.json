@@ -9387,6 +9387,7 @@
         "ContainerEfsMountProps",
         "efsFilesystemName",
         "mountPath",
+        "readOnly",
         "rootDirectory",
         "multi-container-workload"
       ],
@@ -9399,6 +9400,7 @@
         "config-reference:ContainerEfsMountProps#property-mountpath",
         "config-reference:ContainerEfsMountProps#example-1-yaml-2",
         "config-reference:ContainerEfsMountProps#example-2-typescript-2",
+        "config-reference:ContainerEfsMountProps#property-readonly",
         "config-reference:ContainerEfsMountProps#property-rootdirectory",
         "config-reference:ContainerEfsMountProps#example-1-yaml-3",
         "config-reference:ContainerEfsMountProps#example-2-typescript-3"

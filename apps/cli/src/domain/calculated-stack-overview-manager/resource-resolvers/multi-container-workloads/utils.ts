@@ -417,7 +417,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       return {
         SourceVolume: volumeName,
         ContainerPath: mount.properties.mountPath,
-        ReadOnly: false
+        ReadOnly: mount.properties.readOnly === true
       };
     });
 

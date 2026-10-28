@@ -15617,6 +15617,19 @@
         ]
       },
       {
+        "name": "readOnly",
+        "required": false,
+        "shortDescription": "<p> Mount the volume read-only, so the container can read its files but not change them.</p>",
+        "longDescription": "<p>Use it for a container that only consumes files another workload writes to the same filesystem.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
         "name": "rootDirectory",
         "required": false,
         "shortDescription": "<p> Subdirectory within the EFS filesystem to mount. Restricts access to that directory.</p>",
@@ -15642,9 +15655,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 1
+      "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype ContainerEfsMountProps = {\n  /** Name of the `efs-filesystem` resource defined in your config. */\n  efsFilesystemName: string;\n  /** Absolute path inside the container where the volume is mounted (e.g., `/data`). */\n  mountPath: string;\n  /** Subdirectory within the EFS filesystem to mount. Restricts access to that directory. */\n  rootDirectory?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype ContainerEfsMountProps = {\n  /** Name of the `efs-filesystem` resource defined in your config. */\n  efsFilesystemName: string;\n  /** Absolute path inside the container where the volume is mounted (e.g., `/data`). */\n  mountPath: string;\n  /** Mount the volume read-only, so the container can read its files but not change them. */\n  readOnly?: boolean;\n  /** Subdirectory within the EFS filesystem to mount. Restricts access to that directory. */\n  rootDirectory?: string;\n};\n// [!code focus-end]"
   },
   "ContainerHealthCheck": {
     "definitionName": "ContainerHealthCheck",

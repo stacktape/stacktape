@@ -607,8 +607,164 @@ const FIDELITY_CASES: EvalCase[] = [
   }
 ];
 
+const expressApp = (compose: string): Record<string, string> => ({
+  'package.json': JSON.stringify({ name: 'app', dependencies: { express: '4.21.0' } }),
+  'server.js': "require('express')().listen(3000);\n",
+  'compose.yaml': compose
+});
+
+/** Cases from the review of the first version of these fixes. */
+const REVIEW_CASES: EvalCase[] = [
+  {
+    name: 'a SAM API Auth that sets one key keeps the global IAM default authorizer',
+    files: {
+      'package.json': JSON.stringify({ name: 'review-app' }),
+      'handler.js': 'exports.main = async () => ({ statusCode: 200 });\n',
+      'template.yaml': samTemplate(
+        '  Gateway:',
+        '    Type: AWS::Serverless::Api',
+        '    Properties:',
+        '      StageName: prod',
+        '      Auth:',
+        '        AddDefaultAuthorizerToCorsPreflight: false',
+        ...samFunction(
+          'handler.main',
+          '      Events:',
+          '        Admin:',
+          '          Type: Api',
+          '          Properties:',
+          '            RestApiId: !Ref Gateway',
+          '            Path: /admin',
+          '            Method: get'
+        )
+      ).replace('Resources:\n', 'Globals:\n  Api:\n    Auth:\n      DefaultAuthorizer: AWS_IAM\nResources:\n')
+    },
+    expect: {
+      resourceProperties: [{ resource: 'api', path: 'events.0.properties.authorizer', value: { type: 'aws-iam' } }]
+    }
+  },
+  {
+    name: 'a SAM S3 key filter given as a parameter reference is resolved to its default',
+    files: {
+      'package.json': JSON.stringify({ name: 'review-app' }),
+      'handler.js': 'exports.main = async () => ({ statusCode: 200 });\n',
+      'template.yaml': lines(
+        'Transform: AWS::Serverless-2016-10-31',
+        'Parameters:',
+        '  Prefix:',
+        '    Type: String',
+        '    Default: incoming/',
+        'Resources:',
+        '  Bucket:',
+        '    Type: AWS::S3::Bucket',
+        '  Worker:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      Runtime: nodejs22.x',
+        '      Handler: handler.main',
+        '      Events:',
+        '        Created:',
+        '          Type: S3',
+        '          Properties:',
+        '            Bucket: !Ref Bucket',
+        '            Events: s3:ObjectCreated:*',
+        '            Filter:',
+        '              S3Key:',
+        '                Rules:',
+        '                  - Name: prefix',
+        '                    Value:',
+        '                      Ref: Prefix'
+      )
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'worker', path: 'events.0.properties.filterRule', value: { prefix: 'incoming/' } }
+      ]
+    }
+  },
+  {
+    name: 'Compose read-only volumes and subpaths become read-only and separate EFS directories',
+    files: expressApp(
+      lines(
+        'services:',
+        '  app:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    volumes:',
+        '      - uploads:/app/uploads:ro',
+        '      - type: volume',
+        '        source: shared',
+        '        target: /app/uploads-archive',
+        '        volume:',
+        '          subpath: uploads',
+        '      - type: volume',
+        '        source: shared',
+        '        target: /app/archives',
+        '        volume:',
+        '          subpath: archives',
+        'volumes:',
+        '  uploads: {}',
+        '  shared: {}'
+      )
+    ),
+    expect: {
+      resourceProperties: [
+        {
+          resource: 'app',
+          path: 'volumeMounts',
+          value: [
+            {
+              type: 'efs',
+              properties: { efsFilesystemName: 'uploadsVolume', mountPath: '/app/uploads', readOnly: true }
+            },
+            {
+              type: 'efs',
+              properties: {
+                efsFilesystemName: 'sharedVolume',
+                rootDirectory: '/uploads',
+                mountPath: '/app/uploads-archive'
+              }
+            },
+            {
+              type: 'efs',
+              properties: { efsFilesystemName: 'sharedVolume', rootDirectory: '/archives', mountPath: '/app/archives' }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    name: 'Compose caches, sockets, scratch space and installed dependencies get no disk',
+    files: expressApp(
+      lines(
+        'services:',
+        '  app:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    volumes:',
+        '      - cache:/root/.npm',
+        '      - sockets:/run/app',
+        '      - nestedcache:/app/node_modules/.cache',
+        '      - dependencies:/app/node_modules/sharp',
+        '      - temporary:/var/tmp',
+        'volumes:',
+        '  cache: {}',
+        '  sockets: {}',
+        '  nestedcache: {}',
+        '  dependencies: {}',
+        '  temporary: {}'
+      )
+    ),
+    expect: {
+      resources: { app: 'web-service' },
+      resourceProperties: [{ resource: 'app', path: 'volumeMounts', value: undefined }]
+    }
+  }
+];
+
 describe('importer synthetic end-to-end corpus', () => {
-  for (const evalCase of [...CASES, ...FIDELITY_CASES]) {
+  for (const evalCase of [...CASES, ...FIDELITY_CASES, ...REVIEW_CASES]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

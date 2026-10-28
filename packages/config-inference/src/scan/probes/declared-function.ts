@@ -57,3 +57,47 @@ export const declaredQueueSettings = (properties: unknown) => {
   };
   return Object.keys(settings).length === 0 ? undefined : settings;
 };
+
+/** What a template declares that a literal can stand for: its parameters and the logical IDs of its resources. */
+export type TemplateScope = { parameters: RecordValue; logicalIds: ReadonlySet<string> };
+
+export const UNRESOLVED = Symbol('unresolved');
+
+const parameterDefault = (scope: TemplateScope, name: string): unknown => {
+  const parameter = scope.parameters[name];
+  const value = typeof parameter === 'object' && parameter !== null ? (parameter as RecordValue).Default : undefined;
+  return typeof value === 'string' || typeof value === 'number' ? value : UNRESOLVED;
+};
+
+/**
+ * A declared value as the literal it deploys with, or `UNRESOLVED`.
+ *
+ * Filters and payloads decide which events a handler receives and what they contain, so a value init cannot read must
+ * not be passed through or dropped: either would widen delivery or change the payload. `Ref` to a parameter resolves
+ * to its default. The template parser strips short intrinsic tags, so `!Ref Prefix` arrives as the parameter's name
+ * and `!Sub` keeps its `${...}`; both are read that way. Anything else intrinsic, including a reference to a
+ * resource and a Serverless `${...}` variable, is unresolved.
+ */
+export const resolveDeclaredValue = (value: unknown, scope: TemplateScope): unknown => {
+  if (typeof value === 'string') {
+    if (value.includes('${')) return UNRESOLVED;
+    if (Object.hasOwn(scope.parameters, value)) return parameterDefault(scope, value);
+    return scope.logicalIds.has(value.split('.')[0] ?? value) ? UNRESOLVED : value;
+  }
+  if (Array.isArray(value)) {
+    const items = value.map((item) => resolveDeclaredValue(item, scope));
+    return items.includes(UNRESOLVED) ? UNRESOLVED : items;
+  }
+  if (typeof value === 'object' && value !== null) {
+    const record = value as RecordValue;
+    if (typeof record.Ref === 'string' && Object.keys(record).length === 1) {
+      return Object.hasOwn(scope.parameters, record.Ref) ? parameterDefault(scope, record.Ref) : UNRESOLVED;
+    }
+    if (Object.keys(record).some((key) => key === 'Ref' || key.startsWith('Fn::') || key === 'Condition')) {
+      return UNRESOLVED;
+    }
+    const entries = Object.entries(record).map(([key, item]) => [key, resolveDeclaredValue(item, scope)] as const);
+    return entries.some(([, item]) => item === UNRESOLVED) ? UNRESOLVED : Object.fromEntries(entries);
+  }
+  return value;
+};

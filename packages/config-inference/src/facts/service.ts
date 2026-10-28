@@ -367,7 +367,11 @@ export const serviceShape = {
     .array(
       z.object({
         name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]*$/),
-        mountPath: z.string().startsWith('/')
+        mountPath: z.string().startsWith('/'),
+        /** The container may read the volume but not write it (`:ro`, `read_only: true`). */
+        readOnly: z.literal(true).optional(),
+        /** The directory inside the volume the mount exposes (`volume.subpath`), as the manifest states it. */
+        subpath: z.string().min(1).optional()
       })
     )
     .optional(),

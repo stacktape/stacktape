@@ -2350,6 +2350,16 @@ export interface ContainerEfsMountProps {
    * ```
    */
   mountPath: string;
+  /**
+   * #### Mount the volume read-only, so the container can read its files but not change them.
+   *
+   * ---
+   *
+   * Use it for a container that only consumes files another workload writes to the same filesystem.
+   *
+   * @default false
+   */
+  readOnly?: boolean;
 }
 
 
