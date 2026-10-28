@@ -33,11 +33,48 @@ const SVELTEKIT_ERROR_HEADER = /^\[(\d{3})\] [A-Z]+ \S+$/;
 const BUN_CODE_FRAME_LINE = /^\d+ \| /;
 /** Bun's line after an uncaught error: `Bun v1.3.4 (Linux x64)`. */
 const BUN_VERSION_LINE = /^Bun v\d+\.\d+\.\d+ \(/;
+/** Ruby's `Logger`, which Rails uses: `E, [2026-10-28T12:19:46.265354 #1] ERROR -- : ...`. */
+const RUBY_LOGGER_LINE = /^[DIWEFA], \[[^\]]{0,64}#\d+\]\s+(DEBUG|INFO|WARN|ERROR|FATAL|ANY) -- /;
+/** Rake's first line when a task (`bin/rails db:migrate`, `rake`) raised: `bin/rails aborted!`. */
+const RAKE_ABORTED_LINE = /^\S+ aborted!$/;
+/** Rake's last line of an aborted task, after the cause and its backtrace. */
+const RAKE_TRACE_HINT_LINE = /^\(See full trace by running task with --trace\)$/;
+/** The longest pause in a Ruby error's output: Rails's exception and frames came 51 ms after its `ERROR` line. */
+const RUBY_ERROR_QUIET_MS = 300;
+
+/** An exception's line as Rails logs it, `NoMethodError (undefined method 'order' ...):`, or Rake, `PG::Error: ...`. */
+const RUBY_EXCEPTION_LINE = /^(?:[A-Z]\w*::)*[A-Z]\w*(?: \(.*\):?|: .+)$/;
+/** A Ruby backtrace line: `app/controllers/parcels_controller.rb:6:in 'ParcelsController#index'`. */
+const RUBY_FRAME_LINE = /^\S+:\d+:in [`']/;
+/** A line that starts a leveled message of another logger: `INFO:     Started server process [1]`, `[WARN] ...`. */
+const LEVEL_WORD_LINE = /^\[?\s*(?:DEBUG|INFO|NOTICE|WARN|WARNING|ERROR|ERR|FATAL|CRITICAL|TRACE)\b/i;
+
+/** Lines of a Ruby error that is still being printed: a warning or error of Ruby's `Logger`, or a task Rake aborted. */
+const isOpenRubyError = (entry: string[]) =>
+  /^(WARN|ERROR|FATAL)$/.test(entry[0]!.match(RUBY_LOGGER_LINE)?.[1] ?? '') ||
+  (RAKE_ABORTED_LINE.test(entry[0]!) && !RAKE_TRACE_HINT_LINE.test(entry.at(-1)!));
+
+/**
+ * Whether `line` belongs to the open Ruby error `entry`: an exception line or a backtrace line, and under Rake's
+ * `aborted!` also the cause, the task list and the help line. Other lines that arrive while the error waits for its
+ * frames start their own entry.
+ */
+const continuesRubyError = (line: string, entry: string[]) => {
+  if (LEVEL_WORD_LINE.test(line)) return false;
+  if (RUBY_FRAME_LINE.test(line) || RUBY_EXCEPTION_LINE.test(line)) return true;
+  return (
+    RAKE_ABORTED_LINE.test(entry[0]!) &&
+    (entry.length === 1 || /^Tasks: /.test(line) || RAKE_TRACE_HINT_LINE.test(line))
+  );
+};
 
 /** Whether `line` continues the entry whose lines are `entry`, instead of starting a new one. */
 export const isContinuationLine = (line: string, entry: string[]): boolean => {
   if (!entry.length) return false;
-  if (NEXT_MESSAGE_LINE.test(line) || ACCESS_LOG_LINE.test(line)) return false;
+  if (NEXT_MESSAGE_LINE.test(line) || ACCESS_LOG_LINE.test(line) || RUBY_LOGGER_LINE.test(line)) return false;
+  // Rails logs an exception as an `ERROR` line followed by its class and message and its application frames, all
+  // unindented; Rake prints the cause and backtrace of an aborted task under `bin/rails aborted!`.
+  if (isOpenRubyError(entry) && continuesRubyError(line, entry)) return true;
   // Stack frames, object properties and traceback lines are indented; a pretty-printed object closes unindented.
   if (/^\s/.test(line) || /^[\]})]/.test(line)) return true;
   if (/^caused by\b/i.test(line)) return true;
@@ -72,6 +109,11 @@ const JSON_LEVELS: Record<string, LogLevel> = {
 /** How far into a line a level word is looked for; gunicorn's timestamp and process ID take about 40 characters. */
 const LEVEL_WORD_SCAN_CHARS = 200;
 
+/** Ruby's uncaught exception names where it was raised, the message and the exception class. */
+const RUBY_UNCAUGHT_LINE = /^\S+:\d+:in [`'][^`']*': .*\([A-Z]\w*(?:::[A-Z]\w*)*\)$/;
+/** Ruby's `inspect` of an exception: `#<KeyError: key not found>`, `#<Errno::ECONNREFUSED: ...>`. */
+const RUBY_INSPECTED_EXCEPTION = /#<(?:[A-Z]\w*::)*(?:[A-Z]\w*(?:Error|Exception)|Errno::\w+)[:>]/;
+
 const levelFromWord = (word: string): LogLevel =>
   JSON_LEVELS[word.toLowerCase()] ?? (/^(err|panic|crit|alert|emerg)$/i.test(word) ? 'error' : 'info');
 
@@ -93,6 +135,9 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
       // Not a JSON line; the text decides.
     }
   }
+  const rubyLevel = firstLine.match(RUBY_LOGGER_LINE)?.[1];
+  if (rubyLevel) return levelFromWord(rubyLevel);
+  if (RAKE_ABORTED_LINE.test(firstLine)) return 'error';
   // A level word starts the line, possibly after a timestamp: `ERROR:root:...`, `[warn] ...`, `12:00:01 INFO ...`,
   // Go's `2026/10/27 13:18:28.123456 main.go:42: ERROR ...`, nginx's `2026/10/27 13:18:28 [crit] ...` or, after a
   // bracketed timestamp and process ID, gunicorn's `[2026-10-28 00:17:51 +0000] [1] [INFO] ...`.
@@ -116,6 +161,9 @@ export const detectLogLevel = (coloredText: string, stream: 'stdout' | 'stderr')
   }
   if (/^[\w.$]*(Error|Exception)\b(:|\s*\[|\s*\{|$)/.test(firstLine)) return 'error';
   if (/^\s+at\s.+(:\d+|\(native\))/m.test(text) || /^\s+File ".+", line \d+/m.test(text)) return 'error';
+  // Ruby's uncaught exception: `/app/config/boot.rb:3:in '<top (required)>': boom (RuntimeError)`, and an exception
+  // a server logs inspected, as Puma does for a request the app failed: `... Rack app ("GET /" - (...)): #<KeyError: ...>`.
+  if (RUBY_UNCAUGHT_LINE.test(firstLine) || RUBY_INSPECTED_EXCEPTION.test(firstLine)) return 'error';
   // A Go crash, possibly after the line `log.Panic` logged, and net/http's recovered handler panics.
   if (/^(panic: |fatal error: |goroutine \d+ \[)/m.test(text)) return 'error';
   // Go's `slog` and logrus text lines carry a logfmt field: `time=... level=ERROR msg=...`. It is read after the error
@@ -150,13 +198,23 @@ const ZERO_COUNT_SUMMARY =
 const FAILURE_SCAN_CHARS = 500;
 
 /**
- * A frontend's server code reports a failed request with `console.error`, which reaches standard error without a
- * level word, as do the dev server's own notes. Standard error that reads like a failure is an error there.
+ * What `console.error` prints for an error value inside a message: an error class (`quote: SyntaxError: Unexpected
+ * token`, `[TypeError: fetch failed]`) or a server error status (`{ status: 502 }`, `HTTP 500`).
  */
-export const isFrontendServerFailure = (coloredText: string): boolean =>
-  FAILURE_MESSAGE.test(
-    stripAnsi(coloredText).split('\n', 1)[0]!.slice(0, FAILURE_SCAN_CHARS).replace(ZERO_COUNT_SUMMARY, '')
-  );
+const ERROR_SHAPE = /\b[A-Z]\w*(?:Error|Exception)\b|\b(?:status(?:Code)?|HTTP)\b\W{0,3}5\d\d\b/;
+
+/**
+ * A frontend's server code reports a failed request with `console.error`, which reaches standard error without a
+ * level word, as do the dev server's own notes and `console.warn`. Standard error that reads like a failure or shows an
+ * error value is an error there; other text stays a warning, since nothing tells `console.error` from `console.warn`.
+ */
+export const isFrontendServerFailure = (coloredText: string): boolean => {
+  const firstLine = stripAnsi(coloredText)
+    .split('\n', 1)[0]!
+    .slice(0, FAILURE_SCAN_CHARS)
+    .replace(ZERO_COUNT_SUMMARY, '');
+  return FAILURE_MESSAGE.test(firstLine) || ERROR_SHAPE.test(firstLine);
+};
 
 /**
  * Joins the lines of one stream into entries and passes each complete entry on. Call `flush` when the stream ends, so
@@ -194,7 +252,7 @@ export const createLogLineGrouper = ({
     entry.push(line);
     plainEntry.push(plainLine);
     clearTimeout(timer);
-    timer = setTimeout(flush, quietMs);
+    timer = setTimeout(flush, isOpenRubyError(plainEntry) ? Math.max(quietMs, RUBY_ERROR_QUIET_MS) : quietMs);
   };
 
   return { push, flush };

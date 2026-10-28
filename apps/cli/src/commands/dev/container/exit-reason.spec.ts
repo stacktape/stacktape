@@ -233,3 +233,57 @@ test('the traceback that ended the process is quoted, also after an earlier hand
     ].join('\n')
   );
 });
+
+// r2ll finding 8: Rails startup commands run Rake (`bin/rails db:prepare`). A missing Rakefile and an exception raised
+// while loading the app both ended the rebuild summary with Rake's help line `(See full trace by running task with
+// --trace)`; the cause was only in the log. These are the dogfood's own outputs.
+const railsFrames = [
+  "/usr/local/bundle/gems/railties-8.0.5.1/lib/rails/commands/rake/rake_command.rb:43:in 'block in Rails::Command::RakeCommand.with_rake'",
+  "/usr/local/bundle/gems/railties-8.0.5.1/lib/rails/commands/rake/rake_command.rb:20:in 'Rails::Command::RakeCommand.perform'",
+  "/usr/local/bundle/gems/railties-8.0.5.1/lib/rails/command.rb:150:in 'Rails::Command.invoke_rake'",
+  "/usr/local/bundle/gems/railties-8.0.5.1/lib/rails/commands.rb:18:in '<top (required)>'",
+  "bin/rails:4:in '<main>'"
+];
+test.each([
+  [
+    'an exception raised by the app',
+    [
+      'r2ll-local-start',
+      'bin/rails aborted!',
+      'r2ll planned startup crash',
+      "/app/config/application.rb:17:in '<top (required)>'",
+      "/app/Rakefile:1:in 'Kernel#require_relative'",
+      ...railsFrames,
+      '(See full trace by running task with --trace)'
+    ],
+    ['bin/rails aborted!', 'r2ll planned startup crash', "/app/config/application.rb:17:in '<top (required)>'"]
+  ],
+  [
+    'a missing Rakefile',
+    [
+      'bin/rails aborted!',
+      'No Rakefile found (looking for: rakefile, Rakefile, rakefile.rb, Rakefile.rb)',
+      ...railsFrames,
+      '(See full trace by running task with --trace)'
+    ],
+    ['bin/rails aborted!', 'No Rakefile found (looking for: rakefile, Rakefile, rakefile.rb, Rakefile.rb)']
+  ],
+  [
+    'a failed task with its class and the task list',
+    [
+      'rake aborted!',
+      'ActiveRecord::ConnectionNotEstablished: connection to server at "127.0.0.1", port 5432 failed: Connection refused',
+      "/usr/local/bundle/gems/activerecord-8.0.5/lib/active_record/connection_adapters/postgresql_adapter.rb:63:in 'PG.connect'",
+      "/app/lib/tasks/seed.rake:4:in 'block in <main>'",
+      'Tasks: TOP => db:seed',
+      '(See full trace by running task with --trace)'
+    ],
+    [
+      'rake aborted!',
+      'ActiveRecord::ConnectionNotEstablished: connection to server at "127.0.0.1", port 5432 failed: Connection refused',
+      "/app/lib/tasks/seed.rake:4:in 'block in <main>'"
+    ]
+  ]
+])("Rake's abort quotes the cause and the app's first frame: %s", (_, stderr, summary) => {
+  expect(describeContainerExit(stderr.join('\n'))).toBe(summary.join('\n'));
+});

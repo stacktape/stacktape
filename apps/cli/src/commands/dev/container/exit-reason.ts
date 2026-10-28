@@ -119,10 +119,41 @@ const describeRubyError = (lines: string[]): string | undefined => {
   return [lines[errorIndex]!, ...quoted].join('\n');
 };
 
+/** Rake's first line when a task (`bin/rails db:prepare`, `rake`) raised: `bin/rails aborted!`. */
+const RAKE_ABORTED_LINE = /^\S+ aborted!$/;
+/** A Ruby backtrace line: `/app/config/application.rb:17:in '<top (required)>'`. */
+const RUBY_FRAME = /^\S+:\d+:in [`']/;
+/** Frames of Ruby, installed gems and the binstubs that start them, which an app's error is rarely about. */
+const RUBY_LIBRARY_FRAME = /\/gems\/|\/lib\/ruby\/|\/rubygems\/|^(?:\S*\/)?bin\/(?:rails|rake|bundle)\b|^<internal:/;
+
+/** The longest quoted cause: an exception message can hold anything the app put in it. */
+const MAX_CAUSE_CHARS = 300;
+
+/**
+ * Rake prints `bin/rails aborted!`, the exception, its backtrace, `Tasks: TOP => ...` and a help line. The exception's
+ * line and the first frame of the app's own code explain the failure; the help line does not. Only the exception's
+ * first line is quoted, shortened: a message that prints a whole object, such as `ENV.inspect`, would otherwise fill
+ * the summary.
+ */
+const describeRakeAbort = (lines: string[]): string | undefined => {
+  const abortedIndex = lines.findLastIndex((line) => RAKE_ABORTED_LINE.test(line));
+  if (abortedIndex < 0) return undefined;
+  const rest = lines.slice(abortedIndex + 1);
+  const cause = rest.find((line) => line.trim() && !RUBY_FRAME.test(line) && !/^\(See full trace/.test(line));
+  const appFrame = rest.find((line) => RUBY_FRAME.test(line) && !RUBY_LIBRARY_FRAME.test(line));
+  const quotedCause =
+    cause && cause.length > MAX_CAUSE_CHARS ? `${cause.slice(0, MAX_CAUSE_CHARS).trimEnd()}...` : cause;
+  return [lines[abortedIndex]!, ...(quotedCause ? [quotedCause] : []), ...(appFrame ? [appFrame] : [])].join('\n');
+};
+
 export const describeContainerExit = (stderr: string): string | undefined => {
   const lines = stderr.split('\n').map((line) => line.trimEnd());
   const described =
-    describePythonTraceback(lines) ?? describeBunError(lines) ?? describeNodeError(lines) ?? describeRubyError(lines);
+    describePythonTraceback(lines) ??
+    describeBunError(lines) ??
+    describeNodeError(lines) ??
+    describeRakeAbort(lines) ??
+    describeRubyError(lines);
   if (described) return described;
   const meaningful = lines.filter((line) => line.trim());
   return (meaningful.findLast((line) => /error/i.test(line)) ?? meaningful.at(-1))?.trim();

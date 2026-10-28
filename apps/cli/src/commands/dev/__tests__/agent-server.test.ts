@@ -48,7 +48,13 @@ await startAgentServer(port, ${JSON.stringify(directory)}, {
   getEnvVars: (name) => (name === 'api' ? environment : null),
   getSecretEnvNames: () => new Set(['PAYMENT_WEBHOOK'])
 });
-updateAgentState({ phase: 'ready', workloads: [{ name: 'api', type: 'container', status: 'running' }] });
+updateAgentState({
+  phase: 'ready',
+  workloads: [
+    { name: 'api', type: 'container', status: 'running' },
+    { name: 'worker', type: 'container', status: 'error', error: 'Stack update failed: MainTableGlobalTable' }
+  ]
+});
 console.log(JSON.stringify({ port, tokenFile: getAgentTokenFile() }));
 `
   );
@@ -193,7 +199,11 @@ test('the dev agent refuses web pages, foreign hosts and callers without its tok
     expect(isRunning(agent.pid!)).toBeTrue();
     const status = await send(port, { path: '/status', headers: { ...auth, host: `localhost:${port}` } });
     expect(status.status).toBe(200);
-    expect(status.body.data).toMatchObject({ phase: 'ready', ready: true, failedWorkloads: [] });
+    expect(status.body.data).toMatchObject({
+      phase: 'ready',
+      ready: false,
+      failedWorkloads: [{ name: 'worker', error: 'Stack update failed: MainTableGlobalTable' }]
+    });
 
     const environment = await send(port, { path: '/env/api', headers: { ...auth, host } });
     expect(environment.status).toBe(200);
@@ -207,6 +217,12 @@ test('the dev agent refuses web pages, foreign hosts and callers without its tok
       STP_DB_HOST: 'localhost',
       PORT: '3000'
     });
+
+    // r2ll: a workload that failed before dev mode prepared its environment answered INTERNAL_ERROR, with a hint that
+    // named workload types whose environments are tracked.
+    const notStarted = await send(port, { path: '/env/worker', headers: { ...auth, host } });
+    expect(notStarted.body).toMatchObject({ ok: false, code: 'WORKLOAD_NOT_STARTED' });
+    expect(notStarted.body.message).toContain('Stack update failed: MainTableGlobalTable');
 
     // The developer's own tool, with the token and a JSON body, stops the agent; the token goes with it.
     const stop = await send(port, {

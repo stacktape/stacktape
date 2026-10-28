@@ -186,7 +186,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 
 ## Agent mode
 
-Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code or Cursor. Pass `--agent` to start it as a background daemon:
+Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code, Codex or Cursor. Pass `--agent` to start it as a background daemon:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --resources all --agent

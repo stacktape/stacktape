@@ -162,7 +162,7 @@ const STACKTAPE_AUTH_FAILURE_NEXT_ACTIONS = [
   'Stacktape authentication failed. Stop here and ask the user to authenticate Stacktape in their own terminal with stacktape login. For CI, tell them to configure a dedicated STACKTAPE_API_KEY secret outside this conversation.',
   'Do not call generic AWS/AWS SDK MCP tools to work around a Stacktape authentication failure. Raw AWS access bypasses Stacktape project/stage/resource mapping and safety gates.',
   'Never read ~/.stacktape, ~/.aws, ~/.ssh, or persisted credential files to recover from this failure.',
-  'Never ask the user to paste an API key into chat, and never inline an API key, token, password, or connection string into Bash, MCP arguments, rawTail, or the final answer.'
+  'Never ask the user to paste an API key into chat, and never inline an API key, token, password, or connection string into shell commands, MCP arguments, rawTail, or the final answer.'
 ];
 
 export const clampInteger = ({
@@ -514,7 +514,7 @@ export const buildCliRunOutput = ({
   const failureNextActions = authFailure
     ? STACKTAPE_AUTH_FAILURE_NEXT_ACTIONS
     : [
-        `Do not retry stacktape ${publicCommandName(command)} through Bash/shell. The MCP result above is the canonical execution result.`,
+        `Do not retry stacktape ${publicCommandName(command)} as a shell command. The MCP result above is the canonical execution result.`,
         rawTail
           ? 'Use rawTail to explain the failure, then ask the user for the missing input or auth step if needed.'
           : outputLog

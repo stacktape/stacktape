@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
+import { devTuiState } from 'src/app/tui-manager/dev/state';
 import { CliError } from '@utils/errors';
 import { updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
 import type { ConfigChange } from './config-change';
@@ -63,7 +64,8 @@ type WorkloadQueue = {
  * `running` over a newer failed one, and two builds of one function shared its artifact folder.
  *
  * A rebuild deploys code only. While the configuration file differs from the one the session started with, rebuilds
- * are refused; the refused workloads keep the status `error` and rebuild once the configuration matches again.
+ * are refused; the refused workloads keep their status and previous build, the session reports the restart it needs, and
+ * they rebuild once the configuration matches again.
  */
 export const createWorkloadRebuilder = ({
   rebuild,
@@ -150,17 +152,27 @@ export const createWorkloadRebuilder = ({
   };
 
   const rebuildWorkloads = async (requested: string[]): Promise<RebuildResult> => {
+    // A refused rebuild leaves each workload as it was: its previous build keeps serving.
+    const previous = new Map(
+      devTuiState
+        .getState()
+        .workloads.filter(({ name }) => requested.includes(name))
+        .map((workload) => [workload.name, workload])
+    );
     // Not running from the moment of the request: the configuration check can take a moment.
     for (const name of requested) devTuiManager.setWorkloadStatus(name, 'starting');
     const configChange = await checkConfig();
     if (configChange.changed) {
-      const error = `Not rebuilt: ${configChange.reason}`;
       for (const name of requested) {
         refused.add(name);
-        devTuiManager.setWorkloadStatus(name, 'error', { error });
+        const { status = 'running', error } = previous.get(name) ?? {};
+        devTuiManager.setWorkloadStatus(name, status, { error });
       }
       devTuiManager.systemLog(configChange.reason, 'warn');
-      return { ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED', message: configChange.reason };
+      const serving = requested.length
+        ? ` ${requested.join(', ')} still run${requested.length === 1 ? 's' : ''} the previous build.`
+        : '';
+      return { ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED', message: `${configChange.reason}${serving}` };
     }
 
     // Workloads refused earlier still run outdated code; they rebuild with this request.

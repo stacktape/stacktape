@@ -77,3 +77,24 @@ export const maskAgentEnvironment = (
         : scrubKeepingPrivateAddresses(String(value))
     ])
   );
+
+/** Shorter values (ports, flags, counts) also appear in text that holds no secret, such as line numbers. */
+const MIN_MASKED_VALUE_LENGTH = 6;
+
+/**
+ * `text` with every value of `environment` that `/env` masks replaced by its masked form, then through the same
+ * scrubber. Output the app wrote, such as a crash summary, can quote a secret it read: `raise ENV.inspect`.
+ */
+export const maskEnvironmentValuesInText = (
+  text: string,
+  environment: Record<string, string>,
+  secretNames: ReadonlySet<string> = new Set()
+): string => {
+  const masked = maskAgentEnvironment(environment, secretNames);
+  const secrets = Object.entries(environment)
+    .filter(([name, value]) => String(value).length >= MIN_MASKED_VALUE_LENGTH && masked[name] !== String(value))
+    // A longer value first, so a value that contains another is replaced whole.
+    .sort(([, first], [, second]) => String(second).length - String(first).length);
+  const replaced = secrets.reduce((result, [name, value]) => result.replaceAll(String(value), masked[name]!), text);
+  return scrubKeepingPrivateAddresses(replaced);
+};

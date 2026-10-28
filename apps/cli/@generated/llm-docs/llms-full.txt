@@ -5914,7 +5914,7 @@ stacktape mcp remove --coding-agents cursor
 Source: `apps/docs/content/cli/mcp.mdx`
 Route: `/cli/mcp`
 
-The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Cursor, Windsurf, and VS Code Copilot.
+The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Codex, Cursor, Windsurf, and VS Code Copilot.
 
 ## Usage
 
@@ -16603,7 +16603,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 
 ## Agent mode
 
-Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code or Cursor. Pass `--agent` to start it as a background daemon:
+Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code, Codex or Cursor. Pass `--agent` to start it as a background daemon:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --resources all --agent
@@ -23999,7 +23999,20 @@ See [Lambda function runtime](/resources/compute/lambda-function#runtime-resourc
 
 ## Handler function
 
-`handlerFunction` names the function in the entry file that Lambda invokes. It is ignored for Rust, where the compiled binary is the handler.
+`handlerFunction` names the function in the entry file that Lambda invokes. It is ignored for Go and Rust, where the compiled binary is the handler.
+
+Stacktape builds the full Lambda handler from the entry file:
+
+| Language | Lambda handler | `handlerFunction` default |
+|---|---|---|
+| Python | `<module>.<handlerFunction>`, for example `src.main.handler` | `handler` |
+| Ruby | `<file>.<handlerFunction>`, for example `src/handler.handler` | `handler` |
+| Java | `<package>.<Class>::<handlerFunction>`, for example `com.example.Handler::handleRequest` | `handleRequest` |
+| .NET | `<Assembly>::<Namespace>.<Class>::<handlerFunction>`, for example `Orders::Orders.Api.Function::FunctionHandler` | `FunctionHandler` |
+
+For Java, the class is the entry file's class in the package its `package` line declares: `src/main/java/com/example/Handler.java` with `package com.example;` is `com.example.Handler`. A capitalized `handlerFunction` such as `Other` names another class of the same package and calls its `handleRequest`; `'Other::handle'` also names the method, and a fully qualified `com.example.Other::handle` is used as written.
+
+For .NET, the assembly is the project's `AssemblyName`, or the `.csproj` file name when the project sets none. The namespace comes from the entry file, and the class is the one named like the file. A `handlerFunction` that contains `::` is a complete handler and is used as written. An entry file with top-level statements and no class is an executable assembly; its handler is the assembly name.
 
 ## Python
 
@@ -27946,7 +27959,7 @@ Route: `/resources/compute/batch-job`
 
 A Stacktape batch job runs a containerized task to completion for work such as data processing, ML training, video encoding, and imports. Use a batch job when the work has a clear finish point, needs explicit CPU, memory, or GPU requirements, and should be triggered by schedules, HTTP requests, storage events, queues, streams, or event buses.
 
-**Pricing context:** For Fargate-backed batch jobs, the provided pricing data uses vCPU and memory billing while the job runs: approximately ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB for continuous us-east-1 usage. Spot capacity can save up to 90% when interruptions are acceptable.
+**Pricing context:** Batch jobs run on EC2 instances that AWS Batch starts for queued jobs and terminates when the queue is empty, so you pay for the instances while jobs run. Spot capacity can save up to 90% when interruptions are acceptable.
 
 ## When to use
 
@@ -28033,7 +28046,7 @@ export default defineConfig(() => {
 ```
 
 
-`cpu` is the number of vCPUs, and `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
+`cpu` is the number of vCPUs, a whole number, because AWS Batch assigns whole vCPUs on EC2 instances. `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
 
 Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image. Jobs with `gpu` use its NVIDIA variant on `p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2. Job credentials come from the job role, not instance metadata, but software inside the container that reads instance metadata with IMDSv1, or that reads memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
 
@@ -28226,7 +28239,7 @@ Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Ki
 
 ### How should I size cpu and memory for a batch job?
 
-`cpu` is the number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
+`cpu` is a whole number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
 
 ### How much does a batch job cost?
 
@@ -48255,7 +48268,7 @@ Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API
 
 Agent mode is designed for workflows where an AI coding assistant drives the edit-test-fix loop. Enable it when:
 
-- **AI-driven development** — You're using Claude Code, Cursor, Windsurf, or another AI coding assistant to build your application. The assistant starts `stacktape dev --agent` as a shell command, then uses the HTTP API to check status, rebuild workloads, read the log file path, query local databases, call AWS SDK commands, and stop dev mode.
+- **AI-driven development** — You're using Claude Code, Codex, Cursor, Windsurf, or another AI coding assistant to build your application. The assistant starts `stacktape dev --agent` as a shell command, then uses the HTTP API to check status, rebuild workloads, read the log file path, query local databases, call AWS SDK commands, and stop dev mode.
 - **Automated test harnesses** — You want a script to verify application behavior during development by hitting the status, env, or database endpoints.
 - **Database inspection without client tools** — You need to run SQL queries, check Redis keys, scan DynamoDB items, or search OpenSearch indices against local dev databases without installing separate database clients.
 
@@ -48290,7 +48303,7 @@ A first start creates the account's dev network and the stage's dev stack and ta
 
 | `eventType`    | Reports                                                                                         |
 | -------------- | ----------------------------------------------------------------------------------------------- |
-| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), a heartbeat every 20 s, and "Dev session ready" |
+| `DEV_SESSION`  | The agent's port and token file first (`detail.kind: "dev-agent"`), the project, stage, region and config file the session resolved (`detail.kind: "dev-target"`), a heartbeat every 20 s, and "Dev session ready" |
 | `DEV_NETWORK`  | Creating, updating or reusing the dev network                                                   |
 | `DEV_BOX`      | Starting the dev box and connecting to it                                                       |
 | `DEV_STACK`    | Creating or updating the dev stack; CloudFormation `UPDATE_STACK` events carry resource counts  |
@@ -48463,7 +48476,7 @@ This file-based approach is intentional — AI coding assistants already have fi
 
 ### Environment variables
 
-The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. A function that uses a local database shows that database's `STP_*` variables with the address of the [dev box](/local-development/debugging-lambda-functions#connecting-to-local-databases), through which the function reaches it. For other workload types whose env vars are tracked by dev mode (currently container, hosting-bucket, and nextjs-web workloads), variables are read from the local runner state.
+The `/env/{workload}` endpoint returns the environment variables available to a specific workload. For Lambda functions, variables are fetched from the deployed AWS function configuration. A function that uses a local database shows that database's `STP_*` variables with the address of the [dev box](/local-development/debugging-lambda-functions#connecting-to-local-databases), through which the function reaches it. For containers and frontends, variables are read from the local runner state. A container whose image failed to build still shows the environment it would get. A workload that failed before dev mode prepared its environment, for example because the dev stack did not deploy, returns `WORKLOAD_NOT_STARTED` with its error.
 
 ```bash
 curl -H "$AUTH" $AGENT/env/api
@@ -48529,7 +48542,7 @@ The workload then has the status `error` and `/status` reports `ready: false` un
 
 When the rebuilt workload's files are also used by other workloads, such as a shared package in a monorepo, and changed after those workloads were last built, the result names them in `staleWorkloads` with the changed files, and the message says so: `Rebuilt api. quote, report also use changed files (packages/shared/src/index.ts) and still run the previous build; rebuild them or rebuild all.` With `--watch`, a change rebuilds every workload that uses the file.
 
-A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads have the status `error` until they are rebuilt; if you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
+A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads keep their status and their previous build keeps serving; `ready` stays false and `restartRequired` explains why. If you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
 
 With `--watch`, dev mode rebuilds a workload when one of its source files changes, through the same path, so a failed build sets the same `error` status and writes the error to the log file. It also watches the configuration file and sets `restartRequired` when it changes. `stacktape dev --agent --watch` reports the session started only after the watcher is running, so an edit made right after the start is rebuilt.
 
@@ -49194,7 +49207,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`query`** runs `sql` on PostgreSQL or MySQL, a Redis `command` such as `GET session:1`, or a DynamoDB query (`pk`, optional `sk` and `index`) or scan (`filter`). `resource` names the database and can be omitted when only one runs. A statement that deletes or changes data in bulk (`DROP`, `TRUNCATE`, `FLUSHALL`, `UPDATE` or `DELETE` without `WHERE`) returns `DESTRUCTIVE_OPERATION` until it is repeated with `confirm: true`.
 - **`reset_db`** gives the assistant a known database state without restarting dev mode; a reset of a small database takes milliseconds, a `freshDb` restart about 13 seconds. With `confirm: true` it deletes every row of the PostgreSQL and MySQL tables, every Redis key and every DynamoDB item of `resource`, or of every local database when `resource` is omitted. Tables, indexes and migration history tables such as `_prisma_migrations` stay, so the application needs no new migration. PostgreSQL identity columns and MySQL `AUTO_INCREMENT` counters start again at 1. `keepTables` names more tables to keep. OpenSearch is not supported; start dev mode with `freshDb` to delete its data.
 - **`seed`** runs a `local-script` from the config's `scripts` section (`script`, default `seed`) with the local database connections and returns its output. It stops the script after `timeoutSeconds` (default 50, at most 280). A script added to the config after dev mode started returns `CONFIG_CHANGED_RESTART_REQUIRED`: dev mode runs the config it started with, so it has to restart first. See [Reset and seed local databases](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) for the script.
-- **`env`** returns the environment of a `workload` with secret values masked. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region`) with the dev agent's credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does.
+- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region`) with the dev agent's credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
 - **`stop`** terminates the active session.
 
 `query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.
