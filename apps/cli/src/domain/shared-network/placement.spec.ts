@@ -34,8 +34,10 @@ describe('network placement of a first deploy', () => {
     expect(kindOf({ stageName: 'main', canAsk: true })).toBe('ask');
     expect(kindOf({ stageName: 'main', canAsk: true, answeredStageType: 'non-production' })).toBe('shared');
     expect(kindOf({ stageName: 'main', canAsk: true, answeredStageType: 'production' })).toBe('own');
-    // A name that decides is never asked about.
+    // A name that decides is never asked about; one with both kinds of token does not decide.
     expect(kindOf({ stageName: 'dev', canAsk: true })).toBe('shared');
+    expect(kindOf({ stageName: 'pre-prod', canAsk: true })).toBe('ask');
+    expect(kindOf({ stageName: 'prod-ci' })).toBe('own');
   });
 
   test('vpc.shared wins over every classification', () => {
@@ -94,6 +96,13 @@ describe('network placement of a deployed stage', () => {
       firstDeploy({ deployed: 'shared', explicitStageType: 'production', shared: true })
     );
     expect('warning' in acknowledged && acknowledged.warning).toBeFalsy();
+  });
+
+  test('a shared stage cannot switch to a reused VPC', () => {
+    expect(decideNetworkPlacement(firstDeploy({ deployed: 'shared', reuseVpc: true }))).toMatchObject({
+      kind: 'error',
+      code: 'NETWORK_PLACEMENT_FIXED'
+    });
   });
 
   test('a shared stage cannot add what the shared network cannot host', () => {

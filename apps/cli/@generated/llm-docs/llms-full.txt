@@ -9498,7 +9498,7 @@ Network: own VPC (the stage name `acme` does not say whether it is production). 
 1. `stackConfig.vpc.shared: true` or `false` decides.
 2. Otherwise `stackConfig.stageType`, then the stage type chosen in the Stacktape Console: non-production stages join the shared network, production stages get a VPC of their own.
 3. Otherwise the stage name: names with `dev`, `staging`, `test`, `qa`, `uat`, `preview`, `sandbox`, `pr`, `feature`, `feat`, `e2e` or `ci` join the shared network; `prod`, `production`, `prd` and `live` get their own VPC.
-4. A name that says neither (`main`, `acme`) asks once, "Is stage acme production?", when you deploy from a terminal. In CI, agents, MCP and remote runners nothing is asked: the stage gets a VPC of its own, and the output says how to choose. The answer is not stored for you: add the `stackConfig.stageType` line the deploy prints so paging, permissions and security checks classify the stage the same way.
+4. A name that says neither (`main`, `acme`, or one with both kinds of word, such as `pre-prod`) asks once, "Is stage acme production?", when you deploy from a terminal. In CI, agents, MCP and remote runners nothing is asked: the stage gets a VPC of its own, and the output says how to choose. The answer is not stored for you: add the `stackConfig.stageType` line the deploy prints so paging, permissions and security checks classify the stage the same way.
 
 Stages with `vpc.reuseVpc`, [MongoDB Atlas](/resources/databases/mongodb-atlas) clusters, Kafka clusters with function triggers, or `stackConfig.nat` set to `gateway` or `ha-ec2` always get a VPC of their own, and the output says why.
 
@@ -93227,7 +93227,7 @@ and teams stay under the AWS limit of 5 VPCs per region. Each stage keeps its ow
 
 By default, a stage joins the shared network when it is non-production: `stackConfig.stageType`, then the type
 chosen in the Stacktape Console, then the stage name decides (`dev`, `staging`, `test`, `preview`, `pr-12`,
-`feature-x`, ...). Production stages and names that say neither (`main`, `acme`) get a VPC of their own. Set this
+`feature-x`, ...). Production stages and names that say neither (`main`, `acme`, `pre-prod`) get a VPC of their own. Set this
 to `true` or `false` to choose yourself. Every deploy prints where the stage runs and why.
 
 The choice is fixed by the first deploy that creates networked resources: moving a deployed stage to or from

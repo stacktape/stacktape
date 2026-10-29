@@ -139,6 +139,9 @@ class VpcManager {
       : { ...ports, CidrIp: this.getVpcCidr() };
 
   init = async (params?: { reuseVpc?: VpcReuseConfig; resourcesRequiringPrivateSubnet?: StpResource[] }) => {
+    // A process that runs several commands (MCP) starts each one in a VPC of the stack's own; deploy and the previews
+    // place it in the shared network again (`prepareStageNetwork`).
+    this.useSharedNetwork(undefined);
     // Check if reuseVpc is configured
     const reuseVpc = params?.reuseVpc;
     if (!reuseVpc) {

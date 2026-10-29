@@ -41,7 +41,7 @@ and teams stay under the AWS limit of 5 VPCs per region. Each stage keeps its ow
 
 By default, a stage joins the shared network when it is non-production: `stackConfig.stageType`, then the type
 chosen in the Stacktape Console, then the stage name decides (`dev`, `staging`, `test`, `preview`, `pr-12`,
-`feature-x`, ...). Production stages and names that say neither (`main`, `acme`) get a VPC of their own. Set this
+`feature-x`, ...). Production stages and names that say neither (`main`, `acme`, `pre-prod`) get a VPC of their own. Set this
 to `true` or `false` to choose yourself. Every deploy prints where the stage runs and why.
 
 The choice is fixed by the first deploy that creates networked resources: moving a deployed stage to or from

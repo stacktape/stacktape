@@ -65,6 +65,15 @@ const describeExclusions = (exclusions: string[]) => exclusions.join(', ');
 export const decideNetworkPlacement = (input: NetworkPlacementInput): NetworkPlacementDecision => {
   const { stageName, shared, deployed, exclusions } = input;
   if (input.reuseVpc) {
+    if (deployed === 'shared' && input.needsVpc) {
+      // Leaving the shared network would also turn the stage group's rules back into CIDR rules of the reused VPC.
+      return {
+        kind: 'error',
+        code: 'NETWORK_PLACEMENT_FIXED',
+        message: `Stage \`${stageName}\` runs in the shared non-production network ${NETWORK}, so it cannot use \`stackConfig.vpc.reuseVpc\`.`,
+        hints: [...MOVE_HINTS, 'Or remove `stackConfig.vpc.reuseVpc` to keep the stage where it is.']
+      };
+    }
     return { kind: 'reused', reason: '`stackConfig.vpc.reuseVpc`' };
   }
   if (!input.needsVpc) return { kind: 'none', reason: 'no resource of the stage needs a VPC' };
