@@ -286,3 +286,25 @@ process.exit(0);
   );
   expect(result).toEqual({ adopted: 'stp-shop-adopt-db', removed: [], stopped: false });
 }, 30_000);
+
+// r2af P2: the start's parent looked for a running agent and deleted the dead one's lock file, so the agent child it
+// started could no longer read the SSM session to the dev box the dead agent left open, and never closed it.
+test('agent discovery keeps the lock file of a dead session until the next start reads its open SSM session', async () => {
+  const { findOrphanedDevBoxSession, getAllRunningAgents, getRunningAgent } = await import('../agent-daemon');
+  writeAgentLockFile(lockOf({ pid: deadPid(), stage: 'orphan', devBoxSessionId: 'stacktape-dev-orphan-session' }));
+  expect(await getRunningAgent('shop', 'orphan')).toBeNull();
+  expect((await getAllRunningAgents()).some(({ stage }) => stage === 'orphan')).toBe(false);
+  expect(findOrphanedDevBoxSession('shop', 'orphan')).toBe('stacktape-dev-orphan-session');
+
+  // A dead session without one leaves nothing to close: its lock file goes.
+  writeAgentLockFile(lockOf({ pid: deadPid(), stage: 'dead' }));
+  expect(await getRunningAgent('shop', 'dead')).toBeNull();
+  expect(existsSync(getLockFilePath('shop', 'dead'))).toBe(false);
+
+  // The next start replaces the dead session's lock file with its own.
+  const next = lockOf({ pid: process.pid, stage: 'orphan' });
+  expect(await acquireAgentLockFile(next)).toBeNull();
+  expect(JSON.parse(readFileSync(getLockFilePath('shop', 'orphan'), 'utf8')).pid).toBe(process.pid);
+  expect(findOrphanedDevBoxSession('shop', 'orphan')).toBeUndefined();
+  rmSync(getLockFilePath('shop', 'orphan'), { force: true });
+});

@@ -8,10 +8,103 @@ let server: Server;
 let endpoint: string;
 const requests: string[] = [];
 
+/** A deployed template with literal values: environment variables, a password and a stored connection string. */
+const JSON_TEMPLATE = {
+  Parameters: {
+    ApiKey: { Type: 'String', NoEcho: true, Default: 'noecho_default_secret_value' },
+    Tier: { Type: 'String', Default: 'standard' }
+  },
+  Resources: {
+    ApiFunction: {
+      Type: 'AWS::Lambda::Function',
+      Properties: {
+        FunctionName: 'shop-dev-api',
+        Environment: { Variables: { STRIPE_KEY: 'lambda_template_secret_value', TABLE: { Ref: 'Table' } } }
+      }
+    },
+    TaskDefinition: {
+      Type: 'AWS::ECS::TaskDefinition',
+      Properties: {
+        ContainerDefinitions: [{ Name: 'web', Environment: [{ Name: 'TOKEN', Value: 'ecs_template_secret_value' }] }]
+      }
+    },
+    JobDefinition: {
+      Type: 'AWS::Batch::JobDefinition',
+      Properties: {
+        ContainerProperties: { Environment: [{ Name: 'TOKEN', Value: 'batch_template_secret_value' }] },
+        EksProperties: { PodProperties: { Containers: [{ Env: [{ Name: 'T', Value: 'eks_template_secret_value' }] }] } }
+      }
+    },
+    Canary: {
+      Type: 'AWS::Synthetics::Canary',
+      Properties: { RunConfig: { EnvironmentVariables: { TOKEN: 'canary_template_secret_value' } } }
+    },
+    Database: {
+      Type: 'AWS::RDS::DBInstance',
+      Properties: { DBInstanceIdentifier: 'shop-dev-db', MasterUserPassword: 'rds_template_secret_value' }
+    },
+    StpSensitiveData: {
+      Type: 'Custom::StacktapeServiceLambda',
+      Properties: {
+        sensitiveData: [{ ssmParameterName: '/stp/shop-dev/db', value: 'connection_secret_value' }]
+      }
+    }
+  }
+};
+const YAML_TEMPLATE = `Resources:
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Environment:
+        Variables:
+          STRIPE_KEY: yaml_template_secret_value
+`;
+
 beforeAll(async () => {
   server = createServer((request, response) => {
-    request.resume();
+    let body = '';
+    request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
+      const answer = (contentType: string, payload: string) => {
+        response.writeHead(200, { 'content-type': contentType });
+        response.end(payload);
+      };
+      const target = String(request.headers['x-amz-target'] ?? '');
+      if (target.endsWith('.DescribeUserPoolClient')) {
+        requests.push('cognito.DescribeUserPoolClient');
+        return answer(
+          'application/x-amz-json-1.1',
+          JSON.stringify({
+            UserPoolClient: {
+              ClientId: 'shop-dev-client',
+              ClientName: 'web',
+              ClientSecret: 'cognito_client_secret_value'
+            }
+          })
+        );
+      }
+      if (request.url?.startsWith('/canary/')) {
+        requests.push('synthetics.GetCanary');
+        return answer(
+          'application/json',
+          JSON.stringify({
+            Canary: {
+              Name: 'shop-dev-check',
+              RunConfig: { TimeoutInSeconds: 60, EnvironmentVariables: { API_TOKEN: 'canary_secret_value' } }
+            }
+          })
+        );
+      }
+      if (new URLSearchParams(body).get('Action') === 'GetTemplate') {
+        requests.push('cloudformation.GetTemplate');
+        const stackName = new URLSearchParams(body).get('StackName');
+        const templateBody = stackName === 'shop-yaml' ? YAML_TEMPLATE : JSON.stringify(JSON_TEMPLATE);
+        const escaped = templateBody.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        return answer(
+          'text/xml',
+          `<GetTemplateResponse xmlns="http://cloudformation.amazonaws.com/doc/2010-05-15/"><GetTemplateResult><TemplateBody>${escaped}</TemplateBody><StagesAvailable><member>Original</member></StagesAvailable></GetTemplateResult><ResponseMetadata><RequestId>r2ag</RequestId></ResponseMetadata></GetTemplateResponse>`
+        );
+      }
       if (request.url === '/v1/describejobs') {
         requests.push('batch.DescribeJobs');
         response.writeHead(200, { 'content-type': 'application/json' });
@@ -85,7 +178,6 @@ beforeAll(async () => {
         );
         return;
       }
-      const target = String(request.headers['x-amz-target'] ?? '');
       requests.push(target);
       const [status, type, message] = target.endsWith('.ListQueues')
         ? [400, 'com.amazon.coral.service#AccessDeniedException', 'User is not authorized to perform: sqs:listqueues']
@@ -163,4 +255,58 @@ test('Batch jobs keep the container overrides and EKS environment of the run red
   expect(result).toMatchObject({
     data: { jobs: [{ container: { environment: [{ name: 'STP_TRIGGER_EVENT_DATA', value: '[redacted]' }] } }] }
   });
+});
+
+// r2af finding 3: reads the catalog accepts returned a Cognito client secret, a canary's environment and the literal
+// values of a template, which `aws call` and the dev agent pass on to the caller's transcript.
+test('Cognito client secrets, canary environments and literal template values are masked', async () => {
+  const client = await executeAwsSdkCommand(
+    'cognito',
+    'DescribeUserPoolClient',
+    { UserPoolId: 'us-west-1_pool', ClientId: 'shop-dev-client' },
+    context()
+  );
+  expect(client).toEqual({
+    ok: true,
+    data: { UserPoolClient: { ClientId: 'shop-dev-client', ClientName: 'web', ClientSecret: '[redacted]' } }
+  });
+
+  // The SDK's model of a canary's run configuration leaves its environment out; the executor masks it all the same.
+  const canary = await executeAwsSdkCommand('synthetics', 'GetCanary', { Name: 'shop-dev-check' }, context());
+  expect(canary).toMatchObject({ ok: true, data: { Canary: { RunConfig: { TimeoutInSeconds: 60 } } } });
+  expect(JSON.stringify(canary)).not.toContain('canary_secret_value');
+
+  const result = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: 'shop-dev' }, context());
+  expect(result.ok).toBeTrue();
+  const body = result.ok ? (result.data as { TemplateBody: string }).TemplateBody : '';
+  for (const secret of [
+    'noecho_default_secret_value',
+    'lambda_template_secret_value',
+    'ecs_template_secret_value',
+    'batch_template_secret_value',
+    'eks_template_secret_value',
+    'canary_template_secret_value',
+    'rds_template_secret_value',
+    'connection_secret_value'
+  ]) {
+    expect(body).not.toContain(secret);
+  }
+  // The rest of the template stays readable.
+  const template = JSON.parse(body);
+  expect(template.Parameters.Tier.Default).toBe('standard');
+  expect(template.Resources.ApiFunction.Properties).toEqual({
+    FunctionName: 'shop-dev-api',
+    Environment: { Variables: { STRIPE_KEY: '[redacted]', TABLE: '[redacted]' } }
+  });
+  expect(template.Resources.TaskDefinition.Properties.ContainerDefinitions[0].Environment).toEqual([
+    { Name: 'TOKEN', Value: '[redacted]' }
+  ]);
+  expect(template.Resources.StpSensitiveData.Properties.sensitiveData).toEqual([
+    { ssmParameterName: '/stp/shop-dev/db', value: '[redacted]' }
+  ]);
+
+  // A YAML template is not parsed for masking; it is refused instead.
+  const yaml = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: 'shop-yaml' }, context());
+  expect(yaml).toMatchObject({ ok: false, code: 'OPERATION_NOT_ALLOWED' });
+  expect(JSON.stringify(yaml)).not.toContain('yaml_template_secret_value');
 });

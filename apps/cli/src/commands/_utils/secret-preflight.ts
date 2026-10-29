@@ -117,8 +117,7 @@ const getGeneratedFor = ({ Tags }: TaggedSecret) =>
 /**
  * The dev stages that use a secret dev mode generated, one tag each (`devSecretUser`). A secret generated before these
  * tags existed has only the generating stage's tag, which then counts as its one user. Without `includeGenerator`, only
- * the user tags count: after a restore, or once a deleted stage removed its own tag, the generating stage's tag names a
- * stage that uses it no more.
+ * the user tags count: after a restore, the generating stage's tag names a stage that may use it no more.
  */
 const getDevSecretUsers = (
   secret: TaggedSecret,
@@ -131,65 +130,20 @@ const getDevSecretUsers = (
   return users.length || !generatedFor || !includeGenerator ? users : [generatedFor];
 };
 
-/** A deployment that is not a dev session adopted the secret (see `releaseFromDevOwnership`). */
-const isReleasedFromDev = ({ Tags }: TaggedSecret) => Tags?.some(({ Key }) => Key === tagNames.devSecretReleased());
-
 const isDevOwnedSecret = (secret: TaggedSecret) =>
-  !isReleasedFromDev(secret) && (getGeneratedFor(secret) !== undefined || getDevSecretUsers(secret).length > 0);
+  getGeneratedFor(secret) !== undefined || getDevSecretUsers(secret).length > 0;
 
 /** Secrets Manager refuses a tag beyond the 50 a secret may have. */
 const isTagLimitError = (error: unknown) =>
   ['ValidationException', 'InvalidParameterException', 'LimitExceededException'].includes((error as Error).name) &&
   /tag/i.test((error as Error).message);
 
-const isScheduledForDeletionError = (error: unknown) =>
-  /(scheduled|marked) for deletion/i.test(String((error as Error).message));
-
 /**
- * Runs a tag change of a secret this command uses. A dev stage's deletion that scheduled it meanwhile is undone first,
- * as for every secret a command needs that is scheduled for deletion (see `ensureMissingSecretsCreated`).
+ * Records which dev stages use a secret dev mode generated. A deployment that is not a dev session removes the dev tags:
+ * the secret is then the deployment's, and a CLI up to 4.0.0-preview.11, which deletes a dev stage's generated secrets
+ * with the stage, leaves it alone. No tag decides a deletion in this CLI, so a tag change that fails costs only the
+ * record and the command goes on.
  */
-const restoringScheduledDeletion = async (secretId: string, change: () => Promise<unknown>) => {
-  try {
-    await change();
-  } catch (error) {
-    if (!isScheduledForDeletionError(error)) throw error;
-    await awsSdkManager.secrets.restore({ secretId });
-    await change();
-  }
-};
-
-/**
- * Takes the secret out of dev ownership: no stage's deletion deletes it any more (see `deleteDevGeneratedSecrets`). The
- * released marker is set before the dev tags go; either one alone keeps the secret from a deletion that reads the tags
- * later.
- */
-const releaseFromDevOwnership = async (secret: TaggedSecret) => {
-  const secretId = secret.ARN || secret.Name!;
-  let marked = true;
-  await restoringScheduledDeletion(secretId, () =>
-    awsSdkManager.secrets.tag({ secretId, tags: [{ Key: tagNames.devSecretReleased(), Value: 'true' }] })
-  ).catch((error: Error) => {
-    // Without the marker, removing the dev tags still keeps the secret from every later deletion.
-    if (error.name !== 'AccessDeniedException' && !isTagLimitError(error)) throw error;
-    marked = false;
-  });
-  try {
-    await restoringScheduledDeletion(secretId, () =>
-      awsSdkManager.secrets.untag({
-        secretId,
-        tagKeys: [
-          tagNames.devGeneratedSecret(),
-          ...(secret.Tags ?? []).flatMap(({ Key }) => (Key?.startsWith(tagNames.devSecretUserPrefix()) ? [Key] : []))
-        ]
-      })
-    );
-  } catch (error) {
-    // The marker alone keeps the secret from every deletion.
-    if (!marked || (error as Error).name !== 'AccessDeniedException') throw error;
-  }
-};
-
 const updateDevSecretOwnership = async ({
   secret,
   devStackName,
@@ -199,12 +153,19 @@ const updateDevSecretOwnership = async ({
   devStackName?: string;
   restored: boolean;
 }) => {
-  const users = getDevSecretUsers(secret, { includeGenerator: !restored });
+  const secretId = secret.ARN || secret.Name!;
   try {
     if (!devStackName) {
-      await releaseFromDevOwnership(secret);
+      await awsSdkManager.secrets.untag({
+        secretId,
+        tagKeys: [
+          tagNames.devGeneratedSecret(),
+          ...(secret.Tags ?? []).flatMap(({ Key }) => (Key?.startsWith(tagNames.devSecretUserPrefix()) ? [Key] : []))
+        ]
+      });
       return;
     }
+    const users = getDevSecretUsers(secret, { includeGenerator: !restored });
     if (
       users.includes(devStackName) &&
       (secret.Tags ?? []).some(({ Key }) => Key === tagNames.devSecretUser(devStackName))
@@ -212,28 +173,11 @@ const updateDevSecretOwnership = async ({
       return;
     // A secret generated before user tags existed gets the tag of the stage that generated it too.
     await awsSdkManager.secrets.tag({
-      secretId: secret.ARN || secret.Name!,
+      secretId,
       tags: [...new Set([...users, devStackName])].map((user) => ({ Key: tagNames.devSecretUser(user), Value: user }))
     });
   } catch (error) {
-    if (devStackName && isTagLimitError(error)) {
-      // Without a record of every stage that uses it, deleting one could delete it under another: it is kept for good.
-      await releaseFromDevOwnership(secret).catch(() => {});
-      tuiManager.warn(
-        `Secret ${tuiManager.makeBold(secret.Name!)} is used by more dev stages than Secrets Manager can record in its tags (50 per secret), ` +
-          `so deleting dev stages no longer deletes it. Delete it with ${tuiManager.prettyCommand('secret:delete')} once no stage uses it.`
-      );
-      return;
-    }
-    if ((error as Error).name !== 'AccessDeniedException') throw error;
-    tuiManager.warn(
-      devStackName
-        ? `Secret ${tuiManager.makeBold(secret.Name!)} was generated by dev mode for ${users.join(', ')}. Without secretsmanager:TagResource, ` +
-            `this command could not record that ${devStackName} uses it too, so deleting ${users.join(' and ')} schedules it for deletion; ` +
-            'the next deployment or dev session that uses it within 7 days restores it.'
-        : `Secret ${tuiManager.makeBold(secret.Name!)} was generated by dev mode for ${users.join(', ')}, and deleting ${users.length === 1 ? 'that stage' : 'the last of them'} schedules it for deletion. ` +
-            'Without secretsmanager:TagResource and secretsmanager:UntagResource, this command could not keep it; the next deployment or dev session that uses it within 7 days restores it.'
-    );
+    if ((error as Error).name !== 'AccessDeniedException' && !isTagLimitError(error)) throw error;
   }
 };
 
@@ -253,7 +197,7 @@ export const ensureMissingSecretsCreated = async ({
   devStackName
 }: {
   generatedSecretDescription?: string;
-  /** Set by `stacktape dev`: the secrets it generates are deleted with this dev stack (see `deleteDevGeneratedSecrets`). */
+  /** Set by `stacktape dev`: the secrets it generates are tagged with this dev stack (see `releaseDevGeneratedSecrets`). */
   devStackName?: string;
 } = {}) => {
   const secretRefs = configManager.allSecretReferencesUsedInConfig;
@@ -262,8 +206,9 @@ export const ensureMissingSecretsCreated = async ({
   }
 
   const listed = await awsSdkManager.secrets.list({ includePlannedDeletion: true });
-  // A secret this command needs that is scheduled for deletion is restored, whatever its tags say: deleting a dev stage
-  // schedules the secrets dev mode generated for it, and a deployment or another dev stage may need one at that moment.
+  // A secret this command needs that is scheduled for deletion is restored, whatever its tags say: a CLI up to
+  // 4.0.0-preview.11 schedules the secrets dev mode generated for a dev stage it deletes, and another stage or a
+  // deployment may still need one.
   const restored = new Set<string>();
   for (const secret of listed) {
     if (!secret.DeletedDate || !secret.Name || !secretRefs.has(secret.Name)) continue;
@@ -348,7 +293,7 @@ export const ensureMissingSecretsCreated = async ({
         value: secretValue,
         ...(devStackName
           ? {
-              description: `Generated by stacktape dev for ${devStackName}; deleted with the last dev stage that uses it`,
+              description: `Generated by stacktape dev for ${devStackName}`,
               tags: [
                 { Key: tagNames.devGeneratedSecret(), Value: devStackName },
                 { Key: tagNames.devSecretUser(devStackName), Value: devStackName }
@@ -365,66 +310,29 @@ export const ensureMissingSecretsCreated = async ({
   }
 };
 
-/**
- * Removes a dev stack that is being deleted from the users of the secrets `stacktape dev` generated, and schedules each
- * secret that only this stage used for deletion. The rule is deliberately conservative: after removing its own user
- * tag, the stage reads the secret once, right before `DeleteSecret`, and deletes it only when dev mode generated it
- * (the generator tag), no deployment outside dev mode adopted it (no released marker) and no other dev stage's user
- * tag remains. Anything else keeps the secret, and so does a failed read or tag change.
- *
- * What races this check, a dev start or a deployment that takes up the secret a moment later, or an older CLI that
- * still schedules adopted secrets, is covered on the other side: every command that needs a secret scheduled for
- * deletion restores it (see `ensureMissingSecretsCreated`). The 7-day recovery window leaves room for that.
- */
-const DEV_SECRET_RECOVERY_DAYS = 7;
-
-export type DevSecretDeletion = {
-  deleted: string[];
-  /** Other dev stages use it; the deletion of the last of them deletes it. */
-  kept: { name: string; usedBy: string[] }[];
-  /** Kept for good: delete it with `secret:delete` once nothing needs it. */
-  retained: { name: string; usedBy: string }[];
+export type DevSecretRelease = {
+  name: string;
+  /** The other dev stages that use it, by their user tags. */
+  usedBy: string[];
 };
 
-export const deleteDevGeneratedSecrets = async ({ stackName }: { stackName: string }): Promise<DevSecretDeletion> => {
+/**
+ * Removes a dev stack that is being deleted from the users of the secrets `stacktape dev` generated, and keeps every
+ * secret. A deletion that decided from the tags whether anything else still uses a secret raced the deployments and
+ * dev sessions that take one up meanwhile, and a lost race deleted a password a running application reads; deleting a
+ * kept secret is the user's call (`secret delete`).
+ */
+export const releaseDevGeneratedSecrets = async ({ stackName }: { stackName: string }): Promise<DevSecretRelease[]> => {
   const used = (await awsSdkManager.secrets.list()).filter((secret) => getDevSecretUsers(secret).includes(stackName));
-  const result: DevSecretDeletion = { deleted: [], kept: [], retained: [] };
   for (const secret of used) {
-    const secretId = secret.ARN || secret.Name!;
-    const name = secret.Name!;
-    let current: Awaited<ReturnType<typeof awsSdkManager.secrets.describe>>;
-    try {
-      if ((secret.Tags ?? []).some(({ Key }) => Key === tagNames.devSecretUser(stackName))) {
-        await awsSdkManager.secrets.untag({ secretId, tagKeys: [tagNames.devSecretUser(stackName)] });
-      }
-      current = await awsSdkManager.secrets.describe({ secretId });
-    } catch {
-      result.retained.push({ name, usedBy: `${stackName}, whose use of it could not be checked` });
-      continue;
-    }
-    if (current.DeletedDate) {
-      // Another stage deleted at the same moment scheduled it.
-      result.deleted.push(name);
-      continue;
-    }
-    const usedBy = getDevSecretUsers({ ...secret, Tags: current.Tags }, { includeGenerator: false }).filter(
-      (user) => user !== stackName
-    );
-    if (isReleasedFromDev(current) || getGeneratedFor(current) === undefined) {
-      result.retained.push({ name, usedBy: 'a deployment outside dev mode' });
-      continue;
-    }
-    if (usedBy.length) {
-      result.kept.push({ name, usedBy });
-      continue;
-    }
-    try {
-      await awsSdkManager.secrets.delete({ secretId, recoveryWindowInDays: DEV_SECRET_RECOVERY_DAYS });
-      result.deleted.push(name);
-    } catch (error) {
-      if (isScheduledForDeletionError(error)) result.deleted.push(name);
-      else result.retained.push({ name, usedBy: `${stackName}, whose deletion of it failed` });
+    if ((secret.Tags ?? []).some(({ Key }) => Key === tagNames.devSecretUser(stackName))) {
+      await awsSdkManager.secrets
+        .untag({ secretId: secret.ARN || secret.Name!, tagKeys: [tagNames.devSecretUser(stackName)] })
+        .catch(() => {});
     }
   }
-  return result;
+  return used.map((secret) => ({
+    name: secret.Name!,
+    usedBy: getDevSecretUsers(secret, { includeGenerator: false }).filter((user) => user !== stackName)
+  }));
 };

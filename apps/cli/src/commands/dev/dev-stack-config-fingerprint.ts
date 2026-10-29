@@ -11,7 +11,8 @@ import { LOCALLY_RUN_RESOURCE_TYPES } from '@domain-services/config-manager/dev-
 // v8 leaves out what only the local session uses: container packaging, frontend dev commands and local scripts.
 // v9 pushes the images of batch jobs and AgentCore runtimes and runs batch jobs in the dev network.
 // v10 lets the dev agent read Batch jobs and outputs what local workloads read of raw CloudFormation resources.
-const FINGERPRINT_VERSION = 10;
+// v11 limits the dev agent role to reads of this stack's own resources in its region.
+const FINGERPRINT_VERSION = 11;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;

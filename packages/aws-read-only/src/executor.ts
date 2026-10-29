@@ -159,12 +159,11 @@ export const executeAwsSdkCommand = async (
     }
 
     // Clean up response (remove $metadata for cleaner output)
-    if (result && typeof result === 'object' && '$metadata' in result) {
-      const { $metadata: _, ...data } = result as Record<string, unknown>;
-      return { ok: true, data: redactEnvironmentValues(canonicalService, data) };
-    }
-
-    return { ok: true, data: redactEnvironmentValues(canonicalService, result) };
+    const data =
+      result && typeof result === 'object' && '$metadata' in result
+        ? (({ $metadata: _, ...rest }) => rest)(result as Record<string, unknown>)
+        : result;
+    return redactResponse(canonicalService, data);
   } catch (err: unknown) {
     return handleAwsError(err);
   }
@@ -183,16 +182,14 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
  * `env` of EKS pod containers. Secrets given by reference (`secrets[].valueFrom`) are ARNs and stay. Applications keep secrets there, so every
  * caller gets the variable names and the rest of the metadata, never the values. Other content reads are not touched.
  */
-const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown): unknown => {
-  if (service !== 'lambda' && service !== 'ecs' && service !== 'batch') return response;
+const redactEnvironmentValues = (service: 'lambda' | 'ecs' | 'batch', response: unknown): unknown => {
   const visit = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(visit);
     if (!isPlainObject(node)) return node;
     return Object.fromEntries(
       Object.entries(node).map(([key, value]) => {
         if (service === 'lambda' && key === 'Environment' && isPlainObject(value) && isPlainObject(value.Variables)) {
-          const names = Object.keys(value.Variables);
-          return [key, { ...value, Variables: Object.fromEntries(names.map((name) => [name, REDACTED_VALUE])) }];
+          return [key, { ...value, Variables: redactRecordValues(value.Variables) }];
         }
         const isContainerEnvironment = key === 'environment' || (service === 'batch' && key === 'env');
         if ((service === 'ecs' || service === 'batch') && isContainerEnvironment && Array.isArray(value)) {
@@ -203,6 +200,116 @@ const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown)
     );
   };
   return visit(response);
+};
+
+const redactRecordValues = (record: Record<string, unknown>) =>
+  Object.fromEntries(Object.keys(record).map((name) => [name, REDACTED_VALUE]));
+
+/** Replaces the values of the keys `redact` names, anywhere in `node`, with what it returns. */
+const redactKeys = (node: unknown, redact: (key: string, value: unknown) => unknown): unknown => {
+  if (Array.isArray(node)) return node.map((item) => redactKeys(item, redact));
+  if (!isPlainObject(node)) return node;
+  return Object.fromEntries(
+    Object.entries(node).map(([key, value]) => {
+      const redacted = redact(key, value);
+      return [key, redacted === undefined ? redactKeys(value, redact) : redacted];
+    })
+  );
+};
+
+/** Template properties that hold a credential itself rather than a reference to one. */
+const TEMPLATE_CREDENTIAL_PROPERTIES = new Set([
+  'AuthToken',
+  'ClientSecret',
+  'MasterUserPassword',
+  'Password',
+  'SecretString'
+]);
+
+/**
+ * The values a deployed template holds literally: environment variables of Lambda functions (`Environment.Variables`),
+ * ECS and Batch containers (`Environment`, `Env`) and canaries (`EnvironmentVariables`), the connection details
+ * Stacktape stores through its sensitive-data resource (`sensitiveData`), credential properties such as
+ * `MasterUserPassword`, and the defaults of `NoEcho` parameters. `aws call` masks the same environment values in
+ * Lambda, ECS and Batch reads, and the template must not show them either.
+ */
+const redactTemplate = (template: Record<string, unknown>) => {
+  const parameters = isPlainObject(template.Parameters)
+    ? Object.fromEntries(
+        Object.entries(template.Parameters).map(([name, parameter]) => [
+          name,
+          isPlainObject(parameter) && parameter.NoEcho !== undefined && parameter.Default !== undefined
+            ? { ...parameter, Default: REDACTED_VALUE }
+            : parameter
+        ])
+      )
+    : template.Parameters;
+  const redactEntries = (entries: unknown[]) =>
+    entries.map((entry) =>
+      isPlainObject(entry)
+        ? Object.fromEntries(
+            Object.entries(entry).map(([key, value]) => [key, /^value$/i.test(key) ? REDACTED_VALUE : value])
+          )
+        : entry
+    );
+  return redactKeys({ ...template, ...(parameters === undefined ? {} : { Parameters: parameters }) }, (key, value) => {
+    if (TEMPLATE_CREDENTIAL_PROPERTIES.has(key)) return REDACTED_VALUE;
+    if (key === 'sensitiveData' && Array.isArray(value)) return redactEntries(value);
+    if (key !== 'Environment' && key !== 'Env' && key !== 'EnvironmentVariables') return undefined;
+    if (Array.isArray(value)) return redactEntries(value);
+    if (!isPlainObject(value)) return undefined;
+    return isPlainObject(value.Variables)
+      ? { ...value, Variables: redactRecordValues(value.Variables) }
+      : redactRecordValues(value);
+  });
+};
+
+/**
+ * Masks what a read returns of credentials and configuration values, or refuses to return a response it cannot mask:
+ * environment values (see `redactEnvironmentValues`), a Cognito app client's `ClientSecret` (`DescribeUserPoolClient`),
+ * a canary's `RunConfig.EnvironmentVariables` (`GetCanary`, `DescribeCanaries`) and the literal values of a
+ * CloudFormation template (`GetTemplate`, see `redactTemplate`). A template that is not JSON (a YAML template) is
+ * refused: its masking would depend on parsing CloudFormation's YAML tags.
+ */
+const redactResponse = (service: AwsReadOnlyService, data: unknown): AwsSdkResult => {
+  if (service === 'lambda' || service === 'ecs' || service === 'batch') {
+    return { ok: true, data: redactEnvironmentValues(service, data) };
+  }
+  if (service === 'cognito') {
+    return {
+      ok: true,
+      data: redactKeys(data, (key, value) =>
+        key === 'ClientSecret' && typeof value === 'string' ? REDACTED_VALUE : undefined
+      )
+    };
+  }
+  if (service === 'synthetics') {
+    return {
+      ok: true,
+      data: redactKeys(data, (key, value) =>
+        key === 'EnvironmentVariables' && isPlainObject(value) ? redactRecordValues(value) : undefined
+      )
+    };
+  }
+  if (service === 'cloudformation' && isPlainObject(data) && typeof data.TemplateBody === 'string') {
+    let template: unknown;
+    try {
+      template = JSON.parse(data.TemplateBody);
+    } catch {
+      template = undefined;
+    }
+    if (!isPlainObject(template)) {
+      return {
+        ok: false,
+        code: 'OPERATION_NOT_ALLOWED',
+        error:
+          'The template is not JSON, so its literal values, such as environment variables, cannot be masked. It is not returned.',
+        hint: 'Read the stack with DescribeStacks or DescribeStackResources, or the resources it created with their own describe operations.'
+      };
+    }
+    return { ok: true, data: { ...data, TemplateBody: JSON.stringify(redactTemplate(template), null, 2) } };
+  }
+  return { ok: true, data };
 };
 
 const TIMESTAMP_KEY_PATTERN = /(Time|Date|Timestamp)$/i;

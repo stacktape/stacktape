@@ -349,7 +349,7 @@
       "physicalNames": {
         "RoleName": "characterization-baseline-dev-agent"
       },
-      "dependencies": []
+      "dependencies": ["ApiGatewayApi", "WebApi"]
     },
     "StpDiscoveryService": {
       "type": "AWS::ServiceDiscovery::PrivateDnsNamespace",

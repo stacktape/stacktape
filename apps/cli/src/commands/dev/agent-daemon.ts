@@ -403,6 +403,16 @@ const isProcessRunning = (pid: number): boolean => {
   }
 };
 
+/**
+ * Deletes the lock file of a dead session, unless it records the SSM session to the dev box that the session left
+ * open: the next start of the stage reads it (`findOrphanedDevBoxSession`), closes that session and then replaces the
+ * lock file with its own.
+ */
+const forgetDeadAgent = (lockFile: AgentLockFile) => {
+  if (lockFile.devBoxSessionId) return;
+  deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
+};
+
 /** The other live dev sessions of this project directory, of any stage, as their lock files record them. */
 export const findOtherDevSessions = (): AgentLockFile[] =>
   readAllAgentLockFiles().filter(({ pid }) => pid !== process.pid && isProcessRunning(pid));
@@ -417,7 +427,7 @@ export const getRunningAgent = async (projectName?: string, stage?: string): Pro
 
   // Check if process is still running
   if (!isProcessRunning(lockFile.pid)) {
-    deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
+    forgetDeadAgent(lockFile);
     return null;
   }
 
@@ -444,7 +454,7 @@ export const getAllRunningAgents = async (): Promise<AgentLockFile[]> => {
   for (const lockFile of lockFiles) {
     // Check if process is still running
     if (!isProcessRunning(lockFile.pid)) {
-      deleteAgentLockFile({ projectName: lockFile.projectName, stage: lockFile.stage, ownerPid: lockFile.pid });
+      forgetDeadAgent(lockFile);
       continue;
     }
 

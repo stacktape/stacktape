@@ -19,7 +19,7 @@
       },
       "v4": {
         "producer": "current synthesis (synthesizeFixture)",
-        "producedAt": "2026-10-27T18:04:53.479Z",
+        "producedAt": "2026-10-28T18:40:55.788Z",
         "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
       }
     },
@@ -35,7 +35,7 @@
       },
       "v4": {
         "producer": "current synthesis (synthesizeFixture)",
-        "producedAt": "2026-10-27T18:04:53.480Z",
+        "producedAt": "2026-10-28T18:40:55.789Z",
         "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
       }
     },
@@ -48,7 +48,7 @@
       },
       "v4": {
         "producer": "current synthesis (synthesizeFixture)",
-        "producedAt": "2026-10-27T18:04:53.480Z",
+        "producedAt": "2026-10-28T18:40:55.789Z",
         "command": "STACKTAPE_DATA_SAFETY_UPDATE_V4_BASELINES=1 bun test tests/data-safety/change-plan-compatibility.spec.ts"
       }
     }

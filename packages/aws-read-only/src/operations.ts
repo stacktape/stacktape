@@ -12,8 +12,10 @@
  * The explicit secret-value reads are left out as well, because the caller is often a coding agent whose context and
  * transcript would keep them: Secrets Manager `GetSecretValue` and the SSM Parameter Store value reads (`GetParameter`,
  * `GetParameters`, `GetParametersByPath`, `GetParameterHistory`). Their metadata operations stay. The executor also
- * redacts environment variable values in Lambda function configurations and ECS and Batch container environments. Other accepted
- * reads, such as log events, S3 objects and DynamoDB items, return application data as it is.
+ * masks credentials and configuration values in what accepted reads return: environment variable values of Lambda
+ * functions, ECS and Batch containers and canaries, a Cognito app client's secret and the literal values of a
+ * CloudFormation template; a template it cannot parse is refused. Other accepted reads, such as log events, S3 objects
+ * and DynamoDB items, return application data as it is.
  *
  * Reviewed means "returns information and changes nothing an observer would notice". A verb prefix does not decide
  * that, which is why there is no `Get*` rule here: Step Functions `GetActivityTask` claims a task, records
