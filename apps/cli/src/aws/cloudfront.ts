@@ -2,7 +2,6 @@ import type { CloudFrontClient, DistributionSummary } from '@aws-sdk/client-clou
 import {
   CreateInvalidationCommand,
   GetDistributionConfigCommand,
-  GetInvalidationCommand,
   ListDistributionsCommand,
   UpdateDistributionCommand
 } from '@aws-sdk/client-cloudfront';
@@ -15,23 +14,19 @@ export class AwsCloudFront {
   readonly #createClient: () => CloudFrontClient;
   readonly #getErrorHandler: ErrorHandlerFactory;
   readonly #region: SupportedAWSRegion;
-  readonly #wait: (milliseconds: number) => Promise<unknown>;
 
   constructor({
     createClient,
     getErrorHandler,
-    region,
-    wait
+    region
   }: {
     createClient: () => CloudFrontClient;
     getErrorHandler: ErrorHandlerFactory;
     region: SupportedAWSRegion;
-    wait: (milliseconds: number) => Promise<unknown>;
   }) {
     this.#createClient = createClient;
     this.#getErrorHandler = getErrorHandler;
     this.#region = region;
-    this.#wait = wait;
   }
 
   invalidateCache = async ({
@@ -42,9 +37,8 @@ export class AwsCloudFront {
     invalidatePaths: string[];
   }) => {
     const errorHandler = this.#getErrorHandler('Invalidation of CloudFront CDN cache has failed.');
-    const {
-      Invalidation: { Id }
-    } = await this.#createClient()
+    // CloudFront accepted the invalidation when it returns it. Completion is intentionally not awaited.
+    await this.#createClient()
       .send(
         new CreateInvalidationCommand({
           DistributionId: distributionId,
@@ -54,11 +48,6 @@ export class AwsCloudFront {
           }
         })
       )
-      .catch(errorHandler);
-    await this.#wait(1500);
-    // Confirm that AWS accepted the invalidation. Completion is intentionally not awaited.
-    await this.#createClient()
-      .send(new GetInvalidationCommand({ DistributionId: distributionId, Id }))
       .catch(errorHandler);
     return distributionId;
   };

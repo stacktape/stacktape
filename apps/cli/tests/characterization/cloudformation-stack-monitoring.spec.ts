@@ -1,4 +1,4 @@
-import { describe, expect, spyOn, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type { MonitoredStackEvent } from '../../src/aws/cloudformation-stacks';
 import type { StackDetails } from '../../src/domain/cloudformation-stack-manager/types';
@@ -48,16 +48,21 @@ const stackDetails = (status: StackDetails['StackStatus']): StackDetails => ({
   stackOutput: {}
 });
 
-/** Runs `monitorStack('update')` with fake AWS responses; `poll` runs one iteration of its polling interval. */
+/** Runs `monitorStack` with fake AWS responses; `poll` runs one iteration of its polling interval. */
 const withMonitor = async (
   run: (fixture: {
     monitoring: Promise<unknown>;
     settled: () => 'pending' | 'resolved' | 'rejected';
     poll: (count?: number) => Promise<void>;
+    pollingIntervalMs: number | undefined;
     events: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getEvents'>>;
     getDetails: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getDetails'>>;
   }) => Promise<void>,
-  { finishWhenCleanupStarts = false, removedResources = [] as string[] } = {}
+  {
+    action = 'update',
+    finishWhenCleanupStarts = false,
+    removedResources = [] as string[]
+  }: { action?: 'update' | 'delete'; finishWhenCleanupStarts?: boolean; removedResources?: string[] } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
     operationReporter.setSilentMode(true);
@@ -70,8 +75,13 @@ const withMonitor = async (
     globalStateManager.rawCommands = ['deploy'];
     globalStateManager.rawArgs = { region: 'eu-west-1' };
     let pollOnce: (() => Promise<void>) | undefined;
-    const interval = spyOn(globalThis, 'setInterval').mockImplementation(((callback: () => Promise<void>) => {
+    let pollingIntervalMs: number | undefined;
+    const interval = spyOn(globalThis, 'setInterval').mockImplementation(((
+      callback: () => Promise<void>,
+      ms?: number
+    ) => {
       pollOnce = callback;
+      pollingIntervalMs = ms;
       return 0 as unknown as ReturnType<typeof setInterval>;
     }) as typeof setInterval);
     const clear = spyOn(globalThis, 'clearInterval').mockImplementation(() => {});
@@ -82,7 +92,7 @@ const withMonitor = async (
     );
     let state: 'pending' | 'resolved' | 'rejected' = 'pending';
     try {
-      const monitoring = stackManager.monitorStack('update', stackName, () => {}, { finishWhenCleanupStarts });
+      const monitoring = stackManager.monitorStack(action, stackName, () => {}, { finishWhenCleanupStarts });
       monitoring.then(
         () => (state = 'resolved'),
         () => (state = 'rejected')
@@ -92,6 +102,7 @@ const withMonitor = async (
       await run({
         monitoring,
         settled: () => state,
+        pollingIntervalMs,
         poll: async (count = 1) => {
           for (let index = 0; index < count; index++) {
             await pollOnce!();
@@ -152,6 +163,101 @@ test('repeated stack status failures stop the monitoring with the AWS error', as
     events.mockResolvedValue([]);
     await poll(4);
     await expect(monitoring).rejects.toThrow('AccessDenied');
+  });
+});
+
+describe('polling stack events', () => {
+  test('a delete is polled every second, so its end is noticed within about a second', async () => {
+    await withMonitor(
+      async ({ monitoring, poll, pollingIntervalMs, events }) => {
+        expect(pollingIntervalMs).toBe(1000);
+        events.mockResolvedValue([stackEvent('DELETE_IN_PROGRESS')]);
+        await poll();
+        events.mockResolvedValue([stackEvent('DELETE_COMPLETE', 2)]);
+        await poll();
+        await expect(monitoring).resolves.toEqual({});
+      },
+      { action: 'delete' }
+    );
+  });
+
+  test('an operation running for more than five minutes is polled every other second', async () => {
+    const startedAt = performance.now();
+    const clock = spyOn(performance, 'now').mockReturnValue(startedAt);
+    try {
+      await withMonitor(async ({ poll, events }) => {
+        events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+        await poll(2);
+        expect(events).toHaveBeenCalledTimes(2);
+        clock.mockReturnValue(startedAt + 5 * 60_000 + 1);
+        await poll(4);
+        expect(events).toHaveBeenCalledTimes(4);
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});
+
+describe("AWS's clock", () => {
+  afterEach(() => time.resetAwsClockSync());
+
+  const withAwsDateResponses = async (run: (requests: () => number) => Promise<void>, { failing = false } = {}) => {
+    let requests = 0;
+    const fetch = spyOn(globalThis, 'fetch').mockImplementation((async () => {
+      requests++;
+      if (failing) throw new Error('connect ETIMEDOUT');
+      return new Response(null, { headers: { date: new Date(Date.now() + 30_000).toUTCString() } });
+    }) as unknown as typeof globalThis.fetch);
+    try {
+      await run(() => requests);
+    } finally {
+      fetch.mockRestore();
+    }
+  };
+
+  test('is read once and reused by later stack operations of the same command', async () => {
+    await withAwsDateResponses(async (requests) => {
+      time.startAwsClockSync();
+      const first = await time.getAwsSynchronizedTime();
+      const second = await time.getAwsSynchronizedTime();
+      expect(requests()).toBe(1);
+      // AWS's Date header has one-second resolution.
+      expect(Math.abs(first.getTime() - (Date.now() + 30_000))).toBeLessThan(1500);
+      expect(second.getTime()).toBeGreaterThanOrEqual(first.getTime());
+    });
+  });
+
+  test('after a minute it is read again, while callers keep using the previous reading', async () => {
+    const startedAt = performance.now();
+    const clock = spyOn(performance, 'now').mockReturnValue(startedAt);
+    try {
+      await withAwsDateResponses(async (requests) => {
+        await time.getAwsSynchronizedTime();
+        clock.mockReturnValue(startedAt + 60_001);
+        let pending = true;
+        const later = time.getAwsSynchronizedTime().finally(() => (pending = false));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(pending).toBe(false);
+        expect(Math.abs((await later).getTime() - (Date.now() + 30_000))).toBeLessThan(1500);
+        expect(requests()).toBe(2);
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  test('falls back to the local clock when AWS cannot be reached, without asking again for every call', async () => {
+    await withAwsDateResponses(
+      async (requests) => {
+        const now = await time.getAwsSynchronizedTime();
+        await time.getAwsSynchronizedTime();
+        expect(requests()).toBe(1);
+        expect(Math.abs(now.getTime() - Date.now())).toBeLessThan(1000);
+      },
+      { failing: true }
+    );
   });
 });
 

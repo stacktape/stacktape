@@ -462,7 +462,7 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
   const { synthesizeFixture } = await import('../characterization/synthesis-fixture');
   const { deploymentArtifactManager } = await import('../../src/domain/deployment-artifact-manager');
   const { stackManager } = await import('../../src/domain/cloudformation-stack-manager');
-  const { performFullDeploy } = await import('../../src/commands/deploy');
+  const { deleteObsoleteArtifacts, performFullDeploy } = await import('../../src/commands/deploy');
   const { buildLambdaS3Key } = await import('../../src/domain/deployment-artifact-manager/artifact-names');
   const { CreateBucketCommand, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
   const account = ministack.account();
@@ -507,6 +507,7 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
       },
       tui: { info: () => {}, warn: () => {} }
     });
+    await deleteObsoleteArtifacts({ deploymentArtifacts: deploymentArtifactManager, fixedFailedUpdate: true });
     const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
       .map(({ Key }) => Key)
       .toSorted();

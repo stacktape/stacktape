@@ -3,7 +3,6 @@ import type { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import {
   CreateInvalidationCommand,
   GetDistributionConfigCommand,
-  GetInvalidationCommand,
   ListDistributionsCommand,
   UpdateDistributionCommand
 } from '@aws-sdk/client-cloudfront';
@@ -11,33 +10,23 @@ import { AwsCloudFront } from '../../src/aws/cloudfront';
 
 type Send = CloudFrontClient['send'];
 
-const cloudFrontWith = ({
-  send,
-  wait = async () => undefined
-}: {
-  send: Send;
-  wait?: (milliseconds: number) => Promise<unknown>;
-}) =>
+const cloudFrontWith = ({ send }: { send: Send }) =>
   new AwsCloudFront({
     createClient: () => ({ send }) as CloudFrontClient,
     getErrorHandler: (message) => (error) => {
       throw new Error(message, { cause: error });
     },
-    region: 'eu-west-1',
-    wait
+    region: 'eu-west-1'
   });
 
 // Deliberate page injection protects pagination/filtering without requiring hundreds of CDN distributions.
 describe('AWS CloudFront operations', () => {
   // CloudFront is not implemented by MiniStack; keep its AWS request contract at the SDK boundary.
-  test('invalidates the requested distribution and paths with a caller reference', async () => {
-    let acceptedRequest: CreateInvalidationCommand['input'] | undefined;
+  test('invalidates the requested distribution and paths with a caller reference, without waiting for it', async () => {
+    const requests: unknown[] = [];
     const cloudFront = cloudFrontWith({
-      send: (async (command: CreateInvalidationCommand | GetInvalidationCommand) => {
-        if (command instanceof CreateInvalidationCommand) {
-          acceptedRequest = command.input;
-          return { Invalidation: { Id: 'invalidation-fixture' } };
-        }
+      send: (async (command: CreateInvalidationCommand) => {
+        requests.push(command);
         return { Invalidation: { Id: 'invalidation-fixture', Status: 'InProgress' } };
       }) as Send
     });
@@ -48,7 +37,10 @@ describe('AWS CloudFront operations', () => {
         invalidatePaths: ['/index.html', '/assets/*']
       })
     ).toBe('distribution-fixture');
-    expect(acceptedRequest).toEqual({
+    // The response to CreateInvalidation is CloudFront's acceptance; nothing else is requested.
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toBeInstanceOf(CreateInvalidationCommand);
+    expect((requests[0] as CreateInvalidationCommand).input).toEqual({
       DistributionId: 'distribution-fixture',
       InvalidationBatch: {
         CallerReference: expect.stringMatching(/^stacktape_invalidation\d+$/),
