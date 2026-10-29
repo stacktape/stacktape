@@ -369,3 +369,78 @@ test('the resources deleted during cleanup are the removed and replaced ones, no
   expect(countResourcesDeletedDuringCleanup(diff)).toBe(2);
   expect(countResourcesDeletedDuringCleanup(undefined)).toBe(0);
 });
+
+describe('a deploy that fails without automatic rollback', () => {
+  const failedUpdate = async ({ outputs }: { outputs: Record<string, string> }) => {
+    let error: unknown;
+    const previous = stackManager.existingStackDetails;
+    stackManager.existingStackDetails = {
+      ...stackDetails('UPDATE_COMPLETE'),
+      Outputs: Object.entries(outputs).map(([OutputKey, OutputValue]) => ({ OutputKey, OutputValue })),
+      stackOutput: outputs
+    };
+    try {
+      await withMonitor(async ({ monitoring, poll, events }) => {
+        events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+        await poll();
+        events.mockResolvedValue([
+          { ...stackEvent('UPDATE_FAILED', 30), ResourceStatusReason: 'The following resource(s) failed to update' },
+          stackEvent('UPDATE_IN_PROGRESS')
+        ]);
+        await poll();
+        error = await monitoring.catch((err) => err);
+      });
+    } finally {
+      stackManager.existingStackDetails = previous;
+    }
+    return ((error as { hints?: string[] }).hints ?? []).join('\n');
+  };
+
+  test('says the stack stays in UPDATE_FAILED and how to continue or undo it', async () => {
+    const hints = await failedUpdate({ outputs: { StpDeploymentVersion: 'v000003' } });
+    expect(hints).toContain('UPDATE_FAILED');
+    expect(hints).toContain('deploy');
+    expect(hints).toContain('stack recover');
+  });
+
+  test('after a failed first deploy, offers delete instead of recovery', async () => {
+    const hints = await failedUpdate({ outputs: {} });
+    expect(hints).toContain('delete');
+    expect(hints).not.toContain('stack recover');
+  });
+});
+
+describe('continuing a stack an earlier deploy left failed', () => {
+  const withStack = (status: StackDetails['StackStatus'], run: () => void) => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    const { existingStackDetails, existingStackResources } = stackManager;
+    stackManager.existingStackDetails = stackDetails(status);
+    stackManager.existingStackResources = [];
+    try {
+      run();
+    } finally {
+      stackManager.existingStackDetails = existingStackDetails;
+      stackManager.existingStackResources = existingStackResources;
+    }
+  };
+
+  test.each(['CREATE_FAILED', 'UPDATE_FAILED'] as const)(
+    'a deploy over %s updates the stack without rollback and never takes the fast path',
+    (status) => {
+      withStack(status, () => {
+        expect(stackManager.stackActionType).toBe('update');
+        expect(stackManager.continuesFailedStack).toBe(true);
+        expect(stackManager.rollsBackOnFailure).toBe(false);
+        expect(stackManager.reasonToContinueFailedStack).toContain(status);
+      });
+    }
+  );
+
+  test('a healthy stack is not continued', () => {
+    withStack('UPDATE_COMPLETE', () => {
+      expect(stackManager.continuesFailedStack).toBe(false);
+      expect(stackManager.reasonToContinueFailedStack).toBeUndefined();
+    });
+  });
+});

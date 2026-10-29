@@ -417,9 +417,9 @@ class StackManager {
       return 'dev';
     }
     if (command === 'deploy') {
-      // A first deploy that failed without rollback is continued by updating the stack, even when nothing was created.
+      // A deploy that failed without rollback is continued by updating the stack, even when nothing was created.
       return this.existingStackDetails &&
-        (this.existingStackResources.length || this.existingStackDetails.StackStatus === StackStatus.CREATE_FAILED)
+        (this.existingStackResources.length || isFailedStackStatus(this.existingStackDetails.StackStatus))
         ? 'update'
         : 'create';
     }
@@ -439,7 +439,7 @@ class StackManager {
   /** Whether a failed deploy rolls back, as configured. See {@link resolveAutoRollback}. */
   get isAutoRollbackEnabled() {
     return resolveAutoRollback({
-      deploymentConfig: configManager.deploymentConfig,
+      deploymentConfig: configManager.config?.deploymentConfig,
       cliValue: globalStateManager.args.autoRollback,
       isDevCommand: globalStateManager.command === 'dev'
     });
@@ -1520,13 +1520,16 @@ class StackManager {
         const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
         // Collect hints from individual error handlers
         const errorSpecificHints = handledFailedEvents.flatMap((event) => event.hints || []);
-        const generalHints = getHintsAfterStackFailureOperation({
-          cfStackAction,
-          stackId,
-          // An update CloudFormation could not keep in UPDATE_FAILED (for example a failed replacement) rolls back.
-          rolledBack: this.rollsBackOnFailure || failedStackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS,
-          isFirstDeploy: this.isFirstDeploy
-        });
+        const generalHints =
+          cfStackAction === 'create' || cfStackAction === 'update'
+            ? getHintsAfterStackFailureOperation({
+                cfStackAction,
+                stackId,
+                // An update CloudFormation could not keep in UPDATE_FAILED (for example a failed replacement) rolls back.
+                rolledBack: this.rollsBackOnFailure || failedStackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS,
+                isFirstDeploy: this.isFirstDeploy
+              })
+            : getHintsAfterStackFailureOperation({ cfStackAction, stackId, rolledBack: false, isFirstDeploy: false });
         // Merge all hints - error-specific hints first, then general hints
         const allHints = [...errorSpecificHints, ...generalHints];
         return reject(
