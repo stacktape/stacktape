@@ -722,6 +722,55 @@ describe('early database and cache deletes', () => {
     }
   });
 
+  test("decides from CloudFormation's current resource list and live checks what can finish in the background", async () => {
+    const decide = async (
+      live: { LogicalResourceId: string; ResourceType: string; ResourceStatus: string }[],
+      { tasksRunning = false } = {}
+    ) => {
+      let decision: unknown;
+      await withDeleteFixture([], async () => {
+        const spies = [
+          spyOn(awsSdkManager.cloudFormation, 'getResources').mockResolvedValue(
+            live.map((item) => ({ ...item, PhysicalResourceId: `${item.LogicalResourceId}-id` })) as never
+          ),
+          spyOn(awsSdkManager.ecs, 'serviceHasUnstoppedTasks').mockResolvedValue(tasksRunning),
+          spyOn(awsSdkManager.cloudFront, 'isDistributionDisabled').mockResolvedValue(true),
+          spyOn(awsSdkManager.loadBalancers, 'exists').mockResolvedValue(false)
+        ];
+        try {
+          monitorThat(async ({ canFinishDeleteInBackground }) => {
+            // The events show only the network and the service as pending.
+            decision = await canFinishDeleteInBackground?.([
+              { logicalId: 'StpVpc', resourceType: 'AWS::EC2::VPC', physicalId: 'StpVpc-id' },
+              { logicalId: 'ApiService', resourceType: 'AWS::ECS::Service', physicalId: 'ApiService-id' }
+            ]);
+            return {};
+          });
+          await stackManager.deleteStack({ finishInBackground: true });
+        } finally {
+          for (const spy of spies) spy.mockRestore();
+        }
+      });
+      return decision as { logicalId: string }[] | undefined;
+    };
+    const network = [
+      { LogicalResourceId: 'StpVpc', ResourceType: 'AWS::EC2::VPC', ResourceStatus: 'DELETE_IN_PROGRESS' },
+      { LogicalResourceId: 'ApiService', ResourceType: 'AWS::ECS::Service', ResourceStatus: 'DELETE_IN_PROGRESS' },
+      { LogicalResourceId: 'Queue', ResourceType: 'AWS::SQS::Queue', ResourceStatus: 'DELETE_COMPLETE' },
+      { LogicalResourceId: 'Logs', ResourceType: 'AWS::S3::Bucket', ResourceStatus: 'DELETE_SKIPPED' }
+    ];
+    expect((await decide(network))?.map(({ logicalId }) => logicalId)).toEqual(['StpVpc', 'ApiService']);
+    // A task that has not stopped yet still runs (and costs).
+    expect(await decide(network, { tasksRunning: true })).toBeUndefined();
+    // A database a failed deploy left in CREATE_FAILED is missing from the events' view, but CloudFormation deletes it.
+    expect(
+      await decide([
+        ...network,
+        { LogicalResourceId: 'Db', ResourceType: 'AWS::RDS::DBInstance', ResourceStatus: 'CREATE_FAILED' }
+      ])
+    ).toBeUndefined();
+  });
+
   test('a refused DeleteStack request deletes no database', async () => {
     await withDeleteFixture(
       [db, redis],

@@ -1136,7 +1136,11 @@ class StackManager {
     // The template CloudFormation is deleting, read once the delete has started: a deploy between loading the stack and
     // the DeleteStack request may have changed a DeletionPolicy.
     let deletedTemplate: Promise<CloudFormationTemplate> | undefined;
-    const getDeletedTemplate = () => (deletedTemplate ??= awsSdkManager.cloudFormation.getTemplate(stackId));
+    const getDeletedTemplate = () =>
+      (deletedTemplate ??= awsSdkManager.cloudFormation.getTemplate(stackId).catch((err) => {
+        deletedTemplate = undefined;
+        throw err;
+      }));
     deletingEarly = resourceDeletesStarted
       .then((started) => started && this.#startEarlyDeletes({ earlyDeleted, roleArn, getDeletedTemplate }))
       .catch((err) => tuiManager.debug(`Could not start deleting resources early: ${err}`));
@@ -1154,8 +1158,8 @@ class StackManager {
         {
           onResourceDeletesStarted: () => settleResourceDeletesStarted(true),
           ...(finishInBackground && {
-            canFinishDeleteInBackground: async (pending: PendingDelete[]) =>
-              this.#remainingDeletesCostNothing({ pending, template: await getDeletedTemplate() })
+            canFinishDeleteInBackground: (pending: PendingDelete[]) =>
+              this.#deletesLeftToBackground({ stackId, pending, getDeletedTemplate })
           })
         }
       );
@@ -1203,16 +1207,35 @@ class StackManager {
     }
   };
 
-  /** Whether every resource CloudFormation still has to delete costs nothing while it waits. */
-  #remainingDeletesCostNothing = async ({
+  /**
+   * The resources CloudFormation still has to delete, when every one of them costs nothing while it waits; undefined
+   * otherwise. `pending` (from the stack's events) only rules out a check early: the decision uses CloudFormation's
+   * current resource list, which also has resources the events missed and ones a failed deploy left in CREATE_FAILED.
+   */
+  #deletesLeftToBackground = async ({
+    stackId,
     pending,
-    template
+    getDeletedTemplate
   }: {
+    stackId: string;
     pending: PendingDelete[];
-    template: CloudFormationTemplate;
-  }) => {
-    const checks = planBackgroundDeleteChecks({ pending, template });
-    if (!checks) return false;
+    getDeletedTemplate: () => Promise<CloudFormationTemplate>;
+  }): Promise<PendingDelete[] | undefined> => {
+    const template = await getDeletedTemplate();
+    if (!planBackgroundDeleteChecks({ pending, template })) return undefined;
+    const remaining = (await awsSdkManager.cloudFormation.getResources(stackId))
+      .filter(
+        ({ ResourceStatus: status }) =>
+          status !== ResourceStatus.DELETE_COMPLETE && status !== ResourceStatus.DELETE_SKIPPED
+      )
+      .map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
+        logicalId: LogicalResourceId,
+        resourceType: ResourceType,
+        physicalId: PhysicalResourceId
+      }));
+    if (!remaining.length) return undefined;
+    const checks = planBackgroundDeleteChecks({ pending: remaining, template });
+    if (!checks) return undefined;
     const results = await Promise.all(
       checks.map(async (check) => {
         if (check.kind === 'ecs-service-stopped') {
@@ -1224,7 +1247,7 @@ class StackManager {
         return !(await awsSdkManager.loadBalancers.exists({ loadBalancerArn: check.loadBalancerArn }));
       })
     );
-    return results.every(Boolean);
+    return results.every(Boolean) ? remaining : undefined;
   };
 
   /**
@@ -1381,10 +1404,11 @@ class StackManager {
        */
       onResourceDeletesStarted?: () => void;
       /**
-       * A stack delete is finished for the user once this resolves true for the resources CloudFormation still has to
-       * delete. Asked at most every few seconds, and only while no resource has failed to delete.
+       * A stack delete is finished for the user once this resolves to the resources CloudFormation still deletes in
+       * the background; undefined keeps waiting. It gets the resources the stack's events do not show deleted yet, asked
+       * at most every few seconds, and only while no resource has failed to delete.
        */
-      canFinishDeleteInBackground?: (pending: PendingDelete[]) => Promise<boolean>;
+      canFinishDeleteInBackground?: (pending: PendingDelete[]) => Promise<PendingDelete[] | undefined>;
     } = {}
   ): Promise<StackMonitoringResult> => {
     const handledEvents: string[] = [];
@@ -1418,7 +1442,8 @@ class StackManager {
       // Nothing left: CloudFormation reports the end of the delete in a moment.
       if (!pending.length) return undefined;
       try {
-        return (await canFinishDeleteInBackground(pending)) ? pending : undefined;
+        const leftToBackground = await canFinishDeleteInBackground(pending);
+        return leftToBackground?.length ? leftToBackground : undefined;
       } catch (err) {
         tuiManager.debug(`Could not check whether the remaining deletes can finish in the background: ${err}`);
         return undefined;

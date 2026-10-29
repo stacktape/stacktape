@@ -72,7 +72,7 @@ const withMonitor = async (
     removedResources?: string[];
     operationId?: string;
     onResourceDeletesStarted?: () => void;
-    canFinishDeleteInBackground?: (pending: { logicalId: string }[]) => Promise<boolean>;
+    canFinishDeleteInBackground?: (pending: { logicalId: string }[]) => Promise<{ logicalId: string }[] | undefined>;
     /** The stack's resources before a delete: logical ID and type. */
     stackResources?: [string, string][];
   } = {}
@@ -285,7 +285,7 @@ describe('stack deletes', () => {
         ],
         canFinishDeleteInBackground: async (pending) => {
           asked.push(pending.map(({ logicalId }) => logicalId));
-          return true;
+          return pending;
         }
       }
     );
@@ -310,7 +310,7 @@ describe('stack deletes', () => {
           stackResources: [['Sg', 'AWS::EC2::SecurityGroup']],
           canFinishDeleteInBackground: async () => {
             asked++;
-            return false;
+            return undefined;
           }
         }
       );
