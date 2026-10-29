@@ -1916,6 +1916,15 @@
         "flag": "yes"
       },
       {
+        "name": "autoRollback",
+        "description": "#### Auto-Rollback\n---\nIf `true`, a failed deploy rolls back instead of keeping what it created. Overrides `deploymentConfig.autoRollback` for this deploy.\n- **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next deploy continues from there.\n- **With auto-rollback (`--auto-rollback`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "auto-rollback"
+      },
+      {
         "name": "awsAccount",
         "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
         "required": false,
@@ -1942,15 +1951,6 @@
           "string"
         ],
         "flag": "cwd"
-      },
-      {
-        "name": "disableAutoRollback",
-        "description": "#### Disable Auto-Rollback\n---\nIf `true`, disables automatic rollback on deployment failure.\n- **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state.\n- **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command.",
-        "required": false,
-        "allowedTypes": [
-          "boolean"
-        ],
-        "flag": "no-auto-rollback"
       },
       {
         "name": "disableDockerRemoteCache",

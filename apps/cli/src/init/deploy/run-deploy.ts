@@ -43,8 +43,9 @@ export type DeployRequest = {
    *
    * Set only when the stack already exists. A failed *update* stops at `UPDATE_FAILED`, which
    * CloudFormation will deploy over, so the resources that did come up — a database that took
-   * minutes — are still there for the next attempt. A failed *create* stops at `CREATE_FAILED`,
-   * which nothing can update, so keeping it there only forces a manual rollback first.
+   * minutes — are still there for the next attempt. Otherwise the wizard asks for automatic
+   * rollback, which `stacktape deploy` no longer does by default: its retry and recovery screens
+   * expect a failed first deploy to remove its stack.
    */
   keepPartialProgress?: boolean;
   /** Exact create/update consent, rechecked by the child after it loads deploy credentials. */
@@ -105,7 +106,7 @@ export const deployArgs = (request: DeployRequest): string[] => [
   request.projectName,
   ...(request.profile === undefined ? [] : ['--profile', request.profile]),
   ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount]),
-  ...(request.keepPartialProgress === true ? ['--disableAutoRollback'] : []),
+  ...(request.keepPartialProgress === true ? [] : ['--autoRollback']),
   // Agent mode is the machine-readable contract: JSONL on stdout, and no interactive confirmation
   // to answer — the user already confirmed by pressing the button.
   '--agent'

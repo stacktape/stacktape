@@ -434,8 +434,8 @@ describe('failed deployment artifacts', () => {
           performFullDeploy({
             deploymentArtifacts: deploymentArtifactManager,
             stack: {
-              existingStackDetails: stackManager.existingStackDetails,
-              isAutoRollbackEnabled: true,
+              rollsBackOnFailure: true,
+              continuesFailedStack: false,
               stackActionType: 'update',
               createStack: async () => {
                 throw new Error('The stack exists.');
@@ -497,8 +497,8 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
     await performFullDeploy({
       deploymentArtifacts: deploymentArtifactManager,
       stack: {
-        existingStackDetails: stackManager.existingStackDetails,
-        isAutoRollbackEnabled: true,
+        rollsBackOnFailure: false,
+        continuesFailedStack: true,
         stackActionType: 'update',
         createStack: async () => {
           throw new Error('The stack exists.');

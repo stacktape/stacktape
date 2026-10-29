@@ -2356,6 +2356,7 @@ export interface DeploymentConfig {
    * a newly created alarm only takes effect on the *next* deployment.
    *
    * Use with `monitoringTimeAfterDeploymentInMinutes` to keep watching after deploy completes.
+   * Setting rollback alarms turns on `autoRollback`.
    *
    * **Example (YAML):**
    *
@@ -2409,7 +2410,7 @@ export interface DeploymentConfig {
    * ---
    *
    * If an alarm fires during this window, the stack rolls back automatically.
-   * Only useful when `triggerRollbackOnAlarms` is configured.
+   * Only useful when `triggerRollbackOnAlarms` is configured. A monitoring period turns on `autoRollback`.
    *
    *
    * **Example (YAML):**
@@ -2461,21 +2462,27 @@ export interface DeploymentConfig {
    */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /**
-   * #### Keep the stack in a failed state instead of rolling back on deployment failure.
+   * #### Roll a failed deployment back automatically instead of keeping what it created.
    *
    * ---
    *
-   * Useful for debugging: inspect what went wrong, then fix and redeploy
-   * (or run `stacktape rollback` manually). By default, failed deployments
-   * auto-rollback to the last working state.
+   * By default, a failed deployment keeps every resource it created or updated, and the next
+   * deployment continues from the failure. A failed first deployment keeps, for example, a database
+   * that took minutes to create; a failed update keeps the resources that updated. Fix the error and
+   * deploy again. To undo a failed update instead, run `stacktape stack recover`; to remove a failed
+   * first deployment, run `stacktape delete`.
    *
+   * With `autoRollback: true`, a failed update rolls back to the last successful deployment and a
+   * failed first deployment deletes the stack. It is on by default when `triggerRollbackOnAlarms` or
+   * `monitoringTimeAfterDeploymentInMinutes` is set, and cannot be turned off then.
+   * The `--auto-rollback` flag of `stacktape deploy` overrides it for one deployment.
    *
    * **Example (YAML):**
    *
    * ```yaml
    * deploymentConfig:
    *   # stp-focus
-   *   disableAutoRollback: true
+   *   autoRollback: true
    *   # stp-end-focus
    * resources:
    *   api:
@@ -2503,7 +2510,7 @@ export interface DeploymentConfig {
    *
    *   return {
    *     // stp-focus
-   *     deploymentConfig: { disableAutoRollback: true },
+   *     deploymentConfig: { autoRollback: true },
    *     // stp-end-focus
    *     resources: { api }
    *   };
@@ -2512,7 +2519,7 @@ export interface DeploymentConfig {
    *
    * @default false
    */
-  disableAutoRollback?: boolean;
+  autoRollback?: boolean;
   /**
    * #### SNS topic ARNs to receive CloudFormation stack events during deployment.
    *

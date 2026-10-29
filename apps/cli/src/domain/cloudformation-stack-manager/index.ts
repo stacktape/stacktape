@@ -73,6 +73,7 @@ import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
+import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
 import { isFirstDeployOfStack } from './first-deploy';
 import { getPlannedResources } from './progress-plan';
 import {
@@ -416,7 +417,11 @@ class StackManager {
       return 'dev';
     }
     if (command === 'deploy') {
-      return this.existingStackDetails && this.existingStackResources.length ? 'update' : 'create';
+      // A first deploy that failed without rollback is continued by updating the stack, even when nothing was created.
+      return this.existingStackDetails &&
+        (this.existingStackResources.length || this.existingStackDetails.StackStatus === StackStatus.CREATE_FAILED)
+        ? 'update'
+        : 'create';
     }
     if (command === 'diff') {
       return 'update';
@@ -431,11 +436,36 @@ class StackManager {
     return isFirstDeployOfStack(this.existingStackDetails);
   }
 
+  /** Whether a failed deploy rolls back, as configured. See {@link resolveAutoRollback}. */
   get isAutoRollbackEnabled() {
-    const isDisabled =
-      globalStateManager.args.disableAutoRollback === true ||
-      configManager.deploymentConfig?.disableAutoRollback === true;
-    return !isDisabled;
+    return resolveAutoRollback({
+      deploymentConfig: configManager.deploymentConfig,
+      cliValue: globalStateManager.args.autoRollback,
+      isDevCommand: globalStateManager.command === 'dev'
+    });
+  }
+
+  /**
+   * Whether this operation continues a stack that an earlier deploy without automatic rollback left in CREATE_FAILED or
+   * UPDATE_FAILED. CloudFormation updates such a stack only with rollback disabled. Dev mode keeps its own handling.
+   */
+  get continuesFailedStack() {
+    return this.stackActionType !== 'dev' && isFailedStackStatus(this.existingStackDetails?.StackStatus);
+  }
+
+  /** Whether CloudFormation rolls this operation back when it fails. */
+  get rollsBackOnFailure() {
+    return this.isAutoRollbackEnabled && !this.continuesFailedStack;
+  }
+
+  /**
+   * Why this deploy must go through CloudFormation although only code changed: a direct code update would leave the
+   * failed resources and the stack status as they are.
+   */
+  get reasonToContinueFailedStack(): string | undefined {
+    return this.continuesFailedStack
+      ? `the last deploy failed and left the stack in ${this.existingStackDetails.StackStatus}; this deploy continues from there`
+      : undefined;
   }
 
   refetchStackDetails = async (stackName: string) => {
@@ -543,7 +573,7 @@ class StackManager {
       Tags: operationRequiresTags ? this.getTags() : [],
       Parameters: [],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
-      ...(!this.isAutoRollbackEnabled && { DisableRollback: true }),
+      ...(!this.rollsBackOnFailure && { DisableRollback: true }),
       ...(terminationProtection && { EnableTerminationProtection: true }),
       ...(cloudformationRoleArn && { RoleARN: cloudformationRoleArn as string }),
       ...(publishEventsToArn && { NotificationARNs: publishEventsToArn as string[] }),
@@ -582,7 +612,7 @@ class StackManager {
     const { StackPolicyBody, ...onCreateParams } = stackParams;
     const { StackId } = await awsSdkManager.cloudFormation.create(template, {
       ...onCreateParams,
-      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+      ...(this.rollsBackOnFailure && { OnFailure: OnFailure.DELETE })
     });
     await this.monitorStack(
       'create',
@@ -766,7 +796,7 @@ class StackManager {
     });
     const { StackId } = await awsSdkManager.cloudFormation.createFromUrl(templateUrl, {
       ...stackParams,
-      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+      ...(this.rollsBackOnFailure && { OnFailure: OnFailure.DELETE })
     });
     this.createdStackId = StackId;
     const result = await this.monitorStack(
@@ -847,6 +877,7 @@ class StackManager {
       Tags: this.getTags(),
       Parameters: [] as { ParameterKey: string; ParameterValue: string }[],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
+      ...(this.continuesFailedStack && { DisableRollback: true }),
       ...(roleArn && { RoleARN: roleArn })
     };
     await operationReporter.startEvent({
@@ -1238,9 +1269,10 @@ class StackManager {
       );
       if (hasFailedEcsTask || hasFailedLambdaProvisionedConcurrency) {
         cancelBannerShown = true;
-        const message = hasFailedEcsTask
-          ? 'Container startup failed. CloudFormation will eventually time out and rollback.'
-          : 'Lambda provisioned concurrency failed. CloudFormation will eventually time out and rollback.';
+        const outcome = this.rollsBackOnFailure
+          ? 'CloudFormation will eventually time out and roll back.'
+          : 'CloudFormation will eventually time out and keep the stack in a failed state.';
+        const message = `${hasFailedEcsTask ? 'Container startup failed.' : 'Lambda provisioned concurrency failed.'} ${outcome}`;
         tuiManager.setCancelDeployment({
           message,
           onCancel: async () => {
@@ -1480,7 +1512,7 @@ class StackManager {
         return resolve({});
       };
 
-      const afterStackOperationFailure = async () => {
+      const afterStackOperationFailure = async (failedStackStatus?: StackStatus) => {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
@@ -1491,7 +1523,9 @@ class StackManager {
         const generalHints = getHintsAfterStackFailureOperation({
           cfStackAction,
           stackId,
-          isAutoRollbackEnabled: this.isAutoRollbackEnabled
+          // An update CloudFormation could not keep in UPDATE_FAILED (for example a failed replacement) rolls back.
+          rolledBack: this.rollsBackOnFailure || failedStackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS,
+          isFirstDeploy: this.isFirstDeploy
         });
         // Merge all hints - error-specific hints first, then general hints
         const allHints = [...errorSpecificHints, ...generalHints];
@@ -1536,7 +1570,7 @@ class StackManager {
               return afterStackOperationSuccess();
             }
             if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
-              return afterStackOperationFailure();
+              return afterStackOperationFailure(stackStatus);
             }
             eventBatchEvaluationInProgress = false;
             return;
@@ -1597,7 +1631,7 @@ class StackManager {
                   potentialErrorCausingEvents[LogicalResourceId] = event;
                 }
                 handleProgress();
-                return afterStackOperationFailure();
+                return afterStackOperationFailure(event.ResourceStatus as StackStatus);
               }
               // if we are performing update and cleanup is happening after successful update
               if (
@@ -1672,7 +1706,7 @@ class StackManager {
             return afterStackOperationSuccess();
           }
           if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
-            return afterStackOperationFailure();
+            return afterStackOperationFailure(stackStatus);
           }
           const earlyFailureMessage = getEarlyStartupFailureMessage();
           if (earlyFailureMessage) {
@@ -1680,7 +1714,16 @@ class StackManager {
             return reject(
               new ExpectedError(
                 'STACK',
-                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`
+                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`,
+                cfStackAction === 'create' || cfStackAction === 'update'
+                  ? getHintsAfterStackFailureOperation({
+                      cfStackAction,
+                      stackId,
+                      rolledBack: this.rollsBackOnFailure,
+                      isFirstDeploy: this.isFirstDeploy,
+                      stillRunning: true
+                    })
+                  : undefined
               )
             );
           }

@@ -78,8 +78,10 @@ type FullDeployOperation = {
       templateUrl: string,
       options: { finishWhenCleanupStarts: boolean }
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
-    existingStackDetails?: { StackStatus?: string };
-    isAutoRollbackEnabled: boolean;
+    /** CloudFormation rolls this deploy back when it fails. */
+    rollsBackOnFailure: boolean;
+    /** This deploy continues a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
+    continuesFailedStack: boolean;
     stackActionType: string;
   };
   tui: Pick<DeployOperation['tui'], 'info' | 'warn'>;
@@ -295,7 +297,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       if (success) return;
       // Not after Ctrl+C, which leaves the creation running, or when monitoring failed and the outcome is unknown.
       const endCreation =
-        !interrupted && stack.isAutoRollbackEnabled && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
+        !interrupted && stack.rollsBackOnFailure && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
       await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName, { endCreation });
     });
   }
@@ -321,6 +323,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   let fastDeployPlan: FastDeployPlan | undefined;
   if (stack.stackActionType !== 'create') {
     const reason =
+      stack.reasonToContinueFailedStack ??
       stack.findChangedStackSetting() ??
       deployedStackOverview.findReasonForFullDeployment({
         cfTemplateDiff,
@@ -689,14 +692,14 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
     // cleanup in case error happened during deploy
     // when only monitoring failed, we do not know if stack operation failed or succeeded.
     // in such case we should not delete artifacts as that could result in broken stack
-    if (stack.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {
+    if (stack.rollsBackOnFailure && (err as ExpectedError).type !== 'STACK_MONITORING') {
       await deploymentArtifacts.deleteArtifactsRollbackedDeploy();
     }
     throw err;
   }
-  // if we have just fixed stack from UPDATE FAILED state, there can be some artifacts created during multiple fixing attempts
-  // these artifacts need cleaning up before we delete old versions with deleteAllObsoleteArtifacts
-  if (stack.existingStackDetails?.StackStatus === 'UPDATE_FAILED') {
+  // A deploy that continued a failed stack can leave artifacts of the earlier attempts with the same version. They are
+  // cleaned up before old versions are deleted with deleteAllObsoleteArtifacts.
+  if (stack.continuesFailedStack) {
     await deploymentArtifacts.deleteArtifactsFixedDeploy();
   }
 

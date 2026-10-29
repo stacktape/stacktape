@@ -118,11 +118,11 @@ export const disableDockerRemoteCache = z.boolean().describe(`#### Disable Docke
 ---
 In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to \`true\` to build without the ECR cache in CI as well.`);
 
-export const disableAutoRollback = z.boolean().describe(`#### Disable Auto-Rollback
+export const autoRollback = z.boolean().describe(`#### Auto-Rollback
 ---
-If \`true\`, disables automatic rollback on deployment failure.
-- **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state.
-- **Without auto-rollback:** If a deployment fails, the stack remains in the \`UPDATE_FAILED\` state. You can then either fix the issues and redeploy or manually roll back using the \`stacktape rollback\` command.`);
+If \`true\`, a failed deploy rolls back instead of keeping what it created. Overrides \`deploymentConfig.autoRollback\` for this deploy.
+- **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in \`CREATE_FAILED\` or \`UPDATE_FAILED\`, and the next deploy continues from there.
+- **With auto-rollback (\`--auto-rollback\`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when \`deploymentConfig.triggerRollbackOnAlarms\` or \`monitoringTimeAfterDeploymentInMinutes\` is set.`);
 
 export const autoConfirmOperation = z.boolean().describe(`#### Auto-Confirm Operation
 ---
@@ -574,7 +574,6 @@ export const argAliases = {
   noCache: 'nc',
   env: 'env',
   outFile: 'out',
-  disableAutoRollback: 'dar',
   autoConfirmOperation: ['aco', 'yes', 'y'],
   showSensitiveValues: 'ssv',
   help: 'h',
@@ -668,7 +667,7 @@ export const allCliArgsSchema = z.object({
   env: env.optional(),
   scriptName: scriptName.optional(),
   outFile: outFile.optional(),
-  disableAutoRollback: disableAutoRollback.optional(),
+  autoRollback: autoRollback.optional(),
   autoConfirmOperation: autoConfirmOperation.optional(),
   showSensitiveValues: showSensitiveValues.optional(),
   invalidateCdnCache: invalidateCdnCache.optional(),

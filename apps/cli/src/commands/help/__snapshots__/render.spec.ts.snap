@@ -112,7 +112,7 @@ Options:
       --docker-args <value>        Additional arguments to pass to the docker run or docker build commands.
       --no-cache                   If true, disables the use of cached artifacts and forces a fresh build of compute resources.
       --no-remote-cache            In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to true to build without the ECR cache in CI as well.
-      --no-auto-rollback           If true, disables automatic rollback on deployment failure.
+      --auto-rollback              If true, a failed deploy rolls back instead of keeping what it created. Overrides deploymentConfig.autoRollback for this deploy.
   -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
       --show-secrets               If true, includes sensitive values in the output of commands such as status, deploy, and param get. Be cautious when using this flag, as mishandling sensitive data can create security risks.
       --full                       If true, deploys every change through CloudFormation. By default, when only the code of functions and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.

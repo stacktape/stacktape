@@ -63,7 +63,7 @@ Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory
 | `--config` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
 | `--full` | Deploy every change through CloudFormation, even when only code changed. |
 | `--yes` | Skip the confirmation prompt. Required for CI/CD pipelines. |
-| `--no-auto-rollback` | Keep failed CloudFormation state for debugging instead of rolling back. |
+| `--auto-rollback` | Roll the stack back if this deployment fails, instead of keeping what it created. |
 | `--no-cache` | Force fresh builds, ignoring cached artifacts. |
 | `--keep-temp-files` | Keep generated CloudFormation templates for inspection. |
 | `--log-level` | Set to `debug` for verbose output. |
@@ -85,7 +85,7 @@ Every `stacktape deploy` picks one of two modes on its own: a full deployment th
 | Can update all resource types | yes | no |
 | Adds or removes resources | yes | no |
 | Changes IAM, networking, config | yes | no |
-| Automatic rollback on failure | yes | no |
+| Optional automatic rollback on failure | yes | no |
 | Typical duration | Minutes (varies with stack complexity) | Seconds for functions, one rolling deployment for services |
 | Execution environment | Invoking CLI or Console EC2 runner | Invoking CLI or Console EC2 runner |
 
@@ -114,25 +114,26 @@ A deployment uses CloudFormation when:
 
 A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
-## Automatic rollback
+## When a deployment fails
 
-By default, Stacktape enables CloudFormation auto-rollback. If any resource fails during a full deployment, CloudFormation reverts the entire stack to its previous state. When auto-rollback is enabled, Stacktape also cleans up deployment artifacts from the rolled-back deployment so you don't accumulate orphaned build artifacts. The exception is stack-monitoring failures — when monitoring loses track of the deployment outcome, artifacts are preserved because the deployment may have actually succeeded.
+By default, a failed full deployment keeps everything it created or updated, and the next deployment continues from the failure:
 
-For new stacks that fail on first creation, CloudFormation rolls back and deletes provisioned resources, leaving the stack in a `ROLLBACK_COMPLETE` state. You must delete this empty stack before deploying again — see the [troubleshooting section](#stack-is-in-rollback_complete-state) below.
+- A failed **first deployment** leaves the stack in `CREATE_FAILED`. Resources that were created stay, for example a database that took several minutes. Fix the error and run `stacktape deploy` again: it updates the stack, creates only what is missing and retries what failed. To remove everything instead, run [`stacktape delete`](/cli/delete).
+- A failed **update** leaves the stack in `UPDATE_FAILED`. Resources that updated successfully keep their new configuration, and the ones that failed return to their previous state. Fix the error and deploy again, or return the whole stack to the last successful deployment with [`stacktape stack recover`](/cli/cf-rollback).
 
-### Debugging failed deployments
-
-To inspect a failed deployment before it rolls back, disable auto-rollback:
-
-```bash
-stacktape deploy --stage dev --region eu-west-1 --no-auto-rollback
-```
-
-If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape includes cleanup logic that runs when you successfully deploy over that state. Inspect CloudFormation events in the AWS console to diagnose the issue, fix the problem in your config, then deploy again. You can also recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
+The CLI prints which state the stack is in and these options when a deployment fails. A deployment over a failed stack always goes through CloudFormation, even when only code changed. When it succeeds, Stacktape removes the deployment artifacts that the failed attempts left behind.
 
 
-> **Warning:** Don't leave production stacks in a failed state. Fix the issue and redeploy promptly, or recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
+> **Warning:** A failed stack can run a mix of old and new configuration. On production stacks, fix the issue and redeploy promptly, or recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
 
+
+### Automatic rollback
+
+Set `deploymentConfig.autoRollback: true`, or pass `--auto-rollback` for one deployment, to have CloudFormation undo a failed deployment instead. A failed update then returns the whole stack to its previous state, and a failed first deployment deletes the new stack and the deployment bucket and image repository Stacktape created for it. Automatic rollback is on whenever `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set, because rollback alarms need it.
+
+When a rollback happens, Stacktape also removes the deployment artifacts of the rolled-back attempt. The exception is stack-monitoring failures: when monitoring loses track of the deployment outcome, artifacts are kept because the deployment may have succeeded.
+
+A stack already left in `CREATE_FAILED` or `UPDATE_FAILED` can only be continued without rollback, so the next deployment over it never rolls back, even with automatic rollback turned on.
 
 ## Deployment confirmation
 
@@ -176,8 +177,9 @@ Every Stacktape stage maps to one AWS CloudFormation stack, and each stack has a
 | `CREATE_COMPLETE` | Stack created and healthy | Deploy updates, delete |
 | `UPDATE_COMPLETE` | Last update succeeded | Deploy updates, delete |
 | `UPDATE_ROLLBACK_COMPLETE` | Last update failed and rolled back | Deploy again (fix the issue first), delete |
-| `UPDATE_FAILED` | Update failed, auto-rollback was disabled | Fix and redeploy, or [recover with `stack recover`](/cli/cf-rollback) |
-| `ROLLBACK_COMPLETE` | Initial creation failed and rolled back | Delete the stack and try again |
+| `CREATE_FAILED` | First deployment failed; created resources were kept | Fix and redeploy, or delete |
+| `UPDATE_FAILED` | Update failed; updated resources were kept | Fix and redeploy, or [recover with `stack recover`](/cli/cf-rollback) |
+| `ROLLBACK_COMPLETE` | First deployment failed and was rolled back | Delete the stack and try again |
 | `*_IN_PROGRESS` | Operation running | Wait for it to finish |
 | `DELETE_COMPLETE` | Stack deleted | Deploy to create a new stack |
 
@@ -254,7 +256,7 @@ Deployment duration depends on the number and type of resources in your stack, t
 
 ### What happens if a CloudFormation deployment fails midway?
 
-When auto-rollback is enabled (the default), CloudFormation reverts the entire stack to its previous working state. Resources that were partially created are deleted, and modified resources are reverted. Stacktape also cleans up deployment artifacts from the rolled-back attempt. You can disable auto-rollback with `--no-auto-rollback` to keep the failed state for inspection. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for manual rollback options.
+By default, the stack keeps what the deployment created or updated and stays in `CREATE_FAILED` or `UPDATE_FAILED`. Fix the error and deploy again to continue from the failure. With [automatic rollback](#automatic-rollback), CloudFormation instead reverts the entire stack to its previous working state, and Stacktape cleans up the deployment artifacts of the rolled-back attempt. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for manual rollback options.
 
 ### Can I deploy multiple stages from the same config?
 

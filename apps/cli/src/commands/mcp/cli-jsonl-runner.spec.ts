@@ -105,7 +105,7 @@ describe('MCP Stacktape agent subprocess runner', () => {
     const deploy = await parse('deploy', {
       stage: 'dev',
       fullDeploy: true,
-      disableAutoRollback: false,
+      noCache: false,
       dockerArgs: ['--build-arg', 'VERSION=1,2']
     });
     expect(deploy.options).toMatchObject({
@@ -113,7 +113,7 @@ describe('MCP Stacktape agent subprocess runner', () => {
       fullDeploy: true,
       dockerArgs: ['--build-arg', 'VERSION=1,2']
     });
-    expect(deploy.options.disableAutoRollback).toBeUndefined();
+    expect(deploy.options.noCache).toBeUndefined();
     // The Console shows operations started this way as run by an AI agent through MCP.
     expect(deploy.invocation).toEqual({
       initiator: 'ai-agent',

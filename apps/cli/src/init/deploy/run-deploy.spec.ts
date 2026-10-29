@@ -82,8 +82,13 @@ describe('the deploy command line', () => {
       'eu-west-1',
       '--projectName',
       'orders',
+      '--autoRollback',
       '--agent'
     ]);
+  });
+
+  it('keeps what a retried update created only when asked to', () => {
+    expect(deployArgs({ ...request, keepPartialProgress: true })).not.toContain('--autoRollback');
   });
 
   it('shows the user the same command without our own machine-readable flag', () => {

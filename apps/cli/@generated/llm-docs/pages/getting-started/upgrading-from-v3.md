@@ -26,6 +26,14 @@ v4 commands and flags use standard spelling: words separated by spaces, and lowe
 
 Use `error list`, `error ignore`, `error resolve`, and `error reopen` in place of the `issues:*` CLI commands. The `issues:*` commands still work, so existing scripts, automation and MCP command requests keep running. Replace `deploymentConfig.issues` with `deploymentConfig.errorTracking` in YAML and TypeScript configs; the old config name is rejected. Issue IDs and status values are unchanged. See [Error tracking](/observability/error-tracking) for capture settings and triage commands.
 
+## Failed deployments keep what they created
+
+v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure. To undo a failed update, run `stacktape stack recover`; to remove a failed first deployment, run `stacktape delete`. See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+
+- Replace `deploymentConfig.disableAutoRollback: true` by deleting it; this is now the default. The old name is rejected.
+- To keep the v3 behaviour, set `deploymentConfig.autoRollback: true`, or pass `--auto-rollback` to one deployment. Stacks with `triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` keep rolling back automatically without a change.
+- Remove `--no-auto-rollback` (`--disableAutoRollback`, `--dar`) from scripts and CI jobs. The flag no longer exists.
+
 ## Security findings in agent output
 
 In the `--agent` result of `validate` and `deploy`, one `security` object replaces the `securityFindings` and `securityExposure` fields that `4.0.0-preview.10` returned: read `security.findings` and `security.exposure` instead. See [security findings by stage purpose](/cli/validate#security-findings-by-stage-purpose).
