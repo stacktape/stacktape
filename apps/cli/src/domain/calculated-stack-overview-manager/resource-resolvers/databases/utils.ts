@@ -49,7 +49,7 @@ export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDataba
     !resource.accessibility || resource.accessibility.accessibilityMode === 'internet'
       ? [{ CidrIp: '0.0.0.0/0', FromPort: databasePort, ToPort: databasePort, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'vpc'
-        ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: databasePort, ToPort: databasePort, IpProtocol: 'tcp' }]
+        ? [vpcManager.vpcWideIngress({ FromPort: databasePort, ToPort: databasePort, IpProtocol: 'tcp' })]
         : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
           ? getConnectToReferencesForResource({
               activeConfig: configManager,

@@ -16,7 +16,9 @@ export const getNetworkLoadBalancer = (loadBalancerName: string, loadBalancerCon
   cfnResource('AWS::ElasticLoadBalancingV2::LoadBalancer', {
     IpAddressType: 'ipv4',
     Scheme: loadBalancerConfig.interface === 'internal' ? 'internal' : 'internet-facing',
-    SecurityGroups: [ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))],
+    SecurityGroups: vpcManager.withStageSecurityGroup([
+      ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
+    ]),
     Subnets: vpcManager.getPublicSubnetIds(),
     Type: 'network'
   });
@@ -41,12 +43,18 @@ export const getNetworkLoadBalancerSecurityGroup = (
               CidrIp: transformToCidr({ cidrOrIp: whitelistedIp }),
               IpProtocol: 'tcp'
             }))
-          : {
-              FromPort: listenerConfig.port,
-              ToPort: listenerConfig.port,
-              CidrIp: loadBalancerConfig.interface === 'internal' ? vpcManager.getVpcCidr() : '0.0.0.0/0',
-              IpProtocol: 'tcp'
-            }
+          : loadBalancerConfig.interface === 'internal'
+            ? vpcManager.vpcWideIngress({
+                FromPort: listenerConfig.port,
+                ToPort: listenerConfig.port,
+                IpProtocol: 'tcp'
+              })
+            : {
+                FromPort: listenerConfig.port,
+                ToPort: listenerConfig.port,
+                CidrIp: '0.0.0.0/0',
+                IpProtocol: 'tcp'
+              }
       )
       .flat()
   });

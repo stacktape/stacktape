@@ -33,7 +33,12 @@ const NON_PRODUCTION_TOKENS = new Set([
   'demo',
   'sandbox',
   'preview',
-  'local'
+  'local',
+  'pr',
+  'feature',
+  'feat',
+  'e2e',
+  'ci'
 ]);
 
 /**
@@ -48,13 +53,22 @@ const tokenizeStageName = (stageName: string): string[] =>
     .map((token) => token.replace(/(?<=[a-z])\d+$/, ''))
     .filter(Boolean);
 
-/** Name-based inference alone. Prefer `classifyStage`, which honors an explicit stage type. */
-export const isProductionStageName = (stageName: string): boolean => {
+/** What a stage name alone says: a non-production token wins over a production one, and other names say nothing. */
+export type StageNameKind = 'production' | 'non-production' | 'unknown';
+
+/**
+ * Name-based inference with its uncertainty kept: `main` or `acme` are `unknown`. Paging and permissions treat unknown
+ * names as non-production (see `isProductionStageName`); network placement gives them a VPC of their own.
+ */
+export const inferStageNameKind = (stageName: string): StageNameKind => {
   const tokens = tokenizeStageName(stageName);
-  if (!tokens.length) return false;
-  if (tokens.some((token) => NON_PRODUCTION_TOKENS.has(token))) return false;
-  return tokens.some((token) => PRODUCTION_TOKENS.has(token));
+  if (tokens.some((token) => NON_PRODUCTION_TOKENS.has(token))) return 'non-production';
+  if (tokens.some((token) => PRODUCTION_TOKENS.has(token))) return 'production';
+  return 'unknown';
 };
+
+/** Name-based inference alone. Prefer `classifyStage`, which honors an explicit stage type. */
+export const isProductionStageName = (stageName: string): boolean => inferStageNameKind(stageName) === 'production';
 
 export type StageClassification = {
   isProduction: boolean;

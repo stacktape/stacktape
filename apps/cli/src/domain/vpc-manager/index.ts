@@ -1,9 +1,10 @@
-import { ref } from '@stacktape/cloudformation/intrinsics';
+import { importValue, ref, select, split } from '@stacktape/cloudformation/intrinsics';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
 import { operationReporter } from '@application-services/operation-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
+import { getSharedNetworkExportName } from '@stacktape/naming/shared-stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -13,6 +14,34 @@ import { vpcErrors } from './errors';
 
 type SubnetDetails = {
   subnet: Subnet;
+};
+
+/** The shared non-production network as its stack outputs describe it (see `domain/shared-network`). */
+export type SharedNetwork = {
+  vpcId: string;
+  vpcCidr: string;
+  /** Public subnet `i` and private subnet `i` share a zone. */
+  publicSubnets: Array<{ id: string; availabilityZone: string }>;
+  privateSubnets: Array<{ id: string; availabilityZone: string }>;
+  /** The public IP of the shared NAT, when the stage uses it. */
+  natPublicIp?: string;
+};
+
+/** A security group ingress rule without its source. */
+type IngressPorts = { FromPort: number; ToPort: number; IpProtocol: string; Description?: string };
+
+/** Placeholders for a preview before the shared network exists: its exports, which a deploy replaces with literals. */
+const sharedNetworkPlaceholders = () => {
+  const subnets = (exportName: 'public-subnet-ids' | 'private-subnet-ids') =>
+    [0, 1, 2].map((index) => ({
+      SubnetId: select(index, split(',', importValue(getSharedNetworkExportName(exportName)))) as unknown as string,
+      AvailabilityZone: `zone-${index}`
+    }));
+  return {
+    vpc: { VpcId: importValue(getSharedNetworkExportName('vpc-id')) as unknown as string, CidrBlock: '10.231.0.0/16' },
+    publicSubnets: subnets('public-subnet-ids'),
+    privateSubnets: subnets('private-subnet-ids')
+  };
 };
 
 // Helper function to validate VPC CIDR is within RFC 1918 private IP ranges
@@ -48,6 +77,66 @@ class VpcManager {
   #vpc: Vpc | null = null;
   #publicSubnets: SubnetDetails[] = [];
   #privateSubnets: SubnetDetails[] = [];
+  #shared: { usesNat: boolean; natPublicIp?: string } | null = null;
+
+  /**
+   * Places the stack's networked resources in the shared non-production network, or back in a VPC of its own
+   * (`undefined`). `not-created` is a preview of a stage whose network does not exist yet.
+   */
+  useSharedNetwork = (network: SharedNetwork | 'not-created' | undefined, { usesNat = false } = {}) => {
+    if (!network) {
+      if (this.#shared) {
+        this.#shared = null;
+        this.#vpc = null;
+        this.#publicSubnets = [];
+        this.#privateSubnets = [];
+      }
+      return;
+    }
+    const { vpc, publicSubnets, privateSubnets } =
+      network === 'not-created'
+        ? sharedNetworkPlaceholders()
+        : {
+            vpc: { VpcId: network.vpcId, CidrBlock: network.vpcCidr },
+            publicSubnets: network.publicSubnets.map(({ id, availabilityZone }) => ({
+              SubnetId: id,
+              AvailabilityZone: availabilityZone
+            })),
+            privateSubnets: network.privateSubnets.map(({ id, availabilityZone }) => ({
+              SubnetId: id,
+              AvailabilityZone: availabilityZone
+            }))
+          };
+    this.#vpc = vpc;
+    this.#publicSubnets = publicSubnets.map((subnet) => ({ subnet }));
+    this.#privateSubnets = privateSubnets.map((subnet) => ({ subnet }));
+    this.#shared = { usesNat, natPublicIp: network === 'not-created' ? undefined : network.natPublicIp };
+  };
+
+  /** Whether the stack runs in the shared non-production network instead of a VPC it creates or reuses. */
+  get isSharedNetwork() {
+    return this.#shared !== null;
+  }
+
+  get sharedNetwork() {
+    return this.#shared;
+  }
+
+  /**
+   * The security groups of a network interface the stack creates (a function, task, instance, load balancer or VPC
+   * link). In the shared network every one of them also carries the stage's group, which `vpcWideIngress` admits.
+   */
+  withStageSecurityGroup = <T>(securityGroups: T[]): Array<T | ReturnType<typeof ref>> =>
+    this.isSharedNetwork ? [...securityGroups, ref(cfLogicalNames.stageNetworkSecurityGroup())] : securityGroups;
+
+  /**
+   * An ingress rule that admits "the stack's VPC". In a VPC of the stack's own that is its CIDR. In the shared network
+   * the CIDR also holds every other non-production stage, so the rule admits the stage's group instead.
+   */
+  vpcWideIngress = (ports: IngressPorts) =>
+    this.isSharedNetwork
+      ? { ...ports, SourceSecurityGroupId: ref(cfLogicalNames.stageNetworkSecurityGroup()) }
+      : { ...ports, CidrIp: this.getVpcCidr() };
 
   init = async (params?: { reuseVpc?: VpcReuseConfig; resourcesRequiringPrivateSubnet?: StpResource[] }) => {
     // Check if reuseVpc is configured

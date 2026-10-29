@@ -774,6 +774,9 @@ const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManage
   if (!reuseVpc) {
     return; // No validation needed if not using reuseVpc
   }
+  if (configManager.config?.stackConfig?.vpc?.shared === true) {
+    throw configErrors.sharedVpcWithReuseVpc(null);
+  }
 
   const hasVpcId = Boolean(reuseVpc.vpcId);
   const hasProjectStage = Boolean(reuseVpc.projectName && reuseVpc.stage);

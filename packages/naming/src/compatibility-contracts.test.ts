@@ -78,6 +78,7 @@ describe('migrated naming compatibility contracts', () => {
       monthToDateSpend: 'monthToDateSpend',
       monthForecastedSpend: 'monthForecastedSpend',
       natPublicIps: 'natPublicIps',
+      networkPlacement: 'networkPlacement',
       devAgentRoleExternalId: 'devAgentRoleExternalId',
       debugAgentRoleExternalId: 'debugAgentRoleExternalId',
       rollbackSafety: 'rollbackSafety',

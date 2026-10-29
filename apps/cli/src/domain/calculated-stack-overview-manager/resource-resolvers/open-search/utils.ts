@@ -159,7 +159,7 @@ export const getOpenSearchDomainLogGroup = ({
 export const getOpenSearchDomainSecurityGroup = ({ resource }: { resource: StpOpenSearchDomain }) => {
   const basicIngressRules: Ingress[] =
     resource.accessibility.accessibilityMode === 'vpc'
-      ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: 443, ToPort: 443, IpProtocol: 'tcp' }]
+      ? [vpcManager.vpcWideIngress({ FromPort: 443, ToPort: 443, IpProtocol: 'tcp' })]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
         ? getConnectToReferencesForResource({
             activeConfig: configManager,

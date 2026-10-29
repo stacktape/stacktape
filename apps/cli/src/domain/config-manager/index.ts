@@ -1711,6 +1711,11 @@ export class ConfigManager {
     });
   }
 
+  /** The type chosen when the stage was created in the Stacktape Console, when the command knows it. */
+  get consoleStageType() {
+    return this.#consoleStageType?.();
+  }
+
   assessSecurityPosture = () =>
     assessSecurityPosture({
       configManager: this,

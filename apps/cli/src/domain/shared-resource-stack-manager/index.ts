@@ -66,7 +66,13 @@ const sharedStackError = ({
 
 const IN_PROGRESS_SUFFIXES = ['_IN_PROGRESS', '_CLEANUP_IN_PROGRESS'];
 const isInProgress = (status?: string) => IN_PROGRESS_SUFFIXES.some((suffix) => status?.endsWith(suffix));
-const isReady = (status?: string) => status === 'CREATE_COMPLETE' || status === 'UPDATE_COMPLETE';
+/**
+ * A stable stack whose outputs can be used. `UPDATE_ROLLBACK_COMPLETE` is the previous, working version after a failed
+ * upgrade: it serves every caller its contract version satisfies, so one failed upgrade does not block every deploy
+ * that needs the stack. A caller that needs the newer version updates it again.
+ */
+const isReady = (status?: string) =>
+  status === 'CREATE_COMPLETE' || status === 'UPDATE_COMPLETE' || status === 'UPDATE_ROLLBACK_COMPLETE';
 /** A failed operation that CloudFormation undoes: it can run much longer than the operation, for example while network interfaces block a deletion. */
 const isRollingBack = (status?: string) =>
   Boolean(status && isInProgress(status) && (status.includes('ROLLBACK') || status.startsWith('DELETE')));
@@ -364,6 +370,14 @@ export class SharedResourceStackManager {
         JSON.stringify(stackParameters(updatedEffectiveParameters)) ===
           JSON.stringify(stackParameters(updatedParameters)));
     if (updateSatisfied) return { action: 'upgrade', stackName: requirement.stackName };
+    if (stableUpdated.StackStatus === 'UPDATE_ROLLBACK_COMPLETE') {
+      // This update (or a concurrent one) failed and was undone. Repeating it would most likely fail the same way.
+      throw sharedStackError({
+        code: 'SHARED_STACK_UPDATE_ROLLED_BACK',
+        message: `The update of shared stack \`${requirement.stackName}\` failed and was rolled back (${describeState(stableUpdated)}).`,
+        hints: 'Review the failed update in the CloudFormation events of the stack, correct the cause, and retry.'
+      });
+    }
     if (raceAttempt >= 3) {
       throw sharedStackError({
         code: 'SHARED_STACK_UPDATE_RACE_EXHAUSTED',

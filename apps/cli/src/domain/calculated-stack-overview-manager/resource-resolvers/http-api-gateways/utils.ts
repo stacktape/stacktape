@@ -224,7 +224,9 @@ export const getHttpApiGatewayVpcLinkResource = ({ stpHttpApiGatewayName }: { st
       stpResourceName: stpHttpApiGatewayName
     }),
     SubnetIds: vpcManager.getPublicSubnetIds(),
-    SecurityGroupIds: [ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(stpHttpApiGatewayName))],
+    SecurityGroupIds: vpcManager.withStageSecurityGroup([
+      ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(stpHttpApiGatewayName))
+    ]),
     Tags: tagObject
   });
 };

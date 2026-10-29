@@ -228,7 +228,7 @@ const getBatchInstanceNetwork = () => {
   }
   return {
     Subnets: vpcManager.getPublicSubnetIds().slice(0, BATCH_SUBNET_INDEXES.length),
-    SecurityGroupIds: [ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())]
+    SecurityGroupIds: vpcManager.withStageSecurityGroup([ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())])
   };
 };
 
@@ -274,7 +274,7 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
   // a stack deletion detached the gateway while a job's instance still ran: the detach failed after 15 minutes, and the
   // job, cut off from ECS, kept its state machine execution and so the compute environment alive. The order is a
   // DependsOn only: adding it to a deployed stack updates no resource.
-  if (!configManager.reuseVpcConfig && !configManager.batchJobsInDevNetwork) {
+  if (!configManager.reuseVpcConfig && !vpcManager.isSharedNetwork && !configManager.batchJobsInDevNetwork) {
     resource.DependsOn = [
       cfLogicalNames.vpcGatewayAttachment(),
       ...BATCH_SUBNET_INDEXES.flatMap((subnetIndex) => [

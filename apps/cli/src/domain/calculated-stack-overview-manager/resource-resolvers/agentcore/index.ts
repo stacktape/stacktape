@@ -138,7 +138,7 @@ const resolveAgentCoreRuntimes = () => {
           ? {
               NetworkMode: 'VPC',
               NetworkModeConfig: {
-                SecurityGroups: [ref(cfLogicalNames.workloadSecurityGroup(name))],
+                SecurityGroups: vpcManager.withStageSecurityGroup([ref(cfLogicalNames.workloadSecurityGroup(name))]),
                 Subnets: vpcManager.getPrivateSubnetIds()
               }
             }

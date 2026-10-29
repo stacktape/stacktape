@@ -1,3 +1,4 @@
+import { prepareStageNetwork } from '@domain-services/shared-network';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { initializeDiffOperation } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
@@ -131,6 +132,7 @@ export const commandDiff = async () => {
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
+  await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });
   const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
   await resolveAllResources();
   await calculatedStackOverview.populateStackMetadata();
