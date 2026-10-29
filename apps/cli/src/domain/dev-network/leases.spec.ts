@@ -108,8 +108,8 @@ describe('dev network leases', () => {
       [earlier, earlierPorts],
       [later, laterPorts]
     ] as const) {
-      expect(store.parameters.get(`/stacktape/dev-network/r2af-network/ports/${ports.get('db')}`)).toBe(
-        `${leasePrefix}/${stack}/db`
+      expect(store.parameters.get(`/stacktape/dev-network/r2af-network/ports/${ports.get('db')}`)).toStartWith(
+        `${leasePrefix}/${stack}/db#`
       );
     }
   });
@@ -123,8 +123,8 @@ describe('dev network leases', () => {
       resourceNames: ['db']
     });
     expect(leases.get('db')).toBe(20001);
-    expect(kept.parameters.get('/stacktape/dev-network/stacktape-dev-network/ports/20001')).toBe(
-      lease('shop-alice', 'db')
+    expect(kept.parameters.get('/stacktape/dev-network/stacktape-dev-network/ports/20001')).toStartWith(
+      `${lease('shop-alice', 'db')}#`
     );
 
     const moved = memoryStore({
@@ -140,6 +140,77 @@ describe('dev network leases', () => {
     });
     expect(alice.get('db')).not.toBe(20001);
     expect(moved.parameters.get(lease('shop-alice', 'db'))).toBe(String(alice.get('db')));
+  });
+
+  // Review of #393: a session read the stage's old lease, another session of the stage moved the lease and returned,
+  // and the first deleted the moved lease and its reservation from its old read, so a third stage got the same port.
+  test('a session that read an old lease never removes the lease another session of the stage moved', async () => {
+    const network = 'r2af-network';
+    const leasePrefix = '/stacktape/dev-network/r2af-network/leases';
+    const portPrefix = '/stacktape/dev-network/r2af-network/ports';
+    const moving = `${leasePrefix}/r2af-00083/db`;
+    const port = preferredLeasePort(moving);
+    // Two leases of older CLIs collided; the other stage reserved the port first.
+    const store = memoryStore({
+      [moving]: String(port),
+      [`${leasePrefix}/r2af-00000/db`]: String(port),
+      [`${portPrefix}/${port}`]: `${leasePrefix}/r2af-00000/db#${Date.now()}#other`
+    });
+    let readLeases!: () => void;
+    const hasReadLeases = new Promise<void>((resolve) => (readLeases = resolve));
+    let resume!: () => void;
+    const resumed = new Promise<void>((resolve) => (resume = resolve));
+    let first = true;
+    const deleted: string[] = [];
+    const slowStore: LeaseStore = {
+      ...store,
+      list: async (prefix) => {
+        const snapshot = await store.list(prefix);
+        if (first && prefix === leasePrefix) {
+          first = false;
+          readLeases();
+          await resumed;
+        }
+        return snapshot;
+      },
+      delete: async (names) => {
+        deleted.push(...names);
+        await store.delete(names);
+      }
+    };
+    const slow = ensureLeases({
+      store: slowStore,
+      networkName: network,
+      stackName: 'r2af-00083',
+      resourceNames: ['db']
+    });
+    await hasReadLeases;
+    const moved = await ensureLeases({ store, networkName: network, stackName: 'r2af-00083', resourceNames: ['db'] });
+    expect(moved.get('db')).not.toBe(port);
+    resume();
+    expect((await slow).get('db')).toBe(moved.get('db')!);
+    expect(deleted).not.toContain(moving);
+    expect(deleted).not.toContain(`${portPrefix}/${moved.get('db')}`);
+    const other = await ensureLeases({ store, networkName: network, stackName: 'stage-c', resourceNames: ['db'] });
+    expect(other.get('db')).not.toBe(moved.get('db')!);
+  });
+
+  test('a reservation whose lease never appeared is kept for an hour, then reclaimed', async () => {
+    const ports = '/stacktape/dev-network/stacktape-dev-network/ports';
+    const start = Date.now();
+    const store = memoryStore({
+      [`${ports}/20001`]: `${lease('stopped-fresh', 'db')}#${start}#a`,
+      [`${ports}/20002`]: `${lease('stopped-old', 'db')}#${start - 2 * 60 * 60_000}#b`
+    });
+    await ensureLeases({
+      store,
+      networkName: 'stacktape-dev-network',
+      stackName: 'shop-alice',
+      resourceNames: ['db'],
+      now: () => start
+    });
+    expect(store.parameters.has(`${ports}/20001`)).toBeTrue();
+    expect(store.parameters.has(`${ports}/20002`)).toBeFalse();
   });
 
   test('deleting a stage releases its leases and their ports only', async () => {

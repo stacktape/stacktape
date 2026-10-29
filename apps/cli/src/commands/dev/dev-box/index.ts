@@ -8,6 +8,9 @@ import { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import findFreePorts from 'find-free-ports';
 import { pingRelay } from '../tunnel-manager';
 
+/** How many times one session tries to update a relay older than this CLI's before it runs on the older relay. */
+const MAX_RELAY_UPDATE_ATTEMPTS = 3;
+
 /** One SSM port-forwarding session from this machine to the relay's control port on the box. */
 export type RelaySession = {
   readonly sessionId: string | undefined;
@@ -20,7 +23,12 @@ export type DevBoxStatus =
   | { phase: 'starting-box' }
   | { phase: 'network-update'; status: string }
   | { phase: 'connecting' }
-  | { phase: 'ready'; relay: RelayEndpoint }
+  | {
+      phase: 'ready';
+      relay: RelayEndpoint;
+      /** The box runs a relay older than this CLI's, because updating it failed (see `MAX_RELAY_UPDATE_ATTEMPTS`). */
+      outdatedRelay?: { version: number; reason: string };
+    }
   | { phase: 'reconnecting'; reason: string };
 
 export type DevBoxDependencies = {
@@ -167,8 +175,9 @@ export class DevBoxConnection {
   /** The relay accepted a presence of this session once: from then on, a refusal means the stage was lost. */
   #heldStage = false;
   #lostStage = false;
-  /** This session asked the box to install the network's relay once; it does not ask again. */
-  #relayUpdated = false;
+  /** How often this session tried to update the box's relay, and why the last attempt failed. */
+  #relayUpdateAttempts = 0;
+  #relayUpdateError: string | undefined;
 
   constructor({
     deps,
@@ -298,14 +307,29 @@ export class DevBoxConnection {
     };
     const version = await ping();
     // The network carries the relay of this CLI or a newer one (`ensureDevNetwork`), but a box keeps running the relay
-    // it started with until its relay service restarts.
-    if (version < DEV_BOX_RELAY_VERSION && !this.#relayUpdated) {
-      this.#relayUpdated = true;
+    // it started with until its relay service restarts. A failed update is retried with the next connection attempts;
+    // after the last one the session runs on the older relay and says so, and the next session tries again.
+    if (version < DEV_BOX_RELAY_VERSION && this.#relayUpdateAttempts < MAX_RELAY_UPDATE_ATTEMPTS) {
+      this.#relayUpdateAttempts++;
       this.#deps.onRelayUpdate?.(version);
-      await (this.#deps.updateRelay ?? (() => updateDevBoxRelay({ aws, network: this.#network })))();
-      await ping(DEV_BOX_RELAY_VERSION);
+      try {
+        await (this.#deps.updateRelay ?? (() => updateDevBoxRelay({ aws, network: this.#network })))();
+        await ping(DEV_BOX_RELAY_VERSION);
+      } catch (error) {
+        this.#relayUpdateError = (error as Error).message;
+        throw new Error(`Updating the dev box relay from version ${version} failed: ${this.#relayUpdateError}`);
+      }
+      this.#relayUpdateError = undefined;
+      this.#setStatus({ phase: 'ready', relay });
+      return relay;
     }
-    this.#setStatus({ phase: 'ready', relay });
+    this.#setStatus({
+      phase: 'ready',
+      relay,
+      ...(version < DEV_BOX_RELAY_VERSION
+        ? { outdatedRelay: { version, reason: this.#relayUpdateError ?? 'the update did not take effect' } }
+        : {})
+    });
     return relay;
   };
 

@@ -374,6 +374,7 @@ const describeDevBoxStatus = (status: NonNullable<DevNetworkSession['connection'
     return `Waiting for CloudFormation to update the dev network (${status.status})…`;
   if (status.phase === 'connecting') return 'Connecting to the dev box…';
   if (status.phase === 'reconnecting') return `Reconnecting: ${status.reason}`;
+  if (status.outdatedRelay) return `dev box ${status.relay.relayHost}, relay version ${status.outdatedRelay.version}`;
   return `dev box ${status.relay.relayHost}`;
 };
 
@@ -395,8 +396,16 @@ const connectDevNetwork = async ({
   const failed = new Promise<string>((resolve) => (reportFailure = resolve));
   let warnedReason: string | undefined;
   if (useDevTui) devTuiManager.setSetupStepStatus('dev-box', 'running', 'Connecting to the dev box…');
+  let warnedOutdatedRelay = false;
   connection.onStatus = (status) => {
     if (status.phase === 'reconnecting') reportFailure(status.reason);
+    if (status.phase === 'ready' && status.outdatedRelay && !warnedOutdatedRelay) {
+      warnedOutdatedRelay = true;
+      tuiManager.warn(
+        `The dev box runs relay version ${status.outdatedRelay.version}, older than this Stacktape version, because updating it failed: ${status.outdatedRelay.reason}. ` +
+          'Dev mode works with it; the next `stacktape dev` tries the update again. Updating needs `ssm:SendCommand` and `ssm:GetCommandInvocation` (see the AWS permissions of dev mode).'
+      );
+    }
     if (useDevTui) {
       devTuiManager.setSetupStepStatus(
         'dev-box',

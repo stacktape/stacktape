@@ -580,6 +580,39 @@ describe('a network of an older contract', () => {
     expect(upgrades).toEqual(['upgrade']);
   });
 
+  // Review of #393: the user data was read before another CLI finished its own update of the network, and the update
+  // then put the older user data back, which stopped the box.
+  test('keeps the user data of an update another CLI finished while this one prepared its own', async () => {
+    const { aws, calls, deployed } = olderNetwork();
+    const contract5 = structuredClone(deployed);
+    (contract5.Resources.Box.Properties as Record<string, unknown>).UserData = {
+      'Fn::Base64': '#!/bin/bash\n# contract 5'
+    };
+    let reads = 0;
+    let finishedElsewhere = false;
+    const get = aws.stacks.get;
+    aws.stacks.get = async (name) => {
+      const stack = await get(name);
+      // The other CLI's update has completed: a later update time and its contract.
+      return finishedElsewhere && stack && !calls.updates ? { ...stack, LastUpdatedTime: new Date(1000) } : stack;
+    };
+    aws.stacks.getTemplate = async () => {
+      if (reads++ === 0) {
+        // This CLI reads the deployed template; the other CLI's update completes before this one submits.
+        const snapshot = structuredClone(deployed);
+        finishedElsewhere = true;
+        return snapshot;
+      }
+      return structuredClone(contract5);
+    };
+    await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    expect(calls.updates).toBe(1);
+    expect(calls.templates[0].Resources.Box.Properties).toMatchObject({
+      UserData: { 'Fn::Base64': '#!/bin/bash\n# contract 5' }
+    });
+    expect(reads).toBe(2);
+  });
+
   test('a template whose box user data Stacktape cannot keep is not updated', async () => {
     const { aws, calls } = olderNetwork();
     aws.stacks.getTemplate = async () => ({ Resources: { Box: { Properties: { UserData: { Ref: 'Elsewhere' } } } } });

@@ -337,18 +337,17 @@ const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) 
 };
 
 /**
- * The user data of the existing network's box, which an update keeps (see `buildDevNetworkTemplate`). Read only when
- * the network is older than this CLI: a network of this contract version or newer is not updated.
+ * The user data of the deployed box, which an update keeps (see `buildDevNetworkTemplate`). Read from the stack as it is
+ * when the update is submitted: a network that another CLI updated meanwhile has that CLI's user data.
  */
-const readDeployedBoxUserData = async (aws: DevNetworkAws, stack: SharedStackDetails | undefined) => {
-  const version = Number(stack?.Outputs?.find(({ OutputKey }) => OutputKey === 'ContractVersion')?.OutputValue);
-  if (!stack?.StackName || !stack.Outputs?.length || version >= DEV_NETWORK_CONTRACT_VERSION) return undefined;
-  const userData = readDevBoxUserData(await aws.stacks.getTemplate(stack.StackName));
+const readDeployedBoxUserData = async (aws: DevNetworkAws, stack: SharedStackDetails) => {
+  const stackName = stack.StackName ?? getDevNetworkName();
+  const userData = readDevBoxUserData(await aws.stacks.getTemplate(stackName));
   if (!userData) {
     throw new CliError({
       category: 'CLOUDFORMATION',
       code: 'DEV_NETWORK_TEMPLATE_UNREADABLE',
-      message: `The template of the dev network stack \`${stack.StackName}\` has no dev box user data that Stacktape can keep, so updating it would stop the dev box.`,
+      message: `The template of the dev network stack \`${stackName}\` has no dev box user data that Stacktape can keep, so updating it would stop the dev box.`,
       hints: FAILED_DEV_NETWORK_RECOVERY
     });
   }
@@ -400,8 +399,10 @@ export const ensureDevNetwork = async ({
   if (failedBefore) throw failedDevNetworkError(failedBefore);
   // A session that finds another one's creation running uses the network as early as the creating session.
   const joinsCreation = existing?.StackStatus === 'CREATE_IN_PROGRESS';
-  const boxUserData = joinsCreation ? undefined : await readDeployedBoxUserData(aws, existing);
-  if (boxUserData) onUpgrade?.();
+  const existingVersion = Number(
+    existing?.Outputs?.find(({ OutputKey }) => OutputKey === 'ContractVersion')?.OutputValue
+  );
+  if (!joinsCreation && existingVersion < DEV_NETWORK_CONTRACT_VERSION) onUpgrade?.();
   let createdHere = false;
   const adapter: SharedResourceStackAdapter = {
     ...aws.stacks,
@@ -421,7 +422,9 @@ export const ensureDevNetwork = async ({
       // A new image would replace the box and change its private IP: keep the image the network was created with.
       parameters: { ImageId: existing ? '' : await aws.resolveBoxImageId() },
       mergeParameters: ({ desired, existing: current }) => ({ ImageId: current.ImageId || desired.ImageId }),
-      template: buildDevNetworkTemplate({ networkName: stackName, boxUserData }),
+      template: buildDevNetworkTemplate({ networkName: stackName }),
+      templateForUpdate: async (deployed) =>
+        buildDevNetworkTemplate({ networkName: stackName, boxUserData: await readDeployedBoxUserData(aws, deployed) }),
       beforeCreate: async () => onCreate()
     })
     .then(async ({ action }) => {

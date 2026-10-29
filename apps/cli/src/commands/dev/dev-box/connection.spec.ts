@@ -337,7 +337,9 @@ test('a relay older than this CLI is updated once, and the session continues wit
   await connection.stop();
 });
 
-test('a relay that cannot be updated is used as it is after one attempt', async () => {
+// Review of #393: a failed relay update was not tried again, and the session reported ready on the old relay without
+// saying so.
+test('a relay update that fails is tried again, then the session runs on the old relay and says why', async () => {
   const { world, deps } = fakeWorld({ boxState: 'running' });
   world.relayUp = true;
   world.relayVersion = DEV_BOX_RELAY_VERSION - 1;
@@ -356,8 +358,13 @@ test('a relay that cannot be updated is used as it is after one attempt', async 
   const statuses: string[] = [];
   connection.onStatus = (status) => statuses.push(status.phase === 'reconnecting' ? status.reason : status.phase);
   await connection.connect();
-  expect(runs).toBe(1);
-  expect(statuses).toContain('AccessDeniedException: ssm:SendCommand');
-  expect(statuses.at(-1)).toBe('ready');
+  expect(runs).toBe(3);
+  expect(statuses).toContain(
+    `Updating the dev box relay from version ${DEV_BOX_RELAY_VERSION - 1} failed: AccessDeniedException: ssm:SendCommand`
+  );
+  expect(connection.status).toMatchObject({
+    phase: 'ready',
+    outdatedRelay: { version: DEV_BOX_RELAY_VERSION - 1, reason: 'AccessDeniedException: ssm:SendCommand' }
+  });
   await connection.stop();
-});
+}, 30_000);
