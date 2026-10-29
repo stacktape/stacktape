@@ -491,6 +491,24 @@ describe('an update that replaces resources', () => {
     expect(step!.template.Outputs).toBeUndefined();
   });
 
+  test('a never-deployed stack recreates resources whose update failed, whatever its stored template says', () => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = { ...stackDetails('UPDATE_FAILED'), Outputs: [] };
+    stackManager.existingStackResources = [
+      { LogicalResourceId: 'Db', ResourceType: 'AWS::RDS::DBInstance', ResourceStatus: 'UPDATE_ROLLBACK_COMPLETE' },
+      {
+        LogicalResourceId: 'Task',
+        ResourceType: 'AWS::ECS::TaskDefinition',
+        ResourceStatus: 'UPDATE_ROLLBACK_COMPLETE'
+      }
+    ] as never;
+    // The stored template is the failed attempt's, so it already equals the new one.
+    stackManager.planUpdate(diffTemplate(newTemplate, newTemplate));
+    expect(stackManager.getTemplateBeforeReplacing()?.removedResources).toEqual(['Service', 'Task']);
+  });
+
   test('a deployed stack left in UPDATE_FAILED is not changed and is recovered first', () => {
     expect(() => plan('UPDATE_FAILED', { deployed: true })).toThrow(/cannot do while it continues a failed deploy/);
   });

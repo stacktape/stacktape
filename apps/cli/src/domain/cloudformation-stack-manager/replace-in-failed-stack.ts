@@ -1,7 +1,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
 /** Resource types that hold data. Removing one to replace something it depends on would delete that data. */
-const DATA_RESOURCE_TYPES = new Set([
+export const DATA_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   'AWS::RDS::DBCluster',
   'AWS::RDS::DBInstance',
   'AWS::DSQL::Cluster',

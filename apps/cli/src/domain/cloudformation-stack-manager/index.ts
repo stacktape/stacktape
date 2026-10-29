@@ -75,7 +75,7 @@ import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
 import { isFirstDeployOfStack } from './first-deploy';
-import { templateWithoutResources } from './replace-in-failed-stack';
+import { DATA_RESOURCE_TYPES, templateWithoutResources } from './replace-in-failed-stack';
 import { getPlannedResources } from './progress-plan';
 import {
   cfFailedEventHandlers,
@@ -472,6 +472,17 @@ class StackManager {
         diff.changeImpact === ResourceImpact.WILL_REPLACE || diff.changeImpact === ResourceImpact.MAY_REPLACE;
       if (replaces && existing.has(logicalId)) replaced.push(logicalId);
     });
+    // A failed stack's template is the one the failed deploy attempted. A resource whose update failed went back to its
+    // earlier state, so the template no longer describes it, and continuing may have to replace it. In a stack that was
+    // never deployed, such resources are recreated too (data stores excepted, which CloudFormation then updates).
+    if (this.continuesFailedStack && this.isFirstDeploy) {
+      for (const { LogicalResourceId, ResourceStatus, ResourceType } of this.existingStackResources) {
+        const failed = ResourceStatus === 'UPDATE_FAILED' || ResourceStatus === 'UPDATE_ROLLBACK_COMPLETE';
+        if (failed && !DATA_RESOURCE_TYPES.has(ResourceType) && !replaced.includes(LogicalResourceId)) {
+          replaced.push(LogicalResourceId);
+        }
+      }
+    }
     this.#replacedResources = replaced.toSorted();
     // Fails before anything is uploaded or changed when the failed stack cannot be continued.
     this.getTemplateBeforeReplacing();
@@ -1607,14 +1618,14 @@ class StackManager {
         const replacementRefused = Object.values(potentialErrorCausingEvents).some(({ ResourceStatusReason }) =>
           /replacement[^.]* (are )?not (supported|allowed)/i.test(ResourceStatusReason ?? '')
         );
-        if (replacementRefused) {
-          errorSpecificHints.push(
-            this.isFirstDeploy
-              ? `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('delete')}, then deploy again.`
-              : `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('stack recover')}, then deploy again.`
-          );
-        }
-        const allHints = [...errorSpecificHints, ...generalHints];
+        // A stack that was never deployed has such resources recreated by the next deploy, so the general hints apply.
+        const allHints =
+          replacementRefused && !this.isFirstDeploy
+            ? [
+                ...errorSpecificHints,
+                `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('stack recover')} to return to the last successful deploy, then deploy again.`
+              ]
+            : [...errorSpecificHints, ...generalHints];
         return reject(
           new ExpectedError(
             'STACK',
