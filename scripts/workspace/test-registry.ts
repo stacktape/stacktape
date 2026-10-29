@@ -4250,6 +4250,8 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',
       'apps/cli/src/domain/cloudformation-stack-manager/deployment-mode.spec.ts',
+      'apps/cli/src/domain/cloudformation-stack-manager/auto-rollback.spec.ts',
+      'apps/cli/src/domain/cloudformation-stack-manager/replace-in-failed-stack.spec.ts',
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',

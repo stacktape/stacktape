@@ -51,6 +51,26 @@ describe('chooseUpdateDeploymentMode', () => {
     ).toBe('STANDARD');
   });
 
+  test('a changed condition, mapping or parameter keeps the standard mode: it can change resources indirectly', () => {
+    const withRule = { ...deployed.Resources, FnEvent0Rule: rule('rate(1 hour)') };
+    for (const section of ['Conditions', 'Mappings', 'Parameters'] as const) {
+      expect(
+        chooseUpdateDeploymentMode({
+          oldTemplate: { ...deployed, [section]: { Release: { value: 'one' } } },
+          newTemplate: { Resources: withRule, [section]: { Release: { value: 'two' } } } as never,
+          stackSettingChanged: false
+        })
+      ).toBe('STANDARD');
+    }
+    expect(
+      chooseUpdateDeploymentMode({
+        oldTemplate: { ...deployed, Outputs: { Url: { Value: 'one' } } },
+        newTemplate: { Resources: withRule, Outputs: { Url: { Value: 'two' } } } as never,
+        stackSettingChanged: false
+      })
+    ).toBe('EXPRESS');
+  });
+
   test('no change, a changed stack setting, a transform or an unknown deployed template keep the standard mode', () => {
     expect(mode({})).toBe('STANDARD');
     expect(mode({ FnEvent0Rule: rule('rate(1 hour)') }, { stackSettingChanged: true })).toBe('STANDARD');

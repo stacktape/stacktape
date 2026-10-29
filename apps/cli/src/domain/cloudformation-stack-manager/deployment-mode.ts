@@ -8,6 +8,15 @@ import isEqual from 'lodash/isEqual';
  */
 const EXPRESS_UPDATE_RESOURCE_TYPES = new Set(['AWS::Events::Rule', 'AWS::Lambda::Permission']);
 
+/** Template sections whose changes cannot create, update or delete a resource. `Resources` is compared one by one. */
+const SECTIONS_WITHOUT_RESOURCE_EFFECTS = new Set([
+  'Resources',
+  'Outputs',
+  'Metadata',
+  'Description',
+  'AWSTemplateFormatVersion'
+]);
+
 /**
  * The CloudFormation deployment mode of a stack update. Express mode completes once the resources' configuration is
  * applied, without waiting for them to become ready. For most resource types Stacktape creates, express mode either
@@ -16,19 +25,24 @@ const EXPRESS_UPDATE_RESOURCE_TYPES = new Set(['AWS::Events::Rule', 'AWS::Lambda
  * So an update uses it only when it creates an EventBridge rule and changes nothing but rules and Lambda permissions,
  * such as a new schedule.
  *
- * A changed stack setting can update every resource (new stack tags reach every tagged resource), and a transform makes
- * the processed template unknown here, so both keep the standard mode.
+ * A changed stack setting can update every resource (new stack tags reach every tagged resource), a transform makes the
+ * processed template unknown here, and a changed condition, mapping, parameter or hook can change resources whose own
+ * definition is identical. All of them keep the standard mode.
  */
 export const chooseUpdateDeploymentMode = ({
   oldTemplate,
   newTemplate,
   stackSettingChanged
 }: {
-  oldTemplate: Pick<CloudFormationTemplate, 'Resources' | 'Transform'> | undefined;
-  newTemplate: Pick<CloudFormationTemplate, 'Resources' | 'Transform'>;
+  oldTemplate: Partial<CloudFormationTemplate> | undefined;
+  newTemplate: Partial<CloudFormationTemplate>;
   stackSettingChanged: boolean;
 }): 'EXPRESS' | 'STANDARD' => {
   if (!oldTemplate || stackSettingChanged || oldTemplate.Transform || newTemplate.Transform) return 'STANDARD';
+  const otherSections = [...new Set([...Object.keys(oldTemplate), ...Object.keys(newTemplate)])].filter(
+    (section) => !SECTIONS_WITHOUT_RESOURCE_EFFECTS.has(section)
+  );
+  if (otherSections.some((section) => !isEqual(oldTemplate[section], newTemplate[section]))) return 'STANDARD';
   const oldResources = oldTemplate.Resources ?? {};
   const newResources = newTemplate.Resources ?? {};
   const changed = [...new Set([...Object.keys(oldResources), ...Object.keys(newResources)])].filter(
