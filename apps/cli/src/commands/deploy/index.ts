@@ -58,7 +58,7 @@ import {
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { prepareStageNetwork } from '@domain-services/shared-network';
+import { confirmSharedNetworkUnchanged, prepareStageNetwork } from '@domain-services/shared-network';
 import { SHARED_NAT_INSTANCE_TYPE } from '@domain-services/shared-network/template';
 import { getSharedNatStackName } from '@stacktape/naming/shared-stacks';
 import { newDistributionInputs } from '@domain-services/cloudfront-manager/new-distribution-inputs';
@@ -505,6 +505,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       // The authoritative sync after a successful deploy retries with warnings.
     }
   }
+
+  // The delete of the last stage in the shared network may have removed it while this deploy built.
+  if (!fastDeployPlan && inSharedNetwork) await confirmSharedNetworkUnchanged();
 
   progress.setPhase('DEPLOY');
   codeSwapBeginMutation();

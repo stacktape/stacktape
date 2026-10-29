@@ -19,6 +19,7 @@ import {
 import { getNatInstanceHeartbeatParameterName } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getNatInstanceBootScript } from '../calculated-stack-overview-manager/resource-resolvers/background-resources/nat-instance-boot-script';
+import { INSTANCE_PROFILE_FUNCTION_SOURCE } from './instance-profile-function';
 
 export const SHARED_NETWORK_KIND = 'shared-network';
 export const SHARED_NAT_KIND = 'shared-network-nat';
@@ -41,7 +42,7 @@ const ZONES = [0, 1, 2];
 
 /** The shared NAT's only kind in this version: one small arm64 instance in one zone, without failover. */
 export const SHARED_NAT_INSTANCE_TYPE = 't4g.nano';
-const AL2023_ARM64_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
+const AL2023_ARM64_IMAGE = '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}';
 const NAT_READY_TIMEOUT = 'PT6M';
 
 const ownershipOutputs = (kind: string, contractVersion: number) => ({
@@ -160,6 +161,8 @@ export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
 export const buildSharedNatTemplate = ({ region }: { region: string }): CloudFormationTemplate => {
   const stackName = getSharedNatStackName();
   const heartbeatParameterName = getNatInstanceHeartbeatParameterName({ stackName, region, azIndex: 0 });
+  // Instance profiles are global to the account, the stack is one per region.
+  const instanceProfileName = `${stackName}-\${AWS::Region}`;
   const tags = [
     { Key: tagNames.stackName(), Value: stackName },
     { Key: 'Name', Value: stackName }
@@ -221,7 +224,56 @@ export const buildSharedNatTemplate = ({ region }: { region: string }): CloudFor
         }
       ]
     }),
-    InstanceProfile: cfnResource('AWS::IAM::InstanceProfile', { Roles: [ref('Role')] }),
+    // `AWS::IAM::InstanceProfile` waits about 2 minutes on every create, and the instance cannot launch before it. NAT
+    // stacks created before keep that resource: the contract version is unchanged, so they are never updated to this.
+    InstanceProfileFunctionRole: cfnResource('AWS::IAM::Role', {
+      AssumeRolePolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+      },
+      Policies: [
+        {
+          PolicyName: 'instance-profile',
+          PolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: [
+                  'iam:GetInstanceProfile',
+                  'iam:CreateInstanceProfile',
+                  'iam:DeleteInstanceProfile',
+                  'iam:AddRoleToInstanceProfile',
+                  'iam:RemoveRoleFromInstanceProfile'
+                ],
+                Resource: sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:instance-profile/${instanceProfileName}`)
+              },
+              // Adding a role to a profile requires passing it.
+              { Effect: 'Allow', Action: 'iam:PassRole', Resource: getAtt('Role', 'Arn') }
+            ]
+          }
+        }
+      ]
+    }),
+    InstanceProfileFunction: cfnResource('AWS::Lambda::Function', {
+      Description: 'Creates the instance profile of the Stacktape shared NAT',
+      Runtime: 'python3.14',
+      Architectures: ['arm64'],
+      Handler: 'index.handler',
+      MemorySize: 128,
+      Timeout: 300,
+      Role: getAtt('InstanceProfileFunctionRole', 'Arn'),
+      Code: { ZipFile: INSTANCE_PROFILE_FUNCTION_SOURCE }
+    }),
+    InstanceProfile: cfnResource('AWS::CloudFormation::CustomResource', {
+      ServiceToken: getAtt('InstanceProfileFunction', 'Arn'),
+      InstanceProfileName: sub(instanceProfileName),
+      RoleName: ref('Role'),
+      // The dry-run launches name the NAT's own image, type and subnet, so EC2 checks a request it would accept.
+      ProbeImageId: AL2023_ARM64_IMAGE,
+      ProbeInstanceType: SHARED_NAT_INSTANCE_TYPE,
+      ProbeSubnetId: publicSubnet
+    }),
     ElasticIp: cfnResource('AWS::EC2::EIP', { Domain: 'vpc', Tags: tags }),
     NetworkInterface: cfnResource('AWS::EC2::NetworkInterface', {
       SubnetId: publicSubnet,
@@ -238,7 +290,7 @@ export const buildSharedNatTemplate = ({ region }: { region: string }): CloudFor
     }),
     LaunchTemplate: cfnResource('AWS::EC2::LaunchTemplate', {
       LaunchTemplateData: {
-        ImageId: `{{resolve:ssm:${AL2023_ARM64_IMAGE_PARAMETER}}}`,
+        ImageId: AL2023_ARM64_IMAGE,
         InstanceType: SHARED_NAT_INSTANCE_TYPE,
         IamInstanceProfile: { Arn: getAtt('InstanceProfile', 'Arn') },
         SecurityGroupIds: [ref('SecurityGroup')],
