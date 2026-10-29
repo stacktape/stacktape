@@ -361,7 +361,7 @@ export const getRedisSecurityGroupResource = ({ resource }: { resource: StpRedis
     : [getRedisPort({ resource }), getRedisPort({ resource })];
   const basicIngressRules: CloudFormationList<Ingress> =
     !resource.accessibility || resource.accessibility.accessibilityMode === 'vpc'
-      ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: fromPort, ToPort: toPort, IpProtocol: 'tcp' }]
+      ? [vpcManager.vpcWideIngress({ FromPort: fromPort, ToPort: toPort, IpProtocol: 'tcp' })]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
         ? getConnectToReferencesForResource({
             activeConfig: configManager,

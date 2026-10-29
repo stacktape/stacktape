@@ -21,7 +21,9 @@ export const getLoadBalancer = (loadBalancerName: string, loadBalancerConfig: St
     IpAddressType: 'ipv4',
     // Name: getLoadBalancerResourceName(workloadName, loadBalancerName, calculatedStackOverviewManager.context.stackName),
     Scheme: loadBalancerConfig.interface === 'internal' ? 'internal' : 'internet-facing',
-    SecurityGroups: [ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))],
+    SecurityGroups: vpcManager.withStageSecurityGroup([
+      ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
+    ]),
     Subnets: vpcManager.getPublicSubnetIds(),
     Type: 'application'
   });
@@ -46,12 +48,18 @@ export const getLoadBalancerSecurityGroup = (
               CidrIp: transformToCidr({ cidrOrIp: whitelistedIp }),
               IpProtocol: 'tcp'
             }))
-          : {
-              FromPort: listenerConfig.port,
-              ToPort: listenerConfig.port,
-              CidrIp: loadBalancerConfig.interface === 'internal' ? vpcManager.getVpcCidr() : '0.0.0.0/0',
-              IpProtocol: 'tcp'
-            }
+          : loadBalancerConfig.interface === 'internal'
+            ? vpcManager.vpcWideIngress({
+                FromPort: listenerConfig.port,
+                ToPort: listenerConfig.port,
+                IpProtocol: 'tcp'
+              })
+            : {
+                FromPort: listenerConfig.port,
+                ToPort: listenerConfig.port,
+                CidrIp: '0.0.0.0/0',
+                IpProtocol: 'tcp'
+              }
       )
       .flat()
   });

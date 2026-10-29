@@ -40,7 +40,8 @@ export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion 
       MinInstancesInService: 1
     }
   };
-  resource.DependsOn = configManager.reuseVpcConfig ? [] : [cfLogicalNames.vpcGatewayAttachment()];
+  resource.DependsOn =
+    configManager.reuseVpcConfig || vpcManager.isSharedNetwork ? [] : [cfLogicalNames.vpcGatewayAttachment()];
   return resource;
 };
 
@@ -56,7 +57,7 @@ export const getEc2LaunchTemplate = ({ definition }: { definition: StpBastion })
   return cfnResource('AWS::EC2::LaunchTemplate', {
     LaunchTemplateData: {
       ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}',
-      SecurityGroupIds: [ref(cfLogicalNames.bastionSecurityGroup(definition.name))],
+      SecurityGroupIds: vpcManager.withStageSecurityGroup([ref(cfLogicalNames.bastionSecurityGroup(definition.name))]),
       IamInstanceProfile: {
         Arn: getAtt(cfLogicalNames.bastionEc2InstanceProfile(definition.name), 'Arn')
       },

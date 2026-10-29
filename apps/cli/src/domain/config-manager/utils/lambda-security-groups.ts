@@ -112,7 +112,11 @@ const getDeployedLambdaSecurityGroup = ({
   const deployedFunction = deployedTemplate.Resources[cfLogicalNames.lambda(lambdaName)] as
     | { Properties?: { VpcConfig?: { SecurityGroupIds?: unknown[] } } }
     | undefined;
-  const securityGroupIds = deployedFunction?.Properties?.VpcConfig?.SecurityGroupIds;
+  // In the shared network every function also carries the stage's group, which never moves; the function's own group
+  // is the other one.
+  const securityGroupIds = deployedFunction?.Properties?.VpcConfig?.SecurityGroupIds?.filter(
+    (id) => (id as { Ref?: unknown } | null)?.Ref !== cfLogicalNames.stageNetworkSecurityGroup()
+  );
   const reference = securityGroupIds?.length === 1 ? (securityGroupIds[0] as { Ref?: unknown } | null) : undefined;
   const cfLogicalName = typeof reference?.Ref === 'string' ? reference.Ref : undefined;
   const resource = cfLogicalName ? deployedTemplate.Resources[cfLogicalName] : undefined;

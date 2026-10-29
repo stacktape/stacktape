@@ -1,3 +1,4 @@
+import { prepareStageNetwork } from '@domain-services/shared-network';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
@@ -70,6 +71,7 @@ export const commandValidate = async () => {
     finalizeTemplate,
     packaging,
     stack,
+    stackContext,
     template,
     tui
   } = await initializeValidateOperation();
@@ -98,6 +100,7 @@ export const commandValidate = async () => {
     });
   }
 
+  await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });
   await resolveAllResources();
   await finalizeTemplate();
 

@@ -49,6 +49,10 @@ export const stackMetadataNames = {
   natPublicIps() {
     return 'natPublicIps';
   },
+  /** `shared:<network stack>` for a stage in the shared non-production network; absent otherwise. */
+  networkPlacement() {
+    return 'networkPlacement';
+  },
   devAgentRoleExternalId() {
     return 'devAgentRoleExternalId';
   },

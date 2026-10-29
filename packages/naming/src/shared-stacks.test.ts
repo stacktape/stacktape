@@ -2,8 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import {
   getSharedEmailConfigurationSetName,
   getSharedEmailFeedbackTopicName,
+  getSharedNatStackName,
+  getSharedNetworkExportName,
+  getSharedNetworkStackName,
   getSharedResourceStackName
 } from './shared-stacks';
+import { cfLogicalNames } from './cloudformation-logical-names';
 
 describe('shared resource stack names', () => {
   test('are deterministic and do not expose the identity', () => {
@@ -19,5 +23,16 @@ describe('shared resource stack names', () => {
     expect(name).toMatch(/^stacktape-email-[a-f0-9]{20}$/);
     expect(name.length).toBeLessThanOrEqual(64);
     expect(getSharedEmailFeedbackTopicName('example.com')).toMatch(/^stacktape-email-feedback-[a-f0-9]{20}$/);
+  });
+});
+
+describe('shared network names', () => {
+  // Deployed stages import these exports and name this group: changing them strands every stage in the network.
+  test('are fixed per account and region', () => {
+    expect(getSharedNetworkStackName()).toBe('stacktape-network');
+    expect(getSharedNatStackName()).toBe('stacktape-network-nat');
+    expect(getSharedNetworkExportName('vpc-id')).toBe('stacktape-network-vpc-id');
+    expect(getSharedNetworkExportName('nat')).toBe('stacktape-network-nat-id');
+    expect(cfLogicalNames.stageNetworkSecurityGroup()).toBe('StpStageNetworkSecurityGroup');
   });
 });

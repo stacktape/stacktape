@@ -1,3 +1,4 @@
+import { prepareStageNetwork } from '@domain-services/shared-network';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { commandLifecycle } from '@application-services/command-lifecycle';
@@ -40,6 +41,8 @@ export const deployWithEc2Runner = async () => {
   configManager.validateGuardrails({ hasConfig: true });
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
+  // The runner decides the placement itself, without asking; this preview reads the shared network only.
+  await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });
   await resolveAllResources();
 
   const cfTemplateDiff = templateManager.getOldTemplateDiff();

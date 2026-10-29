@@ -1226,6 +1226,16 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::ServiceDiscovery::Service' }
     });
   },
+  /**
+   * The stage's security group in the shared network: every workload of the stage carries it, and resources open to the
+   * whole VPC in a stage's own VPC admit only this group there.
+   */
+  stageNetworkSecurityGroup() {
+    return buildCfLogicalName({
+      specifier: { type: 'StageNetwork' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
+    });
+  },
   /** The stack's security group for VPC functions; `scopeId` names the group of functions with the same connections. */
   vpcFunctionsSecurityGroup(scopeId?: string) {
     return buildCfLogicalName({

@@ -1,5 +1,5 @@
 import { cfnResource } from '@stacktape/cloudformation/resource';
-import { getAtt, getAzs, join, ref, select } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, getAzs, importValue, join, ref, select } from '@stacktape/cloudformation/intrinsics';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -7,6 +7,7 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { getSharedNetworkExportName, getSharedNetworkStackName } from '@stacktape/naming/shared-stacks';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { getNatRouteToInstance, resolveNatInstances } from './nat-instances';
@@ -124,10 +125,52 @@ const getNatRoute = (subnetIndex: number, natAzIndex: number) => {
   return route;
 };
 
+/**
+ * The stage's group in the shared network (see `vpcManager.withStageSecurityGroup`). Its `VpcId` imports the network's
+ * export and, when the stage uses the shared NAT, a tag imports the NAT's: CloudFormation refuses to delete a shared
+ * stack while a stage imports it, and `ListImports` lists the stages that use each one.
+ */
+const getStageNetworkSecurityGroup = ({ usesNat }: { usesNat: boolean }) =>
+  cfnResource('AWS::EC2::SecurityGroup', {
+    GroupDescription: `Workloads of stack ${calculatedStackOverviewManager.context.stackName} in the shared network`,
+    VpcId: importValue(getSharedNetworkExportName('vpc-id')),
+    Tags: [
+      { Key: 'stacktape:network-placement', Value: 'shared' },
+      ...(usesNat ? [{ Key: 'stacktape:network-nat', Value: importValue(getSharedNetworkExportName('nat')) }] : [])
+    ]
+  });
+
+const resolveSharedNetworkPlacement = () => {
+  const { usesNat, natPublicIp } = vpcManager.sharedNetwork;
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.stageNetworkSecurityGroup(),
+    resource: getStageNetworkSecurityGroup({ usesNat }),
+    nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+  });
+  calculatedStackOverviewManager.addStackMetadata({
+    metaName: stackMetadataNames.networkPlacement(),
+    metaValue: `shared:${getSharedNetworkStackName()}`,
+    showDuringPrint: false
+  });
+  if (usesNat && natPublicIp) {
+    calculatedStackOverviewManager.addStackMetadata({
+      metaName: stackMetadataNames.natPublicIps(),
+      metaValue: natPublicIp,
+      showDuringPrint: true
+    });
+  }
+};
+
 export const resolveAwsVpcDeployment = async () => {
-  const shouldCreateVpc =
-    filterResourcesForDevMode(configManager.allResourcesRequiringVpc, configManager.deploymentContext).length &&
-    !configManager.reuseVpcConfig;
+  const requiresVpc = filterResourcesForDevMode(
+    configManager.allResourcesRequiringVpc,
+    configManager.deploymentContext
+  ).length;
+  if (requiresVpc && vpcManager.isSharedNetwork) {
+    resolveSharedNetworkPlacement();
+    return;
+  }
+  const shouldCreateVpc = requiresVpc && !configManager.reuseVpcConfig;
 
   if (!shouldCreateVpc) {
     return;

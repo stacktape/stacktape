@@ -667,6 +667,16 @@ export const configErrors = {
       )} and ${inlineCode('stage')}, but not both methods.`
     });
   },
+  sharedVpcWithReuseVpc(_arg: null): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SHARED_VPC_WITH_REUSE_VPC',
+      message: `${inlineCode('stackConfig.vpc.shared')} and ${inlineCode(
+        'stackConfig.vpc.reuseVpc'
+      )} cannot be combined: a stage either runs in the shared non-production network or in the VPC it reuses.`,
+      hints: `Remove ${inlineCode('shared')} to keep using the reused VPC.`
+    });
+  },
   natRequired({ resourceNames }: { resourceNames: string[] }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

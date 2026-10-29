@@ -28,6 +28,10 @@ test('delete chooses the permission for the actual stage, including production a
     ['client-a-prod', true],
     ['pre-prod', false],
     ['prod-test', false],
+    ['pr-12-prod', false],
+    ['feature-live', false],
+    ['e2e-prod', false],
+    ['ci-prod', false],
     ['dev', false],
     [undefined, false]
   ] as const) {

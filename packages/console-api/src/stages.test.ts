@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { classifyStage, isProductionStageName } from './stages.js';
+import { classifyStage, inferStageNameKind, isProductionStageName } from './stages.js';
 
 describe('isProductionStageName', () => {
   test('recognizes the canonical production names case-insensitively', () => {
@@ -30,10 +30,44 @@ describe('isProductionStageName', () => {
     }
   });
 
+  test('pull-request, feature, end-to-end and CI stages are never production', () => {
+    for (const name of ['pr-prod', 'prod-pr-12', 'feature-live', 'feat-prod', 'e2e-prod', 'ci-live', 'prod-ci']) {
+      assert.equal(isProductionStageName(name), false, name);
+    }
+  });
+
   test('ordinary non-production names do not match', () => {
     for (const name of ['dev', 'staging', 'main', 'master', 'feature-x', 'livedemo', 'reproduction', 'pr-123', '']) {
       assert.equal(isProductionStageName(name), false, name);
     }
+  });
+});
+
+describe('inferStageNameKind', () => {
+  test('tells production, non-production and names that say neither apart', () => {
+    const cases: Array<[string, ReturnType<typeof inferStageNameKind>]> = [
+      ['prod', 'production'],
+      ['prod-eu', 'production'],
+      ['live2', 'production'],
+      ['dev', 'non-production'],
+      ['staging', 'non-production'],
+      ['pre-prod', 'unknown'],
+      ['prod-ci', 'unknown'],
+      ['staging-live', 'unknown'],
+      ['pr-123', 'non-production'],
+      ['pr42', 'non-production'],
+      ['feature-login', 'non-production'],
+      ['feat-x', 'non-production'],
+      ['e2e', 'non-production'],
+      ['ci', 'non-production'],
+      ['preview-7', 'non-production'],
+      ['main', 'unknown'],
+      ['acme', 'unknown'],
+      ['master', 'unknown'],
+      ['livedemo', 'unknown'],
+      ['', 'unknown']
+    ];
+    for (const [name, kind] of cases) assert.equal(inferStageNameKind(name), kind, name);
   });
 });
 

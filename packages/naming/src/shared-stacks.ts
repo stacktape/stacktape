@@ -50,3 +50,21 @@ export const getDevNetworkRelayParameterName = (networkStackName: string) =>
  */
 export const getDevNetworkPortParameterPrefix = (networkStackName: string) =>
   `/stacktape/dev-network/${networkStackName}/ports`;
+
+/**
+ * The shared network of one AWS account and region: the VPC, subnets, route tables and gateway endpoints every
+ * non-production stage placed in it uses. It is a sibling of the dev network, not the same VPC.
+ */
+export const getSharedNetworkStackName = () => 'stacktape-network';
+
+/** The NAT of the shared network: a separate stack, created by the first stage that needs outbound internet. */
+export const getSharedNatStackName = () => 'stacktape-network-nat';
+
+/**
+ * Exports of the shared network and its NAT. A stage in the shared network imports `vpc-id` in its stage security
+ * group, and a stage that uses the NAT imports `nat` in a tag of that group: CloudFormation then refuses to delete
+ * either stack while a stage uses it, and `ListImports` on these names lists the stages that do.
+ */
+export const getSharedNetworkExportName = (
+  output: 'vpc-id' | 'public-subnet-ids' | 'private-subnet-ids' | 'private-route-table-ids' | 'nat'
+) => (output === 'nat' ? `${getSharedNatStackName()}-id` : `${getSharedNetworkStackName()}-${output}`);

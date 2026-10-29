@@ -9482,6 +9482,40 @@ stackConfig:
 
 Each failover raises an incident in the Console that says what happened, which zone was affected and that it recovered on its own, so nobody has to go looking in AWS. Stacktape reaches the instances through AWS Systems Manager only; they have no SSH access.
 
+### Shared network for non-production stages
+
+Non-production stages of an AWS account and region share one VPC, the `stacktape-network` stack, instead of creating a VPC each. A new stage's first deploy skips creating a VPC, subnets and an internet gateway, and a team with many preview and feature stages stays under the AWS default limit of 5 VPCs per region. When a stage in it needs outbound internet (`stackConfig.nat`), it uses one shared NAT instance, the `stacktape-network-nat` stack: one `t4g.nano` for every non-production stage, about $7.70 per month in total. The first stage that needs each shared stack creates it, which takes about a minute for the network and about five minutes for the NAT; later stages only use them. The shared NAT's size is fixed, so a stage's `nat.instanceSize` does not apply in the shared network.
+
+Every deploy prints where the stage runs and why:
+
+```text
+Network: shared non-production network `stacktape-network` (the stage name `pr-42` marks a non-production stage).
+Network: own VPC (the stage name `acme` does not say whether it is production). Set `stackConfig.stageType` or `stackConfig.vpc.shared` to choose.
+```
+
+**How a stage is placed.** The first deploy that creates networked resources decides, in this order:
+
+1. `stackConfig.vpc.shared: true` or `false` decides.
+2. Otherwise `stackConfig.stageType`, then the stage type chosen in the Stacktape Console: non-production stages join the shared network, production stages get a VPC of their own.
+3. Otherwise the stage name: names with `dev`, `staging`, `test`, `qa`, `uat`, `preview`, `sandbox`, `pr`, `feature`, `feat`, `e2e` or `ci` join the shared network; `prod`, `production`, `prd` and `live` get their own VPC.
+4. A name that says neither (`main`, `acme`, or one with both kinds of word, such as `pre-prod`) asks once, "Is stage acme production?", when you deploy from a terminal. In CI, agents, MCP and remote runners nothing is asked: the stage gets a VPC of its own, and the output says how to choose. The answer is not stored for you: add the `stackConfig.stageType` line the deploy prints so paging, permissions and security checks classify the stage the same way.
+
+Stages with `vpc.reuseVpc`, [MongoDB Atlas](/resources/databases/mongodb-atlas) clusters, Kafka clusters with function triggers, or `stackConfig.nat` set to `gateway` or `ha-ec2` always get a VPC of their own, and the output says why.
+
+**Placement is fixed.** Stages deployed before this behavior existed keep their VPC. A deployed stage cannot move between the shared network and a VPC of its own, because its databases, caches, load balancers and functions would be replaced; to move it, delete the stage and deploy it again. A stage that later becomes production (through `stageType`, the Console or a rename) keeps running in the shared network, and every deploy warns about it until you set `stackConfig.vpc.shared: true` to keep it there.
+
+**Isolation.** Each stage keeps its own security groups, and every workload of the stage also carries a stage security group. In the shared network, databases, Redis and OpenSearch in `accessibilityMode: vpc`, internal load balancers and Service Connect ports admit only that stage group, so one stage cannot reach another stage's resources by private IP. `connectTo` works as before. What you give up in the shared network: reaching another stage's resources by private IP (use `reuseVpc` for that), choosing the CIDR, peering or a transit gateway per stage, and a NAT IP of the stage's own. Anyone who can deploy to the account can still change the shared network; the separation prevents accidental access, not a hostile deployer.
+
+**The shared stacks stay.** The network costs nothing and stays when its last stage is deleted, and so does the NAT. CloudFormation refuses to delete either while a stage uses it, because the stages import their exports.
+
+**Permissions for CI with stage-scoped IAM.** Deploys through the Stacktape Console and its runners use the connected account's role and need nothing more. A CI role limited to its own stacks also needs, for the shared stacks:
+
+- `cloudformation:DescribeStacks`, `CreateStack`, `UpdateStack` and `UpdateTerminationProtection` on `arn:aws:cloudformation:<region>:<account>:stack/stacktape-network*/*`;
+- the EC2 actions the network creates: `ec2:CreateVpc`, `ModifyVpcAttribute`, `CreateSubnet`, `ModifySubnetAttribute`, `CreateRouteTable`, `AssociateRouteTable`, `CreateRoute`, `CreateInternetGateway`, `AttachInternetGateway`, `CreateVpcEndpoint`, `CreateTags` and `ec2:Describe*`;
+- for the NAT: `ec2:AllocateAddress`, `CreateNetworkInterface`, `CreateSecurityGroup`, `AuthorizeSecurityGroupIngress`, `AuthorizeSecurityGroupEgress`, `CreateLaunchTemplate`, `RunInstances`, `autoscaling:CreateAutoScalingGroup`, `autoscaling:Describe*`, `iam:CreateRole`, `PutRolePolicy`, `AttachRolePolicy`, `CreateInstanceProfile`, `AddRoleToInstanceProfile`, `PassRole`, `ssm:PutParameter` and `ssm:GetParameters`.
+
+If you would rather not grant them, set `stackConfig.vpc.shared: false`; the stage then creates its own VPC as before.
+
 ## FAQ
 
 ### How does connectTo differ from manually setting environment variables?
@@ -20009,7 +20043,7 @@ For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-git
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking). Non-production stages with `nat: ec2` share one NAT instance by default, so five preview stages pay about $7.70 per month for NAT in total instead of five times that; see [shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
 
 For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 
@@ -92294,7 +92328,7 @@ to return different values for different stages. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
   tracing?: TracingOptions;
-  /** VPC configuration: reuse an existing VPC. */
+  /** VPC configuration: the shared non-production network, or an existing VPC to reuse. */
   vpc?: VpcSettings;
 };
 
@@ -92671,7 +92705,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `VpcSettings`
 
-VPC configuration: reuse an existing VPC.
+VPC configuration: the shared non-production network, or an existing VPC to reuse.
 
 ---
 
@@ -93160,6 +93194,8 @@ import type { VpcReuseConfig } from 'stacktape';
 type VpcSettings = {
   /** Share a VPC with another Stacktape stack or use an existing VPC. */
   reuseVpc?: VpcReuseConfig;
+  /** Run this stage in the shared non-production network of its AWS account and region. */
+  shared?: boolean;
 };
 ```
 
@@ -93171,10 +93207,32 @@ type VpcSettings = {
 Share a VPC with another Stacktape stack or use an existing VPC.
 
 Useful when this stack needs to access VPC-protected resources (databases, Redis)
-from another stack. By default, each stack gets its own VPC.
+from another stack. By default, a production stage gets a VPC of its own and a non-production stage joins the
+shared non-production network (see `shared`).
 
 **Important:** Set this when first creating the stack. Adding it to an already
 deployed stack can cause resources to be replaced and **data to be lost**.
+
+## Property: `shared`
+
+- Required: no
+- Type: `boolean`
+
+Run this stage in the shared non-production network of its AWS account and region.
+
+Non-production stages share one VPC (`stacktape-network`) and, when they need outbound internet, one small NAT
+instance (`stacktape-network-nat`, ~$7.70/month for all of them). A new stage gets a VPC that takes no time to create,
+and teams stay under the AWS limit of 5 VPCs per region. Each stage keeps its own security groups: resources in
+`accessibilityMode: vpc` and internal load balancers admit only the stage's own workloads.
+
+By default, a stage joins the shared network when it is non-production: `stackConfig.stageType`, then the type
+chosen in the Stacktape Console, then the stage name decides (`dev`, `staging`, `test`, `preview`, `pr-12`,
+`feature-x`, ...). Production stages and names that say neither (`main`, `acme`, `pre-prod`) get a VPC of their own. Set this
+to `true` or `false` to choose yourself. Every deploy prints where the stage runs and why.
+
+The choice is fixed by the first deploy that creates networked resources: moving a deployed stage to or from
+the shared network means deleting and redeploying it. Stages with `reuseVpc`, MongoDB Atlas clusters, Kafka
+clusters with function triggers, or `stackConfig.nat` set to `gateway` or `ha-ec2` always get a VPC of their own.
 
 ---
 

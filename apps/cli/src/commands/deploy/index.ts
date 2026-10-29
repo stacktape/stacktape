@@ -58,6 +58,9 @@ import {
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { prepareStageNetwork } from '@domain-services/shared-network';
+import { SHARED_NAT_INSTANCE_TYPE } from '@domain-services/shared-network/template';
+import { getSharedNatStackName } from '@stacktape/naming/shared-stacks';
 import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
 import { deleteSupersededSharedLayerVersions, getSharedLayerHotswapInformation } from '../_utils/fn-deployment';
 
@@ -221,10 +224,19 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const issueDetectionPolicy = config.issueDetectionPolicy;
   tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
+  // Where the stage's networked resources run. In the shared network, its stacks are created or upgraded while the
+  // workloads build; the template is built only once they are ready.
+  const stageNetwork = await prepareStageNetwork({ stage: stackContext.stage, mode: 'deploy' });
+  const inSharedNetwork = stageNetwork.decision.kind === 'shared';
+
   // A function in the VPC has no outbound internet until the stack has NAT; the failure otherwise only shows at
   // runtime, as a timeout on the first external call.
   const nat = config.natSettings;
-  if (nat.configured && config.allResourcesRequiringPrivateSubnets.length && !config.reuseVpcConfig) {
+  if (nat.configured && config.allResourcesRequiringPrivateSubnets.length && inSharedNetwork) {
+    tui.info(
+      `NAT: the shared NAT \`${getSharedNatStackName()}\` (one ${SHARED_NAT_INSTANCE_TYPE} instance for every non-production stage here, no failover).`
+    );
+  } else if (nat.configured && config.allResourcesRequiringPrivateSubnets.length && !config.reuseVpcConfig) {
     const description =
       nat.type === 'gateway'
         ? `${nat.availabilityZones} NAT Gateway${nat.availabilityZones === 1 ? '' : 's'} (~$32/month each plus $0.045/GB)`
@@ -314,7 +326,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       packaging,
       prepareTemplateForDeploy,
       template,
-      tui
+      tui,
+      networkReady: stageNetwork.ready
     }),
     // @note this can take a long time, so we do it in parallel with other stack activities
     cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
@@ -679,15 +692,17 @@ export const prepareArtifactsForStackDeployment = async ({
   packaging,
   prepareTemplateForDeploy,
   template,
-  tui
-}: Pick<
-  DeployOperation,
-  'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'
->): Promise<{
+  tui,
+  networkReady
+}: Pick<DeployOperation, 'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'> & {
+  /** The shared network the stage runs in, created or upgraded while the workloads build. */
+  networkReady?: Promise<void>;
+}): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
 }> => {
   const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  await networkReady;
   await resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
     tui.warn(

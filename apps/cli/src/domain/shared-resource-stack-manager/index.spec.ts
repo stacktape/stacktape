@@ -108,6 +108,57 @@ describe('shared resource stack manager', () => {
   });
 });
 
+describe('a stack whose last upgrade was rolled back', () => {
+  test('serves callers its contract version satisfies', async () => {
+    const adapter: SharedResourceStackAdapter = {
+      get: async () => details({ version: 2, status: 'UPDATE_ROLLBACK_COMPLETE' }),
+      create: async () => {
+        throw new Error('must not create');
+      },
+      update: async () => {
+        throw new Error('must not update');
+      }
+    };
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 0 });
+    expect(await manager.ensure(requirement({ contractVersion: 2 }))).toEqual({
+      action: 'reuse',
+      stackName: 'stacktape-shared-test'
+    });
+  });
+
+  test('is upgraded again by a caller that needs more, and a second rollback fails once instead of looping', async () => {
+    let updates = 0;
+    const adapter: SharedResourceStackAdapter = {
+      get: async () => details({ version: 1, status: 'UPDATE_ROLLBACK_COMPLETE' }),
+      create: async () => {},
+      update: async () => {
+        updates += 1;
+      }
+    };
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 0, wait: async () => {} });
+    await expect(manager.ensure(requirement({ contractVersion: 2 }))).rejects.toMatchObject({
+      code: 'SHARED_STACK_UPDATE_ROLLED_BACK'
+    });
+    expect(updates).toBe(1);
+  });
+
+  test('a caller that needs more upgrades it from the rolled-back state', async () => {
+    let stack = details({ version: 1, status: 'UPDATE_ROLLBACK_COMPLETE' });
+    const adapter: SharedResourceStackAdapter = {
+      get: async () => stack,
+      create: async () => {},
+      update: async () => {
+        stack = details({ version: 2, status: 'UPDATE_COMPLETE' });
+      }
+    };
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 0, wait: async () => {} });
+    expect(await manager.ensure(requirement({ contractVersion: 2 }))).toEqual({
+      action: 'upgrade',
+      stackName: 'stacktape-shared-test'
+    });
+  });
+});
+
 describe('waiting for a failed creation', () => {
   const failing = (statuses: Array<SharedStackDetails | undefined>) => {
     let reads = 0;

@@ -55697,7 +55697,7 @@
       {
         "name": "vpc",
         "required": false,
-        "shortDescription": "<p> VPC configuration: reuse an existing VPC.</p>",
+        "shortDescription": "<p> VPC configuration: the shared non-production network, or an existing VPC to reuse.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "reference",
@@ -55709,7 +55709,7 @@
       "requiredCount": 0,
       "optionalCount": 8
     },
-    "typeDeclaration": "import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** NAT: outbound internet for workloads in the private subnets. */\n  nat?: StackConfigNat;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Explicitly classifies this stack's stage as production or not.\n\nThe classification drives everything that treats production differently: error-tracking\nincidents (every production error group enters the incident queue), the stricter\ndelete-production permission, deploy gates, AI remediation autonomy limits, and the severity\nof security findings (a database reachable from the internet is `HIGH` in production and `LOW`\nelsewhere; production-only findings such as missing deletion protection are listed by\n`stacktape validate` but not reported for other stages).\n\nWhen omitted, the type chosen when the stage was created in the Stacktape Console decides.\nWithout either, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`\n(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod` and numbered\nones like `prod2`) count as production, while names carrying a rehearsal marker (`pre-prod`,\n`prod-test`, `staging-live`) do not. Set it explicitly when your naming does not follow those\nconventions.\n\nThis is a per-stage classification: with a TypeScript config, branch on the `stage` argument\nto return different values for different stages. */\n  stageType?: \"non-production\" | \"production\";\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** Stack-wide distributed tracing default. */\n  tracing?: TracingOptions;\n  /** VPC configuration: reuse an existing VPC. */\n  vpc?: VpcSettings;\n};\n\n/** Union choices used by the properties above. */\ntype StackConfigNat =\n  | NatSettings\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { CloudformationTag, NatSettings, StackOutput, TracingOptions, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** NAT: outbound internet for workloads in the private subnets. */\n  nat?: StackConfigNat;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Explicitly classifies this stack's stage as production or not.\n\nThe classification drives everything that treats production differently: error-tracking\nincidents (every production error group enters the incident queue), the stricter\ndelete-production permission, deploy gates, AI remediation autonomy limits, and the severity\nof security findings (a database reachable from the internet is `HIGH` in production and `LOW`\nelsewhere; production-only findings such as missing deletion protection are listed by\n`stacktape validate` but not reported for other stages).\n\nWhen omitted, the type chosen when the stage was created in the Stacktape Console decides.\nWithout either, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`\n(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod` and numbered\nones like `prod2`) count as production, while names carrying a rehearsal marker (`pre-prod`,\n`prod-test`, `staging-live`) do not. Set it explicitly when your naming does not follow those\nconventions.\n\nThis is a per-stage classification: with a TypeScript config, branch on the `stage` argument\nto return different values for different stages. */\n  stageType?: \"non-production\" | \"production\";\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** Stack-wide distributed tracing default. */\n  tracing?: TracingOptions;\n  /** VPC configuration: the shared non-production network, or an existing VPC to reuse. */\n  vpc?: VpcSettings;\n};\n\n/** Union choices used by the properties above. */\ntype StackConfigNat =\n  | NatSettings\n  | \"option-2\";\n// [!code focus-end]"
   },
   "StackOutput": {
     "definitionName": "StackOutput",
@@ -61071,18 +61071,30 @@
         "name": "reuseVpc",
         "required": false,
         "shortDescription": "<p> Share a VPC with another Stacktape stack or use an existing VPC.</p>",
-        "longDescription": "<p>Useful when this stack needs to access VPC-protected resources (databases, Redis)\nfrom another stack. By default, each stack gets its own VPC.</p>\n<blockquote>\n<p><strong>Important:</strong> Set this when first creating the stack. Adding it to an already\ndeployed stack can cause resources to be replaced and <strong>data to be lost</strong>.</p>\n</blockquote>",
+        "longDescription": "<p>Useful when this stack needs to access VPC-protected resources (databases, Redis)\nfrom another stack. By default, a production stage gets a VPC of its own and a non-production stage joins the\nshared non-production network (see <code>shared</code>).</p>\n<blockquote>\n<p><strong>Important:</strong> Set this when first creating the stack. Adding it to an already\ndeployed stack can cause resources to be replaced and <strong>data to be lost</strong>.</p>\n</blockquote>",
         "typeInfo": {
           "kind": "reference",
           "typeName": "VpcReuseConfig"
+        }
+      },
+      {
+        "name": "shared",
+        "required": false,
+        "shortDescription": "<p> Run this stage in the shared non-production network of its AWS account and region.</p>",
+        "longDescription": "<p>Non-production stages share one VPC (<code>stacktape-network</code>) and, when they need outbound internet, one small NAT\ninstance (<code>stacktape-network-nat</code>, ~$7.70/month for all of them). A new stage gets a VPC that takes no time to create,\nand teams stay under the AWS limit of 5 VPCs per region. Each stage keeps its own security groups: resources in\n<code>accessibilityMode: vpc</code> and internal load balancers admit only the stage&#39;s own workloads.</p>\n<p>By default, a stage joins the shared network when it is non-production: <code>stackConfig.stageType</code>, then the type\nchosen in the Stacktape Console, then the stage name decides (<code>dev</code>, <code>staging</code>, <code>test</code>, <code>preview</code>, <code>pr-12</code>,\n<code>feature-x</code>, ...). Production stages and names that say neither (<code>main</code>, <code>acme</code>, <code>pre-prod</code>) get a VPC of their own. Set this\nto <code>true</code> or <code>false</code> to choose yourself. Every deploy prints where the stage runs and why.</p>\n<p>The choice is fixed by the first deploy that creates networked resources: moving a deployed stage to or from\nthe shared network means deleting and redeploying it. Stages with <code>reuseVpc</code>, MongoDB Atlas clusters, Kafka\nclusters with function triggers, or <code>stackConfig.nat</code> set to <code>gateway</code> or <code>ha-ec2</code> always get a VPC of their own.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
         }
       }
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 1
+      "optionalCount": 2
     },
-    "typeDeclaration": "import type { VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n  /** Run this stage in the shared non-production network of its AWS account and region. */\n  shared?: boolean;\n};\n// [!code focus-end]"
   },
   "Wait": {
     "definitionName": "Wait",

@@ -2,10 +2,12 @@ import { resolveAllResources } from '@domain-services/calculated-stack-overview-
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
 import { initializeSynthOperation } from '../_utils/initialization';
+import { prepareStageNetwork } from '@domain-services/shared-network';
 
 export const commandSynth = async () => {
-  const { args, finalizeTemplate, template: templateManager, tui } = await initializeSynthOperation();
+  const { args, finalizeTemplate, stackContext, template: templateManager, tui } = await initializeSynthOperation();
 
+  await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });
   await resolveAllResources();
 
   await finalizeTemplate();

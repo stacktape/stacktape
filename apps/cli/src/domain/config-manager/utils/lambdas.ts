@@ -642,7 +642,8 @@ export const getStacktapeServiceLambdaNatFailoverStatements = ({
   const { kind, availabilityZones } = activeConfig.natSettings;
   // Kept for a single zone too: while a stack moves from `ha-ec2` to `ec2`, the probe rule still fires until
   // CloudFormation removes it, after the role has already lost these statements otherwise.
-  if (kind !== 'instance' || !activeConfig.allResourcesRequiringPrivateSubnets.length) {
+  // The shared network's NAT has no failover handler in the stages that use it.
+  if (kind !== 'instance' || !activeConfig.allResourcesRequiringPrivateSubnets.length || vpcManager.isSharedNetwork) {
     return [];
   }
   const { stackName, region, accountId } = stackContext;

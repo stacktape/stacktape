@@ -518,7 +518,7 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
             }
           : undefined,
       InstanceType: workload.resources.instanceTypes.length === 1 ? workload.resources.instanceTypes[0] : undefined,
-      SecurityGroupIds: [ref(cfLogicalNames.workloadSecurityGroup(workload.name))],
+      SecurityGroupIds: vpcManager.withStageSecurityGroup([ref(cfLogicalNames.workloadSecurityGroup(workload.name))]),
       TagSpecifications: [
         {
           ResourceType: 'instance',
@@ -608,7 +608,7 @@ export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWor
     // MaxInstanceLifetime: 86400
   });
   resource.DependsOn = [
-    ...(configManager.reuseVpcConfig ? [] : [cfLogicalNames.vpcGatewayAttachment()]),
+    ...(configManager.reuseVpcConfig || vpcManager.isSharedNetwork ? [] : [cfLogicalNames.vpcGatewayAttachment()]),
     cfLogicalNames.ecsCluster(workload.name)
   ];
   return resource;
@@ -784,16 +784,17 @@ const getEcsServiceSecurityGroupIngress = ({
       { properties: serviceConnect2 }: ContainerWorkloadServiceConnectIntegration
     ) => serviceConnect1.containerPort === serviceConnect2.containerPort
   ).forEach(({ properties: { containerPort } }: ContainerWorkloadServiceConnectIntegration) => {
-    rules.push({
-      Description: `service connect port ${containerPort}`,
-      FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
-      ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
-      IpProtocol: 'tcp',
-      // this is probably not the best way, but should be good for now
-      // alternative is to create separate ingress resource for each container workload https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group-ingress.html#cfn-ec2-security-group-ingress-groupname
-      // we are not doing that to avoid creating many resources (another alternative would be using custom resource to adjust ingress rules)
-      CidrIp: vpcManager.getVpcCidr()
-    });
+    // this is probably not the best way, but should be good for now
+    // alternative is to create separate ingress resource for each container workload https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group-ingress.html#cfn-ec2-security-group-ingress-groupname
+    // we are not doing that to avoid creating many resources (another alternative would be using custom resource to adjust ingress rules)
+    rules.push(
+      vpcManager.vpcWideIngress({
+        Description: `service connect port ${containerPort}`,
+        FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
+        ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
+        IpProtocol: 'tcp'
+      })
+    );
     // below can create circular dependency (i.e if there are two private services) - doing it this way (using security group IDs would require some more analysis)
     // configManager.allContainerWorkloads
     //   .filter(({ name }) => name !== workload.name)
@@ -1081,7 +1082,9 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
             Subnets: workload.usePrivateSubnetsWithNAT
               ? vpcManager.getPrivateSubnetIds()
               : vpcManager.getPublicSubnetIds(),
-            SecurityGroups: [ref(cfLogicalNames.workloadSecurityGroup(workload.name))]
+            SecurityGroups: vpcManager.withStageSecurityGroup([
+              ref(cfLogicalNames.workloadSecurityGroup(workload.name))
+            ])
           }
         },
     TaskDefinition: ref(cfLogicalNames.ecsTaskDefinition(workload.name)),
@@ -1171,7 +1174,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
     // While the service drains, ECS waits for each instance's agent to report its tasks stopped. Deleting the
     // service first keeps every subnet's internet path (the IGW routes, and the NAT routes for private subnets)
     // in place until then; otherwise the agent goes offline and the delete hangs until CloudFormation times out.
-    if (!configManager.reuseVpcConfig) {
+    if (!configManager.reuseVpcConfig && !vpcManager.isSharedNetwork) {
       [0, 1, 2].forEach((subnetIndex) => {
         dependencies.push(
           cfLogicalNames.internetGatewayRoute(subnetIndex),
