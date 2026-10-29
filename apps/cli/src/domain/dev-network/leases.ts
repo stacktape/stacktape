@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
+import { getDevNetworkLeaseParameterPrefix, getDevNetworkPortParameterPrefix } from '@stacktape/naming/shared-stacks';
 
 /** Relay ports leases are taken from. The box's own outgoing connections use the kernel range above 32768. */
 export const LEASE_PORT_RANGE = { from: 20000, to: 29999 } as const;
@@ -37,9 +37,11 @@ const parsePort = (value: string | undefined) => {
  * the relay address of each local database. A lease is created once and kept until the stack or the dev network is
  * deleted.
  *
- * Creating a lease is atomic, but two sessions creating different leases at the same moment may pick the same free
- * port. Each round therefore first resolves shared ports: the lease whose name sorts first keeps the port, a later one
- * of this stack is deleted and taken again. The result is returned from a round that found every lease and no conflict.
+ * A lease holds its port only once it has reserved it: the port's own parameter, created if absent, names the lease. Two
+ * sessions that pick the same free port at once both try to create that parameter, and only one succeeds; the other
+ * picks another port. Without the reservation, two stages each created their own lease on one port, and a session that
+ * had already returned was never told (r2af). A lease created before reservations existed reserves its port the next
+ * time its stage starts, and moves when another lease reserved it first.
  */
 export const ensureLeases = async ({
   store,
@@ -52,46 +54,71 @@ export const ensureLeases = async ({
   stackName: string;
   resourceNames: string[];
 }): Promise<Map<string, number>> => {
-  const prefix = getDevNetworkLeaseParameterPrefix(networkName);
+  const leasePrefix = getDevNetworkLeaseParameterPrefix(networkName);
+  const portPrefix = getDevNetworkPortParameterPrefix(networkName);
+  const reservationName = (port: number) => `${portPrefix}/${port}`;
   const names = new Map(
     resourceNames.map((resourceName) => [resourceName, leaseParameterName({ networkName, stackName, resourceName })])
   );
-  for (let round = 0; round < 5; round++) {
-    const ports = new Map<string, number>();
-    for (const { name, value } of await store.list(prefix)) {
+  const ours = new Set(names.values());
+  for (let round = 0; round < 10; round++) {
+    const [leaseRecords, portRecords] = await Promise.all([store.list(leasePrefix), store.list(portPrefix)]);
+    const leases = new Map<string, number>();
+    for (const { name, value } of leaseRecords) {
       const port = parsePort(value);
-      if (port !== undefined) ports.set(name, port);
+      if (port !== undefined) leases.set(name, port);
     }
-    const holders = new Map<number, string>();
-    for (const [name, port] of [...ports].sort(([left], [right]) => left.localeCompare(right))) {
-      if (!holders.has(port)) holders.set(port, name);
+    /** The lease that reserved each port. */
+    const reservations = new Map<number, string>();
+    for (const { name, value } of portRecords) {
+      const port = parsePort(name.slice(portPrefix.length + 1));
+      if (port !== undefined) reservations.set(port, value);
     }
-    const ours = new Set(names.values());
-    const losers = [...ports].filter(([name, port]) => ours.has(name) && holders.get(port) !== name);
-    if (losers.length) {
-      await store.delete(losers.map(([name]) => name));
-      for (const [name] of losers) ports.delete(name);
-    }
-    const missing = [...names].filter(([, name]) => !ports.has(name));
-    if (!missing.length && !losers.length) {
-      return new Map([...names].map(([resourceName, name]) => [resourceName, ports.get(name)!]));
-    }
-    const used = new Set(ports.values());
-    for (const [, name] of missing) {
-      let port = preferredLeasePort(name);
-      for (let probe = 0; used.has(port); probe++) {
-        if (probe >= RANGE_SIZE) throw new Error('The dev network has no free relay port left.');
-        port = port === LEASE_PORT_RANGE.to ? LEASE_PORT_RANGE.from : port + 1;
+    // Reservations of these leases that their lease does not hold, left by a session of this stage that lost a race.
+    const stale = [...reservations].filter(
+      ([port, owner]) => ours.has(owner) && leases.has(owner) && leases.get(owner) !== port
+    );
+    if (stale.length) await store.delete(stale.map(([port]) => reservationName(port)));
+    const result = new Map<string, number>();
+    const used = new Set([...leases.values(), ...reservations.keys()]);
+    for (const [resourceName, name] of names) {
+      const port = leases.get(name);
+      const owner = port === undefined ? undefined : reservations.get(port);
+      if (port !== undefined && owner === name) {
+        result.set(resourceName, port);
+        continue;
       }
-      used.add(port);
-      // A lease another session created first is read in the next round.
-      await store.create(name, String(port));
+      if (port !== undefined && owner === undefined) {
+        // A lease from before reservations: it reserves its port, unless another lease is faster.
+        await store.create(reservationName(port), name);
+        continue;
+      }
+      if (port !== undefined) {
+        // Another lease reserved this port first: this lease moves.
+        await store.delete([name]);
+        continue;
+      }
+      const reserved = [...reservations].find(([, holder]) => holder === name);
+      if (reserved) {
+        // A lease another session of this stage creates first wins; the next round reads it.
+        await store.create(name, String(reserved[0]));
+        continue;
+      }
+      let candidate = preferredLeasePort(name);
+      for (let probe = 0; used.has(candidate); probe++) {
+        if (probe >= RANGE_SIZE) throw new Error('The dev network has no free relay port left.');
+        candidate = candidate === LEASE_PORT_RANGE.to ? LEASE_PORT_RANGE.from : candidate + 1;
+      }
+      used.add(candidate);
+      // A port another session reserved first is read in the next round, and this lease picks another one.
+      await store.create(reservationName(candidate), name);
     }
+    if (result.size === names.size && !stale.length) return result;
   }
   throw new Error('Could not lease relay ports in the dev network: other sessions kept taking the same ports.');
 };
 
-/** Deletes the leases of one stack, after the stack itself was deleted. */
+/** Deletes the leases of one stack and their port reservations, after the stack itself was deleted. */
 export const releaseStackLeases = async ({
   store,
   networkName,
@@ -101,9 +128,11 @@ export const releaseStackLeases = async ({
   networkName: string;
   stackName: string;
 }) => {
-  const names = (await store.list(`${getDevNetworkLeaseParameterPrefix(networkName)}/${stackName}`)).map(
-    ({ name }) => name
-  );
-  if (names.length) await store.delete(names);
+  const stackPrefix = `${getDevNetworkLeaseParameterPrefix(networkName)}/${stackName}/`;
+  const names = (await store.list(stackPrefix.slice(0, -1))).map(({ name }) => name);
+  const reservations = (await store.list(getDevNetworkPortParameterPrefix(networkName)))
+    .filter(({ value }) => value.startsWith(stackPrefix))
+    .map(({ name }) => name);
+  if (names.length || reservations.length) await store.delete([...names, ...reservations]);
   return names.length;
 };

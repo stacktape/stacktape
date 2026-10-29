@@ -370,6 +370,8 @@ export const runParallelWorkloads = async (
 
 const describeDevBoxStatus = (status: NonNullable<DevNetworkSession['connection']['status']>) => {
   if (status.phase === 'starting-box') return 'Starting the dev box…';
+  if (status.phase === 'network-update')
+    return `Waiting for CloudFormation to update the dev network (${status.status})…`;
   if (status.phase === 'connecting') return 'Connecting to the dev box…';
   if (status.phase === 'reconnecting') return `Reconnecting: ${status.reason}`;
   return `dev box ${status.relay.relayHost}`;
@@ -403,7 +405,8 @@ const connectDevNetwork = async ({
       );
       return;
     }
-    if (status.phase === 'starting-box') tuiManager.info('Starting the dev box…');
+    if (status.phase === 'starting-box' || status.phase === 'network-update')
+      tuiManager.info(describeDevBoxStatus(status));
     if (status.phase === 'ready' && warnedReason) {
       tuiManager.success('Connected to the dev box again.');
       warnedReason = undefined;

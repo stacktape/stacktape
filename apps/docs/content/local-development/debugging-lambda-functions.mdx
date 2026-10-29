@@ -187,7 +187,7 @@ The first `stacktape dev` that needs it creates the **dev network** of the AWS a
 
 A dev stage no longer creates a VPC or NAT of its own. VPC functions work in dev mode and reach the internet through the box. The exception is a dev stage that still deploys VPC resources itself, such as a database marked `dev.remote`: its VPC functions stay in that stage's VPC and cannot reach local databases.
 
-The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.70 per month for its disk. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
+The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.75 per month for its disk and the SSM parameter that holds its relay. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
 
 See the network with [`stacktape dev network`](/cli/dev-network) and delete it with `stacktape dev network delete`.
 
@@ -336,7 +336,7 @@ Through the dev box of your account's dev network: functions connect to the box'
 
 ### How much does running dev mode cost?
 
-Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). The dev box costs about $0.01 per hour while a dev session runs and about $0.70 per month while it is stopped. Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
+Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). The dev box costs about $0.01 per hour while a dev session runs and about $0.75 per month while it is stopped. Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
 
 ### How do I view logs from a Lambda function that's already deployed?
 

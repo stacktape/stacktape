@@ -866,13 +866,23 @@ export const spawnAgentDaemon = async (args: {
   explicitArgs: Readonly<Record<string, unknown>>;
   customArgs: readonly string[];
   agentPort: number;
+  /** The port was chosen automatically, so the daemon may listen on another one if it was taken meanwhile. */
+  automaticAgentPort?: boolean;
   timeoutMs?: number;
   /** Receives the daemon's startup progress until it is ready or fails. */
   onChildRecord?: (record: ForwardedChildRecord) => void;
   /** The process to start instead of this CLI's `dev` command; tests start a stand-in daemon. */
   command?: { executable: string; args: string[]; cwd: string };
 }): Promise<DaemonSpawnResult> => {
-  const { explicitArgs, customArgs, agentPort, timeoutMs = 180000, onChildRecord, command } = args;
+  const {
+    explicitArgs,
+    customArgs,
+    agentPort,
+    automaticAgentPort = false,
+    timeoutMs = 180000,
+    onChildRecord,
+    command
+  } = args;
   const workingDir = globalStateManager.workingDir;
 
   // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
@@ -916,6 +926,7 @@ export const spawnAgentDaemon = async (args: {
         env: {
           ...process.env,
           STACKTAPE_AGENT_DAEMON: '1',
+          STACKTAPE_AGENT_PORT_AUTOMATIC: automaticAgentPort ? '1' : '0',
           STACKTAPE_AGENT_DAEMON_OUTPUT_FILES: JSON.stringify(outputFiles),
           STP_DISABLE_CONSOLE_INTERCEPT: 'true'
         },

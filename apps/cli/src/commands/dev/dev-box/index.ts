@@ -2,7 +2,8 @@ import type { DevNetwork, DevNetworkAws } from '@domain-services/dev-network';
 import type { RelayEndpoint, RelayOwner, RelayPresenceOutcome, RelayStageHolder } from '../tunnel-manager';
 import { setTimeout as delay } from 'node:timers/promises';
 import { DEV_BOX_RELAY_CONTROL_PORT } from '@domain-services/dev-network/boot-script';
-import { wakeDevBox, waitForDevBoxOnline } from '@domain-services/dev-network';
+import { updateDevBoxRelay, wakeDevBox, waitForDevBoxOnline } from '@domain-services/dev-network';
+import { DEV_BOX_RELAY_VERSION } from '@domain-services/dev-network/relay-source';
 import { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import findFreePorts from 'find-free-ports';
 import { pingRelay } from '../tunnel-manager';
@@ -17,6 +18,7 @@ export type RelaySession = {
 
 export type DevBoxStatus =
   | { phase: 'starting-box' }
+  | { phase: 'network-update'; status: string }
   | { phase: 'connecting' }
   | { phase: 'ready'; relay: RelayEndpoint }
   | { phase: 'reconnecting'; reason: string };
@@ -56,6 +58,13 @@ export type DevBoxDependencies = {
   onSession?: (sessionId: string | undefined) => void;
   /** How long the relay may take to answer after the session opens: a first boot installs it. */
   relayTimeoutMs?: number;
+  /**
+   * Called before this session restarts a relay older than this CLI's to install the network's relay (see
+   * `updateDevBoxRelay`), with the running relay's version.
+   */
+  onRelayUpdate?: (version: number) => void;
+  /** Installs the network's relay on the box; `updateDevBoxRelay` unless a test replaces it. */
+  updateRelay?: () => Promise<void>;
   pollMs?: number;
 };
 
@@ -158,6 +167,8 @@ export class DevBoxConnection {
   /** The relay accepted a presence of this session once: from then on, a refusal means the stage was lost. */
   #heldStage = false;
   #lostStage = false;
+  /** This session asked the box to install the network's relay once; it does not ask again. */
+  #relayUpdated = false;
 
   constructor({
     deps,
@@ -247,11 +258,13 @@ export class DevBoxConnection {
   #open = async (): Promise<RelayEndpoint> => {
     const { aws, openSession, pingRelay, relayTimeoutMs = 5 * 60_000, pollMs = 1000 } = this.#deps;
     const instanceId = this.#network.boxInstanceId;
+    const { stackName } = this.#network;
     const onStart = () => this.#setStatus({ phase: 'starting-box' });
+    const onNetworkUpdate = (status: string) => this.#setStatus({ phase: 'network-update', status });
     // Every attempt reads the instance state again: a box that ran a minute ago may have stopped itself since.
-    await wakeDevBox({ aws, instanceId, pollMs, onStart });
+    await wakeDevBox({ aws, instanceId, stackName, pollMs, onStart, onNetworkUpdate });
     this.#setStatus({ phase: 'connecting' });
-    await waitForDevBoxOnline({ aws, instanceId, pollMs, onStart });
+    await waitForDevBoxOnline({ aws, instanceId, stackName, pollMs, onStart, onNetworkUpdate });
     this.#stopped.signal.throwIfAborted();
     this.#localPort ??= await this.#deps.findFreePort();
     this.#session = await openSession({
@@ -269,16 +282,28 @@ export class DevBoxConnection {
     const ended = this.#session.waitForExit().then(() => {
       sessionEnded = true;
     });
-    for (;;) {
-      this.#stopped.signal.throwIfAborted();
-      if (sessionEnded) throw new Error('The SSM session to the dev box ended before its relay answered.');
-      try {
-        await pingRelay(relay);
-        break;
-      } catch (error) {
-        if (Date.now() > deadline) throw new Error(`The dev box relay did not answer: ${(error as Error).message}`);
-        await Promise.race([delay(pollMs), ended]);
+    const ping = async (minimumVersion = 0) => {
+      for (;;) {
+        this.#stopped.signal.throwIfAborted();
+        if (sessionEnded) throw new Error('The SSM session to the dev box ended before its relay answered.');
+        try {
+          const version = await pingRelay(relay);
+          if (version >= minimumVersion) return version;
+          throw new Error(`it still runs version ${version}`);
+        } catch (error) {
+          if (Date.now() > deadline) throw new Error(`The dev box relay did not answer: ${(error as Error).message}`);
+          await Promise.race([delay(pollMs), ended]);
+        }
       }
+    };
+    const version = await ping();
+    // The network carries the relay of this CLI or a newer one (`ensureDevNetwork`), but a box keeps running the relay
+    // it started with until its relay service restarts.
+    if (version < DEV_BOX_RELAY_VERSION && !this.#relayUpdated) {
+      this.#relayUpdated = true;
+      this.#deps.onRelayUpdate?.(version);
+      await (this.#deps.updateRelay ?? (() => updateDevBoxRelay({ aws, network: this.#network })))();
+      await ping(DEV_BOX_RELAY_VERSION);
     }
     this.#setStatus({ phase: 'ready', relay });
     return relay;

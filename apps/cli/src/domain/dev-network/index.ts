@@ -9,16 +9,20 @@ import {
 import {
   getDevNetworkHolderParameterPrefix,
   getDevNetworkLeaseParameterPrefix,
+  getDevNetworkPortParameterPrefix,
+  getDevNetworkRelayParameterName,
   getDevNetworkStackName
 } from '@stacktape/naming/shared-stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import type { LeaseStore } from './leases';
+import { getDevBoxRelayUpdateScript } from './boot-script';
 import {
   buildDevNetworkTemplate,
   DEV_BOX_IMAGE_PARAMETER,
   DEV_NETWORK_CONTRACT_VERSION,
-  DEV_NETWORK_KIND
+  DEV_NETWORK_KIND,
+  readDevBoxUserData
 } from './template';
 import { formatTimeWithZone } from '@utils/formatting';
 
@@ -55,12 +59,16 @@ export type DevNetworkAws = {
   stacks: SharedResourceStackAdapter & {
     delete: (stackName: string) => Promise<void>;
     listResources: (stackName: string) => Promise<DevNetworkStackResource[]>;
+    /** The deployed template, as CloudFormation keeps it. */
+    getTemplate: (stackName: string) => Promise<unknown>;
   };
   resolveBoxImageId: () => Promise<string>;
   describeBox: (instanceId: string) => Promise<DevBoxState | undefined>;
   startBox: (instanceId: string) => Promise<void>;
   attachBoxProfile: (instanceId: string, instanceProfileName: string) => Promise<void>;
   isBoxOnline: (instanceId: string) => Promise<boolean>;
+  /** Runs a shell script on the running box through SSM Run Command; resolves once it succeeded. */
+  runOnBox: (input: { instanceId: string; script: string; comment: string }) => Promise<void>;
   listFunctionsInSecurityGroup: (securityGroupId: string) => Promise<string[]>;
   leases: LeaseStore;
 };
@@ -103,7 +111,8 @@ export const createDevNetworkAws = (): DevNetworkAws => ({
     delete: async (stackName) => {
       await awsSdkManager.cloudFormation.delete(stackName, {});
     },
-    listResources: (stackName) => awsSdkManager.cloudFormation.getResources(stackName)
+    listResources: (stackName) => awsSdkManager.cloudFormation.getResources(stackName),
+    getTemplate: (stackName) => awsSdkManager.cloudFormation.getTemplate(stackName)
   },
   resolveBoxImageId: async () => {
     const { Parameter } = await awsSdkManager.parameterStore.get({ name: DEV_BOX_IMAGE_PARAMETER });
@@ -115,6 +124,7 @@ export const createDevNetworkAws = (): DevNetworkAws => ({
   attachBoxProfile: (instanceId, instanceProfileName) =>
     awsSdkManager.ec2.associateInstanceProfile({ instanceId, instanceProfileName }),
   isBoxOnline: (instanceId) => awsSdkManager.systemsManager.isInstanceOnline({ instanceId }),
+  runOnBox: (input) => awsSdkManager.systemsManager.runShellScriptAndWait(input),
   listFunctionsInSecurityGroup: (securityGroupId) => awsSdkManager.lambda.listFunctionsInSecurityGroup(securityGroupId),
   leases: {
     list: (prefix) => awsSdkManager.parameterStore.listByPath({ path: prefix }),
@@ -327,8 +337,27 @@ const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) 
 };
 
 /**
+ * The user data of the existing network's box, which an update keeps (see `buildDevNetworkTemplate`). Read only when
+ * the network is older than this CLI: a network of this contract version or newer is not updated.
+ */
+const readDeployedBoxUserData = async (aws: DevNetworkAws, stack: SharedStackDetails | undefined) => {
+  const version = Number(stack?.Outputs?.find(({ OutputKey }) => OutputKey === 'ContractVersion')?.OutputValue);
+  if (!stack?.StackName || !stack.Outputs?.length || version >= DEV_NETWORK_CONTRACT_VERSION) return undefined;
+  const userData = readDevBoxUserData(await aws.stacks.getTemplate(stack.StackName));
+  if (!userData) {
+    throw new CliError({
+      category: 'CLOUDFORMATION',
+      code: 'DEV_NETWORK_TEMPLATE_UNREADABLE',
+      message: `The template of the dev network stack \`${stack.StackName}\` has no dev box user data that Stacktape can keep, so updating it would stop the dev box.`,
+      hints: FAILED_DEV_NETWORK_RECOVERY
+    });
+  }
+  return userData;
+};
+
+/**
  * Returns the account and region's dev network, creating it on first use or updating one created by an older Stacktape
- * version. `onCreate` runs once, before a creation starts.
+ * version. `onCreate` runs once, before a creation starts; `onUpgrade` before this session updates an older network.
  *
  * A network that is being created is returned as soon as its box exists, about 1 minute after the creation starts, so
  * the dev stack deploys while CloudFormation finishes the network: the keeper function and the box's instance profile
@@ -340,12 +369,14 @@ const attachMissingBoxProfile = async (aws: DevNetworkAws, network: DevNetwork) 
 export const ensureDevNetwork = async ({
   aws,
   onCreate,
+  onUpgrade,
   onDeletionWait,
   onJoinCreation,
   pollIntervalMs
 }: {
   aws: DevNetworkAws;
   onCreate: () => void;
+  onUpgrade?: () => void;
   /** Called when a deletion of the network runs, before this waits for it to end and creates the network again. */
   onDeletionWait?: () => void;
   /** Called when another session creates the network, before this waits for that creation. */
@@ -369,6 +400,8 @@ export const ensureDevNetwork = async ({
   if (failedBefore) throw failedDevNetworkError(failedBefore);
   // A session that finds another one's creation running uses the network as early as the creating session.
   const joinsCreation = existing?.StackStatus === 'CREATE_IN_PROGRESS';
+  const boxUserData = joinsCreation ? undefined : await readDeployedBoxUserData(aws, existing);
+  if (boxUserData) onUpgrade?.();
   let createdHere = false;
   const adapter: SharedResourceStackAdapter = {
     ...aws.stacks,
@@ -388,7 +421,7 @@ export const ensureDevNetwork = async ({
       // A new image would replace the box and change its private IP: keep the image the network was created with.
       parameters: { ImageId: existing ? '' : await aws.resolveBoxImageId() },
       mergeParameters: ({ desired, existing: current }) => ({ ImageId: current.ImageId || desired.ImageId }),
-      template: buildDevNetworkTemplate({ networkName: stackName }),
+      template: buildDevNetworkTemplate({ networkName: stackName, boxUserData }),
       beforeCreate: async () => onCreate()
     })
     .then(async ({ action }) => {
@@ -482,27 +515,45 @@ export const ensureDevNetwork = async ({
 
 const BOX_POLL_MS = 2000;
 
+/** CloudFormation updates the network, or rolls an update back; either may stop the box and start it again. */
+const isBeingUpdated = (status: string | undefined) =>
+  Boolean(status?.startsWith('UPDATE_') && status.endsWith('_IN_PROGRESS'));
+
 /**
  * Starts the box if it is stopped and resolves once it runs. A box that is stopping (its idle stop) is started again
  * once the stop completes.
+ *
+ * A stopped box of a network that CloudFormation updates stays stopped: the update may have stopped it to change it, and
+ * starting it then keeps the update waiting for the stop until someone stops the box again (r2ab). CloudFormation starts
+ * the box itself when it is done; a box still stopped after the update is started here.
  */
 export const wakeDevBox = async ({
   aws,
   instanceId,
+  stackName,
   timeoutMs = 5 * 60_000,
+  updateTimeoutMs = 20 * 60_000,
   pollMs = BOX_POLL_MS,
-  onStart
+  onStart,
+  onNetworkUpdate
 }: {
   aws: DevNetworkAws;
   instanceId: string;
+  /** The network's stack, whose updates this waits for; without it, a stopped box is always started. */
+  stackName?: string;
   timeoutMs?: number;
+  /** How long a stopped box waits for an update of the network. */
+  updateTimeoutMs?: number;
   pollMs?: number;
   /** Called once when the box is not running yet, so the caller can say that it waits for it. */
   onStart?: () => void;
+  /** Called once when a stopped box waits for CloudFormation to finish updating the network. */
+  onNetworkUpdate?: (status: string) => void;
 }): Promise<{ started: boolean }> => {
-  const deadline = Date.now() + timeoutMs;
+  let deadline = Date.now() + timeoutMs;
   let started = false;
   let waiting = false;
+  let updateSince: number | undefined;
   while (Date.now() < deadline) {
     const box = await aws.describeBox(instanceId);
     if (!box || box.state === 'terminated' || box.state === 'shutting-down') {
@@ -514,6 +565,17 @@ export const wakeDevBox = async ({
       });
     }
     if (box.state === 'running') return { started };
+    const status = stackName ? (await aws.stacks.get(stackName))?.StackStatus : undefined;
+    if (isBeingUpdated(status)) {
+      if (updateSince === undefined) {
+        updateSince = Date.now();
+        deadline = Math.max(deadline, updateSince + updateTimeoutMs);
+        onNetworkUpdate?.(status!);
+      }
+      if (Date.now() - updateSince > updateTimeoutMs) throw devBoxHeldByUpdateError(stackName!, status!);
+      await delay(pollMs);
+      continue;
+    }
     if (!waiting) {
       waiting = true;
       onStart?.();
@@ -524,6 +586,10 @@ export const wakeDevBox = async ({
     }
     await delay(pollMs);
   }
+  if (updateSince !== undefined && stackName) {
+    const status = (await aws.stacks.get(stackName))?.StackStatus;
+    if (isBeingUpdated(status)) throw devBoxHeldByUpdateError(stackName, status!);
+  }
   throw new CliError({
     category: 'AWS',
     code: 'DEV_BOX_START_TIMEOUT',
@@ -532,30 +598,46 @@ export const wakeDevBox = async ({
   });
 };
 
+const devBoxHeldByUpdateError = (stackName: string, status: string) =>
+  new CliError({
+    category: 'CLOUDFORMATION',
+    code: 'DEV_NETWORK_UPDATE_HOLDS_BOX',
+    message: `The dev box stays stopped while CloudFormation updates the dev network stack \`${stackName}\` (${status}), and the update has not ended.`,
+    hints: [
+      'CloudFormation stops the dev box when an update changes it. A `stacktape dev` session of an older Stacktape version starts the box again at once, and the update then waits until the box is stopped.',
+      'Stop the `stacktape dev` sessions of older Stacktape versions in this AWS account and region, then run `stacktape dev` again.'
+    ]
+  });
+
 /**
  * Resolves once the box runs and its SSM agent is connected, so a session can start. A box that stops meanwhile (its
- * idle stop, or someone stopping it) is started again instead of waiting for SSM until the deadline.
+ * idle stop, or someone stopping it) is started again instead of waiting for SSM until the deadline, unless the network
+ * is being updated (see `wakeDevBox`).
  */
 export const waitForDevBoxOnline = async ({
   aws,
   instanceId,
+  stackName,
   timeoutMs = 5 * 60_000,
   pollMs = BOX_POLL_MS,
-  onStart
+  onStart,
+  onNetworkUpdate
 }: {
   aws: DevNetworkAws;
   instanceId: string;
+  stackName?: string;
   timeoutMs?: number;
   pollMs?: number;
   /** Called when the box has to be started again. */
   onStart?: () => void;
+  onNetworkUpdate?: (status: string) => void;
 }) => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     // The instance state first: SSM can report a box online for a while after it stopped.
     const box = await aws.describeBox(instanceId);
     if (box?.state !== 'running' && box?.state !== 'pending') {
-      await wakeDevBox({ aws, instanceId, pollMs, onStart });
+      await wakeDevBox({ aws, instanceId, stackName, pollMs, onStart, onNetworkUpdate });
       continue;
     }
     if (box.state === 'running' && (await aws.isBoxOnline(instanceId))) return;
@@ -567,6 +649,18 @@ export const waitForDevBoxOnline = async ({
     message: `The dev box ${instanceId} runs, but its SSM agent did not connect within ${Math.round(timeoutMs / 60_000)} minutes.`,
     hints:
       'The box needs outbound internet for SSM. Check the instance in the EC2 console, then run `stacktape dev` again.'
+  });
+};
+
+/**
+ * Installs the relay of the network's relay parameter on the running box and restarts the relay service (see
+ * `getDevBoxRelayUpdateScript`). Every session connected to the relay reconnects within seconds.
+ */
+export const updateDevBoxRelay = async ({ aws, network }: { aws: DevNetworkAws; network: DevNetwork }) => {
+  await aws.runOnBox({
+    instanceId: network.boxInstanceId,
+    script: getDevBoxRelayUpdateScript(getDevNetworkRelayParameterName(network.stackName)),
+    comment: `Stacktape: update the relay of the dev box of ${network.stackName}`
   });
 };
 
@@ -749,11 +843,16 @@ const waitForNetworkDeletion = async ({
     }
     await delay(pollIntervalMs);
   }
-  const prefix = getDevNetworkLeaseParameterPrefix(stackName);
-  const leases = await aws.leases.list(prefix);
-  // The holder records of the stages go with the network (see `holders.ts`).
+  const leases = await aws.leases.list(getDevNetworkLeaseParameterPrefix(stackName));
+  // The port reservations and holder records of the stages go with the network (see `leases.ts`, `holders.ts`).
+  const ports = await aws.leases.list(getDevNetworkPortParameterPrefix(stackName));
   const holders = await aws.leases.list(getDevNetworkHolderParameterPrefix(stackName));
-  if (leases.length || holders.length) await aws.leases.delete([...leases, ...holders].map(({ name }) => name));
+  // A session waiting for the deletion may have created a new network under the same name meanwhile, and recorded its
+  // leases and holder in it: they were listed after its stack existed, so a stack that exists now keeps them (r2af).
+  const after = await aws.stacks.get(stackName);
+  if (after && after.StackStatus !== 'DELETE_COMPLETE') return { deletedLeases: 0, recreated: true };
+  const names = [...leases, ...ports, ...holders].map(({ name }) => name);
+  if (names.length) await aws.leases.delete(names);
   return { deletedLeases: leases.length, recreated: false };
 };
 

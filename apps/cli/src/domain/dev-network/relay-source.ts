@@ -14,7 +14,9 @@
  *   split its databases or take a port from each other in turn. The same process takes its port over, because a laptop
  *   that lost its SSM session comes back before the old session's sockets close. With `takeOver`, every tunnel of the
  *   stack that another process holds is closed at once, with the connections it carries (a warm function's pooled
- *   database connection included); each is told `{"TakenOver": {"label"}}` first, and its session must end.
+ *   database connection included); each is told `{"TakenOver": {"label"}}` first, and its session must end. A port that
+ *   a tunnel of another stack holds is refused with `{"Error": ...}`, with `takeOver` too (version 5): a take-over
+ *   moves one stage, never a stage that only shares the port.
  * - `{"Presence": {"owner", "label", "session", "stack", "exclusive", "held", "takeOver"}}` keeps the box awake while
  *   a dev session runs, and answers `{"Pong": {"version"}}`. An `exclusive` presence (version 4) also holds the stage,
  *   like a lease: while another process holds a tunnel or an exclusive presence of the stack, it is refused with
@@ -27,6 +29,9 @@
  * - `{"Ping": null}` answers `{"Pong": {"version"}}` and closes: the readiness probe.
  * - `{"Hello": port}` and `{"Accept": id}` are bore's own messages.
  *
+ * A tunnel whose control connection ends takes its data connections with it (version 5), so none of them reaches its
+ * session's database once another session leases the port.
+ *
  * A leased port keeps listening for a while after its tunnel ends (a session that restarts, or lost its SSM session,
  * leases the same port again). A connection that arrives then waits for the next tunnel of the same lease key and is
  * handed to it, so a function invoked during a restart reaches the database once the session is back instead of
@@ -35,7 +40,7 @@
  * The box stops itself: once no tunnel and no presence connection has been open for the idle time, the relay runs the
  * shutdown command, and `InstanceInitiatedShutdownBehavior: stop` turns that into an EC2 stop.
  */
-export const DEV_BOX_RELAY_VERSION = 4;
+export const DEV_BOX_RELAY_VERSION = 5;
 
 export const DEV_BOX_RELAY_SOURCE = String.raw`#!/usr/bin/env python3
 import asyncio
@@ -229,6 +234,14 @@ def take_over_presence(presence, label):
 
 async def run_tunnel(reader, writer, port, key, owner, label, session, take_over):
     stack = stack_of(key)
+    foreign = tunnels.get(port) if port and stack else None
+    if foreign and stack_of(foreign['key']) != stack and not (foreign['owner'] == owner and foreign['session'] == session):
+        # Two stages leased one port (r2af): a take-over of this stage must not move the other one.
+        log('port %d refused to %s: the tunnel of %s holds it' % (port, key, foreign['key'] or '-'))
+        writer.write(frame({'Error': 'port %d is held by the dev session of another stage (%s, %s)'
+                                     % (port, stack_of(foreign['key']) or '-', foreign['label'] or '-')}))
+        writer.close()
+        return
     others = sorted(
         [(held_port, held) for held_port, held in tunnels.items()
          if (held_port == port or (stack and stack_of(held['key']) == stack))
@@ -304,6 +317,11 @@ async def run_tunnel(reader, writer, port, key, owner, label, session, take_over
         if tunnels.get(actual_port) is tunnel:
             del tunnels[actual_port]
             log('tunnel %d closed' % actual_port)
+        # A data connection of the ended tunnel must not keep reaching its session's database after another session
+        # leases the port.
+        for conn_writer in list(tunnel['connections']):
+            conn_writer.close()
+        tunnel['connections'].clear()
         listener = listeners.get(actual_port)
         if listener is None:
             server.close()

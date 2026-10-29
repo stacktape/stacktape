@@ -529,3 +529,74 @@ test('local databases serve one database name to every consumer and follow a cha
     await rm(root, { recursive: true, force: true });
   }
 }, 300_000);
+
+// r2ab dogfood, finding 2: MySQL 5.7 started on data that 8.4 wrote, wrote its own redo log into it and crashed, and
+// 8.4 refused the data afterwards. Dev mode must refuse the mismatched version before it opens the files.
+test('MySQL data written by 8.4 is refused for 5.7 without being opened, and 8.4 still reads it', async () => {
+  for (const image of ['mysql:8.4.8', 'mysql:5.7.44']) {
+    expect(docker(['image', 'inspect', image]).status === 0 || docker(['pull', image]).status === 0).toBeTrue();
+  }
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-mysql-version-'));
+  const projectName = `mv${randomBytes(4).toString('hex')}`;
+  const workingDirectory = join(root, 'app');
+  const mysqlDb = (version: string) => ({
+    type: 'relational-database',
+    properties: {
+      engine: {
+        type: 'mysql',
+        properties: { version, dbName: 'app', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      },
+      credentials: { masterUserName: 'root' }
+    }
+  });
+  const start = async (version: string) =>
+    startDatabases({
+      directory: await mkdtemp(join(root, 'driver-')),
+      workingDirectory,
+      projectName,
+      resources: { mydb: mysqlDb(version) }
+    });
+  const sentinel = async (instance: Instance, statements: string[]) => {
+    const mysql = await import('mysql2/promise');
+    const connection = await mysql.createConnection({
+      host: '127.0.0.1',
+      port: instance.actualPort,
+      user: 'root',
+      password: instance.credentials!.password,
+      database: 'app'
+    });
+    try {
+      let rows: unknown;
+      for (const statement of statements) [rows] = await connection.query(statement);
+      return rows;
+    } finally {
+      await connection.end();
+    }
+  };
+  try {
+    const first = await start('8.4.8');
+    await sentinel(first.instances[0], [
+      'CREATE TABLE sentinel (id INT PRIMARY KEY, note VARCHAR(40))',
+      "INSERT INTO sentinel VALUES (9, 'written by 8.4')"
+    ]);
+    expect(docker(['rm', '-f', first.instances[0].containerName]).status).toBe(0);
+
+    const refused = await start('5.7.44').catch((error: Error) => error);
+    expect(refused).toBeInstanceOf(Error);
+    expect((refused as Error).message).toContain('was written by MySQL 8.4.8, and MySQL 5.7.44 cannot read it');
+    expect((refused as Error).message).toContain('the data is unchanged');
+    // No 5.7 server ran on the data.
+    const containers = docker(['ps', '-a', '--filter', `name=^stp-${projectName}-`, '--format', '{{.Image}}']);
+    expect(containers.stdout.trim()).toBe('');
+
+    const again = await start('8.4.8');
+    expect(await sentinel(again.instances[0], ['SELECT id, note FROM sentinel'])).toEqual([
+      { id: 9, note: 'written by 8.4' }
+    ]);
+  } finally {
+    const named = docker(['ps', '-a', '--filter', `name=^stp-${projectName}-`, '--format', '{{.Names}}']);
+    for (const name of named.stdout.split('\n').filter(Boolean)) docker(['rm', '-f', name]);
+    docker(['run', '--rm', '-v', `${root}:/work`, '--entrypoint', 'sh', 'mysql:8.4.8', '-c', 'rm -rf /work/*']);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 300_000);

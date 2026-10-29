@@ -36,3 +36,17 @@ export const getDevNetworkLeaseParameterPrefix = (networkStackName: string) =>
  */
 export const getDevNetworkHolderParameterPrefix = (networkStackName: string) =>
   `/stacktape/dev-network/${networkStackName}/holders`;
+
+/**
+ * The relay of a dev network's box, which the network's stack keeps in this parameter. The box installs it whenever its
+ * relay service starts, so a new relay reaches a running box with a restart of the service, without stopping the box.
+ */
+export const getDevNetworkRelayParameterName = (networkStackName: string) =>
+  `/stacktape/dev-network/${networkStackName}/relay`;
+
+/**
+ * The relay ports of a dev network that leases hold: one parameter per port, holding the name of the lease parameter
+ * that reserved it. Creating it is atomic, so two leases never hold one port.
+ */
+export const getDevNetworkPortParameterPrefix = (networkStackName: string) =>
+  `/stacktape/dev-network/${networkStackName}/ports`;

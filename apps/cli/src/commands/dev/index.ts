@@ -632,6 +632,7 @@ export const commandDev = async () => {
       explicitArgs: globalStateManager.explicitArgs,
       customArgs: getCustomArgsSuffix(),
       agentPort,
+      automaticAgentPort: agentPortArg === undefined,
       // An inactivity limit: the daemon reports progress and a heartbeat while it works.
       timeoutMs: 600000,
       onChildRecord: forwardDaemonProgress
@@ -739,9 +740,14 @@ export const commandDev = async () => {
       });
     }
 
+    // The parent chose the daemon's port when no --agent-port was given; another dev session may take it meanwhile.
+    const automaticPort = isAgentChild
+      ? process.env.STACKTAPE_AGENT_PORT_AUTOMATIC === '1'
+      : agentPortArg === undefined;
+    delete process.env.STACKTAPE_AGENT_PORT_AUTOMATIC;
     registerAgentCleanupHook();
     setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
-    await startAgentServer(
+    const boundPort = await startAgentServer(
       agentPort,
       localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }),
       {
@@ -754,8 +760,23 @@ export const commandDev = async () => {
         projectName: stackContext.projectName,
         stage: stackContext.stage,
         region: stackContext.region
-      }
+      },
+      { automaticPort }
     );
+    if (boundPort !== agentPort) {
+      // The client learned the chosen port from the parent; this event gives it the port the agent listens on.
+      tuiManager.emitEvent({
+        phase: 'DEV_STARTUP',
+        eventType: 'DEV_SESSION',
+        status: 'started',
+        message: `Port ${agentPort} was taken while the dev agent started; it uses port ${boundPort}`,
+        detail: {
+          kind: 'dev-agent',
+          agentPort: boundPort,
+          tokenFile: localStatePaths.devAgentTokenFile({ port: boundPort })
+        }
+      });
+    }
     // Dev mode's own messages (file changes, redeploys, dev box state, warnings) go to the session's log file too.
     tuiManager.setMessageListener((type, message) => {
       if (type === 'debug') return;

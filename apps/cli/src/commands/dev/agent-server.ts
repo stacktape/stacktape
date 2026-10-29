@@ -21,6 +21,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getDevAgentCredentials } from './dev-agent-credentials';
+import { findAvailablePort } from './port-utils';
 import {
   postgresQuery,
   postgresSchema,
@@ -2078,37 +2079,64 @@ const createSessionLogMasker = (): ((text: string) => string) => {
   };
 };
 
+/** Binds the agent's HTTP server to the port; rejects with the listener's error, `EADDRINUSE` included. */
+const listenOnAgentPort = (port: number) =>
+  new Promise<Server>((resolve, reject) => {
+    const server = createServer(handleRequest);
+    server.once('error', reject);
+    server.listen(port, AGENT_HOST, () => {
+      server.removeListener('error', reject);
+      resolve(server);
+    });
+  });
+
+/** How many other ports an automatically chosen agent port tries after the one chosen was taken meanwhile. */
+const AUTOMATIC_PORT_ATTEMPTS = 20;
+
+/**
+ * Starts the agent's HTTP server and resolves with its port. An automatically chosen port (no `--agent-port`) can be
+ * taken between the check that chose it and this bind: two dev sessions that start at the same time, through MCP for
+ * example, check the same free port before either listens (r2ab). Such a port is replaced with the next free one; an
+ * explicit port fails.
+ */
 export const startAgentServer = async (
   port: number,
   logDir: string,
   environment?: AgentWorkloadEnvironment,
-  session?: AgentSessionIdentity
-): Promise<void> => {
+  session?: AgentSessionIdentity,
+  {
+    automaticPort = false,
+    findFreePort = findAvailablePort
+  }: { automaticPort?: boolean; findFreePort?: typeof findAvailablePort } = {}
+): Promise<number> => {
+  const requested = port;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      httpServer = await listenOnAgentPort(port);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+      const next = automaticPort && attempt < AUTOMATIC_PORT_ATTEMPTS ? await findFreePort(port + 1) : null;
+      if (!next) {
+        throw new Error(
+          automaticPort
+            ? `Ports ${requested} to ${port} were taken while the dev agent started. Choose a port with --agent-port.`
+            : `Port ${port} is already in use. Choose a different --agent-port.`
+        );
+      }
+      port = next;
+    }
+  }
   if (environment) workloadEnvironment = environment;
   setAgentLogMasker(createSessionLogMasker());
   agentPort = port;
   agentSession = session ?? null;
   startTime = Date.now();
 
+  // The log file is named by the port, so it is opened only once this process owns the port.
   const logFile = `${logDir}/${port}-logs.txt`;
   initAgentLogger(logFile, { ...session, port, pid: process.pid });
   agentState.logFile = logFile;
-
-  await new Promise<void>((resolve, reject) => {
-    httpServer = createServer(handleRequest);
-
-    httpServer.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${port} is already in use. Choose a different --agent-port.`));
-      } else {
-        reject(err);
-      }
-    });
-
-    httpServer.listen(port, AGENT_HOST, () => {
-      resolve();
-    });
-  });
 
   // Written only once this process owns the port, so it replaces the file of an earlier agent that died on this port
   // and no live agent's token is overwritten. Only the user who started dev mode can read the directory and file.
@@ -2120,6 +2148,7 @@ export const startAgentServer = async (
   writeFileSync(agentTokenFile, agentToken, { mode: 0o600 });
   chmodSync(agentTokenFile, 0o600);
   await removeTokenFilesOfDeadAgents(port);
+  return port;
 };
 
 const isListening = (port: number) =>
