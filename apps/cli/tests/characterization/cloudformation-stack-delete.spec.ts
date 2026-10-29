@@ -510,6 +510,29 @@ describe('early database and cache deletes', () => {
       ['Db']
     ],
     [
+      'a stack with queues, a queue policy and a rule the service Lambda created',
+      {
+        Lb: { type: loadBalancer },
+        ...Object.fromEntries(
+          [
+            ['Queue', 'Custom::StpSqsQueue', 'sqsQueue'],
+            ['QueuePolicy', 'Custom::StpSqsQueuePolicy', 'sqsQueuePolicy'],
+            ['Rule', 'Custom::StpEventsRule', 'eventsRule']
+          ].map(([logicalId, type, resolver]) => [
+            logicalId,
+            {
+              type,
+              properties: {
+                ServiceToken: { 'Fn::GetAtt': ['StacktapeServiceLambdaCustomResourceFunction', 'Arn'] },
+                [resolver]: {}
+              }
+            }
+          ])
+        )
+      },
+      ['Lb']
+    ],
+    [
       "a stack with a custom resource of the user's own",
       {
         Cache: { type: cache },
@@ -1018,7 +1041,26 @@ describe('finishing a delete in the background', () => {
     },
     { name: 'an Aurora cluster', pending: [['Cluster', 'AWS::RDS::DBCluster']], expected: undefined },
     { name: 'a NAT gateway', pending: [['Nat', 'AWS::EC2::NatGateway']], expected: undefined },
+    {
+      name: 'a serverless cache, billed until it is gone, and its users',
+      pending: [
+        ['Cache', 'AWS::ElastiCache::ServerlessCache'],
+        ['CacheUserGroup', 'AWS::ElastiCache::UserGroup'],
+        ['CacheUser', 'AWS::ElastiCache::User']
+      ],
+      expected: [{ kind: 'serverless-cache-gone', serverlessCacheName: 'Cache-id' }]
+    },
     { name: 'a queue, billed per request', pending: [['Queue', 'AWS::SQS::Queue']], expected: [] },
+    ...[
+      ['Custom::StpSqsQueue', 'sqsQueue'],
+      ['Custom::StpSqsQueuePolicy', 'sqsQueuePolicy'],
+      ['Custom::StpEventsRule', 'eventsRule']
+    ].map(([type, resolver]) => ({
+      name: `a ${type} the service Lambda deletes within seconds`,
+      pending: [['Created', type]] as [string, string][],
+      template: { Created: { ...stacktapeCustomResource({ [resolver]: {} }), Type: type } },
+      expected: undefined
+    })),
     {
       name: 'a topic, which can still invoke its subscribers',
       pending: [['Topic', 'AWS::SNS::Topic']],

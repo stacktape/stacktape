@@ -28,7 +28,8 @@ export type IdleCheck =
   | { kind: 'function-url-gone'; functionArn: string }
   /** Billed until gone. CloudFormation notices that up to ~20 s late. */
   | { kind: 'db-instance-gone'; instanceId: string }
-  | { kind: 'replication-group-gone'; replicationGroupId: string };
+  | { kind: 'replication-group-gone'; replicationGroupId: string }
+  | { kind: 'serverless-cache-gone'; serverlessCacheName: string };
 
 const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::EC2::VPC',
@@ -86,6 +87,9 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::RDS::DBClusterParameterGroup',
   'AWS::ElastiCache::SubnetGroup',
   'AWS::ElastiCache::ParameterGroup',
+  // Access control of a cache; CloudFormation deletes them, about a minute each, only once the cache is gone.
+  'AWS::ElastiCache::User',
+  'AWS::ElastiCache::UserGroup',
   'AWS::SSM::Parameter',
   'AWS::S3::BucketPolicy',
   // A queue bills per request and runs nothing; the event source mappings that poll it are waited for.
@@ -93,7 +97,12 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::SQS::QueuePolicy'
 ]);
 
-/** Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies. */
+/**
+ * Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies.
+ * The queues, queue policies and rules the service Lambda creates (`sqsQueue`, `sqsQueuePolicy`, `eventsRule`) are not
+ * listed: a rule can still invoke its targets, and the service Lambda deletes all three within seconds once nothing
+ * uses them, so waiting for them costs no time.
+ */
 const STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST = new Set([
   'defaultDomain',
   'defaultDomainCert',
@@ -151,6 +160,8 @@ export const planBackgroundDeleteChecks = ({
     else if (resourceType === 'AWS::RDS::DBInstance') checks.push({ kind: 'db-instance-gone', instanceId: physicalId });
     else if (resourceType === 'AWS::ElastiCache::ReplicationGroup') {
       checks.push({ kind: 'replication-group-gone', replicationGroupId: physicalId });
+    } else if (resourceType === 'AWS::ElastiCache::ServerlessCache') {
+      checks.push({ kind: 'serverless-cache-gone', serverlessCacheName: physicalId });
     } else return undefined;
   }
   return checks;

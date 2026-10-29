@@ -1289,6 +1289,11 @@ class StackManager {
         if (check.kind === 'db-instance-gone') {
           return !(await awsSdkManager.rds.instanceExists({ identifier: check.instanceId }));
         }
+        if (check.kind === 'serverless-cache-gone') {
+          return !(await awsSdkManager.elastiCache.serverlessCacheExists({
+            serverlessCacheName: check.serverlessCacheName
+          }));
+        }
         if (check.kind === 'replication-group-gone') {
           return !(await awsSdkManager.elastiCache.replicationGroupExists({
             replicationGroupId: check.replicationGroupId
