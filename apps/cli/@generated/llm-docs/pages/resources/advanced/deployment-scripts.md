@@ -75,7 +75,7 @@ export default defineConfig(() => {
 ```
 
 
-The `trigger: 'after:deploy'` means this script runs after resources in the stack are created or updated. If it fails, the deployment rolls back — so a broken migration won't leave you with updated code pointing at an un-migrated database.
+The `trigger: 'after:deploy'` means this script runs after resources in the stack are created or updated. If it fails, the deployment fails. With [automatic rollback](/deployment-and-lifecycle/deploying-stacks#automatic-rollback), it also rolls back, so a broken migration won't leave you with updated code pointing at an un-migrated database.
 
 The `memory` property controls how much memory (in MB) the Lambda function gets. Valid range is 128–10,240 MB. CPU scales proportionally — at 1,769 MB the function gets 1 full vCPU. 512 MB is a reasonable starting point for lightweight migration scripts; increase memory for memory-intensive transformations.
 
@@ -106,7 +106,7 @@ The `trigger` property controls when your script runs and what happens if it fai
 
 A script with `after:deploy` runs after resources in the stack are created or updated. Use it for migrations, seeding, and any setup that depends on your infrastructure being in place.
 
-**If the script fails, Stacktape treats the deployment as failed and triggers a rollback.** This is the safety mechanism that makes deployment scripts reliable for migrations — a failed migration means your stack returns to the previous working state rather than leaving you with updated code pointing at an un-migrated database. Fix the script, then redeploy.
+**If the script fails, Stacktape treats the deployment as failed.** By default, a failed deployment keeps what it changed: the stack stays in `UPDATE_FAILED`, and resources that updated before the script ran (for example your application code) keep running their new version. Fix the script and redeploy to continue, or run [`stacktape stack recover`](/cli/cf-rollback) to return to the previous version. If new code must never run against an un-migrated database, set `deploymentConfig.autoRollback: true`: a failed migration then returns the stack to the previous working state.
 
 ### before:delete
 
@@ -246,7 +246,7 @@ This is useful for re-running migrations after a hotfix, re-seeding data, or tes
 
 ### What happens if my after:deploy script fails?
 
-Stacktape treats the deployment as failed and triggers a rollback. Your stack stays consistent — you won't end up with updated application code pointing at a database that failed to migrate. Fix the script, then redeploy.
+Stacktape treats the deployment as failed. By default, the stack stays in `UPDATE_FAILED` with the resources that already updated; fix the script and redeploy, or run `stacktape stack recover` to undo the update. With `deploymentConfig.autoRollback: true`, CloudFormation rolls the deployment back instead, so updated application code never points at a database that failed to migrate.
 
 ### What happens if my before:delete script fails?
 

@@ -62,15 +62,15 @@ Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD
 stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
-### `--no-auto-rollback`
+### `--auto-rollback`
 
-By default, if a deployment fails, CloudFormation automatically rolls the stack back to its last known good state. Without auto-rollback, a failed deployment can leave the stack in `UPDATE_FAILED` state. This is useful for debugging — you can inspect the partial state, fix the issue, and redeploy without waiting for a rollback first.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --no-auto-rollback
+stacktape deploy --stage production --region eu-west-1 --auto-rollback
 ```
 
-After fixing the issue, redeploy normally. To roll back to a previous deployment version after disabling auto-rollback, use [`rollback`](/cli/rollback). To recover a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`stack recover`](/cli/cf-rollback).
+To undo a failed update later, use [`stack recover`](/cli/cf-rollback). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### `--no-cache`
 
@@ -106,10 +106,10 @@ Includes sensitive values in deploy output. Handle with care.
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
 | `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `--auto-rollback` | no | `boolean` | Auto-Rollback — If `true`, a failed deploy rolls back instead of keeping what it created. Overrides `deploymentConfig.autoRollback` for this deploy. • **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next deploy continues from there. • **With auto-rollback (`--auto-rollback`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--no-auto-rollback` | no | `boolean` | Disable Auto-Rollback — If `true`, disables automatic rollback on deployment failure. • **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state. • **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command. | - |
 | `--no-remote-cache` | no | `boolean` | Disable Docker Remote Cache — In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to `true` to build without the ECR cache in CI as well. | - |
 | `--no-layer-optimization` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
 | `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |

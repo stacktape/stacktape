@@ -28,6 +28,14 @@ export const deployWithEc2Runner = async () => {
   tuiManager.setPhasePreset('remote-deploy');
   const operation = await initializeRemoteDeployOperation();
   const { args, runner, stackContext } = operation;
+  // The runner deploys the committed configuration with its own CLI and receives no rollback flag.
+  if (args.autoRollback !== undefined) {
+    throw new ExpectedError(
+      'CLI',
+      'EC2 runner deploys do not accept --auto-rollback.',
+      'Set `deploymentConfig.autoRollback` in the configuration and commit it, or deploy without the EC2 runner.'
+    );
+  }
 
   configManager.validateGuardrails({ hasConfig: true });
   await ensureMissingSecretsCreated();

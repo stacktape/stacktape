@@ -143,10 +143,16 @@ export class AwsCloudFormationStacks {
       .catch(handleError);
   };
 
-  delete = (stackName: string, { roleArn }: { roleArn?: string }) => {
+  delete = (stackName: string, { roleArn, express = false }: { roleArn?: string; express?: boolean }) => {
     const handleError = this.#getErrorHandler('Failed to initiate stack deletion.');
     return this.#createClient()
-      .send(new DeleteStackCommand({ StackName: stackName, RoleARN: roleArn }))
+      .send(
+        new DeleteStackCommand({
+          StackName: stackName,
+          RoleARN: roleArn,
+          ...(express && { DeploymentConfig: { Mode: 'EXPRESS' } })
+        })
+      )
       .catch(handleError);
   };
 

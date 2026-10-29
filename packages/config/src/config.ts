@@ -483,7 +483,7 @@ export interface StacktapeConfig {
    * # stp-focus
    * deploymentConfig:
    *   terminationProtection: true
-   *   disableAutoRollback: false
+   *   autoRollback: true
    *   previousVersionsToKeep: 5
    *   triggerRollbackOnAlarms:
    *     - arn:aws:cloudwatch:eu-west-1:123456789012:alarm:api-high-error-rate
@@ -521,7 +521,7 @@ export interface StacktapeConfig {
    *     // stp-focus
    *     deploymentConfig: {
    *       terminationProtection: true,
-   *       disableAutoRollback: false,
+   *       autoRollback: true,
    *       previousVersionsToKeep: 5,
    *       triggerRollbackOnAlarms: ['arn:aws:cloudwatch:eu-west-1:123456789012:alarm:api-high-error-rate'],
    *       monitoringTimeAfterDeploymentInMinutes: 10,

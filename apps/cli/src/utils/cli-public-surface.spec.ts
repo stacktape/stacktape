@@ -81,8 +81,8 @@ test.each([
   ['defaults:configure', ['region', 'eu-west-1'], { key: 'region', value: 'eu-west-1' }],
   [
     'deploy',
-    ['--no-cache', '--no-auto-rollback', '--no-remote-cache', '--no-layer-optimization'],
-    { noCache: true, disableAutoRollback: true, disableDockerRemoteCache: true, disableLayerOptimization: true }
+    ['--no-cache', '--auto-rollback', '--no-remote-cache', '--no-layer-optimization'],
+    { noCache: true, autoRollback: true, disableDockerRemoteCache: true, disableLayerOptimization: true }
   ],
   ['dev', ['--no-tunnel', '--no-emulation'], { noTunnel: true, disableEmulation: true }],
   ['init', ['--no-browser'], { noBrowser: true }],

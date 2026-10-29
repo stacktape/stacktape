@@ -33,9 +33,10 @@ The `stack recover` command accepts the following arguments. Only `--region` is 
 
 ## What it does
 
-When a Stacktape deployment fails, CloudFormation may leave the stack in one of two broken states that prevent further updates:
+When a Stacktape deployment fails, CloudFormation can leave the stack in one of these states:
 
-- **`UPDATE_FAILED`** — a stack update failed partway through. `stack recover` uses CloudFormation's native rollback mechanism to return the stack to the last known good state.
+- **`UPDATE_FAILED`** — a stack update failed partway through and kept the resources that updated. Deploying again continues the update. `stack recover` instead uses CloudFormation's native rollback mechanism to return the stack to the last known good state.
+- **`CREATE_FAILED`** — a first deployment failed and kept the resources it created. Deploying again continues it. There is no earlier state to return to, so use [`delete`](/cli/delete) to remove it: `stack recover` would delete its resources but leave an empty stack that still has to be deleted.
 - **`UPDATE_ROLLBACK_FAILED`** — a previous rollback itself failed. `stack recover` retries CloudFormation's native rollback path and can pass logical resource IDs through `--resources-to-skip` for resources that cannot be restored.
 
 After the rollback succeeds, Stacktape attempts to clean up rolled-back deployment artifacts.
@@ -50,7 +51,8 @@ The Stacktape CLI provides two distinct rollback commands for different scenario
 
 | Scenario | Command |
 |----------|---------|
-| Stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` | `stack recover` |
+| Update failed (`UPDATE_FAILED`) and you want to undo it rather than continue it | `stack recover` |
+| Stack stuck in `UPDATE_ROLLBACK_FAILED` | `stack recover` |
 | Want to revert to a specific previous deployment version | [`rollback`](/cli/rollback) |
 | Stack is healthy but you want to undo the last deploy | [`rollback`](/cli/rollback) |
 
@@ -108,11 +110,11 @@ stacktape stack recover --region eu-west-1 --stage production --debug
 
 ### When should I use stack recover instead of rollback?
 
-Use `stack recover` when your stack is stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command downloads a previous deployment's template and redeploys it, but it requires the stack to be in an updatable state. When a stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`, `stack recover` unblocks it so you can deploy again.
+Use `stack recover` when a failed update left the stack in `UPDATE_FAILED` and you want to undo it instead of fixing and deploying again, or when the stack is stuck in `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command downloads a previous deployment's template and deploys it, which also works over `UPDATE_FAILED`.
 
 ### What's the difference between UPDATE_FAILED and UPDATE_ROLLBACK_FAILED?
 
-`UPDATE_FAILED` means a stack update failed partway through and the stack can't accept further updates until it's rolled back — `stack recover` returns it to the last known good state. `UPDATE_ROLLBACK_FAILED` means CloudFormation already attempted that rollback and the rollback itself failed; in this case, retry with `--resources-to-skip` to bypass the resources blocking it.
+`UPDATE_FAILED` means a stack update failed partway through and kept what it had updated. The next deploy continues from there, or `stack recover` returns the stack to the last known good state. `UPDATE_ROLLBACK_FAILED` means CloudFormation already attempted that rollback and the rollback itself failed; in this case, retry with `--resources-to-skip` to bypass the resources blocking it.
 
 ### My rollback keeps failing on a specific resource. What do I do?
 

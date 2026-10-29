@@ -635,6 +635,18 @@ describe('rollback', () => {
     });
   }
 
+  // CloudFormation updates a stack in UPDATE_FAILED only with rollback disabled.
+  for (const status of ['UPDATE_FAILED', 'UPDATE_COMPLETE']) {
+    test(`a rollback of a stack in ${status} ${status === 'UPDATE_FAILED' ? 'disables' : 'keeps'} CloudFormation's rollback`, async () => {
+      const history = await deployedStackWithHistory();
+      const { controlPlane, aws, bucket } = await startFakes({ ...history.stack, status }, history.objects);
+      const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
+      const update = aws.mutations.find(({ action }) => action === 'UpdateStack');
+      expect(update, printable(run)).toBeDefined();
+      expect(update?.parameters.DisableRollback).toBe(status === 'UPDATE_FAILED' ? 'true' : undefined);
+    });
+  }
+
   test('an absent stack cannot be rolled back', async () => {
     const { controlPlane, aws, bucket } = await startFakes(undefined);
     const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });

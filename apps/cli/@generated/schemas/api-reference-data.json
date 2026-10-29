@@ -24148,6 +24148,29 @@
     "definitionName": "DeploymentConfig",
     "properties": [
       {
+        "name": "autoRollback",
+        "required": false,
+        "shortDescription": "<p> Roll a failed deployment back automatically instead of keeping what it created.</p>",
+        "longDescription": "<p>By default, a failed deployment keeps every resource it created or updated, and the next\ndeployment continues from the failure. An update that replaces existing resources still rolls\nback, because CloudFormation can only replace resources in a deployment it may roll back. A failed first deployment keeps, for example, a database\nthat took minutes to create; a failed update keeps the resources that updated. Fix the error and\ndeploy again. To undo a failed update instead, run <code>stacktape stack recover</code>; to remove a failed\nfirst deployment, run <code>stacktape delete</code>.</p>\n<p>With <code>autoRollback: true</code>, a failed update rolls back to the last successful deployment and a\nfailed first deployment deletes the stack. It is on by default when <code>triggerRollbackOnAlarms</code> or\n<code>monitoringTimeAfterDeploymentInMinutes</code> is set, and cannot be turned off then.\nThe <code>--auto-rollback</code> flag of <code>stacktape deploy</code> overrides it for one deployment.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "deploymentConfig:\n  # [!code focus-start]\n  autoRollback: true\n  # [!code focus-end]\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    // [!code focus-start]\n    deploymentConfig: { autoRollback: true },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "cloudformationRoleArn",
         "required": false,
         "shortDescription": "<p> IAM role for CloudFormation to assume during create/update/delete operations.</p>",
@@ -24166,29 +24189,6 @@
           {
             "lang": "typescript",
             "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    // [!code focus-start]\n    deploymentConfig: { cloudformationRoleArn: 'arn:aws:iam::123456789012:role/CloudFormationDeployRole' },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
-          }
-        ]
-      },
-      {
-        "name": "disableAutoRollback",
-        "required": false,
-        "shortDescription": "<p> Keep the stack in a failed state instead of rolling back on deployment failure.</p>",
-        "longDescription": "<p>Useful for debugging: inspect what went wrong, then fix and redeploy\n(or run <code>stacktape rollback</code> manually). By default, failed deployments\nauto-rollback to the last working state.</p>",
-        "defaultValue": "false",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "boolean"
-          ]
-        },
-        "examples": [
-          {
-            "lang": "yaml",
-            "code": "deploymentConfig:\n  # [!code focus-start]\n  disableAutoRollback: true\n  # [!code focus-end]\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512"
-          },
-          {
-            "lang": "typescript",
-            "code": "import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    // [!code focus-start]\n    deploymentConfig: { disableAutoRollback: true },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
           }
         ]
       },
@@ -24239,7 +24239,7 @@
         "name": "monitoringTimeAfterDeploymentInMinutes",
         "required": false,
         "shortDescription": "<p> How long (in minutes) to monitor rollback alarms after deployment completes.</p>",
-        "longDescription": "<p>If an alarm fires during this window, the stack rolls back automatically.\nOnly useful when <code>triggerRollbackOnAlarms</code> is configured.</p>",
+        "longDescription": "<p>If an alarm fires during this window, the stack rolls back automatically.\nOnly useful when <code>triggerRollbackOnAlarms</code> is configured. A monitoring period turns on <code>autoRollback</code>.</p>",
         "defaultValue": "0",
         "typeInfo": {
           "kind": "primitive",
@@ -24353,7 +24353,7 @@
         "name": "triggerRollbackOnAlarms",
         "required": false,
         "shortDescription": "<p> Alarms that trigger automatic rollback if they fire during deployment.</p>",
-        "longDescription": "<p>Specify alarm names (from <code>alarms</code> section) or ARNs. The alarm must already exist -\na newly created alarm only takes effect on the <em>next</em> deployment.</p>\n<p>Use with <code>monitoringTimeAfterDeploymentInMinutes</code> to keep watching after deploy completes.</p>",
+        "longDescription": "<p>Specify alarm names (from <code>alarms</code> section) or ARNs. The alarm must already exist -\na newly created alarm only takes effect on the <em>next</em> deployment.</p>\n<p>Use with <code>monitoringTimeAfterDeploymentInMinutes</code> to keep watching after deploy completes.\nSetting rollback alarms turns on <code>autoRollback</code>.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -24379,7 +24379,7 @@
       "requiredCount": 0,
       "optionalCount": 10
     },
-    "typeDeclaration": "import type { ErrorTrackingConfig, SecurityScanningConfig } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentConfig = {\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Keep the stack in a failed state instead of rolling back on deployment failure. */\n  disableAutoRollback?: boolean;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** Error tracking: runtime errors read from this stack's logs and grouped in the Console. */\n  errorTracking?: ErrorTrackingConfig;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Security scanning of this stack's configuration on every deployment. */\n  securityScanning?: SecurityScanningConfig;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { ErrorTrackingConfig, SecurityScanningConfig } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentConfig = {\n  /** Roll a failed deployment back automatically instead of keeping what it created. */\n  autoRollback?: boolean;\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** Error tracking: runtime errors read from this stack's logs and grouped in the Console. */\n  errorTracking?: ErrorTrackingConfig;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Security scanning of this stack's configuration on every deployment. */\n  securityScanning?: SecurityScanningConfig;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
   },
   "DeploymentScript": {
     "definitionName": "DeploymentScript",

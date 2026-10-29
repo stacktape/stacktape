@@ -38786,10 +38786,10 @@ Route: `/config-reference/helpers`
 import type { ErrorTrackingConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
+  /** Roll a failed deployment back automatically instead of keeping what it created. */
+  autoRollback?: boolean;
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
   cloudformationRoleArn?: string;
-  /** Keep the stack in a failed state instead of rolling back on deployment failure. */
-  disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
   /** Error tracking: runtime errors read from this stack's logs and grouped in the Console. */
@@ -38807,6 +38807,62 @@ type DeploymentConfig = {
   /** Alarms that trigger automatic rollback if they fire during deployment. */
   triggerRollbackOnAlarms?: Array<string>;
 };
+```
+
+## Property: `autoRollback`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Roll a failed deployment back automatically instead of keeping what it created.
+
+By default, a failed deployment keeps every resource it created or updated, and the next
+deployment continues from the failure. An update that replaces existing resources still rolls
+back, because CloudFormation can only replace resources in a deployment it may roll back. A failed first deployment keeps, for example, a database
+that took minutes to create; a failed update keeps the resources that updated. Fix the error and
+deploy again. To undo a failed update instead, run `stacktape stack recover`; to remove a failed
+first deployment, run `stacktape delete`.
+
+With `autoRollback: true`, a failed update rolls back to the last successful deployment and a
+failed first deployment deletes the stack. It is on by default when `triggerRollbackOnAlarms` or
+`monitoringTimeAfterDeploymentInMinutes` is set, and cannot be turned off then.
+The `--auto-rollback` flag of `stacktape deploy` overrides it for one deployment.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  autoRollback: true
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/server.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 }
+  });
+
+  return {
+    deploymentConfig: { autoRollback: true },
+    resources: { api }
+  };
+});
 ```
 
 ## Property: `cloudformationRoleArn`
@@ -38858,54 +38914,6 @@ export default defineConfig(() => {
 
   return {
     deploymentConfig: { cloudformationRoleArn: 'arn:aws:iam::123456789012:role/CloudFormationDeployRole' },
-    resources: { api }
-  };
-});
-```
-
-## Property: `disableAutoRollback`
-
-- Required: no
-- Type: `boolean`
-- Default: `false`
-
-Keep the stack in a failed state instead of rolling back on deployment failure.
-
-Useful for debugging: inspect what went wrong, then fix and redeploy
-(or run `stacktape rollback` manually). By default, failed deployments
-auto-rollback to the last working state.
-
-### Example 1 (yaml)
-
-```yaml
-deploymentConfig:
-  disableAutoRollback: true
-resources:
-  api:
-    type: web-service
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: src/server.ts
-      resources:
-        cpu: 0.25
-        memory: 512
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const api = new WebService({
-    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
-    resources: { cpu: 0.25, memory: 512 }
-  });
-
-  return {
-    deploymentConfig: { disableAutoRollback: true },
     resources: { api }
   };
 });
@@ -39009,7 +39017,7 @@ export default defineConfig(() => ({
 How long (in minutes) to monitor rollback alarms after deployment completes.
 
 If an alarm fires during this window, the stack rolls back automatically.
-Only useful when `triggerRollbackOnAlarms` is configured.
+Only useful when `triggerRollbackOnAlarms` is configured. A monitoring period turns on `autoRollback`.
 
 ### Example 1 (yaml)
 
@@ -39256,6 +39264,7 @@ Specify alarm names (from `alarms` section) or ARNs. The alarm must already exis
 a newly created alarm only takes effect on the *next* deployment.
 
 Use with `monitoringTimeAfterDeploymentInMinutes` to keep watching after deploy completes.
+Setting rollback alarms turns on `autoRollback`.
 
 ### Example 1 (yaml)
 

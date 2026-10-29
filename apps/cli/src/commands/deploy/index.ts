@@ -69,6 +69,9 @@ type FullDeployOperation = {
     deleteAllObsoleteArtifacts: () => Promise<unknown>;
     deleteArtifactsFixedDeploy: () => Promise<unknown>;
     deleteArtifactsRollbackedDeploy: () => Promise<unknown>;
+    uploadPreviewTemplate: (input: {
+      body: string;
+    }) => Promise<{ templateUrl: string; deleteTemplate: () => Promise<unknown> }>;
   };
   stack: {
     createStack: (
@@ -76,10 +79,11 @@ type FullDeployOperation = {
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     deployStack: (
       templateUrl: string,
-      options: { finishWhenCleanupStarts: boolean }
+      options: { finishWhenCleanupStarts: boolean; allowExpressMode?: boolean }
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
-    existingStackDetails?: { StackStatus?: string };
-    isAutoRollbackEnabled: boolean;
+    /** CloudFormation rolls this deploy back when it fails. */
+    rollsBackOnFailure: boolean;
+    getTemplateBeforeReplacing: () => { template: object; removedResources: string[] } | undefined;
     stackActionType: string;
   };
   tui: Pick<DeployOperation['tui'], 'info' | 'warn'>;
@@ -295,7 +299,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       if (success) return;
       // Not after Ctrl+C, which leaves the creation running, or when monitoring failed and the outcome is unknown.
       const endCreation =
-        !interrupted && stack.isAutoRollbackEnabled && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
+        !interrupted && stack.rollsBackOnFailure && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
       await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName, { endCreation });
     });
   }
@@ -320,7 +324,17 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // CloudFormation, which takes seconds instead of minutes.
   let fastDeployPlan: FastDeployPlan | undefined;
   if (stack.stackActionType !== 'create') {
+    // A failed stack's last successful release tells which of its resources the failed deploys created.
+    const lastReleaseTemplate =
+      stack.continuesFailedStack && !stack.isFirstDeploy && stack.lastVersion
+        ? await deploymentArtifacts.getTemplate({ version: stack.lastVersion }).catch((err) => {
+            tui.debug(`Could not read the template of release ${stack.lastVersion}: ${err}`);
+            return undefined;
+          })
+        : undefined;
+    stack.planUpdate(cfTemplateDiff, { lastReleaseTemplate });
     const reason =
+      stack.reasonToContinueFailedStack ??
       stack.findChangedStackSetting() ??
       deployedStackOverview.findReasonForFullDeployment({
         cfTemplateDiff,
@@ -383,6 +397,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       dangerousResources
     });
     tui.info(formatDeploymentChangePlanSummary(changePlan));
+    if (stack.reasonForRollbackOfUpdate) tui.info(stack.reasonForRollbackOfUpdate);
     const replacedComputeEnvironments =
       stack.stackActionType === 'update'
         ? findReplacedBatchComputeEnvironments({
@@ -505,7 +520,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // A fast deployment leaves the stack unchanged.
   if (!fastDeployPlan) {
     // Read before the refetch replaces the details of the stack as it was before this deployment.
-    const fixedFailedUpdate = stack.existingStackDetails?.StackStatus === 'UPDATE_FAILED';
+    const fixedFailedUpdate = stack.continuesFailedStack;
     await Promise.all([
       stack.refetchStackDetails(stackContext.stackName),
       budget.loadBudgets(),
@@ -689,12 +704,32 @@ export const prepareArtifactsForStackDeployment = async ({
 
 export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: FullDeployOperation) => {
   try {
+    // Continuing a failed first deploy cannot replace resources, so the ones to replace are deleted first and the full
+    // template then creates them again.
+    const beforeReplacing = stack.getTemplateBeforeReplacing();
+    if (beforeReplacing) {
+      tui.info(
+        `Continuing the failed deploy replaces resources, which CloudFormation cannot do in this state. Removing ${beforeReplacing.removedResources.join(', ')} first; the deploy then creates them again.`
+      );
+      const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate({
+        body: JSON.stringify(beforeReplacing.template)
+      });
+      try {
+        await stack.deployStack(templateUrl, { finishWhenCleanupStarts: false });
+      } finally {
+        await deleteTemplate();
+      }
+    }
     // The deploy is done once CloudFormation starts deleting the resources it removed or replaced. The next command
     // that modifies the stack waits for that cleanup and reports deletions that failed.
     const { warningMessages, resourcesDeletedInBackground } =
       stack.stackActionType === 'create'
         ? await stack.createStack(deploymentArtifacts.cloudformationTemplateUrl)
-        : await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl, { finishWhenCleanupStarts: true });
+        : await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl, {
+            finishWhenCleanupStarts: true,
+            // The resources removed above make the deployed template unknown here.
+            allowExpressMode: !beforeReplacing
+          });
     warningMessages?.forEach((msg) => {
       tui.warn(msg);
     });
@@ -704,10 +739,14 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
       );
     }
   } catch (err) {
-    // cleanup in case error happened during deploy
-    // when only monitoring failed, we do not know if stack operation failed or succeeded.
-    // in such case we should not delete artifacts as that could result in broken stack
-    if (stack.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {
+    // Cleanup in case the deploy was rolled back. When only monitoring failed, the outcome is unknown, and when the CLI
+    // reported a failure while CloudFormation still runs (a container that cannot start), the stack still uses the new
+    // artifacts. Deleting them then could break it.
+    if (
+      stack.rollsBackOnFailure &&
+      (err as ExpectedError).type !== 'STACK_MONITORING' &&
+      !(err as ExpectedError).metadata?.stackOperationStillRunning
+    ) {
       await deploymentArtifacts.deleteArtifactsRollbackedDeploy();
     }
     throw err;
@@ -720,11 +759,11 @@ export const deleteObsoleteArtifacts = async ({
   fixedFailedUpdate
 }: {
   deploymentArtifacts: FullDeployOperation['deploymentArtifacts'];
-  /** The deployment updated a stack in UPDATE_FAILED. */
+  /** The deployment continued a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
   fixedFailedUpdate: boolean;
 }) => {
-  // if we have just fixed stack from UPDATE FAILED state, there can be some artifacts created during multiple fixing attempts
-  // these artifacts need cleaning up before we delete old versions with deleteAllObsoleteArtifacts
+  // A deploy that continued a failed stack can leave artifacts of the earlier attempts with the same version. They are
+  // cleaned up before old versions are deleted with deleteAllObsoleteArtifacts.
   if (fixedFailedUpdate) {
     await deploymentArtifacts.deleteArtifactsFixedDeploy();
   }

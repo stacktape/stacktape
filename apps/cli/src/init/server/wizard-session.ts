@@ -174,11 +174,11 @@ export const startWizardSession = async ({
     /**
      * Keep whatever was created when this attempt fails.
      *
-     * Only ever set on a retry, and only once the stack exists. A first deploy that fails ends in
-     * `CREATE_FAILED`, which CloudFormation will not let anything update — so keeping the wreckage
-     * there buys nothing and costs the user a manual rollback before they can try again. A failed
-     * *update* ends in `UPDATE_FAILED`, which is directly deployable, so there the partial progress
-     * is real: the database that took eight minutes is still there for the next attempt.
+     * Only ever set on a retry, and only once the stack exists. Other attempts roll back, so a
+     * failed first deploy removes its stack, which is what the wizard's consent check and recovery
+     * screens expect. A failed *update* ends in `UPDATE_FAILED`, which is directly deployable, so
+     * there the partial progress is real: the database that took eight minutes is still there for
+     * the next attempt.
      */
     keepPartialProgress?: boolean;
     /** Consent bound to the account/name/region and, for an update, the exact existing StackId. */
@@ -952,12 +952,11 @@ export const startWizardSession = async ({
         /**
          * Did this attempt get far enough to prove the stack already existed?
          *
-         * Decides whether the next attempt may keep partial progress. The distinction is
-         * CloudFormation's, not ours: a failed *update* stops at `UPDATE_FAILED`, which `deploy`
-         * will run over, so whatever was created survives for the retry. A failed *create* with
-         * rollback disabled stops at `CREATE_FAILED`, which the deploy gate refuses outright — the
-         * retry would die on a state error and leave the stack stuck until someone runs
-         * `cf:rollback` by hand. So the flag is only ever earned by an observed update.
+         * Decides whether the next attempt may keep partial progress:
+         * a failed *update* stops at `UPDATE_FAILED`, which `deploy` will run over, so whatever was
+         * created survives for the retry. A failed *create* with rollback disabled would stop at
+         * `CREATE_FAILED`, which the wizard's target check treats as unsafe, so the retry would stop
+         * there. So the flag is only ever earned by an observed update.
          */
         const attemptWasUpdate = (): boolean =>
           (deployment?.events ?? []).some((entry) => {

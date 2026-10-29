@@ -109,8 +109,8 @@ const withDeleteFixture = async (
           return true;
         }
       ),
-      spyOn(awsSdkManager.cloudFormation, 'delete').mockImplementation(async (name) => {
-        calls.push(`cloudformation:delete ${name}`);
+      spyOn(awsSdkManager.cloudFormation, 'delete').mockImplementation(async (name, { express }) => {
+        calls.push(`cloudformation:delete ${name}${express ? ' (express mode)' : ''}`);
         return {} as never;
       }),
       spyOn(stackManager, 'monitorStack').mockImplementation(async () => {
@@ -258,7 +258,11 @@ describe('stack delete', () => {
         }
       });
       expect(emptied).toBe(true);
-      expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /), 'cloudformation:monitor']);
+      // Express mode: CloudFormation still waits for the slow deletes, but not for queues, topics, rules or listeners.
+      expect(calls).toEqual([
+        expect.stringMatching(/^cloudformation:delete .+ \(express mode\)$/),
+        'cloudformation:monitor'
+      ]);
     });
   });
 

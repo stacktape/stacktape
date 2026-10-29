@@ -304,46 +304,40 @@ export const formatPreDeploymentValidationErrors = (validationErrors: OperationE
   );
 };
 
+/**
+ * What the stack is left as after a failed create or update, and what the user can do next. `rolledBack` says whether
+ * CloudFormation rolls the operation back; `isFirstDeploy` whether no deploy of the stack has ever completed.
+ */
 export const getHintsAfterStackFailureOperation = ({
   cfStackAction,
   stackId,
-  isAutoRollbackEnabled
+  rolledBack,
+  isFirstDeploy,
+  stillRunning = false
 }: {
   cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
   stackId: string;
-  isAutoRollbackEnabled: boolean;
+  rolledBack: boolean;
+  isFirstDeploy: boolean;
+  /** The CLI reported the failure before CloudFormation finished the operation. */
+  stillRunning?: boolean;
 }) => {
-  if (cfStackAction === 'update') {
-    return isAutoRollbackEnabled
-      ? [
-          `You can monitor stack rollback progress at ${consoleLinks.stackUrl(
-            globalStateManager.region,
-            stackId,
-            'events'
-          )}.`,
-          `You can disable automatic rollback after error using the ${tuiManager.prettyOption(
-            'disableAutoRollback'
-          )} switch.`
-        ]
-      : [
-          `Automatic rollback is disabled. You can manually rollback your stack using the ${tuiManager.colorize(
-            'blue',
-            'stacktape rollback'
-          )} command.`
-        ];
-  }
-  if (cfStackAction === 'create') {
+  const eventsLink = consoleLinks.stackUrl(globalStateManager.region, stackId, 'events');
+  if (cfStackAction === 'create' || cfStackAction === 'update') {
+    if (rolledBack) {
+      return [
+        cfStackAction === 'create'
+          ? `CloudFormation deletes the new stack. Follow the progress at ${eventsLink}.`
+          : `CloudFormation rolls the stack back to the last successful deploy. Follow the progress at ${eventsLink}.`
+      ];
+    }
+    const failedStatus = cfStackAction === 'create' ? 'CREATE_FAILED' : 'UPDATE_FAILED';
     return [
-      isAutoRollbackEnabled
-        ? `Stack will be deleted. You can monitor the deletion progress at ${consoleLinks.stackUrl(
-            globalStateManager.region,
-            stackId,
-            'events'
-          )}.`
-        : `Automatic rollback is disabled. You can manually rollback your stack using the ${tuiManager.colorize(
-            'blue',
-            'stacktape rollback'
-          )} command.`
+      `${stillRunning ? `CloudFormation is still finishing this operation and then leaves the stack in ${failedStatus}` : `The stack is left in ${failedStatus}`}. Resources that were created or updated stay, so the next deploy does not wait for them again.`,
+      `Fix the error and run ${tuiManager.prettyCommand('deploy')} again to continue from here${stillRunning ? ' (it waits for CloudFormation to finish)' : ''}.`,
+      isFirstDeploy
+        ? `To remove everything this deploy created instead, run ${tuiManager.prettyCommand('delete')}.`
+        : `To return the whole stack to the last successful deploy instead, run ${tuiManager.prettyCommand('stack recover')}.`
     ];
   }
   if (cfStackAction === 'delete') {

@@ -61,8 +61,14 @@ const withMonitor = async (
   {
     action = 'update',
     finishWhenCleanupStarts = false,
-    removedResources = [] as string[]
-  }: { action?: 'update' | 'delete'; finishWhenCleanupStarts?: boolean; removedResources?: string[] } = {}
+    removedResources = [] as string[],
+    operationId
+  }: {
+    action?: 'update' | 'delete';
+    finishWhenCleanupStarts?: boolean;
+    removedResources?: string[];
+    operationId?: string;
+  } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
     operationReporter.setSilentMode(true);
@@ -92,7 +98,10 @@ const withMonitor = async (
     );
     let state: 'pending' | 'resolved' | 'rejected' = 'pending';
     try {
-      const monitoring = stackManager.monitorStack(action, stackName, () => {}, { finishWhenCleanupStarts });
+      const monitoring = stackManager.monitorStack(action, stackName, () => {}, {
+        finishWhenCleanupStarts,
+        operationId
+      });
       monitoring.then(
         () => (state = 'resolved'),
         () => (state = 'rejected')
@@ -142,6 +151,29 @@ test("the previous update's final status cannot complete this update", async () 
     expect(settled()).toBe('pending');
     expect(getDetails).not.toHaveBeenCalled();
   });
+});
+
+test("a second update in a row does not take the first one's events for its own", async () => {
+  const ofOperation = (event: MonitoredStackEvent, OperationId: string) => ({ ...event, OperationId });
+  await withMonitor(
+    async ({ settled, poll, events }) => {
+      events.mockResolvedValue([
+        ofOperation(stackEvent('UPDATE_COMPLETE', 10), 'first'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 1), 'first')
+      ]);
+      await poll(2);
+      expect(settled()).toBe('pending');
+      events.mockResolvedValue([
+        ofOperation(stackEvent('UPDATE_COMPLETE', 40), 'second'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 20), 'second'),
+        ofOperation(stackEvent('UPDATE_COMPLETE', 10), 'first'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 1), 'first')
+      ]);
+      await poll();
+      expect(settled()).toBe('resolved');
+    },
+    { operationId: 'second' }
+  );
 });
 
 test('the stack status finishes monitoring when the completion event is missed', async () => {
@@ -474,4 +506,179 @@ test('the resources deleted during cleanup are the removed and replaced ones, no
   );
   expect(countResourcesDeletedDuringCleanup(diff)).toBe(2);
   expect(countResourcesDeletedDuringCleanup(undefined)).toBe(0);
+});
+
+describe('a deploy that fails without automatic rollback', () => {
+  const failedUpdate = async ({ outputs }: { outputs: Record<string, string> }) => {
+    let error: unknown;
+    const previous = stackManager.existingStackDetails;
+    stackManager.existingStackDetails = {
+      ...stackDetails('UPDATE_COMPLETE'),
+      Outputs: Object.entries(outputs).map(([OutputKey, OutputValue]) => ({ OutputKey, OutputValue })),
+      stackOutput: outputs
+    };
+    try {
+      await withMonitor(async ({ monitoring, poll, events }) => {
+        events.mockResolvedValue([stackEvent('UPDATE_IN_PROGRESS')]);
+        await poll();
+        events.mockResolvedValue([
+          { ...stackEvent('UPDATE_FAILED', 30), ResourceStatusReason: 'The following resource(s) failed to update' },
+          stackEvent('UPDATE_IN_PROGRESS')
+        ]);
+        await poll();
+        error = await monitoring.catch((err) => err);
+      });
+    } finally {
+      stackManager.existingStackDetails = previous;
+    }
+    return ((error as { hints?: string[] }).hints ?? []).join('\n');
+  };
+
+  test('says the stack stays in UPDATE_FAILED and how to continue or undo it', async () => {
+    const hints = await failedUpdate({ outputs: { StpDeploymentVersion: 'v000003' } });
+    expect(hints).toContain('UPDATE_FAILED');
+    expect(hints).toContain('deploy');
+    expect(hints).toContain('stack recover');
+  });
+
+  test('after a failed first deploy, offers delete instead of recovery', async () => {
+    const hints = await failedUpdate({ outputs: {} });
+    expect(hints).toContain('delete');
+    expect(hints).not.toContain('stack recover');
+  });
+});
+
+describe('continuing a stack an earlier deploy left failed', () => {
+  const withStack = (status: StackDetails['StackStatus'], run: () => void) => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    const { existingStackDetails, existingStackResources } = stackManager;
+    stackManager.existingStackDetails = stackDetails(status);
+    stackManager.existingStackResources = [];
+    try {
+      run();
+    } finally {
+      stackManager.existingStackDetails = existingStackDetails;
+      stackManager.existingStackResources = existingStackResources;
+    }
+  };
+
+  test.each(['CREATE_FAILED', 'UPDATE_FAILED'] as const)(
+    'a deploy over %s updates the stack without rollback and never takes the fast path',
+    (status) => {
+      withStack(status, () => {
+        expect(stackManager.stackActionType).toBe('update');
+        expect(stackManager.continuesFailedStack).toBe(true);
+        expect(stackManager.rollsBackOnFailure).toBe(false);
+        expect(stackManager.reasonToContinueFailedStack).toContain(status);
+      });
+    }
+  );
+
+  test('a healthy stack is not continued', () => {
+    withStack('UPDATE_COMPLETE', () => {
+      expect(stackManager.continuesFailedStack).toBe(false);
+      expect(stackManager.reasonToContinueFailedStack).toBeUndefined();
+    });
+  });
+});
+
+describe('an update that replaces resources', () => {
+  const oldTemplate = {
+    Resources: {
+      Db: { Type: 'AWS::RDS::DBInstance', Properties: { DBInstanceClass: 'db.t4g.micro' } },
+      Task: { Type: 'AWS::ECS::TaskDefinition', Properties: { Cpu: '256', Memory: '512' } },
+      Service: { Type: 'AWS::ECS::Service', Properties: { TaskDefinition: { Ref: 'Task' } } }
+    },
+    Outputs: { StpDeploymentVersion: { Value: 'v000001' } }
+  };
+  const newTemplate = {
+    ...oldTemplate,
+    Resources: {
+      ...oldTemplate.Resources,
+      Task: { ...oldTemplate.Resources.Task, Properties: { Cpu: '512', Memory: '1024' } }
+    }
+  };
+
+  const plan = (status: StackDetails['StackStatus'], { deployed }: { deployed: boolean }) => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = {
+      ...stackDetails(status),
+      Outputs: deployed ? [{ OutputKey: 'StpDeploymentVersion', OutputValue: 'v000001' }] : []
+    };
+    stackManager.existingStackResources = ['Db', 'Task'].map((LogicalResourceId) => ({ LogicalResourceId })) as never;
+    stackManager.planUpdate(diffTemplate(oldTemplate, newTemplate));
+  };
+
+  test('a healthy stack rolls this update back on failure, because CloudFormation replaces only then', () => {
+    plan('UPDATE_COMPLETE', { deployed: true });
+    expect(stackManager.rollsBackOnFailure).toBe(true);
+    expect(stackManager.reasonForRollbackOfUpdate).toContain('Task');
+    expect(stackManager.getTemplateBeforeReplacing()).toBeUndefined();
+  });
+
+  test('a failed first deploy first removes what it replaces and what depends on it, keeping the database', () => {
+    plan('CREATE_FAILED', { deployed: false });
+    expect(stackManager.rollsBackOnFailure).toBe(false);
+    const step = stackManager.getTemplateBeforeReplacing();
+    expect(step?.removedResources).toEqual(['Service', 'Task']);
+    expect(Object.keys(step!.template.Resources)).toEqual(['Db']);
+    // A failure of the full deploy must still leave a stack that was never deployed.
+    expect(step!.template.Outputs).toBeUndefined();
+  });
+
+  test('a never-deployed stack recreates resources whose update failed, whatever its stored template says', () => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = { ...stackDetails('UPDATE_FAILED'), Outputs: [] };
+    stackManager.existingStackResources = [
+      { LogicalResourceId: 'Db', ResourceType: 'AWS::RDS::DBInstance', ResourceStatus: 'UPDATE_ROLLBACK_COMPLETE' },
+      {
+        LogicalResourceId: 'Task',
+        ResourceType: 'AWS::ECS::TaskDefinition',
+        ResourceStatus: 'UPDATE_ROLLBACK_COMPLETE'
+      }
+    ] as never;
+    // The stored template is the failed attempt's, so it already equals the new one.
+    stackManager.planUpdate(diffTemplate(newTemplate, newTemplate));
+    expect(stackManager.getTemplateBeforeReplacing()?.removedResources).toEqual(['Service', 'Task']);
+  });
+
+  test('a deployed stack recreates what its failed update added, keeping the release version', () => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = {
+      ...stackDetails('UPDATE_FAILED'),
+      Outputs: [{ OutputKey: 'StpDeploymentVersion', OutputValue: 'v000001' }],
+      stackOutput: { StpDeploymentVersion: 'v000001' }
+    };
+    stackManager.existingStackResources = ['Db', 'Task'].map((LogicalResourceId) => ({ LogicalResourceId })) as never;
+    // The last release had only the database; the failed update added the service.
+    stackManager.planUpdate(diffTemplate(oldTemplate, newTemplate), {
+      lastReleaseTemplate: { Resources: { Db: oldTemplate.Resources.Db } } as never
+    });
+    const step = stackManager.getTemplateBeforeReplacing();
+    expect(step?.removedResources).toEqual(['Service', 'Task']);
+    expect(step?.template.Outputs).toEqual({ StpDeploymentVersion: { Value: 'v000001' } });
+  });
+
+  test('a mapping change of a healthy stack rolls back on failure, as it can replace resources', () => {
+    plan('UPDATE_COMPLETE', { deployed: true });
+    stackManager.planUpdate(
+      diffTemplate(
+        { ...oldTemplate, Mappings: { Sizing: { Task: { Cpu: '256' } } } },
+        { ...oldTemplate, Mappings: { Sizing: { Task: { Cpu: '512' } } } }
+      )
+    );
+    expect(stackManager.rollsBackOnFailure).toBe(true);
+    expect(stackManager.reasonForRollbackOfUpdate).toContain('mappings');
+  });
+
+  test('a deployed stack left in UPDATE_FAILED is not changed and is recovered first', () => {
+    expect(() => plan('UPDATE_FAILED', { deployed: true })).toThrow(/cannot do while it continues a failed deploy/);
+  });
 });

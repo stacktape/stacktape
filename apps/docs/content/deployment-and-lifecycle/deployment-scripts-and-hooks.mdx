@@ -25,7 +25,7 @@ Hooks and deployment scripts serve different execution contexts. Choose based on
 
 **Use hooks** when you need access to your local filesystem (running builds, linting, local CLI tools like Prisma or Drizzle), or when you want to use tooling installed on your machine or CI runner.
 
-**Use deployment scripts** when the work must happen inside AWS (direct VPC access without a bastion), when failure should trigger a full CloudFormation rollback to keep schema and code in sync, or when the script must run as part of the CloudFormation lifecycle regardless of what initiated the deployment.
+**Use deployment scripts** when the work must happen inside AWS (direct VPC access without a bastion), when failure should fail the deployment (and, with `deploymentConfig.autoRollback: true`, roll it back to keep schema and code in sync), or when the script must run as part of the CloudFormation lifecycle regardless of what initiated the deployment.
 
 ## Hooks
 
@@ -357,7 +357,7 @@ stacktape script run migrate
 
 ## Deployment scripts
 
-A Stacktape [deployment script](/resources/advanced/deployment-scripts) is a resource that executes as a Lambda function during the CloudFormation deployment lifecycle. Unlike hooks and local scripts, deployment scripts run inside AWS and participate in CloudFormation's rollback semantics — an `after:deploy` script failure rolls back all infrastructure changes from that deployment.
+A Stacktape [deployment script](/resources/advanced/deployment-scripts) is a resource that executes as a Lambda function during the CloudFormation deployment lifecycle. Unlike hooks and local scripts, deployment scripts run inside AWS and participate in CloudFormation's failure handling — an `after:deploy` script failure fails the deployment, and with `deploymentConfig.autoRollback: true` rolls back all infrastructure changes from it.
 
 ### Triggers
 
@@ -556,7 +556,7 @@ Database migrations are the most common automation use case. Stacktape supports 
 - **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
 - **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
-The hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — if the migration fails, all infrastructure changes from that deploy roll back automatically, keeping your database schema and application code in sync.
+The hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
 
 ### Build before deploy
 
@@ -667,7 +667,7 @@ Local script and bastion script output is visible in your terminal when running 
 
 ### When should I use a hook vs a deployment script for database migrations?
 
-Use a **hook** with a local script when you want to run your existing migration tooling (Prisma, Drizzle, Knex) directly from your machine or CI runner. Use a **deployment script** when you need rollback safety — if the migration fails with `after:deploy`, CloudFormation rolls back all infrastructure changes, keeping your schema and code in sync. For most production stacks, the deployment script approach is safer.
+Use a **hook** with a local script when you want to run your existing migration tooling (Prisma, Drizzle, Knex) directly from your machine or CI runner. Use a **deployment script** with `deploymentConfig.autoRollback: true` when you need rollback safety — if the migration fails with `after:deploy`, CloudFormation rolls back all infrastructure changes, keeping your schema and code in sync. For most production stacks, the deployment script approach is safer.
 
 ### What happens when a deployment script fails?
 
