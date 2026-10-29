@@ -64,10 +64,12 @@ const withMonitor = async (
     finishWhenCleanupStarts = false,
     removedResources = [] as string[],
     operationId,
+    startedAfter,
     onResourceDeletesStarted,
     canFinishDeleteInBackground,
     stackResources = []
   }: {
+    startedAfter?: Date;
     action?: 'update' | 'delete';
     finishWhenCleanupStarts?: boolean;
     removedResources?: string[];
@@ -114,6 +116,7 @@ const withMonitor = async (
       const monitoring = stackManager.monitorStack(action, stackName, () => {}, {
         finishWhenCleanupStarts,
         operationId,
+        startedAfter,
         onResourceDeletesStarted,
         canFinishDeleteInBackground
       });
@@ -237,6 +240,43 @@ describe('stack deletes', () => {
         expect(started).toBe(false);
       },
       { action: 'delete', onResourceDeletesStarted: () => (started = true) }
+    );
+  });
+
+  test('a cancel seen only in the stack status still fails with its reason', async () => {
+    await withMonitor(
+      async ({ monitoring, poll, events, getDetails }) => {
+        events.mockResolvedValue([stackEvent('DELETE_IN_PROGRESS')]);
+        await poll();
+        getDetails.mockResolvedValue({
+          ...stackDetails('UPDATE_COMPLETE'),
+          StackStatusReason: 'Delete canceled. Cannot delete export X as it is in use by other-stack.'
+        });
+        events.mockResolvedValue([]);
+        await poll(2);
+        await expect(monitoring).rejects.toThrow('in use by other-stack');
+      },
+      { action: 'delete' }
+    );
+  });
+
+  test("a delete retried right after a failed one does not take the failed attempt's events for its own", async () => {
+    let startCalls = 0;
+    await withMonitor(
+      async ({ settled, poll, events }) => {
+        // The previous attempt, seconds before this request, is still within the polling window.
+        events.mockResolvedValue([
+          stackEvent('DELETE_IN_PROGRESS', 1),
+          stackEvent('DELETE_FAILED', -6),
+          deleteEvent('Sg', 'DELETE_FAILED', -7, 'resource has a dependent object'),
+          deleteEvent('Sg', 'DELETE_IN_PROGRESS', -12),
+          stackEvent('DELETE_IN_PROGRESS', -13)
+        ]);
+        await poll(2);
+        expect(startCalls).toBe(0);
+        expect(settled()).toBe('pending');
+      },
+      { action: 'delete', startedAfter: started, onResourceDeletesStarted: () => startCalls++ }
     );
   });
 

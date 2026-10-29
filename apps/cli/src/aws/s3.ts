@@ -512,6 +512,19 @@ export class AwsS3 {
     return result;
   };
 
+  /** Whether the bucket holds no object, version or delete marker. A deleted bucket counts as empty. */
+  isBucketEmpty = async (bucketName: string) => {
+    try {
+      const { Versions, DeleteMarkers } = await this.#createClient().send(
+        new ListObjectVersionsCommand({ Bucket: bucketName, MaxKeys: 1 })
+      );
+      return !Versions?.length && !DeleteMarkers?.length;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NoSuchBucket') return true;
+      throw error;
+    }
+  };
+
   listObjectVersions = async (bucketName: string, injectedS3Client?: S3Client) => {
     let result: ObjectVersion[] = [];
     const errorHandler = this.#getErrorHandler(`Failed to list all versioned objects in bucket ${bucketName}.`);

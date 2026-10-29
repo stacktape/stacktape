@@ -17,6 +17,7 @@ import { planBackgroundDeleteChecks } from '../../src/domain/cloudformation-stac
 import { findDeletionProtectedResources } from '../../src/domain/cloudformation-stack-manager/deletion-protection';
 import { executeDeleteOperation } from '../../src/commands/delete';
 import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
+import * as time from '../../src/utils/time';
 
 /**
  * `delete` starts slow AWS-side work before CloudFormation's DeleteStack: it scales ECS services to 0 and disables
@@ -171,7 +172,9 @@ const withDeleteFixture = async (
       spyOn(tuiManager, 'warn').mockImplementation((message: string) => {
         warnings.push(message);
       }),
-      spyOn(tuiManager, 'info').mockImplementation(() => {})
+      spyOn(tuiManager, 'info').mockImplementation(() => {}),
+      // AWS's clock, read before DeleteStack.
+      spyOn(time, 'getAwsSynchronizedTime').mockResolvedValue(new Date('2026-10-29T12:00:00Z'))
     ];
     // A delete without a CloudFormation role in the config or the stack metadata.
     Object.defineProperty(configManager, 'deploymentConfig', { configurable: true, get: () => undefined });
@@ -725,7 +728,7 @@ describe('early database and cache deletes', () => {
   test("decides from CloudFormation's current resource list and live checks what can finish in the background", async () => {
     const decide = async (
       live: { LogicalResourceId: string; ResourceType: string; ResourceStatus: string }[],
-      { tasksRunning = false } = {}
+      { tasksRunning = false, bucketEmpty = true } = {}
     ) => {
       let decision: unknown;
       await withDeleteFixture([], async () => {
@@ -735,7 +738,8 @@ describe('early database and cache deletes', () => {
           ),
           spyOn(awsSdkManager.ecs, 'serviceHasUnstoppedTasks').mockResolvedValue(tasksRunning),
           spyOn(awsSdkManager.cloudFront, 'isDistributionDisabled').mockResolvedValue(true),
-          spyOn(awsSdkManager.loadBalancers, 'exists').mockResolvedValue(false)
+          spyOn(awsSdkManager.loadBalancers, 'exists').mockResolvedValue(false),
+          spyOn(awsSdkManager.s3, 'isBucketEmpty').mockResolvedValue(bucketEmpty)
         ];
         try {
           monitorThat(async ({ canFinishDeleteInBackground }) => {
@@ -769,6 +773,21 @@ describe('early database and cache deletes', () => {
         { LogicalResourceId: 'Db', ResourceType: 'AWS::RDS::DBInstance', ResourceStatus: 'CREATE_FAILED' }
       ])
     ).toBeUndefined();
+    // A failure CloudFormation already reports, before its event reached the monitor.
+    expect(
+      await decide([
+        ...network,
+        { LogicalResourceId: 'StpSubnet', ResourceType: 'AWS::EC2::Subnet', ResourceStatus: 'DELETE_FAILED' }
+      ])
+    ).toBeUndefined();
+    // `delete` empties the stack's buckets first; a bucket that is empty again costs nothing.
+    const site = {
+      LogicalResourceId: 'SiteBucket',
+      ResourceType: 'AWS::S3::Bucket',
+      ResourceStatus: 'DELETE_IN_PROGRESS'
+    };
+    expect((await decide([...network, site]))?.map(({ logicalId }) => logicalId)).toContain('SiteBucket');
+    expect(await decide([...network, site], { bucketEmpty: false })).toBeUndefined();
   });
 
   test('a refused DeleteStack request deletes no database', async () => {
@@ -927,6 +946,14 @@ describe('finishing a delete in the background', () => {
     { name: 'an Aurora cluster', pending: [['Cluster', 'AWS::RDS::DBCluster']], expected: undefined },
     { name: 'a NAT gateway', pending: [['Nat', 'AWS::EC2::NatGateway']], expected: undefined },
     { name: 'a queue', pending: [['Queue', 'AWS::SQS::Queue']], expected: undefined },
+    {
+      name: 'a bucket and a function URL behind a disabled distribution',
+      pending: [
+        ['SiteBucket', 'AWS::S3::Bucket'],
+        ['ApiUrl', 'AWS::Lambda::Url']
+      ],
+      expected: [{ kind: 'bucket-empty', bucketName: 'SiteBucket-id' }]
+    },
     {
       name: 'an interface VPC endpoint, billed per hour',
       pending: [['Endpoint', 'AWS::EC2::VPCEndpoint']],

@@ -13,15 +13,17 @@ import { runsUserCodeOnDelete } from './early-deletes';
  * - its type is in `COST_NOTHING_WHILE_DELETED`, or
  * - it is a Stacktape custom resource from `STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST`, or
  * - a live check proves it idle: every task of an ECS service has stopped, a distribution is disabled, a load balancer
- *   is gone (the CLI deletes load balancers early, see `early-deletes.ts`).
- * Everything else (databases, caches, NAT gateways, queues, rules, buckets, user custom resources...) is waited for.
+ *   is gone (the CLI deletes load balancers early, see `early-deletes.ts`), a bucket is empty (`delete` empties the
+ *   stack's buckets before CloudFormation starts).
+ * Everything else (databases, caches, NAT gateways, queues, rules, user custom resources...) is waited for.
  */
 export type PendingDelete = { logicalId: string; resourceType: string; physicalId?: string };
 
 export type IdleCheck =
   | { kind: 'ecs-service-stopped'; serviceArn: string }
   | { kind: 'distribution-disabled'; distributionId: string }
-  | { kind: 'load-balancer-gone'; loadBalancerArn: string };
+  | { kind: 'load-balancer-gone'; loadBalancerArn: string }
+  | { kind: 'bucket-empty'; bucketName: string };
 
 const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::EC2::VPC',
@@ -44,8 +46,11 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::IAM::Policy',
   'AWS::IAM::ManagedPolicy',
   'AWS::IAM::InstanceProfile',
-  // A function no event source or URL invokes any more; a VPC function waits here for its network interfaces.
+  // A function bills only when invoked. A VPC function waits here for its network interfaces. Its event sources (queues,
+  // rules, event source mappings) are waited for. A function URL stays callable until CloudFormation removes it, usually
+  // right after the distribution in front of it, which `delete` has already disabled.
   'AWS::Lambda::Function',
+  'AWS::Lambda::Url',
   'AWS::Lambda::Permission',
   'AWS::Lambda::Version',
   'AWS::Lambda::Alias',
@@ -78,7 +83,8 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::RDS::DBClusterParameterGroup',
   'AWS::ElastiCache::SubnetGroup',
   'AWS::ElastiCache::ParameterGroup',
-  'AWS::SSM::Parameter'
+  'AWS::SSM::Parameter',
+  'AWS::S3::BucketPolicy'
 ]);
 
 /** Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies. */
@@ -134,7 +140,8 @@ export const planBackgroundDeleteChecks = ({
       checks.push({ kind: 'distribution-disabled', distributionId: physicalId });
     } else if (resourceType === 'AWS::ElasticLoadBalancingV2::LoadBalancer') {
       checks.push({ kind: 'load-balancer-gone', loadBalancerArn: physicalId });
-    } else return undefined;
+    } else if (resourceType === 'AWS::S3::Bucket') checks.push({ kind: 'bucket-empty', bucketName: physicalId });
+    else return undefined;
   }
   return checks;
 };

@@ -1121,6 +1121,9 @@ class StackManager {
       throw beforeDeleteResult.reason;
     }
 
+    // DeleteStack returns no operation ID. Its events come after this AWS time; those of an earlier attempt that failed
+    // seconds ago come before it. Two seconds allow for the one-second resolution of the clock sync.
+    const deleteRequestedAt = new Date((await getAwsSynchronizedTime()).getTime() - 2000);
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
     try {
@@ -1156,6 +1159,7 @@ class StackManager {
             detail: progress.detail
           }),
         {
+          startedAfter: deleteRequestedAt,
           onResourceDeletesStarted: () => settleResourceDeletesStarted(true),
           ...(finishInBackground && {
             canFinishDeleteInBackground: (pending: PendingDelete[]) =>
@@ -1223,16 +1227,19 @@ class StackManager {
   }): Promise<PendingDelete[] | undefined> => {
     const template = await getDeletedTemplate();
     if (!planBackgroundDeleteChecks({ pending, template })) return undefined;
-    const remaining = (await awsSdkManager.cloudFormation.getResources(stackId))
-      .filter(
-        ({ ResourceStatus: status }) =>
-          status !== ResourceStatus.DELETE_COMPLETE && status !== ResourceStatus.DELETE_SKIPPED
-      )
-      .map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
-        logicalId: LogicalResourceId,
-        resourceType: ResourceType,
-        physicalId: PhysicalResourceId
-      }));
+    const remainingResources = (await awsSdkManager.cloudFormation.getResources(stackId)).filter(
+      ({ ResourceStatus: status }) =>
+        status !== ResourceStatus.DELETE_COMPLETE && status !== ResourceStatus.DELETE_SKIPPED
+    );
+    // A failure the events have not shown yet: the delete is reported as it ends.
+    if (remainingResources.some(({ ResourceStatus: status }) => status === ResourceStatus.DELETE_FAILED)) {
+      return undefined;
+    }
+    const remaining = remainingResources.map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
+      logicalId: LogicalResourceId,
+      resourceType: ResourceType,
+      physicalId: PhysicalResourceId
+    }));
     if (!remaining.length) return undefined;
     const checks = planBackgroundDeleteChecks({ pending: remaining, template });
     if (!checks) return undefined;
@@ -1244,6 +1251,7 @@ class StackManager {
         if (check.kind === 'distribution-disabled') {
           return awsSdkManager.cloudFront.isDistributionDisabled({ distributionId: check.distributionId });
         }
+        if (check.kind === 'bucket-empty') return awsSdkManager.s3.isBucketEmpty(check.bucketName);
         return !(await awsSdkManager.loadBalancers.exists({ loadBalancerArn: check.loadBalancerArn }));
       })
     );
@@ -1382,6 +1390,7 @@ class StackManager {
       finishWhenCleanupStarts = false,
       createdTemplate = templateManager.initialTemplate,
       operationId,
+      startedAfter,
       onResourceDeletesStarted,
       canFinishDeleteInBackground
     }: {
@@ -1398,6 +1407,11 @@ class StackManager {
        * the polling window, must not be taken for the second one's.
        */
       operationId?: string;
+      /**
+       * For operations whose request returns no operation ID (DeleteStack): the operation started after this AWS time.
+       * A delete retried right after a failed one must not take the failed attempt's events for its own.
+       */
+      startedAfter?: Date;
       /**
        * Called once a stack delete has started deleting resources. Before that, CloudFormation can still cancel it and
        * keep every resource.
@@ -1493,6 +1507,8 @@ class StackManager {
     // beside event polling instead of holding up the next batch of events. It is requested only after this operation's
     // start event was seen: an earlier request could still return the previous operation's final status.
     let latestStackStatus: StackStatus | undefined;
+    // Explains a failure seen only in the stack status, such as a delete CloudFormation canceled.
+    let latestStackStatusReason: string | undefined;
     let stackStatusRequestInFlight = false;
     let failedStackStatusRequests = 0;
     let stackStatusError: unknown;
@@ -1503,6 +1519,7 @@ class StackManager {
         .getDetails(stackId)
         .then((stackDetails) => {
           latestStackStatus = stackDetails?.StackStatus as StackStatus;
+          latestStackStatusReason = stackDetails?.StackStatusReason;
           failedStackStatusRequests = 0;
         })
         .catch((err) => {
@@ -1806,6 +1823,18 @@ class StackManager {
 
       const afterStackOperationFailure = async (failedStackStatus?: StackStatus) => {
         cleanupMonitoring();
+        if (!Object.keys(potentialErrorCausingEvents).length && latestStackStatusReason) {
+          potentialErrorCausingEvents[this.#stackName] = {
+            StackId: stackId,
+            StackName: this.#stackName,
+            LogicalResourceId: this.#stackName,
+            ResourceType: 'AWS::CloudFormation::Stack',
+            ResourceStatus: failedStackStatus as unknown as ResourceStatus,
+            ResourceStatusReason: latestStackStatusReason,
+            Timestamp: new Date(),
+            EventId: `${this.#stackName}-status`
+          };
+        }
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
         tuiManager.debug(`Processed ${handledFailedEvents.length} failed stack event(s)`);
@@ -1894,6 +1923,7 @@ class StackManager {
               return (
                 this.#isCloudformationStackEvent({ stackEvent }) &&
                 (!operationId || !stackEvent.OperationId || stackEvent.OperationId === operationId) &&
+                (!startedAfter || stackEvent.Timestamp >= startedAfter) &&
                 this.#stackStatusSignalsStackOperationStart({
                   stackStatus: stackEvent.ResourceStatus as StackStatus,
                   cfStackAction
