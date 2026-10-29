@@ -17,6 +17,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
+import { childCliCredentialEnvironment } from '@application-services/global-state-manager/runner-credentials';
 import { getStackName } from '@stacktape/naming/stacks';
 import { terminateChild } from '../terminate-child';
 import {
@@ -169,7 +170,7 @@ export const readResourceUrl = async ({
     ],
     {
       stdio: ['ignore', 'pipe', 'ignore'],
-      env: { ...process.env, STACKTAPE_INIT_MCP: '', FORCE_COLOR: '0' },
+      env: { ...process.env, ...childCliCredentialEnvironment(), STACKTAPE_INIT_MCP: '', FORCE_COLOR: '0' },
       ...(process.platform === 'win32' && !self.command.includes('\\') ? { shell: true } : {})
     }
   );
@@ -270,6 +271,7 @@ export const inspectDeployTarget = async ({
     stdio: ['ignore', 'pipe', 'ignore'],
     env: {
       ...process.env,
+      ...childCliCredentialEnvironment(),
       STACKTAPE_INIT_MCP: '',
       [INIT_TARGET_CHECK_ENV]: '1',
       [INIT_TARGET_EXPECTATION_ENV]: '',
@@ -354,6 +356,7 @@ export const startDeploy = ({
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
+      ...childCliCredentialEnvironment(),
       STACKTAPE_INIT_MCP: '',
       [INIT_TARGET_CHECK_ENV]: '',
       [INIT_TARGET_EXPECTATION_ENV]:

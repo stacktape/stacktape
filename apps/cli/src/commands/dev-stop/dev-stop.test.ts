@@ -468,7 +468,8 @@ test('dev --agent reports the agent port at once and passes the daemon error cod
   try {
     const { exitCode, output } = await runCli(
       ['dev', '--stage', 'dev', '--region', 'eu-west-1', '--currentWorkingDirectory', project],
-      // The parent accepts any key; the daemon cannot use this one (the network guard refuses every request).
+      // The parent accepts any key. The daemon receives it too, and inherits the network guard, which refuses its first
+      // Console request.
       { home, env: { STACKTAPE_API_KEY: 'test-value' } }
     );
     expect(exitCode).toBe(1);
@@ -478,12 +479,13 @@ test('dev --agent reports the agent port at once and passes the daemon error cod
       .map((line) => JSON.parse(line) as { type?: string; detail?: { kind?: string; agentPort?: number } });
     expect(records[0]).toMatchObject({ type: 'event', eventType: 'DEV_SESSION', detail: { kind: 'dev-agent' } });
     const result = parseResult(output);
-    // The daemon fails before it touches AWS (which error depends on the machine), and its own code and hints come
-    // through instead of the parent's generic start failure.
+    // The daemon fails before it touches AWS or the Console, and its own code comes through instead of the parent's
+    // generic start failure. That its hints come through too is covered with a hinted refusal in
+    // tests/cli-process/aws-account-selection.spec.ts.
     expect(result?.ok).toBe(false);
     expect(result?.code).not.toBe('CLI_DEV_AGENT_START_FAILED');
     expect(result?.message).not.toContain('Failed to start dev agent');
-    expect(result?.data?.hints?.length).toBeGreaterThan(0);
+    expect(result?.message).toContain('Tests cannot access external network target');
   } finally {
     await rm(home, { recursive: true, force: true });
   }

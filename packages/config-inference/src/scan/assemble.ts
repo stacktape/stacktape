@@ -20,7 +20,12 @@ import {
   type PackageManager,
   type ProjectFacts
 } from '../facts/project-facts';
-import { invokingDependencyName, type EnvironmentVariableUse, type ServiceFactInput } from '../facts/service';
+import {
+  hasNonHttpListener,
+  invokingDependencyName,
+  type EnvironmentVariableUse,
+  type ServiceFactInput
+} from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
@@ -205,6 +210,15 @@ const mergeEnvironmentVariables = (
 
 const BACKGROUND_PROCESS_TYPE = /(?:^|:)(?:worker|scheduler|cron|consumer)$/;
 
+const mergedListenerNotes = (
+  existing: ServiceFactInput,
+  incoming: ServiceFactInput
+): Pick<ServiceFactInput, 'listenerNotes'> => {
+  const notes = [...(existing.listenerNotes ?? []), ...(incoming.listenerNotes ?? [])];
+  if (notes.length === 0) return {};
+  return { listenerNotes: [...new Map(notes.map((note) => [`${note.kind}:${note.path}`, note])).values()] };
+};
+
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => ({
   ...existing,
   // An importer can identify a container before the language manifest is read. Keep the concrete
@@ -215,17 +229,22 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   // A declared background process can publish a metrics/health port without becoming a public web
   // service. Outside that explicit role, a positive bind/EXPOSE finding remains stronger than
   // silence from another probe.
-  exposesHttp: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
-    ? false
-    : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
+  // So does a NestJS microservice bootstrap, over an HTTP framework that the package merely depends on.
+  exposesHttp:
+    BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '') ||
+    hasNonHttpListener(existing) ||
+    hasNonHttpListener(incoming)
       ? false
-      : existing.exposesHttp || incoming.exposesHttp,
+      : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
+        ? false
+        : existing.exposesHttp || incoming.exposesHttp,
   port: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
     ? undefined
     : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
       ? undefined
       : (existing.port ?? incoming.port),
   processType: existing.processType ?? incoming.processType,
+  ...mergedListenerNotes(existing, incoming),
   javascriptRuntime: existing.javascriptRuntime ?? incoming.javascriptRuntime,
   framework: existing.framework ?? incoming.framework,
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,

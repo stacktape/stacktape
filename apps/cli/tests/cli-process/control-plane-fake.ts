@@ -9,7 +9,12 @@ import { createServer } from 'node:http';
 
 export const FAKE_AWS_ACCOUNT_ID = '123456789012';
 
-export type ControlPlaneCall = { procedure: string; input: unknown };
+export type ControlPlaneCall = {
+  procedure: string;
+  input: unknown;
+  /** The `stp_api_key` header the call carried, so a scenario can tell which credential each process sent. */
+  apiKey?: string;
+};
 
 export type ControlPlaneFake = {
   endpoint: string;
@@ -159,7 +164,8 @@ export const startControlPlaneFake = async ({
     const isBatch = url.searchParams.get('batch') === '1';
     const results = procedures.map((procedure, index) => {
       const input = isBatch ? inputs[String(index)] : inputs;
-      calls.push({ procedure, input });
+      const apiKey = request.headers.stp_api_key;
+      calls.push({ procedure, input, ...(typeof apiKey === 'string' ? { apiKey } : {}) });
       const answer = answers[procedure];
       if (!answer) {
         unexpectedProcedures.push(procedure);

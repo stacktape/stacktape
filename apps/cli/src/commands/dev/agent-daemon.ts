@@ -18,6 +18,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { childCliCredentialEnvironment } from '@application-services/global-state-manager/runner-credentials';
 import { localStatePaths } from 'src/config/local-state-paths';
 
 export type AgentLockFile = {
@@ -910,7 +911,9 @@ export const spawnAgentDaemon = async (args: {
   // For compiled binary: spawn the binary directly with CLI args
   // For bun run: spawn bun with script path and args
   // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
-  const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
+  // The runtime flags go along (`--no-env-file`, a test's network-guard `--preload`): the daemon authenticates with
+  // the same key and must stay as offline as this process.
+  const spawnArgs = isCompiledBinary() ? childArgs : [...process.execArgv, process.argv[1], ...childArgs];
 
   // r2mm dogfood: a start right after a `/stop` reused the stopping daemon's files on the same port. That daemon still
   // appended to them, and its final USER_INTERRUPTION result was read as the new daemon's failure. A ready daemon deletes
@@ -935,6 +938,8 @@ export const spawnAgentDaemon = async (args: {
         stdio: ['ignore', stdoutFd, stderrFd],
         env: {
           ...process.env,
+          // A key from STACKTAPE_API_KEY was removed from this process's environment; the daemon needs it too.
+          ...childCliCredentialEnvironment(),
           STACKTAPE_AGENT_DAEMON: '1',
           STACKTAPE_AGENT_PORT_AUTOMATIC: automaticAgentPort ? '1' : '0',
           STACKTAPE_AGENT_DAEMON_OUTPUT_FILES: JSON.stringify(outputFiles),

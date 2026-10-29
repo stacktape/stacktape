@@ -1867,6 +1867,30 @@ export const composeConfig = ({
         message: `${unreadOutputConfig} decides where the build writes, in a way init could not read, so uploadDirectoryPath: ${service.servesStaticAssets!.path} is only the default. Set it to the directory your build writes before deploying.`
       });
     }
+    for (const note of service.listenerNotes ?? []) {
+      if (
+        note.kind === 'unread-port' &&
+        service.port === undefined &&
+        (classification.resourceType === 'web-service' || classification.resourceType === 'private-service')
+      ) {
+        gaps.push({
+          subject: `${service.name}.port`,
+          message: `${note.path} sets the port ${name} listens on with an expression init could not read, so Stacktape routes its traffic to port ${DEFAULT_SERVICE_PORT}. Set port to the port it listens on before deploying.`
+        });
+      }
+      if (note.kind === 'tcp-microservice') {
+        gaps.push({
+          subject: service.name,
+          message: `${note.path} starts ${name} as a NestJS microservice that accepts TCP or gRPC connections, not HTTP. init made it a worker-service, which other services cannot reach. Give it an HTTP interface, or configure how its clients connect, before deploying.`
+        });
+      }
+      if (note.kind === 'no-http-server' && classification.resourceType === 'worker-service') {
+        gaps.push({
+          subject: service.name,
+          message: `${name} depends on an HTTP framework, but ${note.path}, which its start script runs, starts no HTTP server, so init made it a worker-service. If it does serve HTTP, change its type to web-service and set its port.`
+        });
+      }
+    }
 
     if (
       service.startCommand === undefined &&

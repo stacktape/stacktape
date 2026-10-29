@@ -52,7 +52,7 @@ import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import { selectAwsCredentialProfile } from './credential-source';
 import { loadApiKey, storeApiKey } from './credential-store';
-import { consumeRunnerCredentials } from './runner-credentials';
+import { consumeRunnerCredentials, rememberEnvironmentApiKey } from './runner-credentials';
 import {
   configProvidedArgs,
   resolveInvocationTarget,
@@ -232,6 +232,7 @@ export class GlobalStateManager {
     if (!persistedSystemId) {
       await this.saveSystemId();
     }
+    rememberEnvironmentApiKey(runnerCredentials.apiKey);
     this.apiKey = runnerCredentials.apiKey || (await this.loadStoredApiKey());
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {

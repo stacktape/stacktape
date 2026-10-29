@@ -278,6 +278,11 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
 
 export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;
 
+/** The source proved the process serves no HTTP: a NestJS microservice bootstrap without an HTTP application. */
+export const hasNonHttpListener = (service: { listenerNotes?: ReadonlyArray<{ kind: string }> | undefined }): boolean =>
+  service.listenerNotes?.some((note) => note.kind === 'tcp-microservice' || note.kind === 'broker-microservice') ??
+  false;
+
 /**
  * The dependency whose writes invoke the handler: a queue it sends to, a bucket it puts into, a table it updates. Its
  * own output pointed there would invoke it again with every write. A WebSocket handler replying through the API that
@@ -345,6 +350,25 @@ export const serviceShape = {
    */
   internalOnly: z.boolean().optional(),
   port: z.number().int().positive().optional(),
+  /**
+   * What the source says about how the process takes traffic that the fields above cannot carry, each cited by the
+   * file that shows it. Composition turns them into review items.
+   *
+   * - `unread-port`: the listener fixes a port with an expression init could not read (`listen(4000 + 1)`).
+   * - `tcp-microservice`: a NestJS microservice that accepts TCP or gRPC connections instead of HTTP.
+   * - `broker-microservice`: a NestJS microservice that consumes a message broker and accepts no connections.
+   * - `no-http-server`: an HTTP framework is installed, but the file the start script runs starts no server.
+   *
+   * The two microservice notes come from the program's own bootstrap, so they outrank an HTTP framework dependency.
+   */
+  listenerNotes: z
+    .array(
+      z.object({
+        kind: z.enum(['unread-port', 'tcp-microservice', 'broker-microservice', 'no-http-server']),
+        path: repositoryPathSchema
+      })
+    )
+    .optional(),
   /**
    * Connections held open beyond a single request.
    *

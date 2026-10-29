@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { rememberEnvironmentApiKey } from '@application-services/global-state-manager/runner-credentials';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 
 const fixturePath = resolve(dirname(import.meta.path), '__fixtures__', 'agent-cli.ts');
@@ -155,6 +156,29 @@ describe('MCP Stacktape agent subprocess runner', () => {
     expect(result).toMatchObject({ ok: false, code: 'CLI_EXIT_FAILED' });
     expect(result.message).toContain('code 9');
     expect(result.rawTail).toContain('fatal: flushing the operation record failed');
+  });
+
+  // A compiled `stacktape mcp` consumes STACKTAPE_API_KEY at startup like every command, so the CLI runs it starts
+  // must get the key from the server rather than from the environment they inherit.
+  test('passes a key the server took from its environment to the CLI it runs, and no other key', async () => {
+    const readKey = async () =>
+      (
+        (await runStacktapeCommandJsonl({ command: fixturePath, args: { mode: 'credential' } })).data as {
+          apiKey: string | null;
+        }
+      ).apiKey;
+    const previousKey = process.env.STACKTAPE_API_KEY;
+    delete process.env.STACKTAPE_API_KEY;
+    try {
+      rememberEnvironmentApiKey('mcp-runner-synthetic-key');
+      expect(await readKey()).toBe('mcp-runner-synthetic-key');
+      // A stored login: the child reads it itself.
+      rememberEnvironmentApiKey(undefined);
+      expect(await readKey()).toBeNull();
+    } finally {
+      rememberEnvironmentApiKey(undefined);
+      if (previousKey !== undefined) process.env.STACKTAPE_API_KEY = previousKey;
+    }
   });
 
   test('answers a working directory that does not exist with a validation result', async () => {

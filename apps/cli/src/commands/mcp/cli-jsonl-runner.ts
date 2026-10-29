@@ -6,6 +6,7 @@ import { basename, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
+import { childCliCredentialEnvironment } from '@application-services/global-state-manager/runner-credentials';
 import killProcessTree from 'tree-kill';
 import type {
   JsonlEvent,
@@ -343,6 +344,7 @@ export const runStacktapeCommandJsonl = async ({
     cwd: resolvedCwd,
     env: {
       ...process.env,
+      ...childCliCredentialEnvironment(),
       ...operationInvocationEnv,
       ...env
     },
