@@ -5,10 +5,10 @@
  * or earlier, and the fakes record whether AWS was asked anything.
  */
 import { afterEach, describe, expect, test as bunTest } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
 
 /** Each scenario starts the source CLI as a child process, which takes several seconds. */
@@ -23,6 +23,20 @@ const E2E = '333333333333';
 /** Keys the control-plane fake hands out per account, mapped back to the account by the STS fake. */
 const consoleKeys = { production: 'ASIAFAKEPRODUCTION', dev: 'ASIAFAKEDEV' };
 const accountOfKey: Record<string, string> = { [consoleKeys.production]: PRODUCTION, [consoleKeys.dev]: DEV };
+
+const API_KEY = 'account-selection-fake-do-not-use';
+
+/** Every file below `directory` whose bytes contain `needle`, relative to it. */
+const filesContaining = async (directory: string, needle: string): Promise<string[]> => {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+  const matches: string[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
+    if ((await readFile(path)).includes(needle)) matches.push(relative(directory, path));
+  }
+  return matches;
+};
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -84,7 +98,16 @@ const startConsole = async (
   return controlPlane;
 };
 
-type JsonlRecord = { type?: string; code?: string; message?: string; ok?: boolean; level?: string };
+type JsonlRecord = {
+  type?: string;
+  code?: string;
+  message?: string;
+  ok?: boolean;
+  level?: string;
+  eventType?: string;
+  detail?: { kind?: string };
+  data?: { hints?: string[] };
+};
 
 /** Runs `stacktape delete` with an isolated HOME whose AWS config defines the `dev` and `e2e` SSO profiles. */
 const runDelete = async ({
@@ -141,7 +164,7 @@ const runDelete = async ({
         NO_COLOR: '1',
         AWS_EC2_METADATA_DISABLED: 'true',
         AWS_ENDPOINT_URL: awsEndpoint,
-        STACKTAPE_API_KEY: 'account-selection-fake-do-not-use',
+        STACKTAPE_API_KEY: API_KEY,
         STP_CUSTOM_TRPC_API_ENDPOINT: controlPlane.endpoint,
         SKIP_LOADING_ENV: '1',
         STP_DISABLE_TELEMETRY: '1',
@@ -170,7 +193,7 @@ const runDelete = async ({
         return [];
       }
     });
-  return { exitCode, stdout, stderr, records, error: records.find((record) => record.ok === false) };
+  return { exitCode, stdout, stderr, home, records, error: records.find((record) => record.ok === false) };
 };
 
 const credentialRequests = (controlPlane: ControlPlaneFake) =>
@@ -277,6 +300,27 @@ describe('Free plan cost limit', () => {
     expect(run.stdout).toContain('$142.17');
     expect(run.stdout).toContain(overLimit.upgradeUrl);
     expect(aws.requests.filter(({ action }) => action !== 'GetCallerIdentity')).toEqual([]);
+  });
+
+  // r2ai: a dev agent started with only STACKTAPE_API_KEY failed with API_KEY_E501. The foreground process consumed the
+  // key, and the daemon it starts never received it. CI and coding agents authenticate exactly this way.
+  test('dev --agent passes a STACKTAPE_API_KEY to its daemon without writing it anywhere', async () => {
+    const controlPlane = await startConsole([connected.production], overLimit);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint, command: 'dev', args: ['--agent'] });
+
+    // The agent's port comes first. The daemon authenticated and reached the same refusal the foreground dev command
+    // gets, and its code and hints come through the foreground process.
+    expect(run.records[0]).toMatchObject({ type: 'event', eventType: 'DEV_SESSION', detail: { kind: 'dev-agent' } });
+    expect(run.error?.code, run.stdout + run.stderr).toBe('FREE_PLAN_LIMIT_E502');
+    expect(run.error?.data?.hints?.join('\n')).toContain(overLimit.upgradeUrl);
+    expect(run.stdout).not.toContain('API_KEY_E501');
+    const canDeployCalls = controlPlane.calls.filter(({ procedure }) => procedure === 'canDeploy');
+    expect(canDeployCalls.length).toBeGreaterThan(0);
+    expect(controlPlane.calls.every(({ apiKey }) => apiKey === API_KEY)).toBe(true);
+    // Neither the output nor a token, lock or log file holds the key.
+    expect(run.stdout + run.stderr).not.toContain(API_KEY);
+    expect(await filesContaining(run.home, API_KEY)).toEqual([]);
   });
 
   test('a delete still runs while deploys are paused', async () => {

@@ -24,6 +24,7 @@
  */
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
+import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { posix } from 'node:path';
 import { languageOf } from '../language';
@@ -468,6 +469,34 @@ const nestedMigrations = async (context: ProbeContext): Promise<NonNullable<Prob
   return found;
 };
 
+/**
+ * The port an ASP.NET application fixes in its `Program.cs`: `app.Run("http://0.0.0.0:4321")`,
+ * `UseUrls("http://*:4321")`, `app.Urls.Add(...)` or Kestrel's `ListenAnyIP(4321)`. Such a URL overrides the
+ * environment, so the service must route there. Two different ports are reported as unread, by file.
+ */
+const aspNetListener = async (
+  context: ProbeContext,
+  directory: string
+): Promise<{ port: number; citation: Citation } | { unread: string } | undefined> => {
+  const path = directory === '.' ? 'Program.cs' : `${directory}/Program.cs`;
+  if (!context.files.includes(path)) return undefined;
+  const raw = await readText(context, path);
+  if (raw === undefined) return undefined;
+  // Whole-line comments only: `//` also starts every URL's authority.
+  const code = raw.replace(/^[ \t]*\/\/.*$/gm, '');
+  const urls = [...code.matchAll(/(?:\.Run|\.UseUrls|\.Urls\.Add)\(\s*"([^"]*)"/g)].flatMap((match) =>
+    match[1]!.split(';')
+  );
+  const ports = new Set([
+    ...urls.flatMap((url) => /^http:\/\/[^/]*:(\d{2,5})(?:\/|$)/.exec(url.trim())?.slice(1) ?? []),
+    ...[...code.matchAll(/\bListenAnyIP\(\s*(\d{2,5})\s*[,)]/g)].map((match) => match[1]!)
+  ]);
+  if (ports.size === 0) return undefined;
+  const [port] = ports;
+  const citation = citeFirstMatchOnly(path, raw, new RegExp(`[:(]\\s*${port}\\b`), 'port');
+  return ports.size === 1 && citation !== undefined ? { port: Number(port), citation } : { unread: path };
+};
+
 /** The repository root's own manifest: its services, dependencies and migrations. */
 const rootManifestProbe: Probe = {
   name: 'language-manifests',
@@ -560,6 +589,19 @@ const rootManifestProbe: Probe = {
               }
             ];
           });
+
+    for (const service of dotnetServices) {
+      if (!service.exposesHttp) continue;
+      // oxlint-disable-next-line no-await-in-loop -- one Program.cs per ASP.NET project.
+      const listener = await aspNetListener(context, service.path);
+      if (listener === undefined) continue;
+      if ('port' in listener) {
+        service.port = listener.port;
+        service.evidence = [...(service.evidence ?? []), listener.citation];
+      } else {
+        service.listenerNotes = [{ kind: 'unread-port', path: listener.unread }];
+      }
+    }
 
     if (foundIn.size === 0 && dotnetServices.length === 0) return {};
 

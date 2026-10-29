@@ -50,6 +50,21 @@ const main = async () => {
     return;
   }
 
+  if (mode === 'credential') {
+    // Only whether a key arrived and which one: this fixture runs with synthetic test keys.
+    process.stdout.write(
+      `${JSON.stringify({
+        type: 'result',
+        ts: now(),
+        ok: true,
+        code: 'OK',
+        message: 'Fixture read its credential.',
+        data: { apiKey: process.env.STACKTAPE_API_KEY ?? null }
+      })}\n`
+    );
+    return;
+  }
+
   if (mode === 'hang') {
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
       stdio: 'ignore'

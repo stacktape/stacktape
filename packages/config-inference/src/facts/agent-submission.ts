@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { citationSchema } from './citation';
 import { dependencyKindSchema } from './dependency';
-import { checkServiceConsistency, environmentVariableUseSchema, serviceShape } from './service';
+import { checkServiceConsistency, environmentVariableUseSchema, hasNonHttpListener, serviceShape } from './service';
 import {
   migrationFactSchema,
   PROJECT_FACTS_SCHEMA_VERSION,
@@ -50,7 +50,8 @@ const agentServiceSchema = z
     functionReservedConcurrency: true,
     functionIamStatements: true,
     containerHealthCheck: true,
-    commandOverridesImage: true
+    commandOverridesImage: true,
+    listenerNotes: true
   })
   .superRefine((service, ctx) => {
     checkServiceConsistency(service, ctx);
@@ -384,7 +385,8 @@ export const mergeAgentSubmission = ({
       writesLocalFilesystem: existing.writesLocalFilesystem ?? submitted.writesLocalFilesystem,
       longLivedConnections:
         existing.longLivedConnections === 'none' ? submitted.longLivedConnections : existing.longLivedConnections,
-      exposesHttp: existing.exposesHttp || submitted.exposesHttp,
+      // The program's own bootstrap proved a non-HTTP microservice; an agent's claim does not undo it.
+      exposesHttp: hasNonHttpListener(existing) ? existing.exposesHttp : existing.exposesHttp || submitted.exposesHttp,
       environmentVariables:
         existing.environmentVariables.length > 0 ? existing.environmentVariables : submitted.environmentVariables,
       evidence: [...existing.evidence, ...submitted.evidence].slice(0, 8)

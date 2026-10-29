@@ -1,6 +1,25 @@
 import { closeSync, readSync } from 'node:fs';
 import { CliError } from '@utils/errors';
 
+let environmentApiKey: string | undefined;
+
+/**
+ * Remembers the key this invocation took from its environment (`STACKTAPE_API_KEY`, a runner descriptor or a GitHub
+ * Actions exchange), so the CLI processes it starts itself can authenticate the same way. A stored login is not
+ * remembered: those children read it themselves.
+ */
+export const rememberEnvironmentApiKey = (apiKey: string | undefined) => {
+  environmentApiKey = apiKey || undefined;
+};
+
+/**
+ * The environment a child CLI process (the dev agent daemon, an MCP or init run) needs to authenticate as this one.
+ * `consumeRunnerCredentials` removed the key from `process.env` so project code never inherits it; the child consumes
+ * it again the same way. The key travels only in the child's environment, never in its arguments or a file.
+ */
+export const childCliCredentialEnvironment = (): Record<string, string> =>
+  environmentApiKey === undefined ? {} : { STACKTAPE_API_KEY: environmentApiKey };
+
 /** Consume credentials before project code runs. No key or descriptor is inherited by CLI children. */
 export const consumeRunnerCredentials = () => {
   const descriptor = process.env.STACKTAPE_API_KEY_FD;

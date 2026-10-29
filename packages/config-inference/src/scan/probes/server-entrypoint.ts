@@ -35,13 +35,17 @@ type Detection = {
    * serves HTTP, but the package's own start script stays how it runs (it often starts a compiled `dist/index.js`).
    */
   claimsEntrypoint?: false;
+  /** A later file of the same service replaces an earlier one with a lower rank (default 1). */
+  rank?: number;
+  /** A NestJS microservice bootstrap: it serves no HTTP, whatever the package depends on. */
+  microservice?: 'tcp-microservice' | 'broker-microservice';
 };
 
 /**
  * A WebSocket server in the process, by library: `ws`'s `WebSocketServer`, socket.io's `Server`, `@fastify/websocket`,
  * `express-ws`, uWebSockets.js and Bun's `websocket` handler, or a FastAPI/Starlette `@app.websocket` route,
- * Flask-SocketIO and `websockets.serve`. Each needs the library's import and its server call; a client
- * (`new WebSocket(url)`, `socket.io-client`) is not one.
+ * Flask-SocketIO, `websockets.serve` and a Django Channels `ProtocolTypeRouter` with a `websocket` protocol. Each needs
+ * the library's import and its server call; a client (`new WebSocket(url)`, `socket.io-client`) is not one.
  */
 const JS_WEBSOCKET_SERVERS: ReadonlyArray<{ module: string; server: RegExp }> = [
   { module: 'ws', server: /\bnew\s+(?:WebSocketServer|WebSocket\.Server|WsServer)\s*\(/ },
@@ -55,18 +59,166 @@ const JS_WEBSOCKET_SERVERS: ReadonlyArray<{ module: string; server: RegExp }> = 
 ];
 const BUN_WEBSOCKET_SERVER = /\bBun\.serve\s*\(\s*\{[\s\S]{0,800}?\bwebsocket\s*:/;
 const PYTHON_WEBSOCKET_SERVER = /^\s*@\w+\.websocket(?:_route)?\s*\(|\bSocketIO\s*\(|\bwebsockets\.serve\s*\(/m;
+/** `require('socket.io')(server)`, read with strings kept. */
+const SOCKET_IO_REQUIRE_CALL = /\brequire\s*\(\s*['"]socket\.io['"]\s*\)\s*\(/;
+/** Read with strings kept: the protocol name is a dictionary key. */
+const CHANNELS_WEBSOCKET_ROUTER = /\bProtocolTypeRouter\s*\(\s*\{[^}]*?['"]websocket['"]\s*:/;
+
+/** The exports of each library that construct a server, and whether calling its module object does (`require('socket.io')(server)`). */
+const SERVER_EXPORTS: Readonly<Record<string, { names: ReadonlySet<string>; moduleIsServer: boolean }>> = {
+  ws: { names: new Set(['WebSocketServer', 'Server']), moduleIsServer: false },
+  'socket.io': { names: new Set(['Server']), moduleIsServer: true }
+};
+
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** `A`, `A as B` (ESM) or `A: B` (destructuring), as exported name and local name. */
+const specifiers = (list: string, separator: 'as' | ':'): Array<{ exported: string; local: string }> =>
+  list.split(',').flatMap((entry) => {
+    const [exported, local = exported] = entry
+      .replace(/^\s*type\s+/, '')
+      .split(separator === 'as' ? /\s+as\s+/ : ':')
+      .map((part) => part.trim());
+    return exported !== undefined && IDENTIFIER.test(exported) && IDENTIFIER.test(local!)
+      ? [{ exported, local: local! }]
+      : [];
+  });
+
+type ModuleImport = {
+  specifier: string;
+  /** Local name to the name the module exports. */
+  named: Array<{ exported: string; local: string }>;
+  /** Names bound to the module object: `import * as ws`, `const ws = require('ws')`, a default import. */
+  modules: string[];
+};
+
+/** Every import and `require` of a file (`keep` has comments removed and strings kept). */
+const importsOf = (keep: string): ModuleImport[] => {
+  const imports: ModuleImport[] = [];
+  for (const match of keep.matchAll(
+    /\bimport\s+(?:([A-Za-z_$][\w$]*)\s*,?\s*)?(?:\{([^}]*)\}|\*\s*as\s+([A-Za-z_$][\w$]*))?\s*from\s*['"]([^'"\n]+)['"]/g
+  )) {
+    imports.push({
+      specifier: match[4]!,
+      named: match[2] === undefined ? [] : specifiers(match[2], 'as'),
+      modules: [match[1], match[3]].filter((name): name is string => name !== undefined && name !== 'type')
+    });
+  }
+  for (const match of keep.matchAll(
+    /\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g
+  )) {
+    imports.push({ specifier: match[2]!, named: specifiers(match[1]!, ':'), modules: [] });
+  }
+  for (const match of keep.matchAll(
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\s*\(\s*['"]([^'"\n]+)['"]\s*\)(?:\s*\.\s*([A-Za-z_$][\w$]*))?/g
+  )) {
+    imports.push({
+      specifier: match[2]!,
+      named: match[3] === undefined ? [] : [{ exported: match[3], local: match[1]! }],
+      modules: match[3] === undefined ? [match[1]!] : []
+    });
+  }
+  return imports;
+};
+
+/**
+ * What a project file re-exports from a WebSocket library: `export { WebSocketServer as SocketServer } from 'ws'` maps
+ * `SocketServer` to `WebSocketServer`; `export * from 'ws'` passes every name through.
+ */
+type Reexport = { module: string; names: ReadonlyMap<string, string> | 'all' };
+
+const reexportsOf = (keep: string): Reexport[] =>
+  Object.keys(SERVER_EXPORTS).flatMap((module): Reexport[] => {
+    const quoted = `['"]${escapeRegExp(module)}['"]`;
+    if (new RegExp(`\\bexport\\s*\\*\\s*from\\s*${quoted}`).test(keep)) return [{ module, names: 'all' }];
+    const names = new Map(
+      [...keep.matchAll(new RegExp(`\\bexport\\s*\\{([^}]*)\\}\\s*from\\s*${quoted}`, 'g'))].flatMap((match) =>
+        specifiers(match[1]!, 'as').map(({ exported, local }) => [local, exported] as const)
+      )
+    );
+    return names.size === 0 ? [] : [{ module, names }];
+  });
+
+const JS_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs', '.cjs', '/index.ts', '/index.js'];
+
+/** The project file a relative import names, when it is one of `files`. */
+const resolveRelative = (from: string, specifier: string, files: ReadonlySet<string>): string | undefined => {
+  if (!specifier.startsWith('.')) return undefined;
+  const base = posix.normalize(posix.join(posix.dirname(from), specifier));
+  // A TypeScript source imports `./socket.js` for `./socket.ts`.
+  const stem = base.replace(/\.[cm]?js$/, '');
+  return [base, stem]
+    .flatMap((candidate) => JS_EXTENSIONS.map((extension) => `${candidate}${extension}`))
+    .find((candidate) => files.has(candidate));
+};
+
+/**
+ * The server-constructing calls a file can make through its own names for a WebSocket library: an alias
+ * (`{ WebSocketServer: WSS }`, `import { Server as IO }`), a module object (`ws.Server`), or a project file that
+ * re-exports the library.
+ */
+const aliasedServerCall = (
+  path: string,
+  keep: string,
+  code: string,
+  reexports: ReadonlyMap<string, Reexport[]>,
+  files: ReadonlySet<string>
+): RegExp | undefined => {
+  const constructors = new Set<string>();
+  const factories = new Set<string>();
+  for (const { specifier, named, modules } of importsOf(keep)) {
+    const sources: Reexport[] =
+      SERVER_EXPORTS[specifier] === undefined
+        ? (reexports.get(resolveRelative(path, specifier, files) ?? '') ?? [])
+        : [{ module: specifier, names: 'all' }];
+    for (const source of sources) {
+      const library = SERVER_EXPORTS[source.module]!;
+      const original = (name: string) => (source.names === 'all' ? name : source.names.get(name));
+      for (const { exported, local } of named) {
+        if (library.names.has(original(exported) ?? '')) constructors.add(local);
+      }
+      // A module object reached through a re-export is not the library's own module object.
+      if (source.names !== 'all') continue;
+      for (const local of modules) {
+        for (const name of library.names) constructors.add(`${local}.${name}`);
+        if (library.moduleIsServer) factories.add(local);
+      }
+    }
+  }
+  if (constructors.size === 0 && factories.size === 0) return undefined;
+  const alternatives = [
+    ...[...constructors].map((name) => `\\bnew\\s+${escapeRegExp(name).replace('\\.', '\\s*\\.\\s*')}\\s*\\(`),
+    ...[...factories].map((name) => `(?<![.\\w$])${escapeRegExp(name)}\\s*\\(\\s*[\\w{]`)
+  ];
+  const pattern = new RegExp(alternatives.join('|'));
+  return pattern.test(code) ? pattern : undefined;
+};
 
 const importsModule = (keep: string, module: string): boolean => {
   const name = module.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(?:\\bfrom\\s*|\\brequire\\s*\\(\\s*|\\bimport\\s*\\(\\s*)['"]${name}['"]`).test(keep);
 };
 
-const websocketIn = (path: string, raw: string, code: string): RegExp | undefined => {
-  if (path.endsWith('.py')) return PYTHON_WEBSOCKET_SERVER.test(code) ? PYTHON_WEBSOCKET_SERVER : undefined;
+const websocketIn = (
+  path: string,
+  raw: string,
+  code: string,
+  reexports: ReadonlyMap<string, Reexport[]>,
+  files: ReadonlySet<string>
+): RegExp | undefined => {
+  if (path.endsWith('.py')) {
+    if (PYTHON_WEBSOCKET_SERVER.test(code)) return PYTHON_WEBSOCKET_SERVER;
+    return CHANNELS_WEBSOCKET_ROUTER.test(maskFile(path, raw, 'keep')) ? CHANNELS_WEBSOCKET_ROUTER : undefined;
+  }
   if (!/\.(?:[cm]?js|tsx?)$/.test(path)) return undefined;
   if (BUN_WEBSOCKET_SERVER.test(code)) return BUN_WEBSOCKET_SERVER;
   const keep = maskFile(path, raw, 'keep');
-  return JS_WEBSOCKET_SERVERS.find(({ module, server }) => importsModule(keep, module) && server.test(code))?.server;
+  return (
+    JS_WEBSOCKET_SERVERS.find(({ module, server }) => importsModule(keep, module) && server.test(code))?.server ??
+    (SOCKET_IO_REQUIRE_CALL.test(keep) ? SOCKET_IO_REQUIRE_CALL : undefined) ??
+    aliasedServerCall(path, keep, code, reexports, files)
+  );
 };
 
 const workerProcessType = (path: string): string => {
@@ -98,6 +250,24 @@ const detectionFor = (path: string, raw: string, code: string): Detection | unde
         framework: 'hono',
         pattern: /new\s+Hono\s*\(/,
         language: /\.tsx?$/.test(path) ? 'typescript' : 'javascript'
+      };
+    }
+    // `NestFactory.createMicroservice()` without `NestFactory.create()`: its `app.listen()` starts a transport, not an
+    // HTTP server. A hybrid application (`create` and `connectMicroservice`) does serve HTTP.
+    const nestMicroservice = /\bNestFactory\s*\.\s*createMicroservice\s*(?:<[^>]*>)?\s*\(/;
+    if (nestMicroservice.test(code) && !/\bNestFactory\s*\.\s*create\s*(?:<[^>]*>)?\s*\(/.test(code)) {
+      // TCP is Nest's default transport, and gRPC or a custom `strategy` also accepts connections; only a broker
+      // transport (Redis, NATS, MQTT, Kafka, RabbitMQ) alone accepts none.
+      const broker =
+        /\bTransport\s*\.\s*(?:REDIS|NATS|MQTT|KAFKA|RMQ)\b/.test(code) &&
+        !/\bTransport\s*\.\s*(?:TCP|GRPC)\b|\bstrategy\s*:/.test(code);
+      return {
+        entrypoint: path,
+        pattern: nestMicroservice,
+        language: /\.tsx?$/.test(path) ? 'typescript' : 'javascript',
+        exposesHttp: false,
+        rank: 0,
+        microservice: broker ? 'broker-microservice' : 'tcp-microservice'
       };
     }
     // `serve({ fetch: app.fetch })` is Hono's Node server.
@@ -137,6 +307,11 @@ const detectionFor = (path: string, raw: string, code: string): Detection | unde
         language: 'python'
       };
     }
+    // Django Channels routes HTTP and WebSocket connections from its ASGI application; it outranks the WSGI one.
+    const channels = /^\s*application\s*=\s*ProtocolTypeRouter\s*\(/m;
+    if (channels.test(code)) {
+      return { entrypoint: `${path}:application`, framework: 'django', pattern: channels, language: 'python', rank: 2 };
+    }
     const django = /^\s*application\s*=\s*get_wsgi_application\s*\(\s*\)/m;
     return django.test(code)
       ? {
@@ -168,10 +343,15 @@ const detectionFor = (path: string, raw: string, code: string): Detection | unde
 };
 
 type ListenPort = { port: number; citation: Citation };
+/** The listener fixes a port, with an expression init does not evaluate: `listen(4000 + 1)`. */
+type UnreadPort = { unread: Citation };
+
+/** A port literal: two to five digits, with numeric separators (`4_321`). */
+const PORT_LITERAL = String.raw`(\d(?:_?\d){1,4})`;
 
 /** A port found at `offset` in `raw`, cited on the line it appears on (a `listen({ ... })` can span lines). */
 const portAt = (path: string, raw: string, value: string | undefined, offset: number): ListenPort | undefined => {
-  const port = value === undefined ? Number.NaN : Number.parseInt(value, 10);
+  const port = value === undefined ? Number.NaN : Number.parseInt(value.replaceAll('_', ''), 10);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) return undefined;
   const lines = raw.split(/\r?\n/);
   return { port, citation: citeLine(path, lines, raw.slice(0, offset).split(/\r?\n/).length - 1, 'port') };
@@ -182,19 +362,32 @@ const matchedPort = (path: string, raw: string, match: RegExpExecArray | null): 
   match === null ? undefined : portAt(path, raw, match[1], match.index + match[0].lastIndexOf(match[1]!));
 
 /**
+ * An expression (strings blanked) that fixes a port init did not read: it has a number in it and does not mention a
+ * `PORT` variable, which Stacktape sets. `4000 + 1` does; `process.env.PORT`, `config.port` and `":" + port` do not,
+ * and neither does a bare number such as `listen(0)`, which asks the system for any free port.
+ */
+const fixesUnreadPort = (expression: string): boolean =>
+  /(?<![\w$.])\d/.test(expression) && !/^\s*\d[\d_]*\s*$/.test(expression) && !/\bPORT\b/.test(expression);
+
+const unreadAt = (path: string, raw: string, offset: number): UnreadPort => ({
+  unread: citeLine(path, raw.split(/\r?\n/), raw.slice(0, offset).split(/\r?\n/).length - 1, 'port')
+});
+
+/**
  * The port a JavaScript server listens on when the source says so literally: `listen(4000)`,
  * `listen({ port: 4000 })`, `Bun.serve({ port: 4000 })`, Hono's `serve({ fetch: app.fetch, port: 4000 })`,
  * `listen(process.env.PORT || 4000)`, or a constant that holds one of those. A fallback is reported too: the service
- * then listens there whether or not `PORT` is set. `code` has comments and strings blanked, at the same offsets.
+ * then listens there whether or not `PORT` is set. A port the listener computes (`listen(4000 + 1)`) is reported as
+ * unread rather than as the first number in it. `code` has comments and strings blanked, at the same offsets.
  */
-const javascriptListenPort = (path: string, raw: string, code: string): ListenPort | undefined => {
+const javascriptListenPort = (path: string, raw: string, code: string): ListenPort | UnreadPort | undefined => {
   const direct =
-    /\.listen\(\s*(\d{2,5})\b/.exec(code) ??
-    /\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*(\d{2,5})\b/.exec(code) ??
+    new RegExp(String.raw`\.listen\(\s*${PORT_LITERAL}\s*[,)]`).exec(code) ??
+    new RegExp(String.raw`\.listen\(\s*[^,)]*?(?:\|\||\?\?)\s*${PORT_LITERAL}\s*[,)]`).exec(code) ??
     // Only a literal number is a port: `port: 8000 + 1` is not 8000.
-    /(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*(?:[^,}]*?(?:\|\||\?\?)\s*)?(\d{2,5})\s*[,}\n]/.exec(
-      code
-    );
+    new RegExp(
+      String.raw`(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*(?:[^,}]*?(?:\|\||\?\?)\s*)?${PORT_LITERAL}\s*[,}\n]`
+    ).exec(code);
   if (direct !== null) return matchedPort(path, raw, direct);
   // `serve({ fetch: app.fetch, port })` reads a constant named `port`.
   const served = /\b(?:Bun\.serve|Deno\.serve|serve)\(\s*\{[^}]*?\bport\b\s*(?::\s*([A-Za-z_$][\w$]*))?\s*[,}]/.exec(
@@ -202,23 +395,57 @@ const javascriptListenPort = (path: string, raw: string, code: string): ListenPo
   );
   const named =
     /\.listen\(\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(code)?.[1] ?? (served === null ? undefined : (served[1] ?? 'port'));
-  if (named === undefined) return undefined;
-  return matchedPort(
-    path,
-    raw,
-    new RegExp(
-      `\\b(?:const|let|var)\\s+${named}\\s*=\\s*(?:[^;\\n]*?(?:\\|\\||\\?\\?)\\s*)?(\\d{2,5})\\s*(?:[;,)\\n]|$)`
-    ).exec(code)
-  );
+  if (named !== undefined) {
+    const constant = matchedPort(
+      path,
+      raw,
+      new RegExp(
+        String.raw`\b(?:const|let|var)\s+${named}\s*=\s*(?:[^;\n]*?(?:\|\||\?\?)\s*)?${PORT_LITERAL}\s*(?:[;,)\n]|$)`
+      ).exec(code)
+    );
+    if (constant !== undefined) return constant;
+    const initializer = new RegExp(String.raw`\b(?:const|let|var)\s+${named}\s*=\s*([^;\n]*)`).exec(code);
+    return initializer !== null && fixesUnreadPort(initializer[1]!)
+      ? unreadAt(path, raw, initializer.index)
+      : undefined;
+  }
+  const expression =
+    /\.listen\(\s*([^,)]*)/.exec(code) ??
+    /(?:\.listen|\bBun\.serve|\bDeno\.serve|\bserve)\(\s*\{[^}]*?\bport\s*:\s*([^,}\n]*)/.exec(code);
+  return expression !== null && fixesUnreadPort(expression[1]!) ? unreadAt(path, raw, expression.index) : undefined;
 };
 
-/** `http.ListenAndServe(":8080", ...)`, gin's `r.Run(":8080")`, echo's `e.Start(":8080")`, fiber's `app.Listen(":3000")`. */
-const goListenPort = (path: string, raw: string): ListenPort | undefined =>
-  matchedPort(
-    path,
-    raw,
-    /(?:ListenAndServe(?:TLS)?|\.Run|\.Start|\.Listen)\(\s*"[\w.-]*:(\d{2,5})"/.exec(maskFile(path, raw, 'keep'))
-  );
+const GO_LISTEN_CALL = String.raw`(?:ListenAndServe(?:TLS)?|\.Run|\.Start|\.Listen)\(\s*`;
+
+/**
+ * `http.ListenAndServe(":8080", ...)`, gin's `r.Run(":8080")`, echo's `e.Start(":8080")`, fiber's `app.Listen(":3000")`,
+ * or a constant or variable holding such an address (`const addr = ":8080"`).
+ */
+const goListenPort = (path: string, raw: string): ListenPort | UnreadPort | undefined => {
+  const keep = maskFile(path, raw, 'keep');
+  const literal = matchedPort(path, raw, new RegExp(String.raw`${GO_LISTEN_CALL}"[\w.-]*:(\d{2,5})"`).exec(keep));
+  if (literal !== undefined) return literal;
+  const code = maskFile(path, raw, 'blank');
+  for (const call of code.matchAll(new RegExp(String.raw`${GO_LISTEN_CALL}([A-Za-z_]\w*)\s*[,)]`, 'g'))) {
+    const constant = matchedPort(
+      path,
+      raw,
+      new RegExp(String.raw`\b${call[1]}\s*(?::=|=)\s*"[\w.-]*:(\d{2,5})"\s*(?:;|\n|$)`).exec(keep)
+    );
+    if (constant !== undefined) return constant;
+  }
+  // `.Run(`, `.Start(` and `.Listen(` are common method names; only `ListenAndServe` certainly takes the address.
+  const call = /ListenAndServe(?:TLS)?\(\s*([^,)]*)/.exec(code);
+  if (call === null) return undefined;
+  const argument = call[1]!.trim();
+  const initializer = /^[A-Za-z_]\w*$/.test(argument)
+    ? new RegExp(String.raw`\b${argument}\s*(?::=|=)\s*([^;\n]*)`).exec(code)
+    : null;
+  if (initializer !== null) {
+    return fixesUnreadPort(initializer[1]!) ? unreadAt(path, raw, initializer.index) : undefined;
+  }
+  return fixesUnreadPort(argument) ? unreadAt(path, raw, call.index) : undefined;
+};
 
 const SPRING_BOOT_DEFAULT_PORT = 8080;
 
@@ -260,17 +487,40 @@ export const serverEntrypointProbe: Probe = {
         !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
+    const ranks = new Map<string, number>();
     const entered = await directoriesEnteredByRoot(context);
+    const sources: Array<{ path: string; raw: string; code: string }> = [];
     for (const path of candidates) {
-      // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, stopped after one entrypoint per service root.
+      // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, one at a time.
       const raw = await readText(context, path);
-      if (raw === undefined) continue;
-      const code = maskFile(path, raw, 'blank');
+      if (raw !== undefined) sources.push({ path, raw, code: maskFile(path, raw, 'blank') });
+    }
+    const files = new Set(context.files);
+    const reexports = new Map(
+      sources.flatMap(({ path, raw }) => {
+        if (!/\.(?:[cm]?js|tsx?)$/.test(path)) return [];
+        const found = reexportsOf(maskFile(path, raw, 'keep'));
+        return found.length === 0 ? [] : [[path, found] as const];
+      })
+    );
+    const rootOf = (path: string) => nearestManifestRoot(path, context.files, entered) ?? '.';
+    // A WebSocket server is often set up in its own module (`realtime.js`) beside the file that listens. It is evidence
+    // for the service of the directory it is in.
+    const websocketByRoot = new Map<string, { path: string; raw: string; code: string; pattern: RegExp }>();
+    for (const source of sources) {
+      const pattern = websocketIn(source.path, source.raw, source.code, reexports, files);
+      const root = pattern === undefined ? undefined : rootOf(source.path);
+      if (root !== undefined && !websocketByRoot.has(root)) websocketByRoot.set(root, { ...source, pattern: pattern! });
+    }
+    for (const { path, raw, code } of sources) {
       const detection = detectionFor(path, raw, code);
       if (detection === undefined) continue;
-      const root = nearestManifestRoot(path, context.files, entered) ?? '.';
+      const root = rootOf(path);
       const key = `${root}::${detection.processType ?? 'main'}`;
-      if (byRoot.has(key)) continue;
+      // A NestJS microservice bootstrap gives way to an HTTP server in the same service, and a WSGI module to the
+      // Channels router that also serves WebSockets.
+      if (byRoot.has(key) && (detection.rank ?? 1) <= ranks.get(key)!) continue;
+      ranks.set(key, detection.rank ?? 1);
       let exposesHttp = detection.exposesHttp ?? true;
       if (detection.exposesHttp === undefined && detection.language === 'java') {
         // oxlint-disable-next-line no-await-in-loop -- Java manifest evidence is needed before classifying the candidate.
@@ -293,12 +543,35 @@ export const serverEntrypointProbe: Probe = {
             : detection.language === 'javascript' || detection.language === 'typescript'
               ? javascriptListenPort(path, raw, code)
               : undefined;
-      const websocket = exposesHttp ? websocketIn(path, raw, code) : undefined;
+      const port = listenPort !== undefined && 'port' in listenPort ? listenPort : undefined;
+      const unreadPort = listenPort !== undefined && 'unread' in listenPort ? listenPort.unread : undefined;
+      const ownWebsocket = exposesHttp ? websocketIn(path, raw, code, reexports, files) : undefined;
+      const websocket =
+        ownWebsocket !== undefined
+          ? { path, raw, code, pattern: ownWebsocket }
+          : exposesHttp && detection.processType === undefined
+            ? websocketByRoot.get(root)
+            : undefined;
       const websocketCitation =
         websocket === undefined
           ? undefined
-          : (citeFirstCodeMatch(path, raw, code, websocket, 'longLivedConnections') ??
-            citeFirstMatch(path, raw, /\bWebSocket|\bwebsocket|SocketIO|socket\.io/, 'longLivedConnections'));
+          : (citeFirstCodeMatch(
+              websocket.path,
+              websocket.raw,
+              websocket.code,
+              websocket.pattern,
+              'longLivedConnections'
+            ) ??
+            citeFirstMatch(
+              websocket.path,
+              websocket.raw,
+              /\bWebSocket|\bwebsocket|SocketIO|socket\.io|ProtocolTypeRouter/,
+              'longLivedConnections'
+            ));
+      const listenerNotes = [
+        ...(unreadPort === undefined ? [] : [{ kind: 'unread-port' as const, path }]),
+        ...(detection.microservice === undefined ? [] : [{ kind: detection.microservice, path }])
+      ];
       byRoot.set(key, {
         name:
           detection.processType ??
@@ -312,10 +585,11 @@ export const serverEntrypointProbe: Probe = {
         exposesHttp,
         executionModel: 'long-running',
         ...(detection.claimsEntrypoint === false ? {} : { containerEntrypoint: detection.entrypoint }),
-        ...(listenPort === undefined ? {} : { port: listenPort.port }),
+        ...(port === undefined ? {} : { port: port.port }),
+        ...(listenerNotes.length === 0 ? {} : { listenerNotes }),
         ...(websocket === undefined ? {} : { longLivedConnections: 'websocket' as const }),
         environmentVariables: [],
-        evidence: [citation, listenPort?.citation, websocketCitation].filter(
+        evidence: [citation, port?.citation, unreadPort, websocketCitation].filter(
           (entry): entry is Citation => entry !== undefined
         ),
         source: 'probe'
