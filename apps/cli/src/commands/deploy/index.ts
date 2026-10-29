@@ -326,7 +326,15 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // CloudFormation, which takes seconds instead of minutes.
   let fastDeployPlan: FastDeployPlan | undefined;
   if (stack.stackActionType !== 'create') {
-    stack.planUpdate(cfTemplateDiff);
+    // A failed stack's last successful release tells which of its resources the failed deploys created.
+    const lastReleaseTemplate =
+      stack.continuesFailedStack && !stack.isFirstDeploy && stack.lastVersion
+        ? await deploymentArtifacts.getTemplate({ version: stack.lastVersion }).catch((err) => {
+            tui.debug(`Could not read the template of release ${stack.lastVersion}: ${err}`);
+            return undefined;
+          })
+        : undefined;
+    stack.planUpdate(cfTemplateDiff, { lastReleaseTemplate });
     const reason =
       stack.reasonToContinueFailedStack ??
       stack.findChangedStackSetting() ??

@@ -13421,8 +13421,8 @@ The CLI prints which state the stack is in and these options when a deployment f
 CloudFormation can replace a resource (for example a container's task definition, which every container change replaces) only in a deployment it may roll back. Stacktape therefore handles replacements this way:
 
 - An update of a healthy stack that replaces resources rolls back if it fails. The CLI says so before it deploys.
-- When the fix for a failed first deployment replaces resources it already created, Stacktape first removes those resources and everything that depends on them, then deploys the full configuration, which creates them again. Nothing serves traffic yet, so this interrupts nothing. It stops instead if this would remove a database or another data store; delete the stack and deploy again in that case.
-- When the fix for a failed update of a stack that was deployed before replaces resources, Stacktape stops before changing anything. Run [`stacktape stack recover`](/cli/cf-rollback), then deploy again.
+- When the fix for a failed deployment replaces resources that the failed deployment created (for example the task definition of a new container service that did not start), Stacktape first removes those resources and everything that depends on them, then deploys the full configuration, which creates them again. They have not served traffic yet, so this interrupts nothing. It stops instead if this would remove a database or another data store.
+- When the fix would replace resources of the last successful deployment, Stacktape stops before changing anything. Run [`stacktape stack recover`](/cli/cf-rollback) (or [`stacktape delete`](/cli/delete) for a stack that was never deployed successfully), then deploy again.
 
 
 > **Warning:** A failed stack can run a mix of old and new configuration. On production stacks, fix the issue and redeploy promptly, or recover the stack with [`stacktape stack recover`](/cli/cf-rollback).

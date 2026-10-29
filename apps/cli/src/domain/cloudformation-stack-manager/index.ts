@@ -457,33 +457,44 @@ class StackManager {
   /** Existing resources this deploy's update replaces, recorded by {@link planUpdate}. */
   #replacedResources: string[] = [];
 
+  /** Whether an existing resource was created after the last successful release, recorded by {@link planUpdate}. */
+  #isNewSinceLastRelease: (logicalId: string) => boolean = () => false;
+
   /**
    * Records which existing resources the update replaces. CloudFormation replaces a resource only in an update that may
    * roll back, so such an update rolls back on failure even when automatic rollback is off. A stack that a failed deploy
-   * left in CREATE_FAILED or UPDATE_FAILED can only be updated without rollback: a stack that was never deployed
-   * successfully first removes the resources to replace (see {@link getTemplateBeforeReplacing}); a deployed one has to
-   * be recovered first, which this reports before anything changes.
+   * left in CREATE_FAILED or UPDATE_FAILED can only be updated without rollback: resources the failed deploys created
+   * are removed first and created again (see {@link getTemplateBeforeReplacing}); resources of the last successful
+   * release may serve traffic, so the stack has to be recovered first, which this reports before anything changes.
+   *
+   * `lastReleaseTemplate` is the template of the last successful release, for a failed stack that had one.
    */
-  planUpdate = (templateDiff: TemplateDiff) => {
+  planUpdate = (
+    templateDiff: TemplateDiff,
+    { lastReleaseTemplate }: { lastReleaseTemplate?: CloudFormationTemplate } = {}
+  ) => {
+    const neverDeployed = this.isFirstDeploy;
+    this.#isNewSinceLastRelease = (logicalId) =>
+      neverDeployed || (!!lastReleaseTemplate && !(logicalId in (lastReleaseTemplate.Resources ?? {})));
     const existing = new Set(this.existingStackResources.map(({ LogicalResourceId }) => LogicalResourceId));
-    const replaced: string[] = [];
+    const replaced = new Set<string>();
     templateDiff.resources?.forEachDifference((logicalId, diff) => {
       const replaces =
         diff.changeImpact === ResourceImpact.WILL_REPLACE || diff.changeImpact === ResourceImpact.MAY_REPLACE;
-      if (replaces && existing.has(logicalId)) replaced.push(logicalId);
+      if (replaces && existing.has(logicalId)) replaced.add(logicalId);
     });
     // A failed stack's template is the one the failed deploy attempted. A resource whose update failed went back to its
-    // earlier state, so the template no longer describes it, and continuing may have to replace it. In a stack that was
-    // never deployed, such resources are recreated too (data stores excepted, which CloudFormation then updates).
-    if (this.continuesFailedStack && this.isFirstDeploy) {
+    // earlier state, so the template no longer describes it, and continuing may have to replace it. Such resources that
+    // the failed deploys created are recreated too (data stores excepted, which CloudFormation then updates in place).
+    if (this.continuesFailedStack) {
       for (const { LogicalResourceId, ResourceStatus, ResourceType } of this.existingStackResources) {
         const failed = ResourceStatus === 'UPDATE_FAILED' || ResourceStatus === 'UPDATE_ROLLBACK_COMPLETE';
-        if (failed && !DATA_RESOURCE_TYPES.has(ResourceType) && !replaced.includes(LogicalResourceId)) {
-          replaced.push(LogicalResourceId);
+        if (failed && !DATA_RESOURCE_TYPES.has(ResourceType) && this.#isNewSinceLastRelease(LogicalResourceId)) {
+          replaced.add(LogicalResourceId);
         }
       }
     }
-    this.#replacedResources = replaced.toSorted();
+    this.#replacedResources = [...replaced].toSorted();
     // Fails before anything is uploaded or changed when the failed stack cannot be continued.
     this.getTemplateBeforeReplacing();
   };
@@ -505,14 +516,20 @@ class StackManager {
   /**
    * The template to deploy before the full one when this deploy continues a failed stack and replaces resources: the
    * new template without those resources and everything that depends on them. Undefined when no such step is needed.
-   * Throws when the stack cannot be continued: it was deployed successfully before (its resources may serve traffic),
-   * or the step would delete a data store.
+   * Throws when the stack cannot be continued that way: the step would remove a resource of the last successful release
+   * (it may serve traffic) or a data store.
    */
   getTemplateBeforeReplacing = (): { template: CloudFormationTemplate; removedResources: string[] } | undefined => {
     if (!this.continuesFailedStack || !this.#replacedResources.length) return undefined;
     const replaced = this.#replacedResources.join(', ');
     const status = this.existingStackDetails.StackStatus;
-    if (!this.isFirstDeploy) {
+    const { template, removedResources, removedDataResources } = templateWithoutResources(
+      templateManager.template,
+      this.#replacedResources
+    );
+    const existing = new Set(this.existingStackResources.map(({ LogicalResourceId }) => LogicalResourceId));
+    const released = removedResources.filter((id) => existing.has(id) && !this.#isNewSinceLastRelease(id));
+    if (released.length) {
       throw new ExpectedError(
         'EXISTING_STACK',
         `The last deploy failed and left the stack in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy.`,
@@ -521,19 +538,24 @@ class StackManager {
         ]
       );
     }
-    const { template, removedResources, removedDataResources } = templateWithoutResources(
-      templateManager.template,
-      this.#replacedResources
-    );
     if (removedDataResources.length) {
       throw new ExpectedError(
         'EXISTING_STACK',
-        `The first deploy of this stack failed and left it in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy, and removing them first would also delete ${removedDataResources.join(', ')}.`,
-        [`Run ${tuiManager.prettyCommand('delete')} to remove the failed stack, then deploy again.`]
+        `The last deploy failed and left the stack in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy, and removing them first would also delete ${removedDataResources.join(', ')}.`,
+        [
+          this.isFirstDeploy
+            ? `Run ${tuiManager.prettyCommand('delete')} to remove the failed stack, then deploy again.`
+            : `Run ${tuiManager.prettyCommand('stack recover')} to return the stack to the last successful deploy, then deploy again.`
+        ]
       );
     }
-    // Without the version output, a failure of the full deploy still leaves a stack that was never deployed.
-    const { [outputNames.deploymentVersion()]: _version, ...outputs } = template.Outputs ?? {};
+    // The step keeps the version of the last successful release (none for a stack never deployed), so a failure of the
+    // full deploy still reports that release.
+    const { [outputNames.deploymentVersion()]: versionOutput, ...outputs } = template.Outputs ?? {};
+    const deployedVersion = this.lastDeploymentStackOutput[outputNames.deploymentVersion()];
+    if (versionOutput && deployedVersion) {
+      outputs[outputNames.deploymentVersion()] = { ...versionOutput, Value: deployedVersion };
+    }
     return {
       template: { ...template, ...(Object.keys(outputs).length ? { Outputs: outputs } : { Outputs: undefined }) },
       removedResources

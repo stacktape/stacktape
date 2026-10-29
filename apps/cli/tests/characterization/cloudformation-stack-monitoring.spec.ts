@@ -539,6 +539,25 @@ describe('an update that replaces resources', () => {
     expect(stackManager.getTemplateBeforeReplacing()?.removedResources).toEqual(['Service', 'Task']);
   });
 
+  test('a deployed stack recreates what its failed update added, keeping the release version', () => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = {
+      ...stackDetails('UPDATE_FAILED'),
+      Outputs: [{ OutputKey: 'StpDeploymentVersion', OutputValue: 'v000001' }],
+      stackOutput: { StpDeploymentVersion: 'v000001' }
+    };
+    stackManager.existingStackResources = ['Db', 'Task'].map((LogicalResourceId) => ({ LogicalResourceId })) as never;
+    // The last release had only the database; the failed update added the service.
+    stackManager.planUpdate(diffTemplate(oldTemplate, newTemplate), {
+      lastReleaseTemplate: { Resources: { Db: oldTemplate.Resources.Db } } as never
+    });
+    const step = stackManager.getTemplateBeforeReplacing();
+    expect(step?.removedResources).toEqual(['Service', 'Task']);
+    expect(step?.template.Outputs).toEqual({ StpDeploymentVersion: { Value: 'v000001' } });
+  });
+
   test('a deployed stack left in UPDATE_FAILED is not changed and is recovered first', () => {
     expect(() => plan('UPDATE_FAILED', { deployed: true })).toThrow(/cannot do while it continues a failed deploy/);
   });
