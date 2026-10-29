@@ -486,14 +486,6 @@
       },
       "dependencies": ["StpDefaultDomainCertCustomResource"]
     },
-    "WebEcsServiceAverageCpuUtilizationScalingPolicy": {
-      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
-      "dependencies": ["WebScalableTarget"]
-    },
-    "WebEcsServiceAverageMemoryUtilizationScalingPolicy": {
-      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
-      "dependencies": ["WebScalableTarget"]
-    },
     "WebLogGroup": {
       "type": "AWS::Logs::LogGroup",
       "physicalNames": {

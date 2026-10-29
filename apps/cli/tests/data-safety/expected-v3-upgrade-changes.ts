@@ -17,6 +17,11 @@ export const expectedV3UpgradeChanges: Record<string, Record<string, ResourceImp
     WebTaskDefinition: ResourceImpact.WILL_REPLACE,
     WorkerTaskDefinition: ResourceImpact.WILL_REPLACE,
     // A CDN gets the origin-response edge Lambda only when a bucket sets custom metadata headers, its only use.
-    CdnOriginResponseLambdaEdgeLambdaCustomResource: ResourceImpact.WILL_DESTROY
+    CdnOriginResponseLambdaEdgeLambdaCustomResource: ResourceImpact.WILL_DESTROY,
+    // A service with a fixed instance count (1 and 1 here) gets no scaling policies; they could never act.
+    WebEcsServiceAverageCpuUtilizationScalingPolicy: ResourceImpact.WILL_DESTROY,
+    WebEcsServiceAverageMemoryUtilizationScalingPolicy: ResourceImpact.WILL_DESTROY,
+    WorkerEcsServiceAverageCpuUtilizationScalingPolicy: ResourceImpact.WILL_DESTROY,
+    WorkerEcsServiceAverageMemoryUtilizationScalingPolicy: ResourceImpact.WILL_DESTROY
   }
 };
