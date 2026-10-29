@@ -869,6 +869,73 @@ describe('container rolling deployment family', () => {
     });
     expect(deregistrationDelays(template, 'albWeb')).toEqual(['120']);
   });
+
+  test('scaling policies exist only when the instance count can change', async () => {
+    const cpuPolicy = (name: string) => cfLogicalNames.autoScalingPolicy(name, 'ECSServiceAverageCPUUtilization');
+    const memoryPolicy = (name: string) => cfLogicalNames.autoScalingPolicy(name, 'ECSServiceAverageMemoryUtilization');
+    const template = await synthesizeFamily(
+      'container-scaling',
+      defineConfig(() => ({
+        resources: {
+          fixed: new WebService({ packaging, resources, scaling: { minInstances: 2, maxInstances: 2 } }),
+          single: new WorkerService({ packaging, resources }),
+          scaled: new WebService({
+            packaging,
+            resources,
+            scaling: { minInstances: 1, maxInstances: 4, scalingPolicy: { keepAvgCpuUtilizationUnder: 60 } }
+          }),
+          // An override can widen the range after synthesis, or tune a policy, so both keep the policies.
+          widened: new WorkerService({
+            packaging,
+            resources,
+            overrides: { [cfLogicalNames.autoScalingTarget('widened')]: { MaxCapacity: 4 } }
+          }),
+          tuned: new WorkerService({
+            packaging,
+            resources,
+            overrides: { [cpuPolicy('tuned')]: { 'TargetTrackingScalingPolicyConfiguration.ScaleOutCooldown': 120 } }
+          })
+        }
+      }))
+    );
+    expectReferencesResolve(template);
+    const scalableTargets = Object.fromEntries(
+      resourcesOfType(template, 'AWS::ApplicationAutoScaling::ScalableTarget').map(([logicalId, resource]) => [
+        logicalId,
+        [resource.Properties?.MinCapacity, resource.Properties?.MaxCapacity]
+      ])
+    );
+    // Every service keeps its scalable target: it holds the task count at the configured value.
+    expect(scalableTargets).toEqual({
+      [cfLogicalNames.autoScalingTarget('fixed')]: [2, 2],
+      [cfLogicalNames.autoScalingTarget('single')]: [1, 1],
+      [cfLogicalNames.autoScalingTarget('scaled')]: [1, 4],
+      [cfLogicalNames.autoScalingTarget('widened')]: [1, 4],
+      [cfLogicalNames.autoScalingTarget('tuned')]: [1, 1]
+    });
+    const policies = Object.fromEntries(
+      resourcesOfType(template, 'AWS::ApplicationAutoScaling::ScalingPolicy').map(([logicalId, resource]) => [
+        logicalId,
+        [
+          resource.Properties?.ScalingTargetId,
+          resource.Properties?.TargetTrackingScalingPolicyConfiguration.TargetValue
+        ]
+      ])
+    );
+    const target = (name: string) => ({ Ref: cfLogicalNames.autoScalingTarget(name) });
+    expect(policies).toEqual({
+      [cpuPolicy('scaled')]: [target('scaled'), 60],
+      [memoryPolicy('scaled')]: [target('scaled'), 80],
+      [cpuPolicy('widened')]: [target('widened'), 80],
+      [memoryPolicy('widened')]: [target('widened'), 80],
+      [cpuPolicy('tuned')]: [target('tuned'), 80],
+      [memoryPolicy('tuned')]: [target('tuned'), 80]
+    });
+    expect(
+      (template.Resources[cpuPolicy('tuned')] as Resource).Properties?.TargetTrackingScalingPolicyConfiguration
+        .ScaleOutCooldown
+    ).toBe(120);
+  });
 });
 
 describe('EC2-backed container family', () => {
