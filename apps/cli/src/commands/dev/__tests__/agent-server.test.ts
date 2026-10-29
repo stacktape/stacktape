@@ -17,6 +17,7 @@ import {
   type WorkloadStatus
 } from '../agent-server';
 import { agentLog } from '../agent-logger';
+import { spawnAgentDaemon } from '../agent-daemon';
 
 // The dev agent runs SQL, rebuilds and stops dev mode, and reads workload environments. These scenarios run the real
 // agent server and call it the way a web page, a DNS-rebinding page, another program on the network and the
@@ -489,3 +490,103 @@ test("the dev agent's AWS reads stay in the session's region", async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+// r2ab dogfood, finding 3: two MCP starts at the same time chose the same automatic agent port, because the port check
+// closes its probe before the daemon listens, and one start failed with "Port 7333 is already in use". The daemons are
+// stand-ins that start the real agent server the way `stacktape dev --agent-child` does, with the variable the
+// starting process passes.
+test('dev sessions that start at the same moment on one automatic port each get a port; an explicit port still fails', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-port-race-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const pids: number[] = [];
+  try {
+    const driver = join(directory, 'daemon.ts');
+    await writeFile(
+      driver,
+      `
+import { applicationManager } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/app/application-manager/index.ts'))};
+import { getAgentTokenFile, startAgentServer } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
+const [requested, logDir, startAt] = process.argv.slice(2);
+await applicationManager.init();
+// Every daemon binds at the same moment, after each starting process checked the port.
+await new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(startAt) - Date.now())));
+const port = await startAgentServer(Number(requested), logDir, undefined, undefined, {
+  automaticPort: process.env.STACKTAPE_AGENT_PORT_AUTOMATIC === '1'
+});
+process.stdout.write('AGENT_READY ' + JSON.stringify({ port, projectName: 'p', stage: 's', region: 'r', workloads: [], databases: [], logFile: '', tokenFile: getAgentTokenFile() }) + '\\n');
+setInterval(() => {}, 1000);
+`
+    );
+    const port = await freePort();
+    const startAt = Date.now() + 4000;
+    const start = (automaticAgentPort: boolean) =>
+      spawnAgentDaemon({
+        explicitArgs: {},
+        customArgs: [],
+        agentPort: port,
+        automaticAgentPort,
+        timeoutMs: 30_000,
+        command: {
+          executable: process.execPath,
+          args: [
+            '--no-env-file',
+            '--preload',
+            join(CLI_DIRECTORY, 'scripts/test-preload.ts'),
+            driver,
+            String(port),
+            directory,
+            String(startAt)
+          ],
+          cwd: CLI_DIRECTORY
+        }
+      }).then((result) => {
+        if (result.pid) pids.push(result.pid);
+        return result;
+      });
+    const [first, second] = await Promise.all([start(true), start(true)]);
+    expect(first.success && second.success, `${first.error} ${second.error}`).toBeTrue();
+    const ports = [first.port!, second.port!];
+    expect(ports).toContain(port);
+    expect(new Set(ports).size).toBe(2);
+    for (const result of [first, second]) {
+      const token = (await readFile(result.readyPayload!.tokenFile, 'utf8')).trim();
+      expect(result.readyPayload!.tokenFile).toEndWith(`${result.port}.token`);
+      const reply = await send(result.port!, { path: '/status', headers: { authorization: `Bearer ${token}` } });
+      expect(reply.status).toBe(200);
+    }
+
+    // `--agent-port` names the port: it is not replaced.
+    const explicit = await spawnAgentDaemon({
+      explicitArgs: {},
+      customArgs: [],
+      agentPort: port,
+      automaticAgentPort: false,
+      timeoutMs: 30_000,
+      command: {
+        executable: process.execPath,
+        args: [
+          '--no-env-file',
+          '--preload',
+          join(CLI_DIRECTORY, 'scripts/test-preload.ts'),
+          driver,
+          String(port),
+          directory,
+          '0'
+        ],
+        cwd: CLI_DIRECTORY
+      }
+    });
+    expect(explicit.success).toBeFalse();
+    expect(explicit.error).toContain(`Port ${port} is already in use. Choose a different --agent-port.`);
+  } finally {
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);

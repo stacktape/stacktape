@@ -1,9 +1,17 @@
 import { afterEach, expect, test } from 'bun:test';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { DEV_BOX_PROFILE_WATCH_SCRIPT, EC2_USER_DATA_LIMIT_BYTES, getDevBoxUserData } from './boot-script';
+import { dirname, join } from 'node:path';
+import {
+  DEV_BOX_PROFILE_WATCH_SCRIPT,
+  DEV_BOX_RELAY_PARAMETER_LIMIT_BYTES,
+  DEV_BOX_RELAY_STARTER_SCRIPT,
+  EC2_USER_DATA_LIMIT_BYTES,
+  encodeRelayForParameter,
+  getDevBoxRelayUpdateScript,
+  getDevBoxUserData
+} from './boot-script';
 import { DEV_BOX_RELAY_SOURCE } from './relay-source';
 
 // The profile watcher of the dev box, run by real bash and curl against a scripted instance metadata server. A fake
@@ -76,26 +84,117 @@ test('a failed or unanswered metadata request is not "no credentials" and restar
   expect(await runWatcher(['credentials', 'error', 'credentials', 'no-token', 'credentials'])).toEqual([]);
 });
 
+const relayParameterName = '/stacktape/dev-network/stacktape-dev-network/relay';
+
 test('the user data installs the watcher as it is and is valid bash', () => {
-  const userData = getDevBoxUserData();
+  const userData = getDevBoxUserData({ relayParameterName });
   expect(userData).toContain(DEV_BOX_PROFILE_WATCH_SCRIPT);
   const script = userData.slice(userData.indexOf('#!/bin/bash'), userData.indexOf('--==STACKTAPE==--'));
   expect(spawnSync('bash', ['-n'], { input: script }).status).toBe(0);
+  expect(spawnSync('bash', ['-n'], { input: getDevBoxRelayUpdateScript(relayParameterName) }).status).toBe(0);
 });
 
 // r2bb: a relay that grew by 3 KB pushed the user data past EC2's limit, and creating a dev network failed with "User data
-// is limited to 16384 bytes".
-test('the user data fits EC2, and the box writes the relay exactly as the CLI has it', () => {
-  const userData = getDevBoxUserData();
-  expect(Buffer.byteLength(userData)).toBeLessThanOrEqual(EC2_USER_DATA_LIMIT_BYTES);
-  // The boot script's own lines, run by real bash, base64 and gunzip.
-  const start = userData.indexOf("base64 -d <<'RELAY'");
-  const end = userData.indexOf('\nRELAY\n', start) + '\nRELAY\n'.length;
-  expect(start).toBeGreaterThan(0);
-  directory = mkdtempSync(join(tmpdir(), 'stacktape-relay-install-'));
-  const target = join(directory, 'relay.py');
-  const install = userData.slice(start, end).replace('/opt/stacktape/relay.py', target);
-  const result = spawnSync('bash', ['-euo', 'pipefail', '-c', install], { encoding: 'utf8' });
-  expect(result.status, result.stderr).toBe(0);
-  expect(readFileSync(target, 'utf8')).toBe(DEV_BOX_RELAY_SOURCE);
+// is limited to 16384 bytes". The relay is in an SSM parameter now, which has its own limit.
+test('the user data fits EC2 and the relay fits its parameter', () => {
+  expect(Buffer.byteLength(getDevBoxUserData({ relayParameterName }))).toBeLessThanOrEqual(EC2_USER_DATA_LIMIT_BYTES);
+  expect(Buffer.byteLength(encodeRelayForParameter(DEV_BOX_RELAY_SOURCE))).toBeLessThanOrEqual(
+    DEV_BOX_RELAY_PARAMETER_LIMIT_BYTES
+  );
+});
+
+/**
+ * Runs the relay starter as systemd does, by real bash, base64 and gunzip, against a scripted instance metadata server.
+ * A fake `aws` answers the parameter's value or fails; a fake Python records what it was asked to run.
+ */
+const runStarter = async ({ parameter, installed }: { parameter?: string; installed?: string }) => {
+  server = Bun.serve({
+    port: 0,
+    fetch: (request) => {
+      const path = new URL(request.url).pathname;
+      if (path === '/latest/api/token') return new Response('token');
+      if (path === '/latest/meta-data/placement/region') return new Response('eu-west-3');
+      if (path === '/latest/meta-data/local-ipv4') return new Response('10.230.1.71');
+      return new Response('', { status: 404 });
+    }
+  });
+  directory = mkdtempSync(join(tmpdir(), 'stacktape-relay-starter-'));
+  const relay = join(directory, 'opt', 'relay.py');
+  if (installed !== undefined) {
+    mkdirSync(dirname(relay), { recursive: true });
+    writeFileSync(relay, installed);
+  }
+  const calls = join(directory, 'calls');
+  const value = join(directory, 'value');
+  if (parameter !== undefined) writeFileSync(value, `${parameter}\n`);
+  writeFileSync(
+    join(directory, 'aws'),
+    `#!/bin/bash\necho "aws $*" >> ${JSON.stringify(calls)}\n[ -f ${JSON.stringify(value)} ] || { echo 'Unable to locate credentials' >&2; exit 253; }\ncat ${JSON.stringify(value)}\n`
+  );
+  writeFileSync(join(directory, 'python'), `#!/bin/bash\necho "python $*" >> ${JSON.stringify(calls)}\n`);
+  for (const name of ['aws', 'python']) chmodSync(join(directory, name), 0o755);
+  writeFileSync(join(directory, 'starter.sh'), DEV_BOX_RELAY_STARTER_SCRIPT);
+  // Asynchronous: the metadata server answers in this process.
+  const child = Bun.spawn(['bash', join(directory, 'starter.sh'), relayParameterName], {
+    env: {
+      ...process.env,
+      PATH: `${directory}:${process.env.PATH}`,
+      STACKTAPE_IMDS_URL: `http://127.0.0.1:${server.port}`,
+      STACKTAPE_RELAY_PATH: relay,
+      STACKTAPE_PYTHON: join(directory, 'python')
+    },
+    stdout: 'ignore',
+    stderr: 'ignore'
+  });
+  return {
+    exitCode: await child.exited,
+    calls: existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : [],
+    relay: existsSync(relay) ? readFileSync(relay, 'utf8') : undefined,
+    relayPath: relay
+  };
+};
+
+test("the relay service installs the relay parameter's relay exactly as the CLI has it, then runs it", async () => {
+  const run = await runStarter({ parameter: encodeRelayForParameter(DEV_BOX_RELAY_SOURCE), installed: 'old relay' });
+  expect(run.exitCode).toBe(0);
+  expect(run.relay).toBe(DEV_BOX_RELAY_SOURCE);
+  expect(run.calls).toEqual([
+    `aws ssm get-parameter --region eu-west-3 --name ${relayParameterName} --query Parameter.Value --output text --cli-connect-timeout 5 --cli-read-timeout 10`,
+    `python ${run.relayPath} 10.230.1.71`
+  ]);
+});
+
+// The box starts without its instance profile, and SSM may not answer; the relay installed before still serves.
+test('without the parameter it runs the relay installed before, and without one it fails so systemd retries', async () => {
+  const kept = await runStarter({ installed: 'installed relay' });
+  expect({ exitCode: kept.exitCode, relay: kept.relay, ran: kept.calls.at(-1) }).toEqual({
+    exitCode: 0,
+    relay: 'installed relay',
+    ran: `python ${kept.relayPath} 10.230.1.71`
+  });
+  server?.stop(true);
+  rmSync(directory!, { recursive: true, force: true });
+  const corrupt = await runStarter({ parameter: 'not base64 gzip' });
+  expect({
+    exitCode: corrupt.exitCode,
+    relay: corrupt.relay,
+    ran: corrupt.calls.some((call) => call.startsWith('python'))
+  }).toEqual({
+    exitCode: 1,
+    relay: undefined,
+    ran: false
+  });
+});
+
+test('a relay update makes the relay service of a box of any age start the relay starter, and restarts it', () => {
+  const script = getDevBoxRelayUpdateScript(relayParameterName);
+  // A box created before contract 6 writes its own service file at every boot; the drop-in replaces its start command.
+  expect(script).toContain('stacktape-relay.service.d/');
+  expect(script).toContain(`ExecStart=\nExecStart=/usr/local/bin/stacktape-relay ${relayParameterName}\n`);
+  expect(script).toContain(DEV_BOX_RELAY_STARTER_SCRIPT);
+  expect(script.trim().split('\n').slice(-2)[0]).toBe('systemctl restart stacktape-relay');
+  // The user data of a new box starts the same starter.
+  expect(getDevBoxUserData({ relayParameterName })).toContain(
+    `ExecStart=/usr/local/bin/stacktape-relay ${relayParameterName}\n`
+  );
 });

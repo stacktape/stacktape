@@ -6,6 +6,7 @@ export type SharedStackDetails = {
   StackName?: string;
   StackStatus?: string;
   StackStatusReason?: string;
+  LastUpdatedTime?: Date;
   Parameters?: Array<{ ParameterKey?: string; ParameterValue?: string }>;
   Outputs?: Array<{ OutputKey?: string; OutputValue?: string }>;
   RoleARN?: string;
@@ -24,6 +25,11 @@ export type SharedStackRequirement = {
   roleArn?: string;
   stackName: string;
   template: CloudFormationTemplate;
+  /**
+   * Builds the template of an update from the deployed stack, read once it is stable. When the stack changes after this
+   * read (another updater finished meanwhile), the update is decided again from the new stack.
+   */
+  templateForUpdate?: (existing: SharedStackDetails) => Promise<CloudFormationTemplate>;
   beforeCreate: () => Promise<void>;
 };
 
@@ -83,6 +89,20 @@ const stackParameters = (parameters: Record<string, string>) =>
   Object.entries(parameters)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([ParameterKey, ParameterValue]) => ({ ParameterKey, ParameterValue }));
+
+/** What changes with every completed CloudFormation operation on a stack, for the shared stack's change check. */
+const stackChangeMarker = (stack: SharedStackDetails | undefined) =>
+  JSON.stringify([
+    stack?.StackId,
+    stack?.StackStatus,
+    stack?.LastUpdatedTime ? new Date(stack.LastUpdatedTime).getTime() : undefined,
+    getOutput(stack ?? {}, 'ContractVersion'),
+    stackParameters(
+      Object.fromEntries(
+        (stack?.Parameters ?? []).map(({ ParameterKey, ParameterValue }) => [ParameterKey, ParameterValue])
+      )
+    )
+  ]);
 
 const stackTags = (requirement: SharedStackRequirement) => [
   { Key: 'stacktape:shared-resource-kind', Value: requirement.kind },
@@ -257,10 +277,26 @@ export class SharedResourceStackManager {
       });
     }
 
+    let template = requirement.template;
+    if (requirement.templateForUpdate) {
+      template = await requirement.templateForUpdate(existing);
+      const current = await this.#adapter.get(requirement.stackName);
+      if (stackChangeMarker(current) !== stackChangeMarker(existing)) {
+        if (raceAttempt >= 3) {
+          throw sharedStackError({
+            code: 'SHARED_STACK_UPDATE_RACE_EXHAUSTED',
+            message: `Shared stack \`${requirement.stackName}\` kept changing while this update was prepared.`,
+            hints: 'Wait for the other CloudFormation update to finish, then retry.'
+          });
+        }
+        const stable = await this.#waitUntilStable(requirement.stackName, current);
+        return this.#reuseOrUpdate(requirement, stable, raceAttempt + 1);
+      }
+    }
     try {
       await this.#adapter.update({
         stackName: requirement.stackName,
-        template: requirement.template,
+        template,
         parameters: stackParameters(effectiveParameters),
         tags: stackTags(requirement)
       });

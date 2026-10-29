@@ -1,12 +1,14 @@
 import { base64, getAtt, getAzs, join, ref, select, sub } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource, type CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { getDevBoxUserData } from './boot-script';
+import { getDevNetworkRelayParameterName } from '@stacktape/naming/shared-stacks';
+import { encodeRelayForParameter, getDevBoxUserData } from './boot-script';
+import { DEV_BOX_RELAY_SOURCE } from './relay-source';
 
 /**
- * Increment when the template changes, the relay in the box user data included (`DEV_BOX_RELAY_VERSION`): an older
+ * Increment when the template changes, the relay in the relay parameter included (`DEV_BOX_RELAY_VERSION`): an older
  * network is updated on the next `stacktape dev` that uses it.
  */
-export const DEV_NETWORK_CONTRACT_VERSION = 5;
+export const DEV_NETWORK_CONTRACT_VERSION = 6;
 export const DEV_NETWORK_KIND = 'dev-network';
 export const DEV_BOX_IMAGE_PARAMETER = '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64';
 export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';
@@ -14,6 +16,19 @@ export const DEV_BOX_INSTANCE_TYPE = 't4g.nano';
 const VPC_CIDR = '10.230.0.0/16';
 const PUBLIC_SUBNET_CIDRS = ['10.230.0.0/20', '10.230.16.0/20'];
 const PRIVATE_SUBNET_CIDRS = ['10.230.128.0/20', '10.230.144.0/20'];
+
+/** The box's `UserData` property as a template holds it. */
+export type DevBoxUserDataProperty = { 'Fn::Base64': string };
+
+/** The box's user data in a deployed network template, when it has the shape this CLI writes. */
+export const readDevBoxUserData = (template: unknown): DevBoxUserDataProperty | undefined => {
+  const userData = (template as { Resources?: { Box?: { Properties?: { UserData?: unknown } } } } | undefined)
+    ?.Resources?.Box?.Properties?.UserData;
+  const encoded = (userData as Record<string, unknown> | undefined)?.['Fn::Base64'];
+  return typeof encoded === 'string' && Object.keys(userData as object).length === 1
+    ? { 'Fn::Base64': encoded }
+    : undefined;
+};
 
 const tags = (networkName: string, name: string) => [
   { Key: 'Name', Value: name },
@@ -36,10 +51,26 @@ const tags = (networkName: string, name: string) => [
  *   stack deletion waits for). The keeper uses the dev functions' combination and is never invoked, so dev stacks are
  *   created in seconds and deleted without that wait.
  *
+ * - `RelayParameter`, the relay the box runs. The relay service installs it whenever it starts, so a new relay reaches a
+ *   running box with a restart of the service (see `getDevBoxRelayUpdateScript`).
+ *
  * The image is a parameter resolved once at creation: a newer Amazon Linux image must not replace the box, which
  * would change its private IP.
+ *
+ * An existing network keeps its box's user data (`boxUserData`, read from its deployed template). CloudFormation stops
+ * the box to change it, and a running `stacktape dev` session, of an older CLI too, starts a stopped box again at once:
+ * the update then waits until someone stops the box (r2ab). Networks created before contract version 6 keep the user
+ * data that carries their first relay; the relay update installs a newer one over it.
  */
-export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }): CloudFormationTemplate => {
+export const buildDevNetworkTemplate = ({
+  networkName,
+  boxUserData
+}: {
+  networkName: string;
+  /** The user data of the deployed box, as its template has it. */
+  boxUserData?: DevBoxUserDataProperty;
+}): CloudFormationTemplate => {
+  const relayParameterName = getDevNetworkRelayParameterName(networkName);
   const resources: CloudFormationTemplate['Resources'] = {
     Vpc: cfnResource('AWS::EC2::VPC', {
       CidrBlock: VPC_CIDR,
@@ -135,8 +166,18 @@ export const buildDevNetworkTemplate = ({ networkName }: { networkName: string }
       // NAT: forwarded packets carry the dev functions' addresses.
       SourceDestCheck: false,
       InstanceInitiatedShutdownBehavior: 'stop',
-      UserData: base64(getDevBoxUserData()),
+      UserData: boxUserData ?? base64(getDevBoxUserData({ relayParameterName })),
       Tags: tags(networkName, `${networkName}-box`)
+    }),
+    // An advanced parameter: the compressed relay is larger than the 4 KB a standard one holds. The box role's
+    // AmazonSSMManagedInstanceCore policy allows reading it.
+    RelayParameter: cfnResource('AWS::SSM::Parameter', {
+      Name: relayParameterName,
+      Description: 'The relay of the Stacktape dev box, gzip and base64. The box installs it when its relay starts.',
+      Type: 'String',
+      Tier: 'Advanced',
+      Value: encodeRelayForParameter(DEV_BOX_RELAY_SOURCE),
+      Tags: { 'stacktape:dev-network': networkName }
     }),
     KeeperRole: cfnResource('AWS::IAM::Role', {
       AssumeRolePolicyDocument: {

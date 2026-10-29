@@ -21,7 +21,8 @@ import { formatTimeWithZone } from '@utils/formatting';
 
 const describeBoxState = (state: string | undefined) => {
   if (state === 'running') return 'running (about $0.01 per hour; it stops itself 30 minutes after the last session)';
-  if (state === 'stopped') return 'stopped (about $0.70 per month for its disk; the next `stacktape dev` starts it)';
+  if (state === 'stopped')
+    return 'stopped (about $0.75 per month for its disk and relay parameter; the next `stacktape dev` starts it)';
   return state ?? 'unknown';
 };
 
