@@ -73,6 +73,7 @@ import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
+import { chooseUpdateDeploymentMode } from './deployment-mode';
 import { isFirstDeployOfStack } from './first-deploy';
 import { DATA_RESOURCE_TYPES, templateWithoutResources } from './replace-in-failed-stack';
 import { getPlannedResources } from './progress-plan';
@@ -939,13 +940,35 @@ class StackManager {
     return result;
   };
 
-  deployStack = async (templateUrl: string, { finishWhenCleanupStarts = false } = {}) => {
+  /**
+   * `allowExpressMode` lets an update that only adds EventBridge rules use CloudFormation's express mode; see
+   * `chooseUpdateDeploymentMode`.
+   */
+  deployStack = async (templateUrl: string, { finishWhenCleanupStarts = false, allowExpressMode = false } = {}) => {
     const stackParams = this.getStackParams();
+    // Continuing a failed stack keeps its own rollback rules, so it keeps the standard mode.
+    const deploymentMode =
+      allowExpressMode && !this.continuesFailedStack
+        ? chooseUpdateDeploymentMode({
+            oldTemplate: templateManager.oldTemplate,
+            newTemplate: templateManager.template,
+            stackSettingChanged: !!this.findChangedStackSetting()
+          })
+        : 'STANDARD';
+    if (deploymentMode === 'EXPRESS') {
+      tuiManager.debug('Using CloudFormation express mode: the update only adds or changes EventBridge rules.');
+    }
     await operationReporter.startEvent({
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
-    const updateResult = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    const updateResult = await awsSdkManager.cloudFormation.update(templateUrl, {
+      ...stackParams,
+      // Express mode disables rollback unless told otherwise; it must agree with the stack's usual setting.
+      ...(deploymentMode === 'EXPRESS' && {
+        DeploymentConfig: { Mode: 'EXPRESS', DisableRollback: !!stackParams.DisableRollback }
+      })
+    });
     const { skipped } = updateResult;
     if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
@@ -1081,9 +1104,9 @@ class StackManager {
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
     try {
-      await awsSdkManager.cloudFormation.delete(this.#stackName, {
-        roleArn
-      });
+      // Express mode measured faster for deletes (queues, topics, rules, load balancer listeners), and it still waited
+      // for databases, caches, distributions, ECS services and network interfaces, leaving nothing behind.
+      await awsSdkManager.cloudFormation.delete(this.#stackName, { roleArn, express: true });
     } catch (err) {
       deleteRequested = false;
       throw err;
