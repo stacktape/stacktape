@@ -97,7 +97,6 @@ import {
   getFunctionCodeDigest,
   sharedLayerIdentity
 } from '@domain-services/deployment-artifact-manager/shared-layers';
-import { KEPT_CODE_PROPERTIES } from '@domain-services/deployment-artifact-manager/kept-function-code';
 
 /**
  * The shared layers tag of a function that uses shared chunk layers: which content each layer had when the function was
@@ -656,15 +655,6 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       S3Key: s3Key,
       S3Bucket: deploymentArtifactManager.deploymentBucketName
     };
-    // The deployed code runs with the handler, runtime, architecture and layers it was deployed with.
-    const kept = deploymentArtifactManager.getKeptFunctionCode(name);
-    if (kept) {
-      const properties = functionProperties as unknown as Record<string, unknown>;
-      for (const property of KEPT_CODE_PROPERTIES) {
-        if (property in kept.properties) properties[property] = kept.properties[property];
-        else delete properties[property];
-      }
-    }
 
     functionProperties.Tags = stackManager.getTags([
       ...(tags || []),

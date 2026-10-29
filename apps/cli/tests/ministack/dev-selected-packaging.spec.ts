@@ -12,12 +12,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
-import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { createHash } from 'node:crypto';
+import { GetFunctionConfigurationCommand, InvokeCommand, LambdaClient, ListTagsCommand } from '@aws-sdk/client-lambda';
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { withPersistedApiKey } from '../../src/app/global-state-manager/api-key-storage';
+import { parseBucketObjectS3Key } from '../../src/domain/deployment-artifact-manager/utils';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { parseYaml } from '../../src/utils/yaml';
 // oxlint-disable-next-line import/no-unassigned-import
 import './offline-preload';
@@ -110,8 +113,10 @@ type Status = {
   functionsNotInSession?: { name: string; codeDeployedAt?: string; message: string }[];
 };
 
-/** Starts a session, reads its status and stops it. */
-const runSession = async (logName: string, resources: string) => {
+type AgentCall = (method: 'GET' | 'POST', path: string) => Promise<Record<string, unknown>>;
+
+/** Starts a session, runs `during` against its agent, reads its status and stops it. */
+const runSession = async (logName: string, resources: string, during?: (call: AgentCall) => Promise<void>) => {
   const port = await freePort();
   const started = await runSourceCliCommand({
     project,
@@ -127,10 +132,16 @@ const runSession = async (logName: string, resources: string) => {
     const tokenFile = /"tokenFile":"([^"]+)"/.exec(started.stdout)?.[1];
     assert.ok(tokenFile, 'the start reports the agent token file');
     const token = (await readFile(tokenFile.replaceAll('\\\\', '\\'), 'utf8')).trim();
-    const response = await fetch(`http://127.0.0.1:${port}/status?verbose=true`, {
-      headers: { authorization: `Bearer ${token}` }
-    });
-    status = ((await response.json()) as { data?: Status }).data;
+    const call: AgentCall = async (method, path) =>
+      (await (
+        await fetch(`http://127.0.0.1:${port}${path}`, {
+          method,
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          ...(method === 'POST' ? { body: '{}' } : {})
+        })
+      ).json()) as Record<string, unknown>;
+    await during?.(call);
+    status = (await call('GET', '/status?verbose=true')).data as Status;
   } finally {
     const stopped = await runSourceCliCommand({
       project,
@@ -260,4 +271,147 @@ describe('a dev session builds only the functions it runs', () => {
       await fresh.close();
     }
   }, 300_000);
+
+  /** Runs `body` against a fresh project of its own. */
+  const withProject = async (familyName: string, body: () => Promise<void>) => {
+    const fresh = await createFamilyProject({ familyName, out, ministack });
+    await storeApiKey(fresh);
+    const previous = project;
+    project = fresh;
+    try {
+      await body();
+    } finally {
+      project = previous;
+      await fresh.close();
+    }
+  };
+
+  const twoFunctions = ({
+    workerEnvironment = '',
+    apiMemory = 256
+  }: {
+    workerEnvironment?: string;
+    apiMemory?: number;
+  }) =>
+    `resources:\n${['api', 'worker']
+      .map(
+        (name) =>
+          `  ${name}:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ${name}.ts\n      memory: ${name === 'api' ? apiMemory : 256}\n${name === 'worker' ? workerEnvironment : ''}`
+      )
+      .join('')}`;
+  const environment = (name: string, value: string) =>
+    `      environment:\n        - name: ${name}\n          value: ${value}\n`;
+  const readsVariable = (name: string) =>
+    `export default async () => ({ statusCode: 200, body: String(process.env.${name}) });\n`;
+
+  // Review of #395: old code with a configuration it was never run with broke the function without a word.
+  test('a left-out function whose configuration changed is built and deployed with it', async () => {
+    await withProject('devselectedenv', async () => {
+      await writeProjectFiles(project, {
+        'stacktape.yml': twoFunctions({ workerEnvironment: environment('OLD_TOKEN', 'abc') }),
+        'api.ts': handler('api', 'v1'),
+        'worker.ts': readsVariable('OLD_TOKEN')
+      });
+      await runSession('env-create-all', 'all');
+      expect(await invoke('worker')).toBe('abc');
+
+      // The source and the configuration move to NEW_TOKEN; the session runs only api.
+      await writeProjectFiles(project, {
+        'stacktape.yml': twoFunctions({ workerEnvironment: environment('NEW_TOKEN', 'xyz') }),
+        'worker.ts': readsVariable('NEW_TOKEN')
+      });
+      const renamed = await runSession('env-renamed', 'api');
+      expect(renamed.output).toContain('`worker` is not in this session, but its configuration changed');
+      expect(await invoke('worker')).toBe('xyz');
+      expect(renamed.status.functionsNotInSession?.map(({ name }) => name)).toEqual(['worker']);
+
+      // A configuration change that needs a build the function cannot pass fails the start and says why.
+      await writeProjectFiles(project, {
+        'stacktape.yml': twoFunctions({ workerEnvironment: environment('NEW_TOKEN', 'uvw') }),
+        'worker.ts': brokenHandler
+      });
+      const port = await freePort();
+      const failed = await runSourceCliCommand({
+        project,
+        ministack,
+        logName: 'env-changed-broken',
+        args: ['dev', '--agent', '--agentPort', String(port), '--resources', 'api'],
+        env: DEV_ENV
+      });
+      expect(failed.exitCode).not.toBe(0);
+      expect(`${failed.stdout}\n${failed.stderr}`).toContain('its configuration changed');
+      expect(`${failed.stdout}\n${failed.stderr}`).toContain('Fix its build to start.');
+      expect(await invoke('worker')).toBe('xyz');
+    });
+  }, 600_000);
+
+  /** What the template names for worker, its tags, and the bytes it runs, which must all agree. */
+  const workerIdentity = async () => {
+    const template = parseYaml(await getStackTemplate(cloudFormation, project.stackName)) as {
+      Resources: Record<
+        string,
+        { Properties?: { Code?: { S3Key?: string }; Tags?: { Key: string; Value: string }[] } }
+      >;
+    };
+    const properties = template.Resources[cfLogicalNames.lambda('worker')]!.Properties!;
+    const s3Key = properties.Code!.S3Key!;
+    const object = await s3.send(new GetObjectCommand({ Bucket: project.deploymentBucket, Key: s3Key }));
+    const storedSha = createHash('sha256')
+      .update(Buffer.from(await object.Body!.transformToByteArray()))
+      .digest('base64');
+    const functionName = awsResourceNames.lambda('worker', project.stackName);
+    const configuration = await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }));
+    const { Tags: liveTags = {} } = await lambda.send(new ListTagsCommand({ Resource: configuration.FunctionArn! }));
+    return {
+      keyDigest: parseBucketObjectS3Key(s3Key)?.digest,
+      templateTag: properties.Tags?.find(({ Key }) => Key === tagNames.artifactDigest())?.Value,
+      liveTag: liveTags[tagNames.artifactDigest()],
+      storedSha,
+      runningSha: configuration.CodeSha256
+    };
+  };
+  const expectConsistent = (identity: Awaited<ReturnType<typeof workerIdentity>>) => {
+    expect(identity.templateTag).toBe(identity.keyDigest);
+    expect(identity.liveTag).toBe(identity.keyDigest);
+    expect(identity.runningSha).toBe(identity.storedSha);
+  };
+
+  // Review of #395: a session deployed B directly; the update kept the template's A but wrote B's tags, and a rollback
+  // to that release restored A's bytes under B's identity.
+  test('code a session deployed directly stays consistent through a later update and a rollback', async () => {
+    await withProject('devselectedlive', async () => {
+      await writeProjectFiles(project, {
+        'stacktape.yml': twoFunctions({}),
+        'api.ts': handler('api', 'v1'),
+        'worker.ts': handler('worker', 'v1')
+      });
+      await runSession('live-create-all', 'all');
+      // The running session deploys worker v2 itself; the template still names v1.
+      await runSession('live-rebuild-worker', 'all', async (call) => {
+        await writeProjectFiles(project, { 'worker.ts': handler('worker', 'v2') });
+        const rebuilt = await call('POST', '/rebuild/worker');
+        assert.equal(rebuilt.ok, true, `rebuild failed: ${JSON.stringify(rebuilt)}`);
+      });
+      expect(await invoke('worker')).toBe('worker-v2');
+
+      // Leaving worker out updates the dev stack (release v000002), which must now name v2's object.
+      await runSession('live-subset', 'api');
+      expect(await invoke('worker')).toBe('worker-v2');
+      expectConsistent(await workerIdentity());
+
+      // A later release, then a rollback to v000002.
+      await writeProjectFiles(project, { 'stacktape.yml': twoFunctions({ apiMemory: 512 }) });
+      await runSession('live-subset-api-change', 'api');
+      const rolledBack = await runSourceCliCommand({
+        project,
+        ministack,
+        logName: 'live-rollback',
+        args: ['rollback', '--targetVersion', 'v000002'],
+        env: DEV_ENV
+      });
+      assert.equal(rolledBack.exitCode, 0, `rollback failed:\n${rolledBack.stdout.slice(-3000)}`);
+      expect(await invoke('worker')).toBe('worker-v2');
+      expectConsistent(await workerIdentity());
+    });
+  }, 600_000);
 });

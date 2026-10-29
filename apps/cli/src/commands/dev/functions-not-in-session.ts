@@ -1,22 +1,22 @@
-import type { _Object } from '@aws-sdk/client-s3';
 import { configManager } from '@domain-services/config-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { getTagValue } from '@domain-services/deployment-artifact-manager/shared-layers';
-import { parseBucketObjectS3Key } from '@domain-services/deployment-artifact-manager/utils';
-import { tagNames } from '@stacktape/naming/tag-names';
+import { getRunningArtifactDigest } from '@domain-services/deployment-artifact-manager/kept-function-code';
+import { templateManager } from '@domain-services/template-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 /**
  * A deployed function the session leaves out. It keeps running the code it ran before, or the code the dev stack built
- * for it when it had none, and changes to its source are not deployed: status says so, so that a request to it is not
- * taken for a test of the current source.
+ * for it, and changes to its source are not deployed: status says so, so that a request to it is not taken for a test
+ * of the current source.
  */
 export type FunctionNotInSession = {
   name: string;
   /** The digest of the artifact it runs, by its tags; none while an earlier update of its code did not finish. */
   artifactDigest?: string;
-  /** When the deployment bucket first stored that artifact, close to when it was deployed. */
+  /**
+   * When the function last changed (Lambda's `LastModified`). A dev stack update changes a function the session leaves
+   * out only together with its code (`findKeptFunctionsWithChangedConfiguration`), so this is when its code was deployed.
+   */
   codeDeployedAt?: string;
   message: string;
 };
@@ -26,12 +26,12 @@ const formatTime = (time: Date) => time.toISOString().replace(/:\d\d\.\d+Z$/, 'Z
 export const describeFunctionNotInSession = ({
   name,
   artifactDigest,
-  storedObjects
+  lastModified
 }: {
   name: string;
   artifactDigest: string | undefined;
-  /** The deployment bucket's objects; the earliest one with the function's name and digest dates its code. */
-  storedObjects: Pick<_Object, 'Key' | 'LastModified'>[];
+  /** The function's `LastModified`, when it could be read. */
+  lastModified: string | undefined;
 }): FunctionNotInSession => {
   if (artifactDigest === 'updating') {
     return {
@@ -40,25 +40,13 @@ export const describeFunctionNotInSession = ({
         'not in this session; an earlier update of its code did not finish, so it runs either the code before it or the code it deployed'
     };
   }
-  if (!artifactDigest) {
-    return {
-      name,
-      message: 'not in this session; runs the code deployed earlier, which may differ from your current source'
-    };
-  }
-  const storedAt = storedObjects
-    .filter(({ Key }) => {
-      const parsed = Key ? parseBucketObjectS3Key(Key) : undefined;
-      return parsed?.name === name && parsed.digest === artifactDigest;
-    })
-    .flatMap(({ LastModified }) => (LastModified ? [new Date(LastModified)] : []))
-    .toSorted((left, right) => left.getTime() - right.getTime())
-    .at(0);
+  const deployedAt = lastModified && !Number.isNaN(Date.parse(lastModified)) ? new Date(lastModified) : undefined;
+  const when = deployedAt ? `at ${formatTime(deployedAt)}` : 'earlier';
   return {
     name,
-    artifactDigest,
-    ...(storedAt ? { codeDeployedAt: storedAt.toISOString() } : {}),
-    message: `not in this session; runs the code deployed ${storedAt ? `at ${formatTime(storedAt)}` : 'earlier'} (artifact ${artifactDigest.slice(0, 12)}), which may differ from your current source`
+    ...(artifactDigest ? { artifactDigest } : {}),
+    ...(deployedAt ? { codeDeployedAt: deployedAt.toISOString() } : {}),
+    message: `not in this session; runs the code deployed ${when}${artifactDigest ? ` (artifact ${artifactDigest.slice(0, 12)})` : ''}, which may differ from your current source`
   };
 };
 
@@ -70,22 +58,27 @@ export const formatFunctionsNotInSessionNotice = (functions: FunctionNotInSessio
         .join('; ')}. Start the session with a function selected to run your current source.`
     : undefined;
 
-/** Reads what each function the session leaves out runs: its tags, and one listing of the deployment bucket. */
+/** Reads what each function the session leaves out runs, and since when: its tags and its configuration. */
 export const loadFunctionsNotInSession = async (names: ReadonlySet<string>): Promise<FunctionNotInSession[]> => {
   const functions = configManager.functions.filter(({ name }) => names.has(name));
-  if (!functions.length) return [];
-  const storedObjects = await awsSdkManager.s3
-    .listObjects(deploymentArtifactManager.deploymentBucketName)
-    .catch((): _Object[] => []);
-  return functions.map(({ name, cfLogicalName }) => {
-    const tags = stackManager.existingStackResources.find(
-      ({ LogicalResourceId }) => LogicalResourceId === cfLogicalName
-    )?.tags;
-    return describeFunctionNotInSession({
-      name,
-      // Older CLIs tagged only the code digest, which is the artifact digest of a function without shared layers.
-      artifactDigest: getTagValue(tags, tagNames.artifactDigest()) ?? getTagValue(tags, tagNames.codeDigest()),
-      storedObjects
-    });
-  });
+  return Promise.all(
+    functions.map(async ({ name, cfLogicalName, resourceName }) => {
+      const configuration = await awsSdkManager.lambda
+        .getFunctionDeployment({ lambdaResourceName: resourceName })
+        .then(({ Configuration }) => Configuration)
+        .catch(() => undefined);
+      return describeFunctionNotInSession({
+        name,
+        artifactDigest: getRunningArtifactDigest({
+          liveTags: stackManager.existingStackResources.find(
+            ({ LogicalResourceId }) => LogicalResourceId === cfLogicalName
+          )?.tags,
+          templateTags: (
+            templateManager.oldTemplate.Resources?.[cfLogicalName] as { Properties?: { Tags?: unknown } } | undefined
+          )?.Properties?.Tags
+        }),
+        lastModified: configuration?.LastModified
+      });
+    })
+  );
 };
