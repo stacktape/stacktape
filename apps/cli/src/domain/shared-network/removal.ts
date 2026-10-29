@@ -169,7 +169,7 @@ export const removeUnusedSharedNetwork = async ({
       if (deleting.length && !announcedWait) {
         announcedWait = true;
         report.info(
-          `No other stage uses the shared ${label}. Waiting for AWS to finish deleting ${listNames(deleting)}, then removing it (usually a few minutes, up to about 20 when functions release network interfaces). Stopping now keeps it; the next delete of a stage in the shared network removes it.`
+          `Every stage that uses the shared ${label} is being deleted. Waiting for AWS to finish deleting ${listNames(deleting)}; the shared ${label} is removed after that. This usually takes a few minutes, up to about 20 when functions release network interfaces. Stopping now keeps it; the next delete of a stage in the shared network removes it.`
         );
       }
       await wait(pollIntervalMs);
