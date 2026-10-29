@@ -2140,12 +2140,12 @@ describe('full synthesis contract', () => {
     for (const action of ['dynamodb:PutItem', 's3:ListBucket', 'sqs:SendMessage', 'events:PutEvents']) {
       expect(apiActions).toContain(action);
     }
-    // The dev agent only reads queues (see the dev agent role test).
-    const devAgentSqsActions = resources.StpDevAgentRole.Properties.Policies.find(
+    // The debug agent only reads queues (see the agent role tests).
+    const debugAgentSqsActions = resources.StpDebugAgentRole.Properties.Policies.find(
       ({ PolicyName }: { PolicyName: string }) => PolicyName === 'sqs-access'
     ).PolicyDocument.Statement[0].Action;
-    expect(devAgentSqsActions).toContain('sqs:GetQueueAttributes');
-    expect(devAgentSqsActions).not.toContain('sqs:SendMessage');
+    expect(debugAgentSqsActions).toContain('sqs:GetQueueAttributes');
+    expect(debugAgentSqsActions).not.toContain('sqs:SendMessage');
     for (const method of ['GET', 'PUT', 'POST', 'DELETE']) {
       expect(resources.FilesBucket.Properties.CorsConfiguration.CorsRules[0].AllowedMethods).toContain(method);
     }
