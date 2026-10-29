@@ -75,6 +75,7 @@ import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
 import { isFirstDeployOfStack } from './first-deploy';
+import { templateWithoutResources } from './replace-in-failed-stack';
 import { getPlannedResources } from './progress-plan';
 import {
   cfFailedEventHandlers,
@@ -453,10 +454,80 @@ class StackManager {
     return this.stackActionType !== 'dev' && isFailedStackStatus(this.existingStackDetails?.StackStatus);
   }
 
+  /** Existing resources this deploy's update replaces, recorded by {@link planUpdate}. */
+  #replacedResources: string[] = [];
+
+  /**
+   * Records which existing resources the update replaces. CloudFormation replaces a resource only in an update that may
+   * roll back, so such an update rolls back on failure even when automatic rollback is off. A stack that a failed deploy
+   * left in CREATE_FAILED or UPDATE_FAILED can only be updated without rollback: a stack that was never deployed
+   * successfully first removes the resources to replace (see {@link getTemplateBeforeReplacing}); a deployed one has to
+   * be recovered first, which this reports before anything changes.
+   */
+  planUpdate = (templateDiff: TemplateDiff) => {
+    const existing = new Set(this.existingStackResources.map(({ LogicalResourceId }) => LogicalResourceId));
+    const replaced: string[] = [];
+    templateDiff.resources?.forEachDifference((logicalId, diff) => {
+      const replaces =
+        diff.changeImpact === ResourceImpact.WILL_REPLACE || diff.changeImpact === ResourceImpact.MAY_REPLACE;
+      if (replaces && existing.has(logicalId)) replaced.push(logicalId);
+    });
+    this.#replacedResources = replaced.toSorted();
+    // Fails before anything is uploaded or changed when the failed stack cannot be continued.
+    this.getTemplateBeforeReplacing();
+  };
+
   /** Whether CloudFormation rolls this operation back when it fails. */
   get rollsBackOnFailure() {
-    return this.isAutoRollbackEnabled && !this.continuesFailedStack;
+    if (this.continuesFailedStack) return false;
+    if (this.isAutoRollbackEnabled) return true;
+    return this.stackActionType === 'update' && this.#replacedResources.length > 0;
   }
+
+  /** Why this update rolls back on failure although automatic rollback is off, for the deploy output. */
+  get reasonForRollbackOfUpdate(): string | undefined {
+    if (this.continuesFailedStack || this.isAutoRollbackEnabled || this.stackActionType !== 'update') return undefined;
+    if (!this.#replacedResources.length) return undefined;
+    return `This deploy replaces ${this.#replacedResources.join(', ')}. CloudFormation replaces resources only in a deploy it may roll back, so if this deploy fails, it is rolled back.`;
+  }
+
+  /**
+   * The template to deploy before the full one when this deploy continues a failed stack and replaces resources: the
+   * new template without those resources and everything that depends on them. Undefined when no such step is needed.
+   * Throws when the stack cannot be continued: it was deployed successfully before (its resources may serve traffic),
+   * or the step would delete a data store.
+   */
+  getTemplateBeforeReplacing = (): { template: CloudFormationTemplate; removedResources: string[] } | undefined => {
+    if (!this.continuesFailedStack || !this.#replacedResources.length) return undefined;
+    const replaced = this.#replacedResources.join(', ');
+    const status = this.existingStackDetails.StackStatus;
+    if (!this.isFirstDeploy) {
+      throw new ExpectedError(
+        'EXISTING_STACK',
+        `The last deploy failed and left the stack in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy.`,
+        [
+          `Run ${tuiManager.prettyCommand('stack recover')} to return the stack to the last successful deploy, then deploy again.`
+        ]
+      );
+    }
+    const { template, removedResources, removedDataResources } = templateWithoutResources(
+      templateManager.template,
+      this.#replacedResources
+    );
+    if (removedDataResources.length) {
+      throw new ExpectedError(
+        'EXISTING_STACK',
+        `The first deploy of this stack failed and left it in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy, and removing them first would also delete ${removedDataResources.join(', ')}.`,
+        [`Run ${tuiManager.prettyCommand('delete')} to remove the failed stack, then deploy again.`]
+      );
+    }
+    // Without the version output, a failure of the full deploy still leaves a stack that was never deployed.
+    const { [outputNames.deploymentVersion()]: _version, ...outputs } = template.Outputs ?? {};
+    return {
+      template: { ...template, ...(Object.keys(outputs).length ? { Outputs: outputs } : { Outputs: undefined }) },
+      removedResources
+    };
+  };
 
   /**
    * Why this deploy must go through CloudFormation although only code changed: a direct code update would leave the
@@ -1531,6 +1602,18 @@ class StackManager {
               })
             : getHintsAfterStackFailureOperation({ cfStackAction, stackId, rolledBack: false, isFirstDeploy: false });
         // Merge all hints - error-specific hints first, then general hints
+        // CloudFormation refuses to replace resources in an update without rollback, and a deploy that continues the
+        // failed stack cannot roll back either. Only a recovery (or, for a stack never deployed, a delete) gets past it.
+        const replacementRefused = Object.values(potentialErrorCausingEvents).some(({ ResourceStatusReason }) =>
+          /replacement[^.]* (are )?not (supported|allowed)/i.test(ResourceStatusReason ?? '')
+        );
+        if (replacementRefused) {
+          errorSpecificHints.push(
+            this.isFirstDeploy
+              ? `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('delete')}, then deploy again.`
+              : `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('stack recover')}, then deploy again.`
+          );
+        }
         const allHints = [...errorSpecificHints, ...generalHints];
         return reject(
           new ExpectedError(
@@ -1726,7 +1809,8 @@ class StackManager {
                       isFirstDeploy: this.isFirstDeploy,
                       stillRunning: true
                     })
-                  : undefined
+                  : undefined,
+                { stackOperationStillRunning: true }
               )
             );
           }

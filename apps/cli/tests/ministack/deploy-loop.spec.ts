@@ -395,8 +395,20 @@ describe('offline deploy loop against MiniStack', () => {
 
 /** The stack boundary deliberately fails; artifact discovery and deletion remain real SDK operations. */
 describe('failed deployment artifacts', () => {
-  for (const failureType of ['STACK', 'STACK_MONITORING'] as const) {
-    test(`a ${failureType} failure ${failureType === 'STACK' ? 'cleans the failed version' : 'retains artifacts while the outcome is uncertain'}`, async () => {
+  for (const { failureType, stillRunning, name } of [
+    { failureType: 'STACK', stillRunning: false, name: 'a STACK failure cleans the failed version' },
+    {
+      failureType: 'STACK_MONITORING',
+      stillRunning: false,
+      name: 'a STACK_MONITORING failure retains artifacts while the outcome is uncertain'
+    },
+    {
+      failureType: 'STACK',
+      stillRunning: true,
+      name: 'a failure reported while CloudFormation still updates retains artifacts the stack uses'
+    }
+  ] as const) {
+    test(name, async () => {
       const { awsSdkManager } = await import('../../src/utils/aws-sdk-manager');
       const { deploymentArtifactManager } = await import('../../src/domain/deployment-artifact-manager');
       const { stackManager } = await import('../../src/domain/cloudformation-stack-manager');
@@ -429,13 +441,19 @@ describe('failed deployment artifacts', () => {
         deploymentArtifactManager.successfullyCreatedObjects = [];
         deploymentArtifactManager.deploymentBucketName = bucket;
         await deploymentArtifactManager.loadPreviousBucketObjects(bucket, 'update');
-        const failure = new ExpectedError(failureType, 'Injected deployment failure');
+        const failure = new ExpectedError(
+          failureType,
+          'Injected deployment failure',
+          undefined,
+          stillRunning ? { stackOperationStillRunning: true } : undefined
+        );
         await expect(
           performFullDeploy({
             deploymentArtifacts: deploymentArtifactManager,
             stack: {
               rollsBackOnFailure: true,
               continuesFailedStack: false,
+              getTemplateBeforeReplacing: () => undefined,
               stackActionType: 'update',
               createStack: async () => {
                 throw new Error('The stack exists.');
@@ -450,7 +468,7 @@ describe('failed deployment artifacts', () => {
         const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
           .map(({ Key }) => Key)
           .toSorted();
-        expect(keys).toEqual(failureType === 'STACK' ? [liveKey] : [liveKey, failedKey].toSorted());
+        expect(keys).toEqual(failureType === 'STACK' && !stillRunning ? [liveKey] : [liveKey, failedKey].toSorted());
       } finally {
         s3.destroy();
       }
@@ -499,6 +517,7 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
       stack: {
         rollsBackOnFailure: false,
         continuesFailedStack: true,
+        getTemplateBeforeReplacing: () => undefined,
         stackActionType: 'update',
         createStack: async () => {
           throw new Error('The stack exists.');

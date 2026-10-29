@@ -69,6 +69,9 @@ type FullDeployOperation = {
     deleteAllObsoleteArtifacts: () => Promise<unknown>;
     deleteArtifactsFixedDeploy: () => Promise<unknown>;
     deleteArtifactsRollbackedDeploy: () => Promise<unknown>;
+    uploadPreviewTemplate: (input: {
+      body: string;
+    }) => Promise<{ templateUrl: string; deleteTemplate: () => Promise<unknown> }>;
   };
   stack: {
     createStack: (
@@ -82,6 +85,7 @@ type FullDeployOperation = {
     rollsBackOnFailure: boolean;
     /** This deploy continues a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
     continuesFailedStack: boolean;
+    getTemplateBeforeReplacing: () => { template: object; removedResources: string[] } | undefined;
     stackActionType: string;
   };
   tui: Pick<DeployOperation['tui'], 'info' | 'warn'>;
@@ -322,6 +326,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // CloudFormation, which takes seconds instead of minutes.
   let fastDeployPlan: FastDeployPlan | undefined;
   if (stack.stackActionType !== 'create') {
+    stack.planUpdate(cfTemplateDiff);
     const reason =
       stack.reasonToContinueFailedStack ??
       stack.findChangedStackSetting() ??
@@ -386,6 +391,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       dangerousResources
     });
     tui.info(formatDeploymentChangePlanSummary(changePlan));
+    if (stack.reasonForRollbackOfUpdate) tui.info(stack.reasonForRollbackOfUpdate);
     const replacedComputeEnvironments =
       stack.stackActionType === 'update'
         ? findReplacedBatchComputeEnvironments({
@@ -674,6 +680,22 @@ export const prepareArtifactsForStackDeployment = async ({
 
 export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: FullDeployOperation) => {
   try {
+    // Continuing a failed first deploy cannot replace resources, so the ones to replace are deleted first and the full
+    // template then creates them again.
+    const beforeReplacing = stack.getTemplateBeforeReplacing();
+    if (beforeReplacing) {
+      tui.info(
+        `Continuing the failed deploy replaces resources, which CloudFormation cannot do in this state. Removing ${beforeReplacing.removedResources.join(', ')} first; the deploy then creates them again.`
+      );
+      const { templateUrl, deleteTemplate } = await deploymentArtifacts.uploadPreviewTemplate({
+        body: JSON.stringify(beforeReplacing.template)
+      });
+      try {
+        await stack.deployStack(templateUrl, { finishWhenCleanupStarts: false });
+      } finally {
+        await deleteTemplate();
+      }
+    }
     // The deploy is done once CloudFormation starts deleting the resources it removed or replaced. The next command
     // that modifies the stack waits for that cleanup and reports deletions that failed.
     const { warningMessages, resourcesDeletedInBackground } =
@@ -689,10 +711,14 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
       );
     }
   } catch (err) {
-    // cleanup in case error happened during deploy
-    // when only monitoring failed, we do not know if stack operation failed or succeeded.
-    // in such case we should not delete artifacts as that could result in broken stack
-    if (stack.rollsBackOnFailure && (err as ExpectedError).type !== 'STACK_MONITORING') {
+    // Cleanup in case the deploy was rolled back. When only monitoring failed, the outcome is unknown, and when the CLI
+    // reported a failure while CloudFormation still runs (a container that cannot start), the stack still uses the new
+    // artifacts. Deleting them then could break it.
+    if (
+      stack.rollsBackOnFailure &&
+      (err as ExpectedError).type !== 'STACK_MONITORING' &&
+      !(err as ExpectedError).metadata?.stackOperationStillRunning
+    ) {
       await deploymentArtifacts.deleteArtifactsRollbackedDeploy();
     }
     throw err;

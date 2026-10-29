@@ -444,3 +444,54 @@ describe('continuing a stack an earlier deploy left failed', () => {
     });
   });
 });
+
+describe('an update that replaces resources', () => {
+  const oldTemplate = {
+    Resources: {
+      Db: { Type: 'AWS::RDS::DBInstance', Properties: { DBInstanceClass: 'db.t4g.micro' } },
+      Task: { Type: 'AWS::ECS::TaskDefinition', Properties: { Cpu: '256', Memory: '512' } },
+      Service: { Type: 'AWS::ECS::Service', Properties: { TaskDefinition: { Ref: 'Task' } } }
+    },
+    Outputs: { StpDeploymentVersion: { Value: 'v000001' } }
+  };
+  const newTemplate = {
+    ...oldTemplate,
+    Resources: {
+      ...oldTemplate.Resources,
+      Task: { ...oldTemplate.Resources.Task, Properties: { Cpu: '512', Memory: '1024' } }
+    }
+  };
+
+  const plan = (status: StackDetails['StackStatus'], { deployed }: { deployed: boolean }) => {
+    globalStateManager.rawCommands = ['deploy'];
+    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    templateManager.template = structuredClone(newTemplate) as never;
+    stackManager.existingStackDetails = {
+      ...stackDetails(status),
+      Outputs: deployed ? [{ OutputKey: 'StpDeploymentVersion', OutputValue: 'v000001' }] : []
+    };
+    stackManager.existingStackResources = ['Db', 'Task'].map((LogicalResourceId) => ({ LogicalResourceId })) as never;
+    stackManager.planUpdate(diffTemplate(oldTemplate, newTemplate));
+  };
+
+  test('a healthy stack rolls this update back on failure, because CloudFormation replaces only then', () => {
+    plan('UPDATE_COMPLETE', { deployed: true });
+    expect(stackManager.rollsBackOnFailure).toBe(true);
+    expect(stackManager.reasonForRollbackOfUpdate).toContain('Task');
+    expect(stackManager.getTemplateBeforeReplacing()).toBeUndefined();
+  });
+
+  test('a failed first deploy first removes what it replaces and what depends on it, keeping the database', () => {
+    plan('CREATE_FAILED', { deployed: false });
+    expect(stackManager.rollsBackOnFailure).toBe(false);
+    const step = stackManager.getTemplateBeforeReplacing();
+    expect(step?.removedResources).toEqual(['Service', 'Task']);
+    expect(Object.keys(step!.template.Resources)).toEqual(['Db']);
+    // A failure of the full deploy must still leave a stack that was never deployed.
+    expect(step!.template.Outputs).toBeUndefined();
+  });
+
+  test('a deployed stack left in UPDATE_FAILED is not changed and is recovered first', () => {
+    expect(() => plan('UPDATE_FAILED', { deployed: true })).toThrow(/cannot do while it continues a failed deploy/);
+  });
+});

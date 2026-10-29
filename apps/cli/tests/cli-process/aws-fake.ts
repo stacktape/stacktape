@@ -257,6 +257,9 @@ export const startAwsFake = async ({
         state.stack.status = 'UPDATE_ROLLBACK_IN_PROGRESS';
         updateObserved = 0;
         return xml(200, wrapResult(action, ''));
+      // A rollback over a failed stack validates the stored template before it updates the stack.
+      case 'ValidateTemplate':
+        return xml(200, wrapResult('ValidateTemplate', '<Parameters/>'));
       case 'UpdateStack':
       case 'CreateStack':
       case 'CancelUpdateStack':
