@@ -57,7 +57,11 @@ const withMonitor = async (
     events: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getEvents'>>;
     getDetails: ReturnType<typeof spyOn<typeof awsSdkManager.cloudFormation, 'getDetails'>>;
   }) => Promise<void>,
-  { finishWhenCleanupStarts = false, removedResources = [] as string[] } = {}
+  {
+    finishWhenCleanupStarts = false,
+    removedResources = [] as string[],
+    operationId
+  }: { finishWhenCleanupStarts?: boolean; removedResources?: string[]; operationId?: string } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
     operationReporter.setSilentMode(true);
@@ -82,7 +86,10 @@ const withMonitor = async (
     );
     let state: 'pending' | 'resolved' | 'rejected' = 'pending';
     try {
-      const monitoring = stackManager.monitorStack('update', stackName, () => {}, { finishWhenCleanupStarts });
+      const monitoring = stackManager.monitorStack('update', stackName, () => {}, {
+        finishWhenCleanupStarts,
+        operationId
+      });
       monitoring.then(
         () => (state = 'resolved'),
         () => (state = 'rejected')
@@ -131,6 +138,29 @@ test("the previous update's final status cannot complete this update", async () 
     expect(settled()).toBe('pending');
     expect(getDetails).not.toHaveBeenCalled();
   });
+});
+
+test("a second update in a row does not take the first one's events for its own", async () => {
+  const ofOperation = (event: MonitoredStackEvent, OperationId: string) => ({ ...event, OperationId });
+  await withMonitor(
+    async ({ settled, poll, events }) => {
+      events.mockResolvedValue([
+        ofOperation(stackEvent('UPDATE_COMPLETE', 10), 'first'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 1), 'first')
+      ]);
+      await poll(2);
+      expect(settled()).toBe('pending');
+      events.mockResolvedValue([
+        ofOperation(stackEvent('UPDATE_COMPLETE', 40), 'second'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 20), 'second'),
+        ofOperation(stackEvent('UPDATE_COMPLETE', 10), 'first'),
+        ofOperation(stackEvent('UPDATE_IN_PROGRESS', 1), 'first')
+      ]);
+      await poll();
+      expect(settled()).toBe('resolved');
+    },
+    { operationId: 'second' }
+  );
 });
 
 test('the stack status finishes monitoring when the completion event is missed', async () => {

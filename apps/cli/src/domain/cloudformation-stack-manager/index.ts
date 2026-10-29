@@ -907,7 +907,8 @@ class StackManager {
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
-    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    const updateResult = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    const { skipped } = updateResult;
     if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack(
@@ -920,7 +921,7 @@ class StackManager {
             detail: progress.detail
           });
         },
-        { finishWhenCleanupStarts }
+        { finishWhenCleanupStarts, operationId: 'OperationId' in updateResult ? updateResult.OperationId : undefined }
       );
       if (finishWhenCleanupStarts) {
         this.#resourcesRemovedByUpdate = new Set(
@@ -1231,7 +1232,8 @@ class StackManager {
     onProgress: (progress: StackProgressUpdate) => any,
     {
       finishWhenCleanupStarts = false,
-      createdTemplate = templateManager.initialTemplate
+      createdTemplate = templateManager.initialTemplate,
+      operationId
     }: {
       /** The template a `create` operation creates the stack from. */
       createdTemplate?: CloudFormationTemplate;
@@ -1241,6 +1243,11 @@ class StackManager {
        * next command that modifies the stack waits for it.
        */
       finishWhenCleanupStarts?: boolean;
+      /**
+       * The operation to monitor. A deploy can run two updates in a row, and the events of the first one, still within
+       * the polling window, must not be taken for the second one's.
+       */
+      operationId?: string;
     } = {}
   ): Promise<StackMonitoringResult> => {
     const handledEvents: string[] = [];
@@ -1677,6 +1684,7 @@ class StackManager {
             const lastStackEvent = stackEvents.find((stackEvent) => {
               return (
                 this.#isCloudformationStackEvent({ stackEvent }) &&
+                (!operationId || !stackEvent.OperationId || stackEvent.OperationId === operationId) &&
                 this.#stackStatusSignalsStackOperationStart({
                   stackStatus: stackEvent.ResourceStatus as StackStatus,
                   cfStackAction
