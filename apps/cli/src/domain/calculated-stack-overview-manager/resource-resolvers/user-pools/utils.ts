@@ -13,7 +13,8 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
 import { hasProperties } from '@utils/misc';
-import { ExpectedError } from '@utils/errors';
+import { CliError, ExpectedError } from '@utils/errors';
+import { tuiManager } from '@application-services/tui-manager';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import type { AttributeSchema } from '@stacktape/config/user-pools';
 
@@ -177,6 +178,56 @@ export const getSnsRoleSendSmsFromCognito = (userPoolName: string) =>
     }
   });
 
+/** Cognito accepts access and ID tokens valid for 5 minutes to 1 day. */
+const TOKEN_VALIDITY_SECONDS = { min: 300, max: 86_400, default: 3600 };
+/** Cognito accepts refresh tokens valid for up to 10 years; Stacktape sets them in whole days. */
+const REFRESH_TOKEN_VALIDITY_DAYS = { min: 1, max: 3650, default: 30 };
+/**
+ * Before v4 the client sent token lifetimes without `TokenValidityUnits`, so Cognito read them in hours and accepted
+ * only 1 to 24. No valid number of seconds is that small, so such a value keeps its old meaning.
+ */
+const LEGACY_TOKEN_VALIDITY_HOURS_MAX = 24;
+
+const getTokenValiditySeconds = (
+  property: 'accessTokenValiditySeconds' | 'idTokenValiditySeconds',
+  value: number | undefined,
+  userPoolName: string
+) => {
+  if (value === undefined) return TOKEN_VALIDITY_SECONDS.default;
+  if (Number.isInteger(value) && value >= 1 && value <= LEGACY_TOKEN_VALIDITY_HOURS_MAX) {
+    tuiManager.warn(
+      `\`${property}: ${value}\` on user auth pool \`${userPoolName}\` is read as ${value} hour${value === 1 ? '' : 's'}, ` +
+        `as before Stacktape v4. Write \`${property}: ${value * 3600}\` to keep this lifetime.`
+    );
+    return value * 3600;
+  }
+  if (!Number.isInteger(value) || value < TOKEN_VALIDITY_SECONDS.min || value > TOKEN_VALIDITY_SECONDS.max) {
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_USER_AUTH_POOL_TOKEN_VALIDITY_INVALID',
+      message:
+        `\`${property}\` on user auth pool \`${userPoolName}\` is ${value}. Cognito accepts a whole number of seconds ` +
+        `from ${TOKEN_VALIDITY_SECONDS.min} (5 minutes) to ${TOKEN_VALIDITY_SECONDS.max} (1 day).`,
+      hints: `For a one-hour token, set \`${property}: 3600\`.`
+    });
+  }
+  return value;
+};
+
+const getRefreshTokenValidityDays = (value: number | undefined, userPoolName: string) => {
+  if (value === undefined) return REFRESH_TOKEN_VALIDITY_DAYS.default;
+  if (!Number.isInteger(value) || value < REFRESH_TOKEN_VALIDITY_DAYS.min || value > REFRESH_TOKEN_VALIDITY_DAYS.max) {
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_USER_AUTH_POOL_TOKEN_VALIDITY_INVALID',
+      message:
+        `\`refreshTokenValidityDays\` on user auth pool \`${userPoolName}\` is ${value}. Cognito accepts a whole number ` +
+        `of days from ${REFRESH_TOKEN_VALIDITY_DAYS.min} to ${REFRESH_TOKEN_VALIDITY_DAYS.max} (10 years).`
+    });
+  }
+  return value;
+};
+
 export const getUserPoolClientResource = (
   {
     accessTokenValiditySeconds,
@@ -195,31 +246,18 @@ export const getUserPoolClientResource = (
   }: StpUserAuthPool,
   userPoolName: string
 ) => {
-  if (accessTokenValiditySeconds && (accessTokenValiditySeconds > 86400 || accessTokenValiditySeconds < 1)) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `accessTokenValiditySeconds for user-pool ${userPoolName} must be between 1 and 86400`
-    );
-  }
-  if (idTokenValiditySeconds && (idTokenValiditySeconds > 86400 || idTokenValiditySeconds < 1)) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `idTokenValiditySeconds for user-pool ${userPoolName} must be between 1 and 86400`
-    );
-  }
-  if (refreshTokenValidityDays && (refreshTokenValidityDays > 315360000 || refreshTokenValidityDays < 0)) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `refreshTokenValidityDays for user-pool ${userPoolName} must be between 1 and 86400`
-    );
-  }
   // const usesIdentityProviders = !!identityProviders?.length || enableHostedUi;
   const allowedCallbackUrls = callbackURLs || ['http://localhost:3000/api/auth/callback/cognito'];
   return cfnResource('AWS::Cognito::UserPoolClient', {
     UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
-    AccessTokenValidity: accessTokenValiditySeconds || 1,
-    IdTokenValidity: idTokenValiditySeconds || 1,
-    RefreshTokenValidity: refreshTokenValidityDays || 30,
+    AccessTokenValidity: getTokenValiditySeconds(
+      'accessTokenValiditySeconds',
+      accessTokenValiditySeconds,
+      userPoolName
+    ),
+    IdTokenValidity: getTokenValiditySeconds('idTokenValiditySeconds', idTokenValiditySeconds, userPoolName),
+    RefreshTokenValidity: getRefreshTokenValidityDays(refreshTokenValidityDays, userPoolName),
+    TokenValidityUnits: { AccessToken: 'seconds', IdToken: 'seconds', RefreshToken: 'days' },
     AllowedOAuthFlowsUserPoolClient: true,
     AllowedOAuthFlows: allowedOAuthFlows || ['code', 'implicit'],
     ExplicitAuthFlows: allowedAuthFlows ?? [

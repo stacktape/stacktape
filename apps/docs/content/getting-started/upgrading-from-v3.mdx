@@ -51,6 +51,10 @@ The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `
 
 A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
 
+## User auth pool token lifetimes
+
+v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito without a unit, so Cognito read them in hours and accepted only 1 to 24. v4 sends them in seconds. A value from 1 to 24 keeps its meaning in hours, and the CLI warns you to write it in seconds: replace `accessTokenValiditySeconds: 1` with `accessTokenValiditySeconds: 3600`. Unset lifetimes stay at 1 hour, and deploying updates the user pool client in place. See [token lifetimes](/resources/security/user-auth-pool#token-lifetimes).
+
 ## Packaging
 
 v4 replaces the v3 packaging types with a smaller set:

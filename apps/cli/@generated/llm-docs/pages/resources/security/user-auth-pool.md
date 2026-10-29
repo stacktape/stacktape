@@ -461,13 +461,13 @@ new UserAuthPool({
 
 ## Token lifetimes
 
-Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
+Stacktape lets you control how long tokens issued by the user pool remain valid:
 
-| Property | Controls |
-|---|---|
-| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid, in seconds |
-| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid, in seconds |
-| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens, in days |
+| Property | Controls | Allowed values | Default |
+|---|---|---|---|
+| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens | 1 to 3650 days | 30 |
 
 
 Example (TypeScript):
@@ -489,7 +489,9 @@ export default defineConfig(() => {
 ```
 
 
-Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. The `UserAuthPoolProps` type does not document Stacktape-specific defaults for token lifetimes; set these values explicitly when they matter for your application.
+Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. The defaults, 1 hour for access and ID tokens and 30 days for refresh tokens, are a common starting point.
+
+Before Stacktape v4, Cognito read `accessTokenValiditySeconds` and `idTokenValiditySeconds` in hours, so only values from 1 to 24 deployed. Such a value still means that many hours, and the CLI warns you to write it in seconds instead: `accessTokenValiditySeconds: 1` becomes `accessTokenValiditySeconds: 3600`.
 
 ## Custom attributes
 
@@ -589,7 +591,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `accessTokenValiditySeconds` | no | `number` | - |
+| `accessTokenValiditySeconds` | no | `number` | `3600` |
 | `allowEmailAsUserName` | no | `boolean` | `true` |
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
@@ -605,14 +607,14 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `hooks` | no | `UserPoolHooks` | - |
 | `hostedUiCSS` | no | `string` | - |
 | `hostedUiDomainPrefix` | no | `string` | - |
-| `idTokenValiditySeconds` | no | `number` | - |
+| `idTokenValiditySeconds` | no | `number` | `3600` |
 | `identityProviders` | no | `Array<IdentityProvider>` | - |
 | `inviteMessageConfig` | no | `InviteMessageConfig` | - |
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |
 | `passwordPolicy` | no | `PasswordPolicy` | - |
 | `readAttributes` | no | `Array<string>` | - |
-| `refreshTokenValidityDays` | no | `number` | - |
+| `refreshTokenValidityDays` | no | `number` | `30` |
 | `requireEmailVerification` | no | `boolean` | - |
 | `requirePhoneNumberVerification` | no | `boolean` | - |
 | `schema` | no | `Array<AttributeSchema>` | - |
