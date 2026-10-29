@@ -604,7 +604,8 @@
           "Fn::GetAtt": ["ProcessorFunction", "Arn"]
         },
         "StartingPosition": "TRIM_HORIZON"
-      }
+      },
+      "DependsOn": ["AuroraDbInstance0"]
     },
     "ProcessorRole": {
       "Type": "AWS::IAM::Role",
@@ -800,7 +801,25 @@
                 ",",
                 [
                   {
-                    "Fn::GetAtt": ["AuroraDbInstance0", "Endpoint.Address"]
+                    "Fn::Join": [
+                      "",
+                      [
+                        "j2-v3-baseline-j2base-aurora-0.",
+                        {
+                          "Fn::Select": [
+                            1,
+                            {
+                              "Fn::Split": [
+                                ".cluster-",
+                                {
+                                  "Fn::GetAtt": ["AuroraDbCluster", "Endpoint.Address"]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   }
                 ]
               ]
@@ -1637,11 +1656,13 @@
                     "batch:DescribeJobDefinitions",
                     "batch:DescribeJobQueues",
                     "batch:DescribeComputeEnvironments",
-                    "batch:ListJobs",
-                    "batch:SubmitJob",
-                    "batch:TerminateJob",
-                    "batch:ListTagsForResource"
+                    "batch:ListJobs"
                   ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["batch:SubmitJob", "batch:TerminateJob", "batch:ListTagsForResource"],
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
