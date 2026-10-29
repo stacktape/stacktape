@@ -867,12 +867,12 @@ describe('early database and cache deletes', () => {
     }
   });
 
-  test('deletes nothing itself when the stack events before the request cannot be read', async () => {
+  test('does not start the delete when the stack events before the request cannot be read', async () => {
     await withDeleteFixture(
       [db, redis],
       async ({ calls }) => {
-        await stackManager.deleteStack();
-        expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /), 'cloudformation:monitor']);
+        await expect(stackManager.deleteStack()).rejects.toThrow(/its delete was not started/);
+        expect(calls).toEqual([]);
       },
       { ...available, deletionPolicies, priorEvents: new Error('Throttling: Rate exceeded') }
     );

@@ -1129,8 +1129,8 @@ class StackManager {
 
     const stackId = this.existingStackDetails.StackId;
     // DeleteStack returns no operation ID. This delete's events are newer than every event the stack has now, such as
-    // those of an earlier attempt that failed seconds ago. When they cannot be read, Stacktape deletes nothing itself.
-    const { startedAfter, priorEventsKnown } = await this.#eventsFenceBeforeDelete(stackId);
+    // those of an earlier attempt that failed seconds ago.
+    const startedAfter = await this.#eventsFenceBeforeDelete(stackId);
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
     try {
@@ -1151,10 +1151,7 @@ class StackManager {
         throw err;
       }));
     deletingEarly = resourceDeletesStarted
-      .then(
-        (started) =>
-          started && priorEventsKnown && this.#startEarlyDeletes({ stackId, earlyDeleted, roleArn, getDeletedTemplate })
-      )
+      .then((started) => started && this.#startEarlyDeletes({ stackId, earlyDeleted, roleArn, getDeletedTemplate }))
       .catch((err) => tuiManager.debug(`Could not start deleting resources early: ${err}`));
     let result: StackMonitoringResult;
     try {
@@ -1187,21 +1184,31 @@ class StackManager {
   /**
    * The AWS time after which the next delete's events start: the newest event the stack has now, within the window the
    * monitor reads. Without a recent event, two seconds before now (the clock sync has one-second resolution) is enough,
-   * because nothing older is read. `priorEventsKnown` is false when the events could not be read.
+   * because nothing older is read. Without the events, a delete retried right after a failed one could take the failed
+   * attempt for its own, so the delete does not start.
    */
-  #eventsFenceBeforeDelete = async (stackId: string) => {
+  #eventsFenceBeforeDelete = async (stackId: string): Promise<Date> => {
     const now = await getAwsSynchronizedTime();
     const fallback = new Date(now.getTime() - 2000);
-    try {
-      const recentEvents = await awsSdkManager.cloudFormation.getEvents(stackId, new Date(now.getTime() - 60_000));
-      const newest = recentEvents.reduce<Date | undefined>(
-        (latest, { Timestamp }) => (Timestamp && (!latest || Timestamp > latest) ? Timestamp : latest),
-        undefined
-      );
-      return { startedAfter: newest && newest > fallback ? newest : fallback, priorEventsKnown: true };
-    } catch (err) {
-      tuiManager.debug(`Could not read the stack's events before deleting it: ${err}`);
-      return { startedAfter: fallback, priorEventsKnown: false };
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const recentEvents = await awsSdkManager.cloudFormation.getEvents(stackId, new Date(now.getTime() - 60_000));
+        const newest = recentEvents.reduce<Date | undefined>(
+          (latest, { Timestamp }) => (Timestamp && (!latest || Timestamp > latest) ? Timestamp : latest),
+          undefined
+        );
+        return newest && newest > fallback ? newest : fallback;
+      } catch (err) {
+        tuiManager.debug(`Could not read the stack's events before deleting it (attempt ${attempt}): ${err}`);
+        if (attempt === 3) {
+          throw new ExpectedError(
+            'STACK_MONITORING',
+            `Could not read the events of stack ${this.#stackName}, so its delete was not started: ${err}`,
+            ['Run the delete again.']
+          );
+        }
+        await wait(1000 * attempt);
+      }
     }
   };
 
