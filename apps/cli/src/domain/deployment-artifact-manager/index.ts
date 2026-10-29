@@ -71,6 +71,7 @@ import {
 } from './shared-layers';
 import type { KeptFunctionCode } from './kept-function-code';
 import { templateManager } from '@domain-services/template-manager';
+import { keepServiceLambdaCodeForRollback } from '@domain-services/template-manager/service-lambda-created-resources';
 import {
   DEPLOYMENT_BUCKET_CORS_RULES,
   getDeploymentBucketPolicy
@@ -1462,6 +1463,13 @@ class DeploymentArtifactManager {
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
     const template = await this.getTemplate({ version: sourceVersion });
     codeSwapIntegration.rollbackTemplate(template);
+    if (stackManager.lastVersion && stackManager.lastVersion !== sourceVersion) {
+      keepServiceLambdaCodeForRollback({
+        rollbackTemplate: template,
+        deployedTemplate: await this.getTemplate({ version: stackManager.lastVersion }),
+        serviceLambdaLogicalName: cfLogicalNames.lambda('stacktapeServiceLambda', true)
+      });
+    }
     const copies: Promise<unknown>[] = [];
     this.#restoredFunctionTags = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {

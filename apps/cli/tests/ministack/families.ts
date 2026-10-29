@@ -26,7 +26,12 @@ import {
   DescribeTaskDefinitionCommand,
   ECSClient
 } from '@aws-sdk/client-ecs';
-import { DescribeEventBusCommand, EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import {
+  DescribeEventBusCommand,
+  DescribeRuleCommand,
+  EventBridgeClient,
+  PutEventsCommand
+} from '@aws-sdk/client-eventbridge';
 import {
   GetFunctionConfigurationCommand,
   GetLayerVersionByArnCommand,
@@ -288,7 +293,8 @@ export const families: Family[] = [
       // The stack also holds Stacktape's deployment bucket; only the configured bucket is the customer's.
       const bucket = context.physical('BucketBucket');
       await assertBucketKeepsData(context, bucket, true);
-      const [queue] = context.physicalOfType('AWS::SQS::Queue');
+      // A new stack's queue is created by the service Lambda (`Custom::StpSqsQueue`); its physical ID is the same URL.
+      const [queue] = [...context.physicalOfType('AWS::SQS::Queue'), ...context.physicalOfType('Custom::StpSqsQueue')];
       assert.ok(queue, 'the stack has no queue');
       const url = queueUrl(context.endpoint, queue);
       const attributes = await context.clients.sqs.send(
@@ -563,6 +569,15 @@ export const absenceProbes: Record<string, (clients: EffectClients, endpoint: st
       clients.sqs.send(
         new GetQueueAttributesCommand({ QueueUrl: queueUrl(endpoint, id), AttributeNames: ['QueueArn'] })
       ),
+    'Custom::StpSqsQueue': (clients, endpoint, id) =>
+      clients.sqs.send(
+        new GetQueueAttributesCommand({ QueueUrl: queueUrl(endpoint, id), AttributeNames: ['QueueArn'] })
+      ),
+    // The physical ID is the rule name, or `<bus>|<name>` on another bus.
+    'Custom::StpEventsRule': (clients, _endpoint, id) => {
+      const [name, eventBusName] = id.split('|').reverse();
+      return clients.events.send(new DescribeRuleCommand({ Name: name, EventBusName: eventBusName }));
+    },
     'AWS::ApiGatewayV2::Api': (clients, _endpoint, id) => clients.apiGateway.send(new GetRoutesCommand({ ApiId: id })),
     // ECS keeps deleted clusters and services as INACTIVE, and Application Auto Scaling answers an empty list.
     'AWS::ECS::Cluster': async (clients, _endpoint, id) => {

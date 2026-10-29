@@ -22,6 +22,7 @@ export const statefulCloudformationTypes = [
   'AWS::Cognito::UserPool',
   'AWS::Kinesis::Stream',
   'AWS::SQS::Queue',
+  'Custom::StpSqsQueue',
   'AWS::MSK::ServerlessCluster',
   'AWS::ElastiCache::ReplicationGroup',
   'AWS::ElastiCache::ServerlessCache',

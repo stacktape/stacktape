@@ -240,10 +240,17 @@ describe('offline deploy loop against MiniStack', () => {
                 previousTemplate,
                 'the unconfirmed deploy changed the stack'
               );
-              // Version 1 plus a FIFO queue: SQS can only create a FIFO queue under a new name.
-              const proposed = family.config(1) as { resources: { queue: { properties: Record<string, unknown> } } };
-              proposed.resources.queue.properties.fifoEnabled = true;
-              await writeProjectFiles(project, { 'stacktape.yml': proposed });
+              // Version 1 plus a FIFO queue: SQS can only create a FIFO queue under a new name. The service Lambda
+              // created the queue, and a new name would replace it and delete its messages, so diff refuses before
+              // planning anything.
+              const fifo = family.config(1) as { resources: { queue: { properties: Record<string, unknown> } } };
+              fifo.resources.queue.properties.fifoEnabled = true;
+              await writeProjectFiles(project, { 'stacktape.yml': fifo });
+              const refused = await runSourceCli({ project, step: 'diff', ministack, logName: 'fifo-refused' });
+              assert.notEqual(refused.exitCode, 0, 'diff planned a replacement of a queue the service Lambda created');
+              assert.match(refused.tail, /SERVICE_LAMBDA_QUEUE_REPLACEMENT/);
+              // Version 1: the queue's visibility timeout goes back to 60 s, an update in place.
+              await writeProjectFiles(project, { 'stacktape.yml': family.config(1) });
             }
             // The unchanged redeploy still records a release because the stack syncs bucket content. The final rollback
             // counts back from v000004 (the partial rollback below) to v000001.
@@ -311,11 +318,10 @@ describe('offline deploy loop against MiniStack', () => {
                 (result.changeSummary?.updates ?? 0) > 0,
                 'diff did not report the proposed configuration update'
               );
-              assert.ok(
-                result.resourceChanges
-                  ?.find(({ resourceName }) => resourceName === 'queue')
-                  ?.willReplace.some((label) => label.endsWith('(SQS::Queue)')),
-                `diff did not report the queue replacement CloudFormation planned: ${JSON.stringify(result.resourceChanges)}`
+              assert.equal(
+                result.resourceChanges?.find(({ resourceName }) => resourceName === 'queue')?.action,
+                'update',
+                `diff did not report the queue update: ${JSON.stringify(result.resourceChanges)}`
               );
               assert.equal(template, previousTemplate, 'diff changed the deployed template');
               assert.deepEqual(resourceSnapshot(resources), resourceSnapshot(previous ?? []), 'diff changed resources');

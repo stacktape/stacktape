@@ -166,7 +166,31 @@ export type StpServiceCustomResourceInstanceProfileProps = {
   probeSubnetId: string | Intrinsic;
 };
 
+/**
+ * An SQS queue created by the service Lambda instead of `AWS::SQS::Queue`, whose CloudFormation handler waits about
+ * 60 s after every create. The properties are the queue's final `AWS::SQS::Queue` properties, so overrides and transforms
+ * apply to them as before. CloudFormation passes every scalar to a custom resource as a string.
+ */
+export type StpServiceCustomResourceSqsQueueProps = { [property: string]: unknown };
+
+/**
+ * An EventBridge rule created by the service Lambda instead of `AWS::Events::Rule`, whose CloudFormation handler waits
+ * about 30 s after `PutRule` and 30 s after `PutTargets`. The properties are the rule's final `AWS::Events::Rule`
+ * properties plus the generated `Name` and the stack's `Tags`; `EventPattern` is a JSON string, so CloudFormation does
+ * not turn its numbers and booleans into strings.
+ */
+export type StpServiceCustomResourceEventsRuleProps = { [property: string]: unknown };
+
+/**
+ * An SQS queue policy set by the service Lambda instead of `AWS::SQS::QueuePolicy`, whose CloudFormation handler waits
+ * about 30 s. `PolicyDocument` is JSON text, so CloudFormation does not turn its values into strings.
+ */
+export type StpServiceCustomResourceSqsQueuePolicyProps = { PolicyDocument: unknown; Queues: unknown[] };
+
 export type StpServiceCustomResourceProperties = {
+  sqsQueue?: StpServiceCustomResourceSqsQueueProps;
+  sqsQueuePolicy?: StpServiceCustomResourceSqsQueuePolicyProps;
+  eventsRule?: StpServiceCustomResourceEventsRuleProps;
   instanceProfile?: StpServiceCustomResourceInstanceProfileProps;
   natRoutes?: StpServiceCustomResourceNatRoutesProps;
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];

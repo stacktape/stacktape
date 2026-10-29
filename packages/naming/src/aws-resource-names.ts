@@ -815,6 +815,12 @@ export const awsResourceNames = {
   stackOperationsLogGroup() {
     return '/stp/stack-operations';
   },
+  // max 64 chars https://docs.aws.amazon.com/eventbridge/latest/APIReference/API_PutRule.html
+  // An EventBridge rule the service Lambda creates. CloudFormation names an `AWS::Events::Rule` without a name
+  // `<stack>-<logical ID>-<random>`; the service Lambda needs a stable name that starts with the stack name.
+  serviceLambdaEventsRule(stackName: string, cfLogicalName: string) {
+    return buildResourceName({ proposedResourceName: `${stackName}-${cfLogicalName}`, lengthLimit: 64 });
+  },
   // limit 80 https://docs.aws.amazon.com/cli/latest/reference/sqs/create-queue.html
   sqsQueue(stpResourceName: string, stackName: string, isFifo: boolean) {
     return buildResourceName({

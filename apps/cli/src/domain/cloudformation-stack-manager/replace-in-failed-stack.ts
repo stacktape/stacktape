@@ -1,4 +1,5 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import { STP_SQS_QUEUE_TYPE } from '@helper-lambdas/stacktapeServiceLambda/custom-resources/created-resource-properties';
 
 /** Resource types that hold data. Removing one to replace something it depends on would delete that data. */
 export const DATA_RESOURCE_TYPES: ReadonlySet<string> = new Set([
@@ -12,6 +13,8 @@ export const DATA_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   'AWS::ElastiCache::ReplicationGroup',
   'AWS::Kinesis::Stream',
   'AWS::SQS::Queue',
+  // An SQS queue the service Lambda created (`createNewQueuesAndRulesThroughServiceLambda`).
+  STP_SQS_QUEUE_TYPE,
   'AWS::S3::Bucket',
   'MongoDB::StpAtlasV1::Cluster',
   'AWS::Cognito::UserPool',
