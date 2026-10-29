@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { chooseUpdateDeploymentMode } from './deployment-mode';
+import { chooseDeleteDeploymentMode, chooseUpdateDeploymentMode } from './deployment-mode';
 
 const fn = { Type: 'AWS::Lambda::Function', Properties: { MemorySize: 256 } };
 const rule = (rate: string) => ({
@@ -87,6 +87,25 @@ describe('chooseUpdateDeploymentMode', () => {
         newTemplate: { Resources: { FnEvent0Rule: rule('rate(1 hour)') } } as never,
         stackSettingChanged: false
       })
+    ).toBe('STANDARD');
+  });
+});
+
+describe('chooseDeleteDeploymentMode', () => {
+  test('stacks without an ElastiCache user group delete in express mode', () => {
+    expect(chooseDeleteDeploymentMode(['AWS::SQS::Queue', 'AWS::ElastiCache::ReplicationGroup', undefined])).toBe(
+      'EXPRESS'
+    );
+    expect(chooseDeleteDeploymentMode([])).toBe('EXPRESS');
+  });
+
+  test('a serverless cache stack waits for its user group before deleting the user', () => {
+    expect(
+      chooseDeleteDeploymentMode([
+        'AWS::ElastiCache::ServerlessCache',
+        'AWS::ElastiCache::UserGroup',
+        'AWS::ElastiCache::User'
+      ])
     ).toBe('STANDARD');
   });
 });
