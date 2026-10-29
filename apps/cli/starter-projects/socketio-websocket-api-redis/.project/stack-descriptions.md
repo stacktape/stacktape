@@ -15,21 +15,24 @@ resources:
     type: application-load-balancer
 ```
 
-### 1.2 Redis Cluster
+### 1.2 Redis cache
 
-The application uses an in-VPC Redis cluster for session synchronization. It is used by the
+The application uses an in-VPC Redis cache for session synchronization. It is used by the
 [Socket.IO Redis adapter](https://socket.io/docs/v4/redis-adapter/) to synchronize state when scaling to multiple
 Socket.IO container instances.
 
-The cluster runs on a `cache.t3.micro` instance with Redis engine version 7.1. You can also configure
-[other properties](https://docs.stacktape.com/resources/redis-clusters/) if desired.
+The cache runs Valkey (Redis-compatible) on a `cache.t4g.micro` node. You can also configure
+[other properties](https://docs.stacktape.com/resources/databases/redis/) if desired.
 
 ```yml
 redis:
-  type: redis-cluster
+  type: redis
   properties:
-    instanceSize: cache.t3.micro
-    engineVersion: "7.1"
+    defaultUserPassword: $Secret('redis.password')
+    engine:
+      type: valkey
+      properties:
+        instanceSize: cache.t4g.micro
 ```
 
 ### 1.3 Container workload
@@ -43,9 +46,9 @@ Socket.IO server runs inside a container workload with a single container. The w
     Stacktape automatically transpiles and builds the application code with all of its dependencies, builds the Docker
     image, and pushes it to a pre-created image repository on AWS. You can also use
     [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-multi-container-workloads).
-  - **ConnectTo list** - we are adding redis cluster `redis` into `connectTo` list. By doing this, Stacktape will
+  - **ConnectTo list** - we are adding the Redis cache `redis` into `connectTo` list. By doing this, Stacktape will
     automatically inject relevant environment variables into the compute resource's runtime (such as the redis host and
-    port required for connecting to the cluster).
+    port required for connecting to the cache).
   - Events that reach the container. Load balancer event is configured to forward all incoming connections with path
     `/`(used for load balancer healthcheck) or `/websockets*`(used for websocket connection) to the container's port
     `3000`.

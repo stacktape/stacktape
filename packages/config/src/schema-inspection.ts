@@ -41,7 +41,7 @@ const COMPUTE_RESOURCES = new Set<StacktapeResourceType>([
 const DATABASE_RESOURCES = new Set<StacktapeResourceType>([
   'relational-database',
   'dsql-database',
-  'redis-cluster',
+  'redis',
   'dynamo-db-table',
   'open-search-domain'
 ]);

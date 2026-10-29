@@ -1,6 +1,6 @@
 # Deployment Scripts
 
-A Stacktape deployment script runs a [Lambda function](/resources/compute/lambda-function) automatically during stack deployment or deletion. Use it for database migrations, seed data, cache warming, or cleanup tasks that need to execute inside AWS. With `connectTo` and `joinDefaultVpc`, deployment scripts can reach VPC-protected resources like databases and Redis clusters. Deployment scripts use AWS Lambda pricing — you pay per invocation and for compute time measured in GB-seconds.
+A Stacktape deployment script runs a [Lambda function](/resources/compute/lambda-function) automatically during stack deployment or deletion. Use it for database migrations, seed data, cache warming, or cleanup tasks that need to execute inside AWS. With `connectTo` and `joinDefaultVpc`, deployment scripts can reach VPC-protected resources like databases and Redis caches. Deployment scripts use AWS Lambda pricing — you pay per invocation and for compute time measured in GB-seconds.
 
 ## When to use
 
@@ -34,7 +34,7 @@ Not every deploy-time task needs a deployment script. Consider alternatives:
 | Can run manually | yes | yes |
 
 
-Lifecycle hooks run a `local-script` on your machine or CI runner. For commands that need to reach VPC-protected resources, define a `local-script-with-bastion-tunneling` script — it still runs locally, but tunnels connections through a [bastion host](/resources/security/bastion-host) to supported protected resources, including relational databases and Redis clusters. Set the optional `bastionResource` property when you need to pick a specific bastion. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
+Lifecycle hooks run a `local-script` on your machine or CI runner. For commands that need to reach VPC-protected resources, define a `local-script-with-bastion-tunneling` script — it still runs locally, but tunnels connections through a [bastion host](/resources/security/bastion-host) to supported protected resources, including relational databases and Redis caches. Set the optional `bastionResource` property when you need to pick a specific bastion. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
 
 ## Basic example
 
@@ -187,7 +187,7 @@ When you list a resource in `connectTo`, Stacktape:
 For example, connecting to a resource named `mainDatabase` injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
 
 
-> **Info:** For VPC-protected resources like [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), you must also set `joinDefaultVpc: true`. Without it, the Lambda function runs outside the VPC and cannot reach these resources. Note that joining the VPC means the function loses direct internet access — this is standard AWS Lambda VPC behavior. If your script also needs to call external APIs, either configure NAT Gateways in your VPC for outbound internet routing, or split the work into a VPC-joined script for database access and a separate non-VPC script for external API calls.
+> **Info:** For VPC-protected resources like [relational databases](/resources/databases/relational-database) and [Redis caches](/resources/databases/redis), you must also set `joinDefaultVpc: true`. Without it, the Lambda function runs outside the VPC and cannot reach these resources. Note that joining the VPC means the function loses direct internet access — this is standard AWS Lambda VPC behavior. If your script also needs to call external APIs, either configure NAT Gateways in your VPC for outbound internet routing, or split the work into a VPC-joined script for database access and a separate non-VPC script for external API calls.
 
 
 You can also add raw IAM policy statements with `iamRoleStatements` for AWS services not covered by `connectTo` — for example, calling Amazon Bedrock or writing to a cross-account S3 bucket.
@@ -266,7 +266,7 @@ Deployment scripts are Lambda functions, so the maximum execution time is 900 se
 
 ### Should I use a deployment script or a lifecycle hook for migrations?
 
-Use a deployment script when the migration needs direct VPC access to the database; this is usually the cleanest Stacktape-native path when the migration fits within Lambda limits. A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs to reach VPC-protected resources, a `local-script-with-bastion-tunneling` script runs locally and can tunnel connections to supported protected resources, including relational databases and Redis clusters, through a [bastion host](/resources/security/bastion-host); set the optional `bastionResource` property when you need to choose a specific bastion.
+Use a deployment script when the migration needs direct VPC access to the database; this is usually the cleanest Stacktape-native path when the migration fits within Lambda limits. A deployment script runs inside AWS as a Lambda function, so it can reach VPC-protected databases when `joinDefaultVpc` is enabled. Use a lifecycle hook with a `local-script` when the migration tool doesn't package well as a Lambda or takes longer than 15 minutes. If the local script needs to reach VPC-protected resources, a `local-script-with-bastion-tunneling` script runs locally and can tunnel connections to supported protected resources, including relational databases and Redis caches, through a [bastion host](/resources/security/bastion-host); set the optional `bastionResource` property when you need to choose a specific bastion.
 
 ### How much does running a deployment script cost?
 

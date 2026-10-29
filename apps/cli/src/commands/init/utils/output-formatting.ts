@@ -50,7 +50,7 @@ export const formatResourceType = (type: string, resource?: any): string => {
     'solidstart-web': 'SolidStart web',
     'tanstack-web': 'TanStack web',
     'remix-web': 'Remix web',
-    'redis-cluster': 'Redis cluster',
+    redis: 'Redis',
     'dynamo-db-table': 'DynamoDB table',
     'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
     'open-search-domain': 'OpenSearch domain',

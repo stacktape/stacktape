@@ -1441,14 +1441,36 @@ const getPricingInformationForResource = async ({
       underTheHoodLink: 'https://docs.stacktape.com/compute-resources/private-services/#under-the-hood'
     };
   }
-  if (resource.type === 'redis-cluster') {
+  if (resource.type === 'redis') {
+    const { engine } = resource.properties;
+    if (engine.type === 'valkey-serverless') {
+      const priceInfo = await getCumulatedPriceInfoForProducts({
+        dynamoDbTableName,
+        region,
+        products: [productsInfo.AmazonElastiCache.serverless()]
+      });
+      return {
+        priceInfo,
+        relatedAwsPricingDocs: {
+          'AWS Elasticache pricing': 'https://aws.amazon.com/elasticache/pricing/'
+        },
+        customComment:
+          'Billed per GB stored and per request. The listed rates are for Redis OSS; Valkey Serverless costs 33% less, with a 100 MB minimum (about $6/month when idle in us-east-1).',
+        underTheHoodLink: 'https://docs.stacktape.com/resources/databases/redis/'
+      };
+    }
+    // The price catalog holds Redis OSS node prices; AWS prices Valkey nodes 20% lower.
+    const engineMultiplier = engine.type === 'valkey' ? 0.8 : 1;
     const priceInfo = await getCumulatedPriceInfoForProducts({
       dynamoDbTableName,
       region,
       products: [
         {
-          ...productsInfo.AmazonElastiCache.instance({ instanceType: resource.properties.instanceSize }),
-          multiplier: (resource.properties.numReplicaNodes || 0) + 1
+          ...productsInfo.AmazonElastiCache.instance({ instanceType: engine.properties.instanceSize }),
+          multiplier:
+            ((engine.properties.numReplicaNodes || 0) + 1) *
+            (engine.properties.enableSharding ? engine.properties.numShards || 1 : 1) *
+            engineMultiplier
         }
       ]
     });
@@ -1457,7 +1479,7 @@ const getPricingInformationForResource = async ({
       relatedAwsPricingDocs: {
         'AWS Elasticache pricing': 'https://aws.amazon.com/elasticache/pricing/'
       },
-      underTheHoodLink: 'https://docs.stacktape.com/database-resources/redis-clusters/'
+      underTheHoodLink: 'https://docs.stacktape.com/resources/databases/redis/'
     };
   }
   if (resource.type === 'relational-database') {

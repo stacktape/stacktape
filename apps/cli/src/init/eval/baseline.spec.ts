@@ -27,7 +27,7 @@ const CASES: EvalCase[] = [
     },
     expect: {
       dependencyKinds: ['postgres', 'redis'],
-      resources: { orders: 'web-service', mainDatabase: 'relational-database', cache: 'redis-cluster' },
+      resources: { orders: 'web-service', mainDatabase: 'relational-database', cache: 'redis' },
       deployable: true,
       maxQuestions: 0
     }

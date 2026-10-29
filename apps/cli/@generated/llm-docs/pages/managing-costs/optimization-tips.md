@@ -173,7 +173,7 @@ Enabling `multiAz` on a standard RDS instance creates a synchronous standby repl
 
 For key-value and document workloads, [DynamoDB](/resources/databases/dynamodb) in on-demand mode costs nothing at zero traffic. You pay per read and write operation with no idle cost. This makes it ideal for applications with unpredictable or spiky access patterns. Switch to provisioned throughput only when your traffic is steady and predictable enough to forecast capacity needs.
 
-For Redis use cases that don't require sub-millisecond latency from a dedicated cluster, consider [Upstash Redis](/resources/databases/upstash-redis) — a serverless, pay-per-request Redis with no idle cost. [Redis clusters](/resources/databases/redis) bill per-hour for always-on instances regardless of utilization, so they're only cost-effective when you need consistent low-latency access under sustained load.
+For Redis use cases that don't require sub-millisecond latency from a dedicated cluster, consider [Upstash Redis](/resources/databases/upstash-redis) — a serverless, pay-per-request Redis with no idle cost. [Redis caches](/resources/databases/redis) bill per-hour for always-on instances regardless of utilization, so they're only cost-effective when you need consistent low-latency access under sustained load.
 
 ## Add a CDN for cacheable traffic
 
@@ -217,7 +217,7 @@ If you need long-term log storage for compliance, consider [forwarding logs](/ob
 
 ## Delete unused stages
 
-Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis clusters.
+Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis caches.
 
 Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
 

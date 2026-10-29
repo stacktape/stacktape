@@ -64,17 +64,17 @@ The `seedBucket` script uses `connectTo` to receive the same bucket connection d
 
 ### Local script with bastion tunneling
 
-When your database or Redis cluster has no public endpoint, `local-script-with-bastion-tunneling` runs locally and tunnels connections to VPC-only resources through a [bastion host](/resources/security/bastion-host). This lets you keep using local CLI tools (Prisma, `psql`, `redis-cli`) against resources that aren't publicly reachable.
+When your database or Redis cache has no public endpoint, `local-script-with-bastion-tunneling` runs locally and tunnels connections to VPC-only resources through a [bastion host](/resources/security/bastion-host). This lets you keep using local CLI tools (Prisma, `psql`, `redis-cli`) against resources that aren't publicly reachable.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RedisCluster, Bastion } from 'stacktape';
+import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
-  const cache = new RedisCluster({
-    instanceSize: 'cache.t4g.micro',
-    defaultUserPassword: "$Secret('redis.password')"
+  const cache = new Redis({
+    defaultUserPassword: "$Secret('redis.password')",
+    engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
 
@@ -105,11 +105,11 @@ A bastion script runs directly on the bastion EC2 instance inside your VPC, with
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RedisCluster, Bastion } from 'stacktape';
+import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
-  const cache = new RedisCluster({
-    instanceSize: 'cache.t4g.micro',
-    defaultUserPassword: "$Secret('redis.password')"
+  const cache = new Redis({
+    defaultUserPassword: "$Secret('redis.password')",
+    engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
 
@@ -122,7 +122,7 @@ export default defineConfig(() => {
           bastionResource: 'bastion',
           executeCommands: [
             'yum install -y redis6 2>/dev/null || yum install -y redis',
-            'redis-cli -h $STP_CACHE_HOST -p $STP_CACHE_PORT PING'
+            'redis-cli --tls -h $STP_CACHE_HOST -p $STP_CACHE_PORT PING'
           ],
           connectTo: ['cache']
         }

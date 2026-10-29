@@ -58,7 +58,7 @@ beforeAll(async () => {
   port = (server.address() as AddressInfo).port;
   for (const [key, value] of Object.entries({
     databases: [],
-    redisClusters: [],
+    redisCaches: [],
     dynamoDbTables: [{ name: 'orders', primaryKey: { partitionKey: { name: 'id', type: 'string' } } }]
   }))
     Object.defineProperty(configManager, key, { configurable: true, value });

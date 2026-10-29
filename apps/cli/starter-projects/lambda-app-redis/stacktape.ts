@@ -3,7 +3,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging,
   LambdaFunction,
-  RedisCluster,
+  Redis,
   defineConfig
 } from '../../__release-npm';
 
@@ -13,10 +13,9 @@ export default defineConfig(() => {
       enabled: true
     }
   });
-  const redis = new RedisCluster({
+  const redis = new Redis({
     defaultUserPassword: "$Secret('redis.password')",
-    instanceSize: 'cache.t3.micro',
-    engineVersion: '7.1'
+    engine: { type: 'valkey-serverless' }
   });
   const storeKeyValuePair = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({

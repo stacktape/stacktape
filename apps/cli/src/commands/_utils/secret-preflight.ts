@@ -186,7 +186,7 @@ const updateDevSecretOwnership = async ({
  *
  * Missing secrets are split into two categories:
  * - **Auto-generable**: used in known database password fields (relational-database masterUserPassword,
- *   redis-cluster defaultUserPassword, mongo-db-atlas-cluster adminUserCredentials.password).
+ *   redis defaultUserPassword, mongo-db-atlas-cluster adminUserCredentials.password).
  *   These are auto-generated with secure random values (with confirmation in interactive mode).
  * - **User-input**: used elsewhere (API tokens, third-party credentials, etc.).
  *   The user is prompted to enter the value interactively. In non-interactive mode,

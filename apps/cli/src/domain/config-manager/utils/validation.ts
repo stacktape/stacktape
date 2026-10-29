@@ -273,6 +273,7 @@ export const validateConfigStructure = async ({
   config: StacktapeConfig;
   configPath: string;
 }) => {
+  validateNoLegacyRedisClusters({ config });
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
@@ -284,6 +285,50 @@ export const validateConfigStructure = async ({
       message: zodResult.errorMessage
     });
   }
+};
+
+/**
+ * Stacktape v4 renamed `redis-cluster` to `redis` and moved the node settings under `engine`. The schema error alone
+ * would not say how to keep an existing cache, so a v3 resource gets the exact replacement for its settings.
+ */
+const validateNoLegacyRedisClusters = ({ config }: { config: StacktapeConfig }) => {
+  const legacyResources = Object.entries(config?.resources || {}).filter(
+    ([, resource]) => (resource as { type?: string } | undefined)?.type === 'redis-cluster'
+  );
+  if (!legacyResources.length) {
+    return;
+  }
+  const [name, resource] = legacyResources[0];
+  const { engineVersion, defaultUserPassword, accessibility, automatedBackupRetentionDays, dev, ...nodeProperties } = ((
+    resource as unknown as { properties?: Record<string, unknown> }
+  ).properties || {}) as Record<string, unknown>;
+  const engineProperties = { ...nodeProperties, version: engineVersion || '6.2' };
+  const replacement = {
+    type: 'redis',
+    properties: {
+      // A literal password is not repeated in the error output.
+      defaultUserPassword:
+        typeof defaultUserPassword === 'string' && /^\$[A-Z][A-Za-z]*\(.*\)$/.test(defaultUserPassword)
+          ? defaultUserPassword
+          : '<your current defaultUserPassword>',
+      engine: { type: 'redis', properties: engineProperties },
+      ...(accessibility !== undefined ? { accessibility } : {}),
+      ...(automatedBackupRetentionDays !== undefined ? { automatedBackupRetentionDays } : {}),
+      ...(dev !== undefined ? { dev } : {})
+    }
+  };
+  throw new CliError({
+    category: 'CONFIG_VALIDATION',
+    code: 'CONFIG_REDIS_CLUSTER_RENAMED',
+    message:
+      `Resource \`${name}\` uses \`type: redis-cluster\`, which Stacktape v4 renamed to \`type: redis\`. ` +
+      'Node settings moved under `engine.properties`. To keep the deployed cache unchanged, use:\n' +
+      `${JSON.stringify(replacement, null, 2)}`,
+    hints: [
+      'This keeps the Redis OSS engine and version the cache runs (`6.2` when `engineVersion` was not set).',
+      'To switch the cache to Valkey in place, set `engine.type: valkey` instead. Writes pause for a few seconds (longer without replicas), the endpoint and data stay, and the switch cannot be reversed.'
+    ]
+  });
 };
 
 const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {
@@ -370,7 +415,11 @@ export const validateGuardrails = ({
         const { blockedResourceTypes } = guardrail.properties;
         if (!blockedResourceTypes?.length) break;
         for (const resource of configManager.allConfigResources) {
-          if (blockedResourceTypes.includes(resource.type)) {
+          // Guardrails saved before Stacktape v4 block Redis caches under their former `redis-cluster` type.
+          const isBlocked =
+            blockedResourceTypes.includes(resource.type) ||
+            (resource.type === 'redis' && blockedResourceTypes.includes('redis-cluster'));
+          if (isBlocked) {
             throw guardrailViolation(
               guardrail.type,
               'GUARDRAIL_RESOURCE_TYPE_BLOCKED',

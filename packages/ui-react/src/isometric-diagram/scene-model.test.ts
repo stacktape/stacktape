@@ -139,7 +139,7 @@ describe('diagram scene model', () => {
         type: postgres
 
   cache:
-    type: redis-cluster
+    type: redis
 `) as any
     });
 

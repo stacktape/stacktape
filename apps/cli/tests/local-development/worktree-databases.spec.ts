@@ -265,12 +265,58 @@ test('worktrees of one project on one stage get separate loopback databases with
   }
 }, 300_000);
 
+// ElastiCache Serverless always runs in cluster mode, so a command touching keys in two hash slots fails there. The
+// local container must fail it too, or code that works in dev breaks only after deployment.
+test('a serverless Valkey cache runs locally in cluster mode and rejects cross-slot commands', async () => {
+  const image = 'valkey/valkey:9';
+  expect(docker(['image', 'inspect', image]).status === 0 || docker(['pull', image]).status === 0).toBeTrue();
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-serverless-cache-'));
+  const projectName = `sc${randomBytes(4).toString('hex')}`;
+  const owned = new Set<string>();
+  try {
+    const { instances } = await startDatabases({
+      directory: root,
+      workingDirectory: join(root, 'app'),
+      projectName,
+      resources: {
+        cache: {
+          type: 'redis',
+          properties: { engine: { type: 'valkey-serverless' }, defaultUserPassword: 'local-cluster-password-1' }
+        }
+      }
+    });
+    const [cache] = instances;
+    owned.add(cache.containerName);
+    const cli = (...command: string[]) =>
+      docker([
+        'exec',
+        cache.containerName,
+        'redis-cli',
+        '-a',
+        'local-cluster-password-1',
+        '--no-auth-warning',
+        ...command
+      ]).stdout.trim();
+    expect(cli('cluster', 'info')).toContain('cluster_state:ok');
+    // The node announces the port published on this machine, which cluster clients follow.
+    expect(cli('cluster', 'slots')).toContain(String(cache.actualPort));
+    expect(cli('set', 'session:1', 'alive')).toBe('OK');
+    expect(cli('mget', 'session:1', 'session:2')).toContain('CROSSSLOT');
+    expect(cli('mget', '{session}:1', '{session}:2')).not.toContain('CROSSSLOT');
+  } finally {
+    for (const name of owned) docker(['rm', '-f', name]);
+    for (const name of owned) expect(docker(['inspect', name]).status, `${name} must be removed`).not.toBe(0);
+    docker(['run', '--rm', '-v', `${root}:/work`, '--entrypoint', 'sh', IMAGE, '-c', 'rm -rf /work/*']);
+    await rm(root, { recursive: true, force: true });
+  }
+}, 300_000);
+
 // `stacktape init` sets database passwords to `$Secret(...)`. Dev mode never fetches the deployed secret for a local
 // database: each one gets a generated local password, and the container, the deployed dev functions (through the relay)
 // and local workloads all get that same password, never the directive text. Data an older CLI initialized with the
 // directive text as its password keeps it, with a warning.
 test('a database password read from $Secret is replaced by one local password that every consumer gets', async () => {
-  const images = ['postgres:15.14', 'mysql:8.0', 'redis:7.2'];
+  const images = ['postgres:15.14', 'mysql:8.0', 'valkey/valkey:7.2'];
   for (const image of images) {
     expect(docker(['image', 'inspect', image]).status === 0 || docker(['pull', image]).status === 0).toBeTrue();
   }
@@ -305,8 +351,11 @@ test('a database password read from $Secret is replaced by one local password th
           }
         },
         cache: {
-          type: 'redis-cluster',
-          properties: { instanceSize: 'cache.t4g.micro', engineVersion: '7.2', defaultUserPassword: directive('cache') }
+          type: 'redis',
+          properties: {
+            engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', version: '7.2' } },
+            defaultUserPassword: directive('cache')
+          }
         }
       }
     });

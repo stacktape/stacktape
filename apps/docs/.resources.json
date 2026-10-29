@@ -182,9 +182,9 @@
     "referenceableParams": { "connectionString": "Connection string (URL) that allows connecting to the cluster." }
   },
   {
-    "name": "Redis Cluster",
-    "description": "Fully managed, redis-compatible in-memory data store with sub-millisecond latency.",
-    "resourceType": "redis-cluster",
+    "name": "Redis",
+    "description": "Fully managed, Redis-compatible (Valkey) in-memory data store with sub-millisecond latency.",
+    "resourceType": "redis",
     "category": "database-resource",
     "referenceableParams": {
       "host": "In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes.\nIn case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations.\n",

@@ -1,6 +1,6 @@
 # RedisLogging API Reference
 
-Resource type: `redis-cluster`
+Resource type: `redis`
 
 ## TypeScript definition
 
@@ -39,37 +39,6 @@ type RedisLoggingLogForwarding =
 
 Disable slow query logging.
 
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        disabled: true
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      disabled: true
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
-
 ## Property: `format`
 
 - Required: no
@@ -77,39 +46,6 @@ export default defineConfig(() => {
 - Default: `json`
 
 Log format.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        format: text
-        retentionDays: 90
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      format: 'text',
-      retentionDays: 90
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
 
 ## Property: `logClass`
 
@@ -218,36 +154,3 @@ export default defineConfig(() => {
 - Default: `30`
 
 How many days to keep logs.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        format: json
-        retentionDays: 365
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      format: 'json',
-      retentionDays: 365
-    }
-  });
-
-  return { resources: { redis } };
-});
-```

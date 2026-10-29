@@ -71,7 +71,7 @@ const INTEGRATION_TYPES = new Set(['sqs-queue', 'sns-topic', 'event-bus', 'kines
 const DATA_TYPES = new Set([
   'relational-database',
   'dynamo-db-table',
-  'redis-cluster',
+  'redis',
   'mongo-db-atlas-cluster',
   'upstash-redis',
   'open-search-domain',
@@ -134,7 +134,7 @@ const getLayer = ({ type }: { type: string }): FlowLayer => {
 
 // ── Subnet assignment ──
 // Determines which VPC subnet a resource belongs to, or null if outside VPC.
-// Verified against the CLI synthesizer: databases, redis clusters, EFS mount targets
+// Verified against the CLI synthesizer: databases, Redis caches, EFS mount targets
 // and load balancers all live in the PUBLIC subnets — accessibility modes only change
 // security-group ingress rules, never the subnet placement.
 
@@ -146,7 +146,7 @@ const getSubnet = ({ type, resource }: { type: string; resource: any }): SubnetT
   }
 
   // Always inside the VPC, whatever the accessibility mode.
-  if (type === 'relational-database' || type === 'redis-cluster' || type === 'efs-filesystem') {
+  if (type === 'relational-database' || type === 'redis' || type === 'efs-filesystem') {
     return 'public';
   }
 
@@ -183,10 +183,10 @@ const getAccessNote = ({ type, resource }: { type: string; resource: any }): str
     if (mode === 'whitelisted-ips-only') return 'Only whitelisted IP addresses can connect.';
   }
 
-  if (type === 'redis-cluster') {
+  if (type === 'redis') {
     const mode = getAccessibilityMode(resource) || 'vpc';
     return mode === 'scoping-workloads-in-vpc'
-      ? 'Reachable only from resources that connectTo this cluster.'
+      ? 'Reachable only from resources that connectTo this cache.'
       : 'Reachable only from inside the VPC.';
   }
 

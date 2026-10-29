@@ -31,10 +31,11 @@ Connect to VPC resources (databases, Redis). **Warning:** function loses direct 
 ```yaml
 resources:
   cache:
-    type: redis-cluster
+    type: redis
     properties:
       defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t3.micro
+      engine:
+        type: valkey-serverless
   web:
     type: astro-web
     properties:
@@ -47,12 +48,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { AstroWeb, RedisCluster, defineConfig, $Secret } from 'stacktape';
+import { AstroWeb, Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
-  const cache = new RedisCluster({
+  const cache = new Redis({
     defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t3.micro'
+    engine: { type: 'valkey-serverless' }
   });
   const web = new AstroWeb({
     connectTo: ['cache'],

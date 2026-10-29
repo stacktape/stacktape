@@ -102,7 +102,7 @@ View logs with [`stacktape logs`](/cli/logs) or in the [Stacktape Console](/stac
 
 ### VPC connectivity
 
-Set `serverLambda.joinDefaultVpc` to `true` when the SSR function must access VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis). The SSR function loses direct internet access when placed in a VPC, so plan accordingly if server code also calls external APIs. The database connection example in [Connecting resources](#connecting-resources) demonstrates this pattern.
+Set `serverLambda.joinDefaultVpc` to `true` when the SSR function must access VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis). The SSR function loses direct internet access when placed in a VPC, so plan accordingly if server code also calls external APIs. The database connection example in [Connecting resources](#connecting-resources) demonstrates this pattern.
 
 ## Connecting resources
 

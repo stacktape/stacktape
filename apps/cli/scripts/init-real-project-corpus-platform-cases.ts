@@ -9,7 +9,7 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     source: 'official-example',
     exercises: ['render', 'typescript', 'web-worker', 'postgres', 'redis'],
     expect: {
-      resourceTypes: { bastion: 1, 'redis-cluster': 1, 'relational-database': 1, 'web-service': 4 },
+      resourceTypes: { bastion: 1, redis: 1, 'relational-database': 1, 'web-service': 4 },
       dependencyKinds: { postgres: 1, redis: 1 },
       serviceCount: 4,
       httpServiceCount: 4,
@@ -27,7 +27,7 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     expect: {
       resourceTypes: {
         bastion: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 2,
         'worker-service': 1
@@ -62,7 +62,7 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     source: 'official-example',
     exercises: ['fly', 'laravel', 'litefs', 'sqlite', 'docker'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1 },
       dependencyKinds: { redis: 1 },
       serviceCount: 1,
       httpServiceCount: 1,

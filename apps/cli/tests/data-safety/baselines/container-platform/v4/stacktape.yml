@@ -40,9 +40,13 @@ resources:
           primaryInstance:
             instanceSize: db.t4g.micro
   cache:
-    type: redis-cluster
+    type: redis
     properties:
-      instanceSize: cache.t4g.micro
+      engine:
+        type: redis
+        properties:
+          instanceSize: cache.t4g.micro
+          version: '6.2'
       defaultUserPassword: not-a-real-password-2
   shared:
     type: efs-filesystem

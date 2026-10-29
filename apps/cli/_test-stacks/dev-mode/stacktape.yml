@@ -40,11 +40,11 @@ resources:
             instanceSize: db.t3.micro
 
   cache:
-    type: redis-cluster
+    type: redis
     properties:
       defaultUserPassword: dev-mode-fixture-cache-password
-      instanceSize: cache.t3.micro
-      engineVersion: '7.1'
+      engine:
+        type: valkey-serverless
 
   web:
     type: hosting-bucket

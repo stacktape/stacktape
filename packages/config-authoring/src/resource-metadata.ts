@@ -139,7 +139,7 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'apiKey', description: 'Sensitive AppSync API key when API-key authentication is configured' }
   ],
   'mongo-db-atlas-cluster': [{ name: 'connectionString', description: 'MongoDB connection string' }],
-  'redis-cluster': [
+  redis: [
     { name: 'host', description: 'Redis host' },
     { name: 'port', description: 'Redis port' },
     { name: 'connectionString', description: 'Redis connection string' },

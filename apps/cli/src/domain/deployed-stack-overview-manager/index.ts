@@ -40,6 +40,7 @@ import {
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 import { sharedLayerNumberOf } from '@domain-services/deployment-artifact-manager/shared-layers';
+import { isDeployedRedisResourceType } from './redis-resource-type';
 
 @memoizeGetters
 class DeployedStackOverviewManager {
@@ -386,7 +387,10 @@ class DeployedStackOverviewManager {
     const targetResource = this.getStpResource({ nameChain: [targetInfo.targetStpName] });
 
     const { bastionInstanceId } = this.resolveBastionInstanceInfo(targetInfo.bastionStpName);
-    if (targetResource?.resourceType === 'relational-database' || targetResource?.resourceType === 'redis-cluster') {
+    if (
+      targetResource?.resourceType === 'relational-database' ||
+      isDeployedRedisResourceType(targetResource?.resourceType ?? '')
+    ) {
       allPortForwardingTargets.push({
         bastionInstanceId,
         remoteHost: String(targetResource.referencableParams.host.value),
@@ -400,7 +404,10 @@ class DeployedStackOverviewManager {
         allPortForwardingTargets.push({
           bastionInstanceId,
           remoteHost: String(targetResource.referencableParams.readerHost.value),
-          remotePort: Number(targetResource.referencableParams.port.value),
+          // Node-based caches serve readers on the primary port; serverless Redis serves them on its own port.
+          remotePort: Number(
+            (targetResource.referencableParams.readerPort ?? targetResource.referencableParams.port).value
+          ),
           label: 'reader',
           targetStpName: targetInfo.targetStpName,
           additionalStringToSubstitute: String(targetResource.referencableParams.readerConnectionString.value),

@@ -21,7 +21,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'aspnet-orders-platform': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 1
@@ -35,7 +35,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'bun-hono-drizzle': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -78,7 +78,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'compose-polyglot-commerce': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 2,
       'worker-service': 1
@@ -92,7 +92,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'deno-fresh-jobs-platform': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -106,7 +106,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       bucket: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -120,7 +120,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'fly-go-multiprocess': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 1
@@ -143,7 +143,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'helm-payments-platform': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -158,7 +158,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       bucket: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 1
@@ -173,7 +173,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       bucket: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -187,7 +187,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       bucket: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -201,7 +201,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'nixpacks-fastapi-celery': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -231,7 +231,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       bucket: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -244,7 +244,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'render-django-operations': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 2
@@ -305,7 +305,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
   'spring-events-service': {
     resources: {
       bastion: 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 1
@@ -343,7 +343,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     resources: {
       bastion: 1,
       'nextjs-web': 1,
-      'redis-cluster': 1,
+      redis: 1,
       'relational-database': 1,
       'web-service': 1,
       'worker-service': 1

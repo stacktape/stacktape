@@ -187,8 +187,8 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
 export const deploymentPreferenceKeysFor = (types: Iterable<string>): DeploymentPreferenceKey[] => {
   const resourceTypes = new Set(types);
   return [
-    ...(['web-service', 'worker-service', 'private-service', 'batch-job', 'relational-database', 'redis-cluster'].some(
-      (type) => resourceTypes.has(type)
+    ...(['web-service', 'worker-service', 'private-service', 'batch-job', 'relational-database', 'redis'].some((type) =>
+      resourceTypes.has(type)
     )
       ? (['capacity'] as const)
       : []),

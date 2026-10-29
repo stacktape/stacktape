@@ -278,7 +278,7 @@ This guardrail is also covered on the [database guardrails](/guardrails/database
 
 ## Resource type restriction (security use)
 
-The `resource-type-restriction` guardrail blocks the resource types listed in its `blockedResourceTypes` property — for example, `["open-search-domain", "redis-cluster"]`. For broader deployment governance guardrails and the full property shape, see [deployment guardrails](/guardrails/deployment).
+The `resource-type-restriction` guardrail blocks the resource types listed in its `blockedResourceTypes` property — for example, `["open-search-domain", "redis"]`. For broader deployment governance guardrails and the full property shape, see [deployment guardrails](/guardrails/deployment).
 
 ## Combining security guardrails
 

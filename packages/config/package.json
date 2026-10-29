@@ -49,7 +49,7 @@
     "./primitives": "./src/primitives.ts",
     "./private-services": "./src/private-services.ts",
     "./providers": "./src/providers.ts",
-    "./redis-cluster": "./src/redis-cluster.ts",
+    "./redis": "./src/redis.ts",
     "./relational-database-engines": "./src/relational-database-engines.ts",
     "./relational-databases": "./src/relational-databases.ts",
     "./remix-web": "./src/remix-web.ts",

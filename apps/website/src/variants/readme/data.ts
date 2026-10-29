@@ -148,7 +148,7 @@ export const ACME_CONFIG = {
         accessibility: { accessibilityMode: 'vpc' }
       }
     },
-    cache: { type: 'redis-cluster', properties: { engine: { type: 'redis7' }, instanceSize: 'cache.t3.micro' } },
+    cache: { type: 'redis', properties: { engine: { type: 'valkey-serverless' } } },
     firewall: { type: 'web-app-firewall', properties: { scope: 'cdn' } }
   }
 };
@@ -293,9 +293,10 @@ const YAML_SOURCE = `resources:
         type: aurora-postgresql
         properties: { version: '16' }
   cache:
-    type: redis-cluster
+    type: redis
     properties:
-      instanceSize: cache.t3.micro
+      engine:
+        type: valkey-serverless
       defaultUserPassword: $Secret('redis-password')
   worker:
     type: function
@@ -329,7 +330,7 @@ const YAML_SOURCE = `resources:
  */
 const TS_SOURCE = `import {
   defineConfig, $Secret, NextjsWeb, WebService, LambdaFunction,
-  RelationalDatabase, RedisCluster, WebAppFirewall
+  RelationalDatabase, Redis, WebAppFirewall
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -337,8 +338,8 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: { type: 'aurora-postgresql', properties: { version: '16' } }
   });
-  const cache = new RedisCluster({
-    instanceSize: 'cache.t3.micro', defaultUserPassword: $Secret('redis-password')
+  const cache = new Redis({
+    engine: { type: 'valkey-serverless' }, defaultUserPassword: $Secret('redis-password')
   });
   const worker = new LambdaFunction({
     packaging: {
@@ -388,7 +389,7 @@ export const EDITOR_DOCS = {
     href: `${DOCS}/configuration/resources`
   },
   type: {
-    signature: { yml: 'type: "relational-database" | "redis-cluster" | "function" | "web-service" | …' },
+    signature: { yml: 'type: "relational-database" | "redis" | "function" | "web-service" | …' },
     text: 'Which kind of resource this is. The type decides which properties it takes and what Stacktape creates in AWS for it.',
     href: `${DOCS}/configuration/resources`
   },
@@ -814,7 +815,7 @@ const TS_CLASSES = new Set([
   'WebService',
   'LambdaFunction',
   'RelationalDatabase',
-  'RedisCluster',
+  'Redis',
   'WebAppFirewall'
 ]);
 

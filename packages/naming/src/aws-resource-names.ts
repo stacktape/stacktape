@@ -66,6 +66,29 @@ export const awsResourceNames = {
       lengthLimit: 40
     });
   },
+  // max 40 chars
+  // https://docs.aws.amazon.com/AmazonElastiCache/latest/APIReference/API_CreateServerlessCache.html
+  redisServerlessCacheName(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}`.toLowerCase(),
+      lengthLimit: 40
+    });
+  },
+  // User and user group IDs are unique per account and Region, start with a letter and contain only lowercase
+  // letters, digits and hyphens.
+  // https://docs.aws.amazon.com/AmazonElastiCache/latest/APIReference/API_CreateUser.html
+  redisUserId(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-default`.toLowerCase(),
+      lengthLimit: 40
+    });
+  },
+  redisUserGroupId(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}`.toLowerCase(),
+      lengthLimit: 40
+    });
+  },
   redisReplicationGroupDescription(stpResourceName: string, stackName: string) {
     return buildResourceName({
       proposedResourceName: `${stackName}-${stpResourceName}`

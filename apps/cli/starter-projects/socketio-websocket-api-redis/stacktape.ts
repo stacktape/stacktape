@@ -6,16 +6,15 @@ import {
   LocalScript,
   MultiContainerWorkload,
   MultiContainerWorkloadLoadBalancerIntegration,
-  RedisCluster,
+  Redis,
   defineConfig
 } from '../../__release-npm';
 
 export default defineConfig(() => {
   const mainLoadBalancer = new ApplicationLoadBalancer({});
-  const redis = new RedisCluster({
+  const redis = new Redis({
     defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t3.micro',
-    engineVersion: '7.1'
+    engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro' } }
   });
   const websocketServer = new MultiContainerWorkload({
     resources: {

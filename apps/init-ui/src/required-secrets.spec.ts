@@ -8,7 +8,7 @@ describe('requiredSecrets', () => {
         type: 'relational-database',
         properties: { credentials: { masterUserPassword: "$Secret('shop-mainDatabase.password')" } }
       },
-      cache: { type: 'redis-cluster', properties: { defaultUserPassword: "$Secret('shop-cache.password')" } },
+      cache: { type: 'redis', properties: { defaultUserPassword: "$Secret('shop-cache.password')" } },
       api: {
         type: 'web-service',
         properties: {

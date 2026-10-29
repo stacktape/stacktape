@@ -246,10 +246,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
 
 
-### Redis cluster
+### Redis
 
 
-## Referenceable Parameters: `redis-cluster`
+## Referenceable Parameters: `redis`
 These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
 
 | Parameter | Description | Usage |

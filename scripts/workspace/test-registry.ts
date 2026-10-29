@@ -4114,7 +4114,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/open-search/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/upstash-redis/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/**',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/redis-clusters/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/redis/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dynamo-db-tables/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/buckets/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/efs-filesystems/**',

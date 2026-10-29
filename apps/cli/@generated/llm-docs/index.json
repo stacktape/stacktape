@@ -10643,13 +10643,40 @@
       ]
     },
     {
+      "id": "config-reference:Redis",
+      "title": "Redis API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redis.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "Redis"
+      ],
+      "tags": [
+        "config-reference",
+        "Redis",
+        "properties",
+        "overrides",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:Redis#redis-api-reference",
+        "config-reference:Redis#typescript-definition",
+        "config-reference:Redis#property-properties",
+        "config-reference:Redis#property-overrides",
+        "config-reference:Redis#example-1-yaml",
+        "config-reference:Redis#example-2-typescript"
+      ]
+    },
+    {
       "id": "config-reference:RedisAccessibility",
       "title": "RedisAccessibility API Reference",
-      "route": "/config-reference/redis-cluster",
-      "sourcePath": "packages/config/src/redis-cluster.ts",
-      "outputPath": "config-reference/redis-cluster/redisaccessibility.md",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redisaccessibility.md",
       "docKind": "config-reference",
-      "resourceType": "redis-cluster",
+      "resourceType": "redis",
       "definitionNames": [
         "RedisAccessibility"
       ],
@@ -10657,120 +10684,22 @@
         "config-reference",
         "RedisAccessibility",
         "accessibilityMode",
-        "redis-cluster"
+        "redis"
       ],
       "chunks": [
         "config-reference:RedisAccessibility#redisaccessibility-api-reference",
         "config-reference:RedisAccessibility#typescript-definition",
-        "config-reference:RedisAccessibility#property-accessibilitymode",
-        "config-reference:RedisAccessibility#example-1-yaml",
-        "config-reference:RedisAccessibility#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:RedisCluster",
-      "title": "RedisCluster API Reference",
-      "route": "/config-reference/redis-cluster",
-      "sourcePath": "packages/config/src/redis-cluster.ts",
-      "outputPath": "config-reference/redis-cluster/rediscluster.md",
-      "docKind": "config-reference",
-      "resourceType": "redis-cluster",
-      "definitionNames": [
-        "RedisCluster"
-      ],
-      "tags": [
-        "config-reference",
-        "RedisCluster",
-        "properties",
-        "overrides",
-        "redis-cluster"
-      ],
-      "chunks": [
-        "config-reference:RedisCluster#rediscluster-api-reference",
-        "config-reference:RedisCluster#typescript-definition",
-        "config-reference:RedisCluster#property-properties",
-        "config-reference:RedisCluster#property-overrides",
-        "config-reference:RedisCluster#example-1-yaml",
-        "config-reference:RedisCluster#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:RedisClusterProps",
-      "title": "RedisClusterProps API Reference",
-      "route": "/config-reference/redis-cluster",
-      "sourcePath": "packages/config/src/redis-cluster.ts",
-      "outputPath": "config-reference/redis-cluster/redisclusterprops.md",
-      "docKind": "config-reference",
-      "resourceType": "redis-cluster",
-      "definitionNames": [
-        "RedisClusterProps"
-      ],
-      "tags": [
-        "config-reference",
-        "RedisClusterProps",
-        "defaultUserPassword",
-        "instanceSize",
-        "accessibility",
-        "automatedBackupRetentionDays",
-        "dev",
-        "enableAutomaticFailover",
-        "enableSharding",
-        "engineVersion",
-        "logging",
-        "numReplicaNodes",
-        "numShards",
-        "port",
-        "redis-cluster"
-      ],
-      "chunks": [
-        "config-reference:RedisClusterProps#redisclusterprops-api-reference",
-        "config-reference:RedisClusterProps#typescript-definition",
-        "config-reference:RedisClusterProps#property-defaultuserpassword",
-        "config-reference:RedisClusterProps#example-1-yaml",
-        "config-reference:RedisClusterProps#example-2-typescript",
-        "config-reference:RedisClusterProps#property-instancesize",
-        "config-reference:RedisClusterProps#example-1-yaml-2",
-        "config-reference:RedisClusterProps#example-2-typescript-2",
-        "config-reference:RedisClusterProps#property-accessibility",
-        "config-reference:RedisClusterProps#example-1-yaml-3",
-        "config-reference:RedisClusterProps#example-2-typescript-3",
-        "config-reference:RedisClusterProps#property-automatedbackupretentiondays",
-        "config-reference:RedisClusterProps#example-1-yaml-4",
-        "config-reference:RedisClusterProps#example-2-typescript-4",
-        "config-reference:RedisClusterProps#property-dev",
-        "config-reference:RedisClusterProps#example-1-yaml-5",
-        "config-reference:RedisClusterProps#example-2-typescript-5",
-        "config-reference:RedisClusterProps#property-enableautomaticfailover",
-        "config-reference:RedisClusterProps#example-1-yaml-6",
-        "config-reference:RedisClusterProps#example-2-typescript-6",
-        "config-reference:RedisClusterProps#property-enablesharding",
-        "config-reference:RedisClusterProps#example-1-yaml-7",
-        "config-reference:RedisClusterProps#example-2-typescript-7",
-        "config-reference:RedisClusterProps#property-engineversion",
-        "config-reference:RedisClusterProps#example-1-yaml-8",
-        "config-reference:RedisClusterProps#example-2-typescript-8",
-        "config-reference:RedisClusterProps#property-logging",
-        "config-reference:RedisClusterProps#example-1-yaml-9",
-        "config-reference:RedisClusterProps#example-2-typescript-9",
-        "config-reference:RedisClusterProps#property-numreplicanodes",
-        "config-reference:RedisClusterProps#example-1-yaml-10",
-        "config-reference:RedisClusterProps#example-2-typescript-10",
-        "config-reference:RedisClusterProps#property-numshards",
-        "config-reference:RedisClusterProps#example-1-yaml-11",
-        "config-reference:RedisClusterProps#example-2-typescript-11",
-        "config-reference:RedisClusterProps#property-port",
-        "config-reference:RedisClusterProps#example-1-yaml-12",
-        "config-reference:RedisClusterProps#example-2-typescript-12"
+        "config-reference:RedisAccessibility#property-accessibilitymode"
       ]
     },
     {
       "id": "config-reference:RedisLogging",
       "title": "RedisLogging API Reference",
-      "route": "/config-reference/redis-cluster",
-      "sourcePath": "packages/config/src/redis-cluster.ts",
-      "outputPath": "config-reference/redis-cluster/redislogging.md",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redislogging.md",
       "docKind": "config-reference",
-      "resourceType": "redis-cluster",
+      "resourceType": "redis",
       "definitionNames": [
         "RedisLogging"
       ],
@@ -10782,26 +10711,269 @@
         "logClass",
         "logForwarding",
         "retentionDays",
-        "redis-cluster"
+        "redis"
       ],
       "chunks": [
         "config-reference:RedisLogging#redislogging-api-reference",
         "config-reference:RedisLogging#typescript-definition",
         "config-reference:RedisLogging#property-disabled",
+        "config-reference:RedisLogging#property-format",
+        "config-reference:RedisLogging#property-logclass",
         "config-reference:RedisLogging#example-1-yaml",
         "config-reference:RedisLogging#example-2-typescript",
-        "config-reference:RedisLogging#property-format",
+        "config-reference:RedisLogging#property-logforwarding",
         "config-reference:RedisLogging#example-1-yaml-2",
         "config-reference:RedisLogging#example-2-typescript-2",
-        "config-reference:RedisLogging#property-logclass",
-        "config-reference:RedisLogging#example-1-yaml-3",
-        "config-reference:RedisLogging#example-2-typescript-3",
-        "config-reference:RedisLogging#property-logforwarding",
-        "config-reference:RedisLogging#example-1-yaml-4",
-        "config-reference:RedisLogging#example-2-typescript-4",
-        "config-reference:RedisLogging#property-retentiondays",
-        "config-reference:RedisLogging#example-1-yaml-5",
-        "config-reference:RedisLogging#example-2-typescript-5"
+        "config-reference:RedisLogging#property-retentiondays"
+      ]
+    },
+    {
+      "id": "config-reference:RedisOssEngine",
+      "title": "RedisOssEngine API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redisossengine.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "RedisOssEngine"
+      ],
+      "tags": [
+        "config-reference",
+        "RedisOssEngine",
+        "properties",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:RedisOssEngine#redisossengine-api-reference",
+        "config-reference:RedisOssEngine#typescript-definition",
+        "config-reference:RedisOssEngine#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:RedisOssEngineProperties",
+      "title": "RedisOssEngineProperties API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redisossengineproperties.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "RedisOssEngineProperties"
+      ],
+      "tags": [
+        "config-reference",
+        "RedisOssEngineProperties",
+        "instanceSize",
+        "version",
+        "enableAutomaticFailover",
+        "enableSharding",
+        "logging",
+        "numReplicaNodes",
+        "numShards",
+        "port",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:RedisOssEngineProperties#redisossengineproperties-api-reference",
+        "config-reference:RedisOssEngineProperties#typescript-definition",
+        "config-reference:RedisOssEngineProperties#property-instancesize",
+        "config-reference:RedisOssEngineProperties#example-1-yaml",
+        "config-reference:RedisOssEngineProperties#example-2-typescript",
+        "config-reference:RedisOssEngineProperties#property-version",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-2",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-2",
+        "config-reference:RedisOssEngineProperties#property-enableautomaticfailover",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-3",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-3",
+        "config-reference:RedisOssEngineProperties#property-enablesharding",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-4",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-4",
+        "config-reference:RedisOssEngineProperties#property-logging",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-5",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-5",
+        "config-reference:RedisOssEngineProperties#property-numreplicanodes",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-6",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-6",
+        "config-reference:RedisOssEngineProperties#property-numshards",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-7",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-7",
+        "config-reference:RedisOssEngineProperties#property-port",
+        "config-reference:RedisOssEngineProperties#example-1-yaml-8",
+        "config-reference:RedisOssEngineProperties#example-2-typescript-8"
+      ]
+    },
+    {
+      "id": "config-reference:RedisProps",
+      "title": "RedisProps API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/redisprops.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "RedisProps"
+      ],
+      "tags": [
+        "config-reference",
+        "RedisProps",
+        "defaultUserPassword",
+        "engine",
+        "accessibility",
+        "automatedBackupRetentionDays",
+        "dev",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:RedisProps#redisprops-api-reference",
+        "config-reference:RedisProps#typescript-definition",
+        "config-reference:RedisProps#property-defaultuserpassword",
+        "config-reference:RedisProps#example-1-yaml",
+        "config-reference:RedisProps#example-2-typescript",
+        "config-reference:RedisProps#property-engine",
+        "config-reference:RedisProps#example-1-yaml-2",
+        "config-reference:RedisProps#example-2-typescript-2",
+        "config-reference:RedisProps#property-accessibility",
+        "config-reference:RedisProps#example-1-yaml-3",
+        "config-reference:RedisProps#example-2-typescript-3",
+        "config-reference:RedisProps#property-automatedbackupretentiondays",
+        "config-reference:RedisProps#example-1-yaml-4",
+        "config-reference:RedisProps#example-2-typescript-4",
+        "config-reference:RedisProps#property-dev",
+        "config-reference:RedisProps#example-1-yaml-5",
+        "config-reference:RedisProps#example-2-typescript-5"
+      ]
+    },
+    {
+      "id": "config-reference:ValkeyEngine",
+      "title": "ValkeyEngine API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/valkeyengine.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "ValkeyEngine"
+      ],
+      "tags": [
+        "config-reference",
+        "ValkeyEngine",
+        "properties",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:ValkeyEngine#valkeyengine-api-reference",
+        "config-reference:ValkeyEngine#typescript-definition",
+        "config-reference:ValkeyEngine#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:ValkeyEngineProperties",
+      "title": "ValkeyEngineProperties API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/valkeyengineproperties.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "ValkeyEngineProperties"
+      ],
+      "tags": [
+        "config-reference",
+        "ValkeyEngineProperties",
+        "instanceSize",
+        "enableAutomaticFailover",
+        "enableSharding",
+        "logging",
+        "numReplicaNodes",
+        "numShards",
+        "port",
+        "version",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:ValkeyEngineProperties#valkeyengineproperties-api-reference",
+        "config-reference:ValkeyEngineProperties#typescript-definition",
+        "config-reference:ValkeyEngineProperties#property-instancesize",
+        "config-reference:ValkeyEngineProperties#example-1-yaml",
+        "config-reference:ValkeyEngineProperties#example-2-typescript",
+        "config-reference:ValkeyEngineProperties#property-enableautomaticfailover",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-2",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-2",
+        "config-reference:ValkeyEngineProperties#property-enablesharding",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-3",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-3",
+        "config-reference:ValkeyEngineProperties#property-logging",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-4",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-4",
+        "config-reference:ValkeyEngineProperties#property-numreplicanodes",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-5",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-5",
+        "config-reference:ValkeyEngineProperties#property-numshards",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-6",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-6",
+        "config-reference:ValkeyEngineProperties#property-port",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-7",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-7",
+        "config-reference:ValkeyEngineProperties#property-version",
+        "config-reference:ValkeyEngineProperties#example-1-yaml-8",
+        "config-reference:ValkeyEngineProperties#example-2-typescript-8"
+      ]
+    },
+    {
+      "id": "config-reference:ValkeyServerlessEngine",
+      "title": "ValkeyServerlessEngine API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/valkeyserverlessengine.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "ValkeyServerlessEngine"
+      ],
+      "tags": [
+        "config-reference",
+        "ValkeyServerlessEngine",
+        "properties",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:ValkeyServerlessEngine#valkeyserverlessengine-api-reference",
+        "config-reference:ValkeyServerlessEngine#typescript-definition",
+        "config-reference:ValkeyServerlessEngine#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:ValkeyServerlessEngineProperties",
+      "title": "ValkeyServerlessEngineProperties API Reference",
+      "route": "/config-reference/redis",
+      "sourcePath": "packages/config/src/redis.ts",
+      "outputPath": "config-reference/redis/valkeyserverlessengineproperties.md",
+      "docKind": "config-reference",
+      "resourceType": "redis",
+      "definitionNames": [
+        "ValkeyServerlessEngineProperties"
+      ],
+      "tags": [
+        "config-reference",
+        "ValkeyServerlessEngineProperties",
+        "maxDataGb",
+        "maxEcpuPerSecond",
+        "version",
+        "redis"
+      ],
+      "chunks": [
+        "config-reference:ValkeyServerlessEngineProperties#valkeyserverlessengineproperties-api-reference",
+        "config-reference:ValkeyServerlessEngineProperties#typescript-definition",
+        "config-reference:ValkeyServerlessEngineProperties#property-maxdatagb",
+        "config-reference:ValkeyServerlessEngineProperties#example-1-yaml",
+        "config-reference:ValkeyServerlessEngineProperties#example-2-typescript",
+        "config-reference:ValkeyServerlessEngineProperties#property-maxecpupersecond",
+        "config-reference:ValkeyServerlessEngineProperties#example-1-yaml-2",
+        "config-reference:ValkeyServerlessEngineProperties#example-2-typescript-2",
+        "config-reference:ValkeyServerlessEngineProperties#property-version",
+        "config-reference:ValkeyServerlessEngineProperties#example-1-yaml-3",
+        "config-reference:ValkeyServerlessEngineProperties#example-2-typescript-3"
       ]
     },
     {
@@ -15582,7 +15754,7 @@
         "page:/cli/bastion-tunnel#examples",
         "page:/cli/bastion-tunnel#tunnel-to-a-relational-database",
         "page:/cli/bastion-tunnel#tunnel-on-a-specific-local-port",
-        "page:/cli/bastion-tunnel#tunnel-to-a-redis-cluster",
+        "page:/cli/bastion-tunnel#tunnel-to-a-redis-cache",
         "page:/cli/bastion-tunnel#tunnel-to-a-private-service",
         "page:/cli/bastion-tunnel#specify-which-bastion-to-use",
         "page:/cli/bastion-tunnel#how-tunneling-works",
@@ -17211,7 +17383,7 @@
         "page:/configuration/connecting-resources#dynamodb-table",
         "page:/configuration/connecting-resources#sqs-queue",
         "page:/configuration/connecting-resources#sns-topic",
-        "page:/configuration/connecting-resources#redis-cluster",
+        "page:/configuration/connecting-resources#redis-cache",
         "page:/configuration/connecting-resources#event-bus",
         "page:/configuration/connecting-resources#user-auth-pool",
         "page:/configuration/connecting-resources#lambda-function",
@@ -17423,8 +17595,8 @@
         "page:/configuration/referenceable-parameters#referenceable-parameters-relational-database",
         "page:/configuration/referenceable-parameters#dynamodb-table",
         "page:/configuration/referenceable-parameters#referenceable-parameters-dynamo-db-table",
-        "page:/configuration/referenceable-parameters#redis-cluster",
-        "page:/configuration/referenceable-parameters#referenceable-parameters-redis-cluster",
+        "page:/configuration/referenceable-parameters#redis",
+        "page:/configuration/referenceable-parameters#referenceable-parameters-redis",
         "page:/configuration/referenceable-parameters#mongodb-atlas-cluster",
         "page:/configuration/referenceable-parameters#referenceable-parameters-mongo-db-atlas-cluster",
         "page:/configuration/referenceable-parameters#upstash-redis",
@@ -18134,6 +18306,7 @@
         "page:/getting-started/upgrading-from-v3#failed-deployments-keep-what-they-created",
         "page:/getting-started/upgrading-from-v3#security-findings-in-agent-output",
         "page:/getting-started/upgrading-from-v3#target-aws-account",
+        "page:/getting-started/upgrading-from-v3#redis-caches",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
         "page:/getting-started/upgrading-from-v3#user-auth-pool-token-lifetimes",
         "page:/getting-started/upgrading-from-v3#packaging",
@@ -20543,48 +20716,49 @@
       "sourcePath": "apps/docs/content/resources/databases/redis.mdx",
       "outputPath": "pages/resources/databases/redis.md",
       "docKind": "docs-page",
-      "resourceType": "redis-cluster",
+      "resourceType": "redis",
       "definitionNames": [
-        "RedisClusterProps"
+        "RedisProps"
       ],
       "tags": [
         "resources",
         "databases",
         "redis",
-        "redis-cluster",
-        "RedisClusterProps"
+        "RedisProps"
       ],
       "chunks": [
         "page:/resources/databases/redis#redis",
         "page:/resources/databases/redis#when-to-use",
         "page:/resources/databases/redis#when-not-to-use",
-        "page:/resources/databases/redis#basic-example",
+        "page:/resources/databases/redis#choose-an-engine",
+        "page:/resources/databases/redis#valkey-serverless",
+        "page:/resources/databases/redis#node-based-valkey",
+        "page:/resources/databases/redis#redis-oss-existing-caches",
+        "page:/resources/databases/redis#changing-engines-later",
+        "page:/resources/databases/redis#versions",
         "page:/resources/databases/redis#instance-sizing",
-        "page:/resources/databases/redis#high-availability",
-        "page:/resources/databases/redis#read-replicas",
-        "page:/resources/databases/redis#automatic-failover",
+        "page:/resources/databases/redis#high-availability-node-based",
+        "page:/resources/databases/redis#read-replicas-and-automatic-failover",
         "page:/resources/databases/redis#sharding",
         "page:/resources/databases/redis#networking",
-        "page:/resources/databases/redis#access-modes",
-        "page:/resources/databases/redis#local-access-via-bastion",
         "page:/resources/databases/redis#connecting-from-workloads",
         "page:/resources/databases/redis#example-handler",
         "page:/resources/databases/redis#backups",
-        "page:/resources/databases/redis#logging",
-        "page:/resources/databases/redis#engine-versions",
+        "page:/resources/databases/redis#logging-node-based",
         "page:/resources/databases/redis#dev-mode",
+        "page:/resources/databases/redis#migrating-from-redis-cluster",
+        "page:/resources/databases/redis#stacktape-v3",
+        "page:/resources/databases/redis#stacktape-v4",
         "page:/resources/databases/redis#referenceable-parameters",
-        "page:/resources/databases/redis#referenceable-parameters-redis-cluster",
+        "page:/resources/databases/redis#referenceable-parameters-redis",
         "page:/resources/databases/redis#api-reference",
-        "page:/resources/databases/redis#definition-redisclusterprops",
+        "page:/resources/databases/redis#definition-redisprops",
         "page:/resources/databases/redis#faq",
-        "page:/resources/databases/redis#how-much-does-a-stacktape-redis-cluster-cost",
-        "page:/resources/databases/redis#can-i-connect-to-redis-from-my-local-machine",
-        "page:/resources/databases/redis#redis-vs-dynamodb-which-should-i-use-for-caching",
+        "page:/resources/databases/redis#which-engine-should-i-choose",
+        "page:/resources/databases/redis#is-valkey-compatible-with-my-redis-client",
+        "page:/resources/databases/redis#can-i-connect-to-the-cache-from-my-local-machine",
         "page:/resources/databases/redis#what-s-the-difference-between-stacktape-redis-and-upstash-redis",
-        "page:/resources/databases/redis#can-i-change-the-instance-size-without-losing-data",
-        "page:/resources/databases/redis#can-i-add-sharding-to-an-existing-redis-cluster",
-        "page:/resources/databases/redis#why-can-t-my-lambda-function-reach-the-redis-cluster"
+        "page:/resources/databases/redis#why-can-t-my-lambda-function-reach-the-cache"
       ]
     },
     {
@@ -20671,7 +20845,7 @@
         "page:/resources/databases/upstash-redis#api-reference",
         "page:/resources/databases/upstash-redis#definition-upstashredisprops",
         "page:/resources/databases/upstash-redis#faq",
-        "page:/resources/databases/upstash-redis#when-should-i-use-upstash-redis-vs-a-redis-cluster-elasticache",
+        "page:/resources/databases/upstash-redis#when-should-i-use-upstash-redis-vs-a-redis-elasticache",
         "page:/resources/databases/upstash-redis#what-does-upstash-redis-cost",
         "page:/resources/databases/upstash-redis#how-do-i-connect-to-upstash-redis-from-a-lambda-function",
         "page:/resources/databases/upstash-redis#does-upstash-redis-run-inside-my-vpc",
@@ -20808,7 +20982,7 @@
         "page:/resources/frontend/nuxt#can-i-use-nuxt-api-routes-nitro-server-routes",
         "page:/resources/frontend/nuxt#how-much-does-hosting-nuxt-on-lambda-and-cloudfront-cost",
         "page:/resources/frontend/nuxt#when-should-i-use-static-hosting-instead-of-the-nuxt-resource",
-        "page:/resources/frontend/nuxt#why-can-t-the-ssr-function-reach-my-database-or-redis-cluster",
+        "page:/resources/frontend/nuxt#why-can-t-the-ssr-function-reach-my-database-or-redis-cache",
         "page:/resources/frontend/nuxt#api-reference",
         "page:/resources/frontend/nuxt#definition-nuxtwebprops"
       ]

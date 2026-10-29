@@ -88,11 +88,11 @@ export const RESOURCE_EXPLANATIONS: Record<string, DiagramExplanation> = {
     details:
       'Single-digit-millisecond reads and writes at virtually any scale, billed per request, with no servers or connections to manage — access is synchronous HTTPS calls authorized by IAM. It can also stream every data change to consumers for event-driven processing.'
   },
-  'redis-cluster': {
-    name: 'Redis Cluster (ElastiCache)',
-    summary: 'An in-memory cache for sub-millisecond data access.',
+  redis: {
+    name: 'Redis (ElastiCache)',
+    summary: 'A Redis-compatible in-memory store for sub-millisecond data access.',
     details:
-      'Used for caching, sessions, rate limiting and pub/sub. Runs on dedicated instances inside your VPC; clients keep an open connection and query it synchronously.'
+      'Used for caching, sessions, rate limiting, queues and pub/sub. Runs Valkey (or Redis OSS) inside your VPC, either serverless or on dedicated nodes; clients keep an open connection and query it synchronously.'
   },
   'upstash-redis': {
     name: 'Upstash Redis',

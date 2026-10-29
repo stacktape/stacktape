@@ -64,7 +64,7 @@ const STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES = [
   'HostingBucket',
   'DynamoDbTable',
   'EventBus',
-  'RedisCluster',
+  'Redis',
   'MongoDbAtlasCluster',
   'UpstashRedis',
   'SqsQueue',
@@ -86,7 +86,7 @@ const VPC_COMPUTE_CONNECTION_TARGET_CLASSES = [
   'HostingBucket',
   'DynamoDbTable',
   'EventBus',
-  'RedisCluster',
+  'Redis',
   'MongoDbAtlasCluster',
   'UpstashRedis',
   'SqsQueue',
@@ -296,11 +296,11 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     canConnectTo: []
   },
   {
-    className: 'RedisCluster',
-    resourceType: 'redis-cluster',
-    propsType: 'RedisClusterProps',
-    interfaceName: 'RedisCluster',
-    sourceFile: 'redis-cluster.d.ts',
+    className: 'Redis',
+    resourceType: 'redis',
+    propsType: 'RedisProps',
+    interfaceName: 'Redis',
+    sourceFile: 'redis.d.ts',
     canConnectTo: []
   },
   {

@@ -121,7 +121,7 @@ Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME
 **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`
 **`MongoDbAtlasCluster`**: `CONNECTION_STRING`
 **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
-**`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`
+**`Redis`**: `HOST`, `READER_HOST`, `PORT`
 **`EventBus`**: `ARN`
 **`Function`**: `ARN`
 **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`

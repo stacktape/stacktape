@@ -118,7 +118,7 @@ stacktape query dynamodb eventsTable --stage staging --region us-east-1 --operat
 ## Related commands
 
 - [`query sql`](/cli/query-sql) — run read-only SQL queries against deployed PostgreSQL or MySQL databases.
-- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cluster.
+- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
 - [`query opensearch`](/cli/query-opensearch) — search and inspect deployed OpenSearch domains.
 
 ## FAQ
@@ -145,4 +145,4 @@ The [`aws call`](/cli/aws-call) command gives raw AWS SDK access and requires yo
 
 ### Does this command need a bastion tunnel or VPC access?
 
-No. DynamoDB is a regional AWS service accessible over the public internet — it does not run inside a VPC. No bastion tunnel is needed, unlike VPC-only resources such as [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis).
+No. DynamoDB is a regional AWS service accessible over the public internet — it does not run inside a VPC. No bastion tunnel is needed, unlike VPC-only resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis).

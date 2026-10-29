@@ -24,6 +24,7 @@ export const statefulCloudformationTypes = [
   'AWS::SQS::Queue',
   'AWS::MSK::ServerlessCluster',
   'AWS::ElastiCache::ReplicationGroup',
+  'AWS::ElastiCache::ServerlessCache',
   'AWS::ElastiCache::GlobalReplicationGroup',
   'AWS::OpenSearchService::Domain',
   'MongoDB::StpAtlasV1::Cluster',

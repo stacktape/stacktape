@@ -19,7 +19,7 @@ Resource limit guardrails are most valuable when multiple developers or teams sh
 - **Sizing policy** — Cap Lambda memory and container CPU/memory when your organization has reviewed ceilings. These are configuration limits, not spending caps; Lambda memory can also reduce runtime duration.
 - **Staging environment discipline** — Apply sizing limits that keep development and staging stages cost-effective. These resource-limit guardrail property shapes do not include per-stage exception fields. If you need different limits by stage, model that at the guardrail-management layer rather than inside these individual property objects.
 - **Stack sprawl prevention** — Limit the number of resources per stack to keep infrastructure manageable and avoid hitting AWS CloudFormation or account-level limits.
-- **Restricting resource types** — Block resource types that are expensive, not yet approved, or unnecessary for your workloads (e.g., block `open-search-domain` or `redis-cluster` if your team only uses serverless databases).
+- **Restricting resource types** — Block resource types that are expensive, not yet approved, or unnecessary for your workloads (e.g., block `open-search-domain` or `redis` if your team only uses serverless databases).
 
 ## When NOT to use
 
@@ -66,17 +66,17 @@ The type definitions expose optional `maxCpu` and `maxMemoryMB` properties that 
 
 ## Resource type restriction
 
-The `resource-type-restriction` guardrail configures a list of Stacktape resource types that are blocked, such as `open-search-domain` or `redis-cluster`. Stacks containing blocked resource types are non-compliant with this guardrail.
+The `resource-type-restriction` guardrail configures a list of Stacktape resource types that are blocked, such as `open-search-domain` or `redis`. Stacks containing blocked resource types are non-compliant with this guardrail.
 
 | Property | Type | Description |
 |---|---|---|
 | `blockedResourceTypes` | `StpResourceType[]` | List of Stacktape resource type identifiers that cannot be deployed |
 
-Resource types use their Stacktape identifier strings. For example, `open-search-domain` blocks [OpenSearch domains](/resources/databases/opensearch), `redis-cluster` blocks [Redis clusters](/resources/databases/redis), and `batch-job` blocks [batch jobs](/resources/compute/batch-job).
+Resource types use their Stacktape identifier strings. For example, `open-search-domain` blocks [OpenSearch domains](/resources/databases/opensearch), `redis` blocks [Redis caches](/resources/databases/redis), and `batch-job` blocks [batch jobs](/resources/compute/batch-job).
 
 **When to set this:** Use this guardrail to enforce architectural decisions at the organization level. Common scenarios:
 
-- **Block expensive managed services** — Prevent teams from adding OpenSearch or Redis clusters to development stages where a simpler solution would suffice.
+- **Block expensive managed services** — Prevent teams from adding OpenSearch or Redis caches to development stages where a simpler solution would suffice.
 - **Enforce serverless-only architectures** — Add container-based resource type identifiers to `blockedResourceTypes` to ensure teams use Lambda functions.
 - **Limit to approved resource types** — In regulated environments, block resource types that haven't been reviewed by your security or compliance team.
 

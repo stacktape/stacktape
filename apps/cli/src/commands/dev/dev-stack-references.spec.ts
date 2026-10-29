@@ -12,7 +12,7 @@ import {
 // and a container that a frontend calls.
 const resources = (overrides: Record<string, object> = {}) => ({
   mainTable: { type: 'dynamo-db-table', properties: { streamType: 'NEW_IMAGE' } },
-  cache: { type: 'redis-cluster', properties: {} },
+  cache: { type: 'redis', properties: {} },
   shopEvents: { type: 'event-bus' },
   orderStream: {
     type: 'function',

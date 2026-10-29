@@ -1529,9 +1529,9 @@
     "usedResources": [
       { "name": "storeKeyValuePair", "type": "function", "containerNames": [] },
       { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] },
-      { "name": "redis", "type": "redis-cluster", "containerNames": [] }
+      { "name": "redis", "type": "redis", "containerNames": [] }
     ],
-    "usedResourceTypes": ["function", "http-api-gateway", "redis-cluster"],
+    "usedResourceTypes": ["function", "http-api-gateway", "redis"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-app-redis",
     "isWebsite": false,
@@ -1544,7 +1544,7 @@
     "isRestApi": false,
     "priority": 100,
     "hasCognito": false,
-    "description": "simple Lambda-based HTTP endpoint that stores data in\n  ElastiCache Redis.\n"
+    "description": "simple Lambda-based HTTP endpoint that stores data in\n  ElastiCache Valkey Serverless.\n"
   },
   {
     "name": "Web scraper with Puppeteer",
@@ -1630,9 +1630,9 @@
     "usedResources": [
       { "name": "mainLoadBalancer", "type": "application-load-balancer", "containerNames": [] },
       { "name": "websocketServer", "type": "multi-container-workload", "containerNames": ["socketio-server"] },
-      { "name": "redis", "type": "redis-cluster", "containerNames": [] }
+      { "name": "redis", "type": "redis", "containerNames": [] }
     ],
-    "usedResourceTypes": ["application-load-balancer", "multi-container-workload", "redis-cluster"],
+    "usedResourceTypes": ["application-load-balancer", "multi-container-workload", "redis"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-socketio-websocket-api-redis",
     "isWebsite": false,
@@ -1645,7 +1645,7 @@
     "isRestApi": false,
     "priority": 100,
     "hasCognito": false,
-    "description": "WebSocket API built with Socket.io and scaled across multiple containers.\nUses a Redis cluster for session synchronization between\n  container instances, with an\n  Application Load Balancer for connection routing.\nRuns in a multi-container workload with\n  automatic scaling.\n"
+    "description": "WebSocket API built with Socket.io and scaled across multiple containers.\nUses a Redis cache for session synchronization between\n  container instances, with an\n  Application Load Balancer for connection routing.\nRuns in a multi-container workload with\n  automatic scaling.\n"
   },
   {
     "name": "GPU Batch Job (TensorFlow)",

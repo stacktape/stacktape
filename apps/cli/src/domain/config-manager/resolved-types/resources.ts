@@ -46,7 +46,7 @@ import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-type
 import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
 import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
 import type { StpPrivateService } from '@domain-services/config-manager/resolved-types/private-services';
-import type { StpRedisCluster } from '@domain-services/config-manager/resolved-types/redis-cluster';
+import type { StpRedis } from '@domain-services/config-manager/resolved-types/redis';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
 import type { StpSnsTopic } from '@domain-services/config-manager/resolved-types/sns-topic';
@@ -84,7 +84,7 @@ export type StpResource = (
   | StpEmailSender
   | StpStateMachine
   | StpMongoDbAtlasCluster
-  | StpRedisCluster
+  | StpRedis
   | StpCustomResource
   | StpCustomResourceDefinition
   | StpUpstashRedis
@@ -208,7 +208,7 @@ export type StpResourceScopableByConnectToAffectingRole =
   | Subtype<StpResource, StpAppSyncApi>;
 export type StpResourceScopableByConnectToAffectingSecurityGroup =
   | Subtype<StpResource, StpRelationalDatabase>
-  | Subtype<StpResource, StpRedisCluster>
+  | Subtype<StpResource, StpRedis>
   | Subtype<StpResource, StpKafkaCluster>;
 export type Script = StacktapeConfig['scripts'][string] & { scriptName: string };
 export interface TunnelTargetInfo {
@@ -229,7 +229,7 @@ export interface TunnelTargetInfo {
    *
    * **Supported Target Resources:**
    * - `relational-database`
-   * - `redis-cluster`
+   * - `redis`
    * - `mongo-db-atlas-cluster`
    * - `application-load-balancer`
    * - `private-service` (with an Application Load Balancer)

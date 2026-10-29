@@ -469,7 +469,7 @@ export default defineConfig(() => {
 
 ## Networking
 
-A Lambda function does not need VPC attachment by default. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a [relational database](/resources/databases/relational-database) with `accessibilityMode: 'vpc'`, a [Redis cluster](/resources/databases/redis), or an [EFS filesystem](/resources/storage/efs-filesystem).
+A Lambda function does not need VPC attachment by default. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a [relational database](/resources/databases/relational-database) with `accessibilityMode: 'vpc'`, a [Redis cache](/resources/databases/redis), or an [EFS filesystem](/resources/storage/efs-filesystem).
 
 The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail.
 

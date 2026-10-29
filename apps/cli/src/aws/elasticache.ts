@@ -1,5 +1,10 @@
 import type { ElastiCacheClient } from '@aws-sdk/client-elasticache';
-import { DeleteReplicationGroupCommand, DescribeReplicationGroupsCommand } from '@aws-sdk/client-elasticache';
+import {
+  DeleteReplicationGroupCommand,
+  DeleteServerlessCacheCommand,
+  DescribeReplicationGroupsCommand,
+  DescribeServerlessCachesCommand
+} from '@aws-sdk/client-elasticache';
 
 export class AwsElastiCache {
   readonly #createClient: () => ElastiCacheClient;
@@ -24,5 +29,20 @@ export class AwsElastiCache {
       new DeleteReplicationGroupCommand({ ReplicationGroupId: replicationGroupId })
     );
     return response.ReplicationGroup;
+  };
+
+  getServerlessCache = async ({ serverlessCacheName }: { serverlessCacheName: string }) => {
+    const response = await this.#createClient().send(
+      new DescribeServerlessCachesCommand({ ServerlessCacheName: serverlessCacheName })
+    );
+    return response.ServerlessCaches?.[0];
+  };
+
+  /** Starts deleting a serverless cache, without a final snapshot, and returns at once. AWS errors are passed through. */
+  deleteServerlessCache = async ({ serverlessCacheName }: { serverlessCacheName: string }) => {
+    const response = await this.#createClient().send(
+      new DeleteServerlessCacheCommand({ ServerlessCacheName: serverlessCacheName })
+    );
+    return response.ServerlessCache;
   };
 }

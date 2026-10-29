@@ -6,7 +6,7 @@ Upstash Redis uses pay-per-request pricing with no idle costs. See the [Upstash 
 
 ## When to use
 
-Upstash Redis is the right choice when your workload is serverless and bursty. Use it for caching, session storage, or rate limiting in Lambda-based applications. Because pricing is per-request with no idle costs, it avoids the minimum monthly spend of a traditional [Redis cluster](/resources/databases/redis).
+Upstash Redis is the right choice when your workload is serverless and bursty. Use it for caching, session storage, or rate limiting in Lambda-based applications. Because pricing is per-request with no idle costs, it avoids the minimum monthly spend of a traditional [Redis cache](/resources/databases/redis).
 
 Choose Upstash Redis when:
 
@@ -17,13 +17,13 @@ Choose Upstash Redis when:
 
 ## When NOT to use
 
-Upstash Redis is not a drop-in replacement for every Redis workload. Prefer a managed [Redis cluster](/resources/databases/redis) (ElastiCache) when:
+Upstash Redis is not a drop-in replacement for every Redis workload. Prefer a managed [Redis cache](/resources/databases/redis) (ElastiCache) when:
 
 - You need the lowest possible latency at high throughput — ElastiCache runs inside your VPC with direct network access, avoiding the overhead of HTTPS or public internet routing.
 - Your workload is container-based ([web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service)) with sustained high request rates — per-request pricing becomes expensive compared to per-hour pricing at scale.
 - Your application depends on Redis features beyond what Upstash supports — check the Upstash documentation for supported commands before choosing this resource.
 
-| Criteria | Upstash Redis | Redis cluster (ElastiCache) |
+| Criteria | Upstash Redis | Redis (ElastiCache) |
 |---|---|---|
 | Pricing model | Per-request, no idle cost | Per-hour per-node |
 | Connection model | HTTPS REST API or standard Redis protocol | Standard Redis protocol (TCP) |
@@ -226,9 +226,9 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ## FAQ
 
-### When should I use Upstash Redis vs a Redis cluster (ElastiCache)?
+### When should I use Upstash Redis vs a Redis (ElastiCache)?
 
-Use Upstash Redis for serverless and bursty workloads — primarily [Lambda functions](/resources/compute/lambda-function) — where you want pay-per-request pricing and minimal configuration (the resource exposes only `enableEviction`). Use a [Redis cluster](/resources/databases/redis) (ElastiCache) when your workload is container-based with sustained high throughput or when you need direct in-VPC network access. At low-to-moderate request volume, Upstash is significantly cheaper; at sustained high throughput, ElastiCache's per-hour pricing becomes more cost-effective.
+Use Upstash Redis for serverless and bursty workloads — primarily [Lambda functions](/resources/compute/lambda-function) — where you want pay-per-request pricing and minimal configuration (the resource exposes only `enableEviction`). Use a [Redis cache](/resources/databases/redis) (ElastiCache) when your workload is container-based with sustained high throughput or when you need direct in-VPC network access. At low-to-moderate request volume, Upstash is significantly cheaper; at sustained high throughput, ElastiCache's per-hour pricing becomes more cost-effective.
 
 ### What does Upstash Redis cost?
 

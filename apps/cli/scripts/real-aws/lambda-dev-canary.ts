@@ -204,11 +204,13 @@ resources:
           primaryInstance:
             instanceSize: db.t3.micro
   cache:
-    type: redis-cluster
+    type: redis
     properties:
       defaultUserPassword: lambda-dev-canary-cache-password
-      instanceSize: cache.t3.micro
-      engineVersion: '7.1'
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t3.micro
   queryArm:
     type: function
     properties:

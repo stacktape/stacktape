@@ -1,6 +1,6 @@
 # query redis
 
-The `query redis` command lets you inspect a deployed [Redis cluster](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
+The `query redis` command lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 
@@ -8,7 +8,7 @@ The `query redis` command lets you inspect a deployed [Redis cluster](/resources
 stacktape query redis myRedis --stage prod --region eu-west-1 --operation info
 ```
 
-The resource name argument must refer to a `redis-cluster` resource defined in your Stacktape configuration. The command resolves the cluster's connection details (host, port, password) from the deployed stack automatically.
+The resource name argument must refer to a `redis` resource defined in your Stacktape configuration. The command resolves the cluster's connection details (host, port, password) from the deployed stack automatically.
 
 ## Operations
 
@@ -26,7 +26,7 @@ All operations are read-only. You cannot write, delete, or modify data through t
 
 ## Accessing VPC-only clusters
 
-Redis clusters deployed inside a VPC are not publicly accessible. To reach them from your local machine, pass `--bastion-resource` to tunnel through a [bastion host](/resources/security/bastion-host) in your stack. When `--bastion-resource` resolves a tunnel target, the command starts an SSM port-forwarding session, uses localhost for the query, and closes the tunnel after the query.
+Redis caches deployed inside a VPC are not publicly accessible. To reach them from your local machine, pass `--bastion-resource` to tunnel through a [bastion host](/resources/security/bastion-host) in your stack. When `--bastion-resource` resolves a tunnel target, the command starts an SSM port-forwarding session, uses localhost for the query, and closes the tunnel after the query.
 
 ```bash
 stacktape query redis myRedis --stage prod --region eu-west-1 --bastion-resource myBastion --operation keys --pattern "session:*"
@@ -80,7 +80,7 @@ stacktape query redis myRedis --stage prod --region eu-west-1 --operation type -
 
 ### Query through a bastion tunnel
 
-When your Redis cluster is VPC-only, pass `--bastion-resource` to route the connection through a bastion host.
+When your Redis cache is VPC-only, pass `--bastion-resource` to route the connection through a bastion host.
 
 ```bash
 stacktape query redis myRedis --stage prod --region eu-west-1 --bastion-resource myBastion --operation get --key "config:feature-flags"

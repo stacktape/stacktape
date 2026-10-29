@@ -408,7 +408,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     // this is only relevant if database or redis cluster is in vpc or scoping-workloads-in-vpc mode
     const resourcesRequiringOnlyVpcAccess = accessToResourcesPotentiallyRequiringSecurityGroupCreation.filter(
       (resource) =>
-        resource.type === 'redis-cluster' ||
+        resource.type === 'redis' ||
         resource.type === 'kafka-cluster' ||
         (resource.type === 'relational-database' &&
           (resource.accessibility?.accessibilityMode === 'vpc' ||

@@ -40,7 +40,7 @@ export const STACKTAPE_RESOURCE_TYPES = [
   'nuxt-web',
   'open-search-domain',
   'private-service',
-  'redis-cluster',
+  'redis',
   'remix-web',
   'sns-topic',
   'solidstart-web',

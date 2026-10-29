@@ -70,7 +70,7 @@ const main = async () => {
     bastion: 3.8,
     'web-service': 18.07,
     'worker-service': 9.01,
-    'redis-cluster': 12.41,
+    redis: 12.41,
     'multi-container-workload': 18.07
   };
 

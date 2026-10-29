@@ -219,11 +219,10 @@ const variants: Record<string, Record<string, unknown>> = {
       properties: { credentials: { masterUserPassword: 'credential-placeholder' }, engine: pgEngine(true) }
     },
     redis: {
-      type: 'redis-cluster',
+      type: 'redis',
       properties: {
-        instanceSize: 'cache.t4g.micro',
-        defaultUserPassword: 'credential-placeholder-1',
-        numReplicaNodes: 1
+        engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', numReplicaNodes: 1 } },
+        defaultUserPassword: 'credential-placeholder-1'
       }
     }
   },
@@ -242,12 +241,13 @@ const variants: Record<string, Record<string, unknown>> = {
       }
     },
     redis: {
-      type: 'redis-cluster',
+      type: 'redis',
       properties: {
-        instanceSize: 'cache.t4g.micro',
-        defaultUserPassword: 'credential-placeholder-1',
-        enableSharding: true,
-        numReplicaNodes: 1
+        engine: {
+          type: 'valkey',
+          properties: { instanceSize: 'cache.t4g.micro', enableSharding: true, numReplicaNodes: 1 }
+        },
+        defaultUserPassword: 'credential-placeholder-1'
       }
     }
   },

@@ -59,7 +59,7 @@ import {
 import { resolveOpenSearchDomains } from './resource-resolvers/open-search';
 import { resolveStackOutputs } from './resource-resolvers/outputs';
 import { resolvePrivateServices } from './resource-resolvers/private-services';
-import { resolveRedisClusters } from './resource-resolvers/redis-clusters';
+import { resolveRedisCaches } from './resource-resolvers/redis';
 import { resolveSnsTopics } from './resource-resolvers/sns-topics';
 import { resolveSqsQueues } from './resource-resolvers/sqs-queues';
 import { resolveStateMachines } from './resource-resolvers/state-machines';
@@ -118,7 +118,7 @@ const synthesizeResources = async () => {
     resolveUserPools,
     resolveAtlasMongoClusters,
     resolveServiceDiscoveryPrivateNamespace,
-    resolveRedisClusters,
+    resolveRedisCaches,
     resolveUpstashRedisDatabases,
     resolveUptimeChecks,
     resolveSyntheticTests,

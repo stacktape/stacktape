@@ -163,7 +163,7 @@ const redisScenario = async (cliPath: string) => {
     await redis.set('j9:key', 'saved');
     await redis.lpush('j9:list', 'one');
     fixture = await createOperationsFixture(cliPath);
-    await seedDeployedStack(fixture, { cache: resource('redis-cluster', { host: '127.0.0.1', port: database.port }) });
+    await seedDeployedStack(fixture, { cache: resource('redis', { host: '127.0.0.1', port: database.port }) });
     const query = (args: string[], code?: string) =>
       commandPayload(fixture, ['query:redis', '--resourceName', 'cache', ...args], code);
     assert.equal((await query(['--operation', 'get', '--key', 'j9:key'])).payload.result, 'saved');
