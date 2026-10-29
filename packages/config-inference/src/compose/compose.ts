@@ -85,7 +85,8 @@ const IMPORT_CONCERN_CONSEQUENCES: Record<ImportConcern, string> = {
   identity: 'users would sign in without that protection',
   encryption: 'its data would not use the declared encryption key',
   'container-security': 'the container would run with fewer restrictions than declared',
-  'code-integrity': 'unsigned code would be accepted'
+  'code-integrity': 'unsigned code would be accepted',
+  permissions: 'Stacktape would give it broader AWS permissions than your source does'
 };
 
 const quotedList = (values: readonly string[]): string => {
@@ -662,8 +663,54 @@ const userPoolProperties = (dependency: DependencyFact): Record<string, unknown>
           }
         }),
     ...(declared?.passwordPolicy === undefined ? {} : { passwordPolicy: { ...declared.passwordPolicy } }),
-    ...(declared?.generateClientSecret === true ? { generateClientSecret: true } : {})
+    ...(declared?.generateClientSecret === true ? { generateClientSecret: true } : {}),
+    ...(declared?.allowedAuthFlows === undefined ? {} : { allowedAuthFlows: [...declared.allowedAuthFlows] }),
+    ...(declared?.readAttributes === undefined ? {} : { readAttributes: [...declared.readAttributes] }),
+    ...(declared?.writeAttributes === undefined ? {} : { writeAttributes: [...declared.writeAttributes] })
   };
+};
+
+/** Dependency kinds whose access `connectTo` grants through IAM, which a declared policy replaces. */
+const IAM_GRANTED_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
+  'object-storage',
+  'dynamodb',
+  'queue',
+  'topic',
+  'event-bus',
+  'state-machine',
+  'user-pool',
+  'search',
+  'email',
+  'websocket-api'
+]);
+
+type DeclaredStatement = NonNullable<ServiceFact['functionIamStatements']>[number];
+
+/**
+ * Declared IAM statements with the resources init creates written as their ARNs. A resource init did not create is
+ * left out of an Allow (granting less) and of a Deny (it does not exist); an Allow left with no resource is dropped.
+ */
+const iamStatementsFor = (
+  statements: readonly DeclaredStatement[],
+  dependencyResourceNames: ReadonlyMap<string, string>
+): { statements: Array<{ Effect: string; Action: string[]; Resource: unknown[] }>; droppedAllow: boolean } => {
+  let droppedAllow = false;
+  const composed = statements.flatMap((statement) => {
+    const resources = statement.resources.flatMap((resource) => {
+      if (typeof resource === 'string') return [resource];
+      const name = dependencyResourceNames.get(resource.dependencyName);
+      if (name === undefined) {
+        if (statement.effect === 'Allow') droppedAllow = true;
+        return [];
+      }
+      const arn = `$ResourceParam('${name}', 'arn')`;
+      return [resource.suffix === undefined ? arn : `$CfFormat('{}${resource.suffix}', ${arn})`];
+    });
+    return resources.length === 0
+      ? []
+      : [{ Effect: statement.effect, Action: [...statement.actions], Resource: resources }];
+  });
+  return { statements: composed, droppedAllow };
 };
 
 const composeDependency = (
@@ -1481,13 +1528,22 @@ export const composeConfig = ({
       service.dockerfile === undefined
         ? dockerfileOwners.find((candidate) => candidate.path === service.path)
         : undefined;
+    // A function whose manifest states its own IAM permissions gets exactly those; `connectTo` would grant every
+    // operation on the resource. Connections that are not IAM grants (a database's network access) stay.
+    const declaresPermissions = service.functionIamStatements !== undefined;
     const connectTo = [
       ...new Set(
         [
           ...facts.dependencies
-            .filter((dependency) => dependency.consumedBy.includes(service.name))
+            .filter(
+              (dependency) =>
+                dependency.consumedBy.includes(service.name) &&
+                !(declaresPermissions && IAM_GRANTED_KINDS.has(dependency.kind))
+            )
             .map((dependency) => dependencyResourceNames.get(dependency.name)),
-          ...connectedServices(service, facts.services).map((serviceName) => serviceResourceNames.get(serviceName))
+          ...(declaresPermissions ? [] : connectedServices(service, facts.services)).map((serviceName) =>
+            serviceResourceNames.get(serviceName)
+          )
         ].filter((value): value is string => value !== undefined)
       )
     ];
@@ -1694,6 +1750,16 @@ export const composeConfig = ({
       requiresVpc,
       ...(siblingDockerfile === undefined ? {} : { siblingDockerfile })
     });
+    if (service.functionIamStatements !== undefined && resources[name]!.type === 'function') {
+      const { statements, droppedAllow } = iamStatementsFor(service.functionIamStatements, dependencyResourceNames);
+      if (statements.length > 0) resources[name]!.properties.iamRoleStatements = statements;
+      if (droppedAllow) {
+        gaps.push({
+          subject: `${service.name}.iamRoleStatements`,
+          message: `${service.name}'s deployment files grant it access to resources init did not create, so those permissions are not in its iamRoleStatements. Before deploying, add statements for the resources it still needs.`
+        });
+      }
+    }
     if (
       service.containerHealthCheck !== undefined &&
       resources[name]!.type !== 'function' &&
@@ -2210,6 +2276,7 @@ const buildServiceResource = ({
             ...(trigger.maxBatchWindowSeconds === undefined
               ? {}
               : { maxBatchWindowSeconds: trigger.maxBatchWindowSeconds }),
+            ...(trigger.maximumConcurrency === undefined ? {} : { maximumConcurrency: trigger.maximumConcurrency }),
             ...(trigger.reportBatchItemFailures === true ? { reportBatchItemFailures: true } : {})
           }
         });

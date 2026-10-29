@@ -441,6 +441,24 @@ The `temporaryPasswordValidityDays` inside `passwordPolicy` controls how long a 
 
 The `UserAuthPoolProps` type does not document Stacktape-specific defaults for `passwordPolicy`; set these values explicitly when they matter for your application. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
 
+## Client restrictions
+
+The pool's app client accepts every sign-in flow and can read and write every user attribute unless you limit it:
+
+| Property | Limits |
+|---|---|
+| `allowedAuthFlows` | Which sign-in flows the client accepts, for example `ALLOW_USER_SRP_AUTH` and `ALLOW_REFRESH_TOKEN_AUTH` only |
+| `readAttributes` | Which user attributes tokens and `GetUser` return through the client |
+| `writeAttributes` | Which attributes users can set through the client, for example to keep `custom:role` admin-only |
+
+```typescript
+new UserAuthPool({
+  allowedAuthFlows: ['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+  readAttributes: ['email', 'name'],
+  writeAttributes: ['name']
+});
+```
+
 ## Token lifetimes
 
 Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
@@ -576,6 +594,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
 | `allowPhoneNumberAsUserName` | no | `boolean` | `true` |
+| `allowedAuthFlows` | no | `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" \| "ALLOW_CUSTOM_AUTH" \| "ALLOW_REFRESH_TOKEN_AUTH" \| "ALLOW_USER_AUTH" \| "ALLOW_USER_PASSWORD_AUTH" \| "ALLOW_USER_SRP_AUTH">` | - |
 | `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | - |
 | `allowedOAuthScopes` | no | `Array<string>` | - |
 | `callbackURLs` | no | `Array<string>` | - |
@@ -592,6 +611,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |
 | `passwordPolicy` | no | `PasswordPolicy` | - |
+| `readAttributes` | no | `Array<string>` | - |
 | `refreshTokenValidityDays` | no | `number` | - |
 | `requireEmailVerification` | no | `boolean` | - |
 | `requirePhoneNumberVerification` | no | `boolean` | - |
@@ -600,6 +620,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `useFirewall` | no | `string` | - |
 | `userVerificationMessageConfig` | no | `UserVerificationMessageConfig` | - |
 | `userVerificationType` | no | `string: "email-code" \| "email-link" \| "none" \| "sms"` | - |
+| `writeAttributes` | no | `Array<string>` | - |
 
 
 ## Referenceable parameters

@@ -80,7 +80,11 @@ const getEventSourceMapping = ({
     EventSourceArn: queueArn,
     Enabled: true,
     FunctionName: lambdaEndpointArn,
-    FunctionResponseTypes: eventDetails.reportBatchItemFailures ? ['ReportBatchItemFailures'] : undefined
+    FunctionResponseTypes: eventDetails.reportBatchItemFailures ? ['ReportBatchItemFailures'] : undefined,
+    ScalingConfig:
+      eventDetails.maximumConcurrency === undefined
+        ? undefined
+        : { MaximumConcurrency: eventDetails.maximumConcurrency }
   });
   return resource;
 };

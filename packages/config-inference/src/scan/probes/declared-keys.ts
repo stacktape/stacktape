@@ -141,3 +141,27 @@ export const importerOutput = ({
     ...(omitted.length === 0 ? {} : { omittedEntrypoints: omitted })
   };
 };
+
+/**
+ * One gap per setting for the events that leave it out, instead of one per event: twelve routes without their `cors`
+ * read as one decision about the API. Gaps that leave an event out stay separate, because each names what is missing.
+ */
+export const groupEventGaps = (gaps: readonly ImportGap[]): ImportGap[] => {
+  const pattern = /^(?:functions\.[^.]+\.events\.[^.]+|[^.]+\.Events\.[^.]+)$/;
+  const groups = new Map<string, ImportGap[]>();
+  const result: ImportGap[] = [];
+  for (const gap of gaps) {
+    if (gap.effect !== 'not-carried' || !pattern.test(gap.object)) {
+      result.push(gap);
+      continue;
+    }
+    const key = `${gap.file}|${gap.object.startsWith('functions.') ? 'serverless' : 'sam'}|${gap.keys.join(',')}`;
+    groups.set(key, [...(groups.get(key) ?? []), gap]);
+  }
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (group.length === 1) result.push(first!);
+    else result.push({ ...first!, object: first!.object.startsWith('functions.') ? 'functions.*.events' : '*.Events' });
+  }
+  return result;
+};

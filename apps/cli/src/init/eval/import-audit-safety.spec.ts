@@ -1,5 +1,6 @@
 /**
- * Every repository from the two adversarial init audits, through the complete init pipeline.
+ * Every repository from the two adversarial init audits and the review of their fix, through the complete init
+ * pipeline.
  *
  * Each case states the one property that makes its output no less safe than its source: a protected route stays
  * protected or is left out, a disabled or conditional job does not start running, declared storage, ordering and
@@ -74,6 +75,16 @@ const webService = (outcome: Outcome): Resource => {
 
 const packagedEntry = (resource: Resource): unknown =>
   (resource.properties.packaging as { properties?: Record<string, unknown> }).properties?.entryfilePath;
+
+/** No workload gives two of its variables one pool's client: identity domains the source keeps apart stay apart. */
+const noSharedClient = (outcome: Outcome): void => {
+  for (const resource of Object.values(outcome.resources)) {
+    const clients = ((resource.properties.environment as Array<{ value: unknown }> | undefined) ?? [])
+      .map((variable) => variable.value)
+      .filter((value) => typeof value === 'string' && value.endsWith("'clientId')"));
+    expect(new Set(clients).size).toBe(clients.length);
+  }
+};
 
 const SAFE: Record<string, (outcome: Outcome) => void> = {
   // ── First audit (r2ss) ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -186,10 +197,12 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
     expect(ofType(outcome, 'function')).toHaveLength(0);
     expectGap(outcome, '`ReadFunction` out', '`VpcConfig`');
   },
-  'r2ah/13-sam-sqs-max-batching': (outcome) => {
-    expect(events(outcome, 'sqs')).toHaveLength(0);
-    expectGap(outcome, '`ScalingConfig`');
-  },
+  'r2ah/13-sam-sqs-max-batching': (outcome) =>
+    expect(events(outcome, 'sqs')[0]?.properties).toMatchObject({
+      batchSize: 100,
+      maxBatchWindowSeconds: 10,
+      maximumConcurrency: 2
+    }),
   'r2ah/14-sam-queue-redrive': (outcome) =>
     expect(outcome.resources.jobs?.properties.redrivePolicy).toEqual({
       targetSqsQueueName: 'dead',
@@ -222,10 +235,12 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
     expectGap(outcome, 'America/New_York');
   },
   'r2ah/22-sls-provider-httpapi-iam': (outcome) => expect(routes(outcome)).toHaveLength(1),
-  'r2ah/23-sls-sqs-parameter-batch': (outcome) => {
-    expect(events(outcome, 'sqs')).toHaveLength(0);
-    expectGap(outcome, '`maximumConcurrency`');
-  },
+  'r2ah/23-sls-sqs-parameter-batch': (outcome) =>
+    expect(events(outcome, 'sqs')[0]?.properties).toMatchObject({
+      batchSize: 100,
+      maxBatchWindowSeconds: 10,
+      maximumConcurrency: 2
+    }),
   // No function URL is created, so nothing is exposed without IAM.
   'r2ah/24-sls-function-url-iam': (outcome) => {
     expect(ofType(outcome, 'function')[0]?.properties.url).toBeUndefined();
@@ -321,12 +336,14 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
   'r2ah/50-cognito-template-string-admin': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   'r2ah/51-cognito-amplify-owned': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   'r2ah/52-cognito-readme-negation': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
-  // Two pools stay two pools, and neither client variable is pointed at the other's client.
+  // Two pools stay two pools. Nothing says which client each variable names, so neither is bound to a pool.
   'r2ah/53-cognito-two-owned-pools': (outcome) => {
     expect(ofType(outcome, 'user-auth-pool')).toHaveLength(2);
-    const values = (webService(outcome).properties.environment as Array<{ value: string }>).map((entry) => entry.value);
-    expect(values.filter((value) => value.includes("'clientId'"))).toHaveLength(
-      new Set(values.filter((value) => value.includes("'clientId'"))).size
+    expect(webService(outcome).properties.environment).toEqual(
+      expect.arrayContaining([
+        { name: 'AUTH_CLIENT_ID', value: "$Secret('auth_client_id')" },
+        { name: 'STAFF_CLIENT_ID', value: "$Secret('staff_client_id')" }
+      ])
     );
   },
   'r2ah/54-cognito-python-string-admin': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
@@ -383,6 +400,112 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
   'r2ah/89-sam-java-two-modules': (outcome) => expect(ofType(outcome, 'function')).toHaveLength(2),
   'r2ah/92-ws-unaliased-control': (outcome) =>
     expect(webService(outcome).properties.loadBalancing).toEqual({ type: 'application-load-balancer' }),
+  // ── Review of #396 ───────────────────────────────────────────────────────────────────────────────────────────────
+  // A client that exists only under a condition takes its pool with it: the replacement client would always exist.
+  'r2aj-review/cognito-client-condition': (outcome) => {
+    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
+    expectGap(outcome, '`Staff` out', '`Condition:Enabled`');
+  },
+  'r2aj-review/cognito-password-ref': (outcome) =>
+    expect(ofType(outcome, 'user-auth-pool')[0]?.properties.passwordPolicy).toEqual({
+      minimumLength: 20,
+      requireSymbols: true
+    }),
+  // A Number parameter's default written as a string is still the number.
+  'r2aj-review/cognito-password-stringdefault': (outcome) =>
+    expect(ofType(outcome, 'user-auth-pool')[0]?.properties.passwordPolicy).toEqual({
+      minimumLength: 20,
+      requireSymbols: true
+    }),
+  'r2aj-review/cognito-password-unresolved': (outcome) => {
+    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
+    expectGap(outcome, '`Policies.PasswordPolicy.MinimumLength`');
+  },
+  // Admin-only recovery and five-minute access tokens are stricter than the client Stacktape would create.
+  'r2aj-review/cognito-restricted-client': (outcome) => {
+    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
+    expectGap(outcome, '`AccountRecoverySetting`', '`AccessTokenValidity`');
+  },
+  'r2aj/cognito-client-restrictions-carried': (outcome) =>
+    expect(ofType(outcome, 'user-auth-pool')[0]?.properties).toMatchObject({
+      allowedAuthFlows: ['ALLOW_ADMIN_USER_PASSWORD_AUTH'],
+      readAttributes: ['name'],
+      writeAttributes: ['name']
+    }),
+  'r2aj-review/compose-envfile': (outcome) => {
+    const environment = webService(outcome).properties.environment as Array<{ name: string; value: string }>;
+    expect(environment.every((variable) => variable.value.startsWith('$Secret('))).toBe(true);
+  },
+  // Compose replaces an extended command instead of appending to it.
+  'r2aj-review/compose-extends-command': (outcome) => expect(packagedEntry(webService(outcome))).toBe('production.js'),
+  // A service that names no network joins `default`, which this file declares internal.
+  'r2aj-review/compose-internal-default': (outcome) => {
+    expect(ofType(outcome, 'web-service')).toHaveLength(0);
+    expect(ofType(outcome, 'private-service')).toHaveLength(1);
+  },
+  'r2aj-review/compose-internal-named': (outcome) => {
+    expect(ofType(outcome, 'web-service')).toHaveLength(0);
+    expect(ofType(outcome, 'private-service')).toHaveLength(1);
+  },
+  'r2aj-review/compose-kitchen-sink': (outcome) =>
+    expectGap(outcome, '`deploy`', '`cap_add`', '`secrets`', '`logging`', '`tmpfs`', '`init`', '`stop_grace_period`'),
+  'r2aj-review/compose-security-control': (outcome) => {
+    expect(ofType(outcome, 'web-service')).toHaveLength(0);
+    expectGap(outcome, '`read_only`');
+  },
+  // `ApiKeyRequired: !If [Off, true, false]` is true with the default parameters.
+  'r2aj-review/sam-apikey-if': (outcome) => {
+    expect(routes(outcome)).toHaveLength(0);
+    expectGap(outcome, 'GET /admin', 'API key');
+  },
+  'r2aj-review/sam-carry-control': (outcome) => {
+    expect(outcome.resources.jobs?.properties.redrivePolicy).toEqual({
+      targetSqsQueueName: 'dead',
+      maxReceiveCount: 3
+    });
+    expect(ofType(outcome, 'function')[0]?.properties).toMatchObject({ architecture: 'arm64', reservedConcurrency: 0 });
+  },
+  'r2aj-review/sam-conditions': (outcome) => {
+    expect(ofType(outcome, 'function')).toHaveLength(1);
+    expectGap(outcome, '`Inactive` out');
+  },
+  // A queue whose dead-letter queue is left out is left out too, with the function that only consumed it.
+  'r2aj-review/sam-dlq-omitted': (outcome) => {
+    expect(ofType(outcome, 'sqs-queue')).toHaveLength(0);
+    expect(ofType(outcome, 'function')).toHaveLength(0);
+    expectGap(outcome, '`Jobs` out', '`RedrivePolicy`');
+  },
+  'r2aj-review/sls-dlq-omitted': (outcome) => {
+    expect(ofType(outcome, 'sqs-queue')).toHaveLength(0);
+    expect(ofType(outcome, 'function')).toHaveLength(0);
+    expectGap(outcome, '`Jobs` out', '`RedrivePolicy`');
+  },
+  'r2aj-review/sam-kitchen-sink': (outcome) => {
+    const [service] = ofType(outcome, 'function');
+    expect(service?.properties.iamRoleStatements).toEqual([
+      { Effect: 'Deny', Action: ['s3:DeleteObject'], Resource: ['*'] }
+    ]);
+    expect(service?.properties.connectTo).toBeUndefined();
+  },
+  // A read-only policy and an explicit Deny stay exactly that; `connectTo` would grant every object operation.
+  'r2aj-review/sam-policy-deny': (outcome) => {
+    const [service] = ofType(outcome, 'function');
+    expect(service?.properties.connectTo).toBeUndefined();
+    expect(service?.properties.iamRoleStatements).toEqual([
+      {
+        Effect: 'Allow',
+        Action: [
+          's3:GetObject',
+          's3:ListBucket',
+          's3:GetBucketLocation',
+          's3:GetObjectVersion',
+          's3:GetLifecycleConfiguration'
+        ],
+        Resource: ["$ResourceParam('archive', 'arn')", "$CfFormat('{}/*', $ResourceParam('archive', 'arn'))"]
+      },
+      { Effect: 'Deny', Action: ['s3:DeleteObject'], Resource: ['*'] }
+    ]);
+  },
   'r2ah/93-cognito-explicit-client-bindings': (outcome) => {
     expect(ofType(outcome, 'user-auth-pool')).toHaveLength(2);
     expect(ofType(outcome, 'function')[0]?.properties.environment).toEqual([
@@ -428,6 +551,10 @@ describe('init output is no less safe than each audited repository', () => {
       it.todo(`${name} (${PENDING[name] ?? 'no assertion'})`, () => undefined);
       continue;
     }
-    it(name, async () => check(await run(files)));
+    it(name, async () => {
+      const outcome = await run(files);
+      check(outcome);
+      noSharedClient(outcome);
+    });
   }
 });

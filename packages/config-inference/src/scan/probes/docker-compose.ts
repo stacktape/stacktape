@@ -190,15 +190,15 @@ const APPLICATION_SERVICE: KeyRules = {
   stdin_open: 'ignored',
   hostname: 'ignored',
   domainname: 'ignored',
-  init: 'ignored',
-  stop_grace_period: 'ignored',
-  logging: 'ignored',
   develop: 'ignored',
   pull_policy: 'ignored',
   annotations: 'ignored',
   attach: 'ignored',
   links: 'ignored',
   working_dir: 'not-carried',
+  init: 'not-carried',
+  stop_grace_period: 'not-carried',
+  logging: 'not-carried',
   deploy: 'not-carried',
   scale: 'not-carried',
   mem_limit: 'not-carried',
@@ -680,7 +680,9 @@ const NETWORK_ATTACHMENT: KeyRules = {
 };
 
 const internalOnly = (service: ComposeService, networks: Readonly<Record<string, unknown>>): boolean => {
-  const joined = networksOf(service).map(([name]) => name);
+  // A service that names no network joins the project's `default` network, which the file can declare internal.
+  const named = networksOf(service).map(([name]) => name);
+  const joined = named.length === 0 && service.network_mode === undefined ? ['default'] : named;
   return (
     service.ports === undefined &&
     joined.length > 0 &&
@@ -750,16 +752,39 @@ const environmentAsMap = (value: unknown): Record<string, unknown> | undefined =
   );
 };
 
-/** Compose's merge of a base service into the one that extends it: maps merge, lists append, the rest is replaced. */
+/** Values Compose replaces as a whole when a service extends another: a command is one program, not a list to join. */
+const REPLACED_ON_EXTEND = new Set(['command', 'entrypoint']);
+/** Mappings Compose merges key by key, which a file may also write as `NAME=value` lists. */
+const MERGED_AS_MAPPINGS = new Set(['environment', 'labels', 'extra_hosts', 'sysctls']);
+
+/** A volume or port entry's identity for de-duplication: Compose keeps one mount per container path. */
+const sequenceIdentity = (key: string, entry: unknown): string => {
+  if (key === 'volumes') {
+    const target = typeof entry === 'string' ? entry.split(':')[1] : isRecord(entry) ? entry.target : undefined;
+    if (typeof target === 'string') return `target:${target}`;
+  }
+  return JSON.stringify(entry);
+};
+
+/**
+ * Compose's merge of a base service into the one that extends it: a command or entrypoint is replaced, mappings
+ * (environment, labels, healthcheck, build) merge key by key with the extending service winning, and other lists
+ * append without duplicates.
+ */
 const mergeExtended = (base: ComposeService, service: ComposeService): ComposeService => {
   const merged: ComposeService = { ...base };
+  delete merged.extends;
   for (const [key, value] of Object.entries(service)) {
     if (key === 'extends') continue;
     const inherited = base[key];
-    if ((key === 'environment' || key === 'labels') && inherited !== undefined) {
+    if (inherited === undefined || REPLACED_ON_EXTEND.has(key)) {
+      merged[key] = value;
+    } else if (MERGED_AS_MAPPINGS.has(key)) {
       merged[key] = { ...environmentAsMap(inherited), ...environmentAsMap(value) };
     } else if (Array.isArray(inherited) && Array.isArray(value)) {
-      merged[key] = [...inherited, ...value];
+      const entries = new Map(inherited.map((entry) => [sequenceIdentity(key, entry), entry] as const));
+      for (const entry of value) entries.set(sequenceIdentity(key, entry), entry);
+      merged[key] = [...entries.values()];
     } else if (isRecord(inherited) && isRecord(value)) {
       merged[key] = { ...inherited, ...value };
     } else {

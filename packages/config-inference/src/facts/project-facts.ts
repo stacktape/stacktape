@@ -107,6 +107,7 @@ export type HandlerFinding = z.infer<typeof handlerFindingSchema>;
  * - `encryption`: data would not use the declared encryption key.
  * - `container-security`: the container would run with fewer restrictions than declared.
  * - `code-integrity`: code the source requires to be signed would be accepted unsigned.
+ * - `permissions`: the workload would get broader AWS permissions than its source grants.
  */
 export const importConcernSchema = z.enum([
   'access',
@@ -119,7 +120,8 @@ export const importConcernSchema = z.enum([
   'identity',
   'encryption',
   'container-security',
-  'code-integrity'
+  'code-integrity',
+  'permissions'
 ]);
 
 export type ImportConcern = z.infer<typeof importConcernSchema>;

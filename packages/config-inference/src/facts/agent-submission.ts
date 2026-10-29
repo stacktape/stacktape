@@ -33,14 +33,25 @@ import type { Uncertainty } from './uncertainty';
  * The service shape the facts document uses, minus probe-only retained literals and `source`.
  * An agent may classify a variable, but prompt-injected repository text must not choose a value
  * that reaches the generated deployment configuration. The same holds for what a deployment
- * manifest declares verbatim: sizing, volume mounts and schedule payloads come from probes only.
+ * manifest declares verbatim: sizing, layers, IAM statements, health checks, command overrides, volume mounts and
+ * schedule payloads come from probes only.
  */
 const agentServiceSchema = z
   .object({
     ...serviceShape,
     environmentVariables: z.array(environmentVariableUseSchema.omit({ safeLiteralValue: true })).default([])
   })
-  .omit({ functionTimeoutSeconds: true, functionMemoryMb: true, persistentVolumes: true })
+  .omit({
+    functionTimeoutSeconds: true,
+    functionMemoryMb: true,
+    persistentVolumes: true,
+    functionLayers: true,
+    functionArchitecture: true,
+    functionReservedConcurrency: true,
+    functionIamStatements: true,
+    containerHealthCheck: true,
+    commandOverridesImage: true
+  })
   .superRefine((service, ctx) => {
     checkServiceConsistency(service, ctx);
     for (const trigger of service.functionTriggers) {

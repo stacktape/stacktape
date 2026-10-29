@@ -312,8 +312,17 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           functionLayers: ['arn:aws:lambda:us-east-1:123456789012:layer:common:3'],
           functionArchitecture: 'arm64',
           functionReservedConcurrency: 5,
+          functionIamStatements: [
+            {
+              effect: 'Allow',
+              actions: ['s3:GetObject'],
+              resources: [{ dependencyName: 'uploads', suffix: '/*' }, { dependencyName: 'gone' }]
+            },
+            { effect: 'Allow', actions: ['sqs:SendMessage'], resources: [{ dependencyName: 'gone' }] },
+            { effect: 'Deny', actions: ['s3:DeleteObject'], resources: ['*'] }
+          ],
           functionTriggers: [
-            { type: 'queue', dependencyName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10 },
+            { type: 'queue', dependencyName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10, maximumConcurrency: 4 },
             { type: 'unmapped', reason: 'import-gap', sourceType: 'the SQS event Work' }
           ],
           environmentVariables: [
@@ -363,7 +372,10 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           userPoolSettings: {
             mfa: { status: 'ON', enabledTypes: ['SOFTWARE_TOKEN'] },
             passwordPolicy: { minimumLength: 12, requireSymbols: true },
-            generateClientSecret: true
+            generateClientSecret: true,
+            allowedAuthFlows: ['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+            readAttributes: ['email'],
+            writeAttributes: ['name']
           }
         }
       ],
@@ -386,8 +398,24 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       architecture: 'arm64',
       reservedConcurrency: 5,
       layers: ['arn:aws:lambda:us-east-1:123456789012:layer:common:3'],
-      events: [{ type: 'sqs', properties: { sqsQueueName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10 } }]
+      events: [
+        {
+          type: 'sqs',
+          properties: { sqsQueueName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10, maximumConcurrency: 4 }
+        }
+      ],
+      // A declared policy replaces `connectTo` for the resources IAM governs; one init did not create is left out.
+      iamRoleStatements: [
+        {
+          Effect: 'Allow',
+          Action: ['s3:GetObject'],
+          Resource: ["$CfFormat('{}/*', $ResourceParam('uploads', 'arn'))"]
+        },
+        { Effect: 'Deny', Action: ['s3:DeleteObject'], Resource: ['*'] }
+      ]
     });
+    expect(resources.consume?.properties.connectTo).toBeUndefined();
+    expect(result.gaps.map((gap) => gap.subject)).toContain('consume.iamRoleStatements');
     expect(resources.jobs?.properties.redrivePolicy).toEqual({ targetSqsQueueName: 'dead', maxReceiveCount: 2 });
     expect(resources.sessions?.properties.primaryKey).toEqual({
       partitionKey: { name: 'tenant', type: 'string' },
@@ -398,7 +426,10 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       allowOnlyAdminsToCreateAccount: true,
       mfaConfiguration: { status: 'ON', enabledTypes: ['SOFTWARE_TOKEN'] },
       passwordPolicy: { minimumLength: 12, requireSymbols: true },
-      generateClientSecret: true
+      generateClientSecret: true,
+      allowedAuthFlows: ['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+      readAttributes: ['email'],
+      writeAttributes: ['name']
     });
     expect(resources.api?.properties).toMatchObject({
       packaging: { type: 'dockerfile', properties: { command: ['node', 'worker.js'] } },

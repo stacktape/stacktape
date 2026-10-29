@@ -132,6 +132,14 @@ This configuration waits up to 30 seconds to fill a batch of 100 messages before
 
 <Tip>For high-throughput queues, increase `batchSize` and add a `maxBatchWindowSeconds` value to amortize Lambda invocation overhead across more messages. Larger batches reduce per-message cost at the expense of higher processing latency. Tune both values based on your throughput and latency requirements.</Tip>
 
+### Limiting concurrency
+
+Set `maximumConcurrency` (2 to 1000) to cap how many copies of the function the queue runs at once, for example to protect a database or a rate-limited API. Messages wait in the queue while the cap is reached. Without it, Lambda scales the function up to its own concurrency limit.
+
+```typescript
+new SqsIntegration({ sqsQueueName: 'orderQueue', maximumConcurrency: 5 })
+```
+
 ## Using an external queue
 
 To consume messages from an existing SQS queue not managed by this stack — for example, a queue created by a different deployment tool — use `sqsQueueArn` instead of `sqsQueueName`.

@@ -26,8 +26,10 @@ import {
   referencedLogicalId,
   RESOURCE_ATTRIBUTES
 } from './cloudformation-resources';
+import { PHYSICAL_NAME_PROPERTIES, samPermissions } from './declared-permissions';
 import {
   emptyReview,
+  groupEventGaps,
   importerOutput,
   isOmitted,
   notImportedGap,
@@ -208,11 +210,11 @@ const FUNCTION_PROPERTIES: KeyRules = {
   LoggingConfig: 'ignored',
   RolePath: 'ignored',
   RuntimeManagementConfig: 'ignored',
-  // Without them the function has only the permissions Stacktape grants: less access, not more.
-  Policies: 'not-carried',
-  Role: 'not-carried',
-  AssumeRolePolicyDocument: 'not-carried',
-  PermissionsBoundary: 'not-carried',
+  // Translated into the function's own IAM statements, which replace the access `connectTo` would grant.
+  Policies: 'carried',
+  Role: 'carried',
+  AssumeRolePolicyDocument: 'ignored',
+  PermissionsBoundary: 'permissions',
   DeploymentPreference: 'not-carried',
   ProvisionedConcurrencyConfig: 'not-carried',
   EphemeralStorage: 'not-carried',
@@ -358,7 +360,7 @@ const EVENT_PROPERTIES: Readonly<Record<string, KeyRules>> = {
     FilterCriteria: 'carried',
     FunctionResponseTypes: 'carried',
     MaximumBatchingWindowInSeconds: 'carried',
-    ScalingConfig: 'execution',
+    ScalingConfig: 'carried',
     KmsKeyArn: 'encryption'
   },
   SNS: {
@@ -472,12 +474,17 @@ const routeProtection = (
     state = declared;
   }
   if (state.kind === 'omitted') return state.description;
-  const auth = isRecord(properties.Auth) ? properties.Auth : {};
+  // Every setting is resolved the way CloudFormation would; one init cannot resolve counts as protection.
+  const auth = selectBranch(properties.Auth ?? {}, scope);
+  if (!isRecord(auth)) return 'an Auth setting init cannot resolve';
   const defaults = state.auth;
-  if ((auth.ApiKeyRequired ?? defaults.ApiKeyRequired) === true) return 'an API key (ApiKeyRequired)';
+  const apiKey = declaredSwitch(auth.ApiKeyRequired ?? defaults.ApiKeyRequired, scope);
+  if (apiKey === UNRESOLVED) return 'an ApiKeyRequired setting init cannot resolve';
+  if (apiKey === true) return 'an API key (ApiKeyRequired)';
   if (auth.ResourcePolicy !== undefined) return 'a resource policy';
-  const authorizer = auth.Authorizer ?? defaults.DefaultAuthorizer;
-  if (authorizer === undefined || authorizer === 'NONE') return undefined;
+  const authorizer = resolveDeclaredValue(auth.Authorizer ?? defaults.DefaultAuthorizer, scope);
+  if (authorizer === UNRESOLVED) return 'an authorizer init cannot resolve';
+  if (authorizer === undefined || authorizer === ABSENT || authorizer === 'NONE') return undefined;
   if (authorizer === 'AWS_IAM') return 'aws-iam';
   return typeof authorizer === 'string' ? `the ${JSON.stringify(authorizer)} authorizer` : 'an authorizer';
 };
@@ -519,6 +526,8 @@ type TriggerContext = {
   implicitApis: Readonly<Record<'Api' | 'HttpApi', ApiState>>;
   scope: TemplateScope;
   importGaps: ImportGap[];
+  /** Events left out because the resource they name was left out. */
+  fromOmittedResources?: string[];
 };
 
 /** An event left out because of what it declares; the import gap says which key. */
@@ -583,6 +592,20 @@ const triggersFor = (eventsValue: unknown, context: TriggerContext): FunctionTri
     if (batchWindow === UNRESOLVED || (typeof batchWindow === 'number' && batchWindow > 300)) {
       omitFor(review, 'Properties.MaximumBatchingWindowInSeconds', 'execution');
     }
+    const scaling = properties.ScalingConfig === undefined ? undefined : selectBranch(properties.ScalingConfig, scope);
+    reviewKeys(
+      scaling,
+      { MaximumConcurrency: 'carried' },
+      { prefix: 'Properties.ScalingConfig.', review, unknown: 'execution' }
+    );
+    const maximumConcurrency = isRecord(scaling) ? declaredNumber(scaling.MaximumConcurrency, scope) : undefined;
+    if (
+      (scaling !== undefined && !isRecord(scaling)) ||
+      maximumConcurrency === UNRESOLVED ||
+      (typeof maximumConcurrency === 'number' && (maximumConcurrency < 2 || maximumConcurrency > 1000))
+    ) {
+      omitFor(review, 'Properties.ScalingConfig', 'execution');
+    }
     const path = properties.Path === undefined ? undefined : resolveDeclaredValue(properties.Path, scope);
     const method = properties.Method === undefined ? '*' : resolveDeclaredValue(properties.Method, scope);
     if (
@@ -600,6 +623,7 @@ const triggersFor = (eventsValue: unknown, context: TriggerContext): FunctionTri
     const logicalId = referencedLogicalId(selectBranch(properties[referenceField], scope), known);
     if (logicalId !== undefined && omittedResources.has(logicalId)) {
       omitFor(review, `Properties.${referenceField}`);
+      context.fromOmittedResources?.push(eventName);
     }
 
     if (isOmitted(review)) {
@@ -672,6 +696,7 @@ const triggersFor = (eventsValue: unknown, context: TriggerContext): FunctionTri
         dependencyName,
         ...(typeof batchSize === 'number' ? { batchSize } : {}),
         ...(typeof batchWindow === 'number' && batchWindow > 0 ? { maxBatchWindowSeconds: batchWindow } : {}),
+        ...(typeof maximumConcurrency === 'number' ? { maximumConcurrency } : {}),
         ...(Array.isArray(responseTypes) && responseTypes.includes('ReportBatchItemFailures')
           ? { reportBatchItemFailures: true }
           : {})
@@ -978,14 +1003,34 @@ export const awsSamProbe: Probe = {
         importGaps.push(...reviewGaps(templatePath, client, review));
       }
 
-      // A dead-letter queue nobody consumes is still where failures go; a queue whose target was left out cannot keep it.
-      for (const dependency of declaredDependencies.values()) {
-        const target = dependency.queueSettings?.deadLetter?.dependencyName;
-        if (target !== undefined && ![...declaredDependencies.values()].some((entry) => entry.name === target)) {
-          delete dependency.queueSettings!.deadLetter;
+      // A queue whose dead-letter queue was left out would retry failing messages until they expire, so it is left out
+      // too, and so is every queue that sends its failures to it. Its consumers' events then name a queue left out.
+      for (let changed = true; changed;) {
+        changed = false;
+        for (const [logicalId, dependency] of declaredDependencies) {
+          const target = dependency.queueSettings?.deadLetter?.dependencyName;
+          if (target === undefined || [...declaredDependencies.values()].some((entry) => entry.name === target))
+            continue;
+          importGaps.push(
+            ...reviewGaps(templatePath, logicalId, omitFor(emptyReview(), 'RedrivePolicy', 'failure-handling'))
+          );
+          declaredDependencies.delete(logicalId);
+          dependencyNames.delete(logicalId);
+          omittedResources.add(logicalId);
+          changed = true;
         }
       }
 
+      const physicalNames = new Map(
+        [...declaredDependencies].flatMap(([logicalId, dependency]) => {
+          const properties = resources[logicalId]?.Properties;
+          return PHYSICAL_NAME_PROPERTIES.flatMap((key) =>
+            isRecord(properties) && properties[key] !== undefined
+              ? [[JSON.stringify(properties[key]), dependency.name] as const]
+              : []
+          );
+        })
+      );
       const functions: Array<{ logicalId: string; name: string; properties: RecordValue; service: ServiceFactInput }> =
         [];
       for (const [logicalId, resource] of Object.entries(resources)) {
@@ -1045,13 +1090,21 @@ export const awsSamProbe: Probe = {
             : undefined;
         if (declared.Layers !== undefined && layers === undefined) review.notCarried.push('Layers');
 
+        const permissions = samPermissions(declared.Policies, declared.Role, { scope, dependencyNames, physicalNames });
+        if (permissions.kind === 'declared') {
+          review.notCarried.push(...permissions.dropped);
+          if (permissions.blocking !== undefined) omitFor(review, permissions.blocking, 'permissions');
+        }
+
         if (isOmitted(review)) {
           importGaps.push(...reviewGaps(templatePath, logicalId, review));
           omittedEntrypoints.add(entrypoint);
           continue;
         }
         const functionGaps: ImportGap[] = [];
+        const fromOmittedResources: string[] = [];
         const functionTriggers = triggersFor(properties.Events, {
+          fromOmittedResources,
           file: templatePath,
           functionId: logicalId,
           dependencyNames,
@@ -1061,6 +1114,13 @@ export const awsSamProbe: Probe = {
           scope,
           importGaps: functionGaps
         });
+        // A consumer whose every event names a resource init left out has nothing left to do here.
+        if (functionTriggers.length > 0 && fromOmittedResources.length === functionTriggers.length) {
+          for (const eventName of fromOmittedResources) omitFor(review, `Events.${eventName}`);
+          importGaps.push(...functionGaps, ...reviewGaps(templatePath, logicalId, review));
+          omittedEntrypoints.add(entrypoint);
+          continue;
+        }
         importGaps.push(...reviewGaps(templatePath, logicalId, review), ...functionGaps);
         keptEntrypoints.add(entrypoint);
 
@@ -1125,6 +1185,7 @@ export const awsSamProbe: Probe = {
           ...(layers === undefined || layers.length === 0 ? {} : { functionLayers: layers }),
           ...(architecture === undefined ? {} : { functionArchitecture: architecture }),
           ...(typeof reserved === 'number' ? { functionReservedConcurrency: reserved } : {}),
+          ...(permissions.kind === 'declared' ? { functionIamStatements: permissions.statements } : {}),
           functionTriggers,
           environmentVariables,
           evidence: [sourceCitation, ...samEvidence].filter((citation) => citation !== undefined),
@@ -1207,7 +1268,7 @@ export const awsSamProbe: Probe = {
         });
       }
       for (const client of userPools.clientReviews.keys()) {
-        if (!userPools.clientPools.has(client) && !omittedResources.has(client)) notImported.push(client);
+        if (!userPools.clientPools.has(client) && !userPools.omittedClients.has(client)) notImported.push(client);
       }
       for (const [logicalId, resource] of Object.entries(resources)) {
         const type = isRecord(resource) ? String(resource.Type) : '';
@@ -1240,6 +1301,12 @@ export const awsSamProbe: Probe = {
       services.push(...functions.map(({ service }) => service));
     }
 
-    return importerOutput({ services, dependencies, importGaps, omittedEntrypoints, keptEntrypoints });
+    return importerOutput({
+      services,
+      dependencies,
+      importGaps: groupEventGaps(importGaps),
+      omittedEntrypoints,
+      keptEntrypoints
+    });
   }
 };

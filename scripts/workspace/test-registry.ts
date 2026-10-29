@@ -50,6 +50,7 @@ const configInferenceScanTests = [
   'packages/config-inference/src/scan/probes/cdk.spec.ts',
   'packages/config-inference/src/scan/probes/declared-function.spec.ts',
   'packages/config-inference/src/scan/probes/declared-keys.spec.ts',
+  'packages/config-inference/src/scan/probes/declared-permissions.spec.ts',
   'packages/config-inference/src/scan/probes/docker-compose.spec.ts',
   'packages/config-inference/src/scan/probes/dockerfile.spec.ts',
   'packages/config-inference/src/scan/probes/environment.spec.ts',

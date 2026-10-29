@@ -5,8 +5,11 @@
 
 import type { DependencyFact } from '../../facts/dependency';
 import {
+  ABSENT,
   conditionHolds,
   declaredNumber,
+  declaredSwitch,
+  selectBranch,
   declaredQueueSettings,
   resolveDeclaredValue,
   UNRESOLVED,
@@ -335,7 +338,8 @@ const USER_POOL_PROPERTIES: KeyRules = {
   SmsVerificationMessage: 'not-carried',
   SmsAuthenticationMessage: 'not-carried',
   VerificationMessageTemplate: 'not-carried',
-  AccountRecoverySetting: 'not-carried',
+  // Read below: an admin-only recovery is stricter than the self-service recovery a new pool allows.
+  AccountRecoverySetting: 'carried',
   DeletionProtection: 'not-carried',
   DeviceConfiguration: 'not-carried',
   UserAttributeUpdateSettings: 'not-carried',
@@ -350,8 +354,18 @@ const USER_POOL_PROPERTIES: KeyRules = {
 const USER_POOL_CLIENT_PROPERTIES: KeyRules = {
   UserPoolId: 'carried',
   GenerateSecret: 'carried',
+  ExplicitAuthFlows: 'carried',
+  ReadAttributes: 'carried',
+  WriteAttributes: 'carried',
+  // Compared below with what Stacktape's client allows: a declared value stricter than that leaves the pool out.
+  AccessTokenValidity: 'carried',
+  IdTokenValidity: 'carried',
+  RefreshTokenValidity: 'carried',
+  TokenValidityUnits: 'carried',
+  PreventUserExistenceErrors: 'carried',
+  EnableTokenRevocation: 'carried',
   ClientName: 'ignored',
-  ExplicitAuthFlows: 'not-carried',
+  // Stacktape's client allows OAuth only through a hosted UI domain, which init does not create.
   AllowedOAuthFlows: 'not-carried',
   AllowedOAuthFlowsUserPoolClient: 'not-carried',
   AllowedOAuthScopes: 'not-carried',
@@ -359,17 +373,82 @@ const USER_POOL_CLIENT_PROPERTIES: KeyRules = {
   LogoutURLs: 'not-carried',
   DefaultRedirectURI: 'not-carried',
   SupportedIdentityProviders: 'not-carried',
-  AccessTokenValidity: 'not-carried',
-  IdTokenValidity: 'not-carried',
-  RefreshTokenValidity: 'not-carried',
-  TokenValidityUnits: 'not-carried',
-  PreventUserExistenceErrors: 'not-carried',
-  EnableTokenRevocation: 'not-carried',
   EnablePropagateAdditionalUserContextData: 'not-carried',
+  // Stacktape keeps Cognito's shortest default sign-in session.
   AuthSessionValidity: 'not-carried',
-  ReadAttributes: 'not-carried',
-  WriteAttributes: 'not-carried',
   AnalyticsConfiguration: 'not-carried'
+};
+
+const AUTH_FLOWS = new Set([
+  'ALLOW_ADMIN_USER_PASSWORD_AUTH',
+  'ALLOW_CUSTOM_AUTH',
+  'ALLOW_USER_PASSWORD_AUTH',
+  'ALLOW_USER_SRP_AUTH',
+  'ALLOW_REFRESH_TOKEN_AUTH',
+  'ALLOW_USER_AUTH'
+]);
+
+/** Seconds per `TokenValidityUnits` unit. Cognito's defaults are hours for access and ID tokens, days for refresh. */
+const UNIT_SECONDS: Readonly<Record<string, number>> = { seconds: 1, minutes: 60, hours: 3600, days: 86_400 };
+
+/**
+ * Token lifetimes Stacktape's client issues: one hour for access and ID tokens, 30 days for refresh tokens. A declared
+ * lifetime shorter than that would be lengthened, so it leaves the pool out; a longer one is only reported.
+ */
+const STACKTAPE_TOKEN_SECONDS = { AccessToken: 3600, IdToken: 3600, RefreshToken: 30 * 86_400 } as const;
+
+type ClientSettings = Pick<UserPoolSettings, 'allowedAuthFlows' | 'readAttributes' | 'writeAttributes'>;
+
+/** The restrictions a client declares, carried where Stacktape's client can hold them and reviewed otherwise. */
+const clientSettings = (properties: RecordValue, scope: TemplateScope, review: KeyReview): ClientSettings => {
+  const settings: ClientSettings = {};
+  const list = (key: 'ExplicitAuthFlows' | 'ReadAttributes' | 'WriteAttributes'): string[] | undefined => {
+    if (properties[key] === undefined) return undefined;
+    const value = resolveDeclaredValue(properties[key], scope);
+    if (
+      !Array.isArray(value) ||
+      !value.every((entry) => typeof entry === 'string' && /^[A-Za-z0-9_:.-]+$/.test(entry))
+    ) {
+      omitFor(review, key, 'identity');
+      return undefined;
+    }
+    return value as string[];
+  };
+  const flows = list('ExplicitAuthFlows');
+  // Legacy names (`ADMIN_NO_SRP_AUTH`) imply flows of their own; only the current names are carried.
+  if (flows !== undefined && !flows.every((flow) => AUTH_FLOWS.has(flow)))
+    omitFor(review, 'ExplicitAuthFlows', 'identity');
+  else if (flows !== undefined) settings.allowedAuthFlows = flows as NonNullable<ClientSettings['allowedAuthFlows']>;
+  const read = list('ReadAttributes');
+  if (read !== undefined) settings.readAttributes = read;
+  const write = list('WriteAttributes');
+  if (write !== undefined) settings.writeAttributes = write;
+
+  const units = selectBranch(properties.TokenValidityUnits ?? {}, scope);
+  for (const [token, defaultUnit] of [
+    ['AccessToken', 'hours'],
+    ['IdToken', 'hours'],
+    ['RefreshToken', 'days']
+  ] as const) {
+    const key = `${token}Validity`;
+    if (properties[key] === undefined) continue;
+    const amount = declaredNumber(properties[key], scope);
+    const unit = isRecord(units) ? resolveDeclaredValue(units[token] ?? defaultUnit, scope) : UNRESOLVED;
+    const seconds =
+      typeof amount === 'number' && typeof unit === 'string' && UNIT_SECONDS[unit] !== undefined
+        ? amount * UNIT_SECONDS[unit]
+        : undefined;
+    if (seconds === undefined || seconds < STACKTAPE_TOKEN_SECONDS[token]) omitFor(review, key, 'identity');
+    else if (seconds > STACKTAPE_TOKEN_SECONDS[token]) review.notCarried.push(key);
+  }
+  // Without it, sign-in errors say whether a user exists; turning it off only gives away less.
+  const existenceErrors = resolveDeclaredValue(properties.PreventUserExistenceErrors, scope);
+  if (existenceErrors !== undefined && existenceErrors !== 'LEGACY')
+    omitFor(review, 'PreventUserExistenceErrors', 'identity');
+  const revocation = declaredSwitch(properties.EnableTokenRevocation, scope);
+  if (revocation === UNRESOLVED) omitFor(review, 'EnableTokenRevocation', 'identity');
+  else if (revocation === false) review.notCarried.push('EnableTokenRevocation');
+  return settings;
 };
 
 const MFA_TYPES = { SMS_MFA: 'SMS', SOFTWARE_TOKEN_MFA: 'SOFTWARE_TOKEN', EMAIL_OTP: 'EMAIL_OTP' } as const;
@@ -394,45 +473,66 @@ const userPoolSettings = (
     const types = known.map((type) => MFA_TYPES[type]);
     settings.mfa = { status: mfa, ...(types.length === 0 ? {} : { enabledTypes: types }) };
   }
+  if (properties.AccountRecoverySetting !== undefined) {
+    // A new pool lets users recover their account through a verified email or phone; `admin_only` does not.
+    const recovery = resolveDeclaredValue(properties.AccountRecoverySetting, scope);
+    const mechanisms =
+      isRecord(recovery) && Array.isArray(recovery.RecoveryMechanisms) ? recovery.RecoveryMechanisms : undefined;
+    if (
+      mechanisms === undefined ||
+      !mechanisms.every(
+        (entry) => isRecord(entry) && (entry.Name === 'verified_email' || entry.Name === 'verified_phone_number')
+      )
+    ) {
+      omitFor(review, 'AccountRecoverySetting', 'identity');
+    } else review.notCarried.push('AccountRecoverySetting');
+  }
   if (properties.Policies !== undefined) {
-    const policies = resolveDeclaredValue(properties.Policies, scope);
-    const policy = isRecord(policies) ? policies.PasswordPolicy : undefined;
+    const policies = selectBranch(properties.Policies, scope);
     reviewKeys(policies, { PasswordPolicy: 'carried', SignInPolicy: 'not-carried' }, { prefix: 'Policies.', review });
-    if (policy !== undefined) {
-      const fields = isRecord(policy) ? policy : undefined;
-      const number = (key: string) => (typeof fields?.[key] === 'number' ? (fields[key] as number) : undefined);
-      const flag = (key: string) => (typeof fields?.[key] === 'boolean' ? (fields[key] as boolean) : undefined);
-      if (fields === undefined) omitFor(review, 'Policies.PasswordPolicy', 'identity');
-      else {
-        reviewKeys(
-          fields,
-          {
-            MinimumLength: 'carried',
-            RequireLowercase: 'carried',
-            RequireNumbers: 'carried',
-            RequireSymbols: 'carried',
-            RequireUppercase: 'carried',
-            TemporaryPasswordValidityDays: 'carried',
-            PasswordHistorySize: 'identity'
-          },
-          { prefix: 'Policies.PasswordPolicy.', review, unknown: 'identity' }
-        );
-        const passwordPolicy = Object.fromEntries(
-          Object.entries({
-            minimumLength: number('MinimumLength'),
-            requireLowercase: flag('RequireLowercase'),
-            requireNumbers: flag('RequireNumbers'),
-            requireSymbols: flag('RequireSymbols'),
-            requireUppercase: flag('RequireUppercase'),
-            temporaryPasswordValidityDays: number('TemporaryPasswordValidityDays')
-          }).filter(([, value]) => value !== undefined)
-        );
-        if (Object.keys(passwordPolicy).length > 0) settings.passwordPolicy = passwordPolicy;
+    const policy = isRecord(policies) ? selectBranch(policies.PasswordPolicy, scope) : UNRESOLVED;
+    if (!isRecord(policies) || (policy !== undefined && policy !== ABSENT && !isRecord(policy))) {
+      omitFor(review, 'Policies.PasswordPolicy', 'identity');
+    } else if (isRecord(policy)) {
+      reviewKeys(
+        policy,
+        {
+          MinimumLength: 'carried',
+          RequireLowercase: 'carried',
+          RequireNumbers: 'carried',
+          RequireSymbols: 'carried',
+          RequireUppercase: 'carried',
+          TemporaryPasswordValidityDays: 'carried',
+          PasswordHistorySize: 'identity'
+        },
+        { prefix: 'Policies.PasswordPolicy.', review, unknown: 'identity' }
+      );
+      // Each rule resolved on its own: a Number parameter's default may be written as a string, and a rule init
+      // cannot read leaves the pool out rather than letting weaker passwords in.
+      const passwordPolicy: Record<string, number | boolean> = {};
+      for (const [field, key] of [
+        ['minimumLength', 'MinimumLength'],
+        ['temporaryPasswordValidityDays', 'TemporaryPasswordValidityDays']
+      ] as const) {
+        const value = declaredNumber(policy[key], scope);
+        if (value === UNRESOLVED) omitFor(review, `Policies.PasswordPolicy.${key}`, 'identity');
+        else if (value !== undefined) passwordPolicy[field] = value;
       }
+      for (const [field, key] of [
+        ['requireLowercase', 'RequireLowercase'],
+        ['requireNumbers', 'RequireNumbers'],
+        ['requireSymbols', 'RequireSymbols'],
+        ['requireUppercase', 'RequireUppercase']
+      ] as const) {
+        const value = declaredSwitch(policy[key], scope);
+        if (value === UNRESOLVED) omitFor(review, `Policies.PasswordPolicy.${key}`, 'identity');
+        else if (value !== undefined) passwordPolicy[field] = value;
+      }
+      if (Object.keys(passwordPolicy).length > 0) settings.passwordPolicy = passwordPolicy;
     }
   }
   if (properties.AdminCreateUserConfig !== undefined) {
-    const config = resolveDeclaredValue(properties.AdminCreateUserConfig, scope);
+    const config = selectBranch(properties.AdminCreateUserConfig, scope);
     reviewKeys(
       config,
       {
@@ -442,9 +542,9 @@ const userPoolSettings = (
       },
       { prefix: 'AdminCreateUserConfig.', review }
     );
-    const adminOnly = isRecord(config) ? config.AllowAdminCreateUserOnly : undefined;
+    const adminOnly = isRecord(config) ? declaredSwitch(config.AllowAdminCreateUserOnly, scope) : UNRESOLVED;
     if (typeof adminOnly === 'boolean') settings.allowOnlyAdminsToCreateAccount = adminOnly;
-    else if (adminOnly !== undefined) omitFor(review, 'AdminCreateUserConfig.AllowAdminCreateUserOnly', 'identity');
+    else if (adminOnly === UNRESOLVED) omitFor(review, 'AdminCreateUserConfig.AllowAdminCreateUserOnly', 'identity');
   }
   return Object.keys(settings).length === 0 ? undefined : settings;
 };
@@ -461,7 +561,13 @@ export const declaredUserPools = (
   resources: Readonly<Record<string, unknown>>,
   scope: TemplateScope,
   reviews: ReadonlyMap<string, KeyReview>
-): { pools: DeclaredUserPool[]; clientPools: Map<string, string>; clientReviews: Map<string, KeyReview> } => {
+): {
+  pools: DeclaredUserPool[];
+  clientPools: Map<string, string>;
+  clientReviews: Map<string, KeyReview>;
+  /** Clients left out with their pool, or for a setting of their own; an import gap already names them. */
+  omittedClients: Set<string>;
+} => {
   const pools: DeclaredUserPool[] = [];
   for (const [logicalId, resource] of Object.entries(resources)) {
     if (!isRecord(resource) || resource.Type !== 'AWS::Cognito::UserPool') continue;
@@ -480,13 +586,21 @@ export const declaredUserPools = (
     const review = reviews.get(logicalId) ?? { omitted: [], notCarried: [] };
     const properties = isRecord(resource.Properties) ? resource.Properties : {};
     reviewKeys(properties, USER_POOL_CLIENT_PROPERTIES, { review });
+    const restrictions = clientSettings(properties, scope, review);
     clientReviews.set(logicalId, review);
     const pool = referencedLogicalId(properties.UserPoolId, poolIds);
     if (pool !== undefined) clients.set(logicalId, pool);
-    if (resolveDeclaredValue(properties.GenerateSecret, scope) === true) {
-      const owner = pools.find((entry) => entry.logicalId === pool);
-      if (owner !== undefined) owner.settings = { ...owner.settings, generateClientSecret: true };
-    }
+    const owner = pools.find((entry) => entry.logicalId === pool);
+    if (owner === undefined) continue;
+    // Stacktape gives a pool one client, so a client that cannot be written as declared takes its pool with it.
+    if (isOmitted(review)) omitFor(owner.review, logicalId, 'identity');
+    owner.settings = {
+      ...owner.settings,
+      ...restrictions,
+      ...(resolveDeclaredValue(properties.GenerateSecret, scope) === true
+        ? { generateClientSecret: true as const }
+        : {})
+    };
   }
   const clientPools = new Map<string, string>();
   for (const [client, pool] of clients) {
@@ -494,5 +608,11 @@ export const declaredUserPools = (
     const owner = pools.find((entry) => entry.logicalId === pool)!;
     if (siblings === 1 && !isOmitted(owner.review)) clientPools.set(client, owner.name);
   }
-  return { pools, clientPools, clientReviews };
+  const omittedClients = new Set(
+    [...clientReviews].flatMap(([client, review]) => {
+      const owner = pools.find((entry) => entry.logicalId === clients.get(client));
+      return isOmitted(review) || (owner !== undefined && isOmitted(owner.review)) ? [client] : [];
+    })
+  );
+  return { pools, clientPools, clientReviews, omittedClients };
 };

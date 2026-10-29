@@ -669,5 +669,111 @@
     "handler.js": "const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');\nconst client=new CognitoIdentityProviderClient({});\nexports.handler=async(event)=>{\n const args={USERNAME:'synthetic',PASSWORD:'synthetic'};\n const result=event.pathParameters.realm==='staff'\n ? await client.send(new InitiateAuthCommand({ClientId:process.env.STAFF_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:args}))\n : await client.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:args}));\n return {statusCode:200,body:JSON.stringify(result)};\n};\n",
     "package.json": "{\"name\": \"auth\", \"dependencies\": {\"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"}}",
     "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n  StaffClient:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n      ExplicitAuthFlows:\n      - ALLOW_USER_PASSWORD_AUTH\n      - ALLOW_REFRESH_TOKEN_AUTH\n  Customers:\n    Type: AWS::Cognito::UserPool\n  CustomersClient:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Customers\n      GenerateSecret: false\n      ExplicitAuthFlows:\n      - ALLOW_USER_PASSWORD_AUTH\n      - ALLOW_REFRESH_TOKEN_AUTH\n  LoginFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      CodeUri: .\n      Handler: handler.handler\n      Environment:\n        Variables:\n          STAFF_CLIENT_ID:\n            Ref: StaffClient\n          AUTH_CLIENT_ID:\n            Ref: CustomersClient\n      Events:\n        Login:\n          Type: HttpApi\n          Properties:\n            Path: /login/{realm}\n            Method: POST\n"
+  },
+  "r2aj-review/cognito-client-condition": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-client-condition\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Mode:\n    Type: String\n    Default: 'off'\nConditions:\n  Enabled:\n    Fn::Equals:\n    - Ref: Mode\n    - 'on'\n  'Off':\n    Fn::Not:\n    - Condition: Enabled\n  All:\n    Fn::And:\n    - Condition: 'Off'\n    - Fn::Equals:\n      - 1\n      - 1\n  Any:\n    Fn::Or:\n    - Condition: Enabled\n    - Condition: All\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Condition: Enabled\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: true\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Fn::If:\n            - Enabled\n            - Ref: Client\n            - disabled\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
+  },
+  "r2aj-review/cognito-password-ref": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-password-ref\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  MinLength:\n    Type: Number\n    Default: 20\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      Policies:\n        PasswordPolicy:\n          MinimumLength:\n            Ref: MinLength\n          RequireSymbols: true\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Ref: Client\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
+  },
+  "r2aj-review/cognito-password-stringdefault": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-password-ref\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  MinLength:\n    Type: Number\n    Default: '20'\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      Policies:\n        PasswordPolicy:\n          MinimumLength:\n            Ref: MinLength\n          RequireSymbols: true\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Ref: Client\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
+  },
+  "r2aj-review/cognito-password-unresolved": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-password-unresolved\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  MinLength:\n    Type: Number\n    MinValue: 20\n    MaxValue: 99\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      Policies:\n        PasswordPolicy:\n          MinimumLength:\n            Ref: MinLength\n          RequireSymbols: true\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Ref: Client\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
+  },
+  "r2aj-review/cognito-restricted-client": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-restricted-client\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n      AccountRecoverySetting:\n        RecoveryMechanisms:\n        - Name: admin_only\n          Priority: 1\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n      WriteAttributes:\n      - name\n      ReadAttributes:\n      - name\n      ExplicitAuthFlows:\n      - ALLOW_ADMIN_USER_PASSWORD_AUTH\n      AccessTokenValidity: 5\n      TokenValidityUnits:\n        AccessToken: minutes\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Ref: Client\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
+  },
+  "r2aj-review/compose-envfile": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 8080:8080\n    env_file:\n    - settings.env\n",
+    "package.json": "{\"name\": \"compose-envfile\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n",
+    "settings.env": "API_TOKEN=synthetic-review-sentinel-token\nTENANT=synthetic-review-sentinel-tenant\n"
+  },
+  "r2aj-review/compose-extends-command": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "base.yml": "services:\n  base:\n    command:\n    - node\n    - legacy.js\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 8080:8080\n    extends:\n      file: base.yml\n      service: base\n    command:\n    - node\n    - production.js\n",
+    "legacy.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n",
+    "package.json": "{\"name\": \"compose-extends-command\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "production.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n"
+  },
+  "r2aj-review/compose-internal-default": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    expose:\n    - 8080\nnetworks:\n  default:\n    internal: true\n",
+    "package.json": "{\"name\": \"compose-internal-default\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n"
+  },
+  "r2aj-review/compose-internal-named": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    expose:\n    - 8080\n    networks:\n    - backend\nnetworks:\n  backend:\n    internal: true\n",
+    "package.json": "{\"name\": \"compose-internal-named\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n"
+  },
+  "r2aj-review/compose-kitchen-sink": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 8080:8080\n    deploy:\n      resources:\n        limits:\n          cpus: '0.25'\n          memory: 128M\n      replicas: 1\n    ulimits:\n      core: 0\n    cap_add:\n    - NET_ADMIN\n    secrets:\n    - session_key\n    configs:\n    - server_config\n    logging:\n      driver: none\n    tmpfs:\n    - /sensitive:mode=0700\n    sysctls:\n      net.ipv4.ip_unprivileged_port_start: '1024'\n    init: true\n    stop_grace_period: 2m\nsecrets:\n  session_key:\n    file: session_key.txt\nconfigs:\n  server_config:\n    file: server.conf\n",
+    "package.json": "{\"name\": \"compose-kitchen-sink\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "server.conf": "log: false",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n",
+    "session_key.txt": "synthetic-test-only"
+  },
+  "r2aj-review/compose-security-control": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 8080:8080\n    security_opt:\n    - no-new-privileges:true\n    read_only: true\n",
+    "package.json": "{\"name\": \"compose-security-control\", \"version\": \"1.0.0\", \"scripts\": {\"start\": \"node server.js\"}}",
+    "server.js": "require('http').createServer((req,res) => res.end('ok')).listen(8080);\n"
+  },
+  "r2aj-review/sam-apikey-if": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"sam-apikey-if\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Mode:\n    Type: String\n    Default: 'off'\nConditions:\n  Enabled:\n    Fn::Equals:\n    - Ref: Mode\n    - 'on'\n  'Off':\n    Fn::Not:\n    - Condition: Enabled\n  All:\n    Fn::And:\n    - Condition: 'Off'\n    - Fn::Equals:\n      - 1\n      - 1\n  Any:\n    Fn::Or:\n    - Condition: Enabled\n    - Condition: All\nResources:\n  Api:\n    Type: AWS::Serverless::Api\n    Properties:\n      StageName: prod\n      Auth:\n        ApiKeyRequired:\n          Fn::If:\n          - 'Off'\n          - true\n          - false\n  Admin:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /admin\n            Method: GET\n            RestApiId:\n              Ref: Api\n"
+  },
+  "r2aj-review/sam-carry-control": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"sam-carry-control\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Dead:\n    Type: AWS::SQS::Queue\n  Jobs:\n    Type: AWS::SQS::Queue\n    Properties:\n      RedrivePolicy:\n        deadLetterTargetArn:\n          Fn::GetAtt:\n          - Dead\n          - Arn\n        maxReceiveCount: 3\n  Consumer:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Architectures:\n      - arm64\n      ReservedConcurrentExecutions: 0\n      Layers:\n      - arn:aws:lambda:eu-west-1:123456789012:layer:shared:3\n      Events:\n        Jobs:\n          Type: SQS\n          Properties:\n            Queue:\n              Fn::GetAtt:\n              - Jobs\n              - Arn\n            MaximumBatchingWindowInSeconds: 12\n            BatchSize: 10\n"
+  },
+  "r2aj-review/sam-conditions": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"sam-conditions\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Mode:\n    Type: String\n    Default: 'off'\nConditions:\n  Enabled:\n    Fn::Equals:\n    - Ref: Mode\n    - 'on'\n  'Off':\n    Fn::Not:\n    - Condition: Enabled\n  All:\n    Fn::And:\n    - Condition: 'Off'\n    - Fn::Equals:\n      - 1\n      - 1\n  Any:\n    Fn::Or:\n    - Condition: Enabled\n    - Condition: All\nResources:\n  Inactive:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Timer:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n    Condition: Enabled\n  Active:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Timer:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n            Enabled:\n              Fn::If:\n              - 'Off'\n              - true\n              - false\n    Condition: Any\n"
+  },
+  "r2aj-review/sam-dlq-omitted": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"sam-dlq-omitted\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Dead:\n    Type: AWS::SQS::Queue\n    Properties:\n      KmsMasterKeyId: alias/company-audit\n  Jobs:\n    Type: AWS::SQS::Queue\n    Properties:\n      RedrivePolicy:\n        deadLetterTargetArn:\n          Fn::GetAtt:\n          - Dead\n          - Arn\n        maxReceiveCount: 3\n  Consumer:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Jobs:\n          Type: SQS\n          Properties:\n            Queue:\n              Fn::GetAtt:\n              - Jobs\n              - Arn\n"
+  },
+  "r2aj-review/sam-kitchen-sink": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"sam-kitchen-sink\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Function:\n    Timeout: 45\n    MemorySize: 512\nResources:\n  Service:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Tracing: Active\n      AutoPublishAlias: live\n      ProvisionedConcurrencyConfig:\n        ProvisionedConcurrentExecutions: 2\n      Policies:\n      - Statement:\n        - Effect: Deny\n          Action: s3:DeleteObject\n          Resource: '*'\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /\n            Method: GET\n            TimeoutInMillis: 20000\n    Metadata:\n      BuildMethod: esbuild\n    DeletionPolicy: Retain\n"
+  },
+  "r2aj-review/sam-policy-deny": {
+    "handler.js": "exports.handler = async () => ({statusCode:200,body:process.env.BUCKET_NAME});\n",
+    "package.json": "{\"name\": \"sam-policy-deny\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Function:\n    Timeout: 45\n    MemorySize: 512\nResources:\n  Service:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Tracing: Active\n      AutoPublishAlias: live\n      ProvisionedConcurrencyConfig:\n        ProvisionedConcurrentExecutions: 2\n      Policies:\n      - S3ReadPolicy:\n          BucketName:\n            Ref: Archive\n      - Statement:\n        - Effect: Deny\n          Action: s3:DeleteObject\n          Resource: '*'\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /\n            Method: GET\n            TimeoutInMillis: 20000\n      Environment:\n        Variables:\n          BUCKET_NAME:\n            Ref: Archive\n    Metadata:\n      BuildMethod: esbuild\n    DeletionPolicy: Retain\n  Archive:\n    Type: AWS::S3::Bucket\n"
+  },
+  "r2aj-review/sls-dlq-omitted": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "serverless.yml": "service: sls-dlq-omitted\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  consumer:\n    handler: handler.handler\n    events:\n    - sqs:\n        arn:\n          Fn::GetAtt:\n          - Jobs\n          - Arn\nresources:\n  Resources:\n    Dead:\n      Type: AWS::SQS::Queue\n      Properties:\n        KmsMasterKeyId: alias/company-audit\n    Jobs:\n      Type: AWS::SQS::Queue\n      Properties:\n        RedrivePolicy:\n          deadLetterTargetArn:\n            Fn::GetAtt:\n            - Dead\n            - Arn\n          maxReceiveCount: 3\n"
+  },
+  "r2aj/cognito-client-restrictions-carried": {
+    "handler.js": "exports.handler = async (event) => ({ statusCode: 200, body: JSON.stringify(event) });\n",
+    "package.json": "{\"name\": \"cognito-restricted-client\", \"version\": \"1.0.0\"}",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n  Client:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n      WriteAttributes:\n      - name\n      ReadAttributes:\n      - name\n      ExplicitAuthFlows:\n      - ALLOW_ADMIN_USER_PASSWORD_AUTH\n  Login:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Environment:\n        Variables:\n          AUTH_CLIENT_ID:\n            Ref: Client\n      Events:\n        Api:\n          Type: Api\n          Properties:\n            Path: /login\n            Method: POST\n"
   }
 }

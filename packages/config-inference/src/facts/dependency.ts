@@ -234,7 +234,23 @@ export const dependencyFactSchema = z.object({
         .optional(),
       /** The declaration states who creates accounts (`AdminCreateUserConfig.AllowAdminCreateUserOnly`). */
       allowOnlyAdminsToCreateAccount: z.boolean().optional(),
-      generateClientSecret: z.literal(true).optional()
+      generateClientSecret: z.literal(true).optional(),
+      /** The sign-in flows the app client accepts; without it Stacktape's client accepts every flow. */
+      allowedAuthFlows: z
+        .array(
+          z.enum([
+            'ALLOW_ADMIN_USER_PASSWORD_AUTH',
+            'ALLOW_CUSTOM_AUTH',
+            'ALLOW_USER_PASSWORD_AUTH',
+            'ALLOW_USER_SRP_AUTH',
+            'ALLOW_REFRESH_TOKEN_AUTH',
+            'ALLOW_USER_AUTH'
+          ])
+        )
+        .optional(),
+      /** The user attributes the app client may read and change; without them it may read and change all. */
+      readAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional(),
+      writeAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional()
     })
     .optional(),
   /**

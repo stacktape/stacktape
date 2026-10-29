@@ -207,6 +207,8 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     batchSize: z.number().int().positive().optional(),
     /** How long the event source gathers messages before it invokes the handler. Lambda requires one above 10 messages. */
     maxBatchWindowSeconds: z.number().int().min(0).max(300).optional(),
+    /** The most function instances the queue may run at once (`ScalingConfig.MaximumConcurrency`). */
+    maximumConcurrency: z.number().int().min(2).max(1000).optional(),
     /**
      * The handler returns `batchItemFailures` and the event source is told to read them
      * (`ReportBatchItemFailures`). Without that setting a handler that reports failures acknowledges the whole batch.
@@ -444,6 +446,36 @@ export const serviceShape = {
   functionArchitecture: z.enum(['x86_64', 'arm64']).optional(),
   /** The concurrency a deployment manifest reserves for the function, which also caps it. */
   functionReservedConcurrency: z.number().int().min(0).optional(),
+  /**
+   * The IAM permissions a deployment manifest gives the function, translated statement by statement. When present,
+   * the function gets exactly these instead of the access `connectTo` grants: a read-only policy or an explicit Deny
+   * must not become full read-write access.
+   */
+  functionIamStatements: z
+    .array(
+      z.object({
+        effect: z.enum(['Allow', 'Deny']),
+        actions: z.array(z.string().regex(/^(?:\*|[a-zA-Z0-9-]+:[A-Za-z0-9*]+)$/)).min(1),
+        resources: z
+          .array(
+            z.union([
+              z.literal('*'),
+              z.string().regex(/^arn:aws[a-z-]*:[A-Za-z0-9:/*_.+=,@-]+$/),
+              z.object({
+                dependencyName: z.string().min(1),
+                /** What follows the resource's ARN: `/*` for a bucket's objects, `/index/*` for a table's indexes. */
+                suffix: z
+                  .string()
+                  .regex(/^[A-Za-z0-9/*_.:-]+$/)
+                  .optional()
+              })
+            ])
+          )
+          .min(1)
+      })
+    )
+    .max(50)
+    .optional(),
   /** Repository-declared events that invoke `functionEntrypoint`, or that start a `one-shot` service. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */

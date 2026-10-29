@@ -26,17 +26,20 @@ import {
   declaredUserPools,
   RESOURCE_ATTRIBUTES
 } from './cloudformation-resources';
+import { declaredStatements } from './declared-permissions';
 import {
   declaredHandlerExport,
   declaredNumber,
   declaredSizing,
   declaredSwitch,
   resolveDeclaredValue,
+  selectBranch,
   UNRESOLVED,
   type TemplateScope
 } from './declared-function';
 import {
   emptyReview,
+  groupEventGaps,
   importerOutput,
   isOmitted,
   notImportedGap,
@@ -282,12 +285,13 @@ const PROVIDER: KeyRules = {
   websocketsApiName: 'ignored',
   websocketsApiRouteSelectionExpression: 'ignored',
   websocketsDescription: 'ignored',
-  // Without them the functions have only the permissions Stacktape grants: less access, not more.
-  iam: 'not-carried',
-  iamRoleStatements: 'not-carried',
-  iamManagedPolicies: 'not-carried',
-  role: 'not-carried',
-  rolePermissionsBoundary: 'not-carried',
+  // Statements are translated into each function's own; a role or managed policy init cannot read is not.
+  iam: 'carried',
+  iamRoleStatements: 'carried',
+  // Read below: the functions get none of a role's or managed policies' permissions, and no `connectTo` instead.
+  iamManagedPolicies: 'carried',
+  role: 'carried',
+  rolePermissionsBoundary: 'permissions',
   stackParameters: 'not-carried',
   ecr: 'not-carried',
   s3: 'not-carried',
@@ -353,9 +357,10 @@ const FUNCTION: KeyRules = {
   versionFunction: 'ignored',
   dependsOn: 'ignored',
   runtimeManagement: 'ignored',
-  role: 'not-carried',
-  iamRoleStatements: 'not-carried',
-  iamRoleStatementsName: 'not-carried',
+  role: 'carried',
+  iamRoleStatements: 'carried',
+  iamRoleStatementsInherit: 'carried',
+  iamRoleStatementsName: 'ignored',
   provisionedConcurrency: 'not-carried',
   ephemeralStorageSize: 'not-carried',
   snapStart: 'not-carried',
@@ -410,7 +415,7 @@ const EVENT_SETTINGS: Readonly<Record<string, KeyRules>> = {
     enabled: 'carried',
     filterPatterns: 'carried',
     functionResponseType: 'carried',
-    maximumConcurrency: 'execution'
+    maximumConcurrency: 'carried'
   },
   sns: {
     arn: 'carried',
@@ -438,10 +443,18 @@ const RESOURCES_SECTION: KeyRules = {
  * How a Serverless HTTP event protects its route: `aws-iam`, a description of protection Stacktape cannot express,
  * or nothing for a public route. Serverless accepts `aws_iam` both as the authorizer string and as its `type`.
  */
-const routeProtection = (http: RecordValue, apiProtection: string | undefined): 'aws-iam' | string | undefined => {
+const routeProtection = (
+  http: RecordValue,
+  apiProtection: string | undefined,
+  scope: TemplateScope
+): 'aws-iam' | string | undefined => {
   if (apiProtection !== undefined) return apiProtection;
-  if (http.private === true) return 'an API key (private: true)';
-  const authorizer = http.authorizer;
+  // A setting init cannot resolve counts as protection.
+  const isPrivate = declaredSwitch(http.private, scope);
+  if (isPrivate === UNRESOLVED) return 'a private setting init cannot resolve';
+  if (isPrivate === true) return 'an API key (private: true)';
+  const authorizer = selectBranch(http.authorizer, scope);
+  if (authorizer === UNRESOLVED) return 'an authorizer init cannot resolve';
   if (authorizer === undefined || authorizer === null) return undefined;
   const type = typeof authorizer === 'string' ? authorizer : isRecord(authorizer) ? authorizer.type : undefined;
   if (typeof type === 'string' && type.toLowerCase() === 'aws_iam') return 'aws-iam';
@@ -504,6 +517,8 @@ type TriggerContext = {
   restApiProtection: string | undefined;
   httpApiProtection: string | undefined;
   importGaps: ImportGap[];
+  /** Events left out because the resource they name was left out, by index. */
+  fromOmittedResources?: number[];
 };
 
 const EVENT_TYPES = ['http', 'httpApi', 'schedule', 'sqs', 'sns', 's3'] as const;
@@ -551,6 +566,13 @@ const triggersFor = (events: unknown, context: TriggerContext): FunctionTrigger[
         if (declaredType === 'sqs' && (window === UNRESOLVED || (typeof window === 'number' && window > 300))) {
           omitFor(review, 'sqs.maximumBatchingWindow', 'execution');
         }
+        const concurrency = declaredNumber(settings.maximumConcurrency, scope);
+        if (
+          declaredType === 'sqs' &&
+          (concurrency === UNRESOLVED || (typeof concurrency === 'number' && (concurrency < 2 || concurrency > 1000)))
+        ) {
+          omitFor(review, 'sqs.maximumConcurrency', 'execution');
+        }
         if (declaredSwitch(settings.enabled, scope) === UNRESOLVED)
           omitFor(review, `${declaredType}.enabled`, 'execution');
       }
@@ -569,8 +591,10 @@ const triggersFor = (events: unknown, context: TriggerContext): FunctionTrigger[
                 : settings
               : undefined;
       const referenced = referencedLogicalId(reference, known);
-      if (referenced !== undefined && omittedResources.has(referenced))
+      if (referenced !== undefined && omittedResources.has(referenced)) {
+        context.fromOmittedResources?.push(index);
         omitFor(review, `${declaredType}.${declaredType === 's3' ? 'bucket' : 'arn'}`);
+      }
     }
     importGaps.push(...reviewGaps(file, object, review));
     if (isOmitted(review)) {
@@ -610,7 +634,7 @@ const triggersFor = (events: unknown, context: TriggerContext): FunctionTrigger[
       const path = typeof http.path === 'string' ? http.path : undefined;
       if (method !== undefined && path !== undefined) {
         const route = { method: method.toUpperCase(), path: path.startsWith('/') ? path : `/${path}` };
-        const protection = routeProtection(http, apiProtection);
+        const protection = routeProtection(http, apiProtection, scope);
         if (protection === undefined) triggers.push({ type: 'http', ...route });
         else if (protection === 'aws-iam') triggers.push({ type: 'http', ...route, authorization: 'aws-iam' });
         else {
@@ -635,6 +659,7 @@ const triggersFor = (events: unknown, context: TriggerContext): FunctionTrigger[
       const options = isRecord(event.sqs) ? event.sqs : {};
       const batchSize = declaredNumber(options.batchSize, scope);
       const window = declaredNumber(options.maximumBatchingWindow, scope);
+      const maximumConcurrency = declaredNumber(options.maximumConcurrency, scope);
       if (declaredSwitch(options.enabled, scope) === false) {
         triggers.push({ type: 'unmapped', reason: 'disabled', sourceType: `the event from the ${queueName} queue` });
       } else if (options.filterPatterns !== undefined) {
@@ -648,6 +673,7 @@ const triggersFor = (events: unknown, context: TriggerContext): FunctionTrigger[
           dependencyName: queueName,
           ...(typeof batchSize === 'number' ? { batchSize } : {}),
           ...(typeof window === 'number' && window > 0 ? { maxBatchWindowSeconds: window } : {}),
+          ...(typeof maximumConcurrency === 'number' ? { maximumConcurrency } : {}),
           ...(options.functionResponseType === 'ReportBatchItemFailures' ? { reportBatchItemFailures: true } : {})
         });
       }
@@ -811,7 +837,23 @@ export const serverlessFrameworkProbe: Probe = {
       importGaps.push(...reviewGaps(file, 'resources', reviewKeys(resourcesSection, RESOURCES_SECTION)));
       // The provider's own settings; its API settings decide whether their routes can be carried at all.
       const providerReview = reviewKeys(providerSettings, PROVIDER);
-      const functionWide = providerReview.omitted.filter((entry) => ['vpc', 'kmsKeyArn'].includes(entry.key));
+      // `provider.iam.role` is a role ARN or the statements, managed policies and boundary of the generated role.
+      const iam = isRecord(providerSettings.iam) ? providerSettings.iam : {};
+      reviewKeys(iam, { role: 'carried', deploymentRole: 'ignored' }, { prefix: 'iam.', review: providerReview });
+      reviewKeys(
+        iam.role,
+        { statements: 'carried', managedPolicies: 'carried', name: 'ignored', path: 'ignored', tags: 'ignored' },
+        { prefix: 'iam.role.', review: providerReview, unknown: 'permissions' }
+      );
+      const permissionContext = {
+        scope,
+        dependencyNames: new Map<string, string>(),
+        variableDependencies: new Map<string, string>()
+      };
+      const declaredProviderStatements = isRecord(iam.role) ? iam.role.statements : providerSettings.iamRoleStatements;
+      const functionWide = providerReview.omitted.filter((entry) =>
+        ['network', 'encryption', 'permissions'].includes(entry.concern ?? '')
+      );
       const restReview = reviewKeys(providerSettings.apiGateway, API_GATEWAY, { prefix: 'apiGateway.' });
       for (const entry of providerReview.omitted) {
         if (entry.key === 'vpcEndpointIds' || entry.key === 'resourcePolicy') restReview.omitted.push(entry);
@@ -913,7 +955,7 @@ export const serverlessFrameworkProbe: Probe = {
       for (const [client, review] of userPools.clientReviews) {
         const pool = userPools.clientPools.get(client);
         if (pool !== undefined) dependencyNames.set(client, pool);
-        else if (!isOmitted(review)) notImported.push(client);
+        else if (!userPools.omittedClients.has(client)) notImported.push(client);
         importGaps.push(...reviewGaps(file, client, review));
       }
       for (const pool of userPools.pools) {
@@ -952,21 +994,37 @@ export const serverlessFrameworkProbe: Probe = {
         const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(constructName)}:`));
         manifestDependencies.push(manifestDependencyFact(name, kind, citation));
       }
-      // A dead-letter target that was left out cannot receive failures; one that is kept is used by no function.
-      for (const dependency of manifestDependencies) {
-        const target = dependency.queueSettings?.deadLetter?.dependencyName;
-        const targetDependency = manifestDependencies.find((entry) => entry.name === target);
-        if (target === undefined) continue;
-        if (targetDependency === undefined) delete dependency.queueSettings!.deadLetter;
-        else {
-          for (const citation of targetDependency.evidence) citation.field = 'deadLetterTarget';
+      // A queue whose dead-letter queue was left out would retry failing messages until they expire, so it is left out
+      // too, and so is every queue that sends its failures to it. A kept dead-letter queue is used by no function.
+      for (let changed = true; changed;) {
+        changed = false;
+        // A copy: queues are removed from the list while it is walked.
+        for (const dependency of manifestDependencies.slice()) {
+          const target = dependency.queueSettings?.deadLetter?.dependencyName;
+          if (target === undefined || manifestDependencies.some((entry) => entry.name === target)) continue;
+          const logicalId = [...dependencyNames].find(([, name]) => name === dependency.name)?.[0] ?? dependency.name;
+          importGaps.push(...reviewGaps(file, logicalId, omitFor(emptyReview(), 'RedrivePolicy', 'failure-handling')));
+          manifestDependencies.splice(manifestDependencies.indexOf(dependency), 1);
+          dependencyNames.delete(logicalId);
+          omittedResources.add(logicalId);
+          changed = true;
         }
+      }
+      for (const dependency of manifestDependencies) {
+        const target = manifestDependencies.find(
+          (entry) => entry.name === dependency.queueSettings?.deadLetter?.dependencyName
+        );
+        for (const citation of target?.evidence ?? []) citation.field = 'deadLetterTarget';
       }
       const environmentDependencyNames = environmentDependencyNamesFor(
         resourceEntries,
         dependencyNames,
         providerEnvironment
       );
+      for (const [logicalId, name] of dependencyNames) permissionContext.dependencyNames.set(logicalId, name);
+      for (const [variable, name] of environmentDependencyNames) {
+        permissionContext.variableDependencies.set(`self:provider.environment.${variable}`, name);
+      }
 
       const functionDeclarations: Array<[string, RecordValue]> = Object.entries(parsed.functions).filter(
         (entry): entry is [string, RecordValue] => isRecord(entry[1])
@@ -1004,6 +1062,40 @@ export const serverlessFrameworkProbe: Probe = {
           });
         }
         for (const entry of functionWide) omitFor(review, `provider.${entry.key}`, entry.concern);
+        // The function's own statements (`serverless-iam-roles-per-function`) replace the provider's unless it inherits.
+        const inheritsProvider =
+          declaration.iamRoleStatements === undefined || declaration.iamRoleStatementsInherit === true;
+        const noStatements: ReturnType<typeof declaredStatements> = { statements: [], dropped: [] };
+        const providerStatements =
+          declaredProviderStatements === undefined || !inheritsProvider
+            ? noStatements
+            : declaredStatements(declaredProviderStatements, permissionContext, 'provider.iam.role.statements');
+        const ownStatements =
+          declaration.iamRoleStatements === undefined
+            ? noStatements
+            : declaredStatements(declaration.iamRoleStatements, permissionContext, 'iamRoleStatements');
+        for (const statements of [providerStatements, ownStatements]) {
+          review.notCarried.push(...statements.dropped);
+          if (statements.blocking !== undefined) omitFor(review, statements.blocking, 'permissions');
+        }
+        // A role or managed policies the permissions come from, which init cannot read: the function gets none of them.
+        const providerRole = typeof iam.role === 'string' || providerSettings.role !== undefined;
+        const managedPolicies =
+          providerSettings.iamManagedPolicies !== undefined ||
+          (isRecord(iam.role) && iam.role.managedPolicies !== undefined);
+        if (providerRole) review.notCarried.push('provider.role');
+        if (managedPolicies) review.notCarried.push('provider.iamManagedPolicies');
+        if (declaration.role !== undefined) review.notCarried.push('role');
+        const declaresStatements =
+          declaredProviderStatements !== undefined ||
+          declaration.iamRoleStatements !== undefined ||
+          providerRole ||
+          managedPolicies ||
+          declaration.role !== undefined;
+        const functionStatements =
+          declaration.role !== undefined || (providerRole && declaration.iamRoleStatements === undefined)
+            ? []
+            : [...providerStatements.statements, ...ownStatements.statements];
         const sizing = declaredSizing(
           declaration.timeout ?? providerSettings.timeout,
           declaration.memorySize ?? providerSettings.memorySize,
@@ -1035,7 +1127,9 @@ export const serverlessFrameworkProbe: Probe = {
           omittedEntrypoints.add(entrypoint);
           continue;
         }
+        const fromOmittedResources: number[] = [];
         const functionTriggers = triggersFor(declaration.events, {
+          fromOmittedResources,
           file,
           functionName,
           dependencyNames,
@@ -1045,6 +1139,13 @@ export const serverlessFrameworkProbe: Probe = {
           httpApiProtection,
           importGaps
         });
+        // A consumer whose every event names a resource init left out has nothing left to do here.
+        if (functionTriggers.length > 0 && fromOmittedResources.length === functionTriggers.length) {
+          for (const index of fromOmittedResources) omitFor(review, `events.${index}`);
+          importGaps.push(...reviewGaps(file, object, review));
+          omittedEntrypoints.add(entrypoint);
+          continue;
+        }
         importGaps.push(...reviewGaps(file, object, review));
         keptEntrypoints.add(entrypoint);
 
@@ -1100,6 +1201,7 @@ export const serverlessFrameworkProbe: Probe = {
           ...(layers === undefined || layers.length === 0 ? {} : { functionLayers: layers }),
           ...(architecture === undefined ? {} : { functionArchitecture: architecture }),
           ...(typeof reserved === 'number' ? { functionReservedConcurrency: reserved } : {}),
+          ...(declaresStatements ? { functionIamStatements: functionStatements } : {}),
           functionTriggers,
           environmentVariables,
           evidence: citation === undefined ? [] : [citation],
@@ -1109,6 +1211,12 @@ export const serverlessFrameworkProbe: Probe = {
       dependencies.push(...manifestDependencies);
     }
 
-    return importerOutput({ services, dependencies, importGaps, omittedEntrypoints, keptEntrypoints });
+    return importerOutput({
+      services,
+      dependencies,
+      importGaps: groupEventGaps(importGaps),
+      omittedEntrypoints,
+      keptEntrypoints
+    });
   }
 };
