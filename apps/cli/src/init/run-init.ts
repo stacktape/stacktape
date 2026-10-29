@@ -787,6 +787,11 @@ export const describeResult = (result: GreenfieldResult): string[] => {
 
   if (resources.length === 0) {
     lines.push('Nothing here needs deploying yet.');
+    // An import that left everything out says why; without these lines a run would end with no reason at all.
+    if (result.composition.gaps.length > 0) {
+      lines.push('', 'Before you deploy:');
+      for (const gap of result.composition.gaps) lines.push(`  ! ${gap.message}`);
+    }
     return lines;
   }
 

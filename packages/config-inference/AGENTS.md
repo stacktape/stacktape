@@ -33,6 +33,17 @@ IaC and PaaS importers are probes. They parse bounded literal syntax and never e
 resource is not proof of a live deployment. `hostingEvidence` keeps `declared`, `observed` and `chosen` meanings
 separate.
 
+Importers are strict. Each one lists, per kind of declaration (SAM resource, event and API; Serverless function, event,
+provider and resource; Compose service, volume and network; Cognito pool and client), every key it knows and what it
+does with it, using `scan/probes/declared-keys.ts`. Any other key becomes an `importGaps` fact, which the composer
+renders as a "Before you deploy" gap naming the file, declaration and key. When leaving a key out would make the result
+less safe than the source (access control, conditions and profiles, network placement, storage, failure handling,
+execution limits, sign-in rules, customer encryption keys, container restrictions), the importer leaves the whole
+declaration out instead, and lists it in `omittedEntrypoints`/`omittedServiceRoots` so another probe cannot bring it
+back. Values are resolved with `resolveDeclaredValue`: a plain string is a literal, `Ref` takes the parameter's default,
+and anything else is unresolved rather than guessed. `apps/cli/src/init/eval/import-audit-safety.spec.ts` keeps every
+audit repository and the property that makes its output no less safe than its source; add new audit repositories there.
+
 Function entry files must exist in the scanned file set. Catch-all HTTP triggers use `method: '*'` and
 `path: '/{proxy+}'`. Add every new emitted shape to `compose/schema-conformance.spec.ts`; a locally correct probe can
 still merge or compose incorrectly.

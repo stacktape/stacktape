@@ -129,6 +129,15 @@ export const raiseDockerfileOwnership = async ({
   for (const service of services) {
     if (service.dockerfile === undefined) continue;
     if (service.containerEntrypoint === undefined && service.startCommand === undefined) continue;
+    // A declared health check that runs one of the repository's own files (`node health.js`) needs the image the
+    // Dockerfile builds; another packaging may not ship that file.
+    if (
+      service.containerHealthCheck?.command
+        .slice(1)
+        .some((word) => /^\.{0,2}\/|\.(?:[cm]?[jt]s|py|rb|php|sh)$/.test(word) && !word.startsWith('/')) === true
+    ) {
+      continue;
+    }
 
     // oxlint-disable-next-line no-await-in-loop -- one Dockerfile per service, read in order.
     const result = await read(service.dockerfile);

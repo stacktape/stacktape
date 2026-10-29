@@ -42860,6 +42860,24 @@ The `temporaryPasswordValidityDays` inside `passwordPolicy` controls how long a 
 
 The `UserAuthPoolProps` type does not document Stacktape-specific defaults for `passwordPolicy`; set these values explicitly when they matter for your application. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
 
+## Client restrictions
+
+The pool's app client accepts every sign-in flow and can read and write every user attribute unless you limit it:
+
+| Property | Limits |
+|---|---|
+| `allowedAuthFlows` | Which sign-in flows the client accepts, for example `ALLOW_USER_SRP_AUTH` and `ALLOW_REFRESH_TOKEN_AUTH` only |
+| `readAttributes` | Which user attributes tokens and `GetUser` return through the client |
+| `writeAttributes` | Which attributes users can set through the client, for example to keep `custom:role` admin-only |
+
+```typescript
+new UserAuthPool({
+  allowedAuthFlows: ['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+  readAttributes: ['email', 'name'],
+  writeAttributes: ['name']
+});
+```
+
 ## Token lifetimes
 
 Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
@@ -42995,6 +43013,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
 | `allowPhoneNumberAsUserName` | no | `boolean` | `true` |
+| `allowedAuthFlows` | no | `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" \| "ALLOW_CUSTOM_AUTH" \| "ALLOW_REFRESH_TOKEN_AUTH" \| "ALLOW_USER_AUTH" \| "ALLOW_USER_PASSWORD_AUTH" \| "ALLOW_USER_SRP_AUTH">` | - |
 | `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | - |
 | `allowedOAuthScopes` | no | `Array<string>` | - |
 | `callbackURLs` | no | `Array<string>` | - |
@@ -43011,6 +43030,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |
 | `passwordPolicy` | no | `PasswordPolicy` | - |
+| `readAttributes` | no | `Array<string>` | - |
 | `refreshTokenValidityDays` | no | `number` | - |
 | `requireEmailVerification` | no | `boolean` | - |
 | `requirePhoneNumberVerification` | no | `boolean` | - |
@@ -43019,6 +43039,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `useFirewall` | no | `string` | - |
 | `userVerificationMessageConfig` | no | `UserVerificationMessageConfig` | - |
 | `userVerificationType` | no | `string: "email-code" \| "email-link" \| "none" \| "sms"` | - |
+| `writeAttributes` | no | `Array<string>` | - |
 
 
 ## Referenceable parameters
@@ -47077,6 +47098,14 @@ This configuration waits up to 30 seconds to fill a batch of 100 messages before
 > **Tip:** For high-throughput queues, increase `batchSize` and add a `maxBatchWindowSeconds` value to amortize Lambda invocation overhead across more messages. Larger batches reduce per-message cost at the expense of higher processing latency. Tune both values based on your throughput and latency requirements.
 
 
+### Limiting concurrency
+
+Set `maximumConcurrency` (2 to 1000) to cap how many copies of the function the queue runs at once, for example to protect a database or a rate-limited API. Messages wait in the queue while the cap is reached. Without it, Lambda scales the function up to its own concurrency limit.
+
+```typescript
+new SqsIntegration({ sqsQueueName: 'orderQueue', maximumConcurrency: 5 })
+```
+
 ## Using an external queue
 
 To consume messages from an existing SQS queue not managed by this stack — for example, a queue created by a different deployment tool — use `sqsQueueArn` instead of `sqsQueueName`.
@@ -47194,6 +47223,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `batchSize` | no | `number` | `10` |
 | `maxBatchWindowSeconds` | no | `number` | - |
+| `maximumConcurrency` | no | `number` | - |
 | `reportBatchItemFailures` | no | `boolean` | `false` |
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
@@ -61288,7 +61318,7 @@ Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`, `maximumConcurrency?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
@@ -84805,6 +84835,8 @@ type SqsIntegrationProps = {
   batchSize?: number;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
+  /** The most function instances this queue may run at the same time. */
+  maximumConcurrency?: number;
   /** Lets the function report which records of a batch failed, so only those are retried. */
   reportBatchItemFailures?: boolean;
   /** The ARN of an existing SQS queue. */
@@ -84832,6 +84864,17 @@ Maximum is 10,000.
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
 Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+
+## Property: `maximumConcurrency`
+
+- Required: no
+- Type: `number`
+
+The most function instances this queue may run at the same time.
+
+Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a
+database or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is
+reached. Between 2 and 1000. Batch jobs ignore it.
 
 ## Property: `reportBatchItemFailures`
 
@@ -86401,7 +86444,7 @@ Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`, `maximumConcurrency?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
@@ -122152,6 +122195,8 @@ type UserAuthPoolProps = {
   allowOnlyExternalIdentityProviders?: boolean;
   /** Allow phone numbers as usernames */
   allowPhoneNumberAsUserName?: boolean;
+  /** The sign-in flows the app client accepts */
+  allowedAuthFlows?: Array<"ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">;
   /** OAuth flows */
   allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
   /** OAuth scopes */
@@ -122184,6 +122229,8 @@ type UserAuthPoolProps = {
   mfaConfiguration?: MfaConfiguration;
   /** Password strength rules */
   passwordPolicy?: PasswordPolicy;
+  /** The user attributes the app client may read */
+  readAttributes?: Array<string>;
   /** Refresh token lifetime */
   refreshTokenValidityDays?: number;
   /** (Reserved) Require verified emails */
@@ -122200,6 +122247,8 @@ type UserAuthPoolProps = {
   userVerificationMessageConfig?: UserVerificationMessageConfig;
   /** Verification strategy */
   userVerificationType?: "email-code" | "email-link" | "none" | "sms";
+  /** The user attributes the app client may change */
+  writeAttributes?: Array<string>;
 };
 ```
 
@@ -122422,6 +122471,17 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `allowedAuthFlows`
+
+- Required: no
+- Type: `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">`
+
+The sign-in flows the app client accepts
+
+By default the client accepts every flow: SRP, username and password, admin username and password, custom
+authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+`['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
 
 ## Property: `allowedOAuthFlows`
 
@@ -123188,6 +123248,16 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `readAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may read
+
+By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+this client.
+
 ## Property: `refreshTokenValidityDays`
 
 - Required: no
@@ -123531,6 +123601,16 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `writeAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may change
+
+By default users can update every writable attribute through the client. Listing attributes limits what
+`UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.
 
 ---
 

@@ -84,6 +84,14 @@ const mergeDependency = (existing: DependencyFact, incoming: DependencyFact): De
   ...((existing.queueSettings ?? incoming.queueSettings)
     ? { queueSettings: existing.queueSettings ?? incoming.queueSettings }
     : {}),
+  // Declarations are the only source of these; a code-only finding of the same resource does not undo them.
+  ...((existing.tableKey ?? incoming.tableKey) ? { tableKey: existing.tableKey ?? incoming.tableKey } : {}),
+  ...((existing.bucketVersioning ?? incoming.bucketVersioning) ? { bucketVersioning: true as const } : {}),
+  ...((existing.userPoolSettings ?? incoming.userPoolSettings)
+    ? { userPoolSettings: existing.userPoolSettings ?? incoming.userPoolSettings }
+    : {}),
+  ...((existing.mysqlEngine ?? incoming.mysqlEngine) ? { mysqlEngine: 'mariadb' as const } : {}),
+  ...((existing.userPoolSelfSignUp ?? incoming.userPoolSelfSignUp) ? { userPoolSelfSignUp: true as const } : {}),
   evidence: mergeEvidence(existing.evidence, incoming.evidence)
 });
 
@@ -222,14 +230,32 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   framework: existing.framework ?? incoming.framework,
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
   buildCommand: existing.buildCommand ?? incoming.buildCommand,
-  startCommand: existing.startCommand ?? incoming.startCommand,
+  // A manifest that replaces the image's command decides what runs, over a convention another probe read.
+  startCommand:
+    incoming.commandOverridesImage === true
+      ? incoming.startCommand
+      : existing.commandOverridesImage === true
+        ? existing.startCommand
+        : (existing.startCommand ?? incoming.startCommand),
+  commandOverridesImage:
+    existing.commandOverridesImage === true || incoming.commandOverridesImage === true ? true : undefined,
+  internalOnly: existing.internalOnly === true || incoming.internalOnly === true ? true : undefined,
   devCommand: existing.devCommand ?? incoming.devCommand,
   buildRoot: existing.buildRoot ?? incoming.buildRoot,
-  containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
+  containerEntrypoint:
+    incoming.commandOverridesImage === true
+      ? incoming.containerEntrypoint
+      : existing.commandOverridesImage === true
+        ? existing.containerEntrypoint
+        : (existing.containerEntrypoint ?? incoming.containerEntrypoint),
   functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
   functionHandler: existing.functionHandler ?? incoming.functionHandler,
   functionTimeoutSeconds: existing.functionTimeoutSeconds ?? incoming.functionTimeoutSeconds,
   functionMemoryMb: existing.functionMemoryMb ?? incoming.functionMemoryMb,
+  functionLayers: existing.functionLayers ?? incoming.functionLayers,
+  functionArchitecture: existing.functionArchitecture ?? incoming.functionArchitecture,
+  functionReservedConcurrency: existing.functionReservedConcurrency ?? incoming.functionReservedConcurrency,
+  containerHealthCheck: existing.containerHealthCheck ?? incoming.containerHealthCheck,
   persistentVolumes: existing.persistentVolumes ?? incoming.persistentVolumes,
   functionTriggers: [
     ...new Map(
@@ -520,8 +546,11 @@ const mergeServices = (
  * Services spread across directories stay unattributed, for the agent to resolve: a monorepo's
  * root-level `.env` really is ambiguous about which package reads it.
  */
-/** Evidence that proves a resource but not who uses it: a trigger, or the variable a call reads its address from. */
-const ADDRESS_ONLY_EVIDENCE: ReadonlySet<string> = new Set(['functionTriggers', 'addressedBy']);
+/**
+ * Evidence that proves a resource but not who uses it: a trigger, the variable a call reads its address from, or the
+ * redrive policy that makes a queue another queue's dead-letter target.
+ */
+const ADDRESS_ONLY_EVIDENCE: ReadonlySet<string> = new Set(['functionTriggers', 'addressedBy', 'deadLetterTarget']);
 
 const attributeDependencies = (
   dependencies: DependencyFact[],
@@ -918,7 +947,22 @@ export const assembleCandidateFacts = async ({
     })
   );
 
-  const { services, renames } = mergeServices(outputs);
+  const merged = mergeServices(outputs);
+  const { renames } = merged;
+  // An importer left these out because it could not carry a setting that keeps them safe (a resource policy, an
+  // inactive Compose profile). Another probe reading the same source must not bring them back without it.
+  const omittedEntrypoints = new Set(outputs.flatMap((output) => output.omittedEntrypoints ?? []));
+  const omittedRoots = new Set(outputs.flatMap((output) => output.omittedServiceRoots ?? []));
+  const omittedServiceNames = new Set<string>();
+  const services = merged.services.filter((service) => {
+    const omitted =
+      (service.functionEntrypoint !== undefined && omittedEntrypoints.has(service.functionEntrypoint)) ||
+      (service.containerEntrypoint !== undefined &&
+        omittedEntrypoints.has(service.containerEntrypoint.split(':')[0]!)) ||
+      omittedRoots.has(service.path);
+    if (omitted) omittedServiceNames.add(service.name);
+    return !omitted;
+  });
   for (const environment of outputs.flatMap((output) => output.serviceEnvironments ?? [])) {
     for (const service of services) {
       if (service.path !== environment.path) continue;
@@ -934,7 +978,11 @@ export const assembleCandidateFacts = async ({
   // calls the merged service `flask`, and attribution otherwise discards `backend` as unknown.
   const mergedDependencies = mergeDependencies(outputs);
   for (const dependency of mergedDependencies) {
-    dependency.consumedBy = [...new Set(dependency.consumedBy.map((name) => renames.get(name) ?? name))];
+    dependency.consumedBy = [
+      ...new Set(
+        dependency.consumedBy.map((name) => renames.get(name) ?? name).filter((name) => !omittedServiceNames.has(name))
+      )
+    ];
   }
   let dependencies = attributeDependencies(mergedDependencies, services);
   for (const dependency of dependencies) {
@@ -1199,6 +1247,7 @@ export const assembleCandidateFacts = async ({
     migrations,
     localScripts,
     handlerFindings: outputs.flatMap((output) => output.handlerFindings ?? []),
+    importGaps: outputs.flatMap((output) => output.importGaps ?? []),
     uncertainties: [...uncertainties.values()],
     notes
   });

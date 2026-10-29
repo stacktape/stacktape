@@ -18,6 +18,8 @@ type UserAuthPoolProps = {
   allowOnlyExternalIdentityProviders?: boolean;
   /** Allow phone numbers as usernames */
   allowPhoneNumberAsUserName?: boolean;
+  /** The sign-in flows the app client accepts */
+  allowedAuthFlows?: Array<"ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">;
   /** OAuth flows */
   allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
   /** OAuth scopes */
@@ -50,6 +52,8 @@ type UserAuthPoolProps = {
   mfaConfiguration?: MfaConfiguration;
   /** Password strength rules */
   passwordPolicy?: PasswordPolicy;
+  /** The user attributes the app client may read */
+  readAttributes?: Array<string>;
   /** Refresh token lifetime */
   refreshTokenValidityDays?: number;
   /** (Reserved) Require verified emails */
@@ -66,6 +70,8 @@ type UserAuthPoolProps = {
   userVerificationMessageConfig?: UserVerificationMessageConfig;
   /** Verification strategy */
   userVerificationType?: "email-code" | "email-link" | "none" | "sms";
+  /** The user attributes the app client may change */
+  writeAttributes?: Array<string>;
 };
 ```
 
@@ -288,6 +294,17 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `allowedAuthFlows`
+
+- Required: no
+- Type: `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">`
+
+The sign-in flows the app client accepts
+
+By default the client accepts every flow: SRP, username and password, admin username and password, custom
+authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+`['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
 
 ## Property: `allowedOAuthFlows`
 
@@ -1054,6 +1071,16 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `readAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may read
+
+By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+this client.
+
 ## Property: `refreshTokenValidityDays`
 
 - Required: no
@@ -1397,3 +1424,13 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `writeAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may change
+
+By default users can update every writable attribute through the client. Listing attributes limits what
+`UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.

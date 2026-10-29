@@ -1444,7 +1444,43 @@ export interface UserAuthPoolProps {
    * @default false
    */
   allowOnlyExternalIdentityProviders?: boolean;
+  /**
+   * #### The sign-in flows the app client accepts
+   *
+   * ---
+   *
+   * By default the client accepts every flow: SRP, username and password, admin username and password, custom
+   * authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+   * `['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
+   */
+  allowedAuthFlows?: UserPoolClientAuthFlow[];
+  /**
+   * #### The user attributes the app client may read
+   *
+   * ---
+   *
+   * By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+   * this client.
+   */
+  readAttributes?: string[];
+  /**
+   * #### The user attributes the app client may change
+   *
+   * ---
+   *
+   * By default users can update every writable attribute through the client. Listing attributes limits what
+   * `UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.
+   */
+  writeAttributes?: string[];
 }
+
+export type UserPoolClientAuthFlow =
+  | 'ALLOW_ADMIN_USER_PASSWORD_AUTH'
+  | 'ALLOW_CUSTOM_AUTH'
+  | 'ALLOW_USER_PASSWORD_AUTH'
+  | 'ALLOW_USER_SRP_AUTH'
+  | 'ALLOW_REFRESH_TOKEN_AUTH'
+  | 'ALLOW_USER_AUTH';
 
 
 export type AllowedOauthFlow = 'code' | 'implicit' | 'client_credentials';

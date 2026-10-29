@@ -188,7 +188,10 @@ export const getUserPoolClientResource = (
     logoutURLs,
     identityProviders,
     allowOnlyExternalIdentityProviders,
-    generateClientSecret
+    generateClientSecret,
+    allowedAuthFlows,
+    readAttributes,
+    writeAttributes
   }: StpUserAuthPool,
   userPoolName: string
 ) => {
@@ -219,13 +222,15 @@ export const getUserPoolClientResource = (
     RefreshTokenValidity: refreshTokenValidityDays || 30,
     AllowedOAuthFlowsUserPoolClient: true,
     AllowedOAuthFlows: allowedOAuthFlows || ['code', 'implicit'],
-    ExplicitAuthFlows: [
+    ExplicitAuthFlows: allowedAuthFlows ?? [
       'ALLOW_ADMIN_USER_PASSWORD_AUTH',
       'ALLOW_CUSTOM_AUTH',
       'ALLOW_USER_PASSWORD_AUTH',
       'ALLOW_USER_SRP_AUTH',
       'ALLOW_REFRESH_TOKEN_AUTH'
     ],
+    ReadAttributes: readAttributes,
+    WriteAttributes: writeAttributes,
     AllowedOAuthScopes: allowedOAuthScopes || ['email', 'openid', 'profile'],
     CallbackURLs: allowedCallbackUrls,
     DefaultRedirectURI: allowedCallbackUrls[0],
