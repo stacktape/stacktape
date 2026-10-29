@@ -77,7 +77,7 @@ import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
-import { chooseUpdateDeploymentMode } from './deployment-mode';
+import { chooseDeleteDeploymentMode, chooseUpdateDeploymentMode } from './deployment-mode';
 import { isFirstDeployOfStack } from './first-deploy';
 import { DATA_RESOURCE_TYPES, templateWithoutResources } from './replace-in-failed-stack';
 import { getPlannedResources } from './progress-plan';
@@ -1133,10 +1133,14 @@ class StackManager {
     const startedAfter = await this.#eventsFenceBeforeDelete(stackId);
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
+    const deleteMode = chooseDeleteDeploymentMode(this.existingStackResources.map(({ ResourceType }) => ResourceType));
+    if (deleteMode === 'STANDARD') {
+      tuiManager.debug(
+        'Using the standard CloudFormation delete: an ElastiCache user group must be gone before its users.'
+      );
+    }
     try {
-      // Express mode measured faster for deletes (queues, topics, rules, load balancer listeners), and it still waited
-      // for databases, caches, distributions, ECS services and network interfaces, leaving nothing behind.
-      await awsSdkManager.cloudFormation.delete(this.#stackName, { roleArn, express: true });
+      await awsSdkManager.cloudFormation.delete(this.#stackName, { roleArn, express: deleteMode === 'EXPRESS' });
     } catch (err) {
       deleteRequested = false;
       throw err;

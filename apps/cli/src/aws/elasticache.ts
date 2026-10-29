@@ -1,7 +1,6 @@
 import type { ElastiCacheClient } from '@aws-sdk/client-elasticache';
 import {
   DeleteReplicationGroupCommand,
-  DeleteServerlessCacheCommand,
   DescribeReplicationGroupsCommand,
   DescribeServerlessCachesCommand
 } from '@aws-sdk/client-elasticache';
@@ -41,28 +40,16 @@ export class AwsElastiCache {
     return response.ReplicationGroup;
   };
 
-  getServerlessCache = async ({ serverlessCacheName }: { serverlessCacheName: string }) => {
-    const response = await this.#createClient().send(
-      new DescribeServerlessCachesCommand({ ServerlessCacheName: serverlessCacheName })
-    );
-    return response.ServerlessCaches?.[0];
-  };
-
   /** Whether the serverless cache still exists. A cache that is being deleted still exists. */
   serverlessCacheExists = async ({ serverlessCacheName }: { serverlessCacheName: string }) => {
     try {
-      return !!(await this.getServerlessCache({ serverlessCacheName }));
+      const response = await this.#createClient().send(
+        new DescribeServerlessCachesCommand({ ServerlessCacheName: serverlessCacheName })
+      );
+      return !!response.ServerlessCaches?.length;
     } catch (error) {
       if (error instanceof Error && error.name === 'ServerlessCacheNotFoundFault') return false;
       throw error;
     }
-  };
-
-  /** Starts deleting a serverless cache, without a final snapshot, and returns at once. AWS errors are passed through. */
-  deleteServerlessCache = async ({ serverlessCacheName }: { serverlessCacheName: string }) => {
-    const response = await this.#createClient().send(
-      new DeleteServerlessCacheCommand({ ServerlessCacheName: serverlessCacheName })
-    );
-    return response.ServerlessCache;
   };
 }
