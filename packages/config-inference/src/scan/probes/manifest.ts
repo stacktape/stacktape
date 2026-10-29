@@ -143,8 +143,10 @@ const VITE_CONFIGS = [
 
 /**
  * Where `vite build` writes, read from the package's Vite config: its literal `build.outDir`, or `dist`. A config that
- * sets `outDir` to something other than a literal, or moves the project `root` (which `outDir` is relative to), is
- * reported by name instead: uploading `dist` while the build writes elsewhere deploys an empty site.
+ * sets `build.outDir` to something other than a literal, or moves the project `root` (which `outDir` is relative to), is
+ * reported by name instead: uploading `dist` while the build writes elsewhere deploys an empty site. So is an `outDir`
+ * outside a `build` object when there is no `build.outDir`: a plugin's own option and a `build` object assembled
+ * elsewhere look the same.
  */
 const viteOutput = async (
   context: ProbeContext,
@@ -156,32 +158,46 @@ const viteOutput = async (
   const raw = await readText(context, config, { fullFile: true });
   if (raw === undefined) return { outputDirectory: 'dist' };
   const code = maskFile(config, raw, 'keep');
-  // Brace depth at an offset, counted with strings blanked. The config object's own keys sit at depth 1
-  // (`export default {`, `defineConfig({`), so `resolve: { alias: { root } }` is no project root.
+  // Keys are found with strings blanked, so `"old config: {outDir: 'legacy'}"` is no key; values are read from `code`,
+  // which keeps strings at the same offsets. The config object's own keys sit at depth 1 (`export default {`,
+  // `defineConfig({`), so `resolve: { alias: { root } }` is no project root.
   const structure = maskFile(config, raw, 'blank');
   const depthAt = (offset: number) => {
     let depth = 0;
     for (const character of structure.slice(0, offset)) depth += character === '{' ? 1 : character === '}' ? -1 : 0;
     return depth;
   };
+  /** The key of the object literal that contains `offset`: `build` for `build: { outDir }`. */
+  const enclosingKey = (offset: number): string | undefined => {
+    let depth = 0;
+    for (let index = offset - 1; index >= 0; index -= 1) {
+      const character = structure[index];
+      if (character === '}') depth += 1;
+      else if (character === '{' && depth > 0) depth -= 1;
+      else if (character === '{') return /([A-Za-z_$][\w$]*)\s*:\s*$/.exec(structure.slice(0, index))?.[1];
+    }
+    return undefined;
+  };
   /** The key's occurrences (`root: x`, or the shorthand `root,`), at one depth when given. */
   const keyed = (key: string, depth?: number) =>
-    [...code.matchAll(new RegExp(`\\b${key}\\b(?=\\s*[:,}])`, 'g'))].filter(
+    [...structure.matchAll(new RegExp(`\\b${key}\\b(?=\\s*[:,}])`, 'g'))].filter(
       (match) => depth === undefined || depthAt(match.index ?? 0) === depth
     );
-  const literal = (key: string, depth?: number) =>
-    keyed(key, depth)
-      .map(
-        (match) => /^\s*:\s*(['"`])([^'"`$]+)\1\s*[,}\n]/.exec(code.slice((match.index ?? 0) + match[0].length))?.[2]
-      )
-      .find((value) => value !== undefined);
-  const root = literal('root', 1);
-  const outDir = literal('outDir');
+  const literalAt = (match: RegExpExecArray | RegExpMatchArray) =>
+    /^\s*:\s*(['"`])([^'"`$]+)\1\s*[,}\n]/.exec(code.slice((match.index ?? 0) + match[0].length))?.[2];
+  const roots = keyed('root', 1);
+  const root = roots.map(literalAt).find((value) => value !== undefined);
+  const outDirs = keyed('outDir');
+  const buildOutDirs = outDirs.filter((match) => enclosingKey(match.index ?? 0) === 'build');
+  const buildOutDirValues = new Set(buildOutDirs.map(literalAt));
+  const [outDir] = buildOutDirValues;
   // `outDir` is relative to `root`: `root: './src'` with `outDir: '../dist'` writes `dist`.
   const output = posix.normalize(posix.join(root ?? '.', outDir ?? 'dist')).replace(/\/$/, '');
   const unreadable =
-    (keyed('root', 1).length > 0 && root === undefined) ||
-    (keyed('outDir').length > 0 && outDir === undefined) ||
+    (roots.length > 0 && root === undefined) ||
+    buildOutDirValues.size > 1 ||
+    (buildOutDirs.length > 0 && outDir === undefined) ||
+    (buildOutDirs.length === 0 && outDirs.length > 0) ||
     output.startsWith('..') ||
     output.startsWith('/') ||
     output === '.';
@@ -366,6 +382,52 @@ const oneShotScript = async (
 };
 
 const escapeRegExp = (value: string): string => value.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+/** The plain server libraries whose dependency alone says a package serves HTTP; full-stack frameworks start themselves. */
+const SERVER_LIBRARY_FRAMEWORKS: ReadonlySet<string> = new Set(['express', 'fastify', 'hono', 'koa', 'nestjs']);
+/** Code that starts a server, or exports something a runtime serves (`export default app` under Bun). */
+const STARTS_SERVER = /\.listen\s*\(|\bserve\s*\(|createServer\s*\(|\bexport\s+default\b|\bmodule\.exports\b/;
+const packageNameOf = (specifier: string): string =>
+  specifier
+    .split('/')
+    .slice(0, specifier.startsWith('@') ? 2 : 1)
+    .join('/');
+
+/**
+ * The file the start script runs, when it runs without an HTTP server: it is in the repository, something in it keeps
+ * the process alive, nothing in it listens, serves or exports an application, and it imports no project module,
+ * workspace package or HTTP framework that could start one instead. Its HTTP framework dependency is then unused by this process (`setInterval(poll, 10000)` beside an
+ * unused `express`), and a public web service for it would never pass a health check.
+ */
+const startFileWithoutServer = async (
+  context: ProbeContext,
+  manifest: ParsedManifest,
+  workspacePackages: ReadonlySet<string>
+): Promise<string | undefined> => {
+  const start = manifest.scripts.start;
+  if (typeof start !== 'string') return undefined;
+  const file = SCRIPT_FILE.exec(start.trim())?.[1];
+  if (file === undefined) return undefined;
+  const path = manifest.directory === '.' ? file : `${manifest.directory}/${file}`;
+  if (!context.files.includes(path)) return undefined;
+  const raw = await readText(context, path, { fullFile: true });
+  if (raw === undefined) return undefined;
+  const code = maskFile(path, raw, 'blank');
+  // Something has to keep the process running (a timer, loop, consumer or subscription): a file that only reads its
+  // configuration proves nothing about what serves the application.
+  if (STARTS_SERVER.test(code) || !KEEPS_RUNNING.test(code)) return undefined;
+  const imported = [
+    ...maskFile(path, raw, 'keep').matchAll(/(?:\bfrom\s*|\brequire\s*\(\s*|\bimport\s*\(?\s*)['"]([^'"\n]+)['"]/g)
+  ].map((match) => match[1]!);
+  const couldStartServer = imported.some(
+    (specifier) =>
+      specifier.startsWith('.') ||
+      specifier.startsWith('/') ||
+      workspacePackages.has(packageNameOf(specifier)) ||
+      HTTP_FRAMEWORKS.has(packageNameOf(specifier))
+  );
+  return couldStartServer ? undefined : path;
+};
 
 /**
  * Which engine a Prisma project uses.
@@ -579,8 +641,18 @@ export const manifestProbe: Probe = {
         }
 
         const nodeEngine = manifest.engines?.node?.replace(/[^\d.]/g, '');
+        // A server library among the dependencies is the only HTTP evidence here; the file the start script runs can
+        // still prove that this process serves nothing.
+        const withoutServer =
+          exposesHttp &&
+          staticSite === undefined &&
+          (frameworkEntry === undefined || SERVER_LIBRARY_FRAMEWORKS.has(frameworkEntry.name))
+            ? // oxlint-disable-next-line no-await-in-loop -- one entry file per package that starts a script.
+              await startFileWithoutServer(context, manifest, memberPackageNames)
+            : undefined;
+        const servesHttp = exposesHttp && withoutServer === undefined;
         // oxlint-disable-next-line no-await-in-loop -- one entry file per package that starts a script.
-        const oneShot = exposesHttp || staticSite !== undefined ? undefined : await oneShotScript(context, manifest);
+        const oneShot = servesHttp || staticSite !== undefined ? undefined : await oneShotScript(context, manifest);
         if (oneShot?.evidence !== undefined) evidence.push(oneShot.evidence);
         if (oneShot?.perMessage !== undefined) evidence.push(oneShot.perMessage);
 
@@ -595,7 +667,10 @@ export const manifestProbe: Probe = {
             : staticSite
               ? { framework: staticSite.framework }
               : {}),
-          exposesHttp: staticSite === undefined && exposesHttp,
+          exposesHttp: staticSite === undefined && servesHttp,
+          ...(withoutServer === undefined
+            ? {}
+            : { listenerNotes: [{ kind: 'no-http-server' as const, path: withoutServer }] }),
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
           executionModel: oneShot === undefined ? 'long-running' : 'one-shot',

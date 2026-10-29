@@ -106,11 +106,12 @@ export const conventionalCommandsFor = (context: ConventionContext): Conventiona
       };
     case 'phoenix':
       return { start: ['mix phx.server'] };
+    // Both bind the port Stacktape routes to: a fixed port in the command is one the service config does not name.
     case 'laravel':
-      return { start: ['php artisan serve --host 0.0.0.0 --port 8000'] };
+      return { start: ['php artisan serve --host 0.0.0.0 --port $PORT'] };
     case 'symfony':
       // The PHP built-in server rooted at `public/` — no Symfony CLI assumed.
-      return context.has('public/index.php') ? { start: ['php -S 0.0.0.0:8000 -t public'] } : undefined;
+      return context.has('public/index.php') ? { start: ['php -S 0.0.0.0:$PORT -t public'] } : undefined;
     case 'aspnet':
       return { start: ['dotnet run'] };
     case 'axum':

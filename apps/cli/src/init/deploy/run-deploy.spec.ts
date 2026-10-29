@@ -3,6 +3,7 @@ import { EventEmitter, once } from 'node:events';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'bun:test';
+import { rememberEnvironmentApiKey } from '@application-services/global-state-manager/runner-credentials';
 import { deployArgs, deployCommandLine, inspectDeployTarget, readResourceUrl, startDeploy } from './run-deploy';
 import {
   INIT_TARGET_CHECK_ENV,
@@ -180,6 +181,27 @@ describe('reading what the deploy says', () => {
     expect(await handle.finished).toBe(0);
     expect(environment?.[INIT_TARGET_CHECK_ENV]).toBe('');
     expect(environment?.[INIT_TARGET_EXPECTATION_ENV]).toBe(JSON.stringify(expectation));
+  });
+
+  // Init consumed STACKTAPE_API_KEY at startup, so the deploy it starts gets the key from it, not from the environment.
+  it('gives the deploy the key init took from STACKTAPE_API_KEY', async () => {
+    let environment: NodeJS.ProcessEnv | undefined;
+    rememberEnvironmentApiKey('init-deploy-synthetic-key');
+    try {
+      const handle = startDeploy({
+        request,
+        onEvent: () => {},
+        onLine: () => {},
+        spawnChild: ((_: string, __: string[], options: { env?: NodeJS.ProcessEnv }) => {
+          environment = options.env;
+          return fakeChild([]);
+        }) as never
+      });
+      expect(await handle.finished).toBe(0);
+    } finally {
+      rememberEnvironmentApiKey(undefined);
+    }
+    expect(environment?.STACKTAPE_API_KEY).toBe('init-deploy-synthetic-key');
   });
 });
 

@@ -83,7 +83,7 @@ describe('conventionalCommandsFor', () => {
       'mix phx.server'
     );
     expect(conventionalCommandsFor(context({ framework: 'laravel', language: 'php' }))?.start[0]).toBe(
-      'php artisan serve --host 0.0.0.0 --port 8000'
+      'php artisan serve --host 0.0.0.0 --port $PORT'
     );
     expect(conventionalCommandsFor(context({ framework: 'aspnet', language: 'csharp' }))?.start[0]).toBe('dotnet run');
     expect(conventionalCommandsFor(context({ language: 'dotnet', files: ['OrderProcessor.csproj'] }))?.start[0]).toBe(

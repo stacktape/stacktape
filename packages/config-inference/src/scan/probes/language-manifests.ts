@@ -24,11 +24,13 @@
  */
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
+import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { posix } from 'node:path';
 import { languageOf } from '../language';
 import { withoutSampleDirectories } from '../service-root';
-import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { maskSource } from '../lexical';
 
 /**
  * Package name to what it proves.
@@ -468,6 +470,52 @@ const nestedMigrations = async (context: ProbeContext): Promise<NonNullable<Prob
   return found;
 };
 
+/**
+ * The port an ASP.NET application fixes in its `Program.cs`: `app.Run("http://0.0.0.0:4321")`,
+ * `UseUrls("http://*:4321")`, `app.Urls.Add(...)` or Kestrel's `ListenAnyIP(4321)`. Such a URL overrides the
+ * environment, so the service must route there. Comments and strings are read as C#, so a commented-out call is no
+ * listener. A call whose address is not a literal (a variable, an interpolated string) leaves the port as before.
+ * Calls that name different ports are reported as unread, by file.
+ */
+const aspNetListener = async (
+  context: ProbeContext,
+  directory: string
+): Promise<{ port: number; citation: Citation } | { unread: string } | undefined> => {
+  const path = directory === '.' ? 'Program.cs' : `${directory}/Program.cs`;
+  if (!context.files.includes(path)) return undefined;
+  const raw = await readText(context, path);
+  if (raw === undefined) return undefined;
+  const code = maskSource(raw, 'csharp', { strings: 'blank' });
+  const keep = maskSource(raw, 'csharp', { strings: 'keep' });
+  const ports = new Map<string, number>();
+  for (const call of code.matchAll(/(?:\.Run(?:Async)?|\.UseUrls|\.Urls\.Add)\s*\(([^()]*)\)/g)) {
+    const offset = call.index + call[0].indexOf('(') + 1;
+    const argumentList = keep.slice(offset, offset + call[1]!.length).trim();
+    // `app.Run()` listens where the environment says.
+    if (argumentList === '') continue;
+    const urls = argumentList.split(',').map((argument) => /^\s*@?"([^"]*)"\s*$/.exec(argument)?.[1]);
+    if (urls.some((url) => url === undefined)) return undefined;
+    const callPorts = urls
+      .flatMap((value) => value!.split(';'))
+      .map((url) => /^http:\/\/[^/]*:(\d{2,5})(?:\/|$)/.exec(url.trim())?.[1]);
+    if (callPorts.some((port) => port === undefined)) return undefined;
+    // One call with several addresses listens on all of them, so its first one receives the traffic.
+    if (!ports.has(callPorts[0]!)) ports.set(callPorts[0]!, call.index);
+  }
+  for (const call of code.matchAll(/\bListenAnyIP\s*\(([^,)]*)/g)) {
+    const port = /^\s*(\d{2,5})\s*$/.exec(call[1]!)?.[1];
+    if (port === undefined) return undefined;
+    if (!ports.has(port)) ports.set(port, call.index);
+  }
+  if (ports.size === 0) return undefined;
+  if (ports.size > 1) return { unread: path };
+  const [port, offset] = [...ports][0]!;
+  return {
+    port: Number(port),
+    citation: citeLine(path, raw.split(/\r?\n/), raw.slice(0, offset).split(/\r?\n/).length - 1, 'port')
+  };
+};
+
 /** The repository root's own manifest: its services, dependencies and migrations. */
 const rootManifestProbe: Probe = {
   name: 'language-manifests',
@@ -560,6 +608,19 @@ const rootManifestProbe: Probe = {
               }
             ];
           });
+
+    for (const service of dotnetServices) {
+      if (!service.exposesHttp) continue;
+      // oxlint-disable-next-line no-await-in-loop -- one Program.cs per ASP.NET project.
+      const listener = await aspNetListener(context, service.path);
+      if (listener === undefined) continue;
+      if ('port' in listener) {
+        service.port = listener.port;
+        service.evidence = [...(service.evidence ?? []), listener.citation];
+      } else {
+        service.listenerNotes = [{ kind: 'unread-port', path: listener.unread }];
+      }
+    }
 
     if (foundIn.size === 0 && dotnetServices.length === 0) return {};
 
