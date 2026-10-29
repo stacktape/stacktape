@@ -59,7 +59,13 @@ import { tagNames } from '@stacktape/naming/tag-names';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import type { EarlyDelete } from './early-deletes';
-import { describeEarlyDelete, isDataStoreDelete, planEarlyDeletes, startEarlyDeletes } from './early-deletes';
+import {
+  describeEarlyDelete,
+  functionUrlTarget,
+  isDataStoreDelete,
+  planEarlyDeletes,
+  startEarlyDeletes
+} from './early-deletes';
 import type { PendingDelete } from './background-delete';
 import { planBackgroundDeleteChecks } from './background-delete';
 import compose from '@utils/compose';
@@ -1121,9 +1127,10 @@ class StackManager {
       throw beforeDeleteResult.reason;
     }
 
-    // DeleteStack returns no operation ID. Its events come after this AWS time; those of an earlier attempt that failed
-    // seconds ago come before it. Two seconds allow for the one-second resolution of the clock sync.
-    const deleteRequestedAt = new Date((await getAwsSynchronizedTime()).getTime() - 2000);
+    const stackId = this.existingStackDetails.StackId;
+    // DeleteStack returns no operation ID. This delete's events are newer than every event the stack has now, such as
+    // those of an earlier attempt that failed seconds ago. When they cannot be read, Stacktape deletes nothing itself.
+    const { startedAfter, priorEventsKnown } = await this.#eventsFenceBeforeDelete(stackId);
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
     try {
@@ -1135,7 +1142,6 @@ class StackManager {
       throw err;
     }
     codeSwapIntegration.teardownAccepted(this.#stackName);
-    const stackId = this.existingStackDetails.StackId;
     // The template CloudFormation is deleting, read once the delete has started: a deploy between loading the stack and
     // the DeleteStack request may have changed a DeletionPolicy.
     let deletedTemplate: Promise<CloudFormationTemplate> | undefined;
@@ -1145,7 +1151,10 @@ class StackManager {
         throw err;
       }));
     deletingEarly = resourceDeletesStarted
-      .then((started) => started && this.#startEarlyDeletes({ earlyDeleted, roleArn, getDeletedTemplate }))
+      .then(
+        (started) =>
+          started && priorEventsKnown && this.#startEarlyDeletes({ earlyDeleted, roleArn, getDeletedTemplate })
+      )
       .catch((err) => tuiManager.debug(`Could not start deleting resources early: ${err}`));
     let result: StackMonitoringResult;
     try {
@@ -1159,7 +1168,7 @@ class StackManager {
             detail: progress.detail
           }),
         {
-          startedAfter: deleteRequestedAt,
+          startedAfter,
           onResourceDeletesStarted: () => settleResourceDeletesStarted(true),
           ...(finishInBackground && {
             canFinishDeleteInBackground: (pending: PendingDelete[]) =>
@@ -1176,7 +1185,28 @@ class StackManager {
   };
 
   /**
-   * Starts deleting the stack's databases, caches, search domains and load balancers once CloudFormation has started
+   * The AWS time after which the next delete's events start: the newest event the stack has now, within the window the
+   * monitor reads. Without a recent event, two seconds before now (the clock sync has one-second resolution) is enough,
+   * because nothing older is read. `priorEventsKnown` is false when the events could not be read.
+   */
+  #eventsFenceBeforeDelete = async (stackId: string) => {
+    const now = await getAwsSynchronizedTime();
+    const fallback = new Date(now.getTime() - 2000);
+    try {
+      const recentEvents = await awsSdkManager.cloudFormation.getEvents(stackId, new Date(now.getTime() - 60_000));
+      const newest = recentEvents.reduce<Date | undefined>(
+        (latest, { Timestamp }) => (Timestamp && (!latest || Timestamp > latest) ? Timestamp : latest),
+        undefined
+      );
+      return { startedAfter: newest && newest > fallback ? newest : fallback, priorEventsKnown: true };
+    } catch (err) {
+      tuiManager.debug(`Could not read the stack's events before deleting it: ${err}`);
+      return { startedAfter: fallback, priorEventsKnown: false };
+    }
+  };
+
+  /**
+   * Starts deleting the stack's databases, caches, search domains, load balancers and function URLs once CloudFormation has started
    * deleting the stack's resources, so they delete in parallel with the workloads that reference them instead of after
    * them. See `early-deletes.ts` for which resources qualify.
    */
@@ -1252,6 +1282,10 @@ class StackManager {
           return awsSdkManager.cloudFront.isDistributionDisabled({ distributionId: check.distributionId });
         }
         if (check.kind === 'bucket-empty') return awsSdkManager.s3.isBucketEmpty(check.bucketName);
+        if (check.kind === 'function-url-gone') {
+          const { functionName, qualifier } = functionUrlTarget(check.functionArn);
+          return !(await awsSdkManager.lambda.functionUrlExists({ functionName, qualifier }));
+        }
         if (check.kind === 'db-instance-gone') {
           return !(await awsSdkManager.rds.instanceExists({ identifier: check.instanceId }));
         }
@@ -1416,8 +1450,8 @@ class StackManager {
        */
       operationId?: string;
       /**
-       * For operations whose request returns no operation ID (DeleteStack): the operation started after this AWS time.
-       * A delete retried right after a failed one must not take the failed attempt's events for its own.
+       * For operations whose request returns no operation ID (DeleteStack): the operation's start event is newer than
+       * this AWS time. A delete retried right after a failed one must not take the failed attempt's events for its own.
        */
       startedAfter?: Date;
       /**
@@ -1931,7 +1965,7 @@ class StackManager {
               return (
                 this.#isCloudformationStackEvent({ stackEvent }) &&
                 (!operationId || !stackEvent.OperationId || stackEvent.OperationId === operationId) &&
-                (!startedAfter || stackEvent.Timestamp >= startedAfter) &&
+                (!startedAfter || stackEvent.Timestamp > startedAfter) &&
                 this.#stackStatusSignalsStackOperationStart({
                   stackStatus: stackEvent.ResourceStatus as StackStatus,
                   cfStackAction

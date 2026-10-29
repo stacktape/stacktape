@@ -80,6 +80,7 @@ const withDeleteFixture = async (
     liveServerlessCaches = {},
     liveDomains = {},
     liveLoadBalancers = {},
+    priorEvents = [],
     currentTemplate,
     stackRoleArn
   }: {
@@ -91,6 +92,8 @@ const withDeleteFixture = async (
     liveServerlessCaches?: Record<string, Partial<ServerlessCache>>;
     liveDomains?: Record<string, Partial<DomainStatus>>;
     liveLoadBalancers?: Record<string, { deletionProtection: boolean }>;
+    /** The stack's events before DeleteStack; an Error when they cannot be read. */
+    priorEvents?: { Timestamp: Date }[] | Error;
     /** The template CloudFormation reports once the delete has started, when it differs from the one loaded first. */
     currentTemplate?: unknown;
     stackRoleArn?: string;
@@ -121,6 +124,14 @@ const withDeleteFixture = async (
           return true;
         }
       ),
+      spyOn(awsSdkManager.cloudFormation, 'getEvents').mockImplementation(async () => {
+        if (priorEvents instanceof Error) throw priorEvents;
+        return priorEvents as never;
+      }),
+      spyOn(awsSdkManager.lambda, 'functionUrlExists').mockResolvedValue(true),
+      spyOn(awsSdkManager.lambda, 'deleteFunctionUrl').mockImplementation(async ({ functionName, qualifier }) => {
+        calls.push(`lambda:delete-url ${functionName}${qualifier ? ` (${qualifier})` : ''}`);
+      }),
       spyOn(awsSdkManager.cloudFormation, 'delete').mockImplementation(async (name, { express }) => {
         calls.push(`cloudformation:delete ${name}${express ? ' (express mode)' : ''}`);
         return {} as never;
@@ -512,6 +523,8 @@ describe('early database and cache deletes', () => {
       []
     ],
     ['a load balancer without a DeletionPolicy (Delete)', { Lb: { type: loadBalancer } }, ['Lb']],
+    ['a function URL without a DeletionPolicy (Delete)', { ApiUrl: { type: 'AWS::Lambda::Url' } }, ['ApiUrl']],
+    ['a retained function URL', { ApiUrl: { type: 'AWS::Lambda::Url', deletionPolicy: 'Retain' } }, []],
     ['a retained load balancer', { Lb: { type: loadBalancer, deletionPolicy: 'Retain' } }, []],
     [
       'a load balancer with listeners, rules, a certificate, a firewall, DNS records and the default domain',
@@ -792,6 +805,54 @@ describe('early database and cache deletes', () => {
     expect(await decide([...network, site], { bucketEmpty: false })).toBeUndefined();
   });
 
+  test("monitors only events newer than the stack's newest event before the request", async () => {
+    const previousAttemptFailedAt = new Date('2026-10-29T11:59:59.500Z');
+    for (const [priorEvents, expected] of [
+      // An attempt that failed half a second before the request (AWS's clock reads 12:00:00).
+      [
+        [{ Timestamp: new Date('2026-10-29T11:59:50Z') }, { Timestamp: previousAttemptFailedAt }],
+        previousAttemptFailedAt
+      ],
+      // Nothing recent: anything older than the monitor's window is never read.
+      [[], new Date('2026-10-29T11:59:58Z')]
+    ] as const) {
+      await withDeleteFixture(
+        [db],
+        async () => {
+          let startedAfter: Date | undefined;
+          monitorThat((options) => {
+            startedAfter = options.startedAfter;
+            return {};
+          });
+          await stackManager.deleteStack();
+          expect(startedAfter).toEqual(expected);
+        },
+        { ...available, deletionPolicies, priorEvents: [...priorEvents] }
+      );
+    }
+  });
+
+  test('deletes nothing itself when the stack events before the request cannot be read', async () => {
+    await withDeleteFixture(
+      [db, redis],
+      async ({ calls }) => {
+        await stackManager.deleteStack();
+        expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /), 'cloudformation:monitor']);
+      },
+      { ...available, deletionPolicies, priorEvents: new Error('Throttling: Rate exceeded') }
+    );
+  });
+
+  test('deletes a function URL early, so the function stops answering direct calls', async () => {
+    await withDeleteFixture(
+      [resource('AWS::Lambda::Url', 'arn:aws:lambda:eu-west-1:123456789012:function:stack-api:live', 'ApiUrl')],
+      async ({ calls }) => {
+        await stackManager.deleteStack();
+        expect(calls).toContain('lambda:delete-url arn:aws:lambda:eu-west-1:123456789012:function:stack-api (live)');
+      }
+    );
+  });
+
   test('a refused DeleteStack request deletes no database', async () => {
     await withDeleteFixture(
       [db, redis],
@@ -957,14 +1018,22 @@ describe('finishing a delete in the background', () => {
     },
     { name: 'an Aurora cluster', pending: [['Cluster', 'AWS::RDS::DBCluster']], expected: undefined },
     { name: 'a NAT gateway', pending: [['Nat', 'AWS::EC2::NatGateway']], expected: undefined },
-    { name: 'a queue', pending: [['Queue', 'AWS::SQS::Queue']], expected: undefined },
+    { name: 'a queue, billed per request', pending: [['Queue', 'AWS::SQS::Queue']], expected: [] },
+    {
+      name: 'a topic, which can still invoke its subscribers',
+      pending: [['Topic', 'AWS::SNS::Topic']],
+      expected: undefined
+    },
     {
       name: 'a bucket and a function URL behind a disabled distribution',
       pending: [
         ['SiteBucket', 'AWS::S3::Bucket'],
         ['ApiUrl', 'AWS::Lambda::Url']
       ],
-      expected: [{ kind: 'bucket-empty', bucketName: 'SiteBucket-id' }]
+      expected: [
+        { kind: 'bucket-empty', bucketName: 'SiteBucket-id' },
+        { kind: 'function-url-gone', functionArn: 'ApiUrl-id' }
+      ]
     },
     {
       name: 'an interface VPC endpoint, billed per hour',

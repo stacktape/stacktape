@@ -14,8 +14,9 @@ import { runsUserCodeOnDelete } from './early-deletes';
  * - it is a Stacktape custom resource from `STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST`, or
  * - a live check proves it idle: every task of an ECS service has stopped, a distribution is disabled, a load balancer
  *   is gone (the CLI deletes load balancers early, see `early-deletes.ts`), a bucket is empty (`delete` empties the
- *   stack's buckets before CloudFormation starts), a database instance or cache is gone (they bill until then).
- * Everything else (Aurora clusters, NAT gateways, queues, rules, user custom resources...) is waited for.
+ *   stack's buckets before CloudFormation starts), a function URL is gone (it runs the function for any caller;
+ *   `delete` deletes URLs early), a database instance or cache is gone (they bill until then).
+ * Everything else (Aurora clusters, NAT gateways, topics, rules, user custom resources...) is waited for.
  */
 export type PendingDelete = { logicalId: string; resourceType: string; physicalId?: string };
 
@@ -24,6 +25,7 @@ export type IdleCheck =
   | { kind: 'distribution-disabled'; distributionId: string }
   | { kind: 'load-balancer-gone'; loadBalancerArn: string }
   | { kind: 'bucket-empty'; bucketName: string }
+  | { kind: 'function-url-gone'; functionArn: string }
   /** Billed until gone. CloudFormation notices that up to ~20 s late. */
   | { kind: 'db-instance-gone'; instanceId: string }
   | { kind: 'replication-group-gone'; replicationGroupId: string };
@@ -49,11 +51,9 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::IAM::Policy',
   'AWS::IAM::ManagedPolicy',
   'AWS::IAM::InstanceProfile',
-  // A function bills only when invoked. A VPC function waits here for its network interfaces. Its event sources (queues,
-  // rules, event source mappings) are waited for. A function URL stays callable until CloudFormation removes it, usually
-  // right after the distribution in front of it, which `delete` has already disabled.
+  // A function bills only when invoked. A VPC function waits here for its network interfaces. Whatever invokes it is
+  // waited for: event source mappings, rules, topics, and its URL until it is gone (`delete` deletes URLs early).
   'AWS::Lambda::Function',
-  'AWS::Lambda::Url',
   'AWS::Lambda::Permission',
   'AWS::Lambda::Version',
   'AWS::Lambda::Alias',
@@ -87,7 +87,10 @@ const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::ElastiCache::SubnetGroup',
   'AWS::ElastiCache::ParameterGroup',
   'AWS::SSM::Parameter',
-  'AWS::S3::BucketPolicy'
+  'AWS::S3::BucketPolicy',
+  // A queue bills per request and runs nothing; the event source mappings that poll it are waited for.
+  'AWS::SQS::Queue',
+  'AWS::SQS::QueuePolicy'
 ]);
 
 /** Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies. */
@@ -144,6 +147,7 @@ export const planBackgroundDeleteChecks = ({
     } else if (resourceType === 'AWS::ElasticLoadBalancingV2::LoadBalancer') {
       checks.push({ kind: 'load-balancer-gone', loadBalancerArn: physicalId });
     } else if (resourceType === 'AWS::S3::Bucket') checks.push({ kind: 'bucket-empty', bucketName: physicalId });
+    else if (resourceType === 'AWS::Lambda::Url') checks.push({ kind: 'function-url-gone', functionArn: physicalId });
     else if (resourceType === 'AWS::RDS::DBInstance') checks.push({ kind: 'db-instance-gone', instanceId: physicalId });
     else if (resourceType === 'AWS::ElastiCache::ReplicationGroup') {
       checks.push({ kind: 'replication-group-gone', replicationGroupId: physicalId });

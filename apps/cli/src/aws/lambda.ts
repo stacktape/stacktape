@@ -1,11 +1,13 @@
 import { pRateLimit } from 'p-ratelimit';
 import type { LambdaClient, Runtime } from '@aws-sdk/client-lambda';
 import {
+  DeleteFunctionUrlConfigCommand,
   DeleteLayerVersionCommand,
   GetAliasCommand,
   GetFunctionCommand,
   GetLayerVersionByArnCommand,
   GetFunctionConfigurationCommand,
+  GetFunctionUrlConfigCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
   ListFunctionsCommand,
@@ -47,6 +49,26 @@ export class AwsLambda {
     this.#createClient = createClient;
     this.#getErrorHandler = getErrorHandler;
   }
+
+  /** Whether the function URL still exists. A deleted function has no URL. */
+  functionUrlExists = async ({ functionName, qualifier }: { functionName: string; qualifier?: string }) => {
+    try {
+      await this.#createClient().send(
+        new GetFunctionUrlConfigCommand({ FunctionName: functionName, Qualifier: qualifier })
+      );
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ResourceNotFoundException') return false;
+      throw error;
+    }
+  };
+
+  /** Deletes a function URL; requests to it fail at once. AWS errors are passed through unchanged. */
+  deleteFunctionUrl = async ({ functionName, qualifier }: { functionName: string; qualifier?: string }) => {
+    await this.#createClient().send(
+      new DeleteFunctionUrlConfigCommand({ FunctionName: functionName, Qualifier: qualifier })
+    );
+  };
 
   updateFunctionCode = async ({
     lambdaResourceName,

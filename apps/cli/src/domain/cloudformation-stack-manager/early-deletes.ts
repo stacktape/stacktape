@@ -5,7 +5,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 /**
  * Databases, caches, search domains and load balancers take minutes to delete, and CloudFormation starts deleting one
- * only after every workload that references it is gone (an ECS service takes 2-3 minutes). On a stack delete that order
+ * only after every workload that references it is gone (an ECS service takes 2-3 minutes). A function URL waits for
+ * the distribution in front of it, and keeps running the function for direct callers until then. On a stack delete that order
  * protects nothing, so once CloudFormation has started deleting the stack's resources, `delete` starts these deletes
  * itself and CloudFormation finds them already deleting or gone.
  *
@@ -13,7 +14,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
  * snapshot, AWS deletion protection is off, and it is not part of a read-replica or global setup. Anything else stays
  * with CloudFormation. Nothing qualifies in a stack that runs user code while it is being deleted (a `before:delete`
  * deployment script or a custom resource of the user's own): that code may still need to read or export the data, or
- * call the application through its load balancer.
+ * call the application through its load balancer or function URL.
  */
 export type EarlyDelete =
   | {
@@ -33,10 +34,21 @@ export type EarlyDelete =
   | { kind: 'elasticache-replication-group'; logicalId: string; replicationGroupId: string }
   | { kind: 'opensearch-domain'; logicalId: string; domainName: string }
   /** Deleting a load balancer deletes its listeners and rules too. Its target groups stay with CloudFormation. */
-  | { kind: 'load-balancer'; logicalId: string; loadBalancerArn: string };
+  | { kind: 'load-balancer'; logicalId: string; loadBalancerArn: string }
+  /**
+   * A function URL runs the function for anyone who calls it. CloudFormation deletes one only after the distribution in
+   * front of it, minutes later.
+   */
+  | { kind: 'function-url'; logicalId: string; functionArn: string };
 
-/** Load balancers hold no data; a failed stack delete that already removed one loses nothing. */
-export const isDataStoreDelete = (item: EarlyDelete) => item.kind !== 'load-balancer';
+/** Load balancers and function URLs hold no data; a failed stack delete that already removed one loses nothing. */
+export const isDataStoreDelete = (item: EarlyDelete) => item.kind !== 'load-balancer' && item.kind !== 'function-url';
+
+/** The function name and alias of a function URL's physical ID, the (possibly qualified) function ARN. */
+export const functionUrlTarget = (functionArn: string) => {
+  const [functionName, qualifier] = functionArn.split(':').slice(6);
+  return { functionName: functionArn.split(':').slice(0, 7).join(':'), qualifier, name: functionName };
+};
 
 type StackResource = { LogicalResourceId?: string; ResourceType?: string; PhysicalResourceId?: string };
 type TemplateResource = {
@@ -221,11 +233,20 @@ export const planEarlyDeletes = ({
       }
       return [{ kind: 'load-balancer', logicalId, loadBalancerArn: PhysicalResourceId }];
     }
+
+    if (ResourceType === 'AWS::Lambda::Url') {
+      // The default policy is Delete.
+      if (deployed.DeletionPolicy !== undefined && deployed.DeletionPolicy !== 'Delete') return [];
+      return [{ kind: 'function-url', logicalId, functionArn: PhysicalResourceId }];
+    }
     return [];
   });
 };
 
 export const describeEarlyDelete = (item: EarlyDelete) => {
+  if (item.kind === 'function-url') {
+    return `${item.logicalId} (URL of function ${functionUrlTarget(item.functionArn).name})`;
+  }
   if (item.kind === 'load-balancer') {
     return `${item.logicalId} (load balancer ${item.loadBalancerArn.split('/').slice(-2, -1)[0]})`;
   }
@@ -292,6 +313,13 @@ export const startEarlyDeletes = async ({
             return;
           }
           await awsSdkManager.rds.deleteInstance({ identifier: item.instanceId });
+        } else if (item.kind === 'function-url') {
+          const { functionName, qualifier } = functionUrlTarget(item.functionArn);
+          if (!(await awsSdkManager.lambda.functionUrlExists({ functionName, qualifier }))) {
+            onDebug(`Leaving ${describeEarlyDelete(item)} to CloudFormation: it no longer exists.`);
+            return;
+          }
+          await awsSdkManager.lambda.deleteFunctionUrl({ functionName, qualifier });
         } else if (item.kind === 'load-balancer') {
           const loadBalancer = await awsSdkManager.loadBalancers.getLoadBalancer({
             loadBalancerArn: item.loadBalancerArn
