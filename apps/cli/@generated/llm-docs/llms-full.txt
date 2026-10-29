@@ -9484,7 +9484,7 @@ Each failover raises an incident in the Console that says what happened, which z
 
 ### Shared network for non-production stages
 
-Non-production stages of an AWS account and region share one VPC, the `stacktape-network` stack, instead of creating a VPC each. A new stage's first deploy skips creating a VPC, subnets and an internet gateway, and a team with many preview and feature stages stays under the AWS default limit of 5 VPCs per region. When a stage in it needs outbound internet (`stackConfig.nat`), it uses one shared NAT instance, the `stacktape-network-nat` stack: one `t4g.nano` for every non-production stage, about $7.70 per month in total. The first stage that needs each shared stack creates it, which takes about a minute for the network and a few minutes for the NAT; later stages only use them.
+Non-production stages of an AWS account and region share one VPC, the `stacktape-network` stack, instead of creating a VPC each. A new stage's first deploy skips creating a VPC, subnets and an internet gateway, and a team with many preview and feature stages stays under the AWS default limit of 5 VPCs per region. When a stage in it needs outbound internet (`stackConfig.nat`), it uses one shared NAT instance, the `stacktape-network-nat` stack: one `t4g.nano` for every non-production stage, about $7.70 per month in total. The first stage that needs each shared stack creates it, which takes about a minute for the network and about five minutes for the NAT; later stages only use them. The shared NAT's size is fixed, so a stage's `nat.instanceSize` does not apply in the shared network.
 
 Every deploy prints where the stage runs and why:
 

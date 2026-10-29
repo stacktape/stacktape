@@ -4125,11 +4125,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/mongo-db-atlas-clusters/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/efs.ts'
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/efs.ts',
+      'apps/cli/src/domain/shared-network/**',
+      'apps/cli/src/domain/vpc-manager/**'
     ],
     tests: [
       'apps/cli/tests/data-connections/connections.spec.ts',
       'apps/cli/src/domain/vpc-manager/index.spec.ts',
+      'apps/cli/src/domain/shared-network/placement.spec.ts',
+      'apps/cli/tests/synthesis-families/shared-network.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
