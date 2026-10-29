@@ -17,8 +17,39 @@ export const DATA_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   'AWS::Cognito::UserPool',
   'Upstash::DatabasesV1::Database',
   'AWS::OpenSearchService::Domain',
-  'AWS::EFS::FileSystem'
+  'AWS::EFS::FileSystem',
+  'AWS::EC2::Volume',
+  'AWS::EC2::Instance',
+  'AWS::Neptune::DBCluster',
+  'AWS::Neptune::DBInstance',
+  'AWS::DocDB::DBCluster',
+  'AWS::DocDB::DBInstance',
+  'AWS::DocDBElastic::Cluster',
+  'AWS::Redshift::Cluster',
+  'AWS::RedshiftServerless::Namespace',
+  'AWS::ElastiCache::CacheCluster',
+  'AWS::ElastiCache::ServerlessCache',
+  'AWS::MemoryDB::Cluster',
+  'AWS::MSK::Cluster',
+  'AWS::FSx::FileSystem',
+  'AWS::Timestream::Database',
+  'AWS::Timestream::Table',
+  'AWS::Cassandra::Table',
+  'AWS::Elasticsearch::Domain',
+  'AWS::OpenSearchServerless::Collection',
+  'AWS::S3Express::DirectoryBucket',
+  'AWS::Backup::BackupVault',
+  'AWS::SecretsManager::Secret',
+  'AWS::KMS::Key',
+  'AWS::Lightsail::Database'
 ]);
+
+/** A resource the template asks CloudFormation to keep or snapshot holds something worth keeping, whatever its type. */
+const keepsData = (resource: { Type?: string; DeletionPolicy?: unknown; UpdateReplacePolicy?: unknown }) =>
+  DATA_RESOURCE_TYPES.has(resource.Type ?? '') ||
+  [resource.DeletionPolicy, resource.UpdateReplacePolicy].some(
+    (policy) => policy === 'Retain' || policy === 'Snapshot' || policy === 'RetainExceptOnCreate'
+  );
 
 const SUB_REFERENCE = /\$\{([A-Za-z0-9]+)[.}]/g;
 
@@ -65,7 +96,10 @@ export const templateWithoutResources = (
   template: CloudFormationTemplate,
   logicalIds: string[]
 ): { template: CloudFormationTemplate; removedResources: string[]; removedDataResources: string[] } => {
-  const resources = (template.Resources ?? {}) as Record<string, { Type?: string; DependsOn?: unknown }>;
+  const resources = (template.Resources ?? {}) as Record<
+    string,
+    { Type?: string; DependsOn?: unknown; DeletionPolicy?: unknown; UpdateReplacePolicy?: unknown }
+  >;
   const removed = new Set(logicalIds.filter((id) => id in resources));
   let grew = removed.size > 0;
   while (grew) {
@@ -95,6 +129,6 @@ export const templateWithoutResources = (
       ...(Object.keys(outputs).length ? { Outputs: outputs } : {})
     } as CloudFormationTemplate,
     removedResources,
-    removedDataResources: removedResources.filter((id) => DATA_RESOURCE_TYPES.has(resources[id]?.Type ?? ''))
+    removedDataResources: removedResources.filter((id) => keepsData(resources[id] ?? {}))
   };
 };

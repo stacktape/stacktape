@@ -558,6 +558,18 @@ describe('an update that replaces resources', () => {
     expect(step?.template.Outputs).toEqual({ StpDeploymentVersion: { Value: 'v000001' } });
   });
 
+  test('a mapping change of a healthy stack rolls back on failure, as it can replace resources', () => {
+    plan('UPDATE_COMPLETE', { deployed: true });
+    stackManager.planUpdate(
+      diffTemplate(
+        { ...oldTemplate, Mappings: { Sizing: { Task: { Cpu: '256' } } } },
+        { ...oldTemplate, Mappings: { Sizing: { Task: { Cpu: '512' } } } }
+      )
+    );
+    expect(stackManager.rollsBackOnFailure).toBe(true);
+    expect(stackManager.reasonForRollbackOfUpdate).toContain('mappings');
+  });
+
   test('a deployed stack left in UPDATE_FAILED is not changed and is recovered first', () => {
     expect(() => plan('UPDATE_FAILED', { deployed: true })).toThrow(/cannot do while it continues a failed deploy/);
   });

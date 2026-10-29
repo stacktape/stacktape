@@ -457,6 +457,12 @@ class StackManager {
   /** Existing resources this deploy's update replaces, recorded by {@link planUpdate}. */
   #replacedResources: string[] = [];
 
+  /**
+   * Whether the update changes mappings, conditions or parameters. Resource properties that use them change without a
+   * resource difference in the template, so such an update may replace resources nobody can predict from the diff.
+   */
+  #mayReplaceIndirectly = false;
+
   /** Whether an existing resource was created after the last successful release, recorded by {@link planUpdate}. */
   #isNewSinceLastRelease: (logicalId: string) => boolean = () => false;
 
@@ -495,6 +501,9 @@ class StackManager {
       }
     }
     this.#replacedResources = [...replaced].toSorted();
+    this.#mayReplaceIndirectly = [templateDiff.mappings, templateDiff.conditions, templateDiff.parameters].some(
+      (section) => Object.keys(section?.changes ?? {}).length > 0
+    );
     // Fails before anything is uploaded or changed when the failed stack cannot be continued.
     this.getTemplateBeforeReplacing();
   };
@@ -503,14 +512,19 @@ class StackManager {
   get rollsBackOnFailure() {
     if (this.continuesFailedStack) return false;
     if (this.isAutoRollbackEnabled) return true;
-    return this.stackActionType === 'update' && this.#replacedResources.length > 0;
+    return this.stackActionType === 'update' && (this.#replacedResources.length > 0 || this.#mayReplaceIndirectly);
   }
 
   /** Why this update rolls back on failure although automatic rollback is off, for the deploy output. */
   get reasonForRollbackOfUpdate(): string | undefined {
     if (this.continuesFailedStack || this.isAutoRollbackEnabled || this.stackActionType !== 'update') return undefined;
-    if (!this.#replacedResources.length) return undefined;
-    return `This deploy replaces ${this.#replacedResources.join(', ')}. CloudFormation replaces resources only in a deploy it may roll back, so if this deploy fails, it is rolled back.`;
+    const replaces = this.#replacedResources.length
+      ? `This deploy replaces ${this.#replacedResources.join(', ')}.`
+      : this.#mayReplaceIndirectly
+        ? 'This deploy changes template mappings, conditions or parameters, which can replace resources.'
+        : undefined;
+    if (!replaces) return undefined;
+    return `${replaces} CloudFormation replaces resources only in a deploy it may roll back, so if this deploy fails, it is rolled back.`;
   }
 
   /**

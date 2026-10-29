@@ -39,3 +39,17 @@ test('leaves out an empty Outputs section, which CloudFormation rejects', () => 
   const result = templateWithoutResources(template as never, ['TaskDefinition', 'Db']);
   expect(result.template.Outputs).toBeUndefined();
 });
+
+test('counts EBS volumes and resources the template keeps or snapshots as data', () => {
+  const result = templateWithoutResources(
+    {
+      Resources: {
+        Server: { Type: 'AWS::EC2::LaunchTemplate', Properties: {} },
+        Disk: { Type: 'AWS::EC2::Volume', Properties: { Tag: { 'Fn::GetAtt': ['Server', 'Id'] } } },
+        Kept: { Type: 'AWS::Logs::LogGroup', DeletionPolicy: 'Retain', Properties: { Name: { Ref: 'Server' } } }
+      }
+    } as never,
+    ['Server']
+  );
+  expect(result.removedDataResources).toEqual(['Disk', 'Kept']);
+});
