@@ -15,6 +15,7 @@ import { SHARED_LAYER_NUMBERS } from '@domain-services/deployment-artifact-manag
 import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
+import type { PendingDelete } from '@domain-services/cloudformation-stack-manager/background-delete';
 import {
   findDeletionProtectedResources,
   getDeletionProtectionError
@@ -49,6 +50,17 @@ const parseRetainedSharedResources = (serialized: string): RetainedSharedResourc
   return parsed;
 };
 
+const describeDeletionInBackground = (pending: PendingDelete[]) => {
+  const shown = pending.slice(0, 5).map(({ logicalId }) => logicalId);
+  const more = pending.length - shown.length;
+  const names = `${shown.join(', ')}${more ? ` and ${more} more` : ''}`;
+  return [
+    `AWS is still removing ${pending.length} resource${pending.length > 1 ? 's' : ''} that cost nothing: ${names}.`,
+    'This finishes in the background, usually within minutes (network interfaces of functions in a VPC can take up to 20).',
+    'A deploy of this stage waits until it is done. If AWS fails to remove one of them, the next deploy reports it and the next delete retries it.'
+  ].join(' ');
+};
+
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
   deploymentArtifacts: {
@@ -62,13 +74,18 @@ type DeleteExecutionOperation = {
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
   progress: Pick<DeleteOperation['progress'], 'setPhase'>;
   stack: {
-    deleteStack: (options: { beforeDelete: () => Promise<unknown> }) => Promise<unknown>;
+    deleteStack: (options: {
+      beforeDelete: () => Promise<unknown>;
+      finishInBackground: boolean;
+    }) => Promise<{ deletionContinuesInBackground?: PendingDelete[] } | undefined>;
     existingStackDetails: { EnableTerminationProtection?: boolean; StackStatus?: string };
     existingStackResources: EnrichedStackResourceInfo[];
   };
   stackName: string;
   tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'prettyCommand' | 'setPendingCompletion'>;
   retainedSharedResources?: RetainedSharedResource[];
+  /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
+  finishInBackground: boolean;
 };
 
 export const commandDelete = async () => {
@@ -111,6 +128,8 @@ export const commandDelete = async () => {
     config,
     deploymentArtifacts,
     deployedTemplate: template.oldTemplate,
+    // A dev stage releases its relay ports and secrets once its stack is gone, so its delete waits for the end.
+    finishInBackground: !wasDevStack,
     lifecycle,
     notification,
     progress,
@@ -169,6 +188,7 @@ export const executeDeleteOperation = async ({
   config,
   deploymentArtifacts,
   deployedTemplate,
+  finishInBackground,
   lifecycle,
   notification,
   progress,
@@ -218,9 +238,17 @@ export const executeDeleteOperation = async ({
   const artifactStoreIsStackResource = deploymentArtifacts.artifactStoreIsStackResource;
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
-  await stack.deleteStack({ beforeDelete: deploymentArtifacts.deleteAllArtifacts });
+  const deleteResult = await stack.deleteStack({
+    beforeDelete: deploymentArtifacts.deleteAllArtifacts,
+    finishInBackground
+  });
   // The deployment bucket and image repository of a stack `deploy` created are not stack resources.
   if (!artifactStoreIsStackResource) await deploymentArtifacts.deleteArtifactStore();
+
+  const inBackground = deleteResult?.deletionContinuesInBackground;
+  if (inBackground?.length) {
+    tui.info(describeDeletionInBackground(inBackground));
+  }
 
   if (retainedSharedResources?.length) {
     tui.info(

@@ -72,6 +72,19 @@ export class AwsCloudFront {
     return true;
   };
 
+  /** Whether the distribution serves no requests: it is disabled, or it no longer exists. */
+  isDistributionDisabled = async ({ distributionId }: { distributionId: string }) => {
+    try {
+      const { DistributionConfig } = await this.#createClient().send(
+        new GetDistributionConfigCommand({ Id: distributionId })
+      );
+      return DistributionConfig?.Enabled === false;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NoSuchDistribution') return true;
+      throw error;
+    }
+  };
+
   findDistributionsForBucket = async ({ bucketName }: { bucketName: string }) => {
     const bucketDomainName = resourceURIs.bucket({ bucketName, region: this.#region });
     const errorHandler = this.#getErrorHandler('Failed to fetch CloudFront distribution ids.');

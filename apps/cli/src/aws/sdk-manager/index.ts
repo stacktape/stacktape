@@ -56,6 +56,7 @@ import { AwsAutoScaling } from '../auto-scaling';
 import { AwsOpenSearch } from '../open-search';
 import { AwsRds } from '../rds';
 import { AwsElastiCache } from '../elasticache';
+import { AwsLoadBalancers } from '../load-balancers';
 import { AwsEmail } from '../email';
 import { AwsApiGatewayAccount } from '../api-gateway-account';
 import { defaultGetErrorFunction } from './utils';
@@ -82,6 +83,7 @@ export class AwsSdkManager {
   #openSearch?: AwsOpenSearch;
   #rds?: AwsRds;
   #elastiCache?: AwsElastiCache;
+  #loadBalancers?: AwsLoadBalancers;
   #email?: AwsEmail;
   #apiGatewayAccount?: AwsApiGatewayAccount;
   printer?: Printer;
@@ -196,6 +198,9 @@ export class AwsSdkManager {
     });
     this.#elastiCache = new AwsElastiCache({
       createClient: () => this.#applyPlugins(new ElastiCacheClient(this.#getClientArgs()))
+    });
+    this.#loadBalancers = new AwsLoadBalancers({
+      createClient: () => this.#applyPlugins(new ElasticLoadBalancingV2Client(this.#getClientArgs()))
     });
     this.#email = new AwsEmail({ createClient: () => this.#sesv2(), getErrorHandler: this.#getErrorHandler });
     this.#apiGatewayAccount = new AwsApiGatewayAccount({
@@ -377,6 +382,14 @@ export class AwsSdkManager {
       throw new Error('AWS ElastiCache has not been initialized.');
     }
     return this.#elastiCache;
+  }
+
+  get loadBalancers() {
+    this.#getContext();
+    if (!this.#loadBalancers) {
+      throw new Error('AWS Elastic Load Balancing has not been initialized.');
+    }
+    return this.#loadBalancers;
   }
 
   get email() {

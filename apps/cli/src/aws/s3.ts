@@ -17,6 +17,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListMultipartUploadsCommand,
   ListObjectsV2Command,
   ListObjectVersionsCommand,
   PutBucketAccelerateConfigurationCommand,
@@ -510,6 +511,24 @@ export class AwsS3 {
       if (Contents) result = result.concat(Contents);
     }
     return result;
+  };
+
+  /**
+   * Whether the bucket holds no object, version, delete marker or unfinished multipart upload (its parts are billed).
+   * A deleted bucket counts as empty.
+   */
+  isBucketEmpty = async (bucketName: string) => {
+    try {
+      const client = this.#createClient();
+      const [{ Versions, DeleteMarkers }, { Uploads }] = await Promise.all([
+        client.send(new ListObjectVersionsCommand({ Bucket: bucketName, MaxKeys: 1 })),
+        client.send(new ListMultipartUploadsCommand({ Bucket: bucketName, MaxUploads: 1 }))
+      ]);
+      return !Versions?.length && !DeleteMarkers?.length && !Uploads?.length;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NoSuchBucket') return true;
+      throw error;
+    }
   };
 
   listObjectVersions = async (bucketName: string, injectedS3Client?: S3Client) => {
