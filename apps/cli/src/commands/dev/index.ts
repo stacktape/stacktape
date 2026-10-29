@@ -13,6 +13,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { assertExistingDevStack } from './dev-stack-safety';
 import { CliError, withHintLines } from '@utils/errors';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getDeveloperTrustStatement } from 'src/aws/iam';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -533,8 +534,15 @@ export const findReusableAgent = async (): Promise<AgentLockFile | null> => {
 /**
  * Creates this session's lock file, or refuses the start while another session of the stage holds it. A session that
  * stops is waited for, and the lock file is then tried once more.
+ *
+ * A killed earlier session of the stage left its SSM session to the dev box open, and only its lock file records it.
+ * That session is ended before this one's lock file replaces it, so a start that fails later cannot forget it.
  */
 export const acquireSessionLock = async (lock: AgentLockFile) => {
+  const orphanedSessionId = findOrphanedDevBoxSession(lock.projectName, lock.stage);
+  if (orphanedSessionId) {
+    await awsSdkManager.systemsManager.terminateSession({ sessionId: orphanedSessionId }).catch(() => {});
+  }
   if (!(await acquireAgentLockFile(lock))) return;
   await refuseStageRunningHere({ projectName: lock.projectName, stage: lock.stage });
   const holder = await acquireAgentLockFile(lock);
@@ -797,7 +805,6 @@ export const commandDev = async () => {
     }
   }
 
-  const orphanedDevBoxSessionId = findOrphanedDevBoxSession(stackContext.projectName, stackContext.stage);
   // The parent could not compare the target before the credentials loaded (`findReusableAgent`): an agent of this stage
   // with the same target is reported as this start's result.
   if (isAgentChild) {
@@ -964,8 +971,7 @@ export const commandDev = async () => {
       stackContext,
       noTunnel: Boolean(args.noTunnel),
       takeOver: Boolean(args.takeOver),
-      agentPort: getAgentPort() ?? undefined,
-      orphanedSessionId: orphanedDevBoxSessionId
+      agentPort: getAgentPort() ?? undefined
     });
     devNetworkSpinner.success();
     reportDevStartup({

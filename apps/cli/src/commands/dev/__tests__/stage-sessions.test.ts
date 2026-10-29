@@ -1,13 +1,15 @@
 import { afterAll, expect, test } from 'bun:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { acquireAgentLockFile, getLockFilePath, writeAgentLockFile, type AgentLockFile } from '../agent-daemon';
 import { startAgentServer, stopAgentServer } from '../agent-server';
-import { refuseStageRunningHere } from '../index';
+import { acquireSessionLock, refuseStageRunningHere } from '../index';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 const CLI_DIRECTORY = join(import.meta.dir, '../../../..');
 const source = (path: string) => JSON.stringify(join(CLI_DIRECTORY, 'src', path));
@@ -286,3 +288,67 @@ process.exit(0);
   );
   expect(result).toEqual({ adopted: 'stp-shop-adopt-db', removed: [], stopped: false });
 }, 30_000);
+
+// r2af P2: the start's parent looked for a running agent and deleted the dead one's lock file, so the agent child it
+// started could no longer read the SSM session to the dev box the dead agent left open, and never closed it.
+test('agent discovery keeps the lock file of a dead session until the next start reads its open SSM session', async () => {
+  const { findOrphanedDevBoxSession, getAllRunningAgents, getRunningAgent } = await import('../agent-daemon');
+  writeAgentLockFile(lockOf({ pid: deadPid(), stage: 'orphan', devBoxSessionId: 'stacktape-dev-orphan-session' }));
+  expect(await getRunningAgent('shop', 'orphan')).toBeNull();
+  expect((await getAllRunningAgents()).some(({ stage }) => stage === 'orphan')).toBe(false);
+  expect(findOrphanedDevBoxSession('shop', 'orphan')).toBe('stacktape-dev-orphan-session');
+
+  // A dead session without one leaves nothing to close: its lock file goes.
+  writeAgentLockFile(lockOf({ pid: deadPid(), stage: 'dead' }));
+  expect(await getRunningAgent('shop', 'dead')).toBeNull();
+  expect(existsSync(getLockFilePath('shop', 'dead'))).toBe(false);
+
+  // The next start replaces the dead session's lock file with its own.
+  const next = lockOf({ pid: process.pid, stage: 'orphan' });
+  expect(await acquireAgentLockFile(next)).toBeNull();
+  expect(JSON.parse(readFileSync(getLockFilePath('shop', 'orphan'), 'utf8')).pid).toBe(process.pid);
+  expect(findOrphanedDevBoxSession('shop', 'orphan')).toBeUndefined();
+  rmSync(getLockFilePath('shop', 'orphan'), { force: true });
+});
+
+// Review of #394: the start replaced the dead session's lock file, then failed before it ended the SSM session that
+// lock file recorded (a missing secret, say), and its own cleanup deleted the only record of it.
+test('a start ends the SSM session a dead session left open before its lock file replaces the record of it', async () => {
+  writeAgentLockFile(lockOf({ pid: deadPid(), stage: 'relay', devBoxSessionId: 'stacktape-dev-left-open' }));
+  // SSM, as far as this start sends to it: each request with what the lock file records when it arrives.
+  const received: { target: string; body: string; recorded?: string }[] = [];
+  const ssm = createHttpServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', () => {
+      const lockPath = getLockFilePath('shop', 'relay');
+      received.push({
+        target: String(request.headers['x-amz-target']),
+        body,
+        recorded: existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, 'utf8')).devBoxSessionId : undefined
+      });
+      response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });
+      response.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => ssm.listen(0, '127.0.0.1', resolve));
+  awsSdkManager.init({
+    credentials: { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'example-secret' },
+    region: 'eu-west-1',
+    endpoint: `http://127.0.0.1:${(ssm.address() as AddressInfo).port}`
+  });
+  try {
+    await acquireSessionLock(lockOf({ pid: process.pid, stage: 'relay', phase: 'starting' }));
+  } finally {
+    await new Promise((resolve) => ssm.close(resolve));
+  }
+  expect(received).toEqual([
+    {
+      target: 'AmazonSSM.TerminateSession',
+      body: JSON.stringify({ SessionId: 'stacktape-dev-left-open' }),
+      recorded: 'stacktape-dev-left-open'
+    }
+  ]);
+  expect(JSON.parse(readFileSync(getLockFilePath('shop', 'relay'), 'utf8')).pid).toBe(process.pid);
+  rmSync(getLockFilePath('shop', 'relay'), { force: true });
+});

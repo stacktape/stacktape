@@ -1,26 +1,59 @@
 import { cfnResource } from '@stacktape/cloudformation/resource';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { sub } from '@stacktape/cloudformation/intrinsics';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { templateManager } from '@domain-services/template-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 
 const DEV_AGENT_ROLE_LOGICAL_NAME = 'StpDevAgentRole';
 
+type PolicyStatement = { Effect: 'Allow' | 'Deny'; Action: string[]; Resource: unknown; Condition?: unknown };
+const policy = (PolicyName: string, Statement: PolicyStatement[]) => ({
+  PolicyName,
+  PolicyDocument: { Version: '2012-10-17', Statement }
+});
+
 /**
- * Creates an IAM role for the dev agent API with stack-scoped permissions.
- * Allows read access to most resources and data-level writes,
- * but blocks infrastructure changes (create/delete resources) and secret access.
+ * The ARNs `arn` makes of the identifiers of the template's resources of a type: the literal name in `nameProperty`,
+ * which keeps the role free of a dependency on the resource, or else its `Ref`.
+ */
+const ownResourceArns = (
+  template: CloudFormationTemplate,
+  type: string,
+  nameProperty: string | undefined,
+  arn: (identifier: string) => unknown[]
+) =>
+  Object.keys(template.Resources)
+    .filter((logicalName) => (template.Resources[logicalName] as { Type: string }).Type === type)
+    .sort()
+    .flatMap((logicalName) => {
+      const name =
+        nameProperty && (template.Resources[logicalName].Properties as Record<string, unknown>)?.[nameProperty];
+      return arn(typeof name === 'string' ? name : `\${${logicalName}}`);
+    });
+
+/**
+ * Creates the IAM role the dev agent reads AWS with (`/aws/sdk`, deployed tables, Batch job runs). It reads only: the
+ * agent's executor sends nothing outside the read-only catalog, and the role grants no write either.
+ *
+ * The role reaches this stack's resources in this stack's region only. A stack name is unique in an account and region,
+ * so the stack-name tag CloudFormation puts on every resource it creates, together with the region in the ARN or
+ * `aws:RequestedRegion`, picks out exactly this stack; a name prefix does not (`shop-dev-*` also names the resources of
+ * a stage `dev-production`). Where an action ignores resource tags, the role lists this stack's resources by their
+ * identifiers in the template instead. Checked against IAM on 28 Oct 2026 for every tag-limited action here except ECS
+ * and Batch.
  */
 export const resolveDevAgentRole = () => {
   const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
 
-  const stackTagCondition = {
-    StringEquals: {
-      [`aws:ResourceTag/${tagNames.stackName()}`]: stackName
-    }
-  };
+  const inRegion = { 'aws:RequestedRegion': { Ref: 'AWS::Region' } };
+  const ownStack = { StringEquals: { [`aws:ResourceTag/${tagNames.stackName()}`]: stackName } };
+  const ownStackInRegion = { StringEquals: { ...ownStack.StringEquals, ...inRegion } };
+  const regional = (service: string, resource: string) =>
+    sub(`arn:aws:${service}:\${AWS::Region}:\${AWS::AccountId}:${resource}`);
 
   const roleName = `${stackName}-dev-agent`;
   const role = cfnResource('AWS::IAM::Role', {
@@ -39,458 +72,297 @@ export const resolveDevAgentRole = () => {
       ]
     },
     Policies: [
-      // Lambda: Read + Invoke
-      {
-        PolicyName: 'lambda-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'lambda:GetFunction',
-                'lambda:GetFunctionConfiguration',
-                'lambda:GetFunctionUrlConfig',
-                'lambda:GetPolicy',
-                'lambda:GetAlias',
-                'lambda:ListAliases',
-                'lambda:ListVersionsByFunction',
-                'lambda:ListTags',
-                'lambda:InvokeFunction',
-                'lambda:InvokeAsync'
-              ],
-              Resource: sub(`arn:aws:lambda:*:\${AWS::AccountId}:function:${stackName}-*`)
-            }
+      policy('lambda-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'lambda:GetFunction',
+            'lambda:GetFunctionConfiguration',
+            'lambda:GetFunctionConcurrency',
+            'lambda:GetFunctionUrlConfig',
+            'lambda:GetPolicy',
+            'lambda:GetAlias',
+            'lambda:ListAliases',
+            'lambda:ListVersionsByFunction',
+            'lambda:ListTags'
+          ],
+          Resource: [regional('lambda', 'function:*')],
+          Condition: ownStack
+        }
+      ]),
+      policy('dynamodb-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'dynamodb:GetItem',
+            'dynamodb:BatchGetItem',
+            'dynamodb:Query',
+            'dynamodb:Scan',
+            'dynamodb:DescribeTable',
+            'dynamodb:DescribeTimeToLive',
+            'dynamodb:DescribeContinuousBackups',
+            'dynamodb:ListTagsOfResource'
+          ],
+          // An index is authorized by its table's tags.
+          Resource: [regional('dynamodb', 'table/*'), regional('dynamodb', 'table/*/index/*')],
+          Condition: ownStack
+        }
+      ]),
+      // Object actions ignore bucket tags. Every bucket of the stack carries its globally unique hash in its name.
+      policy('s3-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            's3:GetObject',
+            's3:GetObjectVersion',
+            's3:GetObjectAttributes',
+            's3:GetObjectTagging',
+            's3:ListBucket',
+            's3:ListBucketVersions',
+            's3:GetBucketLocation',
+            's3:GetBucketTagging',
+            's3:GetBucketVersioning',
+            's3:GetEncryptionConfiguration'
+          ],
+          Resource: [
+            sub(`arn:aws:s3:::*${globallyUniqueStackHash}*`),
+            sub(`arn:aws:s3:::*${globallyUniqueStackHash}*/*`)
           ]
         }
-      },
-
-      // DynamoDB: Full data access
-      {
-        PolicyName: 'dynamodb-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'dynamodb:GetItem',
-                'dynamodb:BatchGetItem',
-                'dynamodb:Query',
-                'dynamodb:Scan',
-                'dynamodb:PutItem',
-                'dynamodb:UpdateItem',
-                'dynamodb:DeleteItem',
-                'dynamodb:BatchWriteItem',
-                'dynamodb:DescribeTable',
-                'dynamodb:DescribeTimeToLive',
-                'dynamodb:ListTagsOfResource'
-              ],
-              Resource: [
-                sub(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*`),
-                sub(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*/index/*`)
-              ]
-            }
-          ]
+      ]),
+      policy('sqs-access', [
+        {
+          Effect: 'Allow',
+          Action: ['sqs:GetQueueAttributes', 'sqs:GetQueueUrl', 'sqs:ListQueueTags', 'sqs:ListDeadLetterSourceQueues'],
+          Resource: [regional('sqs', '*')],
+          Condition: ownStack
         }
-      },
-
-      // S3: Full data access (objects)
-      {
-        PolicyName: 's3-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                's3:GetObject',
-                's3:GetObjectVersion',
-                's3:GetObjectTagging',
-                's3:ListBucket',
-                's3:ListBucketVersions',
-                's3:PutObject',
-                's3:PutObjectTagging',
-                's3:DeleteObject',
-                's3:DeleteObjectVersion',
-                's3:GetBucketLocation',
-                's3:GetBucketTagging'
-              ],
-              Resource: [
-                sub(`arn:aws:s3:::*${globallyUniqueStackHash}*`),
-                sub(`arn:aws:s3:::*${globallyUniqueStackHash}*/*`)
-              ]
-            }
-          ]
+      ]),
+      policy('sns-access', [
+        {
+          Effect: 'Allow',
+          Action: ['sns:GetTopicAttributes', 'sns:ListSubscriptionsByTopic', 'sns:ListTagsForResource'],
+          Resource: [regional('sns', '*')],
+          Condition: ownStack
         }
-      },
-
-      // SQS: Full access
-      {
-        PolicyName: 'sqs-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'sqs:SendMessage',
-                'sqs:ReceiveMessage',
-                'sqs:DeleteMessage',
-                'sqs:GetQueueAttributes',
-                'sqs:GetQueueUrl',
-                'sqs:ListQueueTags',
-                'sqs:PurgeQueue'
-              ],
-              Resource: sub(`arn:aws:sqs:*:\${AWS::AccountId}:${stackName}-*`)
-            }
-          ]
+      ]),
+      policy('eventbridge-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'events:DescribeEventBus',
+            'events:DescribeRule',
+            'events:ListTargetsByRule',
+            'events:ListTagsForResource'
+          ],
+          Resource: [regional('events', 'event-bus/*'), regional('events', 'rule/*')],
+          Condition: ownStack
         }
-      },
-
-      // SNS: Publish + Read
-      {
-        PolicyName: 'sns-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'sns:Publish',
-                'sns:GetTopicAttributes',
-                'sns:ListTagsForResource',
-                'sns:ListSubscriptionsByTopic'
-              ],
-              Resource: sub(`arn:aws:sns:*:\${AWS::AccountId}:${stackName}-*`)
-            }
-          ]
+      ]),
+      policy('stepfunctions-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'states:DescribeStateMachine',
+            'states:DescribeExecution',
+            'states:GetExecutionHistory',
+            'states:ListExecutions',
+            'states:ListTagsForResource'
+          ],
+          // An execution is authorized by its state machine's tags.
+          Resource: [regional('states', 'stateMachine:*'), regional('states', 'execution:*:*')],
+          Condition: ownStack
         }
-      },
-
-      // EventBridge: Put events + Read
-      {
-        PolicyName: 'eventbridge-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'events:PutEvents',
-                'events:DescribeEventBus',
-                'events:ListRules',
-                'events:DescribeRule',
-                'events:ListTargetsByRule',
-                'events:ListTagsForResource'
-              ],
-              Resource: sub(`arn:aws:events:*:\${AWS::AccountId}:event-bus/${stackName}-*`)
-            }
-          ]
+      ]),
+      policy('logs-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'logs:DescribeLogStreams',
+            'logs:GetLogEvents',
+            'logs:FilterLogEvents',
+            'logs:GetLogGroupFields',
+            'logs:StartQuery'
+          ],
+          Resource: [regional('logs', 'log-group:*')],
+          Condition: ownStack
+        },
+        // A query's results, by the ID `StartQuery` returned; the query could only read this stack's log groups.
+        { Effect: 'Allow', Action: ['logs:GetQueryResults'], Resource: '*', Condition: { StringEquals: inRegion } }
+      ]),
+      policy('ecs-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'ecs:DescribeClusters',
+            'ecs:DescribeServices',
+            'ecs:DescribeTasks',
+            'ecs:ListContainerInstances',
+            'ecs:ListTagsForResource'
+          ],
+          Resource: [regional('ecs', '*')],
+          Condition: ownStack
+        },
+        // ECS authorizes a task definition read with no resource or tag: within the region. The executor redacts the
+        // environment values it returns.
+        {
+          Effect: 'Allow',
+          Action: ['ecs:DescribeTaskDefinition'],
+          Resource: '*',
+          Condition: { StringEquals: inRegion }
         }
-      },
-
-      // Step Functions: Execute + Read
-      {
-        PolicyName: 'stepfunctions-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'states:StartExecution',
-                'states:StartSyncExecution',
-                'states:StopExecution',
-                'states:DescribeStateMachine',
-                'states:DescribeExecution',
-                'states:GetExecutionHistory',
-                'states:ListExecutions',
-                'states:ListTagsForResource'
-              ],
-              Resource: [
-                sub(`arn:aws:states:*:\${AWS::AccountId}:stateMachine:${stackName}-*`),
-                sub(`arn:aws:states:*:\${AWS::AccountId}:execution:${stackName}-*:*`)
-              ]
-            }
-          ]
+      ]),
+      policy('cognito-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'cognito-idp:DescribeUserPool',
+            'cognito-idp:DescribeUserPoolClient',
+            'cognito-idp:ListUserPoolClients',
+            'cognito-idp:ListUsers',
+            'cognito-idp:ListGroups',
+            'cognito-idp:ListUsersInGroup',
+            'cognito-idp:AdminGetUser',
+            'cognito-idp:AdminListGroupsForUser'
+          ],
+          Resource: [regional('cognito-idp', 'userpool/*')],
+          Condition: ownStack
         }
-      },
-
-      // CloudWatch Logs: Read
-      {
-        PolicyName: 'logs-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'logs:DescribeLogGroups',
-                'logs:DescribeLogStreams',
-                'logs:GetLogEvents',
-                'logs:FilterLogEvents',
-                'logs:GetLogGroupFields',
-                'logs:StartQuery',
-                'logs:StopQuery',
-                'logs:GetQueryResults'
-              ],
-              Resource: [
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*`),
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*:*`),
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*`),
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*:*`),
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*`),
-                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*:*`)
-              ]
-            }
-          ]
+      ]),
+      policy('cloudformation-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'cloudformation:DescribeStacks',
+            'cloudformation:DescribeStackResource',
+            'cloudformation:DescribeStackResources',
+            'cloudformation:DescribeStackEvents',
+            'cloudformation:GetStackPolicy',
+            'cloudformation:GetTemplate',
+            'cloudformation:ListStackResources'
+          ],
+          Resource: [sub('${AWS::StackId}')]
         }
-      },
-
-      // ECS: Read + Execute command
-      {
-        PolicyName: 'ecs-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'ecs:DescribeClusters',
-                'ecs:DescribeServices',
-                'ecs:DescribeTasks',
-                'ecs:DescribeTaskDefinition',
-                'ecs:DescribeContainerInstances',
-                'ecs:ListTasks',
-                'ecs:ListServices',
-                'ecs:ListContainerInstances',
-                'ecs:ListTagsForResource',
-                'ecs:ExecuteCommand'
-              ],
-              Resource: '*',
-              Condition: stackTagCondition
-            }
-          ]
+      ]),
+      // Metrics and alarms have no stack of their own: CloudWatch reads stay account-wide, within the region.
+      policy('cloudwatch-access', [
+        {
+          Effect: 'Allow',
+          Action: [
+            'cloudwatch:DescribeAlarms',
+            'cloudwatch:DescribeAlarmsForMetric',
+            'cloudwatch:GetMetricData',
+            'cloudwatch:GetMetricStatistics',
+            'cloudwatch:ListMetrics',
+            'cloudwatch:ListTagsForResource'
+          ],
+          Resource: '*',
+          Condition: { StringEquals: inRegion }
         }
-      },
-
-      // RDS: Read only
-      {
-        PolicyName: 'rds-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'rds:DescribeDBInstances',
-                'rds:DescribeDBClusters',
-                'rds:DescribeDBClusterEndpoints',
-                'rds:DescribeDBSnapshots',
-                'rds:DescribeDBClusterSnapshots',
-                'rds:ListTagsForResource'
-              ],
-              Resource: [
-                sub(`arn:aws:rds:*:\${AWS::AccountId}:db:${stackName}-*`),
-                sub(`arn:aws:rds:*:\${AWS::AccountId}:cluster:${stackName}-*`)
-              ]
-            }
-          ]
+      ]),
+      policy('batch-access', [
+        // Batch's describe and list actions take no resource ARN, so a resource tag condition always denies them.
+        // The dev agent scopes these calls to the stack's queues and job definitions (`scopeBatchCall`).
+        {
+          Effect: 'Allow',
+          Action: [
+            'batch:DescribeJobs',
+            'batch:DescribeJobDefinitions',
+            'batch:DescribeJobQueues',
+            'batch:DescribeComputeEnvironments',
+            'batch:ListJobs'
+          ],
+          Resource: '*',
+          Condition: { StringEquals: inRegion }
+        },
+        { Effect: 'Allow', Action: ['batch:ListTagsForResource'], Resource: '*', Condition: ownStackInRegion }
+      ]),
+      policy('deny-dangerous-operations', [
+        {
+          Effect: 'Deny',
+          Action: [
+            'cloudformation:CreateStack',
+            'cloudformation:DeleteStack',
+            'cloudformation:UpdateStack',
+            'cloudformation:ExecuteChangeSet',
+            'cloudformation:CreateChangeSet',
+            'iam:*',
+            'organizations:*',
+            'account:*',
+            'secretsmanager:GetSecretValue',
+            'ssm:GetParameter',
+            'ssm:GetParameters',
+            'ssm:GetParametersByPath'
+          ],
+          Resource: '*'
         }
-      },
-
-      // ElastiCache: Read only
-      {
-        PolicyName: 'elasticache-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'elasticache:DescribeReplicationGroups',
-                'elasticache:DescribeCacheClusters',
-                'elasticache:ListTagsForResource'
-              ],
-              Resource: sub(`arn:aws:elasticache:*:\${AWS::AccountId}:replicationgroup:${stackName}-*`)
-            }
-          ]
-        }
-      },
-
-      // OpenSearch: Read + data access
-      {
-        PolicyName: 'opensearch-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'es:DescribeDomain',
-                'es:DescribeDomains',
-                'es:ListTags',
-                'es:ESHttpGet',
-                'es:ESHttpHead',
-                'es:ESHttpPost',
-                'es:ESHttpPut',
-                'es:ESHttpDelete'
-              ],
-              Resource: sub(`arn:aws:es:*:\${AWS::AccountId}:domain/${stackName}-*`)
-            }
-          ]
-        }
-      },
-
-      // Cognito: Read + user management
-      {
-        PolicyName: 'cognito-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'cognito-idp:DescribeUserPool',
-                'cognito-idp:DescribeUserPoolClient',
-                'cognito-idp:ListUsers',
-                'cognito-idp:ListGroups',
-                'cognito-idp:ListUsersInGroup',
-                'cognito-idp:AdminGetUser',
-                'cognito-idp:AdminListGroupsForUser',
-                'cognito-idp:AdminCreateUser',
-                'cognito-idp:AdminDeleteUser',
-                'cognito-idp:AdminSetUserPassword',
-                'cognito-idp:AdminUpdateUserAttributes',
-                'cognito-idp:AdminAddUserToGroup',
-                'cognito-idp:AdminRemoveUserFromGroup',
-                'cognito-idp:AdminEnableUser',
-                'cognito-idp:AdminDisableUser'
-              ],
-              Resource: sub(`arn:aws:cognito-idp:*:\${AWS::AccountId}:userpool/*`),
-              Condition: stackTagCondition
-            }
-          ]
-        }
-      },
-
-      // API Gateway: Read
-      {
-        PolicyName: 'apigateway-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: ['apigateway:GET'],
-              Resource: [sub('arn:aws:apigateway:*::/apis/*'), sub('arn:aws:apigateway:*::/apis/*/stages/*')]
-            }
-          ]
-        }
-      },
-
-      // CloudFormation: Read stack info
-      {
-        PolicyName: 'cloudformation-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'cloudformation:DescribeStacks',
-                'cloudformation:DescribeStackResources',
-                'cloudformation:DescribeStackEvents',
-                'cloudformation:GetStackPolicy',
-                'cloudformation:GetTemplate',
-                'cloudformation:ListStackResources'
-              ],
-              Resource: sub(`arn:aws:cloudformation:*:\${AWS::AccountId}:stack/${stackName}/*`)
-            }
-          ]
-        }
-      },
-
-      // CloudWatch: Read metrics
-      {
-        PolicyName: 'cloudwatch-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Allow',
-              Action: [
-                'cloudwatch:DescribeAlarms',
-                'cloudwatch:DescribeAlarmsForMetric',
-                'cloudwatch:GetMetricData',
-                'cloudwatch:GetMetricStatistics',
-                'cloudwatch:ListMetrics',
-                'cloudwatch:ListTagsForResource'
-              ],
-              Resource: '*'
-            }
-          ]
-        }
-      },
-
-      // Batch: Read + submit jobs
-      {
-        PolicyName: 'batch-access',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            // Batch's describe and list actions take no resource ARN, so a resource tag condition always denies them.
-            // The dev agent scopes these calls to the stack's queues and job definitions (`scopeBatchCall`).
-            {
-              Effect: 'Allow',
-              Action: [
-                'batch:DescribeJobs',
-                'batch:DescribeJobDefinitions',
-                'batch:DescribeJobQueues',
-                'batch:DescribeComputeEnvironments',
-                'batch:ListJobs'
-              ],
-              Resource: '*'
-            },
-            {
-              Effect: 'Allow',
-              Action: ['batch:SubmitJob', 'batch:TerminateJob', 'batch:ListTagsForResource'],
-              Resource: '*',
-              Condition: stackTagCondition
-            }
-          ]
-        }
-      },
-
-      // Explicit deny for dangerous operations
-      {
-        PolicyName: 'deny-dangerous-operations',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Effect: 'Deny',
-              Action: [
-                'cloudformation:CreateStack',
-                'cloudformation:DeleteStack',
-                'cloudformation:UpdateStack',
-                'cloudformation:ExecuteChangeSet',
-                'cloudformation:CreateChangeSet',
-                'iam:*',
-                'organizations:*',
-                'account:*',
-                'secretsmanager:GetSecretValue',
-                'ssm:GetParameter',
-                'ssm:GetParameters',
-                'ssm:GetParametersByPath'
-              ],
-              Resource: '*'
-            }
-          ]
-        }
-      }
+      ])
     ]
+  });
+
+  // Databases, caches, search domains and HTTP APIs by their identifiers in the finished template: their read actions
+  // are not authorized by the stack tag.
+  templateManager.addFinalTemplateOverrideFn(async (template) => {
+    const policies = (template.Resources[DEV_AGENT_ROLE_LOGICAL_NAME].Properties as { Policies: unknown[] }).Policies;
+    const add = (name: string, actions: string[], resources: unknown[]) => {
+      if (resources.length) policies.push(policy(name, [{ Effect: 'Allow', Action: actions, Resource: resources }]));
+    };
+    add(
+      'rds-access',
+      [
+        'rds:DescribeDBInstances',
+        'rds:DescribeDBClusters',
+        'rds:DescribeDBClusterEndpoints',
+        'rds:ListTagsForResource'
+      ],
+      [
+        ...ownResourceArns(template, 'AWS::RDS::DBInstance', 'DBInstanceIdentifier', (id) => [
+          regional('rds', `db:${id}`)
+        ]),
+        ...ownResourceArns(template, 'AWS::RDS::DBCluster', 'DBClusterIdentifier', (id) => [
+          regional('rds', `cluster:${id}`)
+        ])
+      ]
+    );
+    add(
+      'elasticache-access',
+      ['elasticache:DescribeReplicationGroups', 'elasticache:ListTagsForResource'],
+      ownResourceArns(template, 'AWS::ElastiCache::ReplicationGroup', 'ReplicationGroupId', (id) => [
+        regional('elasticache', `replicationgroup:${id}`)
+      ])
+    );
+    add(
+      'opensearch-access',
+      ['es:DescribeDomain', 'es:DescribeDomains', 'es:DescribeDomainConfig', 'es:ListTags'],
+      ownResourceArns(template, 'AWS::OpenSearchService::Domain', 'DomainName', (name) => [
+        regional('es', `domain/${name}`)
+      ])
+    );
+    // ECS authorizes these by the cluster they list or describe in (`ecs:cluster`), not by its tags.
+    const clusters = ownResourceArns(template, 'AWS::ECS::Cluster', 'ClusterName', (name) => [
+      regional('ecs', `cluster/${name}`)
+    ]);
+    if (clusters.length) {
+      policies.push(
+        policy('ecs-cluster-access', [
+          {
+            Effect: 'Allow',
+            Action: ['ecs:ListServices', 'ecs:ListTasks', 'ecs:DescribeContainerInstances'],
+            Resource: '*',
+            Condition: { ArnEquals: { 'ecs:cluster': clusters } }
+          }
+        ])
+      );
+    }
+    // AWS generates an API's ID, so these name the API by its `Ref`.
+    add(
+      'apigateway-access',
+      ['apigateway:GET'],
+      ownResourceArns(template, 'AWS::ApiGatewayV2::Api', undefined, (id) => [
+        sub(`arn:aws:apigateway:\${AWS::Region}::/apis/${id}`),
+        sub(`arn:aws:apigateway:\${AWS::Region}::/apis/${id}/*`)
+      ])
+    );
   });
 
   calculatedStackOverviewManager.addCfChildResource({

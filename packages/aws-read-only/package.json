@@ -53,7 +53,8 @@
     "@aws-sdk/client-synthetics": "3.1121.0",
     "@aws-sdk/client-wafv2": "3.1121.0",
     "@aws-sdk/client-xray": "3.1121.0",
-    "@aws-sdk/types": "3.974.5"
+    "@aws-sdk/types": "3.974.5",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@stacktape/ministack": "workspace:*",

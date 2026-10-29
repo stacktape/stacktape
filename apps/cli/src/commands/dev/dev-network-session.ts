@@ -21,7 +21,6 @@ import {
 } from '@domain-services/dev-network/holders';
 import { isMcpInvocation } from '@application-services/operation-invocation-context';
 import type { StackContext } from '@domain-services/stack-context';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import findFreePorts from 'find-free-ports';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -363,7 +362,6 @@ export const startDevNetworkSession = async ({
   noTunnel,
   takeOver,
   agentPort,
-  orphanedSessionId,
   aws = createDevNetworkAws(),
   holderStore = createStageHolderStore()
 }: {
@@ -372,15 +370,10 @@ export const startDevNetworkSession = async ({
   takeOver: boolean;
   /** The agent's port in `--agent` mode, where the reason of a self-ended session is recorded. */
   agentPort?: number;
-  /** The SSM session of a killed earlier session of this stage, ended before the new one opens. */
-  orphanedSessionId?: string;
   aws?: DevNetworkAws;
   holderStore?: StageHolderStore;
 }): Promise<DevNetworkSession | undefined> => {
   const { stackName, projectName, stage } = stackContext;
-  if (orphanedSessionId) {
-    await awsSdkManager.systemsManager.terminateSession({ sessionId: orphanedSessionId }).catch(() => {});
-  }
   const { functions, batchJobs, unreachable } = getDevNetworkDemand({ noTunnel });
   for (const { kind, name, resources } of unreachable) {
     tuiManager.warn(

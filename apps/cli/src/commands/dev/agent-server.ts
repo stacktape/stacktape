@@ -1558,8 +1558,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     };
   }
 
-  // The dev agent reads the session's stack. Its role allows resources by the stack's name in any region, so a stack of
-  // the same name elsewhere, or a resource another region gives the same name, is outside the session.
+  // The dev agent reads the session's stack, which is in the session's region; its role reads nothing elsewhere.
   const awsRegion = globalStateManager.region;
   if (region && region !== awsRegion) {
     return {
@@ -2038,7 +2037,8 @@ export const buildStartupMessage = (params: {
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
   lines.push('            cognito, apigatewayv2, xray, kinesis, firehose, ...');
   lines.push('  Scoped to stack resources via IAM role. Writes and Secrets Manager/SSM value reads are rejected;');
-  lines.push('  Lambda/ECS environment values are redacted. Logs, objects and items return application data as is.');
+  lines.push('  environment values, client secrets and template values are redacted. Logs, objects and items return');
+  lines.push('  application data as is.');
   lines.push('');
   lines.push('  Examples:');
   lines.push(

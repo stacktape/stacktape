@@ -349,7 +349,7 @@
       "physicalNames": {
         "RoleName": "characterization-baseline-dev-agent"
       },
-      "dependencies": []
+      "dependencies": ["ApiGatewayApi", "WebApi"]
     },
     "StpDiscoveryService": {
       "type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
@@ -485,14 +485,6 @@
         "DomainName": "<server-compiler-default-domain>"
       },
       "dependencies": ["StpDefaultDomainCertCustomResource"]
-    },
-    "WebEcsServiceAverageCpuUtilizationScalingPolicy": {
-      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
-      "dependencies": ["WebScalableTarget"]
-    },
-    "WebEcsServiceAverageMemoryUtilizationScalingPolicy": {
-      "type": "AWS::ApplicationAutoScaling::ScalingPolicy",
-      "dependencies": ["WebScalableTarget"]
     },
     "WebLogGroup": {
       "type": "AWS::Logs::LogGroup",

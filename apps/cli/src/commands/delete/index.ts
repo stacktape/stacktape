@@ -6,7 +6,7 @@ import { ExpectedError } from '@utils/errors';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
-import { deleteDevGeneratedSecrets } from '../_utils/secret-preflight';
+import { releaseDevGeneratedSecrets } from '../_utils/secret-preflight';
 import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -130,25 +130,15 @@ export const commandDelete = async () => {
       tui.info(`Could not release the dev network relay ports of ${stackName}: ${err}`);
     }
     try {
-      const { deleted, kept, retained } = await deleteDevGeneratedSecrets({ stackName });
-      if (deleted.length) {
+      // Dev mode generated these passwords for the stage. They stay: a deployment or another stage may use one.
+      for (const { name, usedBy } of await releaseDevGeneratedSecrets({ stackName })) {
+        const stillUsed = usedBy.length ? ` (the dev stacks ${usedBy.join(', ')} still use it)` : '';
         tui.info(
-          `Scheduled the secrets dev mode generated for ${stackName} for deletion: ${deleted.join(', ')}. ` +
-            'A deployment or dev session that uses one within 7 days restores it.'
-        );
-      }
-      for (const { name, usedBy } of kept) {
-        tui.info(
-          `Kept secret ${name}, which dev mode generated: ${usedBy.length === 1 ? `the dev stack ${usedBy[0]} still uses` : `the dev stacks ${usedBy.join(' and ')} still use`} it.`
-        );
-      }
-      for (const { name, usedBy } of retained) {
-        tui.info(
-          `Kept generated secret ${name} (used by ${usedBy}); delete it with ${tui.prettyCommand('secret:delete')} when no longer needed.`
+          `Kept generated secret ${name}${stillUsed}; delete it with ${tui.prettyCommand('secret:delete')} when no stage needs it.`
         );
       }
     } catch (err) {
-      tui.info(`Could not delete the secrets dev mode generated for ${stackName}: ${err}`);
+      tui.info(`Could not check the secrets dev mode generated for ${stackName}: ${err}`);
     }
   }
   // CloudFormation deleted the layer versions it published. Those fast deployments published under the stack's layer
