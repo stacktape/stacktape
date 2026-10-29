@@ -2,6 +2,7 @@ import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import type { MonitoredStackEvent } from '../../src/aws/cloudformation-stacks';
 import type { StackDetails } from '../../src/domain/cloudformation-stack-manager/types';
+import type { PendingDelete } from '../../src/domain/cloudformation-stack-manager/background-delete';
 import {
   countResourcesDeletedDuringCleanup,
   findFailedCleanupDeletions,
@@ -72,7 +73,7 @@ const withMonitor = async (
     removedResources?: string[];
     operationId?: string;
     onResourceDeletesStarted?: () => void;
-    canFinishDeleteInBackground?: (pending: { logicalId: string }[]) => Promise<{ logicalId: string }[] | undefined>;
+    canFinishDeleteInBackground?: (pending: PendingDelete[]) => Promise<PendingDelete[] | undefined>;
     /** The stack's resources before a delete: logical ID and type. */
     stackResources?: [string, string][];
   } = {}
