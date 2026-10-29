@@ -86,7 +86,7 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 
 const EVENT_POLLING_INTERVAL_MS = 1000;
 const SLOWER_EVENT_POLLING_AFTER_MS = 5 * 60_000;
-const BACKGROUND_DELETE_CHECK_INTERVAL_MS = 5000;
+const BACKGROUND_DELETE_CHECK_INTERVAL_MS = 3000;
 
 /** Convert CloudFormation stack status to human-readable form */
 const getHumanReadableStackStatus = (status?: string): string => {
