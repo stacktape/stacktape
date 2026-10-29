@@ -37,7 +37,7 @@ to return different values for different stages. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
   tracing?: TracingOptions;
-  /** VPC configuration: reuse an existing VPC. */
+  /** VPC configuration: the shared non-production network, or an existing VPC to reuse. */
   vpc?: VpcSettings;
 };
 
@@ -414,4 +414,4 @@ export default defineConfig(() => {
 - Required: no
 - Type: `VpcSettings`
 
-VPC configuration: reuse an existing VPC.
+VPC configuration: the shared non-production network, or an existing VPC to reuse.

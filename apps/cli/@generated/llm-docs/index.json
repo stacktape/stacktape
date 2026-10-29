@@ -8440,12 +8440,14 @@
       "tags": [
         "config-reference",
         "VpcSettings",
-        "reuseVpc"
+        "reuseVpc",
+        "shared"
       ],
       "chunks": [
         "config-reference:VpcSettings#vpcsettings-api-reference",
         "config-reference:VpcSettings#typescript-definition",
-        "config-reference:VpcSettings#property-reusevpc"
+        "config-reference:VpcSettings#property-reusevpc",
+        "config-reference:VpcSettings#property-shared"
       ]
     },
     {
@@ -17403,6 +17405,7 @@
         "page:/configuration/connecting-resources#resources-that-use-connectto",
         "page:/configuration/connecting-resources#vpc-and-networking",
         "page:/configuration/connecting-resources#nat-internet-access-from-private-subnets",
+        "page:/configuration/connecting-resources#shared-network-for-non-production-stages",
         "page:/configuration/connecting-resources#faq",
         "page:/configuration/connecting-resources#how-does-connectto-differ-from-manually-setting-environment-variables",
         "page:/configuration/connecting-resources#what-is-the-difference-between-iam-permissions-and-security-groups",

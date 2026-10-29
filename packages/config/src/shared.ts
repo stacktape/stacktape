@@ -3381,7 +3381,8 @@ export interface VpcSettings {
    * ---
    *
    * Useful when this stack needs to access VPC-protected resources (databases, Redis)
-   * from another stack. By default, each stack gets its own VPC.
+   * from another stack. By default, a production stage gets a VPC of its own and a non-production stage joins the
+   * shared non-production network (see `shared`).
    *
    * > **Important:** Set this when first creating the stack. Adding it to an already
    * > deployed stack can cause resources to be replaced and **data to be lost**.
