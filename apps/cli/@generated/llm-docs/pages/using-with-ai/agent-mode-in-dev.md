@@ -482,7 +482,7 @@ Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` 
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
-  -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
+  -d '{"service": "lambda", "command": "GetFunctionConfiguration", "input": {"FunctionName": "my-app-dev-api"}}'
 ```
 
 The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, must equal the session region if supplied; another region is rejected). Use [`stacktape aws call`](/cli/aws-call) with an explicit target for a different region. If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
@@ -604,7 +604,7 @@ The agent can run SQL against your local databases, rebuild and stop workloads, 
 
 Do not forward the agent port to other machines, and do not paste the token into chats or logs.
 
-The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. This does not make every read stack-scoped: CloudWatch metrics/alarm and API Gateway reads can reach other resources in the account and session region. CloudWatch Logs uses stack-name log-group ARN patterns. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
+The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. The role reads only this dev stack's resources in the session region; CloudWatch metric and alarm reads cover the whole session region. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
 
 ## FAQ
 
