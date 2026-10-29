@@ -177,3 +177,23 @@ describe('a stage in the shared network', () => {
     expect(resources(moved)[previous]?.Type).toBe('AWS::EC2::SecurityGroup');
   });
 });
+
+describe('the shared NAT stack', () => {
+  test('creates its instance profile through its own function, not the 2-minute AWS::IAM::InstanceProfile', async () => {
+    const { buildSharedNatTemplate, SHARED_NAT_CONTRACT_VERSION } =
+      await import('../../src/domain/shared-network/template');
+    const nat = buildSharedNatTemplate({ region: 'eu-west-1' }) as unknown as { Resources: Record<string, Resource> };
+    expect(Object.values(nat.Resources).map(({ Type }) => Type)).not.toContain('AWS::IAM::InstanceProfile');
+    expect(nat.Resources.InstanceProfile.Type).toBe('AWS::CloudFormation::CustomResource');
+    expect(nat.Resources.InstanceProfile.Properties?.ServiceToken).toEqual({
+      'Fn::GetAtt': ['InstanceProfileFunction', 'Arn']
+    });
+    expect(nat.Resources.LaunchTemplate.Properties?.LaunchTemplateData.IamInstanceProfile).toEqual({
+      Arn: { 'Fn::GetAtt': ['InstanceProfile', 'Arn'] }
+    });
+    // CloudFormation takes at most 4,096 characters of inline code.
+    expect(nat.Resources.InstanceProfileFunction.Properties?.Code.ZipFile.length).toBeLessThanOrEqual(4096);
+    // NAT stacks deployed with AWS::IAM::InstanceProfile are reused as they are, never updated to this template.
+    expect(SHARED_NAT_CONTRACT_VERSION).toBe(1);
+  });
+});

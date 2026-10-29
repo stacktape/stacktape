@@ -4134,6 +4134,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/data-connections/connections.spec.ts',
       'apps/cli/src/domain/vpc-manager/index.spec.ts',
       'apps/cli/src/domain/shared-network/placement.spec.ts',
+      'apps/cli/src/domain/shared-network/removal.spec.ts',
       'apps/cli/tests/synthesis-families/shared-network.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
