@@ -25,12 +25,23 @@
 import { posix } from 'node:path';
 import yaml from 'yaml';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
-import type { MigrationFact } from '../../facts/project-facts';
+import type { ImportGap, MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { safeDeclaredLiteral } from './declared-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { extractEnvironmentVariableNames } from '../../policy/file-access';
+import {
+  emptyReview,
+  isOmitted,
+  omitFor,
+  reviewGaps,
+  reviewKeys,
+  safeDeclaredName,
+  type KeyReview,
+  type KeyRules
+} from './declared-keys';
 
 /** The names compose itself looks for, in the order it looks for them. */
 const COMPOSE_FILENAMES = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'] as const;
@@ -140,12 +151,186 @@ type ComposeService = {
   image?: unknown;
   build?: unknown;
   command?: unknown;
+  entrypoint?: unknown;
   ports?: unknown;
   expose?: unknown;
   depends_on?: unknown;
   environment?: unknown;
+  env_file?: unknown;
   labels?: unknown;
   volumes?: unknown;
+  networks?: unknown;
+  healthcheck?: unknown;
+  profiles?: unknown;
+  extends?: unknown;
+  [key: string]: unknown;
+};
+
+/** What init does with each key of a service built from this repository. */
+const APPLICATION_SERVICE: KeyRules = {
+  build: 'carried',
+  image: 'carried',
+  command: 'carried',
+  entrypoint: 'carried',
+  ports: 'carried',
+  expose: 'carried',
+  depends_on: 'carried',
+  environment: 'carried',
+  env_file: 'carried',
+  labels: 'carried',
+  volumes: 'carried',
+  networks: 'carried',
+  healthcheck: 'carried',
+  profiles: 'carried',
+  extends: 'carried',
+  // ECS restarts, names and logs tasks itself.
+  container_name: 'ignored',
+  restart: 'ignored',
+  tty: 'ignored',
+  stdin_open: 'ignored',
+  hostname: 'ignored',
+  domainname: 'ignored',
+  init: 'ignored',
+  stop_grace_period: 'ignored',
+  logging: 'ignored',
+  develop: 'ignored',
+  pull_policy: 'ignored',
+  annotations: 'ignored',
+  attach: 'ignored',
+  links: 'ignored',
+  working_dir: 'not-carried',
+  deploy: 'not-carried',
+  scale: 'not-carried',
+  mem_limit: 'not-carried',
+  mem_reservation: 'not-carried',
+  memswap_limit: 'not-carried',
+  cpus: 'not-carried',
+  cpu_shares: 'not-carried',
+  cpu_count: 'not-carried',
+  cpuset: 'not-carried',
+  ulimits: 'not-carried',
+  sysctls: 'not-carried',
+  shm_size: 'not-carried',
+  dns: 'not-carried',
+  dns_search: 'not-carried',
+  dns_opt: 'not-carried',
+  extra_hosts: 'not-carried',
+  external_links: 'not-carried',
+  secrets: 'not-carried',
+  configs: 'not-carried',
+  tmpfs: 'not-carried',
+  stop_signal: 'not-carried',
+  platform: 'not-carried',
+  post_start: 'not-carried',
+  pre_stop: 'not-carried',
+  gpus: 'not-carried',
+  runtime: 'not-carried',
+  // Leaving these out gives the container less than the source grants it, not more.
+  cap_add: 'not-carried',
+  privileged: 'not-carried',
+  devices: 'not-carried',
+  group_add: 'not-carried',
+  pid: 'not-carried',
+  ipc: 'not-carried',
+  read_only: 'container-security',
+  cap_drop: 'container-security',
+  security_opt: 'container-security',
+  user: 'container-security',
+  userns_mode: 'container-security',
+  network_mode: 'network',
+  volumes_from: 'storage'
+};
+
+const TOP_LEVEL: KeyRules = {
+  services: 'carried',
+  volumes: 'carried',
+  networks: 'carried',
+  name: 'ignored',
+  version: 'ignored',
+  secrets: 'not-carried',
+  configs: 'not-carried',
+  include: 'not-carried'
+};
+
+const NAMED_VOLUME: KeyRules = {
+  name: 'ignored',
+  labels: 'ignored',
+  driver: 'not-carried',
+  driver_opts: 'not-carried',
+  external: 'not-carried'
+};
+
+const NETWORK: KeyRules = {
+  internal: 'carried',
+  name: 'ignored',
+  driver: 'ignored',
+  attachable: 'ignored',
+  enable_ipv6: 'ignored',
+  labels: 'ignored',
+  ipam: 'not-carried',
+  driver_opts: 'not-carried',
+  external: 'not-carried'
+};
+
+/** A service's networks by name, with each one's per-service options. */
+const networksOf = (service: ComposeService): Array<[string, unknown]> =>
+  Array.isArray(service.networks)
+    ? service.networks.filter((entry): entry is string => typeof entry === 'string').map((name) => [name, undefined])
+    : isRecord(service.networks)
+      ? Object.entries(service.networks)
+      : [];
+
+/** A string or exec-form list as one command line, quoting words that hold spaces or shell characters. */
+const commandLine = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value.trim() === '' ? undefined : value.trim();
+  if (!Array.isArray(value) || value.length === 0 || !value.every((word) => typeof word === 'string')) return undefined;
+  return (value as string[])
+    .map((word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, `'\\''`)}'`))
+    .join(' ');
+};
+
+/** `10s`, `1m30s`, `500ms` as whole seconds, rounded up. */
+const durationSeconds = (value: unknown): number | undefined => {
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? Math.ceil(value) : undefined;
+  if (typeof value !== 'string' || !/^(?:\d+(?:\.\d+)?(?:h|m|s|ms|us|ns))+$/.test(value.trim())) return undefined;
+  const units: Record<string, number> = { h: 3600, m: 60, s: 1, ms: 0.001, us: 0.000_001, ns: 0.000_000_001 };
+  let total = 0;
+  for (const [, amount, unit] of value.trim().matchAll(/(\d+(?:\.\d+)?)(h|ms|m|s|us|ns)/g))
+    total += Number(amount) * units[unit!]!;
+  return Math.ceil(total);
+};
+
+type HealthCheck = NonNullable<ServiceFactInput['containerHealthCheck']>;
+
+/** A Compose `healthcheck` in the exec form ECS takes, or `UNREAD` when one is declared that init cannot read. */
+const healthCheckOf = (declaration: unknown): HealthCheck | 'none' | 'unread' | undefined => {
+  if (declaration === undefined) return undefined;
+  if (!isRecord(declaration)) return 'unread';
+  if (declaration.disable === true) return 'none';
+  const test = declaration.test;
+  const command =
+    typeof test === 'string'
+      ? ['CMD-SHELL', test]
+      : Array.isArray(test) && test.every((word) => typeof word === 'string')
+        ? (test as string[])
+        : undefined;
+  if (command === undefined) return 'unread';
+  if (command[0] === 'NONE') return 'none';
+  if ((command[0] !== 'CMD' && command[0] !== 'CMD-SHELL') || command.length < 2) return 'unread';
+  const timing = {
+    intervalSeconds: durationSeconds(declaration.interval),
+    timeoutSeconds: durationSeconds(declaration.timeout),
+    startPeriodSeconds: durationSeconds(declaration.start_period),
+    retries:
+      typeof declaration.retries === 'number' && Number.isInteger(declaration.retries) ? declaration.retries : undefined
+  };
+  for (const key of ['interval', 'timeout', 'start_period'] as const) {
+    if (declaration[key] !== undefined && durationSeconds(declaration[key]) === undefined) return 'unread';
+  }
+  return {
+    command,
+    ...Object.fromEntries(Object.entries(timing).filter(([, value]) => value !== undefined && value > 0))
+  };
 };
 
 /**
@@ -157,8 +342,15 @@ const isDevelopmentVolumeTarget = (mountPath: string): boolean => {
   const segments = mountPath.split('/').filter(Boolean);
   if (segments.includes('node_modules')) return true;
   if (/^\/(?:tmp|var\/tmp|run|var\/run|var\/cache|dev\/shm)(?:\/|$)/.test(mountPath)) return true;
-  // Dot-directories in a home directory are tool caches and settings (`/root/.npm`, `/home/app/.cache`).
-  if (/^\/(?:root|home\/[^/]+)\/\./.test(mountPath)) return true;
+  // Tool caches in a home directory (`/root/.npm`, `/home/app/.cache`). Other home dot-directories, such as
+  // `.local/share/app`, are where applications keep their own state, so a volume mounted there is kept.
+  if (
+    /^\/(?:root|home\/[^/]+)\/\.(?:npm|cache|yarn|pnpm-store|bun|m2|gradle|cargo|rustup|bundle|gem|composer|nuget|pip|ivy2|sbt|deno|go|config\/yarn|local\/share\/pnpm|local\/share\/virtualenvs)(?:\/|$)/.test(
+      mountPath
+    )
+  ) {
+    return true;
+  }
   return /^(?:\.venv|venv|vendor|__pycache__|\.next|\.nuxt|\.cache|cache|tmp)$/.test(segments.at(-1) ?? '');
 };
 
@@ -350,8 +542,15 @@ const BACKGROUND_PROCESS_NAME = /(?:^|[-_.])(?:worker|scheduler|cron|consumer|qu
 const MIGRATION_COMMAND =
   /(?:^|\s)(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|python3?\s+manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
-const commandOf = (service: ComposeService): string | undefined =>
-  typeof service.command === 'string' && service.command.trim() !== '' ? service.command.trim() : undefined;
+/**
+ * The program a service runs, as Compose starts it: an `entrypoint` replaces the image's own and drops its `CMD`, and
+ * `command` supplies the arguments. Both may be a string or an exec-form list.
+ */
+const commandOf = (service: ComposeService): string | undefined => {
+  const entrypoint = commandLine(service.entrypoint);
+  const command = commandLine(service.command);
+  return entrypoint === undefined ? command : command === undefined ? entrypoint : `${entrypoint} ${command}`;
+};
 
 /** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
@@ -453,6 +652,179 @@ const isDevelopmentProcess = (service: ComposeService, build: { target?: string 
   );
 };
 
+/** Commands that start a development server: auto-reload, a framework's dev server, a watcher. */
+const DEVELOPMENT_COMMAND =
+  /\bmanage\.py\s+runserver\b|\bflask\s+run\b|\bnodemon\b|\bts-node-dev\b|\btsx\s+watch\b|\s--reload\b|\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?dev\b|\bair\b(?:\s|$)/;
+
+/** A bind mount of the project's own directory (`.:/code`): the container runs the host's files, as on a laptop. */
+const mountsSource = (service: ComposeService): boolean =>
+  (Array.isArray(service.volumes) ? service.volumes : []).some((entry) => {
+    const source =
+      typeof entry === 'string'
+        ? entry.split(':')[0]
+        : isRecord(entry) && entry.type === 'bind'
+          ? entry.source
+          : undefined;
+    return typeof source === 'string' && /^\.\/?$|^\.\/(?:src|app)\/?$/.test(source);
+  });
+
+const NETWORK_ATTACHMENT: KeyRules = {
+  priority: 'ignored',
+  gw_priority: 'ignored',
+  mac_address: 'ignored',
+  aliases: 'not-carried',
+  ipv4_address: 'not-carried',
+  ipv6_address: 'not-carried',
+  link_local_ips: 'not-carried',
+  driver_opts: 'not-carried'
+};
+
+const internalOnly = (service: ComposeService, networks: Readonly<Record<string, unknown>>): boolean => {
+  const joined = networksOf(service).map(([name]) => name);
+  return (
+    service.ports === undefined &&
+    joined.length > 0 &&
+    joined.every((name) => {
+      const network = networks[name];
+      return isRecord(network) && network.internal === true;
+    })
+  );
+};
+
+const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/;
+
+/**
+ * The variables a service's `env_file` entries declare, by name only. Their values stay in the file: each becomes a
+ * setting to supply, never a value copied into the configuration.
+ */
+const environmentFileVariables = async (
+  context: ProbeContext,
+  composePath: string,
+  service: ComposeService,
+  review: KeyReview
+): Promise<EnvironmentVariableUse[]> => {
+  if (service.env_file === undefined) return [];
+  const entries = Array.isArray(service.env_file) ? service.env_file : [service.env_file];
+  const variables: EnvironmentVariableUse[] = [];
+  for (const entry of entries) {
+    const file =
+      typeof entry === 'string' ? entry : isRecord(entry) && typeof entry.path === 'string' ? entry.path : undefined;
+    const optional = isRecord(entry) && entry.required === false;
+    const resolved = file === undefined ? undefined : resolveFrom(composeDirectory(composePath), file);
+    // oxlint-disable-next-line no-await-in-loop -- a service names one or two environment files.
+    const read = resolved === undefined || !context.files.includes(resolved) ? undefined : await context.read(resolved);
+    const names =
+      read?.kind === 'names-only'
+        ? read.environmentVariableNames
+        : read?.kind === 'contents'
+          ? extractEnvironmentVariableNames(read.contents)
+          : undefined;
+    if (names === undefined) {
+      if (!optional) review.notCarried.push('env_file');
+      continue;
+    }
+    for (const name of names) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || isPlatformEnvironmentVariable(name)) continue;
+      variables.push({
+        name,
+        role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
+        hasDeclaredValue: true,
+        required: true,
+        // A names-only read has no lines to cite, and a guessed line would point at the wrong place.
+        evidence: []
+      });
+    }
+  }
+  return variables;
+};
+
+const environmentAsMap = (value: unknown): Record<string, unknown> | undefined => {
+  if (isRecord(value)) return value;
+  if (!Array.isArray(value)) return undefined;
+  return Object.fromEntries(
+    value
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) =>
+        entry.includes('=') ? [entry.slice(0, entry.indexOf('=')), entry.slice(entry.indexOf('=') + 1)] : [entry, null]
+      )
+  );
+};
+
+/** Compose's merge of a base service into the one that extends it: maps merge, lists append, the rest is replaced. */
+const mergeExtended = (base: ComposeService, service: ComposeService): ComposeService => {
+  const merged: ComposeService = { ...base };
+  for (const [key, value] of Object.entries(service)) {
+    if (key === 'extends') continue;
+    const inherited = base[key];
+    if ((key === 'environment' || key === 'labels') && inherited !== undefined) {
+      merged[key] = { ...environmentAsMap(inherited), ...environmentAsMap(value) };
+    } else if (Array.isArray(inherited) && Array.isArray(value)) {
+      merged[key] = [...inherited, ...value];
+    } else if (isRecord(inherited) && isRecord(value)) {
+      merged[key] = { ...inherited, ...value };
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
+
+/** Every service with its `extends` applied, and the services whose base init could not read. */
+const resolveExtends = async (
+  context: ProbeContext,
+  composePath: string,
+  services: Record<string, ComposeService>
+): Promise<{ services: Record<string, ComposeService>; unresolved: Set<string> }> => {
+  const documents = new Map<string, Record<string, ComposeService> | undefined>([[composePath, services]]);
+  const load = async (file: string): Promise<Record<string, ComposeService> | undefined> => {
+    if (documents.has(file)) return documents.get(file);
+    const raw = context.files.includes(file) ? await readText(context, file) : undefined;
+    let loaded: Record<string, ComposeService> | undefined;
+    try {
+      const document =
+        raw === undefined ? undefined : (yaml.parse(raw, { merge: true }) as { services?: unknown } | null);
+      loaded = isRecord(document?.services) ? (document.services as Record<string, ComposeService>) : undefined;
+    } catch {
+      loaded = undefined;
+    }
+    documents.set(file, loaded);
+    return loaded;
+  };
+  const resolve = async (file: string, service: ComposeService, depth: number): Promise<ComposeService | undefined> => {
+    if (service.extends === undefined) return service;
+    if (depth > 3) return undefined;
+    const declaration = service.extends;
+    const baseName =
+      typeof declaration === 'string' ? declaration : isRecord(declaration) ? declaration.service : undefined;
+    const baseFile =
+      isRecord(declaration) && typeof declaration.file === 'string'
+        ? resolveFrom(composeDirectory(file), declaration.file)
+        : file;
+    if (typeof baseName !== 'string' || baseFile === undefined) return undefined;
+    const base = (await load(baseFile))?.[baseName];
+    if (!isRecord(base)) return undefined;
+    // Relative paths in a base from another directory stay relative to that file.
+    if (
+      composeDirectory(baseFile) !== composeDirectory(file) &&
+      (base.build !== undefined || base.env_file !== undefined)
+    ) {
+      return undefined;
+    }
+    const resolvedBase = await resolve(baseFile, base, depth + 1);
+    return resolvedBase === undefined ? undefined : mergeExtended(resolvedBase, service);
+  };
+  const resolved: Record<string, ComposeService> = {};
+  const unresolved = new Set<string>();
+  for (const [name, service] of Object.entries(services)) {
+    if (!isRecord(service)) continue;
+    // oxlint-disable-next-line no-await-in-loop -- bounded by the number of services.
+    const result = await resolve(composePath, service, 0);
+    if (result === undefined) unresolved.add(name);
+    resolved[name] = result ?? service;
+  }
+  return { services: resolved, unresolved };
+};
+
 export const dockerComposeProbe: Probe = {
   name: 'docker-compose',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -468,17 +840,51 @@ export const dockerComposeProbe: Probe = {
 
     let parsed: unknown;
     try {
-      parsed = yaml.parse(raw);
+      // Compose resolves `<<: *base` merge keys; without them the merged settings would look like a key named `<<`.
+      parsed = yaml.parse(raw, { merge: true });
     } catch {
       // A compose file we cannot parse is one the user is probably already fighting with. Say
       // nothing rather than half-read it.
       return {};
     }
 
-    const declaredServices = (parsed as { services?: Record<string, ComposeService> } | null)?.services;
-    if (declaredServices === null || typeof declaredServices !== 'object') return {};
+    const fileServices = (parsed as { services?: Record<string, ComposeService> } | null)?.services;
+    if (fileServices === null || typeof fileServices !== 'object') return {};
     const topLevelVolumes = (parsed as { volumes?: unknown }).volumes;
     const declaredVolumes = new Set(isRecord(topLevelVolumes) ? Object.keys(topLevelVolumes) : []);
+    const topLevelNetworks = isRecord((parsed as { networks?: unknown }).networks)
+      ? (parsed as { networks: Record<string, unknown> }).networks
+      : {};
+
+    const importGaps: ImportGap[] = [];
+    importGaps.push(...reviewGaps(path, 'top-level', reviewKeys(parsed, TOP_LEVEL)));
+    for (const [volumeName, volume] of isRecord(topLevelVolumes) ? Object.entries(topLevelVolumes) : []) {
+      importGaps.push(...reviewGaps(path, `volumes.${volumeName}`, reviewKeys(volume, NAMED_VOLUME)));
+    }
+    for (const [networkName, network] of Object.entries(topLevelNetworks)) {
+      importGaps.push(...reviewGaps(path, `networks.${networkName}`, reviewKeys(network, NETWORK)));
+    }
+
+    // `extends` brings in another service's settings; without them the service would run without required config.
+    const { services: extendedServices, unresolved: unresolvedExtends } = await resolveExtends(
+      context,
+      path,
+      fileServices
+    );
+    // A service with `profiles` starts only when one of them is selected, which a plain `docker compose up` does not.
+    const declaredServices: Record<string, ComposeService> = {};
+    const omittedRoots = new Set<string>();
+    for (const [composeName, service] of Object.entries(extendedServices)) {
+      if (!isRecord(service)) continue;
+      if (Array.isArray(service.profiles) && service.profiles.length > 0) {
+        importGaps.push(...reviewGaps(path, `services.${composeName}`, omitFor(emptyReview(), 'profiles', 'profile')));
+        const root = buildOf(service, path, context.files)?.root;
+        if (root !== undefined) omittedRoots.add(root);
+        continue;
+      }
+      declaredServices[composeName] = service;
+    }
+    const keptRoots = new Set<string>();
 
     const dependencyDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
       const image = service?.image;
@@ -511,6 +917,8 @@ export const dockerComposeProbe: Probe = {
         consumedBy: [],
         addressedBy: [],
         ...(version === undefined ? {} : { engineVersion: version }),
+        // MariaDB speaks MySQL's protocol but is its own engine and release line.
+        ...(kind === 'mysql' && repositoryOf(image).includes('mariadb') ? { mysqlEngine: 'mariadb' as const } : {}),
         evidence: citation === undefined ? [] : [citation],
         source: 'probe'
       });
@@ -633,6 +1041,21 @@ export const dockerComposeProbe: Probe = {
       // Compose uses these as finite lifecycle hooks. A long-running worker would restart the
       // migration forever and charge the user for a service that is meant to exit once.
       if (oneShotConsumers.has(composeName)) continue;
+      const review = reviewKeys(service, APPLICATION_SERVICE);
+      for (const [networkName, options] of networksOf(service)) {
+        reviewKeys(options, NETWORK_ATTACHMENT, { prefix: `networks.${networkName}.`, review });
+      }
+      const healthCheck = healthCheckOf(service.healthcheck);
+      if (healthCheck === 'unread') review.notCarried.push('healthcheck');
+      if (unresolvedExtends.has(composeName)) review.notCarried.push('extends');
+      // oxlint-disable-next-line no-await-in-loop -- one or two small files per service.
+      const environmentFiles = await environmentFileVariables(context, path, service, review);
+      importGaps.push(...reviewGaps(path, `services.${composeName}`, review));
+      if (isOmitted(review)) {
+        omittedRoots.add(build.root);
+        continue;
+      }
+      keptRoots.add(build.root);
       const name = appNames.get(composeName)!;
       if (isDevelopmentProcess(service, build)) {
         developmentProcesses.add(`${build.root}::compose:${composeName}`);
@@ -704,6 +1127,10 @@ export const dockerComposeProbe: Probe = {
         }
       }
 
+      for (const variable of environmentFiles) {
+        if (!variables.some((entry) => entry.name === variable.name)) variables.push(variable);
+      }
+
       for (const dependencyName of consumedDependencies) {
         const dependency = dependencies.find((entry) => entry.name === dependencyName);
         if (dependency === undefined) continue;
@@ -714,6 +1141,16 @@ export const dockerComposeProbe: Probe = {
       }
 
       const persistentVolumes = persistentVolumesOf(service, declaredVolumes);
+      // A command that runs a development server, or source the file mounts from the host, describes a laptop setup;
+      // the image's own command is what deploys. Otherwise the declared command replaces it, as Compose does.
+      const declaredCommand = commandOf(service);
+      const developmentCommand =
+        declaredCommand !== undefined && (DEVELOPMENT_COMMAND.test(declaredCommand) || mountsSource(service));
+      const command = developmentCommand ? undefined : declaredCommand;
+      // `node worker.js` names the file that runs; packaging bundles that file rather than one found by convention.
+      const commandFile = command === undefined ? undefined : /^(?:node|bun)\s+(\S+\.[cm]?[jt]s)$/.exec(command)?.[1];
+      const commandEntry =
+        commandFile === undefined ? undefined : resolveFrom(build.root === '.' ? '.' : build.root, commandFile);
       const citation = citeFirstMatchOnly(path, raw, new RegExp(`^\\s*${escapeForPattern(composeName)}:`));
       serviceFacts.push({
         name,
@@ -726,8 +1163,19 @@ export const dockerComposeProbe: Probe = {
         language: languageOf(context.files, build.root) ?? (build.dockerfile === undefined ? 'unknown' : 'container'),
         exposesHttp,
         ...(!exposesHttp || port === undefined ? {} : { port }),
+        // Joined only to `internal` networks and publishing no port: nothing outside the stack can reach it.
+        ...(exposesHttp && internalOnly(service, topLevelNetworks) ? { internalOnly: true } : {}),
         executionModel: 'long-running',
-        ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
+        ...(command === undefined
+          ? developmentCommand && typeof service.command === 'string'
+            ? { startCommand: service.command }
+            : {}
+          : {
+              startCommand: command,
+              commandOverridesImage: true as const,
+              ...(commandEntry === undefined ? {} : { containerEntrypoint: commandEntry })
+            }),
+        ...(healthCheck === undefined || typeof healthCheck === 'string' ? {} : { containerHealthCheck: healthCheck }),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
         ...(persistentVolumes.length === 0 ? {} : { persistentVolumes }),
         environmentVariables: variables,
@@ -736,7 +1184,28 @@ export const dockerComposeProbe: Probe = {
       });
     }
 
+    // Services this repository does not build and that are no backing service init replaces: a proxy, an admin UI.
+    const notImported = Object.keys(declaredServices).filter(
+      (composeName) =>
+        !dependencyNames.has(composeName) &&
+        !builtDeclarations.some(
+          (declaration) => declaration.composeName === composeName && !utilityBuilds.has(composeName)
+        )
+    );
+    if (notImported.length > 0) {
+      importGaps.push({
+        file: path,
+        object: 'services',
+        keys: notImported.map((composeName) => safeDeclaredName(composeName)).slice(0, 20),
+        effect: 'not-imported'
+      });
+    }
+
     return {
+      ...(importGaps.length === 0 ? {} : { importGaps }),
+      ...([...omittedRoots].some((root) => !keptRoots.has(root))
+        ? { omittedServiceRoots: [...omittedRoots].filter((root) => !keptRoots.has(root)) }
+        : {}),
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(migrations.length === 0 ? {} : { migrations }),

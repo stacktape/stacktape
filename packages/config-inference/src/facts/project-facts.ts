@@ -93,6 +93,67 @@ export const handlerFindingSchema = z.object({
 
 export type HandlerFinding = z.infer<typeof handlerFindingSchema>;
 
+/**
+ * Why leaving a declared setting out changes what the deployment does, beyond losing the setting itself.
+ *
+ * - `access`: a route or API would accept callers the source refuses.
+ * - `condition`: the declaration exists only while a condition holds, which init could not prove.
+ * - `profile`: Compose starts the service only when its profile is selected.
+ * - `network`: the workload would run outside the network the source places it in.
+ * - `storage`: files the workload keeps would not survive or not be there.
+ * - `failure-handling`: failed events would lose their declared retries or dead-letter target.
+ * - `execution`: the workload would run with other limits, ordering or concurrency than declared.
+ * - `identity`: users would sign in without a declared protection.
+ * - `encryption`: data would not use the declared encryption key.
+ * - `container-security`: the container would run with fewer restrictions than declared.
+ * - `code-integrity`: code the source requires to be signed would be accepted unsigned.
+ */
+export const importConcernSchema = z.enum([
+  'access',
+  'condition',
+  'profile',
+  'network',
+  'storage',
+  'failure-handling',
+  'execution',
+  'identity',
+  'encryption',
+  'container-security',
+  'code-integrity'
+]);
+
+export type ImportConcern = z.infer<typeof importConcernSchema>;
+
+/** A declaration name or key path as an importer read it: `AdminApi`, `Auth.ResourcePolicy`, `services.web`. */
+const declaredNameSchema = z
+  .string()
+  .min(1)
+  .max(120)
+  .regex(/^[A-Za-z0-9_.:$@/*+-]+$/);
+
+/**
+ * A setting a deployment manifest declares that init did not carry into the configuration.
+ *
+ * Importers keep an explicit list of the keys they map. Every other key becomes one of these, so a setting init does
+ * not understand is never dropped silently. When leaving it out would make the result less safe than the source, the
+ * importer leaves the whole declaration out (`omitted`) instead of writing it without the setting.
+ */
+export const importGapSchema = z.object({
+  /** The manifest, repository-relative. */
+  file: repositoryPathSchema,
+  /** The declaration in it: a SAM logical ID, `functions.api`, `services.web`, `ReadFunction.Events.Get`. */
+  object: declaredNameSchema,
+  keys: z.array(declaredNameSchema).min(1).max(20),
+  /**
+   * `omitted`: init left the declaration out because of these keys. `not-carried`: init wrote the declaration without
+   * them. `not-imported`: the keys are declarations of their own (resources) that init created nothing for.
+   */
+  effect: z.enum(['omitted', 'not-carried', 'not-imported']),
+  concern: importConcernSchema.optional()
+});
+
+export type ImportGap = z.infer<typeof importGapSchema>;
+
 export const PROJECT_FACTS_SCHEMA_VERSION = 1;
 
 export const projectFactsSchema = z.object({
@@ -112,6 +173,7 @@ export const projectFactsSchema = z.object({
   migrations: z.array(migrationFactSchema).default([]),
   localScripts: z.array(localScriptFactSchema).default([]),
   handlerFindings: z.array(handlerFindingSchema).default([]),
+  importGaps: z.array(importGapSchema).default([]),
   uncertainties: z.array(uncertaintySchema).default([]),
   /**
    * Advisory observations with nowhere else to go.

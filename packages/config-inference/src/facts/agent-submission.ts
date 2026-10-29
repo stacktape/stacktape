@@ -437,6 +437,8 @@ export const mergeAgentSubmission = ({
     localScripts: baseline.localScripts,
     // Not on the agent's schema: handler files the scan found and could not map.
     handlerFindings: baseline.handlerFindings,
+    // Not on the agent's schema: declared settings the importers could not carry.
+    importGaps: baseline.importGaps,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
     // has no route to the user, not even an advisory one.

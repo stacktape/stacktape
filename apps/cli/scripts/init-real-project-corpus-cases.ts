@@ -15,6 +15,11 @@ export { REAL_PROJECT_PLATFORM_STRESS_CASES } from './init-real-project-corpus-p
 export type RealProjectCorpusExpectation = {
   /** Exact generated resource counts by Stacktape resource type. */
   resourceTypes: Readonly<Record<string, number>>;
+  /**
+   * Init deliberately creates nothing: everything the project declares depends on settings init cannot carry safely.
+   * `requiredGapPatterns` then has to say why.
+   */
+  deploysNothing?: true;
   /** Exact dependency fact counts by portable dependency kind. */
   dependencyKinds?: Readonly<Record<string, number>>;
   serviceCount: number;
@@ -736,12 +741,14 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['aws-sam', 'lambda', 's3-event', 'object-storage'],
     expect: {
-      resourceTypes: { bucket: 1, function: 1 },
-      dependencyKinds: { 'object-storage': 1 },
-      serviceCount: 1,
+      // The function reads the bucket through an S3 Files mount inside a VPC, both created by the same template.
+      // Without them it cannot read its data, so init leaves it out and says which settings it could not carry.
+      resourceTypes: {},
+      deploysNothing: true,
+      serviceCount: 0,
       httpServiceCount: 0,
       existingDeployments: ['aws-sam'],
-      requiredGapPatterns: ['no event that invokes it', 'AWS SAM deployment files'],
+      requiredGapPatterns: ['left `S3FilesReaderFunction` out', '`FileSystemConfigs`', 'AWS SAM deployment files'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -775,12 +782,18 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['aws-sam', 'http', 'fifo-sqs', 'lambda', 'sns', 'event-driven'],
     expect: {
-      resourceTypes: { function: 1, 'sns-topic': 1, 'sqs-queue': 1 },
-      dependencyKinds: { queue: 1, topic: 1 },
+      // The queue's declared dead-letter queue and redrive policy are carried.
+      resourceTypes: { function: 1, 'sns-topic': 1, 'sqs-queue': 2 },
+      dependencyKinds: { queue: 2, topic: 1 },
       serviceCount: 1,
       httpServiceCount: 0,
       existingDeployments: ['aws-sam'],
-      requiredConfig: ['sqsQueueName: mySQSQueue', 'type: sns-topic'],
+      requiredConfig: [
+        'sqsQueueName: mySQSQueue',
+        'type: sns-topic',
+        'targetSqsQueueName: myDeadLetterQueueForSQS',
+        'maxReceiveCount: 5'
+      ],
       forbiddenGapPatterns: ['no event that invokes'],
       forbidCurrentlyHostedDependencies: true
     }

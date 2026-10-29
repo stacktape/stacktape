@@ -205,6 +205,8 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     type: z.literal('queue'),
     dependencyName: z.string().min(1),
     batchSize: z.number().int().positive().optional(),
+    /** How long the event source gathers messages before it invokes the handler. Lambda requires one above 10 messages. */
+    maxBatchWindowSeconds: z.number().int().min(0).max(300).optional(),
     /**
      * The handler returns `batchItemFailures` and the event source is told to read them
      * (`ReportBatchItemFailures`). Without that setting a handler that reports failures acknowledges the whole batch.
@@ -266,8 +268,9 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     /**
      * Why it was left out, when the event was translatable but leaving it out is the safe choice: a route behind an
      * authorizer init cannot reproduce would otherwise become public, and a disabled event would start running.
+     * `import-gap`: the event declares a setting init did not carry; an import gap names it.
      */
-    reason: z.enum(['protected-route', 'disabled']).optional()
+    reason: z.enum(['protected-route', 'disabled', 'import-gap']).optional()
   })
 ]);
 
@@ -403,6 +406,11 @@ export const serviceShape = {
   // ── How it is built and started ──────────────────────────────────────────────────────────────
   buildCommand: z.string().min(1).optional(),
   startCommand: z.string().min(1).optional(),
+  /**
+   * `startCommand` replaces the image's own command because a deployment manifest says so (a Compose `command` or
+   * `entrypoint`). It then decides what runs, over the Dockerfile's `CMD` and over an entry file found by convention.
+   */
+  commandOverridesImage: z.literal(true).optional(),
   /** The package's own local development server command (its `dev` script), which `stacktape dev` runs. */
   devCommand: z.string().min(1).optional(),
   /**
@@ -427,6 +435,15 @@ export const serviceShape = {
   functionTimeoutSeconds: z.number().int().positive().max(900).optional(),
   /** The function memory a deployment manifest declares, in MB. */
   functionMemoryMb: z.number().int().min(128).max(10240).optional(),
+  /** Lambda layer ARNs a deployment manifest attaches; the handler may load code from them (`/opt/nodejs/...`). */
+  functionLayers: z
+    .array(z.string().regex(/^arn:aws[a-z-]*:lambda:[a-z0-9-]+:\d{12}:layer:[A-Za-z0-9_-]+:\d+$/))
+    .max(5)
+    .optional(),
+  /** The instruction set a deployment manifest builds the function for. */
+  functionArchitecture: z.enum(['x86_64', 'arm64']).optional(),
+  /** The concurrency a deployment manifest reserves for the function, which also caps it. */
+  functionReservedConcurrency: z.number().int().min(0).optional(),
   /** Repository-declared events that invoke `functionEntrypoint`, or that start a `one-shot` service. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
@@ -437,6 +454,19 @@ export const serviceShape = {
    */
   containerImage: z.string().min(1).optional(),
   healthCheckPath: z.string().min(1).optional(),
+  /**
+   * The readiness command a deployment manifest declares for the container (Compose `healthcheck.test`), in exec form:
+   * `['CMD', 'node', 'health.js']` or `['CMD-SHELL', 'pg_isready']`.
+   */
+  containerHealthCheck: z
+    .object({
+      command: z.array(z.string().min(1)).min(2),
+      intervalSeconds: z.number().int().positive().optional(),
+      timeoutSeconds: z.number().int().positive().optional(),
+      retries: z.number().int().positive().optional(),
+      startPeriodSeconds: z.number().int().min(0).optional()
+    })
+    .optional(),
 
   /**
    * Where this service sits in a workspace, when the repository is a monorepo.

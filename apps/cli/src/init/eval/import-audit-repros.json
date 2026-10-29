@@ -1,0 +1,673 @@
+{
+  "r2ss/03-hono": {
+    "index.js": "import {Hono} from 'hono';\nimport {serve} from '@hono/node-server';\nconst app=new Hono();\napp.get('/',c=>c.text('ok'));\nserve({fetch:app.fetch,port:4000});",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"hono\": \"^4.0.0\",\n    \"@hono/node-server\": \"^1.0.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node index.js\"\n  }\n}"
+  },
+  "r2ss/10-vite": {
+    "index.html": "<div id=\"root\"></div><script type=\"module\" src=\"/src/main.js\"></script>",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"vite\": \"^6.0.0\",\n    \"react\": \"^19.0.0\"\n  },\n  \"scripts\": {\n    \"build\": \"vite build\"\n  }\n}",
+    "src/main.js": "document.getElementById('root').textContent='Hello';"
+  },
+  "r2ss/12-fastapi": {
+    "Procfile": "web: uvicorn main:app --host 0.0.0.0 --port 8000",
+    "main.py": "from fastapi import FastAPI\napp=FastAPI()\n@app.get('/')\ndef hello(): return {'ok':True}",
+    "requirements.txt": "fastapi==0.115.0\nuvicorn==0.32.0\n"
+  },
+  "r2ss/13-flask": {
+    "Procfile": "web: gunicorn app:app --bind 0.0.0.0:5000",
+    "app.py": "from flask import Flask\napp=Flask(__name__)\n@app.get('/')\ndef hello(): return 'ok'",
+    "requirements.txt": "Flask==3.1.0\ngunicorn==23.0.0\n"
+  },
+  "r2ss/21-spring": {
+    "pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.3.0</version></dependency></dependencies></project>",
+    "src/main/java/com/example/App.java": "package com.example;\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n@SpringBootApplication public class App {public static void main(String[] args){SpringApplication.run(App.class,args);}}",
+    "src/main/resources/application.properties": "server.port=8088"
+  },
+  "r2ss/22-java-lambda": {
+    "pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>com.amazonaws</groupId><artifactId>aws-lambda-java-core</artifactId><version>1.2.3</version></dependency></dependencies></project>",
+    "src/main/java/com/example/Handler.java": "package com.example;\nimport com.amazonaws.services.lambda.runtime.Context;\nimport com.amazonaws.services.lambda.runtime.RequestHandler;\npublic class Handler implements RequestHandler<String,String>{public String handleRequest(String input,Context context){return input;}}"
+  },
+  "r2ss/31-serverless-auth": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - http:\n          path: admin\n          method: get\n          authorizer: aws_iam\n"
+  },
+  "r2ss/32-serverless-disabled": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - schedule:\n          rate: rate(5 minutes)\n          enabled: false\n"
+  },
+  "r2ss/33-serverless-handler": {
+    "handler.js": "export async function main(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.main\n    events:\n      - httpApi: GET /hello\n"
+  },
+  "r2ss/35-serverless-fifo": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - sqs:\n          arn: !GetAtt WorkQueue.Arn\n          batchSize: 1\nresources:\n  Resources:\n    WorkQueue:\n      Type: AWS::SQS::Queue\n      Properties:\n        QueueName: work.fifo\n        FifoQueue: true\n        ContentBasedDeduplication: true\n"
+  },
+  "r2ss/36-serverless-mysql": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - httpApi: GET /hello\nresources:\n  Resources:\n    Database:\n      Type: AWS::RDS::DBInstance\n      Properties:\n        Engine: mysql\n        EngineVersion: \"8.0\"\n"
+  },
+  "r2ss/37-sam-auth": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Read:\n          Type: Api\n          Properties:\n            Path: /admin\n            Method: get\n            Auth:\n              Authorizer: AWS_IAM\n"
+  },
+  "r2ss/39-sam-disabled": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n            Enabled: false\n"
+  },
+  "r2ss/41-comments": {
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {\n    \"start\": \"node worker.js\"\n  }\n}",
+    "worker.js": "// app.listen(3000);\n// export async function handler(event) {return event.Records;}\nsetInterval(()=>console.log('heartbeat'),60000);"
+  },
+  "r2ss/42-string-route": {
+    "example.js": "export const tutorial = \"export const handler = async (event) => ({statusCode:200,body:event.requestContext.http.method})\";",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "import express from 'express';\nconst app=express();\napp.get('/health',(_,res)=>res.json({ok:true}));\napp.listen(3000,'0.0.0.0');\n"
+  },
+  "r2ss/46-websocket": {
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\",\n    \"ws\": \"^8.0.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "import express from 'express';\nimport {createServer} from 'node:http';\nimport {WebSocketServer} from 'ws';\nconst app=express();\nconst server=createServer(app);\nconst wss=new WebSocketServer({server});\nwss.on('connection',ws=>ws.send('hello'));\nserver.listen(3000);"
+  },
+  "r2ss/50-fastapi-nested": {
+    "Procfile": "web: cd backend && uvicorn src.api.main:app --host 0.0.0.0 --port 8080",
+    "backend/pyproject.toml": "[project]\nname=\"api\"\nversion=\"0.1.0\"\ndependencies=[\"fastapi\", \"uvicorn\"]\n",
+    "backend/src/api/main.py": "from fastapi import FastAPI\napp=FastAPI()\n@app.get('/')\ndef hello(): return 'ok'"
+  },
+  "r2ss/52-sam-timeout": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Timeout: 180\n      MemorySize: 2048\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n"
+  },
+  "r2ss/53-serverless-event-input": {
+    "handler.js": "export async function handler(event){if(event.operation!=='settle')throw Error('missing operation');return 'done';}",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - schedule:\n          rate: rate(1 hour)\n          input:\n            operation: settle\n"
+  },
+  "r2ss/55-compose-persistent": {
+    "Dockerfile": "FROM node:22\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\nCMD [\"node\",\"server.js\"]",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports: [\"3000:3000\"]\n    volumes: [\"uploads:/app/uploads\"]\nvolumes:\n  uploads:\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "import express from 'express';\nconst app=express();\napp.get('/health',(_,res)=>res.json({ok:true}));\napp.listen(3000,'0.0.0.0');\n"
+  },
+  "r2ss/56-serverless-two-exports": {
+    "handler.js": "export async function read(){return {statusCode:200,body:\"read\"}}\nexport async function write(){return {statusCode:201,body:\"write\"}}",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: api\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  read:\n    handler: handler.read\n    events:\n      - httpApi: GET /items\n  write:\n    handler: handler.write\n    events:\n      - httpApi: POST /items\n"
+  },
+  "r2ss/57-java-acme-control": {
+    "pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>com.acme</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>com.amazonaws</groupId><artifactId>aws-lambda-java-core</artifactId><version>1.2.3</version></dependency></dependencies></project>",
+    "src/main/java/com/acme/Handler.java": "package com.acme;\nimport com.amazonaws.services.lambda.runtime.Context;\nimport com.amazonaws.services.lambda.runtime.RequestHandler;\npublic class Handler implements RequestHandler<String,String>{public String handleRequest(String input,Context context){return input;}}"
+  },
+  "r2ss/58-spring-acme-control": {
+    "pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>com.acme</groupId><artifactId>app</artifactId><version>1.0</version><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.3.0</version></dependency></dependencies></project>",
+    "src/main/java/com/acme/App.java": "package com.acme;\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n@SpringBootApplication public class App {public static void main(String[] args){SpringApplication.run(App.class,args);}}",
+    "src/main/resources/application.properties": "server.port=8088"
+  },
+  "r2ss/59-secret-imported": {
+    "config.js": "function required(name){throw new Error(name+' required')}\nexport const token = process.env.API_TOKEN || required('API_TOKEN');",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "import './config.js';\nimport express from 'express';\nconst app=express();\napp.get('/health',(_,res)=>res.json({ok:true}));\napp.listen(3000,'0.0.0.0');\n"
+  },
+  "r2ss/60-secret-inline": {
+    "config.js": "function required(name){throw new Error(name+' required')}\nexport const token = process.env.API_TOKEN || required('API_TOKEN');",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "function required(name){throw new Error(name+' required')}\nexport const token = process.env.API_TOKEN || required('API_TOKEN');\nimport express from 'express';\nconst app=express();\napp.get('/health',(_,res)=>res.json({ok:true}));\napp.listen(3000,'0.0.0.0');\n"
+  },
+  "r2ss/61-comments-control": {
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {\n    \"start\": \"node worker.js\"\n  }\n}",
+    "worker.js": "setInterval(()=>console.log('heartbeat'),60000);"
+  },
+  "r2ss/62-hono-3000-control": {
+    "index.js": "import {Hono} from 'hono';\nimport {serve} from '@hono/node-server';\nconst app=new Hono();\napp.get('/',c=>c.text('ok'));\nserve({fetch:app.fetch,port:3000});",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"hono\": \"^4.0.0\",\n    \"@hono/node-server\": \"^1.0.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node index.js\"\n  }\n}"
+  },
+  "r2ss/63-procfile-port-env": {
+    "Procfile": "web: uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "main.py": "from fastapi import FastAPI\napp=FastAPI()\n@app.get('/')\ndef hello(): return {'ok':True}",
+    "requirements.txt": "fastapi==0.115.0\nuvicorn==0.32.0\n"
+  },
+  "r2ss/65-sam-filter": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Uploads:\n    Type: AWS::S3::Bucket\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Upload:\n          Type: S3\n          Properties:\n            Bucket: !Ref Uploads\n            Events: s3:ObjectCreated:*\n            Filter:\n              S3Key:\n                Rules:\n                  - Name: prefix\n                    Value: incoming/\n                  - Name: suffix\n                    Value: .csv\n"
+  },
+  "r2ss/66-sam-custom-handler": {
+    "handler.js": "export async function main(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.main\n      CodeUri: .\n      Events:\n        Read:\n          Type: Api\n          Properties:\n            Path: /hello\n            Method: get\n            Auth:\n              Authorizer: AWS_IAM\n"
+  },
+  "r2ss/67-python-handler": {
+    "handler.py": "def main(event, context):\n    return {\"statusCode\":200,\"body\":\"hello\"}\n",
+    "requirements.txt": "",
+    "serverless.yml": "service: python\nprovider:\n  name: aws\n  runtime: python3.12\nfunctions:\n  hello:\n    handler: handler.main\n    events:\n      - httpApi: GET /hello\n"
+  },
+  "r2ss/69-serverless-sns-filter": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - sns:\n          arn: !Ref Orders\n          filterPolicy:\n            kind: [paid]\nresources:\n  Resources:\n    Orders:\n      Type: AWS::SNS::Topic\n    Refunds:\n      Type: AWS::SNS::Topic\n"
+  },
+  "r2ss/70-sqs-partial-batch": {
+    "handler.js": "export async function handler(event){\n return {batchItemFailures:event.Records.filter(r=>JSON.parse(r.body).retry).map(r=>({itemIdentifier:r.messageId}))};\n}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - sqs:\n          arn: !GetAtt WorkQueue.Arn\n          batchSize: 10\n          functionResponseType: ReportBatchItemFailures\nresources:\n  Resources:\n    WorkQueue:\n      Type: AWS::SQS::Queue\n      Properties:\n        QueueName: work.fifo\n        FifoQueue: true\n        ContentBasedDeduplication: true\n"
+  },
+  "r2ss/71-vite-custom-outdir": {
+    "index.html": "<div id=\"root\"></div><script type=\"module\" src=\"/src/main.js\"></script>",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"vite\": \"^6.0.0\",\n    \"react\": \"^19.0.0\"\n  },\n  \"scripts\": {\n    \"build\": \"vite build\"\n  }\n}",
+    "src/main.js": "document.getElementById('root').textContent='Hello';",
+    "vite.config.js": "export default {build:{outDir:'public-build'}};"
+  },
+  "r2ss/72-fastapi-websocket": {
+    "Procfile": "web: uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "main.py": "from fastapi import FastAPI, WebSocket\napp=FastAPI()\n@app.websocket('/ws')\nasync def socket(ws: WebSocket):\n    await ws.accept()\n    while True:\n        await ws.send_text(await ws.receive_text())\n",
+    "requirements.txt": "fastapi==0.115.0\nuvicorn==0.32.0\n"
+  },
+  "r2ss/73-persistent-upload": {
+    "Dockerfile": "FROM node:22\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\nCMD [\"node\",\"server.js\"]",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports: [\"3000:3000\"]\n    volumes: [\"uploads:/app/uploads\"]\nvolumes:\n  uploads:\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"express\": \"^4.21.0\"\n  },\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  }\n}",
+    "server.js": "import express from 'express';\nimport {mkdirSync,writeFileSync} from 'node:fs';\nconst app=express();\napp.post('/upload',(req,res)=>{mkdirSync('/app/uploads',{recursive:true});writeFileSync('/app/uploads/record.txt','saved');res.sendStatus(201)});\napp.get('/health',(_,res)=>res.json({ok:true}));\napp.listen(3000,'0.0.0.0');\n"
+  },
+  "r2ss/74-partial-batch-standard": {
+    "handler.js": "export async function handler(event){\n return {batchItemFailures:event.Records.filter(r=>JSON.parse(r.body).retry).map(r=>({itemIdentifier:r.messageId}))};\n}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - sqs:\n          arn: !GetAtt WorkQueue.Arn\n          batchSize: 10\n          functionResponseType: ReportBatchItemFailures\nresources:\n  Resources:\n    WorkQueue:\n      Type: AWS::SQS::Queue\n      Properties:\n        QueueName: work\n"
+  },
+  "r2ss/76-mixed-monorepo": {
+    "apps/api/handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "apps/api/package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "apps/api/serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - httpApi: GET /hello\n",
+    "apps/worker/handler.ts": "import type {SQSEvent} from 'aws-lambda';\nexport async function handler(event:SQSEvent){for(const r of event.Records){console.log(r.body)}}",
+    "apps/worker/package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {},\n  \"workspaces\": [\n    \"apps/*\"\n  ]\n}"
+  },
+  "r2ss/77-schedule-multiple": {
+    "handler.js": "export async function handler(event){return {statusCode:200,body:JSON.stringify({ok:true})};}\n",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "serverless.yml": "service: fixture\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n      - schedule:\n          rate:\n            - cron(0 9 ? * MON-FRI *)\n            - cron(0 12 ? * SAT,SUN *)\n"
+  },
+  "r2ss/78-sam-long-job": {
+    "handler.js": "export async function handler(){await new Promise(resolve=>setTimeout(resolve,60000));return 'finished';}",
+    "package.json": "{\n  \"name\": \"fixture-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {},\n  \"scripts\": {}\n}",
+    "template.yaml": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Api:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Timeout: 180\n      MemorySize: 2048\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n"
+  },
+  "r2ah/01-sam-global-auth-local-cors": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Api:\n    Auth:\n      DefaultAuthorizer: AWS_IAM\nResources:\n  Api:\n    Type: AWS::Serverless::Api\n    Properties:\n      StageName: prod\n      Auth:\n        AddDefaultAuthorizerToCorsPreflight: false\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: Api\n          Properties:\n            Path: /admin\n            Method: GET\n            RestApiId:\n              Ref: Api\n"
+  },
+  "r2ah/02-sam-auth-short-join": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nConditions:\n  UseApi:\n    Fn::Equals:\n    - 'yes'\n    - 'yes'\nResources:\n  Api:\n    Type: AWS::Serverless::HttpApi\n    Properties:\n      Auth:\n        DefaultAuthorizer: Jwt\n        Authorizers:\n          Jwt:\n            IdentitySource: $request.header.Authorization\n            JwtConfiguration:\n              issuer: https://issuer.example\n              audience:\n              - client\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /admin\n            Method: GET\n            ApiId:\n              Fn::If:\n              - UseApi\n              - Ref: Api\n              - Ref: Api\n"
+  },
+  "r2ah/03-sam-resource-condition-false": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  PurgeEnabled:\n    Type: String\n    Default: 'no'\nConditions:\n  RunPurge:\n    Fn::Equals:\n    - Ref: PurgeEnabled\n    - 'yes'\nResources:\n  PurgeFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Daily:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n    Condition: RunPurge\n"
+  },
+  "r2ah/04-sam-event-if-false": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nConditions:\n  Enabled:\n    Fn::Equals:\n    - 'no'\n    - 'yes'\nResources:\n  PurgeFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Daily:\n          Fn::If:\n          - Enabled\n          - Type: Schedule\n            Properties:\n              Schedule: rate(1 hour)\n          - Ref: AWS::NoValue\n"
+  },
+  "r2ah/05-sam-filter-importvalue": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ImportFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Objects:\n          Type: S3\n          Properties:\n            Bucket:\n              Ref: Uploads\n            Events: s3:ObjectCreated:*\n            Filter:\n              S3Key:\n                Rules:\n                - Name: prefix\n                  Value: !ImportValue SharedPrefix\n  Uploads:\n    Type: AWS::S3::Bucket\n"
+  },
+  "r2ah/06-sam-filter-sub-literal": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ImportFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Objects:\n          Type: S3\n          Properties:\n            Bucket:\n              Ref: Uploads\n            Events: s3:ObjectCreated:*\n            Filter:\n              S3Key:\n                Rules:\n                - Name: prefix\n                  Value: !Sub incoming/\n  Uploads:\n    Type: AWS::S3::Bucket\n"
+  },
+  "r2ah/07-sam-filter-parameter": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Prefix:\n    Type: String\n    Default: incoming/\nResources:\n  ImportFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Objects:\n          Type: S3\n          Properties:\n            Bucket:\n              Ref: Uploads\n            Events: s3:ObjectCreated:*\n            Filter:\n              S3Key:\n                Rules:\n                - Name: prefix\n                  Value: !Ref Prefix\n  Uploads:\n    Type: AWS::S3::Bucket\n"
+  },
+  "r2ah/08-sam-filter-literal-parameter-name": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Prefix:\n    Type: String\n    Default: incoming/\nResources:\n  ImportFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Objects:\n          Type: S3\n          Properties:\n            Bucket:\n              Ref: Uploads\n            Events: s3:ObjectCreated:*\n            Filter:\n              S3Key:\n                Rules:\n                - Name: prefix\n                  Value: Prefix\n  Uploads:\n    Type: AWS::S3::Bucket\n"
+  },
+  "r2ah/09-sam-sizing-parameters": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Timeout:\n    Type: Number\n    Default: 240\n  Memory:\n    Type: Number\n    Default: 2048\nResources:\n  JobFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n      Timeout:\n        Ref: Timeout\n      MemorySize:\n        Ref: Memory\n"
+  },
+  "r2ah/10-sam-queue-parameter-fifo": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Fifo:\n    Type: String\n    Default: 'true'\n  Visibility:\n    Type: Number\n    Default: 300\nResources:\n  ConsumeFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Work:\n          Type: SQS\n          Properties:\n            Queue:\n              Fn::GetAtt:\n              - Jobs\n              - Arn\n            FunctionResponseTypes:\n            - ReportBatchItemFailures\n  Jobs:\n    Type: AWS::SQS::Queue\n    Properties:\n      FifoQueue:\n        Ref: Fifo\n      ContentBasedDeduplication: true\n      VisibilityTimeout:\n        Ref: Visibility\n"
+  },
+  "r2ah/11-sam-schedule-disabled-ref": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Enabled:\n    Type: String\n    Default: 'true'\nResources:\n  JobFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n            Enabled:\n              Ref: Enabled\n"
+  },
+  "r2ah/12-sam-global-layers-vpc": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Function:\n    VpcConfig:\n      SubnetIds:\n      - subnet-synthetic\n      SecurityGroupIds:\n      - sg-synthetic\n    Layers:\n    - arn:aws:lambda:us-east-1:123456789012:layer:common:1\nResources:\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /\n            Method: GET\n"
+  },
+  "r2ah/13-sam-sqs-max-batching": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ConsumeFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Work:\n          Type: SQS\n          Properties:\n            Queue:\n              Fn::GetAtt:\n              - Jobs\n              - Arn\n            BatchSize: 100\n            MaximumBatchingWindowInSeconds: 10\n            ScalingConfig:\n              MaximumConcurrency: 2\n  Jobs:\n    Type: AWS::SQS::Queue\n"
+  },
+  "r2ah/14-sam-queue-redrive": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ConsumeFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Work:\n          Type: SQS\n          Properties:\n            Queue:\n              Fn::GetAtt:\n              - Jobs\n              - Arn\n  Jobs:\n    Type: AWS::SQS::Queue\n    Properties:\n      RedrivePolicy:\n        deadLetterTargetArn:\n          Fn::GetAtt:\n          - Dead\n          - Arn\n        maxReceiveCount: 2\n  Dead:\n    Type: AWS::SQS::Queue\n"
+  },
+  "r2ah/15-sam-s3-versioned": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  UploadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /upload\n            Method: POST\n      Environment:\n        Variables:\n          UPLOADS_BUCKET:\n            Ref: Uploads\n  Uploads:\n    Type: AWS::S3::Bucket\n    Properties:\n      VersioningConfiguration:\n        Status: Enabled\n"
+  },
+  "r2ah/16-sam-dynamo-composite": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /\n            Method: GET\n      Environment:\n        Variables:\n          TABLE_NAME:\n            Ref: Sessions\n  Sessions:\n    Type: AWS::DynamoDB::Table\n    Properties:\n      BillingMode: PAY_PER_REQUEST\n      AttributeDefinitions:\n      - AttributeName: tenant\n        AttributeType: S\n      - AttributeName: createdAt\n        AttributeType: N\n      KeySchema:\n      - AttributeName: tenant\n        KeyType: HASH\n      - AttributeName: createdAt\n        KeyType: RANGE\n      TimeToLiveSpecification:\n        AttributeName: expiresAt\n        Enabled: true\n"
+  },
+  "r2ah/17-sam-nested-custom-template": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "nested/worker.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  JobFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: ../\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  WorkerApp:\n    Type: AWS::Serverless::Application\n    Properties:\n      Location: nested/worker.yaml\n"
+  },
+  "r2ah/18-sam-nested-parameter-auth": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "nested/handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "nested/template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Public:\n    Type: String\n    Default: 'yes'\nConditions:\n  PublicEnabled:\n    Fn::Equals:\n    - Ref: Public\n    - 'yes'\nResources:\n  JobFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n    Condition: PublicEnabled\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Nested:\n    Type: AWS::Serverless::Application\n    Properties:\n      Location: nested/template.yaml\n      Parameters:\n        Public: 'no'\n"
+  },
+  "r2ah/19-sam-globals-sizing-control": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Function:\n    Timeout: 180\n    MemorySize: 2048\nResources:\n  JobFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n            State: DISABLED\n"
+  },
+  "r2ah/20-sam-efs-required": {
+    "handler.js": "const fs=require('node:fs');exports.handler=async()=>({statusCode:200,body:fs.readFileSync('/mnt/shared/catalog.json','utf8')});\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      CodeUri: .\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /\n            Method: GET\n      FileSystemConfigs:\n      - Arn: arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0123456789abcdef0\n        LocalMountPath: /mnt/shared\n      VpcConfig:\n        SecurityGroupIds:\n        - sg-0123456789abcdef0\n        SubnetIds:\n        - subnet-0123456789abcdef0\n"
+  },
+  "r2ah/21-sls-schedule-v3-timezone": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - schedule:\n        rate: cron(0 9 * * ? *)\n        method: scheduler\n        timezone: America/New_York\n"
+  },
+  "r2ah/22-sls-provider-httpapi-iam": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\n  httpApi:\n    authorizers:\n      iam:\n        type: aws_iam\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - httpApi: GET /\n"
+  },
+  "r2ah/23-sls-sqs-parameter-batch": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - sqs:\n        arn:\n          Fn::GetAtt:\n          - Jobs\n          - Arn\n        batchSize: 100\n        maximumBatchingWindow: 10\n        maximumConcurrency: 2\nresources:\n  Resources:\n    Jobs:\n      Type: AWS::SQS::Queue\n"
+  },
+  "r2ah/24-sls-function-url-iam": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events: []\n    url:\n      authorizer: aws_iam\n"
+  },
+  "r2ah/25-sls-vpc-layers": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\n  vpc:\n    securityGroupIds:\n    - sg-synthetic\n    subnetIds:\n    - subnet-synthetic\n  layers:\n  - arn:aws:lambda:us-east-1:123456789012:layer:common:1\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - httpApi: GET /\n"
+  },
+  "r2ah/26-sls-custom-timeout": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - httpApi: GET /\n    timeout: ${self:custom.jobTimeout}\ncustom:\n  jobTimeout: 300\n"
+  },
+  "r2ah/27-sls-resource-condition-false": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - httpApi: GET /\nresources:\n  Conditions:\n    CreateQueue:\n      Fn::Equals:\n      - 'no'\n      - 'yes'\n  Resources:\n    Jobs:\n      Type: AWS::SQS::Queue\n      Condition: CreateQueue\n"
+  },
+  "r2ah/28-sls-rest-path-parameters": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - http:\n        path: users/{id}\n        method: get\n        request:\n          parameters:\n            paths:\n              id: true\n            querystrings:\n              token: true\n"
+  },
+  "r2ah/29-sls-sns-body-filter": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - sns:\n        arn:\n          Ref: Orders\n        filterPolicyScope: MessageBody\n        filterPolicy:\n          kind:\n          - paid\nresources:\n  Resources:\n    Orders:\n      Type: AWS::SNS::Topic\n"
+  },
+  "r2ah/30-sls-disabled-sqs-control": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - sqs:\n        arn:\n          Fn::GetAtt:\n          - Jobs\n          - Arn\n        enabled: false\nresources:\n  Resources:\n    Jobs:\n      Type: AWS::SQS::Queue\n"
+  },
+  "r2ah/31-sls-two-handler-pairs": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\nexports.other=async()=>({statusCode:201,body:\"other\"});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - httpApi: GET /\n  other:\n    handler: handler.other\n    events:\n    - httpApi: GET /other\n"
+  },
+  "r2ah/32-sls-s3-delete-filter": {
+    "handler.js": "exports.handler = async (event) => ({statusCode:200,body:JSON.stringify(event)});\n",
+    "serverless.yml": "service: r2ah\nprovider:\n  name: aws\n  runtime: nodejs22.x\nfunctions:\n  api:\n    handler: handler.handler\n    events:\n    - s3:\n        bucket:\n          Ref: Uploads\n        event: s3:ObjectRemoved:*\n        rules:\n        - prefix: deleted/\n        - suffix: .json\nresources:\n  Resources:\n    Uploads:\n      Type: AWS::S3::Bucket\n"
+  },
+  "r2ah/33-compose-debug-profile": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n  debug:\n    build:\n      context: ./debug\n    profiles:\n    - debug\n    ports:\n    - 9229:9229\n",
+    "debug/Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "debug/package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "debug/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(9229);\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/34-compose-extends-file": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "common.yaml": "services:\n  base:\n    ports: [\"4100:4100\"]\n    environment:\n      MODE: production\n      REQUIRED_KEY: ${REQUIRED_KEY:?required}\n    volumes: [\"data:/app/data\"]\n",
+    "compose.yaml": "services:\n  api:\n    extends:\n      file: common.yaml\n      service: base\n    build: .\nvolumes:\n  data: {}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/35-compose-envfile-custom": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    env_file:\n    - config/runtime.env\n",
+    "config/runtime.env": "TENANT_ID=demo\nREQUIRED_KEY=\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/36-compose-healthcheck": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    healthcheck:\n      test:\n      - CMD\n      - node\n      - health.js\n      interval: 10s\n      timeout: 3s\n      retries: 2\n      start_period: 60s\n",
+    "health.js": "fetch('http://127.0.0.1:4100/ready').then(r=>process.exit(r.ok?0:1));\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const app=express(); app.get('/ready',(_,r)=>r.send('ok'));app.listen(4100);\n"
+  },
+  "r2ah/37-compose-internal-networks": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    networks:\n    - private\n  processor:\n    build: ./processor\n    expose:\n    - 4200\n    networks:\n    - private\nnetworks:\n  private:\n    internal: true\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "processor/Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "processor/package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "processor/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4200);\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/38-compose-command-array": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    command:\n    - node\n    - worker.js\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "worker.js": "setInterval(()=>console.log(\"work\"),10000);\n"
+  },
+  "r2ah/39-compose-entrypoint-override": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    entrypoint:\n    - node\n    - special.js\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "special.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/40-compose-readonly-root": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    read_only: true\n    cap_drop:\n    - ALL\n    security_opt:\n    - no-new-privileges:true\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/41-compose-ro-subpath-control": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    volumes:\n    - type: volume\n      source: data\n      target: /app/data\n      read_only: true\n      volume:\n        subpath: archive\nvolumes:\n  data: {}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/42-compose-sqlite-varlib": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    volumes:\n    - data:/var/lib/app\nvolumes:\n  data: {}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/43-compose-dotdir-state": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    volumes:\n    - state:/home/node/.local/share/app\nvolumes:\n  state: {}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/44-compose-mariadb": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    depends_on:\n    - db\n    environment:\n      DATABASE_URL: mysql://app@db/app\n  db:\n    image: mariadb:11.4\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/45-compose-db-debug-profile": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n  db:\n    image: postgres:16\n    profiles:\n    - test\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/46-compose-healthy-dependency": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\", \"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports:\n    - 4100:4100\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      DATABASE_URL: postgres://app@db/app\n  db:\n    image: postgres:16\n    healthcheck:\n      test:\n      - CMD-SHELL\n      - pg_isready\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/47-cognito-existing-pool": {
+    "README.md": "Use the existing company Cognito pool; never create a new pool.\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\n"
+  },
+  "r2ah/48-cognito-iac-mfa": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Users:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      MfaConfiguration: 'ON'\n      EnabledMfas:\n      - SOFTWARE_TOKEN_MFA\n      AdminCreateUserConfig:\n        AllowAdminCreateUserOnly: true\n"
+  },
+  "r2ah/49-cognito-unrelated-admin-script": {
+    "README.md": "AUTH_CLIENT_ID refers to the existing external production pool. scripts/manage-vendor.js is integration-test setup only.\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "scripts/manage-vendor.js": "const {CreateUserPoolCommand}=require('@aws-sdk/client-cognito-identity-provider');const command=new CreateUserPoolCommand({PoolName:'integration-test'});\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\n"
+  },
+  "r2ah/50-cognito-template-string-admin": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\nconst documentation = `new CreateUserPoolCommand({PoolName:\"example\"})`;\n"
+  },
+  "r2ah/51-cognito-amplify-owned": {
+    "amplify/auth/resource.ts": "import {defineAuth} from '@aws-amplify/backend';export const auth=defineAuth({loginWith:{email:true}});\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"aws-amplify\": \"6.0.0\",\n    \"@aws-amplify/backend\": \"1.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {signIn}=require('aws-amplify/auth');const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await signIn({username:req.body.username,password:req.body.password})));app.listen(4100);\n"
+  },
+  "r2ah/52-cognito-readme-negation": {
+    "README.md": "This application does not create a Cognito user pool.\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\n"
+  },
+  "r2ah/53-cognito-two-owned-pools": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\nc.send(new InitiateAuthCommand({ClientId:process.env.STAFF_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH'}));\n",
+    "template.yaml": "AWSTemplateFormatVersion: '2010-09-09'\nTransform: AWS::Serverless-2016-10-31\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n    Properties:\n      MfaConfiguration: 'ON'\n  Customers:\n    Type: AWS::Cognito::UserPool\n"
+  },
+  "r2ah/54-cognito-python-string-admin": {
+    "auth.py": "import os, boto3\nclient = boto3.client('cognito-idp')\ndef login(user, password):\n    return client.initiate_auth(ClientId=os.environ['AUTH_CLIENT_ID'], AuthFlow='USER_PASSWORD_AUTH', AuthParameters={'USERNAME':user,'PASSWORD':password})\nDOC = \"client.create_user_pool(PoolName='sample')\"\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"\n  }\n}\n",
+    "requirements.txt": "boto3\nfastapi\nuvicorn\n",
+    "server.js": "const express=require('express');const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');const c=new CognitoIdentityProviderClient({});const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await c.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:{USERNAME:req.body.user,PASSWORD:req.body.password}})))); app.listen(4100);\n"
+  },
+  "r2ah/55-js-template-interpolation": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const app=express();const x=`ready: ${app.listen(4321)}`;\n"
+  },
+  "r2ah/56-js-regex-listen": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const expression=/app.listen(9876)/;\nsetInterval(()=>console.log(expression),10000);\n"
+  },
+  "r2ah/57-js-regex-after-block": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "if (process.env.DEBUG) { console.log('debug'); } /app.listen(9876)/.test('x');\nsetInterval(()=>{},10000);\n"
+  },
+  "r2ah/58-js-ws-client-only": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const WebSocket=require('ws');const app=express();const client=new WebSocket('wss://upstream.example');app.get('/',(_,r)=>r.send('ok'));app.listen(4100);\n"
+  },
+  "r2ah/59-js-ws-server-alias": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {WebSocketServer: WSS}=require('ws');const app=express();const server=app.listen(4100);new WSS({server});\n"
+  },
+  "r2ah/60-js-socketio-client": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {io}=require('socket.io-client');const app=express();io('https://upstream.example');app.listen(4100);\n"
+  },
+  "r2ah/61-js-port-underscore": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const app=express();app.listen(4_321);\n"
+  },
+  "r2ah/62-js-port-arithmetic": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\",\n    \"socket.io-client\": \"4.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const app=express();app.listen(4000 + 1);\n"
+  },
+  "r2ah/63-python-fstring-executable": {
+    "main.py": "from fastapi import FastAPI\nimport uvicorn\napp=FastAPI()\nif __name__ == '__main__':\n    print(f\"{uvicorn.run(app, host='0.0.0.0', port=4321)}\")\n",
+    "requirements.txt": "fastapi\nuvicorn\n"
+  },
+  "r2ah/64-python-decorator-websocket": {
+    "Procfile": "web: uvicorn main:app --host 0.0.0.0 --port $PORT\n",
+    "main.py": "from fastapi import FastAPI, WebSocket\napp = FastAPI()\n@app.websocket('/stream')\nasync def stream(ws: WebSocket):\n    await ws.accept()\n    await ws.send_text('ok')\n",
+    "requirements.txt": "fastapi\nuvicorn\n"
+  },
+  "r2ah/65-go-rawstring-server": {
+    "go.mod": "module example.org/audit\ngo 1.24\n",
+    "main.go": "package main\nimport \"fmt\"\nfunc main(){fmt.Println(`http.ListenAndServe(\":9876\", nil)`);select{}}\n"
+  },
+  "r2ah/66-go-listen-constant": {
+    "go.mod": "module example.org/audit\ngo 1.24\n",
+    "main.go": "package main\nimport \"net/http\"\nconst addr=\":4321\"\nfunc main(){http.ListenAndServe(addr, http.NotFoundHandler())}\n"
+  },
+  "r2ah/67-docker-heredoc-inert-source": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN <<'SCRIPT'\nprintf '%s\\n' 'app.listen(9876)' > example.txt\nSCRIPT\nCMD [\"node\", \"server.js\"]\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n"
+  },
+  "r2ah/68-nx-apps-lib": {
+    "apps/api/package.json": "{\n  \"name\": \"api\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "apps/api/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "nx.json": "{}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"nx run build\"\n  },\n  \"dependencies\": {},\n  \"workspaces\": [\n    \"apps/*\",\n    \"packages/*\"\n  ]\n}\n",
+    "packages/lib/index.js": "exports.answer=42;\n",
+    "packages/lib/package.json": "{\n  \"name\": \"lib\",\n  \"main\": \"index.js\"\n}\n"
+  },
+  "r2ah/69-turbo-apps-lib": {
+    "apps/api/package.json": "{\n  \"name\": \"api\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "apps/api/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"turbo run build\"\n  },\n  \"dependencies\": {},\n  \"workspaces\": [\n    \"apps/*\",\n    \"packages/*\"\n  ]\n}\n",
+    "packages/lib/index.js": "exports.answer=42;\n",
+    "packages/lib/package.json": "{\n  \"name\": \"lib\",\n  \"main\": \"index.js\"\n}\n",
+    "turbo.json": "{\"tasks\":{\"build\":{\"dependsOn\":[\"^build\"]}}}\n"
+  },
+  "r2ah/70-rush-apps-lib": {
+    "apps/api/package.json": "{\n  \"name\": \"api\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "apps/api/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"rush run build\"\n  },\n  \"dependencies\": {},\n  \"workspaces\": [\n    \"apps/*\",\n    \"packages/*\"\n  ]\n}\n",
+    "packages/lib/index.js": "exports.answer=42;\n",
+    "packages/lib/package.json": "{\n  \"name\": \"lib\",\n  \"main\": \"index.js\"\n}\n",
+    "rush.json": "{\"projects\":[{\"packageName\":\"api\",\"projectFolder\":\"apps/api\"}]}\n"
+  },
+  "r2ah/71-lerna-apps-lib": {
+    "apps/api/package.json": "{\n  \"name\": \"api\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "apps/api/server.js": "const express=require('express'); const app=express(); app.get('/',(_,res)=>res.send('ok')); app.listen(4100);\n",
+    "lerna.json": "{\"packages\":[\"apps/*\",\"packages/*\"]}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"lerna run build\"\n  },\n  \"dependencies\": {},\n  \"workspaces\": [\n    \"apps/*\",\n    \"packages/*\"\n  ]\n}\n",
+    "packages/lib/index.js": "exports.answer=42;\n",
+    "packages/lib/package.json": "{\n  \"name\": \"lib\",\n  \"main\": \"index.js\"\n}\n"
+  },
+  "r2ah/72-python-uv-workspace": {
+    "apps/api/main.py": "from fastapi import FastAPI\napp=FastAPI()\n",
+    "apps/api/pyproject.toml": "[project]\nname=\"api\"\nversion=\"0.1.0\"\ndependencies=[\"fastapi\", \"uvicorn\"]\n",
+    "packages/shared/pyproject.toml": "[project]\nname=\"shared\"\nversion=\"0.1.0\"\n",
+    "pyproject.toml": "[project]\nname=\"workspace\"\nversion=\"0.1.0\"\n[tool.uv.workspace]\nmembers=[\"apps/api\",\"packages/shared\"]\n"
+  },
+  "r2ah/73-go-work-two-apps": {
+    "api/go.mod": "module example.org/api\ngo 1.24\n",
+    "api/main.go": "package main\nimport \"net/http\"\nfunc main(){http.ListenAndServe(\":4321\",nil)}\n",
+    "go.work": "go 1.24\nuse (\n ./api\n ./worker\n)\n",
+    "worker/go.mod": "module example.org/worker\ngo 1.24\n",
+    "worker/main.go": "package main\nfunc main(){select{}}\n"
+  },
+  "r2ah/74-java-maven-multimodule": {
+    "api/pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>org.audit</groupId><artifactId>api</artifactId><version>1</version><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>3.4.0</version></dependency></dependencies></project>",
+    "api/src/main/java/org/audit/Application.java": "package org.audit;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.boot.SpringApplication;\n@SpringBootApplication\npublic class Application { public static void main(String[] args){SpringApplication.run(Application.class,args);} }\n",
+    "api/src/main/resources/application.properties": "server.port=4321\n",
+    "pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>org.audit</groupId><artifactId>parent</artifactId><version>1</version><packaging>pom</packaging><modules><module>api</module><module>shared</module></modules></project>",
+    "shared/pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>org.audit</groupId><artifactId>shared</artifactId><version>1</version></project>"
+  },
+  "r2ah/75-dotnet-solution-two-projects": {
+    "Audit.sln": "Microsoft Visual Studio Solution File, Format Version 12.00\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Api\", \"src/Api/Api.csproj\", \"{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}\"\nEndProject\n",
+    "src/Api/Api.csproj": "<Project Sdk=\"Microsoft.NET.Sdk.Web\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup><ItemGroup><ProjectReference Include=\"../Shared/Shared.csproj\" /></ItemGroup></Project>\n",
+    "src/Api/Program.cs": "var builder = WebApplication.CreateBuilder(args);\nvar app = builder.Build();\napp.MapGet(\"/\", () => \"ok\");\napp.Run(\"http://0.0.0.0:4321\");\n",
+    "src/Shared/Shared.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>\n",
+    "src/Shared/Value.cs": "public class Value {}\n"
+  },
+  "r2ah/76-nest-microservice-only": {
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"nest build\",\n    \"start\": \"node dist/main.js\"\n  },\n  \"dependencies\": {\n    \"@nestjs/core\": \"11.0.0\",\n    \"@nestjs/microservices\": \"11.0.0\",\n    \"@nestjs/common\": \"11.0.0\",\n    \"rxjs\": \"7.0.0\"\n  }\n}\n",
+    "src/main.ts": "import {NestFactory} from '@nestjs/core';import {Transport} from '@nestjs/microservices';import {Module} from '@nestjs/common';@Module({}) class AppModule {}\nasync function bootstrap(){const app=await NestFactory.createMicroservice(AppModule,{transport:Transport.TCP,options:{host:'0.0.0.0',port:4321}});await app.listen();} bootstrap();\n"
+  },
+  "r2ah/77-remix-vite-custom-build": {
+    "app/root.tsx": "export default function App(){return <html><body>ok</body></html>;}\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"remix vite:build\",\n    \"start\": \"remix-serve ./build/server/index.js\"\n  },\n  \"dependencies\": {\n    \"@remix-run/node\": \"2.16.0\",\n    \"@remix-run/react\": \"2.16.0\",\n    \"@remix-run/serve\": \"2.16.0\"\n  }\n}\n",
+    "vite.config.ts": "import {vitePlugin as remix} from '@remix-run/dev';import {defineConfig} from 'vite';export default defineConfig({plugins:[remix()]});\n"
+  },
+  "r2ah/78-nuxt-static-output": {
+    "app.vue": "<template><main>ok</main></template>\n",
+    "nuxt.config.ts": "export default defineNuxtConfig({ssr:false});\n",
+    "package.json": "{\n  \"name\": \"audit-app\",\n  \"private\": true,\n  \"scripts\": {\n    \"build\": \"nuxt generate\",\n    \"start\": \"npx serve .output/public\"\n  },\n  \"dependencies\": {\n    \"nuxt\": \"3.16.0\"\n  }\n}\n"
+  },
+  "r2ah/79-laravel-queue-worker": {
+    "Procfile": "worker: php artisan queue:work redis --sleep=3 --tries=3\n",
+    "app/Jobs/SendMail.php": "<?php\nnamespace App\\Jobs; class SendMail implements \\Illuminate\\Contracts\\Queue\\ShouldQueue { public function handle() {} }\n",
+    "artisan": "<?php\nrequire __DIR__.\"/vendor/autoload.php\";\n",
+    "composer.json": "{\n  \"require\": {\n    \"php\": \"^8.3\",\n    \"laravel/framework\": \"^11.0\",\n    \"predis/predis\": \"^2.0\"\n  }\n}\n"
+  },
+  "r2ah/80-rails-sidekiq-with-web": {
+    "Gemfile": "source \"https://rubygems.org\"\ngem \"rails\"\ngem \"puma\"\ngem \"sidekiq\"\ngem \"pg\"\n",
+    "Procfile": "web: bundle exec puma -C config/puma.rb\nworker: bundle exec sidekiq -C config/sidekiq.yml\n",
+    "config/application.rb": "require \"rails/all\"\nmodule Audit; class Application < Rails::Application; end; end\n",
+    "config/puma.rb": "port ENV.fetch(\"PORT\", 4321)\n",
+    "config/sidekiq.yml": ":concurrency: 5\n"
+  },
+  "r2ah/81-django-channels-asgi": {
+    "Procfile": "web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n",
+    "manage.py": "import os\nos.environ.setdefault(\"DJANGO_SETTINGS_MODULE\",\"project.settings\")\n",
+    "project/asgi.py": "from channels.routing import ProtocolTypeRouter, URLRouter\nfrom django.core.asgi import get_asgi_application\napplication=ProtocolTypeRouter({\"http\":get_asgi_application(),\"websocket\":URLRouter([])})\n",
+    "project/settings.py": "ASGI_APPLICATION=\"project.asgi.application\"\nCHANNEL_LAYERS={\"default\":{\"BACKEND\":\"channels_redis.core.RedisChannelLayer\",\"CONFIG\":{\"hosts\":[(\"redis\",6379)]}}}\n",
+    "requirements.txt": "Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n"
+  },
+  "r2ah/82-celery-beat-plus-worker": {
+    "Procfile": "worker: celery -A tasks worker --loglevel=info\nbeat: celery -A tasks beat --loglevel=info\n",
+    "requirements.txt": "celery[redis]==5.4\n",
+    "tasks.py": "from celery import Celery\napp=Celery(\"tasks\",broker=\"redis://redis:6379/0\")\n@app.task\ndef tick(): return 1\napp.conf.beat_schedule={\"tick\":{\"task\":\"tasks.tick\",\"schedule\":60}}\n"
+  },
+  "r2ah/83-sam-private-api": {
+    "handler.js": "exports.handler=async()=>({statusCode:200,body:\"admin\"});\n",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  Gateway:\n    Type: AWS::Serverless::Api\n    Properties:\n      StageName: prod\n      EndpointConfiguration:\n        Type: PRIVATE\n        VPCEndpointIds:\n        - vpce-synthetic\n      Auth:\n        ResourcePolicy:\n          IntrinsicVpceWhitelist:\n          - vpce-synthetic\n  AdminFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: .\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      Events:\n        Admin:\n          Type: Api\n          Properties:\n            RestApiId:\n              Ref: Gateway\n            Path: /admin\n            Method: GET\n"
+  },
+  "r2ah/84-sam-resourcepolicy-ip": {
+    "handler.js": "exports.handler=async()=>({statusCode:200,body:\"admin\"});\n",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  Gateway:\n    Type: AWS::Serverless::Api\n    Properties:\n      StageName: prod\n      Auth:\n        ResourcePolicy:\n          IpRangeWhitelist:\n          - 192.0.2.0/24\n  AdminFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: .\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      Events:\n        Admin:\n          Type: Api\n          Properties:\n            RestApiId:\n              Ref: Gateway\n            Path: /admin\n            Method: GET\n"
+  },
+  "r2ah/85-sls-resourcepolicy-ip": {
+    "handler.js": "exports.handler=async()=>({statusCode:200,body:\"admin\"});\n",
+    "serverless.yml": "service: audit\nprovider:\n  name: aws\n  runtime: nodejs22.x\n  apiGateway:\n    resourcePolicy:\n    - Effect: Allow\n      Principal: '*'\n      Action: execute-api:Invoke\n      Resource: execute-api:/*/*/*\n      Condition:\n        IpAddress:\n          aws:SourceIp:\n          - 192.0.2.0/24\nfunctions:\n  admin:\n    handler: handler.handler\n    events:\n    - http:\n        path: /admin\n        method: GET\n"
+  },
+  "r2ah/86-sam-layer-runtime-use": {
+    "handler.js": "const company = require('/opt/nodejs/company');\nexports.handler=async()=>({statusCode:200,body:company.message});\n",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  Gateway:\n    Type: AWS::Serverless::Api\n    Properties:\n      StageName: prod\n  AdminFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: .\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      Events:\n        Admin:\n          Type: Api\n          Properties:\n            RestApiId:\n              Ref: Gateway\n            Path: /admin\n            Method: GET\n      Layers:\n      - arn:aws:lambda:us-east-1:123456789012:layer:corporate-runtime:3\n"
+  },
+  "r2ah/87-compose-dotdir-real-writes": {
+    "Dockerfile": "FROM node:22-alpine\nWORKDIR /app\nCOPY . .\nRUN npm install --omit=dev\nCMD [\"node\",\"server.js\"]\n",
+    "compose.yaml": "services:\n  api:\n    build: .\n    ports: [\"4100:4100\"]\n    volumes: [\"state:/home/node/.local/share/app\"]\nvolumes:\n  state: {}\n",
+    "package.json": "{\n  \"name\": \"stateful\",\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}\n",
+    "server.js": "const fs=require('node:fs');const express=require('express');const app=express();const dir='/home/node/.local/share/app';fs.mkdirSync(dir,{recursive:true});app.post('/record',(req,res)=>{fs.appendFileSync(dir+'/records.log','record\\n');res.send('saved')});app.listen(4100);\n"
+  },
+  "r2ah/88-sam-dynamo-key-real-use": {
+    "handler.js": "const {DynamoDBClient,GetItemCommand}=require('@aws-sdk/client-dynamodb');const db=new DynamoDBClient({});exports.handler=async(event)=>({statusCode:200,body:JSON.stringify(await db.send(new GetItemCommand({TableName:process.env.TABLE_NAME,Key:{tenant:{S:event.pathParameters.tenant},createdAt:{N:event.pathParameters.time}}})))});\n",
+    "package.json": "{\n  \"name\": \"sessions\",\n  \"dependencies\": {\n    \"@aws-sdk/client-dynamodb\": \"3.800.0\"\n  }\n}\n",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  ReadFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: .\n      Runtime: nodejs22.x\n      Handler: handler.handler\n      Environment:\n        Variables:\n          TABLE_NAME:\n            Ref: Sessions\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /sessions/{tenant}/{time}\n            Method: GET\n  Sessions:\n    Type: AWS::DynamoDB::Table\n    Properties:\n      BillingMode: PAY_PER_REQUEST\n      AttributeDefinitions:\n      - AttributeName: tenant\n        AttributeType: S\n      - AttributeName: createdAt\n        AttributeType: N\n      KeySchema:\n      - AttributeName: tenant\n        KeyType: HASH\n      - AttributeName: createdAt\n        KeyType: RANGE\n"
+  },
+  "r2ah/89-sam-java-two-modules": {
+    "a/pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>org.audit</groupId><artifactId>handler</artifactId><version>1</version><dependencies><dependency><groupId>com.amazonaws</groupId><artifactId>aws-lambda-java-core</artifactId><version>1.2.3</version></dependency></dependencies></project>",
+    "a/src/main/java/org/audit/Handler.java": "package org.audit;\nimport com.amazonaws.services.lambda.runtime.Context;\nimport com.amazonaws.services.lambda.runtime.RequestHandler;\npublic class Handler implements RequestHandler<Object,String>{public String handleRequest(Object e, Context c){return \"a\";}}\n",
+    "b/pom.xml": "<project><modelVersion>4.0.0</modelVersion><groupId>org.audit</groupId><artifactId>handler</artifactId><version>1</version><dependencies><dependency><groupId>com.amazonaws</groupId><artifactId>aws-lambda-java-core</artifactId><version>1.2.3</version></dependency></dependencies></project>",
+    "b/src/main/java/org/audit/Handler.java": "package org.audit;\nimport com.amazonaws.services.lambda.runtime.Context;\nimport com.amazonaws.services.lambda.runtime.RequestHandler;\npublic class Handler implements RequestHandler<Object,String>{public String handleRequest(Object e, Context c){return \"b\";}}\n",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  AFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: a/\n      Runtime: java21\n      Handler: org.audit.Handler::handleRequest\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n  BFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      CodeUri: b/\n      Runtime: java21\n      Handler: org.audit.Handler::handleRequest\n      Events:\n        Tick:\n          Type: Schedule\n          Properties:\n            Schedule: rate(1 hour)\n"
+  },
+  "r2ah/90-vite-outdir-string-decoy": {
+    "index.html": "<main>ready</main>\n",
+    "package.json": "{\n  \"name\": \"frontend\",\n  \"scripts\": {\n    \"build\": \"vite build\"\n  },\n  \"dependencies\": {\n    \"vite\": \"6.0.0\"\n  }\n}\n",
+    "vite.config.js": "const migrationNote = \"old config: {outDir: 'legacy'}\";\nexport default {build: {outDir: 'public-build'}};\n"
+  },
+  "r2ah/91-vite-outdir-plugin-option": {
+    "index.html": "<main>ready</main>\n",
+    "package.json": "{\n  \"name\": \"frontend\",\n  \"scripts\": {\n    \"build\": \"vite build\"\n  },\n  \"dependencies\": {\n    \"vite\": \"6.0.0\"\n  }\n}\n",
+    "vite.config.js": "const reporter = {name:'reporter', configResolved(config){console.log(config.build.outDir)}};\nexport default {plugins: [{...reporter, report: {outDir:'reports'}}], build: {outDir:'public-build'}};\n"
+  },
+  "r2ah/92-ws-unaliased-control": {
+    "package.json": "{\n  \"name\": \"socket-api\",\n  \"scripts\": {\n    \"start\": \"node server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"ws\": \"8.0.0\"\n  }\n}\n",
+    "server.js": "const express=require('express');const {WebSocketServer}=require('ws');const app=express();const server=app.listen(4100);new WebSocketServer({server});\n"
+  },
+  "r2ah/93-cognito-explicit-client-bindings": {
+    "handler.js": "const {CognitoIdentityProviderClient,InitiateAuthCommand}=require('@aws-sdk/client-cognito-identity-provider');\nconst client=new CognitoIdentityProviderClient({});\nexports.handler=async(event)=>{\n const args={USERNAME:'synthetic',PASSWORD:'synthetic'};\n const result=event.pathParameters.realm==='staff'\n ? await client.send(new InitiateAuthCommand({ClientId:process.env.STAFF_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:args}))\n : await client.send(new InitiateAuthCommand({ClientId:process.env.AUTH_CLIENT_ID,AuthFlow:'USER_PASSWORD_AUTH',AuthParameters:args}));\n return {statusCode:200,body:JSON.stringify(result)};\n};\n",
+    "package.json": "{\"name\": \"auth\", \"dependencies\": {\"@aws-sdk/client-cognito-identity-provider\": \"3.800.0\"}}",
+    "template.yaml": "Transform: AWS::Serverless-2016-10-31\nResources:\n  Staff:\n    Type: AWS::Cognito::UserPool\n  StaffClient:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Staff\n      GenerateSecret: false\n      ExplicitAuthFlows:\n      - ALLOW_USER_PASSWORD_AUTH\n      - ALLOW_REFRESH_TOKEN_AUTH\n  Customers:\n    Type: AWS::Cognito::UserPool\n  CustomersClient:\n    Type: AWS::Cognito::UserPoolClient\n    Properties:\n      UserPoolId:\n        Ref: Customers\n      GenerateSecret: false\n      ExplicitAuthFlows:\n      - ALLOW_USER_PASSWORD_AUTH\n      - ALLOW_REFRESH_TOKEN_AUTH\n  LoginFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs22.x\n      CodeUri: .\n      Handler: handler.handler\n      Environment:\n        Variables:\n          STAFF_CLIENT_ID:\n            Ref: StaffClient\n          AUTH_CLIENT_ID:\n            Ref: CustomersClient\n      Events:\n        Login:\n          Type: HttpApi\n          Properties:\n            Path: /login/{realm}\n            Method: POST\n"
+  }
+}

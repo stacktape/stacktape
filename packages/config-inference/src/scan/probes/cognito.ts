@@ -37,14 +37,27 @@ const POOL_ADMINISTRATION =
 const CREATES_POOL =
   /\b(?:creates?|provisions?|sets? up|deploys?|defines?)\b[^.]{0,60}\b(?:cognito|user pool)\b|\bits own\b[^.]{0,30}\b(?:cognito|user pool)\b/i;
 const EXISTING_POOL = /\b(?:existing|shared|external|separate|another|company|maintained|managed elsewhere)\b/i;
+/** A sentence that denies what it says: "does not create a Cognito user pool". */
+const NEGATION = /\b(?:not|never|no|without|neither|nor)\b|n't\b/i;
+const MENTIONS_POOL = /\b(?:cognito|user pool|pool)\b/i;
+/** Test fixtures and integration setup create throwaway pools; they say nothing about the pool the app signs in to. */
+const TEST_PATH =
+  /(?:^|\/)(?:tests?|__tests__|specs?|e2e|integration|fixtures?)\/|\.(?:test|spec)\.[cm]?[jt]sx?$|(?:^|\/)test_[^/]+\.py$/;
 
-/** Where the repository says the user pool is its own, or undefined. */
+/**
+ * Where the repository says the user pool is its own, or undefined.
+ *
+ * Only a positive statement counts: a README sentence that the app creates its pool, infrastructure code defining one,
+ * or code (not a string or comment) that creates pools or users outside test setup. A README saying the pool is an
+ * existing or external one settles it the other way, whatever a script elsewhere does.
+ */
 const ownershipEvidence = async (context: ProbeContext, sources: readonly string[]): Promise<Citation | undefined> => {
   const readme = context.files.find((path) => /^readme\.md$/i.test(path));
   const readmeText = readme === undefined ? undefined : await readText(context, readme, { fullFile: true });
-  const statement = readmeText
-    ?.split(/(?<=[.!?])\s+|\r?\n/)
-    .find((sentence) => CREATES_POOL.test(sentence) && !EXISTING_POOL.test(sentence));
+  const sentences = readmeText?.split(/(?<=[.!?])\s+|\r?\n/) ?? [];
+  const statement = sentences.find(
+    (sentence) => CREATES_POOL.test(sentence) && !EXISTING_POOL.test(sentence) && !NEGATION.test(sentence)
+  );
   if (readme !== undefined && readmeText !== undefined && statement !== undefined) {
     const escaped = statement
       .trim()
@@ -52,13 +65,20 @@ const ownershipEvidence = async (context: ProbeContext, sources: readonly string
       .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return citeFirstMatchOnly(readme, readmeText, new RegExp(escaped));
   }
+  const external = sentences.some(
+    (sentence) => EXISTING_POOL.test(sentence) && MENTIONS_POOL.test(sentence) && !NEGATION.test(sentence)
+  );
   const scripts = context.files.filter((path) => /\.(?:sh|bash)$|(?:^|\/)package\.json$/.test(path));
-  const files = [...context.files.filter((path) => INFRASTRUCTURE_FILE.test(path)), ...sources, ...scripts];
+  const infrastructure = context.files.filter((path) => INFRASTRUCTURE_FILE.test(path));
+  const files = [...infrastructure, ...(external ? [] : [...sources, ...scripts])].filter(
+    (path) => !TEST_PATH.test(path)
+  );
   for (const path of files.slice(0, 600)) {
     // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
     const raw = await readText(context, path, { fullFile: true });
     if (raw === undefined) continue;
-    const code = maskFile(path, raw, 'keep');
+    // A pool definition in a template is the declaration itself; in program code, only code counts, not a string.
+    const code = INFRASTRUCTURE_FILE.test(path) ? raw : maskFile(path, raw, 'blank');
     const pattern = [POOL_DEFINITION, POOL_ADMINISTRATION].find((candidate) => candidate.test(code));
     if (pattern !== undefined) return citeFirstMatchOnly(path, raw, pattern);
   }

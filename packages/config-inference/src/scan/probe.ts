@@ -15,7 +15,7 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { ExistingDeploymentFact } from '../facts/existing-deployment';
-import type { MigrationFact, PackageManager, HandlerFinding } from '../facts/project-facts';
+import type { MigrationFact, PackageManager, HandlerFinding, ImportGap } from '../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import type { ReadSourceFileOptions, SourceRead } from './read-source';
@@ -79,6 +79,13 @@ export type ProbeOutput = {
   packageManager?: PackageManager;
   workspaceGlobs?: string[];
   handlerFindings?: HandlerFinding[];
+  importGaps?: ImportGap[];
+  /**
+   * What an importer deliberately left out, so another probe that finds the same code does not bring it back: entry
+   * files of functions and source roots of Compose services. A root another declaration still deploys is not listed.
+   */
+  omittedEntrypoints?: string[];
+  omittedServiceRoots?: string[];
   notes?: string[];
 };
 

@@ -300,6 +300,129 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     ]);
   });
 
+  it('settings an import carries, and the import gaps for settings it left out', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        service({
+          name: 'consume',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: 'consume.js',
+          functionLayers: ['arn:aws:lambda:us-east-1:123456789012:layer:common:3'],
+          functionArchitecture: 'arm64',
+          functionReservedConcurrency: 5,
+          functionTriggers: [
+            { type: 'queue', dependencyName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10 },
+            { type: 'unmapped', reason: 'import-gap', sourceType: 'the SQS event Work' }
+          ],
+          environmentVariables: [
+            workflowVariable('STAFF_CLIENT_ID', 'staff'),
+            workflowVariable('TABLE_NAME', 'sessions')
+          ]
+        }),
+        service({
+          name: 'api',
+          path: 'api',
+          port: 4100,
+          dockerfile: 'api/Dockerfile',
+          startCommand: 'node worker.js',
+          commandOverridesImage: true,
+          containerHealthCheck: {
+            command: ['CMD', 'node', 'health.js'],
+            intervalSeconds: 10,
+            timeoutSeconds: 3,
+            retries: 2,
+            startPeriodSeconds: 60
+          }
+        }),
+        service({
+          name: 'processor',
+          path: 'processor',
+          port: 4200,
+          internalOnly: true,
+          startCommand: 'node server.js'
+        })
+      ],
+      dependencies: [
+        {
+          ...dependency('jobs', 'queue', ['consume']),
+          queueSettings: { deadLetter: { dependencyName: 'dead', maxReceiveCount: 2 } }
+        },
+        dependency('dead', 'queue', []),
+        {
+          ...dependency('sessions', 'object-storage', ['consume']),
+          kind: 'dynamodb',
+          tableKey: { partitionKey: { name: 'tenant', type: 'string' }, sortKey: { name: 'createdAt', type: 'number' } }
+        },
+        { ...dependency('uploads', 'object-storage', ['consume']), bucketVersioning: true },
+        {
+          ...dependency('staff', 'object-storage', ['consume']),
+          kind: 'user-pool',
+          userPoolOwnership: 'project',
+          userPoolSettings: {
+            mfa: { status: 'ON', enabledTypes: ['SOFTWARE_TOKEN'] },
+            passwordPolicy: { minimumLength: 12, requireSymbols: true },
+            generateClientSecret: true
+          }
+        }
+      ],
+      importGaps: [
+        {
+          file: 'template.yaml',
+          object: 'Gateway',
+          keys: ['Auth.ResourcePolicy'],
+          effect: 'omitted',
+          concern: 'access'
+        },
+        { file: 'template.yaml', object: 'Sessions', keys: ['TimeToLiveSpecification'], effect: 'not-carried' },
+        { file: 'template.yaml', object: 'Resources', keys: ['Role', 'LogGroup'], effect: 'not-imported' }
+      ]
+    });
+    const result = composeConfig({ facts, projectName: 'demo' });
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.consume?.properties).toMatchObject({
+      architecture: 'arm64',
+      reservedConcurrency: 5,
+      layers: ['arn:aws:lambda:us-east-1:123456789012:layer:common:3'],
+      events: [{ type: 'sqs', properties: { sqsQueueName: 'jobs', batchSize: 100, maxBatchWindowSeconds: 10 } }]
+    });
+    expect(resources.jobs?.properties.redrivePolicy).toEqual({ targetSqsQueueName: 'dead', maxReceiveCount: 2 });
+    expect(resources.sessions?.properties.primaryKey).toEqual({
+      partitionKey: { name: 'tenant', type: 'string' },
+      sortKey: { name: 'createdAt', type: 'number' }
+    });
+    expect(resources.uploads?.properties.versioning).toBe(true);
+    expect(resources.staff?.properties).toEqual({
+      allowOnlyAdminsToCreateAccount: true,
+      mfaConfiguration: { status: 'ON', enabledTypes: ['SOFTWARE_TOKEN'] },
+      passwordPolicy: { minimumLength: 12, requireSymbols: true },
+      generateClientSecret: true
+    });
+    expect(resources.api?.properties).toMatchObject({
+      packaging: { type: 'dockerfile', properties: { command: ['node', 'worker.js'] } },
+      internalHealthCheck: {
+        healthCheckCommand: ['CMD', 'node', 'health.js'],
+        intervalSeconds: 10,
+        timeoutSeconds: 3,
+        retries: 2,
+        startPeriodSeconds: 60
+      }
+    });
+    expect(resources.processor?.type).toBe('private-service');
+    const messages = result.gaps.map((gap) => gap.message);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        'template.yaml: init left `Gateway` out because it did not carry `Auth.ResourcePolicy`: without it the route would accept callers your source refuses. Before deploying, add it to the configuration with an equivalent setting, or leave it out on purpose.',
+        'template.yaml: init did not carry `TimeToLiveSpecification` of `Sessions`. Before deploying, set the Stacktape equivalent, or confirm the app works without it.',
+        'template.yaml declares `Role` and `LogGroup`, which init did not import from it. Before deploying, check that the configuration has what the app needs from them.'
+      ])
+    );
+    // The import gap names the setting; the event left out because of it needs no second message.
+    expect(messages.some((message) => message.includes('the SQS event Work'))).toBe(false);
+  });
+
   it('a scheduled batch job', () => {
     expectValid(
       composeFrom({

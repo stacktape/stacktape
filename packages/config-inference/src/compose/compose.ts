@@ -14,7 +14,7 @@
 import type { Citation } from '../facts/citation';
 import { resourceKindNamedBy, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
-import type { PackageManager, ProjectFacts } from '../facts/project-facts';
+import type { ImportConcern, ImportGap, PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
 import {
   DIRECT_INVOCATION_SOURCE,
@@ -71,6 +71,37 @@ export type CompositionGap = {
   subject: string;
   /** What we could not do, phrased for the user rather than for a log. */
   message: string;
+};
+
+/** What leaving a declared setting out would change, as the second half of a gap sentence. */
+const IMPORT_CONCERN_CONSEQUENCES: Record<ImportConcern, string> = {
+  access: 'without it the route would accept callers your source refuses',
+  condition: 'it exists only while its condition is true, and init could not prove that it is',
+  profile: 'Compose starts it only when that profile is selected',
+  network: 'it would run outside the network your source puts it in',
+  storage: 'the files it keeps there would not survive or would not be there',
+  'failure-handling': 'failed events would no longer go to their declared retries or dead-letter target',
+  execution: 'it would run with other limits, ordering or concurrency than declared',
+  identity: 'users would sign in without that protection',
+  encryption: 'its data would not use the declared encryption key',
+  'container-security': 'the container would run with fewer restrictions than declared',
+  'code-integrity': 'unsigned code would be accepted'
+};
+
+const quotedList = (values: readonly string[]): string => {
+  const quoted = values.map((value) => `\`${value}\``);
+  return quoted.length <= 1 ? (quoted[0] ?? '') : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)}`;
+};
+
+const importGapMessage = ({ file, object, keys, effect, concern }: ImportGap): string => {
+  const consequence = concern === undefined ? '' : `: ${IMPORT_CONCERN_CONSEQUENCES[concern]}`;
+  if (effect === 'omitted') {
+    return `${file}: init left \`${object}\` out because it did not carry ${quotedList(keys)}${consequence}. Before deploying, add it to the configuration with an equivalent setting, or leave it out on purpose.`;
+  }
+  if (effect === 'not-imported') {
+    return `${file} declares ${quotedList(keys)}, which init did not import from it. Before deploying, check that the configuration has what the app needs from ${keys.length === 1 ? 'it' : 'them'}.`;
+  }
+  return `${file}: init did not carry ${quotedList(keys)} of \`${object}\`${consequence}. Before deploying, set the Stacktape equivalent, or confirm the app works without ${keys.length === 1 ? 'it' : 'them'}.`;
 };
 
 /** A setting the code reads with no fallback, which nothing in the configuration sets. */
@@ -374,7 +405,11 @@ const packagingFor = (
         buildContextPath: buildRoot,
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
-        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile)
+        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
+        // A deployment manifest that replaces the image's command (Compose `command`) runs that instead of `CMD`.
+        ...(service.commandOverridesImage === true && service.startCommand !== undefined
+          ? { command: containerCommand(service.startCommand) }
+          : {})
       }
     };
   }
@@ -608,6 +643,29 @@ const taskChain = (resourceNames: readonly string[]): Record<string, unknown> =>
   )
 });
 
+/**
+ * The sign-in rules of a user pool init creates. A declaration's own rules are kept; without one, accounts are created
+ * by an administrator unless the code calls SignUp, because an open pool would let anyone sign up through the Cognito
+ * API and pass the API's token check.
+ */
+const userPoolProperties = (dependency: DependencyFact): Record<string, unknown> => {
+  const declared = dependency.userPoolSettings;
+  const adminOnly = declared?.allowOnlyAdminsToCreateAccount ?? dependency.userPoolSelfSignUp !== true;
+  return {
+    ...(adminOnly ? { allowOnlyAdminsToCreateAccount: true } : {}),
+    ...(declared?.mfa === undefined
+      ? {}
+      : {
+          mfaConfiguration: {
+            status: declared.mfa.status,
+            ...(declared.mfa.enabledTypes === undefined ? {} : { enabledTypes: [...declared.mfa.enabledTypes] })
+          }
+        }),
+    ...(declared?.passwordPolicy === undefined ? {} : { passwordPolicy: { ...declared.passwordPolicy } }),
+    ...(declared?.generateClientSecret === true ? { generateClientSecret: true } : {})
+  };
+};
+
 const composeDependency = (
   dependency: DependencyFact,
   profile: InfrastructureProfile,
@@ -703,7 +761,7 @@ const composeDependency = (
         resource: {
           type: 'bucket',
           properties: {
-            ...(profile.bucket.versioning ? { versioning: true } : {}),
+            ...(profile.bucket.versioning || dependency.bucketVersioning === true ? { versioning: true } : {}),
             // The browser sends the presigned request to S3 itself, which S3 refuses cross-origin without CORS. Only
             // the methods the code presigns are allowed. The origin cannot name the frontend: in stacktape dev the
             // frontend runs locally and the dev stack cannot resolve its URL, and the URL's signature is what
@@ -731,7 +789,8 @@ const composeDependency = (
         resource: {
           type: 'dynamo-db-table',
           properties: {
-            primaryKey: {
+            // A declared key carries its attribute types; a key read from requests is a string unless declared.
+            primaryKey: dependency.tableKey ?? {
               partitionKey: { name: dependency.itemKey?.partitionKey ?? 'pk', type: 'string' },
               ...(dependency.itemKey?.sortKey === undefined
                 ? {}
@@ -740,7 +799,7 @@ const composeDependency = (
             ...(streamType === undefined ? {} : { streamType })
           }
         },
-        reason: `Your code uses DynamoDB${dependency.itemKey === undefined ? '' : ` and addresses items by ${dependency.itemKey.partitionKey}`}.${
+        reason: `${dependency.tableKey === undefined ? 'Your code uses DynamoDB' : 'Your deployment files declare this table and its key'}${dependency.tableKey === undefined && dependency.itemKey !== undefined ? ` and addresses items by ${dependency.itemKey.partitionKey}` : ''}.${
           streamType === undefined ? '' : ' A function reads its stream of changes.'
         }`
       };
@@ -761,9 +820,7 @@ const composeDependency = (
         ? {
             resource: {
               type: 'user-auth-pool',
-              // Without a SignUp call in the code, accounts are created by an administrator: an open pool would let
-              // anyone sign up through the Cognito API and pass the API's token check.
-              properties: dependency.userPoolSelfSignUp === true ? {} : { allowOnlyAdminsToCreateAccount: true }
+              properties: userPoolProperties(dependency)
             },
             reason: `Your code signs users in with Cognito, and the repository creates its own user pool, so this creates the pool and the app client ${client} names.`
           }
@@ -1196,6 +1253,27 @@ export const composeConfig = ({
     }
   }
 
+  // A queue's declared dead-letter target: another queue composed here, or an existing queue's ARN. Written once every
+  // queue has its resource name.
+  for (const dependency of dependencies) {
+    const deadLetter = dependency.queueSettings?.deadLetter;
+    const queueName = dependencyResourceNames.get(dependency.name);
+    if (deadLetter === undefined || queueName === undefined) continue;
+    const targetName =
+      deadLetter.dependencyName === undefined ? undefined : dependencyResourceNames.get(deadLetter.dependencyName);
+    if (targetName === undefined && deadLetter.queueArn === undefined) {
+      gaps.push({
+        subject: `${dependency.name}.redrivePolicy`,
+        message: `Your deployment files send messages that keep failing on ${queueName} to a dead-letter queue init did not create. Before deploying, set its redrivePolicy to a queue that exists, or failed messages are lost when they expire.`
+      });
+      continue;
+    }
+    resources[queueName]!.properties.redrivePolicy = {
+      ...(targetName === undefined ? { targetSqsQueueArn: deadLetter.queueArn } : { targetSqsQueueName: targetName }),
+      maxReceiveCount: deadLetter.maxReceiveCount
+    };
+  }
+
   // A private database still needs an operator path for generated migrations and local database
   // tools. One keyless SSM bastion serves every private RDS resource in this stack.
   const bastionResourceName =
@@ -1616,6 +1694,16 @@ export const composeConfig = ({
       requiresVpc,
       ...(siblingDockerfile === undefined ? {} : { siblingDockerfile })
     });
+    if (
+      service.containerHealthCheck !== undefined &&
+      resources[name]!.type !== 'function' &&
+      resources[name]!.properties.internalHealthCheck === undefined
+    ) {
+      gaps.push({
+        subject: `${service.name}.internalHealthCheck`,
+        message: `Your deployment files check ${service.name}'s health with ${service.containerHealthCheck.command.slice(1).join(' ')}, but ${name} is not packaged from the Dockerfile that command was written for, so it has no health check. Before deploying, add an internalHealthCheck its image can run, or package it from its Dockerfile.`
+      });
+    }
     const servesUrl = service.functionTriggers.some((trigger) => trigger.type === 'url');
     // A browser that calls the URL itself (a `VITE_`/`PUBLIC_` address) needs CORS on it; a server-side caller does not.
     if (servesUrl && browserCalledServices.has(service.name)) {
@@ -1776,6 +1864,8 @@ export const composeConfig = ({
       if (trigger.type !== 'unmapped') continue;
       // The caller already gets the function's ARN and connectTo from the variable it reads.
       if (trigger.sourceType === DIRECT_INVOCATION_SOURCE && invokedByName.has(service.name)) continue;
+      // The import gap already names the setting that left it out.
+      if (trigger.reason === 'import-gap') continue;
       if (trigger.reason !== undefined) {
         gaps.push({
           subject: `${service.name}.trigger`,
@@ -1852,6 +1942,10 @@ export const composeConfig = ({
               ? `This project has ${label} deployment files. What we wrote is a separate stack: it does not read, change, or take over anything those files may manage.`
               : `This project has ${label} deployment config. If an app is already running there, deploying this creates a second copy on AWS and leaves the current one untouched.`
     });
+  }
+
+  for (const importGap of facts.importGaps) {
+    gaps.push({ subject: `${importGap.file}:${importGap.object}`, message: importGapMessage(importGap) });
   }
 
   for (const handler of facts.handlerFindings) {
@@ -2113,6 +2207,9 @@ const buildServiceResource = ({
           properties: {
             sqsQueueName: dependencyName,
             ...(trigger.batchSize === undefined ? {} : { batchSize: trigger.batchSize }),
+            ...(trigger.maxBatchWindowSeconds === undefined
+              ? {}
+              : { maxBatchWindowSeconds: trigger.maxBatchWindowSeconds }),
             ...(trigger.reportBatchItemFailures === true ? { reportBatchItemFailures: true } : {})
           }
         });
@@ -2161,6 +2258,11 @@ const buildServiceResource = ({
         ...compiledRuntime(service),
         ...(service.functionTimeoutSeconds === undefined ? {} : { timeout: service.functionTimeoutSeconds }),
         ...(service.functionMemoryMb === undefined ? {} : { memory: service.functionMemoryMb }),
+        ...(service.functionArchitecture === undefined ? {} : { architecture: service.functionArchitecture }),
+        ...(service.functionReservedConcurrency === undefined
+          ? {}
+          : { reservedConcurrency: service.functionReservedConcurrency }),
+        ...(service.functionLayers === undefined ? {} : { layers: [...service.functionLayers] }),
         ...(events.length === 0 ? {} : { events }),
         ...(service.functionTriggers.some((trigger) => trigger.type === 'url') ? { url: { enabled: true } } : {}),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),
@@ -2230,15 +2332,34 @@ const buildServiceResource = ({
     };
   }
 
-  // No health check is emitted on purpose. Stacktape's `internalHealthCheck` takes a container
-  // command, not an HTTP path, and a guessed command — `curl` against a buildpack image that may not
-  // ship curl — produces a container that never reports healthy and a deploy that hangs until it
-  // times out. The platform defaults are correct far more often than a guess, and the observed
-  // `healthCheckPath` is better spent on load-balancer configuration once that is modelled.
+  // No health check is guessed. Stacktape's `internalHealthCheck` takes a container command, not an HTTP path, and a
+  // guessed command — `curl` against a buildpack image that may not ship curl — produces a container that never reports
+  // healthy and a deploy that hangs until it times out. A command the deployment manifest declares is carried into the
+  // image it was written for, the one its Dockerfile builds; other packaging may not ship what it runs.
+  const packaging = packagingFor(service, packageManager, siblingDockerfile);
+  const healthCheck =
+    service.containerHealthCheck === undefined || packaging.type !== 'dockerfile'
+      ? undefined
+      : {
+          healthCheckCommand: [...service.containerHealthCheck.command],
+          ...(service.containerHealthCheck.intervalSeconds === undefined
+            ? {}
+            : { intervalSeconds: Math.min(300, Math.max(5, service.containerHealthCheck.intervalSeconds)) }),
+          ...(service.containerHealthCheck.timeoutSeconds === undefined
+            ? {}
+            : { timeoutSeconds: Math.min(60, Math.max(2, service.containerHealthCheck.timeoutSeconds)) }),
+          ...(service.containerHealthCheck.retries === undefined
+            ? {}
+            : { retries: Math.min(10, service.containerHealthCheck.retries) }),
+          ...(service.containerHealthCheck.startPeriodSeconds === undefined
+            ? {}
+            : { startPeriodSeconds: Math.min(300, service.containerHealthCheck.startPeriodSeconds) })
+        };
   return {
     type: resourceType,
     properties: {
-      packaging: packagingFor(service, packageManager, siblingDockerfile),
+      packaging,
+      ...(healthCheck === undefined ? {} : { internalHealthCheck: healthCheck }),
       // Stacktape routes a service's traffic to the port in $PORT, 3000 unless set. An app listening on a fixed port
       // would deploy green and never receive a request, so the port it listens on is written whenever it differs.
       ...((resourceType === 'web-service' || resourceType === 'private-service') &&
