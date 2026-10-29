@@ -1343,5 +1343,35 @@ describe('Redis family', () => {
     expect(message).toContain('"version": "6.2"');
     expect(message).toContain('"numReplicaNodes": 1');
     expect(message).not.toContain('literal-password-1234');
+    // A literal password that merely starts with `$` is not a directive and is not repeated either.
+    const dollarPassword = await validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          cache: {
+            type: 'redis-cluster',
+            properties: { instanceSize: 'cache.t4g.micro', defaultUserPassword: '$literal-1234' }
+          }
+        }
+      } as never
+    }).catch((error: Error) => error.message);
+    expect(dollarPassword).not.toContain('$literal-1234');
+  });
+
+  test('a serverless cache keeps the deployed subnet order when the subnets are the same', async () => {
+    const deployed = await synthesizeCache('redis-serverless-subnets', { type: 'valkey-serverless' });
+    const deployedCache = onlyResourceOfType(deployed, 'AWS::ElastiCache::ServerlessCache');
+    const reversed = [...(deployedCache.resource.Properties?.SubnetIds as unknown[])].reverse();
+    deployedCache.resource.Properties!.SubnetIds = reversed;
+    const template = await synthesizeCache(
+      'redis-serverless-subnets-kept',
+      { type: 'valkey-serverless' },
+      {
+        deployedTemplate: deployed
+      }
+    );
+    expect(onlyResourceOfType(template, 'AWS::ElastiCache::ServerlessCache').resource.Properties?.SubnetIds).toEqual(
+      reversed
+    );
   });
 });

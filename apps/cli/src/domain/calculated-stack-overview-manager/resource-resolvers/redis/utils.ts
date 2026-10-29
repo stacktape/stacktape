@@ -80,7 +80,8 @@ export const validateRedisEngineChange = ({
   const engineType = resource.engine.type;
   if (!deployed) {
     // Only a deployment knows whether the cache exists; offline commands such as `synth` see no deployed template.
-    if (engineType === 'redis' && calculatedStackOverviewManager.context.command === 'deploy') {
+    const { command } = calculatedStackOverviewManager.context;
+    if (engineType === 'redis' && (command === 'deploy' || command === 'dev')) {
       throw configError(
         resource,
         'New caches cannot use the Redis OSS engine. AWS publishes no Redis OSS versions after 7.1.',
@@ -111,8 +112,7 @@ export const validateRedisEngineChange = ({
     );
   }
   if (deployed.kind === 'serverless') {
-    const subnetIds = getServerlessSubnetIds();
-    if (deployed.subnetIds !== undefined && JSON.stringify(deployed.subnetIds) !== JSON.stringify(subnetIds)) {
+    if (deployed.subnetIds !== undefined && !isSameSubnetSet(deployed.subnetIds, vpcManager.getPublicSubnetIds())) {
       throw configError(
         resource,
         'The subnets of this serverless cache would change. AWS applies a subnet change by replacing the cache, giving it a new endpoint and deleting its data.',
@@ -252,7 +252,24 @@ export const getRedisReplicationGroupResource = ({
   return replicationGroup;
 };
 
-const getServerlessSubnetIds = () => vpcManager.getPublicSubnetIds();
+const subnetKeys = (subnetIds: unknown) =>
+  (Array.isArray(subnetIds) ? subnetIds : [subnetIds]).map((subnetId) => JSON.stringify(subnetId)).sort();
+
+const isSameSubnetSet = (a: unknown, b: unknown) => JSON.stringify(subnetKeys(a)) === JSON.stringify(subnetKeys(b));
+
+/**
+ * A reused VPC can list the same subnets in another order, and CloudFormation replaces a serverless cache when the list
+ * changes at all, so the deployed order is kept while the subnets are the same.
+ */
+const getServerlessSubnetIds = (resource: StpRedis) => {
+  const subnetIds = vpcManager.getPublicSubnetIds();
+  const deployed = getDeployedRedis(resource);
+  return deployed?.kind === 'serverless' &&
+    deployed.subnetIds !== undefined &&
+    isSameSubnetSet(deployed.subnetIds, subnetIds)
+    ? (deployed.subnetIds as typeof subnetIds)
+    : subnetIds;
+};
 
 /**
  * Serverless caches have no `AuthToken`. Clients keep authenticating as `default` with `defaultUserPassword` through a
@@ -311,7 +328,7 @@ export const getRedisServerlessCacheResource = ({
     MajorEngineVersion: majorEngineVersion,
     ConnectionType: 'vpc',
     SecurityGroupIds: [ref(cfLogicalNames.redisSecurityGroup(resource.name))],
-    SubnetIds: getServerlessSubnetIds(),
+    SubnetIds: getServerlessSubnetIds(resource),
     UserGroupId: ref(cfLogicalNames.redisUserGroup(resource.name)),
     SnapshotRetentionLimit: automatedBackupRetentionDays,
     CacheUsageLimits:

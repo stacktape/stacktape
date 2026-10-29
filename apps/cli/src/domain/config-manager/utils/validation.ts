@@ -307,7 +307,7 @@ const validateNoLegacyRedisClusters = ({ config }: { config: StacktapeConfig }) 
     properties: {
       // A literal password is not repeated in the error output.
       defaultUserPassword:
-        typeof defaultUserPassword === 'string' && defaultUserPassword.startsWith('$')
+        typeof defaultUserPassword === 'string' && /^\$[A-Z][A-Za-z]*\(.*\)$/.test(defaultUserPassword)
           ? defaultUserPassword
           : '<your current defaultUserPassword>',
       engine: { type: 'redis', properties: engineProperties },
