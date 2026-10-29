@@ -41,7 +41,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, which may not match your source, and status lists them with when that code was deployed. A new dev stack builds them once, so there an unselected function that does not build fails the start. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 

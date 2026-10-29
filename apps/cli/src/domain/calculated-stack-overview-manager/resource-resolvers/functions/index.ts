@@ -97,6 +97,7 @@ import {
   getFunctionCodeDigest,
   sharedLayerIdentity
 } from '@domain-services/deployment-artifact-manager/shared-layers';
+import { KEPT_CODE_PROPERTIES } from '@domain-services/deployment-artifact-manager/kept-function-code';
 
 /**
  * The shared layers tag of a function that uses shared chunk layers: which content each layer had when the function was
@@ -104,6 +105,9 @@ import {
  * direct update, as it does with the code digest tag.
  */
 const getFunctionIdentityTags = (lambdaName: string, digest: string, includeArtifactTag: boolean) => {
+  // A function a dev stack update leaves on its deployed code keeps the tags that say what that code is.
+  const kept = deploymentArtifactManager.getKeptFunctionCode(lambdaName);
+  if (kept) return kept.identityTags;
   const layers = packagingManager.getLayerNumbersForLambda(lambdaName).flatMap((layerNumber) => {
     const layer = packagingManager.getLayerArtifact(layerNumber);
     return layer ? [{ layerNumber, identity: sharedLayerIdentity(layer.s3Key) }] : [];
@@ -652,6 +656,15 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       S3Key: s3Key,
       S3Bucket: deploymentArtifactManager.deploymentBucketName
     };
+    // The deployed code runs with the handler, runtime, architecture and layers it was deployed with.
+    const kept = deploymentArtifactManager.getKeptFunctionCode(name);
+    if (kept) {
+      const properties = functionProperties as unknown as Record<string, unknown>;
+      for (const property of KEPT_CODE_PROPERTIES) {
+        if (property in kept.properties) properties[property] = kept.properties[property];
+        else delete properties[property];
+      }
+    }
 
     functionProperties.Tags = stackManager.getTags([
       ...(tags || []),

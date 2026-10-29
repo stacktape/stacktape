@@ -106,7 +106,7 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
   resources: stringList
     .optional()
     .describe(
-      'start: selectable functions, local containers, frontends and emulated databases, or "all". Batch jobs run in AWS and cannot be selected; restart dev mode after Batch code changes. Unselected functions keep no configured triggers. Selection limits session rebuild/watch, but a dev-stack create/update still packages all functions and can fail on an unselected function'
+      'start: selectable functions, local containers, frontends and emulated databases, or "all". Batch jobs run in AWS and cannot be selected; restart dev mode after Batch code changes. Unselected functions keep no configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep their deployed code, which status.functionsNotInSession dates. A new dev stack builds them once and fails on one that does not build'
     ),
   skipResources: stringList
     .optional()

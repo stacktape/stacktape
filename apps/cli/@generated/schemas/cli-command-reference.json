@@ -2424,7 +2424,7 @@
       },
       {
         "name": "resources",
-        "description": "#### Resources\n---\nSpecify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`.",
+        "description": "#### Resources\n---\nSpecify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. A new dev stack builds them once, so there an unselected function that does not build fails the start. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`.",
         "required": false,
         "allowedTypes": [
           "array"
@@ -2433,7 +2433,7 @@
       },
       {
         "name": "skipResources",
-        "description": "#### Skip Resources\n---\nExclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`.",
+        "description": "#### Skip Resources\n---\nExclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. A new dev stack builds them once, so there an unselected function that does not build fails the start. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`.",
         "required": false,
         "allowedTypes": [
           "array"

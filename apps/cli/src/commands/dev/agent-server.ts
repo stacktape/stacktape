@@ -79,6 +79,7 @@ import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 import { runSeedScript } from './seed-script';
+import type { FunctionNotInSession } from './functions-not-in-session';
 
 /** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
 export type AgentWorkloadEnvironment = {
@@ -165,6 +166,12 @@ export type AgentSessionIdentity = {
 let agentNotices: string[] = [];
 export const setAgentNotices = (notices: string[]) => {
   agentNotices = [...notices];
+};
+
+/** Deployed functions the session leaves out, with the code they run; see `FunctionNotInSession`. */
+let functionsNotInSession: FunctionNotInSession[] = [];
+export const setFunctionsNotInSession = (functions: FunctionNotInSession[]) => {
+  functionsNotInSession = [...functions];
 };
 
 let httpServer: Server | null = null;
@@ -426,6 +433,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ...(getConfiguredBatchJobs().length ? { batchJobs: await getDeployedBatchJobs() } : {}),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
+      ...(functionsNotInSession.length ? { functionsNotInSession } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath(),
       ...agentSession,
@@ -448,6 +456,9 @@ addRoute('GET', '/status', async ({ query }) => {
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
+    ...(functionsNotInSession.length
+      ? { functionsNotInSession: Object.fromEntries(functionsNotInSession.map(({ name, message }) => [name, message])) }
+      : {}),
     ...getDevBoxStatus(),
     ...agentSession,
     pid: process.pid
