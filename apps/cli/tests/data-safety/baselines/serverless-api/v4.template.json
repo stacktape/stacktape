@@ -1564,11 +1564,13 @@
                     "batch:DescribeJobDefinitions",
                     "batch:DescribeJobQueues",
                     "batch:DescribeComputeEnvironments",
-                    "batch:ListJobs",
-                    "batch:SubmitJob",
-                    "batch:TerminateJob",
-                    "batch:ListTagsForResource"
+                    "batch:ListJobs"
                   ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["batch:SubmitJob", "batch:TerminateJob", "batch:ListTagsForResource"],
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
