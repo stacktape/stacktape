@@ -30,7 +30,6 @@ import { tuiManager } from '@application-services/tui-manager';
 import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
 import { isAgentMode } from 'src/commands/_utils/agent-mode';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
-import { MONITORING_FREQUENCY_SECONDS } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
@@ -68,7 +67,7 @@ import {
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { getAwsSynchronizedTime } from '@utils/time';
+import { getAwsSynchronizedTime, startAwsClockSync } from '@utils/time';
 import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
@@ -83,6 +82,9 @@ import {
 } from './utils';
 import type { CloudformationTag } from '@stacktape/config/shared';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+
+const EVENT_POLLING_INTERVAL_MS = 1000;
+const SLOWER_EVENT_POLLING_AFTER_MS = 5 * 60_000;
 
 /** Convert CloudFormation stack status to human-readable form */
 const getHumanReadableStackStatus = (status?: string): string => {
@@ -310,6 +312,8 @@ class StackManager {
     });
     this.#stackName = stackName;
     this.#stackMutationTarget = undefined;
+    // Monitoring a stack operation starts from AWS's time. Measured now, it is known by the time an operation starts.
+    if (commandModifiesStack) startAwsClockSync();
     this.#latestRecordedRelease = null;
     this.#nextVersionAfterRefetch = null;
     this.#resourcesRemovedByUpdate = undefined;
@@ -758,7 +762,6 @@ class StackManager {
    * the stack.
    */
   createStack = async (templateUrl: string) => {
-    await this.validateTemplate({ templateUrl });
     const stackParams = this.getStackParams();
     await operationReporter.startEvent({
       eventType: 'UPDATE_STACK',
@@ -789,7 +792,6 @@ class StackManager {
   };
 
   deployStack = async (templateUrl: string, { finishWhenCleanupStarts = false } = {}) => {
-    await this.validateTemplate({ templateUrl });
     const stackParams = this.getStackParams();
     await operationReporter.startEvent({
       eventType: 'UPDATE_STACK',
@@ -818,11 +820,14 @@ class StackManager {
         );
       }
       // UpdateStack has already set the stack policy from `StackPolicyBody`. SetStackPolicy would fail while
-      // CloudFormation still deletes old resources. Termination protection can be changed in any state.
-      await awsSdkManager.cloudFormation.setTerminationProtection(
-        !!stackParams.EnableTerminationProtection,
-        stackParams.StackName
-      );
+      // CloudFormation still deletes old resources. Termination protection can be changed in any state; UpdateStack
+      // does not take it.
+      if (!!stackParams.EnableTerminationProtection !== !!this.existingStackDetails?.EnableTerminationProtection) {
+        await awsSdkManager.cloudFormation.setTerminationProtection(
+          !!stackParams.EnableTerminationProtection,
+          stackParams.StackName
+        );
+      }
       await operationReporter.finishEvent({
         eventType: 'UPDATE_STACK',
         finalMessage: 'Deployment successful.'
@@ -837,7 +842,6 @@ class StackManager {
   };
 
   deployStackForRollback = async (templateUrl: string) => {
-    await this.validateTemplate({ templateUrl });
     const stackName = this.#stackName;
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
@@ -1168,8 +1172,11 @@ class StackManager {
     let cleanupAfterSuccessfulUpdateInProgress = false;
 
     let fetchNumber = 0;
-    // Events are polled every second during updates, where a code change finishes in seconds.
-    const eventPollingIntervalMs = (cfStackAction === 'update' ? 1 : MONITORING_FREQUENCY_SECONDS) * 1000;
+    // Events are polled every second, so the CLI notices the end of an operation about a second after CloudFormation
+    // reports it. Once an operation has run for minutes, every other poll is skipped: it is waiting for slow resources,
+    // and fewer requests keep many parallel deployments in one account clear of CloudFormation's API rate limits.
+    const monitoringStartedAt = performance.now();
+    let tickNumber = 0;
     // The stack status is a fallback for missed completion events. DescribeStacks can take several seconds, so it runs
     // beside event polling instead of holding up the next batch of events. It is requested only after this operation's
     // start event was seen: an earlier request could still return the previous operation's final status.
@@ -1509,6 +1516,10 @@ class StackManager {
         if (eventBatchEvaluationInProgress) {
           return;
         }
+        tickNumber++;
+        if (performance.now() - monitoringStartedAt > SLOWER_EVENT_POLLING_AFTER_MS && tickNumber % 2 === 1) {
+          return;
+        }
         // as we are about to fetch and evaluate event batch
         eventBatchEvaluationInProgress = true;
         try {
@@ -1700,7 +1711,7 @@ class StackManager {
           );
         }
         eventBatchEvaluationInProgress = false;
-      }, eventPollingIntervalMs);
+      }, EVENT_POLLING_INTERVAL_MS);
     });
     cleanupMonitoring();
     return result;
