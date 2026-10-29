@@ -191,7 +191,8 @@ const PART_REASONS: Record<DevStackFingerprintPart, string> = {
   localDatabases: 'the local databases have another password',
   devTrust: 'local containers now use the roles with other AWS credentials',
   remoteResources: 'other resources run in AWS instead of locally',
-  skippedFunctions: 'other functions are left out of the session, and the dev stack keeps them without triggers'
+  skippedFunctions:
+    'the session runs other functions than before, and the dev stack keeps those it leaves out on their deployed code, without triggers'
 };
 
 /**

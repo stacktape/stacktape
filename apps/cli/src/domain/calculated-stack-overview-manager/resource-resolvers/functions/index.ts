@@ -104,6 +104,9 @@ import {
  * direct update, as it does with the code digest tag.
  */
 const getFunctionIdentityTags = (lambdaName: string, digest: string, includeArtifactTag: boolean) => {
+  // A function a dev stack update leaves on its deployed code keeps the tags that say what that code is.
+  const kept = deploymentArtifactManager.getKeptFunctionCode(lambdaName);
+  if (kept) return kept.identityTags;
   const layers = packagingManager.getLayerNumbersForLambda(lambdaName).flatMap((layerNumber) => {
     const layer = packagingManager.getLayerArtifact(layerNumber);
     return layer ? [{ layerNumber, identity: sharedLayerIdentity(layer.s3Key) }] : [];

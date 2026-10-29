@@ -113,6 +113,6 @@ test('the fingerprint follows the remote resources and the skipped functions, in
   });
   const cause = getDevStackUpdateCause({ deployedFingerprint: original, desiredFingerprint: skipped })!;
   expect(describeDevStackUpdateCause(cause)).toBe(
-    'other functions are left out of the session, and the dev stack keeps them without triggers'
+    'the session runs other functions than before, and the dev stack keeps those it leaves out on their deployed code, without triggers'
   );
 });

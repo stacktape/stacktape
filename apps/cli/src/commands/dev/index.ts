@@ -60,6 +60,7 @@ import {
   getAgentSessionId,
   registerAgentCleanupHook,
   setAgentNotices,
+  setFunctionsNotInSession,
   setRebuildFunctions,
   startAgentServer,
   type FailedWorkload
@@ -67,6 +68,7 @@ import {
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack, packageDevStackImages } from './dev-stack-deployer';
+import { formatFunctionsNotInSessionNotice, loadFunctionsNotInSession } from './functions-not-in-session';
 import {
   describeDevStackUpdateCause,
   getDevStackConfigFingerprint,
@@ -1158,6 +1160,23 @@ export const commandDev = async () => {
   }
   if (devNetworkSession) await waitForDevNetwork(devNetworkSession);
 
+  // Functions the session leaves out keep running their deployed code; status says which code and since when.
+  const functionsNotInSession = await loadFunctionsNotInSession(skippedFunctionNames);
+  setFunctionsNotInSession(functionsNotInSession);
+  const functionsNotInSessionNotice = formatFunctionsNotInSessionNotice(functionsNotInSession);
+  const sessionNotices = [...devStackNotices, ...(functionsNotInSessionNotice ? [functionsNotInSessionNotice] : [])];
+  if (functionsNotInSessionNotice) {
+    setAgentNotices(sessionNotices);
+    if (agentEnabled) {
+      reportDevStartup({
+        step: 'DEV_SESSION',
+        key: 'functions-not-in-session',
+        status: 'completed',
+        message: functionsNotInSessionNotice
+      });
+    } else tuiManager.info(functionsNotInSessionNotice);
+  }
+
   // Now start the Dev TUI
   const projectName = stackContext.projectName;
   const stageName = stackContext.stage;
@@ -1244,7 +1263,7 @@ export const commandDev = async () => {
                   error: w.error || 'unknown error',
                   ...(w.hints?.length ? { hints: w.hints } : {})
                 })),
-              notices: devStackNotices
+              notices: sessionNotices
             })}\n`,
             // The process that started the daemon reads its output only until now; from here the files are capped.
             () => capDaemonOutputFiles()

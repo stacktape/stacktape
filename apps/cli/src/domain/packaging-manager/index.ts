@@ -543,7 +543,9 @@ export class PackagingManager {
       runtime?: LambdaRuntime | undefined;
     }
   >(nodeLambdas: Candidate[]): { split: Candidate[]; perFunction: Candidate[] } {
-    if (globalStateManager.args.disableLayerOptimization) {
+    // A dev stack builds every function on its own. Its session deploys each function it runs from such a build, so
+    // shared layers would only tie the code of a function the session leaves out to the build of the others.
+    if (globalStateManager.args.disableLayerOptimization || configManager.deploymentContext.command === 'dev') {
       return { split: [], perFunction: nodeLambdas };
     }
     return selectSplitBundlingGroup(nodeLambdas);
@@ -1189,11 +1191,14 @@ export class PackagingManager {
 
   packageAllWorkloads = async ({
     commandCanUseCache,
-    onlyWorkloads
+    onlyWorkloads,
+    excludeWorkloads = []
   }: {
     commandCanUseCache: boolean;
     /** If provided, only package workloads whose names are in this list */
     onlyWorkloads?: string[];
+    /** Workloads not to package: a dev stack keeps the deployed code of functions its session leaves out. */
+    excludeWorkloads?: string[];
   }): Promise<PackageWorkloadOutput[]> => {
     await operationReporter.startEvent({
       eventType: 'PACKAGE_ARTIFACTS',
@@ -1205,6 +1210,7 @@ export class PackagingManager {
 
     // Helper to check if a workload should be packaged based on onlyWorkloads filter
     const shouldPackageWorkload = (workloadName: string): boolean => {
+      if (excludeWorkloads.includes(workloadName)) return false;
       if (!onlyWorkloads || onlyWorkloads.length === 0) return true;
       return onlyWorkloads.includes(workloadName);
     };

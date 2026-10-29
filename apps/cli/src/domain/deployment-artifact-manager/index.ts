@@ -69,6 +69,7 @@ import {
   sharedLayerIdentity,
   sharedLayerNumberOf
 } from './shared-layers';
+import type { KeptFunctionCode } from './kept-function-code';
 import { templateManager } from '@domain-services/template-manager';
 import {
   DEPLOYMENT_BUCKET_CORS_RULES,
@@ -406,8 +407,22 @@ class DeploymentArtifactManager {
     return { tag, jobName, alreadyDeployed: skipped && !copyFromTag, imageTagWithUrl, copyFromTag };
   };
 
+  /** Functions a dev stack update leaves on their deployed code instead of building them (`decideSkippedFunctionCode`). */
+  #keptFunctionCode = new Map<string, KeptFunctionCode>();
+
+  setKeptFunctionCode = (kept: ReadonlyMap<string, KeptFunctionCode>) => {
+    this.#keptFunctionCode = new Map(kept);
+  };
+
+  getKeptFunctionCode = (name: string): KeptFunctionCode | undefined => this.#keptFunctionCode.get(name);
+
   #getUserLambdaS3UploadInfo = ({ name }: { name: string }) => {
     const packagingOutput = this.packagingSource.getPackagingOutputForJob(name);
+    const kept = packagingOutput ? undefined : this.#keptFunctionCode.get(name);
+    // The template names the object it already names, so retention keeps it and CloudFormation leaves the code alone.
+    if (kept) {
+      return { artifactName: name, artifactPath: null, digest: kept.digest, s3Key: kept.s3Key, alreadyUploaded: true };
+    }
     if (!packagingOutput) {
       return { artifactName: name, artifactPath: null, digest: null, s3Key: null, alreadyUploaded: null };
     }
