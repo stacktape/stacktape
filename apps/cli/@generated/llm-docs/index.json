@@ -18134,6 +18134,7 @@
         "page:/getting-started/upgrading-from-v3#security-findings-in-agent-output",
         "page:/getting-started/upgrading-from-v3#target-aws-account",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
+        "page:/getting-started/upgrading-from-v3#user-auth-pool-token-lifetimes",
         "page:/getting-started/upgrading-from-v3#packaging",
         "page:/getting-started/upgrading-from-v3#javascript-and-typescript-lambda-functions",
         "page:/getting-started/upgrading-from-v3#python-java-go-ruby-and-net-lambda-functions",

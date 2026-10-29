@@ -58880,7 +58880,8 @@
         "name": "accessTokenValiditySeconds",
         "required": false,
         "shortDescription": "<p> Access token lifetime</p>",
-        "longDescription": "<p>Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window\nin which a stolen token can be abused, at the cost of more frequent refreshes.</p>\n<p>This value is passed to the user pool client as <code>AccessTokenValidity</code>.</p>",
+        "longDescription": "<p>Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window\nin which a stolen token can be abused, at the cost of more frequent refreshes.</p>\n<p>Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a\nvalue from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.</p>",
+        "defaultValue": "3600",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -59247,7 +59248,8 @@
         "name": "idTokenValiditySeconds",
         "required": false,
         "shortDescription": "<p> ID token lifetime</p>",
-        "longDescription": "<p>Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.</p>\n<p>This is set on the user pool client as <code>IdTokenValidity</code>.</p>",
+        "longDescription": "<p>Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.</p>\n<p>Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a\nvalue from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.</p>",
+        "defaultValue": "3600",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -59392,7 +59394,8 @@
         "name": "refreshTokenValidityDays",
         "required": false,
         "shortDescription": "<p> Refresh token lifetime</p>",
-        "longDescription": "<p>Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.\nLonger lifetimes mean fewer re-authentications, but keep sessions alive for longer.</p>\n<p>This value is used as <code>RefreshTokenValidity</code> on the Cognito user pool client.</p>",
+        "longDescription": "<p>Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.\nLonger lifetimes mean fewer re-authentications, but keep sessions alive for longer.</p>\n<p>Set it in days, from 1 to 3650 (10 years).</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [

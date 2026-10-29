@@ -79,13 +79,15 @@ type UserAuthPoolProps = {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 Access token lifetime
 
 Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
 in which a stolen token can be abused, at the cost of more frequent refreshes.
 
-This value is passed to the user pool client as `AccessTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -788,12 +790,14 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 ID token lifetime
 
 Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
 
-This is set on the user pool client as `IdTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -1085,13 +1089,14 @@ this client.
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
 Refresh token lifetime
 
 Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
 Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
 
-This value is used as `RefreshTokenValidity` on the Cognito user pool client.
+Set it in days, from 1 to 3650 (10 years).
 
 ### Example 1 (yaml)
 

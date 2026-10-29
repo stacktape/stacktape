@@ -16114,6 +16114,10 @@ The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `
 
 A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
 
+## User auth pool token lifetimes
+
+v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito without a unit, so Cognito read them in hours and accepted only 1 to 24. v4 sends them in seconds. A value from 1 to 24 keeps its meaning in hours, and the CLI warns you to write it in seconds: replace `accessTokenValiditySeconds: 1` with `accessTokenValiditySeconds: 3600`. Unset lifetimes stay at 1 hour, and deploying updates the user pool client in place. See [token lifetimes](/resources/security/user-auth-pool#token-lifetimes).
+
 ## Packaging
 
 v4 replaces the v3 packaging types with a smaller set:
@@ -42880,13 +42884,13 @@ new UserAuthPool({
 
 ## Token lifetimes
 
-Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
+Stacktape lets you control how long tokens issued by the user pool remain valid:
 
-| Property | Controls |
-|---|---|
-| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid, in seconds |
-| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid, in seconds |
-| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens, in days |
+| Property | Controls | Allowed values | Default |
+|---|---|---|---|
+| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens | 1 to 3650 days | 30 |
 
 
 Example (TypeScript):
@@ -42908,7 +42912,9 @@ export default defineConfig(() => {
 ```
 
 
-Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. The `UserAuthPoolProps` type does not document Stacktape-specific defaults for token lifetimes; set these values explicitly when they matter for your application.
+Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. The defaults, 1 hour for access and ID tokens and 30 days for refresh tokens, are a common starting point.
+
+Before Stacktape v4, Cognito read `accessTokenValiditySeconds` and `idTokenValiditySeconds` in hours, so only values from 1 to 24 deployed. Such a value still means that many hours, and the CLI warns you to write it in seconds instead: `accessTokenValiditySeconds: 1` becomes `accessTokenValiditySeconds: 3600`.
 
 ## Custom attributes
 
@@ -43008,7 +43014,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `accessTokenValiditySeconds` | no | `number` | - |
+| `accessTokenValiditySeconds` | no | `number` | `3600` |
 | `allowEmailAsUserName` | no | `boolean` | `true` |
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
@@ -43024,14 +43030,14 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `hooks` | no | `UserPoolHooks` | - |
 | `hostedUiCSS` | no | `string` | - |
 | `hostedUiDomainPrefix` | no | `string` | - |
-| `idTokenValiditySeconds` | no | `number` | - |
+| `idTokenValiditySeconds` | no | `number` | `3600` |
 | `identityProviders` | no | `Array<IdentityProvider>` | - |
 | `inviteMessageConfig` | no | `InviteMessageConfig` | - |
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |
 | `passwordPolicy` | no | `PasswordPolicy` | - |
 | `readAttributes` | no | `Array<string>` | - |
-| `refreshTokenValidityDays` | no | `number` | - |
+| `refreshTokenValidityDays` | no | `number` | `30` |
 | `requireEmailVerification` | no | `boolean` | - |
 | `requirePhoneNumberVerification` | no | `boolean` | - |
 | `schema` | no | `Array<AttributeSchema>` | - |
@@ -122256,13 +122262,15 @@ type UserAuthPoolProps = {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 Access token lifetime
 
 Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
 in which a stolen token can be abused, at the cost of more frequent refreshes.
 
-This value is passed to the user pool client as `AccessTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -122965,12 +122973,14 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 ID token lifetime
 
 Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
 
-This is set on the user pool client as `IdTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -123262,13 +123272,14 @@ this client.
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
 Refresh token lifetime
 
 Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
 Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
 
-This value is used as `RefreshTokenValidity` on the Cognito user pool client.
+Set it in days, from 1 to 3650 (10 years).
 
 ### Example 1 (yaml)
 

@@ -984,9 +984,14 @@
         "UserPoolId": {
           "Ref": "UsersUserPool"
         },
-        "AccessTokenValidity": 1,
-        "IdTokenValidity": 1,
+        "AccessTokenValidity": 3600,
+        "IdTokenValidity": 3600,
         "RefreshTokenValidity": 30,
+        "TokenValidityUnits": {
+          "AccessToken": "seconds",
+          "IdToken": "seconds",
+          "RefreshToken": "days"
+        },
         "AllowedOAuthFlowsUserPoolClient": true,
         "AllowedOAuthFlows": ["code", "implicit"],
         "ExplicitAuthFlows": [
