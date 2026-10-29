@@ -988,6 +988,29 @@ describe('early database and cache deletes', () => {
     );
   });
 
+  test('chooses the delete mode from the resources the stack has when the delete is requested', async () => {
+    const requestedDelete = async (currentResources: EnrichedStackResourceInfo[]) => {
+      let request: string | undefined;
+      await withDeleteFixture(
+        [redis],
+        async ({ calls }) => {
+          await stackManager.deleteStack();
+          request = calls.find((call) => call.startsWith('cloudformation:delete'));
+        },
+        { currentResources }
+      );
+      return request;
+    };
+    expect(await requestedDelete([redis])).toContain('(express mode)');
+    // A deploy after the stack was loaded added a serverless cache's user group, which needs the standard mode.
+    const withUserGroup = await requestedDelete([
+      redis,
+      resource('AWS::ElastiCache::UserGroup', 'stack-users', 'CacheUserGroup')
+    ]);
+    expect(withUserGroup).toBeDefined();
+    expect(withUserGroup).not.toContain('(express mode)');
+  });
+
   test('Ctrl+C while the DeleteStack request was in flight starts no deletes', async () => {
     await withDeleteFixture(
       [db],

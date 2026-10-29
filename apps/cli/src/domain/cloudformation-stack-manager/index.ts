@@ -1133,7 +1133,16 @@ class StackManager {
     const startedAfter = await this.#eventsFenceBeforeDelete(stackId);
     // Set before the request: once it may have reached CloudFormation, enabling a distribution would race its delete.
     deleteRequested = true;
-    const deleteMode = chooseDeleteDeploymentMode(this.existingStackResources.map(({ ResourceType }) => ResourceType));
+    // From the resources the stack has now: a deploy since loading the stack may have added a type that needs the
+    // standard mode. When they cannot be read, the standard mode is the safe choice.
+    const currentResourceTypes = await awsSdkManager.cloudFormation
+      .getResources(stackId)
+      .then((resources) => resources.map(({ ResourceType }) => ResourceType))
+      .catch((err) => {
+        tuiManager.debug(`Could not read the stack's resources before deleting it: ${err}`);
+        return undefined;
+      });
+    const deleteMode = currentResourceTypes ? chooseDeleteDeploymentMode(currentResourceTypes) : 'STANDARD';
     if (deleteMode === 'STANDARD') {
       tuiManager.debug(
         'Using the standard CloudFormation delete: an ElastiCache user group must be gone before its users.'
