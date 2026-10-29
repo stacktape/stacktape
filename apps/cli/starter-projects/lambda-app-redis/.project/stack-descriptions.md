@@ -13,26 +13,27 @@ resources:
         enabled: true
 ```
 
-### 1.2 Redis cluster
+### 1.2 Redis cache
 
-The application uses an AWS ElastiCache Redis cluster for key-value storage.
+The application uses an AWS ElastiCache Valkey Serverless cache (Redis-compatible) for key-value storage. It scales
+automatically and is billed per GB stored and per request.
 
 The password is auto-generated using a `$Secret` directive. You can also configure
-[other properties](https://docs.stacktape.com/resources/redis-clusters/) if desired.
+[other properties](https://docs.stacktape.com/resources/databases/redis/) if desired.
 
 ```yml
 redis:
-  type: redis-cluster
+  type: redis
   properties:
     defaultUserPassword: $Secret('redis.password')
-    instanceSize: cache.t3.micro
-    engineVersion: '7.1'
+    engine:
+      type: valkey-serverless
 ```
 
 ### 1.3 Function
 
 The application itself is fairly simple. It consists of a single lambda function `storeKeyValuePair` that stores a value
-inside our Redis cluster.
+inside our Redis cache.
 
 The function is configured as follows:
 
@@ -41,11 +42,11 @@ The function is configured as follows:
   automatically transpiles and builds the application code with all of its dependencies, creates the lambda zip
   artifact, and uploads it to a pre-created S3 bucket on AWS. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-lambda-functions).
-- **VPC** - the function is connected to the default VPC (`joinDefaultVpc: true`) so it can reach the Redis cluster
+- **VPC** - the function is connected to the default VPC (`joinDefaultVpc: true`) so it can reach the Redis cache
   inside the VPC.
-- **ConnectTo list** - we are adding redis cluster `redis` into `connectTo` list. By doing this, Stacktape will
+- **ConnectTo list** - we are adding the Redis cache `redis` into `connectTo` list. By doing this, Stacktape will
   automatically inject relevant environment variables into the function's runtime (such as redis connection string
-  required for connecting to the cluster).
+  required for connecting to the cache).
 - **Events** - Events determine how is function triggered. In this case, we are triggering the function when an event
   (HTTP request) is delivered to the HTTP API gateway to URL path `/save/{key}/{value}`, where `{key}` and `${value}`
   are path parameters(key and value can be arbitrary values). The event(request) including the path parameters is passed

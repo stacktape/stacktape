@@ -442,9 +442,12 @@ test('VPC functions share a security group only with functions that reach the sa
       accessibility:
         accessibilityMode: scoping-workloads-in-vpc
   cache:
-    type: redis-cluster
+    type: redis
     properties:
-      instanceSize: cache.t4g.micro
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.micro
       defaultUserPassword: synthetic-redis-password
       accessibility:
         accessibilityMode: scoping-workloads-in-vpc
@@ -620,9 +623,12 @@ test('a function that changes its connections keeps the old ones working and giv
       accessibility:
         accessibilityMode: scoping-workloads-in-vpc
   cache:
-    type: redis-cluster
+    type: redis
     properties:
-      instanceSize: cache.t4g.micro
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.micro
       defaultUserPassword: synthetic-redis-password
       accessibility:
         accessibilityMode: scoping-workloads-in-vpc

@@ -81,7 +81,7 @@ const BLOCK_COLORS: Record<string, string> = {
   'event-bus': '#FF4F8B',
   'relational-database': '#527FFF',
   'dynamo-db-table': '#527FFF',
-  'redis-cluster': '#527FFF',
+  redis: '#527FFF',
   'mongo-db-atlas-cluster': '#527FFF',
   'upstash-redis': '#527FFF',
   'open-search-domain': '#A166FF',
@@ -110,7 +110,7 @@ const BLOCK_COLORS: Record<string, string> = {
 const PEDESTAL_MAP: Record<string, PedestalType> = {
   'relational-database': 'database',
   'dynamo-db-table': 'database',
-  'redis-cluster': 'database',
+  redis: 'database',
   'mongo-db-atlas-cluster': 'database',
   'upstash-redis': 'database',
   'open-search-domain': 'database',

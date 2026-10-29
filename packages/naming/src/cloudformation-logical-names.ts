@@ -224,6 +224,24 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
     });
   },
+  redisServerlessCache(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::ElastiCache::ServerlessCache' }
+    });
+  },
+  redisUser(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::ElastiCache::User' }
+    });
+  },
+  redisUserGroup(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::ElastiCache::UserGroup' }
+    });
+  },
   efsFilesystem(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

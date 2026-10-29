@@ -171,6 +171,14 @@ const resourceTypeEstimateSeconds: {
       minSeconds: 120
     });
   },
+  // Measured in eu-west-1 on 29 Oct 2026: created in 123 s and deleted in 242 s.
+  'AWS::ElastiCache::ServerlessCache': ({ action }) =>
+    applyActionMultiplier({ baseSeconds: 150, action, updateMultiplier: 0.5, deleteMultiplier: 1.7, minSeconds: 60 }),
+  // Measured with a serverless cache: created in 1-7 s, deleted in 61 s each once the cache is gone.
+  'AWS::ElastiCache::User': ({ action }) =>
+    applyActionMultiplier({ baseSeconds: 10, action, deleteMultiplier: 6, minSeconds: 10 }),
+  'AWS::ElastiCache::UserGroup': ({ action }) =>
+    applyActionMultiplier({ baseSeconds: 10, action, deleteMultiplier: 6, minSeconds: 10 }),
   'AWS::EFS::FileSystem': ({ action }) => applyActionMultiplier({ baseSeconds: 300, action, updateMultiplier: 1.1 }),
   'AWS::EFS::MountTarget': ({ action }) => applyActionMultiplier({ baseSeconds: 120, action }),
   'AWS::EFS::AccessPoint': ({ action }) => applyActionMultiplier({ baseSeconds: 30, action }),

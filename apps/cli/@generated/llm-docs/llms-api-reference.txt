@@ -794,7 +794,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -9578,7 +9578,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -9983,10 +9983,11 @@ Connect to VPC resources (databases, Redis). **Warning:** function loses direct 
 ```yaml
 resources:
   cache:
-    type: redis-cluster
+    type: redis
     properties:
       defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t3.micro
+      engine:
+        type: valkey-serverless
   web:
     type: astro-web
     properties:
@@ -9999,12 +10000,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { AstroWeb, RedisCluster, defineConfig, $Secret } from 'stacktape';
+import { AstroWeb, Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
-  const cache = new RedisCluster({
+  const cache = new Redis({
     defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t3.micro'
+    engine: { type: 'valkey-serverless' }
   });
   const web = new AstroWeb({
     connectTo: ['cache'],
@@ -11550,7 +11551,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -21223,7 +21224,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -27703,7 +27704,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -36485,7 +36486,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -38450,7 +38451,7 @@ Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME
 **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`
 **`MongoDbAtlasCluster`**: `CONNECTION_STRING`
 **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
-**`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`
+**`Redis`**: `HOST`, `READER_HOST`, `PORT`
 **`EventBus`**: `ARN`
 **`Function`**: `ARN`
 **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
@@ -40393,7 +40394,7 @@ Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME
 **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`
 **`MongoDbAtlasCluster`**: `CONNECTION_STRING`
 **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
-**`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`
+**`Redis`**: `HOST`, `READER_HOST`, `PORT`
 **`EventBus`**: `ARN`
 **`Function`**: `ARN`
 **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
@@ -41011,7 +41012,7 @@ Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME
 **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`
 **`MongoDbAtlasCluster`**: `CONNECTION_STRING`
 **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
-**`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`
+**`Redis`**: `HOST`, `READER_HOST`, `PORT`
 **`EventBus`**: `ARN`
 **`Function`**: `ARN`
 **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
@@ -50468,7 +50469,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -52938,7 +52939,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -53741,7 +53742,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -55973,7 +55974,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -57088,105 +57089,22 @@ export default defineConfig(() => {
 
 ---
 
-# RedisAccessibility API Reference
+# Redis API Reference
 
-Source: `packages/config/src/redis-cluster.ts`
-Route: `/config-reference/redis-cluster`
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
 
-Resource type: `redis-cluster`
+Managed Redis-compatible in-memory store (Amazon ElastiCache) for caching, sessions, queues, and real-time data.
 
-## TypeScript definition
-
-```typescript
-type RedisAccessibility = {
-  /** Who can connect to this cluster. */
-  accessibilityMode: "scoping-workloads-in-vpc" | "vpc";
-};
-```
-
-## Property: `accessibilityMode`
-
-- Required: yes
-- Type: `string: "scoping-workloads-in-vpc" | "vpc"`
-- Default: `vpc`
-
-Who can connect to this cluster.
-
-**`vpc`** (default): Any resource in the same VPC (functions with `joinDefaultVpc: true`, containers, batch jobs).
-**`scoping-workloads-in-vpc`**: Only resources that list this cluster in their `connectTo`.
-
-Redis clusters don't have public IPs — you can't connect from your local machine directly.
-Use a bastion host for local access.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      accessibility:
-        accessibilityMode: vpc
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    accessibility: {
-      accessibilityMode: 'vpc'
-    }
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
----
-
-# RedisCluster API Reference
-
-Source: `packages/config/src/redis-cluster.ts`
-Route: `/config-reference/redis-cluster`
-
-In-memory data store for caching, sessions, queues, and real-time data. Sub-millisecond latency.
-
-Resource type: `redis-cluster`
+Resource type: `redis`
 
 ## TypeScript definition
 
 ```typescript
-import type { RedisClusterProps } from 'stacktape';
+import type { RedisProps } from 'stacktape';
 
-type RedisCluster = {
-  properties: RedisClusterProps;
+type Redis = {
+  properties: RedisProps;
   /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
   overrides?: unknown;
 };
@@ -57195,7 +57113,7 @@ type RedisCluster = {
 ## Property: `properties`
 
 - Required: yes
-- Type: `RedisClusterProps`
+- Type: `RedisProps`
 
 ## Property: `overrides`
 
@@ -57251,669 +57169,44 @@ export default defineConfig(() => {
 
 ---
 
-# RedisClusterProps API Reference
+# RedisAccessibility API Reference
 
-Source: `packages/config/src/redis-cluster.ts`
-Route: `/config-reference/redis-cluster`
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
 
-Resource type: `redis-cluster`
+Resource type: `redis`
 
 ## TypeScript definition
 
 ```typescript
-import type { DevModeConfig, RedisAccessibility, RedisLogging } from 'stacktape';
-
-type RedisClusterProps = {
-  /** Cluster password. 16-128 chars, printable ASCII only. Cannot contain `/`, `"`, or `@`. */
-  defaultUserPassword: string;
-  /** The size of each Redis node. Affects memory, performance, and cost. */
-  instanceSize: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small";
-  /** Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive). */
-  accessibility?: RedisAccessibility;
-  /** Days to keep automated daily backups. Set to 0 to disable. */
-  automatedBackupRetentionDays?: number;
-  /** Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster. */
-  dev?: DevModeConfig;
-  /** Auto-promote a replica to primary if the primary node fails. */
-  enableAutomaticFailover?: boolean;
-  /** Split data across multiple shards for horizontal scaling. */
-  enableSharding?: boolean;
-  /** Redis engine version. */
-  engineVersion?: "6.0" | "6.2" | "7.0" | "7.1";
-  /** Slow query logging. Sent to CloudWatch; view with `stacktape logs`. */
-  logging?: RedisLogging;
-  /** Read replicas per shard. Increases read throughput and availability. */
-  numReplicaNodes?: number;
-  /** Number of shards (only with `enableSharding: true`). */
-  numShards?: number;
-  /** Port the cluster listens on. */
-  port?: number;
+type RedisAccessibility = {
+  /** Who can connect to this cache. */
+  accessibilityMode: "scoping-workloads-in-vpc" | "vpc";
 };
 ```
 
-## Property: `defaultUserPassword`
+## Property: `accessibilityMode`
 
 - Required: yes
-- Type: `string`
+- Type: `string: "scoping-workloads-in-vpc" | "vpc"`
+- Default: `vpc`
 
-Cluster password. 16-128 chars, printable ASCII only. Cannot contain `/`, `"`, or `@`.
+Who can connect to this cache.
 
-All traffic is encrypted in transit. Use `$Secret()` instead of hardcoding:
-defaultUserPassword: $Secret('redis.password')
+**`vpc`** (default): Any resource in the same VPC (functions with `joinDefaultVpc: true`, containers, batch jobs).
+**`scoping-workloads-in-vpc`**: Only resources that list this cache in their `connectTo`.
 
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small'
-  });
-
-  return { resources: { redis } };
-});
-```
-
-## Property: `instanceSize`
-
-- Required: yes
-- Type: `string: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small"`
-
-The size of each Redis node. Affects memory, performance, and cost.
-
-**Quick guide:**
-
-**`cache.t4g.micro`** (~$0.016/hr, 0.5 GB): Development, testing, low-traffic apps.
-**`cache.t4g.small`** (~$0.032/hr, 1.37 GB): Small production apps, session stores.
-**`cache.m7g.large`** (~$0.15/hr, 6.38 GB): Production workloads with moderate data.
-**`cache.r7g.large`** (~$0.20/hr, 13.07 GB): Large datasets, memory-heavy caching.
-
-**Families:** `t` = burstable (cheap, variable). `m` = general purpose. `r` = memory-optimized.
-Suffix `g` = ARM/Graviton (better price-performance).
-
-This size applies to every node (primary + replicas). You can change it later without data loss.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.r7g.large
-      engineVersion: '7.1'
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.r7g.large',
-    engineVersion: '7.1'
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `accessibility`
-
-- Required: no
-- Type: `RedisAccessibility`
-
-Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      accessibility:
-        accessibilityMode: scoping-workloads-in-vpc
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    accessibility: {
-      accessibilityMode: 'scoping-workloads-in-vpc'
-    }
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `automatedBackupRetentionDays`
-
-- Required: no
-- Type: `number`
-- Default: `0`
-
-Days to keep automated daily backups. Set to 0 to disable.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.m7g.large
-      automatedBackupRetentionDays: 7
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.m7g.large',
-    automatedBackupRetentionDays: 7
-  });
-
-  return { resources: { redis } };
-});
-```
-
-## Property: `dev`
-
-- Required: no
-- Type: `DevModeConfig`
-
-Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      dev:
-        remote: true
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    dev: {
-      remote: true
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
-
-## Property: `enableAutomaticFailover`
-
-- Required: no
-- Type: `boolean`
-
-Auto-promote a replica to primary if the primary node fails.
-
-Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
-
-Deploy replicas first, then enable failover in a separate deployment.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      numReplicaNodes: 1
-      enableAutomaticFailover: true
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    numReplicaNodes: 1,
-    enableAutomaticFailover: true
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `enableSharding`
-
-- Required: no
-- Type: `boolean`
-
-Split data across multiple shards for horizontal scaling.
-
-Each shard has its own primary + replicas. Routing is automatic.
-
-**Must be set at creation time** — can't be added later.
-Requires `numReplicaNodes >= 1`. Replica count can't be changed after creation.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.m7g.large
-      enableSharding: true
-      numShards: 3
-      numReplicaNodes: 1
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.m7g.large',
-    enableSharding: true,
-    numShards: 3,
-    numReplicaNodes: 1
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `engineVersion`
-
-- Required: no
-- Type: `string: "6.0" | "6.2" | "7.0" | "7.1"`
-- Default: `6.2`
-
-Redis engine version.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      engineVersion: '7.1'
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    engineVersion: '7.1'
-  });
-
-  return { resources: { redis } };
-});
-```
-
-## Property: `logging`
-
-- Required: no
-- Type: `RedisLogging`
-
-Slow query logging. Sent to CloudWatch; view with `stacktape logs`.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        disabled: false
-        format: json
-        retentionDays: 30
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      disabled: false,
-      format: 'json',
-      retentionDays: 30
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
-
-## Property: `numReplicaNodes`
-
-- Required: no
-- Type: `number`
-- Default: `0`
-
-Read replicas per shard. Increases read throughput and availability.
-
-If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
-Can't be changed after creation for sharded clusters.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      numReplicaNodes: 2
-      enableAutomaticFailover: true
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    numReplicaNodes: 2,
-    enableAutomaticFailover: true
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `numShards`
-
-- Required: no
-- Type: `number`
-- Default: `1`
-
-Number of shards (only with `enableSharding: true`).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.m7g.large
-      enableSharding: true
-      numShards: 4
-      numReplicaNodes: 1
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.m7g.large',
-    enableSharding: true,
-    numShards: 4,
-    numReplicaNodes: 1
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
-
-## Property: `port`
-
-- Required: no
-- Type: `number`
-- Default: `6379`
-
-Port the cluster listens on.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      port: 6380
-
-  worker:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/worker.ts
-      joinDefaultVpc: true
-      connectTo:
-        - redis
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, LambdaFunction, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    port: 6380
-  });
-
-  const worker = new LambdaFunction({
-    packaging: {
-      type: 'js-bundle',
-      properties: { entryfilePath: './src/worker.ts' }
-    },
-    joinDefaultVpc: true,
-    connectTo: [redis]
-  });
-
-  return { resources: { redis, worker } };
-});
-```
+Caches don't have public IPs — you can't connect from your local machine directly.
+Use a bastion host for local access.
 
 ---
 
 # RedisLogging API Reference
 
-Source: `packages/config/src/redis-cluster.ts`
-Route: `/config-reference/redis-cluster`
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
 
-Resource type: `redis-cluster`
+Resource type: `redis`
 
 ## TypeScript definition
 
@@ -57952,37 +57245,6 @@ type RedisLoggingLogForwarding =
 
 Disable slow query logging.
 
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        disabled: true
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      disabled: true
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
-
 ## Property: `format`
 
 - Required: no
@@ -57990,39 +57252,6 @@ export default defineConfig(() => {
 - Default: `json`
 
 Log format.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  redis:
-    type: redis-cluster
-    properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        format: text
-        retentionDays: 90
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      format: 'text',
-      retentionDays: 90
-    }
-  });
-
-  return { resources: { redis } };
-});
-```
 
 ## Property: `logClass`
 
@@ -58132,36 +57361,1366 @@ export default defineConfig(() => {
 
 How many days to keep logs.
 
+---
+
+# RedisOssEngine API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Node-based Redis OSS: only for caches that already run Redis OSS.
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { RedisOssEngineProperties } from 'stacktape';
+
+type RedisOssEngine = {
+  properties: RedisOssEngineProperties;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `RedisOssEngineProperties`
+
+---
+
+# RedisOssEngineProperties API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { RedisLogging } from 'stacktape';
+
+type RedisOssEngineProperties = {
+  /** The size of each node. Affects memory, performance, and cost. */
+  instanceSize: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small";
+  /** Redis OSS version the cache runs. */
+  version: "6.0" | "6.2" | "7.0" | "7.1";
+  /** Auto-promote a replica to primary if the primary node fails. */
+  enableAutomaticFailover?: boolean;
+  /** Split data across multiple shards for horizontal scaling. */
+  enableSharding?: boolean;
+  /** Slow query logging. Sent to CloudWatch; view with `stacktape logs`. */
+  logging?: RedisLogging;
+  /** Read replicas per shard. Increases read throughput and availability. */
+  numReplicaNodes?: number;
+  /** Number of shards (only with `enableSharding: true`). */
+  numShards?: number;
+  /** Port the cache listens on. */
+  port?: number;
+};
+```
+
+## Property: `instanceSize`
+
+- Required: yes
+- Type: `string: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small"`
+
+The size of each node. Affects memory, performance, and cost.
+
+**Quick guide** (Valkey prices, Redis OSS is about 25% more):
+
+**`cache.t4g.micro`** (~$0.013/hr, 0.5 GB): Development, testing, low-traffic apps.
+**`cache.t4g.small`** (~$0.026/hr, 1.37 GB): Small production apps, session stores.
+**`cache.m7g.large`** (~$0.12/hr, 6.38 GB): Production workloads with moderate data.
+**`cache.r7g.large`** (~$0.16/hr, 13.07 GB): Large datasets, memory-heavy caching.
+
+**Families:** `t` = burstable (cheap, variable). `m` = general purpose. `r` = memory-optimized.
+Suffix `g` = ARM/Graviton (better price-performance).
+
+This size applies to every node (primary + replicas). You can change it later without data loss.
+
 ### Example 1 (yaml)
 
 ```yaml
 resources:
-  redis:
-    type: redis-cluster
+  cache:
+    type: redis
     properties:
-      defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t4g.small
-      logging:
-        format: json
-        retentionDays: 365
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.micro
 ```
 
 ### Example 2 (typescript)
 
 ```typescript
-import { RedisCluster, defineConfig, $Secret } from 'stacktape';
+import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
-  const redis = new RedisCluster({
-    defaultUserPassword: $Secret('redis.password'),
-    instanceSize: 'cache.t4g.small',
-    logging: {
-      format: 'json',
-      retentionDays: 365
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.micro'
+      }
     }
   });
 
-  return { resources: { redis } };
+  return { resources: { cache } };
+});
+```
+
+## Property: `version`
+
+- Required: yes
+- Type: `string: "6.0" | "6.2" | "7.0" | "7.1"`
+
+Redis OSS version the cache runs.
+
+Required so the version never changes implicitly. Caches created by Stacktape v3 without an explicit
+`engineVersion` run `6.2`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: redis
+        properties:
+          instanceSize: cache.t4g.small
+          version: '6.2'
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'redis',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        version: '6.2'
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `enableAutomaticFailover`
+
+- Required: no
+- Type: `boolean`
+
+Auto-promote a replica to primary if the primary node fails.
+
+Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
+
+Deploy replicas first, then enable failover in a separate deployment.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          numReplicaNodes: 1
+          enableAutomaticFailover: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        numReplicaNodes: 1,
+        enableAutomaticFailover: true
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `enableSharding`
+
+- Required: no
+- Type: `boolean`
+
+Split data across multiple shards for horizontal scaling.
+
+Each shard has its own primary + replicas. Clients must support cluster mode.
+
+**Must be set at creation time** — can't be added later.
+Requires `numReplicaNodes >= 1`. Replica count can't be changed after creation.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.m7g.large
+          enableSharding: true
+          numShards: 3
+          numReplicaNodes: 1
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.m7g.large',
+        enableSharding: true,
+        numShards: 3,
+        numReplicaNodes: 1
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `logging`
+
+- Required: no
+- Type: `RedisLogging`
+
+Slow query logging. Sent to CloudWatch; view with `stacktape logs`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          logging:
+            format: json
+            retentionDays: 30
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        logging: {
+          format: 'json',
+          retentionDays: 30
+        }
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `numReplicaNodes`
+
+- Required: no
+- Type: `number`
+- Default: `0`
+
+Read replicas per shard. Increases read throughput and availability.
+
+If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
+Can't be changed after creation for sharded clusters.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          numReplicaNodes: 2
+          enableAutomaticFailover: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        numReplicaNodes: 2,
+        enableAutomaticFailover: true
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `numShards`
+
+- Required: no
+- Type: `number`
+- Default: `1`
+
+Number of shards (only with `enableSharding: true`).
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.m7g.large
+          enableSharding: true
+          numShards: 4
+          numReplicaNodes: 1
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.m7g.large',
+        enableSharding: true,
+        numShards: 4,
+        numReplicaNodes: 1
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `port`
+
+- Required: no
+- Type: `number`
+- Default: `6379`
+
+Port the cache listens on.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          port: 6380
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        port: 6380
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+---
+
+# RedisProps API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { DevModeConfig, RedisAccessibility, RedisOssEngine, ValkeyEngine, ValkeyServerlessEngine } from 'stacktape';
+
+type RedisProps = {
+  /** Password of the `default` user. 16-128 printable ASCII characters. */
+  defaultUserPassword: string;
+  /** Engine: which software runs the cache and how AWS runs it. */
+  engine: RedisEngine;
+  /** Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive). */
+  accessibility?: RedisAccessibility;
+  /** Days to keep automated daily backups (snapshots). Set to 0 to disable. Maximum 35. */
+  automatedBackupRetentionDays?: number;
+  /** Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cache. */
+  dev?: DevModeConfig;
+};
+
+/** Union choices used by the properties above. */
+type RedisEngine =
+  | ValkeyServerlessEngine
+  | ValkeyEngine
+  | RedisOssEngine;
+```
+
+## Property: `defaultUserPassword`
+
+- Required: yes
+- Type: `string`
+
+Password of the `default` user. 16-128 printable ASCII characters.
+
+Clients connect as user `default` with this password; all traffic is encrypted in transit (TLS).
+Allowed special characters: `!`, `&`, `#`, `$`, `^`, `<`, `>`, `-`. Use `$Secret()` instead of hardcoding:
+defaultUserPassword: $Secret('cache.password')
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: { type: 'valkey-serverless' }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `engine`
+
+- Required: yes
+- Type: `valkey-serverless | valkey | redis`
+
+Engine: which software runs the cache and how AWS runs it.
+
+**`valkey-serverless`**: Scales automatically, highly available across Availability Zones, no sizing decisions.
+Billed per GB stored (minimum 100 MB, about $6/month when idle) plus per request. Cheapest for small datasets;
+above roughly 150 MB of data a small `valkey` node costs less. Always runs in cluster mode: commands that touch
+several keys (`MGET`, transactions, Lua scripts) must use keys in the same hash slot, so queue libraries such as
+BullMQ need a hash-tag prefix like `{bull}`. Keyspace notifications are not supported.
+**`valkey`**: Fixed-size nodes, billed per hour. Works with every Redis client and command pattern.
+**`redis`**: Redis OSS nodes (versions up to 7.1). Kept for caches deployed before Valkey support.
+Switch an existing cache to `valkey` in place (about 20 minutes): writes pause for a few seconds during the
+switch (longer without replicas), the data and endpoint stay, and the switch cannot be reversed.
+
+Switching between `valkey-serverless` and a node-based engine replaces the cache: it gets a new endpoint and loses
+its data. Stacktape refuses that change; delete the cache (or rename the resource) to recreate it.
+
+Choices:
+- `valkey-serverless` (`ValkeyServerlessEngine`) — Valkey Serverless: no instances to size, scales automatically, billed per GB stored and per request.. Properties: `version?: string: "7" | "8" | "9"`, `maxDataGb?: number`, `maxEcpuPerSecond?: number`.
+- `valkey` (`ValkeyEngine`) — Node-based Valkey: fixed-size nodes billed per hour, compatible with every Redis client.. Properties: `version?: string: "7.2" | "8.0" | "8.1" | "8.2" | "9.0" | "9.1"`, `instanceSize: string: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small"`, `numReplicaNodes?: number`, `enableAutomaticFailover?: boolean`, `enableSharding?: boolean`, `numShards?: number`, `port?: number`, `logging?: RedisLogging`.
+- `redis` (`RedisOssEngine`) — Node-based Redis OSS: only for caches that already run Redis OSS.. Properties: `version: string: "6.0" | "6.2" | "7.0" | "7.1"`, `instanceSize: string: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small"`, `numReplicaNodes?: number`, `enableAutomaticFailover?: boolean`, `enableSharding?: boolean`, `numShards?: number`, `port?: number`, `logging?: RedisLogging`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+
+  worker:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/worker.ts
+      joinDefaultVpc: true
+      connectTo:
+        - cache
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: { type: 'valkey-serverless' }
+  });
+
+  const worker = new LambdaFunction({
+    packaging: {
+      type: 'js-bundle',
+      properties: { entryfilePath: './src/worker.ts' }
+    },
+    joinDefaultVpc: true,
+    connectTo: [cache]
+  });
+
+  return { resources: { cache, worker } };
+});
+```
+
+## Property: `accessibility`
+
+- Required: no
+- Type: `RedisAccessibility`
+
+Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive).
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+
+  worker:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/worker.ts
+      joinDefaultVpc: true
+      connectTo:
+        - cache
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: { type: 'valkey-serverless' },
+    accessibility: {
+      accessibilityMode: 'scoping-workloads-in-vpc'
+    }
+  });
+
+  const worker = new LambdaFunction({
+    packaging: {
+      type: 'js-bundle',
+      properties: { entryfilePath: './src/worker.ts' }
+    },
+    joinDefaultVpc: true,
+    connectTo: [cache]
+  });
+
+  return { resources: { cache, worker } };
+});
+```
+
+## Property: `automatedBackupRetentionDays`
+
+- Required: no
+- Type: `number`
+- Default: `0`
+
+Days to keep automated daily backups (snapshots). Set to 0 to disable. Maximum 35.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+      automatedBackupRetentionDays: 7
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: { type: 'valkey-serverless' },
+    automatedBackupRetentionDays: 7
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `dev`
+
+- Required: no
+- Type: `DevModeConfig`
+
+Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cache.
+
+The local container runs the same engine family. For `valkey-serverless` it runs in cluster mode, so commands
+that touch keys in different hash slots fail locally the same way they fail in AWS. Keyspace notifications still
+work locally; use `remote: true` to verify behavior against the deployed cache.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+      dev:
+        remote: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: { type: 'valkey-serverless' },
+    dev: {
+      remote: true
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+---
+
+# ValkeyEngine API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Node-based Valkey: fixed-size nodes billed per hour, compatible with every Redis client.
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { ValkeyEngineProperties } from 'stacktape';
+
+type ValkeyEngine = {
+  properties: ValkeyEngineProperties;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `ValkeyEngineProperties`
+
+---
+
+# ValkeyEngineProperties API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { RedisLogging } from 'stacktape';
+
+type ValkeyEngineProperties = {
+  /** The size of each node. Affects memory, performance, and cost. */
+  instanceSize: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small";
+  /** Auto-promote a replica to primary if the primary node fails. */
+  enableAutomaticFailover?: boolean;
+  /** Split data across multiple shards for horizontal scaling. */
+  enableSharding?: boolean;
+  /** Slow query logging. Sent to CloudWatch; view with `stacktape logs`. */
+  logging?: RedisLogging;
+  /** Read replicas per shard. Increases read throughput and availability. */
+  numReplicaNodes?: number;
+  /** Number of shards (only with `enableSharding: true`). */
+  numShards?: number;
+  /** Port the cache listens on. */
+  port?: number;
+  /** Valkey version. */
+  version?: "7.2" | "8.0" | "8.1" | "8.2" | "9.0" | "9.1";
+};
+```
+
+## Property: `instanceSize`
+
+- Required: yes
+- Type: `string: "cache.m4.10xlarge" | "cache.m4.2xlarge" | "cache.m4.4xlarge" | "cache.m4.large" | "cache.m4.xlarge" | "cache.m5.12xlarge" | "cache.m5.24xlarge" | "cache.m5.2xlarge" | "cache.m5.4xlarge" | "cache.m5.large" | "cache.m5.xlarge" | "cache.m6g.12xlarge" | "cache.m6g.16xlarge" | "cache.m6g.2xlarge" | "cache.m6g.4xlarge" | "cache.m6g.8xlarge" | "cache.m6g.large" | "cache.m6g.xlarge" | "cache.m7g.12xlarge" | "cache.m7g.16xlarge" | "cache.m7g.2xlarge" | "cache.m7g.4xlarge" | "cache.m7g.8xlarge" | "cache.m7g.large" | "cache.m7g.xlarge" | "cache.r4.16xlarge" | "cache.r4.2xlarge" | "cache.r4.4xlarge" | "cache.r4.8xlarge" | "cache.r4.large" | "cache.r4.xlarge" | "cache.r5.12xlarge" | "cache.r5.24xlarge" | "cache.r5.2xlarge" | "cache.r5.4xlarge" | "cache.r5.large" | "cache.r5.xlarge" | "cache.r6g.12xlarge" | "cache.r6g.16xlarge" | "cache.r6g.2xlarge" | "cache.r6g.4xlarge" | "cache.r6g.8xlarge" | "cache.r6g.large" | "cache.r6g.xlarge" | "cache.r7g.12xlarge" | "cache.r7g.16xlarge" | "cache.r7g.2xlarge" | "cache.r7g.4xlarge" | "cache.r7g.8xlarge" | "cache.r7g.large" | "cache.r7g.xlarge" | "cache.t2.medium" | "cache.t2.micro" | "cache.t2.small" | "cache.t3.medium" | "cache.t3.micro" | "cache.t3.small" | "cache.t4g.medium" | "cache.t4g.micro" | "cache.t4g.small"`
+
+The size of each node. Affects memory, performance, and cost.
+
+**Quick guide** (Valkey prices, Redis OSS is about 25% more):
+
+**`cache.t4g.micro`** (~$0.013/hr, 0.5 GB): Development, testing, low-traffic apps.
+**`cache.t4g.small`** (~$0.026/hr, 1.37 GB): Small production apps, session stores.
+**`cache.m7g.large`** (~$0.12/hr, 6.38 GB): Production workloads with moderate data.
+**`cache.r7g.large`** (~$0.16/hr, 13.07 GB): Large datasets, memory-heavy caching.
+
+**Families:** `t` = burstable (cheap, variable). `m` = general purpose. `r` = memory-optimized.
+Suffix `g` = ARM/Graviton (better price-performance).
+
+This size applies to every node (primary + replicas). You can change it later without data loss.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.micro
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.micro'
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `enableAutomaticFailover`
+
+- Required: no
+- Type: `boolean`
+
+Auto-promote a replica to primary if the primary node fails.
+
+Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
+
+Deploy replicas first, then enable failover in a separate deployment.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          numReplicaNodes: 1
+          enableAutomaticFailover: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        numReplicaNodes: 1,
+        enableAutomaticFailover: true
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `enableSharding`
+
+- Required: no
+- Type: `boolean`
+
+Split data across multiple shards for horizontal scaling.
+
+Each shard has its own primary + replicas. Clients must support cluster mode.
+
+**Must be set at creation time** — can't be added later.
+Requires `numReplicaNodes >= 1`. Replica count can't be changed after creation.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.m7g.large
+          enableSharding: true
+          numShards: 3
+          numReplicaNodes: 1
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.m7g.large',
+        enableSharding: true,
+        numShards: 3,
+        numReplicaNodes: 1
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `logging`
+
+- Required: no
+- Type: `RedisLogging`
+
+Slow query logging. Sent to CloudWatch; view with `stacktape logs`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          logging:
+            format: json
+            retentionDays: 30
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        logging: {
+          format: 'json',
+          retentionDays: 30
+        }
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `numReplicaNodes`
+
+- Required: no
+- Type: `number`
+- Default: `0`
+
+Read replicas per shard. Increases read throughput and availability.
+
+If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
+Can't be changed after creation for sharded clusters.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          numReplicaNodes: 2
+          enableAutomaticFailover: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        numReplicaNodes: 2,
+        enableAutomaticFailover: true
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `numShards`
+
+- Required: no
+- Type: `number`
+- Default: `1`
+
+Number of shards (only with `enableSharding: true`).
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.m7g.large
+          enableSharding: true
+          numShards: 4
+          numReplicaNodes: 1
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.m7g.large',
+        enableSharding: true,
+        numShards: 4,
+        numReplicaNodes: 1
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `port`
+
+- Required: no
+- Type: `number`
+- Default: `6379`
+
+Port the cache listens on.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          port: 6380
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        port: 6380
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `version`
+
+- Required: no
+- Type: `string: "7.2" | "8.0" | "8.1" | "8.2" | "9.0" | "9.1"`
+
+Valkey version.
+
+New caches use the latest version. Without this property, an existing cache keeps the version it runs.
+Versions can only be upgraded.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey
+        properties:
+          instanceSize: cache.t4g.small
+          version: '9.1'
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey',
+      properties: {
+        instanceSize: 'cache.t4g.small',
+        version: '9.1'
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+---
+
+# ValkeyServerlessEngine API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Valkey Serverless: no instances to size, scales automatically, billed per GB stored and per request.
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+import type { ValkeyServerlessEngineProperties } from 'stacktape';
+
+type ValkeyServerlessEngine = {
+  properties?: ValkeyServerlessEngineProperties;
+};
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `ValkeyServerlessEngineProperties`
+
+---
+
+# ValkeyServerlessEngineProperties API Reference
+
+Source: `packages/config/src/redis.ts`
+Route: `/config-reference/redis`
+
+Resource type: `redis`
+
+## TypeScript definition
+
+```typescript
+type ValkeyServerlessEngineProperties = {
+  /** Maximum stored data in GB. Caps the storage part of the bill. */
+  maxDataGb?: number;
+  /** Maximum ElastiCache Processing Units (ECPUs) per second. Caps the request part of the bill. */
+  maxEcpuPerSecond?: number;
+  /** Valkey major version. */
+  version?: "7" | "8" | "9";
+};
+```
+
+## Property: `maxDataGb`
+
+- Required: no
+- Type: `number`
+
+Maximum stored data in GB. Caps the storage part of the bill.
+
+When the cache reaches this size, Valkey evicts the least recently used keys **that have a TTL**. If no key has a
+TTL, writes fail with an out-of-memory error. Set TTLs on cached keys when you use this limit.
+Without it, the cache grows up to 5,000 GB.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+        properties:
+          maxDataGb: 2
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey-serverless',
+      properties: {
+        maxDataGb: 2
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `maxEcpuPerSecond`
+
+- Required: no
+- Type: `number`
+
+Maximum ElastiCache Processing Units (ECPUs) per second. Caps the request part of the bill.
+
+A simple `GET` or `SET` of up to 1 KB uses 1 ECPU; larger values and heavier commands use more.
+Requests above the limit are throttled (clients see higher latency or errors).
+Without it, the cache scales up to 15,000,000 ECPUs per second. Minimum 1,000.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+        properties:
+          maxEcpuPerSecond: 5000
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey-serverless',
+      properties: {
+        maxEcpuPerSecond: 5000
+      }
+    }
+  });
+
+  return { resources: { cache } };
+});
+```
+
+## Property: `version`
+
+- Required: no
+- Type: `string: "7" | "8" | "9"`
+
+Valkey major version.
+
+New caches use the latest version. Without this property, an existing cache keeps the version it runs.
+Versions can only be upgraded.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  cache:
+    type: redis
+    properties:
+      defaultUserPassword: $Secret('cache.password')
+      engine:
+        type: valkey-serverless
+        properties:
+          version: '9'
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { Redis, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const cache = new Redis({
+    defaultUserPassword: $Secret('cache.password'),
+    engine: {
+      type: 'valkey-serverless',
+      properties: {
+        version: '9'
+      }
+    }
+  });
+
+  return { resources: { cache } };
 });
 ```
 
@@ -62037,7 +62596,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -63481,7 +64040,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -67844,7 +68403,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -69005,7 +69564,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -79534,7 +80093,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 
@@ -81119,7 +81678,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 

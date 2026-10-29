@@ -130,12 +130,11 @@ In dev mode, Stacktape runs a local Redis container using the configured `engine
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, RedisCluster } from 'stacktape';
+import { defineConfig, Redis } from 'stacktape';
 export default defineConfig(() => {
-  const cache = new RedisCluster({
-    instanceSize: 'cache.t4g.micro',
-    engineVersion: '7.1',
-    defaultUserPassword: "$Secret('redis.password')"
+  const cache = new Redis({
+    defaultUserPassword: "$Secret('redis.password')",
+    engine: { type: 'valkey-serverless' }
   });
 
   return {

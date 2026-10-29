@@ -386,6 +386,7 @@ export const resolveDebugAgentRole = () => {
               Effect: 'Allow',
               Action: [
                 'elasticache:DescribeReplicationGroups',
+                'elasticache:DescribeServerlessCaches',
                 'elasticache:DescribeCacheClusters',
                 'elasticache:DescribeCacheSubnetGroups',
                 'elasticache:DescribeEvents',

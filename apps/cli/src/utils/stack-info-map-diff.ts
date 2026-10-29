@@ -235,6 +235,7 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
     'AWS::MSK::ServerlessCluster',
     'AWS::ElastiCache::GlobalReplicationGroup',
     'AWS::ElastiCache::ReplicationGroup',
+    'AWS::ElastiCache::ServerlessCache',
     'AWS::Kinesis::Stream',
     'AWS::SQS::Queue',
     'AWS::S3::Bucket',

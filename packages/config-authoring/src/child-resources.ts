@@ -378,13 +378,28 @@ export const CHILD_RESOURCES: Record<
     { logicalName: cfLogicalNames.stateMachine, resourceType: 'AWS::StepFunctions::StateMachine' }
   ],
 
-  // ===== REDIS CLUSTER =====
-  'redis-cluster': [
-    { logicalName: cfLogicalNames.redisParameterGroup, resourceType: 'AWS::ElastiCache::ParameterGroup' },
-    { logicalName: cfLogicalNames.redisSubnetGroup, resourceType: 'AWS::ElastiCache::SubnetGroup' },
+  // ===== REDIS =====
+  redis: [
+    {
+      logicalName: cfLogicalNames.redisParameterGroup,
+      resourceType: 'AWS::ElastiCache::ParameterGroup',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.redisSubnetGroup, resourceType: 'AWS::ElastiCache::SubnetGroup', conditional: true },
     { logicalName: cfLogicalNames.redisSecurityGroup, resourceType: 'AWS::EC2::SecurityGroup' },
     { logicalName: cfLogicalNames.redisLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
-    { logicalName: cfLogicalNames.redisReplicationGroup, resourceType: 'AWS::ElastiCache::ReplicationGroup' }
+    {
+      logicalName: cfLogicalNames.redisReplicationGroup,
+      resourceType: 'AWS::ElastiCache::ReplicationGroup',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.redisUser, resourceType: 'AWS::ElastiCache::User', conditional: true },
+    { logicalName: cfLogicalNames.redisUserGroup, resourceType: 'AWS::ElastiCache::UserGroup', conditional: true },
+    {
+      logicalName: cfLogicalNames.redisServerlessCache,
+      resourceType: 'AWS::ElastiCache::ServerlessCache',
+      conditional: true
+    }
   ],
 
   // ===== MONGO DB ATLAS CLUSTER =====

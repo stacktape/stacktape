@@ -39,7 +39,7 @@ const categories: { key: string; label: string; match: (p: Project) => boolean }
         'relational-database',
         'dynamo-db-table',
         'mongo-db-atlas-cluster',
-        'redis-cluster',
+        'redis',
         'open-search-domain'
       ])
   },

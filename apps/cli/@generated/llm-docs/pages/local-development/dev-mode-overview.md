@@ -104,7 +104,7 @@ Selected emulatable databases run locally unless listed in `--remote-resources`.
 |---|---|
 | PostgreSQL / Aurora PostgreSQL | `postgres` |
 | MySQL / Aurora MySQL | `mysql` or `mariadb` |
-| Redis cluster | `redis` |
+| Redis cache | `redis` |
 | DynamoDB table | `amazon/dynamodb-local` |
 | OpenSearch domain | `opensearchproject/opensearch` |
 

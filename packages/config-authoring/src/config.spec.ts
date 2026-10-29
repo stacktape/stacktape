@@ -393,7 +393,7 @@ describe('TypeScript authoring compilation', () => {
       'HostingBucket',
       'DynamoDbTable',
       'EventBus',
-      'RedisCluster',
+      'Redis',
       'MongoDbAtlasCluster',
       'UpstashRedis',
       'SqsQueue',

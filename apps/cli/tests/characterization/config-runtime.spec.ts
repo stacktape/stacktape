@@ -1191,11 +1191,10 @@ describe('configuration runtime contract', () => {
           }
         },
         cache: {
-          type: 'redis-cluster',
+          type: 'redis',
           properties: {
             defaultUserPassword: "$Secret('redis.password')",
-            instanceSize: 'cache.t4g.micro',
-            logging: {}
+            engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', logging: {} } }
           }
         }
       }
@@ -1210,7 +1209,7 @@ describe('configuration runtime contract', () => {
       packageManagerFile: 'pyproject.toml'
     });
     expect(get(parsed, 'resources.nodeFunction.properties.logging.retentionDays')).toBe(90);
-    expect(get(parsed, 'resources.cache.properties.logging.retentionDays')).toBe(30);
+    expect(get(parsed, 'resources.cache.properties.engine.properties.logging.retentionDays')).toBe(30);
     expect(resolveNodeVersion({ runtime: 'nodejs22.x', target: 'lambda' })).toBe(22);
     expect(resolveNodeVersion({ target: 'lambda' })).toBe(24);
     expect(resolveNodeVersion({ nodeVersion: 20, runtime: 'nodejs22.x', target: 'lambda' })).toBe(20);

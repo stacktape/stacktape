@@ -119,7 +119,7 @@ export default defineConfig(() => {
 
 Increase `memory` when SSR is CPU-bound or the app initializes large dependencies — Lambda CPU scales proportionally with memory. Keep the default when pages render quickly and memory pressure is low.
 
-When the SSR function needs to reach VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), set `joinDefaultVpc: true` in `serverLambda`. Joining a VPC can affect the SSR function's direct internet access; see the [Lambda function](/resources/compute/lambda-function) page for VPC tradeoffs.
+When the SSR function needs to reach VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis), set `joinDefaultVpc: true` in `serverLambda`. Joining a VPC can affect the SSR function's direct internet access; see the [Lambda function](/resources/compute/lambda-function) page for VPC tradeoffs.
 
 ## Domains and firewall
 
@@ -260,7 +260,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The example creates an [S3 bucket](/resources/storage/s3-bucket) for user uploads. With the resource name `uploads`, the SSR function receives `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`, along with IAM permissions to read, write, and delete objects in the bucket. The same pattern works for other supported resources — for example, connecting to a relational database injects connection details and opens network access. When connecting to VPC-protected resources such as relational databases or Redis clusters, set `joinDefaultVpc: true` in `serverLambda` so the SSR function can reach them.
+The example creates an [S3 bucket](/resources/storage/s3-bucket) for user uploads. With the resource name `uploads`, the SSR function receives `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`, along with IAM permissions to read, write, and delete objects in the bucket. The same pattern works for other supported resources — for example, connecting to a relational database injects connection details and opens network access. When connecting to VPC-protected resources such as relational databases or Redis caches, set `joinDefaultVpc: true` in `serverLambda` so the SSR function can reach them.
 
 ## Environment variables
 
@@ -325,9 +325,9 @@ AWS bills the underlying services separately: Lambda invocations and duration fo
 
 Use [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'nuxt-static-website'` when the Nuxt site can be fully pre-rendered and does not need SSR, server routes, or Nitro server features at runtime. Static hosting is simpler and has fewer moving parts. Use the Nuxt resource when runtime server rendering is part of the product.
 
-### Why can't the SSR function reach my database or Redis cluster?
+### Why can't the SSR function reach my database or Redis cache?
 
-By default the Nuxt SSR Lambda is not in your VPC, so it cannot reach VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis). Set `joinDefaultVpc: true` in `serverLambda` to let it connect (use `connectTo` to also grant IAM permissions and open resource-side access). Note that joining a VPC can affect the function's direct internet access — see the [Lambda function](/resources/compute/lambda-function) page for the tradeoffs.
+By default the Nuxt SSR Lambda is not in your VPC, so it cannot reach VPC-protected resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis). Set `joinDefaultVpc: true` in `serverLambda` to let it connect (use `connectTo` to also grant IAM permissions and open resource-side access). Note that joining a VPC can affect the function's direct internet access — see the [Lambda function](/resources/compute/lambda-function) page for the tradeoffs.
 
 ## API Reference
 

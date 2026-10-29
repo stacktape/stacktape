@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
-import type { ReplicationGroup } from '@aws-sdk/client-elasticache';
+import type { ReplicationGroup, ServerlessCache } from '@aws-sdk/client-elasticache';
 import type { DomainStatus } from '@aws-sdk/client-opensearch';
 import type { DBCluster, DBInstance } from '@aws-sdk/client-rds';
 import type { EnrichedStackResourceInfo, StackDetails } from '../../src/domain/cloudformation-stack-manager/types';
@@ -67,6 +67,7 @@ const withDeleteFixture = async (
     liveInstances = {},
     liveClusters = {},
     liveReplicationGroups = {},
+    liveServerlessCaches = {},
     liveDomains = {},
     currentTemplate,
     stackRoleArn
@@ -76,6 +77,7 @@ const withDeleteFixture = async (
     liveInstances?: Record<string, Partial<DBInstance>>;
     liveClusters?: Record<string, Partial<DBCluster>>;
     liveReplicationGroups?: Record<string, Partial<ReplicationGroup>>;
+    liveServerlessCaches?: Record<string, Partial<ServerlessCache>>;
     liveDomains?: Record<string, Partial<DomainStatus>>;
     /** The template CloudFormation reports once the delete has started, when it differs from the one loaded first. */
     currentTemplate?: unknown;
@@ -130,6 +132,13 @@ const withDeleteFixture = async (
       ),
       spyOn(awsSdkManager.elastiCache, 'deleteReplicationGroup').mockImplementation(async ({ replicationGroupId }) => {
         calls.push(`elasticache:delete ${replicationGroupId}`);
+        return {};
+      }),
+      spyOn(awsSdkManager.elastiCache, 'getServerlessCache').mockImplementation(
+        async ({ serverlessCacheName }) => liveServerlessCaches[serverlessCacheName] as ServerlessCache
+      ),
+      spyOn(awsSdkManager.elastiCache, 'deleteServerlessCache').mockImplementation(async ({ serverlessCacheName }) => {
+        calls.push(`elasticache:delete-serverless ${serverlessCacheName}`);
         return {};
       }),
       spyOn(awsSdkManager.openSearch, 'getDomain').mockImplementation(
@@ -332,6 +341,7 @@ describe('early database and cache deletes', () => {
   const instance = 'AWS::RDS::DBInstance';
   const cluster = 'AWS::RDS::DBCluster';
   const cache = 'AWS::ElastiCache::ReplicationGroup';
+  const serverlessCache = 'AWS::ElastiCache::ServerlessCache';
   const domain = 'AWS::OpenSearchService::Domain';
 
   test.each([
@@ -418,6 +428,13 @@ describe('early database and cache deletes', () => {
       { Cache: { type: cache, properties: { GlobalReplicationGroupId: 'global' } } },
       []
     ],
+    ['a serverless cache without a DeletionPolicy (Delete)', { Cache: { type: serverlessCache } }, ['Cache']],
+    ['a retained serverless cache', { Cache: { type: serverlessCache, deletionPolicy: 'Retain' } }, []],
+    [
+      'a serverless cache with a final snapshot',
+      { Cache: { type: serverlessCache, properties: { FinalSnapshotName: 'final' } } },
+      []
+    ],
     ['a resource without a physical ID', { Db: { type: instance, deletionPolicy: 'Delete', physicalId: '' } }, []],
     ['an OpenSearch domain without a DeletionPolicy (Delete)', { Search: { type: domain } }, ['Search']],
     ['a retained OpenSearch domain', { Search: { type: domain, deletionPolicy: 'Retain' } }, []],
@@ -484,6 +501,7 @@ describe('early database and cache deletes', () => {
   const auroraCluster = resource('AWS::RDS::DBCluster', 'stack-aurora', 'DatabaseDbCluster');
   const auroraInstance = resource('AWS::RDS::DBInstance', 'stack-aurora-0', 'DatabaseDbInstance0');
   const search = resource('AWS::OpenSearchService::Domain', 'stack-search', 'SearchDomain');
+  const serverless = resource('AWS::ElastiCache::ServerlessCache', 'stack-sessions', 'SessionsServerlessCache');
   const available = {
     liveDomains: { 'stack-search': { Deleted: false, Processing: false } },
     liveInstances: {
@@ -491,7 +509,8 @@ describe('early database and cache deletes', () => {
       'stack-aurora-0': { DBInstanceStatus: 'available', DBClusterIdentifier: 'stack-aurora' }
     },
     liveClusters: { 'stack-aurora': { Status: 'available', DeletionProtection: false } },
-    liveReplicationGroups: { 'stack-cache': { Status: 'available' } }
+    liveReplicationGroups: { 'stack-cache': { Status: 'available' } },
+    liveServerlessCaches: { 'stack-sessions': { Status: 'available' } }
   };
   // Stacktape sets DeletionPolicy Delete on its database instances and clusters.
   const deletionPolicies = { DatabaseDbInstance: 'Delete', DatabaseDbCluster: 'Delete' };
@@ -499,7 +518,7 @@ describe('early database and cache deletes', () => {
 
   test('deletes databases and caches right after CloudFormation accepted DeleteStack, without final snapshots', async () => {
     await withDeleteFixture(
-      [db, redis, auroraCluster, auroraInstance, search],
+      [db, redis, serverless, auroraCluster, auroraInstance, search],
       async ({ calls, warnings, runCleanUpHooks }) => {
         await stackManager.deleteStack();
         expect(calls[0]).toMatch(/^cloudformation:delete /);
@@ -509,7 +528,8 @@ describe('early database and cache deletes', () => {
             'opensearch:delete stack-search',
             `rds:delete ${JSON.stringify({ identifier: 'stack-db', skipFinalSnapshot: true })}`,
             `rds:delete ${JSON.stringify({ identifier: 'stack-aurora-0' })}`,
-            'elasticache:delete stack-cache'
+            'elasticache:delete stack-cache',
+            'elasticache:delete-serverless stack-sessions'
           ].sort()
         );
         // A successful delete says nothing more about them.

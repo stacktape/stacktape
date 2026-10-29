@@ -1,3 +1,4 @@
+import type { StpRedis } from '@domain-services/config-manager/resolved-types/redis';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -26,7 +27,12 @@ import {
   startLocalOpenSearch
 } from './opensearch';
 import { buildConnectionInfo as postgresConnectionInfo, startLocalPostgres } from './postgres';
-import { buildConnectionInfo as redisConnectionInfo, getLocalRedisImageTag, startLocalRedis } from './redis';
+import {
+  buildConnectionInfo as redisConnectionInfo,
+  getLocalRedisImageTag,
+  getLocalRedisVersion,
+  startLocalRedis
+} from './redis';
 
 /**
  * Parse Docker errors and return user-friendly message
@@ -61,6 +67,8 @@ export type LocalResourceConfig = {
   dataDir: string;
   credentials?: { username: string; password: string };
   dbName?: string;
+  /** The engine of a Redis cache; `valkey-serverless` runs Valkey in cluster mode. */
+  redisEngine?: StpRedis['engine']['type'];
 };
 
 export type LocalResourceInstance = LocalResourceConfig & {
@@ -146,8 +154,9 @@ const DIRECTIVE = /\$[A-Z][A-Za-z]*\(/;
 const getLocalCredential = (value: string | undefined): string | undefined =>
   value && !DIRECTIVE.test(value) ? value : undefined;
 
-const getLocalImage = ({ type, version }: LocalResourceConfig): string => {
-  if (type === 'redis') return getLocalRedisImageTag(version);
+const getLocalImage = (config: LocalResourceConfig): string => {
+  const { type, version } = config;
+  if (type === 'redis') return getLocalRedisImageTag(config.redisEngine ?? 'redis', version);
   if (type === 'dynamodb') return DYNAMODB_IMAGE;
   if (type === 'opensearch') return getLocalOpenSearchImageTag(version);
   return getImageTag(version, type);
@@ -203,12 +212,12 @@ const isAuroraEngine = (engineType: string): boolean => {
 
 export const getLocalEmulateableResources = (): {
   name: string;
-  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
+  type: 'relational-database' | 'redis' | 'dynamo-db-table' | 'open-search-domain';
   engineType: string;
 }[] => {
   const resources: {
     name: string;
-    type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
+    type: 'relational-database' | 'redis' | 'dynamo-db-table' | 'open-search-domain';
     engineType: string;
   }[] = [];
 
@@ -219,8 +228,8 @@ export const getLocalEmulateableResources = (): {
     }
   }
 
-  for (const redis of configManager.redisClusters || []) {
-    resources.push({ name: redis.name, type: 'redis-cluster', engineType: 'redis' });
+  for (const redis of configManager.redisCaches || []) {
+    resources.push({ name: redis.name, type: 'redis', engineType: 'redis' });
   }
 
   for (const dynamoTable of configManager.dynamoDbTables || []) {
@@ -329,13 +338,14 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
     };
   }
 
-  const redis = configManager.redisClusters?.find((r) => r.name === resourceName);
+  const redis = configManager.redisCaches?.find((r) => r.name === resourceName);
   if (redis) {
     return {
       name: resourceName,
       type: 'redis',
-      version: redis.engineVersion || '7.2',
-      port: redis.port || 6379,
+      redisEngine: redis.engine.type,
+      version: getLocalRedisVersion(redis.engine),
+      port: (redis.engine.type !== 'valkey-serverless' && redis.engine.properties.port) || 6379,
       dataDir: getDataDir(resourceName),
       // Redis without a configured password runs without authentication, like the deployed cluster.
       credentials: redis.defaultUserPassword
@@ -431,7 +441,7 @@ export const getRelayedLocalResourceParamNames = (resourceName: string): string[
       return (localType === 'postgres' ? postgresConnectionInfo : mysqlConnectionInfo)('', '', '', 0, '')
         .referencableParams;
     }
-    if (configManager.redisClusters?.some(({ name }) => name === resourceName)) {
+    if (configManager.redisCaches?.some(({ name }) => name === resourceName)) {
       // With a password, the parameters include `username`.
       return redisConnectionInfo('', 0, 'password').referencableParams;
     }

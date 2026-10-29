@@ -175,7 +175,7 @@ export const ACME_CONFIG = {
         accessibility: { accessibilityMode: 'vpc' }
       }
     },
-    cache: { type: 'redis-cluster', properties: { engine: { type: 'redis7' }, instanceSize: 'cache.t3.micro' } },
+    cache: { type: 'redis', properties: { engine: { type: 'valkey-serverless' } } },
     firewall: { type: 'web-app-firewall', properties: { scope: 'cloudfront' } }
   }
 };

@@ -36,7 +36,7 @@ export const INIT_CANARY_FIXTURES = {
     sourceDirectory: join(fixtureRoot, 'express-basic'),
     expected: {
       resourceTypes: { 'web-service': { min: 1, max: 1 } },
-      forbiddenResourceTypes: ['relational-database', 'redis-cluster'],
+      forbiddenResourceTypes: ['relational-database', 'redis'],
       deployable: true,
       maxGaps: 0
     },
@@ -98,7 +98,7 @@ export const INIT_CANARY_FIXTURES = {
     sourceDirectory: join(fixtureRoot, 'fastapi-basic'),
     expected: {
       resourceTypes: { 'web-service': { min: 1, max: 1 } },
-      forbiddenResourceTypes: ['relational-database', 'redis-cluster'],
+      forbiddenResourceTypes: ['relational-database', 'redis'],
       deployable: true,
       maxGaps: 0
     },

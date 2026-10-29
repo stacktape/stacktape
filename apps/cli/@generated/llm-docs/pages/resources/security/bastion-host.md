@@ -1,6 +1,6 @@
 # Bastion Host
 
-A Stacktape bastion host is a lightweight EC2 instance that gives you secure, keyless access to private resources in your VPC — [relational databases](/resources/databases/relational-database), [Redis clusters](/resources/databases/redis), and [OpenSearch domains](/resources/databases/opensearch). It uses AWS Systems Manager instead of SSH keys, so there are no keys to generate, distribute, or rotate.
+A Stacktape bastion host is a lightweight EC2 instance that gives you secure, keyless access to private resources in your VPC — [relational databases](/resources/databases/relational-database), [Redis caches](/resources/databases/redis), and [OpenSearch domains](/resources/databases/opensearch). It uses AWS Systems Manager instead of SSH keys, so there are no keys to generate, distribute, or rotate.
 
 **Pricing:** ~$4/month with the default `t3.micro` instance (varies by AWS region).
 
@@ -13,7 +13,7 @@ Add a bastion host when your stack has private VPC resources and you need intera
 - **Debugging connectivity** — verify that VPC networking, security groups, and DNS resolution work as expected from inside the VPC.
 - **Running maintenance scripts** — execute migration or data-fix scripts that need direct VPC network access.
 
-Most stacks with a private [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis) benefit from a bastion. It costs very little and saves significant time when you need to inspect or debug a private resource.
+Most stacks with a private [relational database](/resources/databases/relational-database) or [Redis cache](/resources/databases/redis) benefit from a bastion. It costs very little and saves significant time when you need to inspect or debug a private resource.
 
 ## When NOT to use
 
@@ -44,7 +44,7 @@ After deploying, use [`bastion shell`](/cli/bastion-session) to open an interact
 
 ## Connecting to private resources
 
-A Stacktape bastion host gives you access to private VPC resources such as relational databases, Redis clusters, and OpenSearch domains. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels. The [`bastion tunnel`](/cli/bastion-tunnel) command supports a specific set of tunnel targets: relational databases, Redis clusters, MongoDB Atlas clusters, application load balancers, and private services with an application load balancer.
+A Stacktape bastion host gives you access to private VPC resources such as relational databases, Redis caches, and OpenSearch domains. Stacktape provides two CLI commands for this: an interactive shell session and port-forwarding tunnels. The [`bastion tunnel`](/cli/bastion-tunnel) command supports a specific set of tunnel targets: relational databases, Redis caches, MongoDB Atlas clusters, application load balancers, and private services with an application load balancer.
 
 ### Interactive shell
 
@@ -69,12 +69,12 @@ The tunnel target is a Stacktape resource name. See the [`bastion tunnel` CLI re
 | Resource type | Example use case |
 |---|---|
 | [Relational database](/resources/databases/relational-database) | Connect pgAdmin, DBeaver, or `psql` to a private RDS instance |
-| [Redis cluster](/resources/databases/redis) | Connect RedisInsight or `redis-cli` to a private ElastiCache cluster |
+| [Redis cache](/resources/databases/redis) | Connect RedisInsight or `redis-cli` to a private ElastiCache cluster |
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Connect local MongoDB tools to a private MongoDB Atlas cluster |
 | [Application load balancer](/resources/networking/application-load-balancer) | Access internal APIs or admin panels behind a private ALB |
 | [Private service](/resources/compute/private-service) | Reach a private service fronted by an application load balancer |
 
-If the target resource has multiple endpoints (for example, a Redis cluster with separate writer and reader endpoints), all endpoints are tunneled automatically. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for details.
+If the target resource has multiple endpoints (for example, a Redis cache with separate writer and reader endpoints), all endpoints are tunneled automatically. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for details.
 
 ## Scripts
 
@@ -260,7 +260,7 @@ Yes, in two ways. A `bastion-script` runs migration commands directly on the bas
 
 ### What resources can I tunnel to?
 
-The [`bastion tunnel`](/cli/bastion-tunnel) command supports [relational databases](/resources/databases/relational-database), [Redis clusters](/resources/databases/redis), [MongoDB Atlas clusters](/resources/databases/mongodb-atlas), [application load balancers](/resources/networking/application-load-balancer), and [private services](/resources/compute/private-service) fronted by an application load balancer. If the target has multiple endpoints (for example, a Redis cluster with writer and reader nodes), all endpoints are tunneled automatically.
+The [`bastion tunnel`](/cli/bastion-tunnel) command supports [relational databases](/resources/databases/relational-database), [Redis caches](/resources/databases/redis), [MongoDB Atlas clusters](/resources/databases/mongodb-atlas), [application load balancers](/resources/networking/application-load-balancer), and [private services](/resources/compute/private-service) fronted by an application load balancer. If the target has multiple endpoints (for example, a Redis cache with writer and reader nodes), all endpoints are tunneled automatically.
 
 ### Bastion host vs VPN — which should I use?
 

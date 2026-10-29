@@ -111,7 +111,7 @@ type DevCompatibleResource = {
 
 type EmulateableResource = {
   name: string;
-  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
+  type: 'relational-database' | 'redis' | 'dynamo-db-table' | 'open-search-domain';
   engineType: string;
 };
 
@@ -1445,7 +1445,7 @@ const mapResourceType = (
     if (engineType === 'mariadb') return 'mariadb';
     return 'postgres'; // Default for postgres, aurora-postgres, etc.
   }
-  if (type === 'redis-cluster') return 'redis';
+  if (type === 'redis') return 'redis';
   if (type === 'dynamo-db-table') return 'dynamodb';
   if (type === 'open-search-domain') return 'opensearch';
   return null;

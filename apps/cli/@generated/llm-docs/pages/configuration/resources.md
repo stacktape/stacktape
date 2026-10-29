@@ -105,7 +105,7 @@ In the TypeScript `defineConfig` style, pass the resource variables directly in 
 | **Bucket** | `NAME`, `ARN` |
 | **DynamoDbTable** | `NAME`, `ARN`, `STREAM_ARN` |
 | **RelationalDatabase** | `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT` (Aurora also adds `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, `READER_HOST`) |
-| **RedisCluster** | `HOST`, `READER_HOST`, `PORT` |
+| **Redis** | `HOST`, `READER_HOST`, `PORT` |
 | **MongoDbAtlasCluster** | `CONNECTION_STRING` |
 | **UpstashRedis** | `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL` |
 | **SqsQueue** | `ARN`, `NAME`, `URL` |
@@ -205,7 +205,7 @@ Each Stacktape resource produces multiple CloudFormation resources underneath (I
 
 ### Do resources cost money when idle?
 
-It depends on the resource type. Serverless resources like Lambda functions and DynamoDB tables (on-demand mode) follow a pay-per-request model. Container-based services (web service, private service, worker service) run continuously and incur charges based on allocated CPU and memory. Relational databases and Redis clusters charge while the instance is running. Check each resource's dedicated page for pricing details specific to that resource type.
+It depends on the resource type. Serverless resources like Lambda functions and DynamoDB tables (on-demand mode) follow a pay-per-request model. Container-based services (web service, private service, worker service) run continuously and incur charges based on allocated CPU and memory. Relational databases and Redis caches charge while the instance is running. Check each resource's dedicated page for pricing details specific to that resource type.
 
 ### Can I reference resources across different stacks?
 
@@ -217,4 +217,4 @@ Yes. Use [raw CloudFormation resources](/resources/advanced/raw-cloudformation-r
 
 ### How does Stacktape handle VPC networking?
 
-Stacktape creates a VPC automatically when your stack includes resources that need private networking, such as relational databases and Redis clusters. Resources that don't need VPC access (Lambda functions, DynamoDB, S3 buckets) work without one. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.
+Stacktape creates a VPC automatically when your stack includes resources that need private networking, such as relational databases and Redis caches. Resources that don't need VPC access (Lambda functions, DynamoDB, S3 buckets) work without one. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.

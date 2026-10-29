@@ -36,7 +36,7 @@ import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-type
 import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
 import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
 import type { StpPrivateService } from '@domain-services/config-manager/resolved-types/private-services';
-import type { StpRedisCluster } from '@domain-services/config-manager/resolved-types/redis-cluster';
+import type { StpRedis } from '@domain-services/config-manager/resolved-types/redis';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
 import type {
@@ -149,8 +149,8 @@ export type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'appl
                                     ? StpWebSocketApiGateway
                                     : T extends 'mongo-db-atlas-cluster'
                                       ? StpMongoDbAtlasCluster // []
-                                      : T extends 'redis-cluster'
-                                        ? StpRedisCluster // []
+                                      : T extends 'redis'
+                                        ? StpRedis // []
                                         : T extends 'relational-database'
                                           ? StpRelationalDatabase // []
                                           : T extends 'state-machine'

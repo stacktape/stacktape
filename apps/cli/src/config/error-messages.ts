@@ -465,7 +465,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         `Supported resource types are: ${(
           [
             'relational-database',
-            'redis-cluster',
+            'redis',
             'application-load-balancer',
             'private-service (with loadBalancing type application-load-balancer)'
           ] as StpResourceType[]

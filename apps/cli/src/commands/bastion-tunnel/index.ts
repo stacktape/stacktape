@@ -3,6 +3,7 @@ import type { StpResourceType } from '@domain-services/config-manager/resolved-t
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { isDeployedRedisResourceType } from '@domain-services/deployed-stack-overview-manager/redis-resource-type';
 import { stpErrors } from '@errors';
 import { CliError } from '@utils/errors';
 import { startPortForwardingSessions } from '@utils/ssm-session';
@@ -74,11 +75,14 @@ export const commandBastionTunnel = async () => {
 const isBastionTunnelingPossible = ({ resource }: { resource: StackInfoMapResource }) => {
   const supportedResourceTypes: StpResourceType[] = [
     'relational-database',
-    'redis-cluster',
+    'redis',
     'application-load-balancer',
     'private-service'
   ];
-  if (!supportedResourceTypes.includes(resource.resourceType as StpResourceType)) {
+  if (
+    !supportedResourceTypes.includes(resource.resourceType as StpResourceType) &&
+    !isDeployedRedisResourceType(resource.resourceType)
+  ) {
     return false;
   }
   if (resource.resourceType === 'private-service' && !resource._nestedResources.loadBalancer) {

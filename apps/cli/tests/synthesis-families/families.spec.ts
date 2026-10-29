@@ -37,12 +37,15 @@ import {
   JsBundleLambdaPackaging,
   LambdaFunction,
   PrivateService,
+  Redis,
   WebService,
   UserAuthPool,
   WorkerService,
   defineConfig
 } from '@stacktape/config-authoring';
+import type { RedisProps } from '@stacktape/config/redis';
 import type { UserAuthPoolProps } from '@stacktape/config/user-pools';
+import { validateConfigStructure } from '@domain-services/config-manager/utils/validation';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const fixturesDir = join(import.meta.dir, 'fixtures');
@@ -1138,5 +1141,207 @@ describe('user auth pool family', () => {
       code: 'CONFIG_USER_AUTH_POOL_TOKEN_VALIDITY_INVALID',
       category: 'CONFIG_VALIDATION'
     });
+  });
+});
+
+describe('Redis family', () => {
+  const password = 'redis-family-password-1';
+  const synthesizeCache = async (
+    family: string,
+    engine: RedisProps['engine'],
+    { deployedTemplate, command }: { deployedTemplate?: CloudFormationTemplate; command?: 'deploy' } = {}
+  ) => {
+    const config = defineConfig(() => ({ resources: { cache: new Redis({ defaultUserPassword: password, engine }) } }));
+    const template = await synthesizeFixture({
+      compiledConfig: config(authoringParams),
+      workingDir: fixturesDir,
+      deployedTemplate,
+      ...(command ? { synthesisContext: { command } } : {})
+    });
+    if (templateOutputDirectory) {
+      await mkdir(templateOutputDirectory, { recursive: true });
+      await writeFile(join(templateOutputDirectory, `${family}.json`), `${JSON.stringify(template, null, 2)}\n`);
+    }
+    expectReferencesResolve(template);
+    return template;
+  };
+  const params = () => calculatedStackOverviewManager.stackInfoMap.resources.cache.referencableParams;
+
+  test('a serverless cache authenticates its `default` user and opens the primary and reader ports', async () => {
+    const template = await synthesizeCache('redis-serverless', {
+      type: 'valkey-serverless',
+      properties: { maxDataGb: 2, maxEcpuPerSecond: 5000 }
+    });
+    const cache = onlyResourceOfType(template, 'AWS::ElastiCache::ServerlessCache');
+    const user = onlyResourceOfType(template, 'AWS::ElastiCache::User');
+    const userGroup = onlyResourceOfType(template, 'AWS::ElastiCache::UserGroup');
+    expect(cache.resource.Properties).toMatchObject({
+      Engine: 'valkey',
+      MajorEngineVersion: '9',
+      ConnectionType: 'vpc',
+      UserGroupId: { Ref: userGroup.logicalId },
+      CacheUsageLimits: { DataStorage: { Maximum: 2, Unit: 'GB' }, ECPUPerSecond: { Maximum: 5000 } }
+    });
+    expect(user.resource.Properties).toMatchObject({
+      UserName: 'default',
+      Engine: 'valkey',
+      AuthenticationMode: { Type: 'password', Passwords: [password] }
+    });
+    expect(userGroup.resource.Properties).toMatchObject({ Engine: 'valkey', UserIds: [{ Ref: user.logicalId }] });
+    expect(onlyResourceOfType(template, 'AWS::EC2::SecurityGroup').resource.Properties?.SecurityGroupIngress).toEqual([
+      expect.objectContaining({ FromPort: 6379, ToPort: 6380, IpProtocol: 'tcp' })
+    ]);
+    for (const nodeOnly of [
+      'AWS::ElastiCache::ReplicationGroup',
+      'AWS::ElastiCache::ParameterGroup',
+      'AWS::ElastiCache::SubnetGroup'
+    ]) {
+      expect(resourcesOfType(template, nodeOnly)).toEqual([]);
+    }
+    expect(json(params().host.value)).toBe(json({ 'Fn::GetAtt': [cache.logicalId, 'Endpoint.Address'] }));
+    expect(json(params().readerPort.value)).toBe(json({ 'Fn::GetAtt': [cache.logicalId, 'ReaderEndpoint.Port'] }));
+  });
+
+  test('a node-based Valkey cache gets the latest version and a matching parameter group', async () => {
+    const template = await synthesizeCache('redis-valkey', {
+      type: 'valkey',
+      properties: { instanceSize: 'cache.t4g.micro' }
+    });
+    expect(onlyResourceOfType(template, 'AWS::ElastiCache::ReplicationGroup').resource.Properties).toMatchObject({
+      Engine: 'valkey',
+      EngineVersion: '9.1',
+      TransitEncryptionEnabled: true,
+      AuthToken: password
+    });
+    expect(
+      onlyResourceOfType(template, 'AWS::ElastiCache::ParameterGroup').resource.Properties?.CacheParameterGroupFamily
+    ).toBe('valkey9');
+  });
+
+  test('a deployed cache keeps its version when the config sets none', async () => {
+    const deployedValkey = await synthesizeCache('redis-valkey-8', {
+      type: 'valkey',
+      properties: { instanceSize: 'cache.t4g.micro', version: '8.1' }
+    });
+    const valkey = await synthesizeCache(
+      'redis-valkey-kept',
+      { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro' } },
+      { deployedTemplate: deployedValkey }
+    );
+    expect(onlyResourceOfType(valkey, 'AWS::ElastiCache::ReplicationGroup').resource.Properties?.EngineVersion).toBe(
+      '8.1'
+    );
+    const deployedServerless = await synthesizeCache('redis-serverless-8', {
+      type: 'valkey-serverless',
+      properties: { version: '8' }
+    });
+    const serverless = await synthesizeCache(
+      'redis-serverless-kept',
+      { type: 'valkey-serverless' },
+      { deployedTemplate: deployedServerless }
+    );
+    expect(
+      onlyResourceOfType(serverless, 'AWS::ElastiCache::ServerlessCache').resource.Properties?.MajorEngineVersion
+    ).toBe('8');
+  });
+
+  test('a Redis OSS cache switches to Valkey in place and warns', async () => {
+    const deployed = await synthesizeCache('redis-oss', {
+      type: 'redis',
+      properties: { instanceSize: 'cache.t4g.micro', version: '6.2' }
+    });
+    const warn = spyOn(tuiManager, 'warn');
+    try {
+      const template = await synthesizeCache(
+        'redis-oss-to-valkey',
+        { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro' } },
+        { deployedTemplate: deployed }
+      );
+      const replicationGroup = onlyResourceOfType(template, 'AWS::ElastiCache::ReplicationGroup');
+      expect(replicationGroup.logicalId).toBe(
+        onlyResourceOfType(deployed, 'AWS::ElastiCache::ReplicationGroup').logicalId
+      );
+      expect(replicationGroup.resource.Properties).toMatchObject({ Engine: 'valkey', EngineVersion: '9.1' });
+      expect(
+        onlyResourceOfType(template, 'AWS::ElastiCache::ParameterGroup').resource.Properties?.CacheParameterGroupFamily
+      ).toBe('valkey9');
+      expect(warn.mock.calls.some(([message]) => String(message).includes('cannot be reversed'))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('changes AWS would apply by replacing the cache, or cannot apply, are rejected before deployment', async () => {
+    const nodeBased = await synthesizeCache('redis-reject-node', {
+      type: 'valkey',
+      properties: { instanceSize: 'cache.t4g.micro', version: '9.0' }
+    });
+    const serverless = await synthesizeCache('redis-reject-serverless', { type: 'valkey-serverless' });
+    const rejected = (
+      family: string,
+      engine: RedisProps['engine'],
+      options: Parameters<typeof synthesizeCache>[2],
+      message: string
+    ) => expect(synthesizeCache(family, engine, options)).rejects.toThrow(message);
+
+    await rejected(
+      'redis-node-to-serverless',
+      { type: 'valkey-serverless' },
+      { deployedTemplate: nodeBased },
+      'would replace it'
+    );
+    await rejected(
+      'redis-serverless-to-node',
+      { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro' } },
+      { deployedTemplate: serverless },
+      'would replace it'
+    );
+    await rejected(
+      'redis-valkey-to-oss',
+      { type: 'redis', properties: { instanceSize: 'cache.t4g.micro', version: '7.1' } },
+      { deployedTemplate: nodeBased },
+      'Switching back to the Redis OSS engine is not supported'
+    );
+    await rejected(
+      'redis-downgrade',
+      { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', version: '8.1' } },
+      { deployedTemplate: nodeBased },
+      'cannot be downgraded'
+    );
+    await rejected(
+      'redis-new-oss',
+      { type: 'redis', properties: { instanceSize: 'cache.t4g.micro', version: '7.1' } },
+      { command: 'deploy' },
+      'New caches cannot use the Redis OSS engine'
+    );
+    await rejected(
+      'redis-data-limit',
+      { type: 'valkey-serverless', properties: { maxDataGb: 0.5 } },
+      {},
+      '`maxDataGb` must be a whole number'
+    );
+  });
+
+  test('a v3 `redis-cluster` gets the v4 replacement that keeps its engine and version', async () => {
+    const rejection = validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          cache: {
+            type: 'redis-cluster',
+            properties: {
+              instanceSize: 'cache.t4g.micro',
+              defaultUserPassword: 'literal-password-1234',
+              numReplicaNodes: 1
+            }
+          }
+        }
+      } as never
+    });
+    await expect(rejection).rejects.toMatchObject({ code: 'CONFIG_REDIS_CLUSTER_RENAMED' });
+    const message = await rejection.catch((error: Error) => error.message);
+    expect(message).toContain('"version": "6.2"');
+    expect(message).toContain('"numReplicaNodes": 1');
+    expect(message).not.toContain('literal-password-1234');
   });
 });

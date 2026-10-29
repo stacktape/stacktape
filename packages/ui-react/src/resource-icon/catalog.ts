@@ -70,7 +70,7 @@ export const RESOURCE_VISUALS = {
   // Aurora DSQL has no icon of its own in either pack; it is Aurora, so it borrows RDS's.
   'dsql-database': visual('database', 'rds', 'aws-aurora'),
   'dynamo-db-table': visual('database', 'dynamo-db', 'aws-dynamodb'),
-  'redis-cluster': visual('database', 'elasticache', 'aws-elasticache'),
+  redis: visual('database', 'elasticache', 'aws-elasticache'),
   'mongo-db-atlas-cluster': frameworkVisual('database', 'mongodb', 'aws-documentdb'),
   'upstash-redis': frameworkVisual('database', 'upstash', 'aws-elasticache'),
   'open-search-domain': visual('database', 'open-search', 'aws-opensearch-service'),
@@ -112,8 +112,11 @@ export const RESOURCE_VISUALS = {
   user: visual('security', 'cognito', 'user')
 } as const satisfies Partial<Record<StacktapeResourceType | DiagramOnlyResourceType, ResourceVisual>>;
 
+/** Stacks deployed by Stacktape v3 still report Redis caches as `redis-cluster` until their next deployment. */
+const LEGACY_RESOURCE_TYPES: Record<string, keyof typeof RESOURCE_VISUALS> = { 'redis-cluster': 'redis' };
+
 export const getResourceVisual = (resourceType: string): ResourceVisual | undefined =>
-  RESOURCE_VISUALS[resourceType as keyof typeof RESOURCE_VISUALS];
+  RESOURCE_VISUALS[(LEGACY_RESOURCE_TYPES[resourceType] ?? resourceType) as keyof typeof RESOURCE_VISUALS];
 
 function visual(category: ResourceVisualCategory, name: AwsResourceIconName, diagramIconId: string): ResourceVisual {
   return { category, diagramIconId, icon: { kind: 'aws', name } };

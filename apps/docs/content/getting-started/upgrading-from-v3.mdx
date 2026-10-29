@@ -11,7 +11,7 @@ Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names
 
 ## Deployed stacks
 
-Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis clusters, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
+Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis caches, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
 
 The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag.
 
@@ -44,6 +44,12 @@ In the `--agent` result of `validate` and `deploy`, one `security` object replac
 v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--aws-account`, the saved default, or the organization's only connected account. In v4, when `--aws-account` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
 
 Check scripts and CI jobs that set an AWS profile or AWS keys for a different account than the one they deploy to. Pass `--aws-account <name>` in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
+## Redis caches
+
+`type: redis-cluster` is now `type: redis`, and the node settings (`instanceSize`, replicas, sharding, `port`, `logging`) moved under `engine.properties`. To keep a deployed cache unchanged, use `engine.type: redis` and set `version` to the version it runs: the former `engineVersion`, or `6.2` if it was not set. The CLI rejects `redis-cluster` and prints this replacement for your settings. TypeScript configs replace `RedisCluster` with `Redis`.
+
+The cache keeps its endpoint and data. New caches use Valkey (`engine.type: valkey` or `valkey-serverless`); to move an existing cache to Valkey, change `engine.type` to `valkey`. See [Redis](/resources/databases/redis#migrating-from-redis-cluster).
 
 ## Removed resource parameters
 

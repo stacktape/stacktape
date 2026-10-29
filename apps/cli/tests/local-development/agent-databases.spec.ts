@@ -15,7 +15,7 @@ import { createDevToolHandler } from '../../src/commands/mcp/dev-tool';
 // Redis and DynamoDB Local containers. A configured database that the session does not run locally stands for a
 // deployed one; no action may reach it.
 const CLI_DIRECTORY = resolve(import.meta.dir, '../..');
-const IMAGES = ['postgres:15.14', 'mysql:8.0', 'redis:7.2', 'amazon/dynamodb-local:latest'];
+const IMAGES = ['postgres:15.14', 'mysql:8.0', 'valkey/valkey:7.2', 'amazon/dynamodb-local:latest'];
 const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8', timeout: 600_000 });
 
 const PROJECT_NAME = `agentdb${randomBytes(3).toString('hex')}`;
@@ -74,7 +74,7 @@ configManager.config = {
     db: postgres('15.14'),
     deployedDb: postgres('15.14'),
     mydb: { type: 'relational-database', properties: { engine: { type: 'mysql', properties: { version: '8.0', dbName: 'app', primaryInstance: { instanceSize: 'db.t4g.micro' } } }, credentials: { masterUserName: 'root' } } },
-    cache: { type: 'redis-cluster', properties: { instanceSize: 'cache.t4g.micro', engineVersion: '7.2' } },
+    cache: { type: 'redis', properties: { engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', version: '7.2' } } } },
     events: { type: 'dynamo-db-table', properties: { primaryKey: { partitionKey: { name: 'pk', type: 'string' }, sortKey: { name: 'sk', type: 'number' } } } },
     orders: { type: 'dynamo-db-table', properties: { primaryKey: { partitionKey: { name: 'id', type: 'string' } } } }
   },

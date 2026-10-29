@@ -2,6 +2,7 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { isDeployedRedisResourceType } from '@domain-services/deployed-stack-overview-manager/redis-resource-type';
 import { redisKeys, redisGet, redisTtl, redisInfo, redisType } from '@domain-services/debug-services/db-client';
 import { startPortForwardingSessions, type SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
@@ -33,7 +34,7 @@ export const commandQueryRedis = async () => {
       category: 'CLI',
       code: 'CLI_REDIS_RESOURCE_REQUIRED',
       message: 'Missing required flag `--resource-name`.',
-      hints: 'Provide `--resource-name <redisClusterName>`.'
+      hints: 'Provide `--resource-name <redisResourceName>`.'
     });
   }
 
@@ -56,12 +57,12 @@ export const commandQueryRedis = async () => {
     });
   }
 
-  if (resource.resourceType !== 'redis-cluster') {
+  if (!isDeployedRedisResourceType(resource.resourceType)) {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_REDIS_RESOURCE_TYPE_INVALID',
-      message: `Resource \`${resourceName}\` is not a Redis cluster (type: \`${resource.resourceType}\`).`,
-      hints: '`query redis` supports `redis-cluster` resources only.'
+      message: `Resource \`${resourceName}\` is not a Redis cache (type: \`${resource.resourceType}\`).`,
+      hints: '`query redis` supports `redis` resources only.'
     });
   }
 

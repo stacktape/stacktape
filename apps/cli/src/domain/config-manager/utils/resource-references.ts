@@ -176,7 +176,7 @@ export const resolveConnectToList = ({
       result.accessToResourcesRequiringRoleChanges.push(resource as StpResourceScopableByConnectToAffectingRole);
       return;
     }
-    if (resource.type === 'relational-database' || resource.type === 'redis-cluster') {
+    if (resource.type === 'relational-database' || resource.type === 'redis') {
       result.accessToResourcesPotentiallyRequiringSecurityGroupCreation.push(resource);
       return;
     }

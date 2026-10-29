@@ -108,7 +108,7 @@ describe('init writes a config stacktape dev can run', () => {
     // Named after the `STP_DB_*`, `STP_CACHE_*` and `STP_JOBS_URL` reads, so `connectTo` injects exactly those.
     expect(typesOf(resources)).toMatchObject({
       db: 'relational-database',
-      cache: 'redis-cluster',
+      cache: 'redis',
       jobs: 'sqs-queue',
       httpApiGateway: 'http-api-gateway',
       api: 'function',
@@ -336,7 +336,7 @@ describe('init writes a config stacktape dev can run', () => {
     const resources = resourcesOf(result);
 
     expect(typesOf(resources)).toEqual({
-      cache: 'redis-cluster',
+      cache: 'redis',
       mainTable: 'dynamo-db-table',
       eventBus: 'event-bus',
       websocketApi: 'websocket-api-gateway',

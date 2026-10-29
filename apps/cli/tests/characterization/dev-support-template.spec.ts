@@ -8,7 +8,7 @@ import {
   JsBundleLambdaPackaging,
   LambdaFunction,
   RdsEnginePostgres,
-  RedisCluster,
+  Redis,
   RelationalDatabase,
   HostingBucket,
   MultiContainerWorkload,
@@ -130,7 +130,10 @@ test('dev functions that need the dev box run in the shared dev network with rel
       credentials: { masterUserPassword: 'deployed-only' },
       engine: new RdsEnginePostgres({ version: '16.4', primaryInstance: { instanceSize: 'db.t3.micro' } })
     });
-    const cache = new RedisCluster({ instanceSize: 'cache.t3.micro', defaultUserPassword: 'deployed-only-password' });
+    const cache = new Redis({
+      engine: { type: 'valkey', properties: { instanceSize: 'cache.t3.micro' } },
+      defaultUserPassword: 'deployed-only-password'
+    });
     const packaging = new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' });
     // `api` reaches both local databases, `egress` is a VPC function that only needs the box's NAT, `plain` needs neither.
     const api = new LambdaFunction({
@@ -508,7 +511,10 @@ test('batch jobs stay in the stack VPC when the dev stack deploys VPC resources 
       engine: new RdsEngineMysql({ version: '8.4.8', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
       accessibility: { accessibilityMode: 'vpc' }
     });
-    const cache = new RedisCluster({ instanceSize: 'cache.t3.micro', defaultUserPassword: 'deployed-only-password' });
+    const cache = new Redis({
+      engine: { type: 'valkey', properties: { instanceSize: 'cache.t3.micro' } },
+      defaultUserPassword: 'deployed-only-password'
+    });
     const report = new BatchJob({
       container: {
         packaging: new BuildpackImagePackaging({ sourceDirectoryPath: './src', startCommand: 'node report.js' })

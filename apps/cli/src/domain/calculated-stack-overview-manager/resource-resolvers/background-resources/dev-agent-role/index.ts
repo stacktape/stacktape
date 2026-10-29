@@ -332,6 +332,13 @@ export const resolveDevAgentRole = () => {
       ])
     );
     add(
+      'elasticache-serverless-access',
+      ['elasticache:DescribeServerlessCaches', 'elasticache:ListTagsForResource'],
+      ownResourceArns(template, 'AWS::ElastiCache::ServerlessCache', 'ServerlessCacheName', (name) => [
+        regional('elasticache', `serverlesscache:${name}`)
+      ])
+    );
+    add(
       'opensearch-access',
       ['es:DescribeDomain', 'es:DescribeDomains', 'es:DescribeDomainConfig', 'es:ListTags'],
       ownResourceArns(template, 'AWS::OpenSearchService::Domain', 'DomainName', (name) => [

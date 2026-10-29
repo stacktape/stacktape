@@ -191,7 +191,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
 
-**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+**`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
 
 **`Function`** — invoke permission → `ARN`
 

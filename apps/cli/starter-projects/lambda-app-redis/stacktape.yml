@@ -6,11 +6,11 @@ resources:
         enabled: true
 
   redis:
-    type: redis-cluster
+    type: redis
     properties:
       defaultUserPassword: $Secret('redis.password')
-      instanceSize: cache.t3.micro
-      engineVersion: '7.1'
+      engine:
+        type: valkey-serverless
 
   storeKeyValuePair:
     type: function

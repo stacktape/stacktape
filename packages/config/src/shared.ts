@@ -30,7 +30,7 @@ import type { NuxtWeb } from './nuxt-web';
 import type { OpenSearchDomain } from './open-search';
 import type { Arn } from './primitives';
 import type { PrivateService } from './private-services';
-import type { RedisCluster } from './redis-cluster';
+import type { Redis } from './redis';
 import type { RelationalDatabase } from './relational-databases';
 import type { RemixWeb } from './remix-web';
 import type { SnsTopic } from './sns-topic';
@@ -70,7 +70,7 @@ export type StacktapeResourceDefinition =
   | DynamoDbTable
   | DsqlDatabase
   | EmailSender
-  | RedisCluster
+  | Redis
   | StateMachine
   | MongoDbAtlasCluster
   | CustomResourceInstance
@@ -1722,7 +1722,7 @@ export interface ScriptEnvProps {
    * - **`DynamoDbTable`**: `NAME`, `ARN`, `STREAM_ARN`
    * - **`MongoDbAtlasCluster`**: `CONNECTION_STRING`
    * - **`RelationalDatabase`**: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
-   * - **`RedisCluster`**: `HOST`, `READER_HOST`, `PORT`
+   * - **`Redis`**: `HOST`, `READER_HOST`, `PORT`
    * - **`EventBus`**: `ARN`
    * - **`Function`**: `ARN`
    * - **`BatchJob`**: `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
@@ -3825,7 +3825,7 @@ export interface ResourceAccessProps {
    *
    * **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
    *
-   * **`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+   * **`Redis`** — network access → `HOST`, `READER_HOST`, `PORT`
    *
    * **`Function`** — invoke permission → `ARN`
    *

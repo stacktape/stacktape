@@ -112,7 +112,7 @@ export const defaultLogRetentionDays = {
   batchJob: 90,
   containerWorkload: 90,
   lambdaFunction: 90,
-  redisCluster: 30,
+  redis: 30,
   relationalDatabase: 90
 };
 
@@ -226,7 +226,7 @@ export const RESOURCE_DEFAULTS = {
   'email-sender': {
     manageIdentity: true as boolean
   },
-  'redis-cluster': {},
+  redis: {},
   'deployment-script': {},
   'upstash-redis': {},
   bucket: {},

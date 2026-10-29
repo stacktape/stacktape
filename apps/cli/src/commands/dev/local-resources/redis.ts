@@ -1,4 +1,9 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import type { StpRedis } from '@domain-services/config-manager/resolved-types/redis';
+import {
+  LATEST_VALKEY_SERVERLESS_VERSION,
+  LATEST_VALKEY_VERSION
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/redis/versions';
 import { execDocker } from '@utils/docker';
 import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import {
@@ -38,18 +43,66 @@ export const buildConnectionInfo = (host: string, port: number, password?: strin
 };
 
 /**
- * ElastiCache 7.1 has no open-source Redis release, so `redis:7.1` does not exist and dev mode failed to start for a
- * config using it. Its closest compatible image is 7.2; the other supported engine versions have images of their own.
+ * ElastiCache versions without an open-source release of their own map to the closest compatible image: Redis OSS 7.1
+ * has no `redis:7.1` image (7.2 is compatible) and ElastiCache Valkey 8.2 is compatible with Valkey 8.1.
  */
-const ELASTICACHE_ONLY_VERSIONS: Record<string, string> = { '7.1': '7.2' };
+const ELASTICACHE_ONLY_VERSIONS: Record<'redis' | 'valkey', Record<string, string>> = {
+  redis: { '7.1': '7.2' },
+  valkey: { '8.2': '8.1' }
+};
 
-export const getLocalRedisImageTag = (engineVersion: string): string =>
-  getImageTag(ELASTICACHE_ONLY_VERSIONS[engineVersion] ?? engineVersion, 'redis');
+export const getLocalRedisImageTag = (engine: StpRedis['engine']['type'], engineVersion: string): string => {
+  const family = engine === 'redis' ? 'redis' : 'valkey';
+  const version = ELASTICACHE_ONLY_VERSIONS[family][engineVersion] ?? engineVersion;
+  return getImageTag(version, family === 'redis' ? 'redis' : 'valkey/valkey');
+};
+
+/** The version the local container runs: the configured one, or the latest a new cache would get. */
+export const getLocalRedisVersion = (engine: StpRedis['engine']): string => {
+  if (engine.type === 'valkey-serverless') {
+    return engine.properties?.version || LATEST_VALKEY_SERVERLESS_VERSION;
+  }
+  return engine.properties.version || LATEST_VALKEY_VERSION;
+};
+
+/**
+ * ElastiCache Serverless always runs in cluster mode with every hash slot on one node. The local container does the
+ * same, so commands that touch keys in different slots fail locally with `CROSSSLOT` as they do in AWS. The node
+ * announces 127.0.0.1 and the published port, which cluster-mode clients on this machine (and in containers on the host
+ * network) follow. Standalone clients connect to it unchanged.
+ */
+const getClusterModeArgs = (hostPort: number) => [
+  '--cluster-enabled',
+  'yes',
+  '--cluster-announce-ip',
+  '127.0.0.1',
+  '--cluster-announce-port',
+  String(hostPort)
+];
+
+const assignAllSlots = async (containerName: string, password: string | undefined) => {
+  // Valkey images ship `redis-cli` as an alias of `valkey-cli`.
+  const cli = ['exec', containerName, 'redis-cli', ...(password ? ['-a', password, '--no-auth-warning'] : [])];
+  const isClusterReady = async () =>
+    (await execDocker([...cli, 'cluster', 'info'], { skipHandleError: true })).stdout.includes('cluster_state:ok');
+  // A data directory from an earlier run keeps its slot assignment in nodes.conf.
+  if (await isClusterReady()) return;
+  await execDocker([...cli, 'cluster', 'addslotsrange', '0', '16383'], { skipHandleError: true });
+  // The node reports the cluster as down for a moment after its slots are assigned and rejects commands until then.
+  await waitForReady({
+    containerName,
+    resourceType: 'Redis cluster',
+    timeoutMs: 15000,
+    pollIntervalMs: 200,
+    checkFn: isClusterReady
+  });
+};
 
 export const startLocalRedis = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
-  const { version, port, dataDir, credentials, containerName } = config;
+  const { version, port, dataDir, credentials, containerName, redisEngine = 'redis' } = config;
+  const clusterMode = redisEngine === 'valkey-serverless';
   const defaultPort = DEFAULT_PORTS.redis;
   const password = credentials?.password;
 
@@ -72,7 +125,7 @@ export const startLocalRedis = async (
   }
 
   let actualPort = await findAvailablePort(port);
-  const imageTag = getLocalRedisImageTag(version);
+  const imageTag = getLocalRedisImageTag(redisEngine, version);
 
   const buildDockerArgs = (hostPort: number) => [
     'run',
@@ -84,7 +137,8 @@ export const startLocalRedis = async (
     '-v',
     `${dataDir}:${REDIS_DATA_PATH}`,
     imageTag,
-    ...(password ? ['--requirepass', password] : [])
+    ...(password ? ['--requirepass', password] : []),
+    ...(clusterMode ? getClusterModeArgs(hostPort) : [])
   ];
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -114,6 +168,10 @@ export const startLocalRedis = async (
       return exitCode === 0 && stdout.includes('PONG');
     }
   });
+
+  if (clusterMode) {
+    await assignAllSlots(containerName, password);
+  }
 
   const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, password);
 

@@ -794,8 +794,8 @@ export class ConfigManager {
     return this.getResourcesFromConfig('mongo-db-atlas-cluster');
   }
 
-  get redisClusters() {
-    return this.getResourcesFromConfig('redis-cluster');
+  get redisCaches() {
+    return this.getResourcesFromConfig('redis');
   }
 
   get deploymentScripts() {
@@ -1002,7 +1002,7 @@ export class ConfigManager {
     ]);
     for (const resource of [
       ...this.databases,
-      ...this.redisClusters,
+      ...this.redisCaches,
       ...this.dynamoDbTables,
       ...this.openSearchDomains,
       ...this.kafkaClusters
@@ -1013,7 +1013,7 @@ export class ConfigManager {
       command: this.stackContext.command,
       remoteResourceNames: withBastionsForRemoteResources({
         remoteResourceNames,
-        vpcResourceNames: [...this.databases, ...this.redisClusters, ...this.openSearchDomains].map(({ name }) => name),
+        vpcResourceNames: [...this.databases, ...this.redisCaches, ...this.openSearchDomains].map(({ name }) => name),
         bastionNames: this.bastions.map(({ name }) => name)
       }),
       devNetwork: this.stackContext.command === 'dev' ? this.#devNetworkPlacement : undefined,
@@ -2181,7 +2181,7 @@ export class ConfigManager {
       const name = extractSecretName(db.credentials?.masterUserPassword);
       if (name) names.add(name);
     }
-    for (const redis of this.redisClusters) {
+    for (const redis of this.redisCaches) {
       const name = extractSecretName(redis.defaultUserPassword);
       if (name) names.add(name);
     }
@@ -2269,7 +2269,7 @@ export class ConfigManager {
       ...this.customResourceInstances,
       ...this.atlasMongoClusters,
       ...this.dynamoDbTables,
-      ...this.redisClusters,
+      ...this.redisCaches,
       ...this.userPools,
       ...this.deploymentScripts,
       ...this.upstashRedisDatabases,
@@ -2329,7 +2329,7 @@ export class ConfigManager {
       ...this.allApplicationLoadBalancers,
       ...this.atlasMongoClusters,
       ...this.databases,
-      ...this.redisClusters,
+      ...this.redisCaches,
       ...this.openSearchDomains,
       ...this.bastions,
       ...this.efsFilesystems,

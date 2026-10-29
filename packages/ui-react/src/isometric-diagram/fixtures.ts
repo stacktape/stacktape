@@ -168,11 +168,11 @@ export const diagramFixtures: DiagramFixture[] = [
         accessibilityMode: vpc
 
   cache:
-    type: redis-cluster
+    type: redis
     properties:
+      defaultUserPassword: $Secret('cache.password')
       engine:
-        type: redis7
-      instanceSize: cache.t3.micro
+        type: valkey-serverless
 `,
     expectation: { minNodes: 5, minConnectors: 4, hasVpc: true, connectorSemantics: ['request', 'dependency'] }
   },
@@ -263,11 +263,11 @@ export const diagramFixtures: DiagramFixture[] = [
         accessibilityMode: vpc
 
   cache:
-    type: redis-cluster
+    type: redis
     properties:
+      defaultUserPassword: $Secret('cache.password')
       engine:
-        type: redis7
-      instanceSize: cache.t3.micro
+        type: valkey-serverless
 
   taskQueue:
     type: sqs-queue
@@ -560,11 +560,11 @@ export const diagramFixtures: DiagramFixture[] = [
         accessibilityMode: vpc
 
   sharedCache:
-    type: redis-cluster
+    type: redis
     properties:
+      defaultUserPassword: $Secret('cache.password')
       engine:
-        type: redis7
-      instanceSize: cache.t3.micro
+        type: valkey-serverless
 
   paymentsQueue:
     type: sqs-queue

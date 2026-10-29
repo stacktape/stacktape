@@ -102,7 +102,7 @@ Replacement warnings are the most important part of the preview output. When Clo
 - **May replace** — CloudFormation cannot determine whether replacement is needed until deploy time. This happens with certain property changes where the outcome depends on the specific values involved.
 
 
-> **Warning:** Pay close attention to "will replace" warnings on stateful resources like [relational databases](/resources/databases/relational-database), [DynamoDB tables](/resources/databases/dynamodb), and [Redis clusters](/resources/databases/redis). Replacement means CloudFormation creates a new physical resource and retires the old one, which can cause downtime or data loss. Back up your data before deploying if you see these warnings.
+> **Warning:** Pay close attention to "will replace" warnings on stateful resources like [relational databases](/resources/databases/relational-database), [DynamoDB tables](/resources/databases/dynamodb), and [Redis caches](/resources/databases/redis). Replacement means CloudFormation creates a new physical resource and retires the old one, which can cause downtime or data loss. Back up your data before deploying if you see these warnings.
 
 
 ### No changes detected

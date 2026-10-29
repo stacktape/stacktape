@@ -1,6 +1,6 @@
 # Connecting Resources
 
-The `connectTo` property wires resources together inside a Stacktape stack. Adding a resource name to a workload's `connectTo` list automatically grants IAM permissions, injects `STP_*` environment variables with connection details, and — for databases and Redis clusters — opens security group access. One line replaces manual IAM policies, networking rules, and environment configuration.
+The `connectTo` property wires resources together inside a Stacktape stack. Adding a resource name to a workload's `connectTo` list automatically grants IAM permissions, injects `STP_*` environment variables with connection details, and — for databases and Redis caches — opens security group access. One line replaces manual IAM policies, networking rules, and environment configuration.
 
 ## When to use
 
@@ -113,9 +113,9 @@ export default defineConfig(() => {
 
 When you add a resource name to `connectTo`, Stacktape performs up to three actions depending on the target resource type:
 
-1. **Grants IAM permissions** — the consuming resource's execution role gets a policy allowing it to interact with the target (e.g., read/write objects for buckets, send/receive messages for queues). Network-bound resources like relational databases and Redis clusters don't use IAM for data-plane access.
+1. **Grants IAM permissions** — the consuming resource's execution role gets a policy allowing it to interact with the target (e.g., read/write objects for buckets, send/receive messages for queues). Network-bound resources like relational databases and Redis caches don't use IAM for data-plane access.
 
-2. **Opens security group access** — for [relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis), Stacktape creates security group rules allowing the consuming resource to reach the target on the correct port. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement details.
+2. **Opens security group access** — for [relational databases](/resources/databases/relational-database) and [Redis caches](/resources/databases/redis), Stacktape creates security group rules allowing the consuming resource to reach the target on the correct port. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement details.
 
 3. **Injects environment variables** — Stacktape injects connection parameters as `STP_[RESOURCE_NAME]_[PARAM]` environment variables into the consuming resource. The exact set of injected variables depends on the target resource type, documented in the tables below.
 
@@ -269,7 +269,7 @@ Assuming a resource named `notifications`:
 | `arn` | `STP_NOTIFICATIONS_ARN` | Topic ARN |
 | `name` | `STP_NOTIFICATIONS_NAME` | Topic name |
 
-### Redis cluster
+### Redis cache
 
 Assuming a resource named `cache`:
 
@@ -403,7 +403,7 @@ The tables above cover resource types with documented `connectTo` environment va
 
 For these targets, use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables manually.
 
-In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration.
+In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis caches) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration.
 
 ### Script-only variables
 
@@ -477,7 +477,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Temporary credential-less access |
 | [Relational database](/resources/databases/relational-database) | Network access (security group rules, not IAM) |
 | [Aurora DSQL](/resources/databases/dsql) | Connect as the built-in `admin` role on the target cluster (`dsql:DbConnectAdmin`) |
-| [Redis cluster](/resources/databases/redis) | Network access (security group rules, not IAM) |
+| [Redis cache](/resources/databases/redis) | Network access (security group rules, not IAM) |
 | [AgentCore Runtime](/resources/ai/agentcore-runtime) | Invoke the runtime and its configured endpoints |
 | [AgentCore Memory](/resources/ai/agentcore-memory) | Use events and short- and long-term memory records |
 | [AgentCore Gateway](/resources/ai/agentcore-gateway) | Invoke the gateway |
@@ -487,7 +487,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [Email sender](/resources/messaging/email-sender) | `ses:SendEmail` and `ses:SendRawEmail`, scoped to the exact identity and configuration set |
 | [Kafka cluster](/resources/messaging/kafka-cluster) | IAM cluster/topic/group access and port 9098 network access; no topic deletion or alteration |
 
-[Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
+[Relational databases](/resources/databases/relational-database) and [Redis caches](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
 [Multi-container workloads](/resources/compute/multi-container-workload), [state machines](/resources/orchestration/state-machine), [OpenSearch domains](/resources/databases/opensearch), [Kinesis streams](/resources/messaging/kinesis-stream), and [event buses](/resources/messaging/event-bus) are also valid `connectTo` targets that affect the consuming workload's IAM role. For the final deployed policy, inspect the generated CloudFormation template, for example with [`stacktape synth`](/cli/synth).
 
@@ -601,7 +601,7 @@ The following list covers resources where the `connectTo` property is available 
 
 ## VPC and networking
 
-When you connect to [relational databases](/resources/databases/relational-database) or [Redis clusters](/resources/databases/redis), Stacktape creates security group rules that allow the consuming resource to reach the target on the correct port. Workloads that need to reach VPC-bound databases or Redis clusters must be placed in the same VPC — see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [relational database](/resources/databases/relational-database) pages for VPC placement configuration.
+When you connect to [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis), Stacktape creates security group rules that allow the consuming resource to reach the target on the correct port. Workloads that need to reach VPC-bound databases or Redis caches must be placed in the same VPC — see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [relational database](/resources/databases/relational-database) pages for VPC placement configuration.
 
 
 > **Warning:** Lambda functions placed in a VPC lose direct internet access. If your function needs to call external APIs while also connecting to a VPC database, set `stackConfig.nat` (see below) or use a database with internet-accessible settings for development stages.
@@ -652,7 +652,7 @@ Manual `environment` entries can pass dynamic values with `$ResourceParam()`, bu
 
 ### What is the difference between IAM permissions and security groups?
 
-AWS IAM controls which API calls a resource can make (e.g., writing to S3, invoking a Lambda function). Security groups control network traffic between resources at the TCP level (e.g., allowing port 5432 connections to a database). Services like S3 and DynamoDB are accessed over the public AWS API, so they only need IAM. Databases and Redis clusters run inside a VPC and need security group rules to allow network traffic. `connectTo` manages both layers depending on the target resource type.
+AWS IAM controls which API calls a resource can make (e.g., writing to S3, invoking a Lambda function). Security groups control network traffic between resources at the TCP level (e.g., allowing port 5432 connections to a database). Services like S3 and DynamoDB are accessed over the public AWS API, so they only need IAM. Databases and Redis caches run inside a VPC and need security group rules to allow network traffic. `connectTo` manages both layers depending on the target resource type.
 
 ### Can I connect to resources in a different stack?
 
@@ -668,4 +668,4 @@ No — `connectTo` grants a fixed set of permissions per resource type and is al
 
 ### Why can't my Lambda function reach the database I connected to?
 
-`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cluster](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — set `stackConfig.nat` if it also calls external APIs.
+`connectTo` opens the security group rules between the consuming resource and a [relational database](/resources/databases/relational-database) or [Redis cache](/resources/databases/redis), but the consumer still has to sit in the same VPC to use them. A Lambda function that isn't placed in the VPC will have the `STP_*` variables and an open security group rule yet still fail to connect. See the [Lambda function](/resources/compute/lambda-function) and [relational database](/resources/databases/relational-database) pages for VPC placement. Note that putting a Lambda in a VPC removes its direct internet access — set `stackConfig.nat` if it also calls external APIs.

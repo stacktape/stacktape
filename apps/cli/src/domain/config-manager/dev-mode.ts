@@ -4,7 +4,7 @@ import type { StpResourceType } from '@domain-services/config-manager/resolved-t
 /** Resource types that are emulated locally and should not be deployed to the dev stack unless selected as remote. */
 const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'relational-database',
-  'redis-cluster',
+  'redis',
   'dynamo-db-table',
   'open-search-domain'
 ];

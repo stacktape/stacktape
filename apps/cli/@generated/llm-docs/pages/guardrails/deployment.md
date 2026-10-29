@@ -94,15 +94,15 @@ For small teams where everyone needs full CLI access, command restriction adds f
 
 Resource type restriction blocks specific Stacktape resource types from being used. Set a `blockedResourceTypes` list containing the resource types you want to ban. The `blockedResourceTypes` property accepts an array of `StpResourceType` values.
 
-This guardrail lets you curate which Stacktape resource types are allowed in your stacks. Block expensive resource types that haven't been approved, restrict types that require special operational expertise, or limit teams to a standard set of approved services. For example, to block OpenSearch and Redis: `["open-search-domain", "redis-cluster"]`.
+This guardrail lets you curate which Stacktape resource types are allowed in your stacks. Block expensive resource types that haven't been approved, restrict types that require special operational expertise, or limit teams to a standard set of approved services. For example, to block OpenSearch and Redis: `["open-search-domain", "redis"]`.
 
 ### Resource type identifiers
 
-The `blockedResourceTypes` property accepts values from the `StpResourceType` union, which corresponds to the `type` discriminator on each Stacktape resource definition — for example, `["open-search-domain", "redis-cluster"]`. For the full set of resource types you can reference here, see the [Resources](/configuration/resources) documentation — each resource page documents its own type identifier.
+The `blockedResourceTypes` property accepts values from the `StpResourceType` union, which corresponds to the `type` discriminator on each Stacktape resource definition — for example, `["open-search-domain", "redis"]`. For the full set of resource types you can reference here, see the [Resources](/configuration/resources) documentation — each resource page documents its own type identifier.
 
 ### When to use
 
-- **Cost governance.** Block expensive resource types like `open-search-domain` or `redis-cluster` until they go through a cost-approval process.
+- **Cost governance.** Block expensive resource types like `open-search-domain` or `redis` until they go through a cost-approval process.
 - **Standardization.** Limit teams to approved resource types to reduce operational complexity and ensure everyone uses services the organization knows how to support.
 - **Security constraints.** Prevent resource types that would require additional security review or compliance work before adoption.
 

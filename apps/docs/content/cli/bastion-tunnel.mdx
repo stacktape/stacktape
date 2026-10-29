@@ -2,7 +2,7 @@
 title: 'bastion tunnel'
 order: 164
 seoTitle: 'bastion tunnel CLI Command | Stacktape Docs'
-seoDescription: 'Create a secure SSM tunnel through a bastion host to access private VPC resources like databases, Redis clusters, and private services from your local machine.'
+seoDescription: 'Create a secure SSM tunnel through a bastion host to access private VPC resources like databases, Redis caches, and private services from your local machine.'
 ---
 
 # bastion tunnel
@@ -36,7 +36,7 @@ Bastion tunneling works with four resource types. Stacktape resolves the tunnel 
 | Resource type | Notes |
 |---|---|
 | [relational-database](/resources/databases/relational-database) | Tunnels to the database endpoints resolved for the resource. |
-| [redis-cluster](/resources/databases/redis) | Tunnels to the Redis endpoints resolved for the resource. |
+| [redis](/resources/databases/redis) | Tunnels to the Redis endpoints resolved for the resource. |
 | [application-load-balancer](/resources/networking/application-load-balancer) | Tunnels to the load balancer's listener ports. |
 | [private-service](/resources/compute/private-service) | Tunnels through the private service's nested load balancer. Requires the deployed private service to have a nested load balancer. |
 
@@ -64,9 +64,9 @@ stacktape bastion tunnel myDatabase --stage prod --region eu-west-1 --local-tunn
 
 Stacktape starts one port-forwarding session for each resolved target and prints the local port for each tunnel.
 
-### Tunnel to a Redis cluster
+### Tunnel to a Redis cache
 
-Access a VPC-only [Redis cluster](/resources/databases/redis) from a local `redis-cli` or Redis GUI.
+Access a VPC-only [Redis cache](/resources/databases/redis) from a local `redis-cli` or Redis GUI.
 
 ```bash
 stacktape bastion tunnel myRedis --stage prod --region eu-west-1
@@ -117,7 +117,7 @@ Run `bastion tunnel` and note the local address printed in the output (e.g. `127
 
 ### Why does my private service tunnel fail?
 
-Tunneling to a [private service](/resources/compute/private-service) requires the deployed service to have a nested load balancer. If your private service does not have one, the command fails with an error. The other supported targets are `relational-database`, `redis-cluster`, and `application-load-balancer`; any other resource type fails with an unsupported-tunnel-target error.
+Tunneling to a [private service](/resources/compute/private-service) requires the deployed service to have a nested load balancer. If your private service does not have one, the command fails with an error. The other supported targets are `relational-database`, `redis`, and `application-load-balancer`; any other resource type fails with an unsupported-tunnel-target error.
 
 ### Can I run multiple tunnels at the same time?
 
@@ -131,4 +131,4 @@ You can, but there is no reason to. If a database has a public endpoint, connect
 
 - [`bastion shell`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
 - [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` for VPC-only databases.
-- [`query redis`](/cli/query-redis) — query a deployed Redis cluster. Supports `--bastion-resource` for VPC-only clusters.
+- [`query redis`](/cli/query-redis) — query a deployed Redis cache. Supports `--bastion-resource` for VPC-only clusters.

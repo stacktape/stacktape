@@ -11,7 +11,7 @@ type VpcLambda = Pick<
 >;
 type VpcLambdaConfig = Pick<
   ConfigManager,
-  'databases' | 'redisClusters' | 'openSearchDomains' | 'kafkaClusters' | 'atlasMongoClusters' | 'isInDevNetwork'
+  'databases' | 'redisCaches' | 'openSearchDomains' | 'kafkaClusters' | 'atlasMongoClusters' | 'isInDevNetwork'
 >;
 
 /**
@@ -44,7 +44,7 @@ export const getVpcLambdaSecurityGroup = ({
   const admittingResourceNames = new Set(
     [
       ...activeConfig.databases,
-      ...activeConfig.redisClusters,
+      ...activeConfig.redisCaches,
       ...activeConfig.openSearchDomains,
       ...activeConfig.kafkaClusters,
       ...activeConfig.atlasMongoClusters

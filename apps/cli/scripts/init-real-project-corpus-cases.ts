@@ -126,7 +126,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['docker-compose', 'multiple-services', 'redis', 'dockerfiles'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 3 },
+      resourceTypes: { redis: 1, 'web-service': 3 },
       dependencyKinds: { redis: 1 },
       serviceCount: 3,
       httpServiceCount: 3,
@@ -399,7 +399,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       forbiddenConfig: [
         'type: mongo-db-atlas-cluster',
         'type: bucket',
-        'type: redis-cluster',
+        'type: redis',
         'type: worker-service',
         'Maildev',
         'executeCommand: echo',
@@ -418,7 +418,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-starter',
     exercises: ['railway', 'fastify', 'bullmq', 'redis', 'background-jobs'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 1, 'worker-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1, 'worker-service': 1 },
       dependencyKinds: { redis: 1 },
       serviceCount: 2,
       httpServiceCount: 1,
@@ -468,7 +468,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 1,
       httpServiceCount: 1,
       requiredConfig: ['name: APP_URL', "$ResourceParam('railwayLaravel', 'url')"],
-      forbiddenConfig: ['type: sqs-queue', 'type: redis-cluster', 'type: bucket', 'name: QUEUE_CONNECTION'],
+      forbiddenConfig: ['type: sqs-queue', 'type: redis', 'type: bucket', 'name: QUEUE_CONNECTION'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -518,7 +518,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['render', 'python', 'celery', 'redis', 'background-worker'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 2, 'worker-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 2, 'worker-service': 1 },
       dependencyKinds: { amqp: 1, redis: 1 },
       serviceCount: 3,
       httpServiceCount: 2,
@@ -549,7 +549,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['docker-compose', 'flask', 'python', 'redis'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1 },
       dependencyKinds: { redis: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
@@ -823,7 +823,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'real-application',
     exercises: ['real-saas', 'nextjs', 'postgres', 'prisma', 'docker'],
     expect: {
-      resourceTypes: { bastion: 1, 'nextjs-web': 1, 'redis-cluster': 1, 'relational-database': 1 },
+      resourceTypes: { bastion: 1, 'nextjs-web': 1, redis: 1, 'relational-database': 1 },
       dependencyKinds: { kafka: 1, postgres: 1, redis: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
@@ -857,7 +857,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
         bastion: 1,
         bucket: 1,
         'nextjs-web': 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'worker-service': 1
       },

@@ -66,7 +66,7 @@ const statefulReplacementCases: {
   after?: Record<string, unknown>;
 }[] = [
   {
-    stpResourceType: 'redis-cluster',
+    stpResourceType: 'redis',
     cfResourceType: 'AWS::ElastiCache::ReplicationGroup',
     before: { ReplicationGroupId: 'cache-a', ReplicationGroupDescription: 'cache' },
     after: { ReplicationGroupId: 'cache-b', ReplicationGroupDescription: 'cache' }

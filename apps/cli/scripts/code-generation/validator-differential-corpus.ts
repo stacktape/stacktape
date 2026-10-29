@@ -379,10 +379,9 @@ const targetedCases = ({ resource, script }: Builders): CorpusCase[] => {
               properties: { entryfilePath: 'src/index.py', python: { packageManagerFile: 'pyproject.toml' } }
             }
           }),
-          cache: resource('redis-cluster', {
+          cache: resource('redis', {
             defaultUserPassword: "$Secret('redis.password')",
-            instanceSize: 'cache.t4g.micro',
-            logging: {}
+            engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro', logging: {} } }
           })
         }
       }

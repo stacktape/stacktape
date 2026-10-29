@@ -793,15 +793,22 @@ const composeDependency = (
     case 'redis':
       return {
         resource: {
-          type: 'redis-cluster',
+          type: 'redis',
           properties: {
-            instanceSize: dependency.sizeHint?.instance?.startsWith('cache.')
-              ? dependency.sizeHint.instance
-              : profile.redis.instanceSize,
+            // Node-based Valkey works with every Redis client and command pattern; serverless rejects multi-key
+            // commands across hash slots, which queue libraries use by default.
+            engine: {
+              type: 'valkey',
+              properties: {
+                instanceSize: dependency.sizeHint?.instance?.startsWith('cache.')
+                  ? dependency.sizeHint.instance
+                  : profile.redis.instanceSize
+              }
+            },
             defaultUserPassword: secretReference(projectName, dependency.name)
           }
         },
-        reason: 'Your code connects to Redis.'
+        reason: 'Your code connects to Redis. It runs on Valkey, the Redis-compatible engine AWS maintains.'
       };
     case 'object-storage':
       return {

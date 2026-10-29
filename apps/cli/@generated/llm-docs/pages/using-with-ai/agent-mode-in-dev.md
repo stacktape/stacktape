@@ -372,7 +372,7 @@ A PostgreSQL or MySQL query that writes rows (`INSERT`, `UPDATE`, `DELETE`) retu
 
 ### Redis
 
-Available when dev mode is running a local instance for a [Redis cluster](/resources/databases/redis) in your Stacktape configuration. The `cmd` field accepts a Redis command as a single string (e.g. `"GET mykey"`, `"SET user:1 '{\"name\":\"Alice\"}'"`).
+Available when dev mode is running a local instance for a [Redis cache](/resources/databases/redis) in your Stacktape configuration. The `cmd` field accepts a Redis command as a single string (e.g. `"GET mykey"`, `"SET user:1 '{\"name\":\"Alice\"}'"`).
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/redis/myCache/command \

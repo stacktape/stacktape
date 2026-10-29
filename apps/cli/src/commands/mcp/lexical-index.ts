@@ -206,7 +206,7 @@ const SYNONYM_MAP: Record<string, string[]> = {
   'remix-web': ['remix'],
   'relational-database': ['rds', 'postgres', 'postgresql', 'mysql', 'database', 'db', 'sql', 'aurora'],
   'dynamo-db-table': ['dynamodb', 'nosql', 'document-db'],
-  'redis-cluster': ['elasticache', 'redis', 'cache'],
+  redis: ['elasticache', 'valkey', 'cache', 'serverless'],
   bucket: ['s3', 'storage', 'object-storage'],
   'hosting-bucket': ['static-site', 'static-website', 'spa'],
   'http-api-gateway': ['api-gateway', 'apigateway', 'gateway', 'api'],

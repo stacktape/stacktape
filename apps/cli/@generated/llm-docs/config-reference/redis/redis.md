@@ -1,16 +1,16 @@
-# RedisCluster API Reference
+# Redis API Reference
 
-In-memory data store for caching, sessions, queues, and real-time data. Sub-millisecond latency.
+Managed Redis-compatible in-memory store (Amazon ElastiCache) for caching, sessions, queues, and real-time data.
 
-Resource type: `redis-cluster`
+Resource type: `redis`
 
 ## TypeScript definition
 
 ```typescript
-import type { RedisClusterProps } from 'stacktape';
+import type { RedisProps } from 'stacktape';
 
-type RedisCluster = {
-  properties: RedisClusterProps;
+type Redis = {
+  properties: RedisProps;
   /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
   overrides?: unknown;
 };
@@ -19,7 +19,7 @@ type RedisCluster = {
 ## Property: `properties`
 
 - Required: yes
-- Type: `RedisClusterProps`
+- Type: `RedisProps`
 
 ## Property: `overrides`
 

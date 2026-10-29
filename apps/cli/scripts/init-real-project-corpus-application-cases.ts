@@ -40,11 +40,11 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['python', 'flask', 'celery', 'redis', 'buildpack', 'subdirectory'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1 },
       dependencyKinds: { redis: 1, amqp: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      requiredConfig: ['type: buildpack', 'type: redis-cluster'],
+      requiredConfig: ['type: buildpack', 'type: redis'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -70,7 +70,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['django', 'wagtail', 'python', 'docker', 'postgres', 'redis'],
     expect: {
-      resourceTypes: { 'relational-database': 1, 'redis-cluster': 1, bastion: 1, 'web-service': 1 },
+      resourceTypes: { 'relational-database': 1, redis: 1, bastion: 1, 'web-service': 1 },
       dependencyKinds: { postgres: 1, redis: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
@@ -174,7 +174,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['rails', 'ruby', 'docker', 'procfile', 'redis', 'resque', 'datastore-process'],
     expect: {
-      resourceTypes: { 'redis-cluster': 1, 'web-service': 1, 'worker-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1, 'worker-service': 1 },
       dependencyKinds: { redis: 1 },
       serviceCount: 2,
       httpServiceCount: 1,
@@ -366,7 +366,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     expect: {
       resourceTypes: {
         bastion: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 1,
         'worker-service': 1
@@ -391,7 +391,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       resourceTypes: {
         bastion: 1,
         bucket: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 1,
         'worker-service': 1
@@ -467,7 +467,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       resourceTypes: {
         bastion: 1,
         bucket: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 2,
         'worker-service': 1
@@ -582,7 +582,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     expect: {
       resourceTypes: {
         bastion: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 1,
         'worker-service': 1
@@ -718,7 +718,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     expect: {
       resourceTypes: {
         bastion: 1,
-        'redis-cluster': 1,
+        redis: 1,
         'relational-database': 1,
         'web-service': 8,
         'worker-service': 1

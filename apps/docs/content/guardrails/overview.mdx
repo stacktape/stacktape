@@ -76,7 +76,7 @@ Database guardrails standardize which database engines, instance sizes, and reso
 
 - **Allowed database engines** — Configure which engine types are permitted via the `allowedEngines` list. Enter the engine identifiers you want to permit (for example, `postgres`, `aurora-postgresql`). Refer to [Relational databases](/resources/databases/relational-database) for the full list of supported engine identifiers. Deployments using engines not in the list fail.
 - **Allowed instance sizes** — Allow reviewed provisioned RDS and Aurora sizes via `allowedInstanceSizes` (e.g., `["db.t4g.medium", "db.r6g.large"]`). New or unreviewed sizes stay blocked. Existing legacy blocklist policies continue to be enforced until replaced.
-- **Blocked resource types** — Block specific Stacktape resource types via the `blockedResourceTypes` list. This guardrail accepts any Stacktape resource type — the source gives `["open-search-domain", "redis-cluster"]` as examples. Use it to prevent teams from provisioning resource types your organization hasn't approved.
+- **Blocked resource types** — Block specific Stacktape resource types via the `blockedResourceTypes` list. This guardrail accepts any Stacktape resource type — the source gives `["open-search-domain", "redis"]` as examples. Use it to prevent teams from provisioning resource types your organization hasn't approved.
 
 <Info>
 The blocked resource types guardrail accepts any Stacktape resource type. Use it to ban entire service categories regardless of whether they involve databases.
@@ -131,4 +131,4 @@ Yes. The region restriction guardrail accepts an `allowedRegions` list of AWS re
 
 ### What is the difference between blocking a resource type and blocking a database engine?
 
-The resource type restriction blocks entire categories of Stacktape resources — for example, blocking `redis-cluster` prevents anyone from adding a Redis resource to their stack. The database engine restriction is narrower: it controls which engine types (e.g., `postgres`, `aurora-postgresql`) are allowed within [relational database](/resources/databases/relational-database) resources that are still permitted. Use resource type restriction to ban service categories; use engine restriction to standardize on specific database engines within allowed database resources.
+The resource type restriction blocks entire categories of Stacktape resources — for example, blocking `redis` prevents anyone from adding a Redis resource to their stack. The database engine restriction is narrower: it controls which engine types (e.g., `postgres`, `aurora-postgresql`) are allowed within [relational database](/resources/databases/relational-database) resources that are still permitted. Use resource type restriction to ban service categories; use engine restriction to standardize on specific database engines within allowed database resources.

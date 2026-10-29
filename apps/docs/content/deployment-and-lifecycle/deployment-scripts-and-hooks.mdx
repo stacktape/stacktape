@@ -278,7 +278,7 @@ export default defineConfig(() => {
 
 ### Local scripts with bastion tunneling
 
-A local script with bastion tunneling runs on your machine but tunnels connections to VPC-only resources (private databases, Redis clusters) through a [bastion host](/resources/security/bastion-host). This gives you local tooling (ORMs, migration CLIs, database GUIs) with secure access to resources that are not publicly reachable.
+A local script with bastion tunneling runs on your machine but tunnels connections to VPC-only resources (private databases, Redis caches) through a [bastion host](/resources/security/bastion-host). This gives you local tooling (ORMs, migration CLIs, database GUIs) with secure access to resources that are not publicly reachable.
 
 <CodeBlock
   intellisense
@@ -427,7 +427,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `timeout` is set to 120 seconds because migrations can take longer than the 10-second default. The `memory` is set to 512 MB — CPU scales proportionally with memory (1,769 MB equals 1 full vCPU). The `joinDefaultVpc` flag connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis clusters.
+The `timeout` is set to 120 seconds because migrations can take longer than the 10-second default. The `memory` is set to 512 MB — CPU scales proportionally with memory (1,769 MB equals 1 full vCPU). The `joinDefaultVpc` flag connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis caches.
 
 ```typescript
 // scripts/migrate.ts
@@ -687,7 +687,7 @@ Yes. Use [`stacktape deployment-script run`](/cli/deployment-script-run) to invo
 
 ### How do I access a private database from a deployment script?
 
-Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis clusters. VPC-connected Lambda functions lose direct internet access — if your script also needs to call external APIs, configure a NAT gateway in your VPC.
+Set `joinDefaultVpc: true` on the deployment script. This connects the Lambda function to the default VPC, enabling network access to VPC resources such as databases and Redis caches. VPC-connected Lambda functions lose direct internet access — if your script also needs to call external APIs, configure a NAT gateway in your VPC.
 
 ## API reference
 

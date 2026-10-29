@@ -85,7 +85,7 @@ const seedBastion = async (fixture: Awaited<ReturnType<typeof create>>, sessionI
   await seedDeployedStack(fixture, {
     bastion: stackResource('bastion'),
     cache: {
-      ...stackResource('redis-cluster'),
+      ...stackResource('redis'),
       referencableParams: {
         host: { value: 'redis.j9.internal', showDuringPrint: true },
         port: { value: 6379, showDuringPrint: true },
@@ -603,8 +603,11 @@ test.skipIf(process.platform === 'win32')(
             resources: {
               bastion: { type: 'bastion', properties: {} },
               cache: {
-                type: 'redis-cluster',
-                properties: { instanceSize: 'cache.t4g.micro', defaultUserPassword: 'j9-synthetic-redis-password' }
+                type: 'redis',
+                properties: {
+                  engine: { type: 'valkey', properties: { instanceSize: 'cache.t4g.micro' } },
+                  defaultUserPassword: 'j9-synthetic-redis-password'
+                }
               }
             },
             scripts: {
