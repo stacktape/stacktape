@@ -12,6 +12,10 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
  * snapshot, AWS deletion protection is off, and it is not part of a read-replica or global setup. Anything else stays
  * with CloudFormation. Nothing qualifies in a stack that runs user code while it is being deleted (a `before:delete`
  * deployment script or a custom resource of the user's own): that code may still need to read or export the data.
+ *
+ * ElastiCache serverless caches stay with CloudFormation: its handler fails a delete that finds the cache already
+ * deleting ("Serverless cache is not in an available state", measured 29 Oct 2026), which leaves the stack in
+ * DELETE_FAILED whenever CloudFormation reaches the cache within its 4-minute delete.
  */
 export type EarlyDataStoreDelete =
   | {
@@ -29,7 +33,6 @@ export type EarlyDataStoreDelete =
       clusterId: string;
     }
   | { kind: 'elasticache-replication-group'; logicalId: string; replicationGroupId: string }
-  | { kind: 'elasticache-serverless-cache'; logicalId: string; serverlessCacheName: string }
   | { kind: 'opensearch-domain'; logicalId: string; domainName: string };
 
 type StackResource = { LogicalResourceId?: string; ResourceType?: string; PhysicalResourceId?: string };
@@ -136,17 +139,6 @@ export const planEarlyDataStoreDeletes = ({
         return [{ kind: 'elasticache-replication-group', logicalId, replicationGroupId: PhysicalResourceId }];
       }
 
-      if (ResourceType === 'AWS::ElastiCache::ServerlessCache') {
-        // The default policy is Delete; a final snapshot is taken only when `FinalSnapshotName` is set.
-        if (
-          (deployed.DeletionPolicy !== undefined && deployed.DeletionPolicy !== 'Delete') ||
-          properties.FinalSnapshotName !== undefined
-        ) {
-          return [];
-        }
-        return [{ kind: 'elasticache-serverless-cache', logicalId, serverlessCacheName: PhysicalResourceId }];
-      }
-
       if (ResourceType === 'AWS::OpenSearchService::Domain') {
         // The default policy is Delete; OpenSearch domains support no Snapshot policy.
         if (deployed.DeletionPolicy !== undefined && deployed.DeletionPolicy !== 'Delete') return [];
@@ -160,9 +152,6 @@ export const planEarlyDataStoreDeletes = ({
 export const describeEarlyDataStoreDelete = (item: EarlyDataStoreDelete) => {
   if (item.kind === 'elasticache-replication-group') {
     return `${item.logicalId} (ElastiCache replication group ${item.replicationGroupId})`;
-  }
-  if (item.kind === 'elasticache-serverless-cache') {
-    return `${item.logicalId} (ElastiCache serverless cache ${item.serverlessCacheName})`;
   }
   if (item.kind === 'opensearch-domain') {
     return `${item.logicalId} (OpenSearch domain ${item.domainName})`;
@@ -237,17 +226,6 @@ export const startEarlyDataStoreDeletes = async ({
             return;
           }
           await awsSdkManager.openSearch.deleteDomain({ domainName: item.domainName });
-        } else if (item.kind === 'elasticache-serverless-cache') {
-          const cache = await awsSdkManager.elastiCache.getServerlessCache({
-            serverlessCacheName: item.serverlessCacheName
-          });
-          if (!cache || cache.Status !== 'available') {
-            onDebug(
-              `Leaving ${describeEarlyDataStoreDelete(item)} to CloudFormation: its current state does not allow it.`
-            );
-            return;
-          }
-          await awsSdkManager.elastiCache.deleteServerlessCache({ serverlessCacheName: item.serverlessCacheName });
         } else {
           const group = await awsSdkManager.elastiCache.getReplicationGroup({
             replicationGroupId: item.replicationGroupId
