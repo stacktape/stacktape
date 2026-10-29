@@ -9,6 +9,8 @@ import {
   DeleteCommand,
   BatchWriteCommand
 } from '@aws-sdk/lib-dynamodb';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { Client as PgClient } from 'pg';
@@ -1767,247 +1769,191 @@ const getOpenSearchBaseUrl = (conn: OpenSearchConnectionOpts): string => {
   return conn.mode === 'local' ? `http://localhost:${conn.port}` : conn.endpoint;
 };
 
+/**
+ * Why an index argument cannot be sent, or `undefined`. It becomes a path segment, so a `/` or a name that starts
+ * with `_` would reach another endpoint: `orders/_doc` turns a search into indexing a document.
+ */
+export const describeInvalidOpenSearchIndex = (index: string): string | undefined => {
+  if (/[/\\?#\s]/.test(index)) return `Index \`${index}\` contains a character an index name cannot have.`;
+  if (index.split(',').some((name) => name.startsWith('_'))) {
+    return `Index \`${index}\` starts with \`_\`, which names an OpenSearch endpoint rather than an index.`;
+  }
+  return undefined;
+};
+
+/** Sends a GET with a body, which `fetch` refuses; OpenSearch reads `_search`, `_count` and `_analyze` bodies on GET. */
+const requestWithBody = (url: URL, headers: Record<string, string>, body: string) =>
+  new Promise<Response>((resolve, reject) => {
+    const request = (url.protocol === 'https:' ? httpsRequest : httpRequest)(
+      url,
+      { method: 'GET', headers: { ...headers, 'Content-Length': String(Buffer.byteLength(body)) } },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: response.statusCode ?? 500 })));
+        response.on('error', reject);
+      }
+    );
+    request.setTimeout(DEFAULT_TIMEOUT, () => request.destroy(new Error('OpenSearch did not answer in time.')));
+    request.on('error', reject);
+    request.end(body);
+  });
+
 const signedOpenSearchFetch = async (
   conn: OpenSearchConnectionOpts,
   path: string,
-  method: string,
+  method: 'GET' | 'PUT' | 'POST' | 'DELETE',
   body?: string
 ): Promise<Response> => {
-  const baseUrl = getOpenSearchBaseUrl(conn);
-  const url = new URL(path, baseUrl);
+  const url = new URL(path, getOpenSearchBaseUrl(conn));
+  const headers: Record<string, string> = { host: url.host, ...(body && { 'Content-Type': 'application/json' }) };
 
-  if (conn.mode === 'local') {
-    return fetch(url.toString(), {
+  if (conn.mode === 'deployed') {
+    // AWS Signature V4, over the query string and the body.
+    const signer = new SignatureV4({
+      service: 'es',
+      region: conn.region,
+      credentials: {
+        accessKeyId: conn.credentials.accessKeyId,
+        secretAccessKey: conn.credentials.secretAccessKey,
+        sessionToken: conn.credentials.sessionToken
+      },
+      sha256: Sha256
+    });
+    const signed = await signer.sign({
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : {},
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port ? parseInt(url.port, 10) : undefined,
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams),
+      headers,
       body
     });
+    Object.assign(headers, signed.headers);
   }
 
-  // AWS Signature V4 signing for deployed mode
-  const signer = new SignatureV4({
-    service: 'es',
-    region: conn.region,
-    credentials: {
-      accessKeyId: conn.credentials.accessKeyId,
-      secretAccessKey: conn.credentials.secretAccessKey,
-      sessionToken: conn.credentials.sessionToken
-    },
-    sha256: Sha256
-  });
-
-  const headers: Record<string, string> = {
-    host: url.host
-  };
-
-  // Only include Content-Type for requests with body
-  if (body) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  // Parse query string into object for proper signing
-  const query: Record<string, string> = {};
-  url.searchParams.forEach((value, key) => {
-    query[key] = value;
-  });
-
-  const request = {
-    method,
-    protocol: url.protocol,
-    hostname: url.hostname,
-    port: url.port ? parseInt(url.port, 10) : undefined,
-    path: url.pathname,
-    query,
-    headers,
-    body
-  };
-
-  const signedRequest = await signer.sign(request);
-
-  return fetch(url.toString(), {
-    method,
-    headers: signedRequest.headers as Record<string, string>,
-    body
-  });
+  if (!body) return fetch(url.toString(), { method, headers });
+  if (method === 'GET') return requestWithBody(url, headers, body);
+  // The lint rule does not narrow `method`; a GET with a body never gets here.
+  return fetch(url.toString(), { method: method as 'PUT' | 'POST' | 'DELETE', headers, body });
 };
 
-export const opensearchSearch = async (
+/**
+ * Sends one request and reads its JSON answer. Reads go as GET, also those with a query body, so the stack's debug
+ * role needs no `es:ESHttpPost`, which IAM cannot tell from a write by the path alone.
+ */
+const openSearchRequest = async (
+  conn: OpenSearchConnectionOpts,
+  method: 'GET' | 'PUT' | 'POST' | 'DELETE',
+  path: string,
+  body?: Record<string, unknown>
+): Promise<OpenSearchResponse> => {
+  try {
+    const response = await signedOpenSearchFetch(conn, path, method, body && JSON.stringify(body));
+    const text = await response.text();
+    let data: unknown = text;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // A proxy or IAM answer that is not JSON keeps its text.
+    }
+    return response.ok ? { ok: true, data } : opensearchError(data, response.status);
+  } catch (err: unknown) {
+    return opensearchError(err);
+  }
+};
+
+/** Runs `send` for a valid index argument, or answers why the index cannot be sent. */
+const withValidIndex = (index: string | undefined, send: () => Promise<OpenSearchResponse>) => {
+  const invalid = index === undefined ? undefined : describeInvalidOpenSearchIndex(index);
+  return invalid ? Promise.resolve<OpenSearchResponse>({ ok: false, error: invalid, code: 'INVALID_INDEX' }) : send();
+};
+
+export const opensearchSearch = (
   conn: OpenSearchConnectionOpts,
   opts: { query: Record<string, unknown>; index?: string; limit?: number }
-): Promise<OpenSearchResponse> => {
-  try {
-    const index = opts.index || '_all';
-    const path = `/${index}/_search`;
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () =>
+    openSearchRequest(conn, 'GET', `/${opts.index || '_all'}/_search`, { query: opts.query, size: opts.limit ?? 10 })
+  );
 
-    const body = JSON.stringify({
-      query: opts.query,
-      size: opts.limit ?? 10
-    });
-
-    const response = await signedOpenSearchFetch(conn, path, 'POST', body);
-    const data = await response.json();
-
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchGet = async (
+export const opensearchGet = (
   conn: OpenSearchConnectionOpts,
   opts: { index: string; id: string }
-): Promise<OpenSearchResponse> => {
-  try {
-    const path = `/${opts.index}/_doc/${opts.id}`;
-    const response = await signedOpenSearchFetch(conn, path, 'GET');
-    const data = await response.json();
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () =>
+    openSearchRequest(conn, 'GET', `/${opts.index}/_doc/${encodeURIComponent(opts.id)}`)
+  );
 
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchPut = async (
+export const opensearchPut = (
   conn: OpenSearchConnectionOpts,
   opts: { index: string; id?: string; doc: Record<string, unknown> }
-): Promise<OpenSearchResponse> => {
-  try {
-    const path = opts.id ? `/${opts.index}/_doc/${opts.id}` : `/${opts.index}/_doc`;
-    const method = opts.id ? 'PUT' : 'POST';
-    const body = JSON.stringify(opts.doc);
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () =>
+    opts.id
+      ? openSearchRequest(conn, 'PUT', `/${opts.index}/_doc/${encodeURIComponent(opts.id)}`, opts.doc)
+      : openSearchRequest(conn, 'POST', `/${opts.index}/_doc`, opts.doc)
+  );
 
-    const response = await signedOpenSearchFetch(conn, path, method, body);
-    const data = await response.json();
-
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchDelete = async (
+export const opensearchDelete = (
   conn: OpenSearchConnectionOpts,
   opts: { index: string; id: string }
-): Promise<OpenSearchResponse> => {
-  try {
-    const path = `/${opts.index}/_doc/${opts.id}`;
-    const response = await signedOpenSearchFetch(conn, path, 'DELETE');
-    const data = await response.json();
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () =>
+    openSearchRequest(conn, 'DELETE', `/${opts.index}/_doc/${encodeURIComponent(opts.id)}`)
+  );
 
-    if (!response.ok) {
-      return opensearchError(data);
-    }
+export const opensearchIndices = (conn: OpenSearchConnectionOpts): Promise<OpenSearchResponse> =>
+  openSearchRequest(conn, 'GET', '/_cat/indices?format=json');
 
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchIndices = async (conn: OpenSearchConnectionOpts): Promise<OpenSearchResponse> => {
-  try {
-    const path = '/_cat/indices?format=json';
-    const response = await signedOpenSearchFetch(conn, path, 'GET');
-    const data = await response.json();
-
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchMapping = async (
+export const opensearchMapping = (
   conn: OpenSearchConnectionOpts,
   opts: { index: string }
-): Promise<OpenSearchResponse> => {
-  try {
-    const path = `/${opts.index}/_mapping`;
-    const response = await signedOpenSearchFetch(conn, path, 'GET');
-    const data = await response.json();
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () => openSearchRequest(conn, 'GET', `/${opts.index}/_mapping`));
 
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchAnalyze = async (
+export const opensearchAnalyze = (
   conn: OpenSearchConnectionOpts,
   opts: { text: string; analyzer?: string; index?: string }
-): Promise<OpenSearchResponse> => {
-  try {
-    const path = opts.index ? `/${opts.index}/_analyze` : '/_analyze';
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts.index, () =>
+    openSearchRequest(conn, 'GET', opts.index ? `/${opts.index}/_analyze` : '/_analyze', {
+      text: opts.text,
+      ...(opts.analyzer && { analyzer: opts.analyzer })
+    })
+  );
 
-    const body: Record<string, unknown> = { text: opts.text };
-    if (opts.analyzer) body.analyzer = opts.analyzer;
-
-    const response = await signedOpenSearchFetch(conn, path, 'POST', JSON.stringify(body));
-    const data = await response.json();
-
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-export const opensearchCount = async (
+export const opensearchCount = (
   conn: OpenSearchConnectionOpts,
   opts?: { index?: string }
-): Promise<OpenSearchResponse> => {
-  try {
-    const index = opts?.index || '_all';
-    const path = `/${index}/_count`;
-    const response = await signedOpenSearchFetch(conn, path, 'GET');
-    const data = await response.json();
+): Promise<OpenSearchResponse> =>
+  withValidIndex(opts?.index, () => openSearchRequest(conn, 'GET', `/${opts?.index || '_all'}/_count`));
 
-    if (!response.ok) {
-      return opensearchError(data);
-    }
-
-    return { ok: true, data };
-  } catch (err: unknown) {
-    return opensearchError(err);
-  }
-};
-
-const opensearchError = (err: unknown): ErrorResponse => {
-  if (typeof err === 'object' && err !== null && 'error' in err) {
-    const osErr = err as { error: { type?: string; reason?: string } };
-    return {
-      ok: false,
-      error: osErr.error.reason || osErr.error.type || 'Unknown error',
-      code: osErr.error.type
-    };
-  }
-
-  const genericErr = err as { message?: string };
+/**
+ * An OpenSearch error (`{ error: { type, reason } }`), or what AWS answers itself, such as an IAM denial
+ * (`{ "Message": ... }`), with the HTTP status when there was a response.
+ */
+const opensearchError = (err: unknown, status?: number): ErrorResponse => {
+  const record = (typeof err === 'object' && err !== null ? err : {}) as {
+    error?: string | { type?: string; reason?: string };
+    Message?: string;
+    message?: string;
+    found?: boolean;
+  };
+  const openSearchError = typeof record.error === 'object' ? record.error : undefined;
+  const reason =
+    openSearchError?.reason ||
+    openSearchError?.type ||
+    (typeof record.error === 'string' ? record.error : undefined) ||
+    record.Message ||
+    record.message ||
+    (record.found === false ? 'document not found' : undefined) ||
+    (typeof err === 'string' && err.trim() ? err.trim().slice(0, 500) : undefined) ||
+    'no reason given';
   return {
     ok: false,
-    error: genericErr.message || 'Unknown error'
+    error: status ? `OpenSearch answered ${status}: ${reason}` : reason,
+    code: openSearchError?.type ?? (status === 403 ? 'ACCESS_DENIED' : status ? `HTTP_${status}` : undefined)
   };
 };

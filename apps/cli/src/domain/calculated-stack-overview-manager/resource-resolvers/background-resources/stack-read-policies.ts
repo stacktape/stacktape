@@ -210,6 +210,15 @@ export const stackReadPolicies = () => {
         Condition: ownStack
       }
     ]),
+    // Metadata of the stack's secrets; their values stay denied below.
+    policy('secretsmanager-access', [
+      {
+        Effect: 'Allow',
+        Action: ['secretsmanager:DescribeSecret', 'secretsmanager:ListSecretVersionIds'],
+        Resource: [regionalArn('secretsmanager', 'secret:*')],
+        Condition: ownStack
+      }
+    ]),
     policy('cloudformation-access', [
       {
         Effect: 'Allow',

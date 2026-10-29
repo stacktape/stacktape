@@ -2495,8 +2495,10 @@ test('the debug agent role reads only its own stack, in its own region', async (
     includeOpenSearch: true
   });
   const resources = template.Resources as Record<string, any>;
-  const { isAllowed, allows, resolve, physicalName, firstOfType, expectEveryStatementInRegion, nonReadActions } =
-    agentRoleAccess(template, 'StpDebugAgentRole');
+  const { isAllowed, physicalName, firstOfType, expectEveryStatementInRegion, nonReadActions } = agentRoleAccess(
+    template,
+    'StpDebugAgentRole'
+  );
 
   expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-api'), own)).toBe(true);
   expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-production-api'), otherStage)).toBe(false);
@@ -2569,30 +2571,30 @@ test('the debug agent role reads only its own stack, in its own region', async (
   const canaryLogGroup = `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/cwsyn-${canary}-0a1b2c3d`;
   expect(isAllowed('logs:FilterLogEvents', canaryLogGroup, { tag: '', requestRegion: region })).toBe(true);
 
-  // `query opensearch` reads and searches its domain; nothing else is sent to it.
+  // `query opensearch` reads and searches with GET; the role allows no other method. A POST path pattern would not
+  // hold: `POST /orders/_doc/_search` indexes a document named `_search`.
   const domainArn = `arn:aws:es:${region}:${accountId}:domain/${physicalName(firstOfType('AWS::OpenSearchService::Domain'))}`;
   expect(isAllowed('es:ESHttpGet', `${domainArn}/_cat/indices`, own)).toBe(true);
-  expect(isAllowed('es:ESHttpPost', `${domainArn}/orders/_search`, own)).toBe(true);
-  expect(isAllowed('es:ESHttpPost', `${domainArn}/orders/_doc`, own)).toBe(false);
-  expect(isAllowed('es:ESHttpPost', `${domainArn}/_bulk`, own)).toBe(false);
-  expect(isAllowed('es:ESHttpPut', `${domainArn}/orders/_doc/1`, own)).toBe(false);
-  expect(isAllowed('es:ESHttpDelete', `${domainArn}/orders`, own)).toBe(false);
+  expect(isAllowed('es:ESHttpGet', `${domainArn}/orders/_search`, own)).toBe(true);
+  for (const method of ['Post', 'Put', 'Delete', 'Patch']) {
+    for (const path of ['orders/_search', 'orders/_doc/_search', 'orders/_doc', '_bulk', 'orders']) {
+      expect(isAllowed(`es:ESHttp${method}`, `${domainArn}/${path}`, own)).toBe(false);
+    }
+  }
   expect(isAllowed('es:ESHttpGet', `${domainArn.replace('shop-dev', 'shop-dev-production')}/_cat/indices`, own)).toBe(
     false
   );
 
-  // No secret values, parameters or writes; an OpenSearch search is the one POST.
-  expect(
-    isAllowed('secretsmanager:GetSecretValue', `arn:aws:secretsmanager:${region}:${accountId}:secret:x`, own)
-  ).toBe(false);
+  // Secret metadata of this stack only, and no secret values, parameters or writes.
+  const secretArn = `arn:aws:secretsmanager:${region}:${accountId}:secret:shop-dev-api-key-AbCdEf`;
+  expect(isAllowed('secretsmanager:DescribeSecret', secretArn, own)).toBe(true);
+  expect(isAllowed('secretsmanager:ListSecretVersionIds', secretArn, own)).toBe(true);
+  expect(isAllowed('secretsmanager:DescribeSecret', secretArn, otherStage)).toBe(false);
+  expect(isAllowed('secretsmanager:GetSecretValue', secretArn, own)).toBe(false);
   expect(isAllowed('ssm:GetParameter', `arn:aws:ssm:${region}:${accountId}:parameter/stp/x/shop-dev/y`, own)).toBe(
     false
   );
-  expect(nonReadActions()).toEqual(['es:ESHttpGet', 'es:ESHttpHead', 'es:ESHttpPost']);
-  for (const { Action, Resource } of allows.filter(({ Action }) => Action.includes('es:ESHttpPost'))) {
-    expect(Action).toEqual(['es:ESHttpPost']);
-    for (const pattern of [Resource].flat().map(resolve)) expect(pattern).toEndWith('/_search');
-  }
+  expect(nonReadActions()).toEqual(['es:ESHttpGet', 'es:ESHttpHead']);
   expectEveryStatementInRegion();
 
   // Only `stacktape dev` uses the dev agent role, so a deployed stage has none.

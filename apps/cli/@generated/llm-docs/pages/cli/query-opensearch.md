@@ -183,7 +183,7 @@ The `mapping` operation requires `--index`. The `get` operation requires both `-
 
 ### Do I need a bastion host to query OpenSearch?
 
-No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates with the stack's read-only debug role. The role can read the stack's own domains and send searches to them; OpenSearch refuses it any other request, such as indexing, updating or deleting documents. When the stack has no such role or it cannot be assumed, the command fails instead of using your configured AWS credentials. Unlike [`query sql`](/cli/query-sql) or [`query redis`](/cli/query-redis), `query opensearch` does not accept a `--bastion-resource` flag.
+No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates with the stack's read-only debug role. The role can send only GET and HEAD requests to the stack's own domains, so the command sends searches as GET with the query in the request body. OpenSearch refuses the role any other request, such as indexing, updating or deleting documents. The command also refuses an `--index` that contains `/` or starts with `_`, since that would reach another endpoint rather than an index. When the stack has no such role or it cannot be assumed, the command fails instead of using your configured AWS credentials. Unlike [`query sql`](/cli/query-sql) or [`query redis`](/cli/query-redis), `query opensearch` does not accept a `--bastion-resource` flag.
 
 ### What format does the --query flag expect?
 

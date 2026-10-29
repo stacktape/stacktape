@@ -21,8 +21,8 @@ const debugOnlyPolicies = (template: CloudFormationTemplate) => {
   const domains = ownResourceArns(template, 'AWS::OpenSearchService::Domain', 'DomainName', (name) => [name]);
   const canaries = ownResourceArns(template, 'AWS::Synthetics::Canary', 'Name', (name) => [name]);
   return [
-    // `query opensearch`. Its search is a POST, which IAM cannot tell from a write by the method alone, so POST is
-    // allowed for `_search` paths only.
+    // `query opensearch` sends every read as GET, searches included. A POST cannot be allowed by path: IAM's `*` also
+    // matches `/`, and `POST /orders/_doc/_search` indexes a document.
     ...(domains.length
       ? [
           policy('opensearch-http-access', [
@@ -30,11 +30,6 @@ const debugOnlyPolicies = (template: CloudFormationTemplate) => {
               Effect: 'Allow',
               Action: ['es:ESHttpGet', 'es:ESHttpHead'],
               Resource: domains.map((name) => regionalArn('es', `domain/${name}/*`))
-            },
-            {
-              Effect: 'Allow',
-              Action: ['es:ESHttpPost'],
-              Resource: domains.map((name) => regionalArn('es', `domain/${name}/*/_search`))
             }
           ])
         ]
@@ -69,7 +64,7 @@ const debugOnlyPolicies = (template: CloudFormationTemplate) => {
 /**
  * Creates the IAM role `aws call`, `query dynamodb` and `query opensearch` read a deployed stack with, also after a
  * failed `stacktape dev` start. It reads only this stack's resources in this stack's region (see `stackReadPolicies`).
- * The only request it can send that IAM counts as a write is an OpenSearch `_search` POST.
+ * It sends no write.
  */
 export const resolveDebugAgentRole = () => {
   const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;

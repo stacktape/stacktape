@@ -2,6 +2,7 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import {
+  describeInvalidOpenSearchIndex,
   opensearchSearch,
   opensearchGet,
   opensearchIndices,
@@ -50,6 +51,16 @@ export const commandQueryOpensearch = async () => {
       code: 'CLI_OPENSEARCH_OPERATION_INVALID',
       message: `Invalid OpenSearch query operation \`${operation}\`.`,
       hints: `Supported operations: ${SUPPORTED_OPERATIONS.join(', ')}.`
+    });
+  }
+
+  const invalidIndex = index === undefined ? undefined : describeInvalidOpenSearchIndex(String(index));
+  if (invalidIndex) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_OPENSEARCH_INDEX_INVALID',
+      message: invalidIndex,
+      hints: 'Provide an index name or pattern, such as `--index orders` or `--index logs-*`.'
     });
   }
 
