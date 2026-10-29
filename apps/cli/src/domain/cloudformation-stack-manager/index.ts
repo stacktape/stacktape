@@ -1153,7 +1153,7 @@ class StackManager {
     deletingEarly = resourceDeletesStarted
       .then(
         (started) =>
-          started && priorEventsKnown && this.#startEarlyDeletes({ earlyDeleted, roleArn, getDeletedTemplate })
+          started && priorEventsKnown && this.#startEarlyDeletes({ stackId, earlyDeleted, roleArn, getDeletedTemplate })
       )
       .catch((err) => tuiManager.debug(`Could not start deleting resources early: ${err}`));
     let result: StackMonitoringResult;
@@ -1211,10 +1211,12 @@ class StackManager {
    * them. See `early-deletes.ts` for which resources qualify.
    */
   #startEarlyDeletes = async ({
+    stackId,
     earlyDeleted,
     roleArn,
     getDeletedTemplate
   }: {
+    stackId: string;
     earlyDeleted: EarlyDelete[];
     roleArn?: string;
     getDeletedTemplate: () => Promise<CloudFormationTemplate>;
@@ -1222,14 +1224,20 @@ class StackManager {
     // A stack deleted through a CloudFormation service role is deleted with that role's permissions, which may forbid
     // deleting data stores on purpose. The CLI's own credentials must not get around that.
     if (roleArn || this.existingStackDetails.RoleARN) return;
+    // Both read once the delete has started, like the template: a deploy before the DeleteStack request may have replaced a
+    // resource and kept the old one (UpdateReplacePolicy Retain) under the physical ID loaded before the prompt.
     let template: CloudFormationTemplate;
+    let resources: Awaited<ReturnType<typeof awsSdkManager.cloudFormation.getResources>>;
     try {
-      template = await getDeletedTemplate();
+      [template, resources] = await Promise.all([
+        getDeletedTemplate(),
+        awsSdkManager.cloudFormation.getResources(stackId)
+      ]);
     } catch (err) {
-      tuiManager.debug(`Leaving all resources to CloudFormation: could not read the deployed template: ${err}`);
+      tuiManager.debug(`Leaving all resources to CloudFormation: could not read the deployed stack: ${err}`);
       return;
     }
-    const items = planEarlyDeletes({ resources: this.existingStackResources || [], template });
+    const items = planEarlyDeletes({ resources, template });
     // Ctrl+C while the delete was starting: the cleanup has already reported what was started.
     if (!items.length || applicationManager.isInterrupted) return;
     const started = await startEarlyDeletes({ items, onDebug: (message) => tuiManager.debug(message) });

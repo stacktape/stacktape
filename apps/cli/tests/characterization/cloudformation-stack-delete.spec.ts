@@ -82,6 +82,7 @@ const withDeleteFixture = async (
     liveLoadBalancers = {},
     priorEvents = [],
     currentTemplate,
+    currentResources,
     stackRoleArn
   }: {
     deletionPolicies?: Record<string, string>;
@@ -96,6 +97,8 @@ const withDeleteFixture = async (
     priorEvents?: { Timestamp: Date }[] | Error;
     /** The template CloudFormation reports once the delete has started, when it differs from the one loaded first. */
     currentTemplate?: unknown;
+    /** The resources CloudFormation lists once the delete has started, when they differ from the ones loaded first. */
+    currentResources?: EnrichedStackResourceInfo[];
     stackRoleArn?: string;
   } = {}
 ) => {
@@ -208,6 +211,15 @@ const withDeleteFixture = async (
     spies.push(
       spyOn(awsSdkManager.cloudFormation, 'getTemplate').mockImplementation(
         async () => (currentTemplate ?? templateManager.oldTemplate) as never
+      ),
+      spyOn(awsSdkManager.cloudFormation, 'getResources').mockImplementation(
+        async () =>
+          (currentResources ?? resources).map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
+            LogicalResourceId,
+            ResourceType,
+            PhysicalResourceId,
+            ResourceStatus: 'DELETE_IN_PROGRESS'
+          })) as never
       )
     );
     stackManager.existingStackDetails = {
@@ -958,6 +970,26 @@ describe('early database and cache deletes', () => {
         currentTemplate: {
           Resources: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance', DeletionPolicy: 'Retain' } }
         }
+      }
+    );
+  });
+
+  test('deletes the resource CloudFormation lists now, not one a deploy before the request replaced and kept', async () => {
+    await withDeleteFixture(
+      [serverless],
+      async ({ calls }) => {
+        await stackManager.deleteStack();
+        expect(calls.filter((call) => call.startsWith('elasticache:'))).toEqual([
+          'elasticache:delete-serverless stack-sessions-2'
+        ]);
+      },
+      {
+        liveServerlessCaches: {
+          'stack-sessions': { Status: 'available' },
+          'stack-sessions-2': { Status: 'available' }
+        },
+        // The replaced cache was kept (UpdateReplacePolicy Retain); CloudFormation now deletes its replacement.
+        currentResources: [resource('AWS::ElastiCache::ServerlessCache', 'stack-sessions-2', 'SessionsServerlessCache')]
       }
     );
   });
