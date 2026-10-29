@@ -478,7 +478,8 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
   e100({
     command,
     stackName,
-    stackStatus
+    stackStatus,
+    stackStatusReason
   }: {
     command: Subtype<
       StacktapeCommand,
@@ -486,12 +487,21 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
     >;
     stackName: string;
     stackStatus: StackStatus;
+    stackStatusReason?: string;
   }): ReturnedError {
     return {
       type: 'EXISTING_STACK',
-      message: `Cannot perform operation ${prettyCommand(command)} on stack ${prettyStackName(
-        stackName
-      )} because it is currently in state ${colorize('red', stackStatus)}`,
+      message:
+        stackStatus === 'DELETE_FAILED'
+          ? // `delete` can return while AWS still removes resources that cost nothing, so this may be the first report.
+            `Cannot perform operation ${prettyCommand(command)} on stack ${prettyStackName(
+              stackName
+            )}: an earlier delete of this stack failed (${colorize('red', stackStatus)})${
+              stackStatusReason ? `: ${stackStatusReason}` : '.'
+            }`
+          : `Cannot perform operation ${prettyCommand(command)} on stack ${prettyStackName(
+              stackName
+            )} because it is currently in state ${colorize('red', stackStatus)}`,
       hint: [
         `To perform ${prettyCommand(command)} operation, stack must be in one of the following states: ${(command ===
         'cf:rollback'

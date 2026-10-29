@@ -58,12 +58,10 @@ import { outputNames } from '@stacktape/naming/stack-output-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import type { EarlyDataStoreDelete } from './early-data-store-deletes';
-import {
-  describeEarlyDataStoreDelete,
-  planEarlyDataStoreDeletes,
-  startEarlyDataStoreDeletes
-} from './early-data-store-deletes';
+import type { EarlyDelete } from './early-deletes';
+import { describeEarlyDelete, isDataStoreDelete, planEarlyDeletes, startEarlyDeletes } from './early-deletes';
+import type { PendingDelete } from './background-delete';
+import { planBackgroundDeleteChecks } from './background-delete';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
@@ -88,6 +86,7 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 
 const EVENT_POLLING_INTERVAL_MS = 1000;
 const SLOWER_EVENT_POLLING_AFTER_MS = 5 * 60_000;
+const BACKGROUND_DELETE_CHECK_INTERVAL_MS = 5000;
 
 /** Convert CloudFormation stack status to human-readable form */
 const getHumanReadableStackStatus = (status?: string): string => {
@@ -243,6 +242,8 @@ type StackMonitoringResult = {
   warningMessages?: string[];
   /** The update finished while CloudFormation was still deleting about this many removed or replaced resources. */
   resourcesDeletedInBackground?: number;
+  /** The stack delete finished while CloudFormation was still deleting these resources, which cost nothing. */
+  deletionContinuesInBackground?: PendingDelete[];
 };
 
 /** Resources CloudFormation deletes in the cleanup after an update: those removed from the template and replaced ones. */
@@ -789,7 +790,11 @@ class StackManager {
         const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          description: `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`,
+          // `delete` can return while AWS still removes resources that cost nothing.
+          description:
+            stackDetails?.StackStatus === StackStatus.DELETE_IN_PROGRESS
+              ? `Waiting for AWS to finish the earlier delete of this stack before ${publicCommandName(globalStateManager.command)}`
+              : `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`,
           parentEventType: eventContext?.parentEventType,
           instanceId: eventContext?.instanceId
         });
@@ -808,7 +813,8 @@ class StackManager {
         throw stpErrors.e100({
           command: command as 'deploy' | 'delete' | 'dev' | 'rollback' | 'cf:rollback' | 'deployment-script:run',
           stackName,
-          stackStatus: stackDetails.StackStatus as StackStatus
+          stackStatus: stackDetails.StackStatus as StackStatus,
+          stackStatusReason: stackDetails.StackStatusReason
         });
       }
     }
@@ -1056,8 +1062,13 @@ class StackManager {
   /**
    * Deletes the stack. `beforeDelete` is work that must finish before CloudFormation starts, such as emptying the
    * buckets and the image repository. It runs alongside the steps below, which start slow AWS-side work early.
+   * With `finishInBackground`, it returns once only resources that cost nothing remain (see `background-delete.ts`);
+   * the result then lists them in `deletionContinuesInBackground`.
    */
-  deleteStack = async ({ beforeDelete }: { beforeDelete?: () => Promise<unknown> } = {}) => {
+  deleteStack = async ({
+    beforeDelete,
+    finishInBackground = false
+  }: { beforeDelete?: () => Promise<unknown>; finishInBackground?: boolean } = {}) => {
     await operationReporter.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
@@ -1065,10 +1076,17 @@ class StackManager {
 
     const disabledDistributionIds: string[] = [];
     const scaledDownServiceArns: string[] = [];
-    const earlyDeletedDataStores: EarlyDataStoreDelete[] = [];
+    const earlyDeleted: EarlyDelete[] = [];
     let disabling: Promise<unknown> | undefined;
-    let deletingDataStores: Promise<unknown> | undefined;
+    let deletingEarly: Promise<unknown> | undefined;
     let deleteRequested = false;
+    // Resolves to true once CloudFormation has started deleting the stack's resources. CloudFormation accepts a
+    // DeleteStack request first and may then cancel the delete (for example when another stack imports one of its
+    // outputs), leaving every resource in place. Stacktape deletes nothing itself before that point.
+    let settleResourceDeletesStarted: (started: boolean) => void = () => {};
+    const resourceDeletesStarted = new Promise<boolean>((resolve) => {
+      settleResourceDeletesStarted = resolve;
+    });
     // When the delete never reaches CloudFormation (an error or Ctrl+C before that), the stack stays and its
     // distributions are enabled again, so the site comes back.
     applicationManager.registerCleanUpHook(async (outcome) => {
@@ -1081,9 +1099,11 @@ class StackManager {
           `The stack delete did not start, but these ECS services were already scaled to 0 tasks: ${scaledDownServiceArns.join(', ')}. Set their desired count again in the AWS console, or run the delete again.`
         );
       }
-      await deletingDataStores;
-      if (!outcome?.success && earlyDeletedDataStores.length) {
-        const list = earlyDeletedDataStores.map((item) => `- ${describeEarlyDataStoreDelete(item)}`).join('\n');
+      settleResourceDeletesStarted(false);
+      await deletingEarly;
+      const deletedDataStores = earlyDeleted.filter(isDataStoreDelete);
+      if (!outcome?.success && deletedDataStores.length) {
+        const list = deletedDataStores.map((item) => `- ${describeEarlyDelete(item)}`).join('\n');
         tuiManager.warn(
           outcome?.interrupted
             ? `Stacktape stopped watching, but CloudFormation keeps deleting the stack in AWS. Stacktape had already started deleting these resources itself, without final snapshots:\n${list}`
@@ -1112,57 +1132,99 @@ class StackManager {
       throw err;
     }
     codeSwapIntegration.teardownAccepted(this.#stackName);
-    // Started only now: a DeleteStack request that CloudFormation refused (termination protection, a stack that is
-    // busy) leaves every data store untouched.
-    deletingDataStores = this.#startEarlyDataStoreDeletes({ earlyDeletedDataStores, roleArn }).catch((err) =>
-      tuiManager.debug(`Could not start deleting data stores early: ${err}`)
-    );
-    const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
-      operationReporter.updateEvent({
-        eventType: 'DELETE_STACK',
-        additionalMessage: progress.message,
-        detail: progress.detail
-      })
-    );
-    await deletingDataStores;
+    const stackId = this.existingStackDetails.StackId;
+    // The template CloudFormation is deleting, read once the delete has started: a deploy between loading the stack and
+    // the DeleteStack request may have changed a DeletionPolicy.
+    let deletedTemplate: Promise<CloudFormationTemplate> | undefined;
+    const getDeletedTemplate = () => (deletedTemplate ??= awsSdkManager.cloudFormation.getTemplate(stackId));
+    deletingEarly = resourceDeletesStarted
+      .then((started) => started && this.#startEarlyDeletes({ earlyDeleted, roleArn, getDeletedTemplate }))
+      .catch((err) => tuiManager.debug(`Could not start deleting resources early: ${err}`));
+    let result: StackMonitoringResult;
+    try {
+      result = await this.monitorStack(
+        'delete',
+        stackId,
+        (progress) =>
+          operationReporter.updateEvent({
+            eventType: 'DELETE_STACK',
+            additionalMessage: progress.message,
+            detail: progress.detail
+          }),
+        {
+          onResourceDeletesStarted: () => settleResourceDeletesStarted(true),
+          ...(finishInBackground && {
+            canFinishDeleteInBackground: async (pending: PendingDelete[]) =>
+              this.#remainingDeletesCostNothing({ pending, template: await getDeletedTemplate() })
+          })
+        }
+      );
+    } finally {
+      settleResourceDeletesStarted(false);
+    }
+    await deletingEarly;
     await operationReporter.finishEvent({ eventType: 'DELETE_STACK', data: {} });
     return result;
   };
 
   /**
-   * Starts deleting the stack's databases, caches and search domains right after CloudFormation accepted the DeleteStack
-   * request, so they delete in parallel with the workloads that reference them instead of after them. See
-   * `early-data-store-deletes.ts` for which resources qualify.
+   * Starts deleting the stack's databases, caches, search domains and load balancers once CloudFormation has started
+   * deleting the stack's resources, so they delete in parallel with the workloads that reference them instead of after
+   * them. See `early-deletes.ts` for which resources qualify.
    */
-  #startEarlyDataStoreDeletes = async ({
-    earlyDeletedDataStores,
-    roleArn
+  #startEarlyDeletes = async ({
+    earlyDeleted,
+    roleArn,
+    getDeletedTemplate
   }: {
-    earlyDeletedDataStores: EarlyDataStoreDelete[];
+    earlyDeleted: EarlyDelete[];
     roleArn?: string;
+    getDeletedTemplate: () => Promise<CloudFormationTemplate>;
   }) => {
     // A stack deleted through a CloudFormation service role is deleted with that role's permissions, which may forbid
     // deleting data stores on purpose. The CLI's own credentials must not get around that.
     if (roleArn || this.existingStackDetails.RoleARN) return;
-    // Plan from the template CloudFormation is deleting now, not the one loaded before the confirmation prompt: a deploy
-    // in between may have changed a DeletionPolicy.
     let template: CloudFormationTemplate;
     try {
-      template = await awsSdkManager.cloudFormation.getTemplate(this.existingStackDetails.StackId);
+      template = await getDeletedTemplate();
     } catch (err) {
-      tuiManager.debug(`Leaving all data stores to CloudFormation: could not read the deployed template: ${err}`);
+      tuiManager.debug(`Leaving all resources to CloudFormation: could not read the deployed template: ${err}`);
       return;
     }
-    const items = planEarlyDataStoreDeletes({ resources: this.existingStackResources || [], template });
-    // Ctrl+C while the DeleteStack request was in flight: the cleanup has already reported what was started.
+    const items = planEarlyDeletes({ resources: this.existingStackResources || [], template });
+    // Ctrl+C while the delete was starting: the cleanup has already reported what was started.
     if (!items.length || applicationManager.isInterrupted) return;
-    const started = await startEarlyDataStoreDeletes({ items, onDebug: (message) => tuiManager.debug(message) });
-    earlyDeletedDataStores.push(...started);
+    const started = await startEarlyDeletes({ items, onDebug: (message) => tuiManager.debug(message) });
+    earlyDeleted.push(...started);
     if (started.length) {
       tuiManager.info(
-        `Deleting these data stores now, in parallel with the resources that use them:\n${started.map((item) => `- ${describeEarlyDataStoreDelete(item)}`).join('\n')}`
+        `Deleting these resources now, in parallel with the resources that use them:\n${started.map((item) => `- ${describeEarlyDelete(item)}`).join('\n')}`
       );
     }
+  };
+
+  /** Whether every resource CloudFormation still has to delete costs nothing while it waits. */
+  #remainingDeletesCostNothing = async ({
+    pending,
+    template
+  }: {
+    pending: PendingDelete[];
+    template: CloudFormationTemplate;
+  }) => {
+    const checks = planBackgroundDeleteChecks({ pending, template });
+    if (!checks) return false;
+    const results = await Promise.all(
+      checks.map(async (check) => {
+        if (check.kind === 'ecs-service-stopped') {
+          return !(await awsSdkManager.ecs.serviceHasUnstoppedTasks({ serviceArn: check.serviceArn }));
+        }
+        if (check.kind === 'distribution-disabled') {
+          return awsSdkManager.cloudFront.isDistributionDisabled({ distributionId: check.distributionId });
+        }
+        return !(await awsSdkManager.loadBalancers.exists({ loadBalancerArn: check.loadBalancerArn }));
+      })
+    );
+    return results.every(Boolean);
   };
 
   /**
@@ -1296,7 +1358,9 @@ class StackManager {
     {
       finishWhenCleanupStarts = false,
       createdTemplate = templateManager.initialTemplate,
-      operationId
+      operationId,
+      onResourceDeletesStarted,
+      canFinishDeleteInBackground
     }: {
       /** The template a `create` operation creates the stack from. */
       createdTemplate?: CloudFormationTemplate;
@@ -1311,6 +1375,16 @@ class StackManager {
        * the polling window, must not be taken for the second one's.
        */
       operationId?: string;
+      /**
+       * Called once a stack delete has started deleting resources. Before that, CloudFormation can still cancel it and
+       * keep every resource.
+       */
+      onResourceDeletesStarted?: () => void;
+      /**
+       * A stack delete is finished for the user once this resolves true for the resources CloudFormation still has to
+       * delete. Asked at most every few seconds, and only while no resource has failed to delete.
+       */
+      canFinishDeleteInBackground?: (pending: PendingDelete[]) => Promise<boolean>;
     } = {}
   ): Promise<StackMonitoringResult> => {
     const handledEvents: string[] = [];
@@ -1318,6 +1392,40 @@ class StackManager {
     const inProgressResources = new Set<string>();
     const inProgressMeta = new Map<string, { resourceType?: string; since: number }>();
     const completeResources = new Set<string>();
+    // Resources a delete leaves in place because of their DeletionPolicy.
+    const skippedResources = new Set<string>();
+    let resourceDeletesStarted = false;
+    let lastBackgroundFinishCheck = Number.NEGATIVE_INFINITY;
+    /**
+     * The resources a delete still has to remove, when `canFinishDeleteInBackground` says the user need not wait for
+     * them. Undefined otherwise.
+     */
+    const pendingDeletesLeftToBackground = async (): Promise<PendingDelete[] | undefined> => {
+      if (cfStackAction !== 'delete' || !canFinishDeleteInBackground || !resourceDeletesStarted) return undefined;
+      if (Object.keys(potentialErrorCausingEvents).length) return undefined;
+      if (performance.now() - lastBackgroundFinishCheck < BACKGROUND_DELETE_CHECK_INTERVAL_MS) return undefined;
+      lastBackgroundFinishCheck = performance.now();
+      const pending = this.existingStackResources
+        .filter(
+          ({ LogicalResourceId }) =>
+            !completeResources.has(LogicalResourceId) && !skippedResources.has(LogicalResourceId)
+        )
+        .map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
+          logicalId: LogicalResourceId,
+          resourceType: ResourceType,
+          physicalId: PhysicalResourceId
+        }));
+      // Nothing left: CloudFormation reports the end of the delete in a moment.
+      if (!pending.length) return undefined;
+      try {
+        return (await canFinishDeleteInBackground(pending)) ? pending : undefined;
+      } catch (err) {
+        tuiManager.debug(`Could not check whether the remaining deletes can finish in the background: ${err}`);
+        return undefined;
+      } finally {
+        lastBackgroundFinishCheck = performance.now();
+      }
+    };
     const recentlyCompletedResources: CloudFormationResourceProgress[] = [];
     const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
@@ -1644,6 +1752,10 @@ class StackManager {
         const resourcesToDelete = countResourcesDeletedDuringCleanup(templateDiff);
         resolve(resourcesToDelete ? { resourcesDeletedInBackground: resourcesToDelete } : {});
       };
+      const finishDeleteInBackground = (pending: PendingDelete[]) => {
+        cleanupMonitoring();
+        resolve({ deletionContinuesInBackground: pending });
+      };
       const signalsEarlyFinish = (stackStatus: StackStatus | undefined) =>
         finishWhenCleanupStarts &&
         cfStackAction === 'update' &&
@@ -1746,6 +1858,8 @@ class StackManager {
             if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
               return afterStackOperationFailure(stackStatus);
             }
+            const leftToBackground = await pendingDeletesLeftToBackground();
+            if (leftToBackground) return finishDeleteInBackground(leftToBackground);
             eventBatchEvaluationInProgress = false;
             return;
           }
@@ -1870,6 +1984,18 @@ class StackManager {
               // we collect all potential error events
               // we only deal with them if the entire operation fails ^^^
               potentialErrorCausingEvents[LogicalResourceId] = event;
+            } else if (status === ResourceStatus.DELETE_SKIPPED) {
+              skippedResources.add(LogicalResourceId);
+              inProgressResources.delete(LogicalResourceId);
+              inProgressMeta.delete(LogicalResourceId);
+            }
+            if (
+              cfStackAction === 'delete' &&
+              !resourceDeletesStarted &&
+              !this.#isCloudformationStackEvent({ stackEvent: event })
+            ) {
+              resourceDeletesStarted = true;
+              onResourceDeletesStarted?.();
             }
             handledEvents.push(event.EventId);
           }
@@ -1903,6 +2029,8 @@ class StackManager {
               )
             );
           }
+          const leftToBackground = await pendingDeletesLeftToBackground();
+          if (leftToBackground) return finishDeleteInBackground(leftToBackground);
 
           // Check if we should show the cancel banner (ECS task failed)
           showCancelBannerIfNeeded(resolve);
@@ -2028,6 +2156,9 @@ class StackManager {
       (cfStackAction === 'update' &&
         (stackStatus === StackStatus.UPDATE_FAILED || stackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS)) ||
       (cfStackAction === 'delete' && stackStatus === StackStatus.DELETE_FAILED) ||
+      // CloudFormation cancels a delete it cannot do (for example when another stack imports one of the stack's
+      // outputs): the stack returns to its previous status with every resource in place.
+      (cfStackAction === 'delete' && !!stackStatus && !stackStatus.startsWith('DELETE_')) ||
       (cfStackAction === 'rollback' &&
         (stackStatus === StackStatus.UPDATE_ROLLBACK_FAILED ||
           stackStatus === StackStatus.ROLLBACK_FAILED ||

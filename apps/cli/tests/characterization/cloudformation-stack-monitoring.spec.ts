@@ -62,12 +62,19 @@ const withMonitor = async (
     action = 'update',
     finishWhenCleanupStarts = false,
     removedResources = [] as string[],
-    operationId
+    operationId,
+    onResourceDeletesStarted,
+    canFinishDeleteInBackground,
+    stackResources = []
   }: {
     action?: 'update' | 'delete';
     finishWhenCleanupStarts?: boolean;
     removedResources?: string[];
     operationId?: string;
+    onResourceDeletesStarted?: () => void;
+    canFinishDeleteInBackground?: (pending: { logicalId: string }[]) => Promise<boolean>;
+    /** The stack's resources before a delete: logical ID and type. */
+    stackResources?: [string, string][];
   } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
@@ -97,10 +104,17 @@ const withMonitor = async (
       stackDetails('UPDATE_IN_PROGRESS')
     );
     let state: 'pending' | 'resolved' | 'rejected' = 'pending';
+    stackManager.existingStackResources = stackResources.map(([LogicalResourceId, ResourceType]) => ({
+      LogicalResourceId,
+      ResourceType,
+      PhysicalResourceId: `${LogicalResourceId}-id`
+    })) as typeof stackManager.existingStackResources;
     try {
       const monitoring = stackManager.monitorStack(action, stackName, () => {}, {
         finishWhenCleanupStarts,
-        operationId
+        operationId,
+        onResourceDeletesStarted,
+        canFinishDeleteInBackground
       });
       monitoring.then(
         () => (state = 'resolved'),
@@ -124,6 +138,7 @@ const withMonitor = async (
       });
     } finally {
       for (const spy of [interval, clear, now, events, getDetails]) spy.mockRestore();
+      stackManager.existingStackResources = [];
     }
   });
 };
@@ -195,6 +210,111 @@ test('repeated stack status failures stop the monitoring with the AWS error', as
     events.mockResolvedValue([]);
     await poll(4);
     await expect(monitoring).rejects.toThrow('AccessDenied');
+  });
+});
+
+describe('stack deletes', () => {
+  const deleteEvent = (logicalId: string, status: string, seconds: number, ResourceStatusReason?: string) => ({
+    ...resourceEvent(logicalId, status, seconds),
+    ...(ResourceStatusReason && { ResourceStatusReason })
+  });
+
+  test('a delete CloudFormation cancels fails with its reason instead of waiting forever', async () => {
+    // Measured: the stack goes back to its previous status about a second after DELETE_IN_PROGRESS.
+    let started = false;
+    await withMonitor(
+      async ({ monitoring, poll, events }) => {
+        events.mockResolvedValue([
+          {
+            ...stackEvent('UPDATE_COMPLETE', 1),
+            ResourceStatusReason: 'Delete canceled. Cannot delete export X as it is in use by other-stack.'
+          },
+          stackEvent('DELETE_IN_PROGRESS')
+        ]);
+        await poll();
+        await expect(monitoring).rejects.toThrow('Delete canceled');
+        expect(started).toBe(false);
+      },
+      { action: 'delete', onResourceDeletesStarted: () => (started = true) }
+    );
+  });
+
+  test('reports that resource deletes have started at the first resource event', async () => {
+    let started = 0;
+    await withMonitor(
+      async ({ poll, events }) => {
+        events.mockResolvedValue([stackEvent('DELETE_IN_PROGRESS')]);
+        await poll();
+        expect(started).toBe(0);
+        events.mockResolvedValue([
+          deleteEvent('Queue', 'DELETE_COMPLETE', 3),
+          deleteEvent('Queue', 'DELETE_IN_PROGRESS', 2),
+          stackEvent('DELETE_IN_PROGRESS')
+        ]);
+        await poll(2);
+        expect(started).toBe(1);
+      },
+      { action: 'delete', onResourceDeletesStarted: () => started++ }
+    );
+  });
+
+  test('finishes once the caller accepts every pending resource; retained and deleted ones are not pending', async () => {
+    const asked: string[][] = [];
+    await withMonitor(
+      async ({ monitoring, poll, events }) => {
+        events.mockResolvedValue([
+          deleteEvent('Bucket', 'DELETE_SKIPPED', 2),
+          deleteEvent('Queue', 'DELETE_COMPLETE', 2),
+          deleteEvent('Cdn', 'DELETE_IN_PROGRESS', 1),
+          stackEvent('DELETE_IN_PROGRESS')
+        ]);
+        await poll();
+        await expect(monitoring).resolves.toEqual({
+          deletionContinuesInBackground: [
+            { logicalId: 'Cdn', resourceType: 'AWS::CloudFront::Distribution', physicalId: 'Cdn-id' }
+          ]
+        });
+        expect(asked).toEqual([['Cdn']]);
+      },
+      {
+        action: 'delete',
+        stackResources: [
+          ['Bucket', 'AWS::S3::Bucket'],
+          ['Queue', 'AWS::SQS::Queue'],
+          ['Cdn', 'AWS::CloudFront::Distribution']
+        ],
+        canFinishDeleteInBackground: async (pending) => {
+          asked.push(pending.map(({ logicalId }) => logicalId));
+          return true;
+        }
+      }
+    );
+  });
+
+  test('keeps waiting while a resource has failed to delete, or the caller declines', async () => {
+    for (const failed of [true, false]) {
+      let asked = 0;
+      await withMonitor(
+        async ({ settled, poll, events }) => {
+          events.mockResolvedValue([
+            ...(failed ? [deleteEvent('Sg', 'DELETE_FAILED', 2, 'resource has a dependent object')] : []),
+            deleteEvent('Sg', 'DELETE_IN_PROGRESS', 1),
+            stackEvent('DELETE_IN_PROGRESS')
+          ]);
+          await poll();
+          expect(settled()).toBe('pending');
+          expect(asked).toBe(failed ? 0 : 1);
+        },
+        {
+          action: 'delete',
+          stackResources: [['Sg', 'AWS::EC2::SecurityGroup']],
+          canFinishDeleteInBackground: async () => {
+            asked++;
+            return false;
+          }
+        }
+      );
+    }
   });
 });
 

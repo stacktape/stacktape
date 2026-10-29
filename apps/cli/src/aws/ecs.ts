@@ -678,6 +678,26 @@ export class AwsEcs {
     return toSessionManagerSession(session);
   };
 
+  /**
+   * Whether any task of the service has not stopped yet. A task that is still draining or deprovisioning counts. A
+   * deleted cluster has no tasks.
+   */
+  serviceHasUnstoppedTasks = async ({ serviceArn }: { serviceArn: string }) => {
+    const [, ecsClusterName, serviceName] = serviceArn.split('/');
+    try {
+      const tasks = (
+        await Promise.all([
+          this.listTasks({ ecsClusterName, desiredStatus: 'RUNNING' }),
+          this.listTasks({ ecsClusterName, desiredStatus: 'STOPPED' })
+        ])
+      ).flat();
+      return tasks.some((task) => task?.group === `service:${serviceName}` && task.lastStatus !== 'STOPPED');
+    } catch (error) {
+      if (error instanceof Error && error.name === 'ClusterNotFoundException') return false;
+      throw error;
+    }
+  };
+
   listTasks = async ({ ecsClusterName, desiredStatus }: { ecsClusterName: string; desiredStatus?: DesiredStatus }) => {
     const taskArnsList: string[] = [];
     let { nextToken, taskArns } = await this.#createClient().send(

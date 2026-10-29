@@ -12,7 +12,8 @@ import { deployedStackOverviewManager } from '../../src/domain/deployed-stack-ov
 import { templateManager } from '../../src/domain/template-manager';
 import { awsSdkManager } from '../../src/utils/aws-sdk-manager';
 import { tuiManager } from '../../src/app/tui-manager';
-import { planEarlyDataStoreDeletes } from '../../src/domain/cloudformation-stack-manager/early-data-store-deletes';
+import { planEarlyDeletes } from '../../src/domain/cloudformation-stack-manager/early-deletes';
+import { planBackgroundDeleteChecks } from '../../src/domain/cloudformation-stack-manager/background-delete';
 import { findDeletionProtectedResources } from '../../src/domain/cloudformation-stack-manager/deletion-protection';
 import { executeDeleteOperation } from '../../src/commands/delete';
 import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
@@ -20,9 +21,10 @@ import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 /**
  * `delete` starts slow AWS-side work before CloudFormation's DeleteStack: it scales ECS services to 0 and disables
  * CloudFront distributions while the buckets are being emptied, and it does not hold DeleteStack until the tasks have
- * drained. A delete that never reaches CloudFormation enables the distributions again. Once CloudFormation has accepted
- * the DeleteStack request, databases, caches and search domains that CloudFormation would delete without a snapshot are deleted at once
- * instead of after the workloads that reference them.
+ * drained. A delete that never reaches CloudFormation enables the distributions again. Once CloudFormation has started
+ * deleting the stack's resources, databases, caches and search domains that CloudFormation would delete without a
+ * snapshot, and load balancers, are deleted at once instead of after the workloads that reference them. A delete that
+ * CloudFormation cancels (another stack imports an output) deletes nothing.
  */
 
 const stackName = 'delete-test';
@@ -54,6 +56,13 @@ const settle = async () => {
   for (let turn = 0; turn < 20; turn++) await Promise.resolve();
 };
 
+type MonitorOptions = NonNullable<Parameters<typeof stackManager.monitorStack>[3]>;
+/** Replaces the fixture's CloudFormation monitoring for one test. */
+const monitorThat = (behavior: (options: MonitorOptions) => unknown) =>
+  (stackManager.monitorStack as unknown as ReturnType<typeof spyOn>).mockImplementation(async (...args: unknown[]) =>
+    behavior((args[3] ?? {}) as MonitorOptions)
+  );
+
 const withDeleteFixture = async (
   resources: EnrichedStackResourceInfo[],
   run: (fixture: {
@@ -69,6 +78,7 @@ const withDeleteFixture = async (
     liveReplicationGroups = {},
     liveServerlessCaches = {},
     liveDomains = {},
+    liveLoadBalancers = {},
     currentTemplate,
     stackRoleArn
   }: {
@@ -79,6 +89,7 @@ const withDeleteFixture = async (
     liveReplicationGroups?: Record<string, Partial<ReplicationGroup>>;
     liveServerlessCaches?: Record<string, Partial<ServerlessCache>>;
     liveDomains?: Record<string, Partial<DomainStatus>>;
+    liveLoadBalancers?: Record<string, { deletionProtection: boolean }>;
     /** The template CloudFormation reports once the delete has started, when it differs from the one loaded first. */
     currentTemplate?: unknown;
     stackRoleArn?: string;
@@ -113,9 +124,18 @@ const withDeleteFixture = async (
         calls.push(`cloudformation:delete ${name}${express ? ' (express mode)' : ''}`);
         return {} as never;
       }),
-      spyOn(stackManager, 'monitorStack').mockImplementation(async () => {
+      // CloudFormation starts deleting resources right away unless a test says otherwise.
+      spyOn(stackManager, 'monitorStack').mockImplementation(async (_action, _stackId, _onProgress, options) => {
+        options?.onResourceDeletesStarted?.();
         calls.push('cloudformation:monitor');
         return {};
+      }),
+      spyOn(awsSdkManager.loadBalancers, 'getLoadBalancer').mockImplementation(
+        async ({ loadBalancerArn }) =>
+          liveLoadBalancers[loadBalancerArn] as Awaited<ReturnType<typeof awsSdkManager.loadBalancers.getLoadBalancer>>
+      ),
+      spyOn(awsSdkManager.loadBalancers, 'deleteLoadBalancer').mockImplementation(async ({ loadBalancerArn }) => {
+        calls.push(`elb:delete ${loadBalancerArn}`);
       }),
       spyOn(awsSdkManager.rds, 'getInstance').mockImplementation(
         async ({ identifier }) => liveInstances[identifier] as DBInstance
@@ -322,7 +342,7 @@ describe('early database and cache deletes', () => {
       { type: string; physicalId?: string; deletionPolicy?: string; properties?: Record<string, unknown> }
     >
   ) =>
-    planEarlyDataStoreDeletes({
+    planEarlyDeletes({
       resources: Object.entries(resources).map(([LogicalResourceId, { type, physicalId }]) => ({
         LogicalResourceId,
         ResourceType: type,
@@ -347,6 +367,7 @@ describe('early database and cache deletes', () => {
   const cache = 'AWS::ElastiCache::ReplicationGroup';
   const serverlessCache = 'AWS::ElastiCache::ServerlessCache';
   const domain = 'AWS::OpenSearchService::Domain';
+  const loadBalancer = 'AWS::ElasticLoadBalancingV2::LoadBalancer';
 
   test.each([
     ['a standalone instance with DeletionPolicy Delete', { Db: { type: instance, deletionPolicy: 'Delete' } }, ['Db']],
@@ -486,6 +507,53 @@ describe('early database and cache deletes', () => {
       'an Aurora cluster itself, which CloudFormation still deletes',
       { Cluster: { type: cluster, deletionPolicy: 'Delete' } },
       []
+    ],
+    ['a load balancer without a DeletionPolicy (Delete)', { Lb: { type: loadBalancer } }, ['Lb']],
+    ['a retained load balancer', { Lb: { type: loadBalancer, deletionPolicy: 'Retain' } }, []],
+    [
+      'a load balancer with listeners, rules, a certificate, a firewall, DNS records and the default domain',
+      {
+        Lb: { type: loadBalancer },
+        Listener: { type: 'AWS::ElasticLoadBalancingV2::Listener', properties: { LoadBalancerArn: { Ref: 'Lb' } } },
+        Rule: { type: 'AWS::ElasticLoadBalancingV2::ListenerRule', properties: { ListenerArn: { Ref: 'Listener' } } },
+        Cert: {
+          type: 'AWS::ElasticLoadBalancingV2::ListenerCertificate',
+          properties: { ListenerArn: { Ref: 'Listener' } }
+        },
+        Firewall: { type: 'AWS::WAFv2::WebACLAssociation', properties: { ResourceArn: { Ref: 'Lb' } } },
+        Record: {
+          type: 'AWS::Route53::RecordSet',
+          properties: { AliasTarget: { DNSName: { 'Fn::GetAtt': ['Lb', 'DNSName'] } } }
+        },
+        Domain: {
+          type: 'AWS::CloudFormation::CustomResource',
+          properties: {
+            ServiceToken: { 'Fn::GetAtt': ['StacktapeServiceLambdaCustomResourceFunction', 'Arn'] },
+            defaultDomain: { targetInfo: { domainName: { 'Fn::Sub': '${Lb.DNSName}' } } }
+          }
+        }
+      },
+      ['Lb']
+    ],
+    [
+      'a load balancer an API Gateway VPC link targets, whose delete was not measured without it',
+      {
+        Lb: { type: loadBalancer },
+        Link: { type: 'AWS::ApiGateway::VpcLink', properties: { TargetArns: [{ Ref: 'Lb' }] } }
+      },
+      []
+    ],
+    [
+      'a load balancer whose listener an unknown resource references',
+      {
+        Lb: { type: loadBalancer },
+        Listener: { type: 'AWS::ElasticLoadBalancingV2::Listener', properties: { LoadBalancerArn: { Ref: 'Lb' } } },
+        Accelerator: {
+          type: 'AWS::GlobalAccelerator::EndpointGroup',
+          properties: { ListenerArn: { 'Fn::Sub': ['${Arn}', { Arn: { Ref: 'Listener' } }] } }
+        }
+      },
+      []
     ]
   ])('%s', (_name, resources, expected) => {
     expect(plan(resources as Parameters<typeof plan>[0])).toEqual(expected as string[]);
@@ -493,7 +561,7 @@ describe('early database and cache deletes', () => {
 
   test('a resource missing from the deployed template is left alone', () => {
     expect(
-      planEarlyDataStoreDeletes({
+      planEarlyDeletes({
         resources: [{ LogicalResourceId: 'Db', ResourceType: instance, PhysicalResourceId: 'db' }],
         template: undefined
       })
@@ -590,6 +658,70 @@ describe('early database and cache deletes', () => {
     );
   });
 
+  test('a delete CloudFormation cancels before deleting any resource deletes no database', async () => {
+    await withDeleteFixture(
+      [db, redis],
+      async ({ calls, warnings, runCleanUpHooks }) => {
+        // Measured: DeleteStack is accepted, then CloudFormation cancels the delete about a second later.
+        monitorThat(() => {
+          throw new Error('Delete canceled. Cannot delete export X as it is in use by other-stack.');
+        });
+        await expect(stackManager.deleteStack()).rejects.toThrow('Delete canceled');
+        await runCleanUpHooks();
+        expect(calls).toEqual([expect.stringMatching(/^cloudformation:delete /)]);
+        expect(warnings).toEqual([]);
+      },
+      { ...available, deletionPolicies }
+    );
+  });
+
+  test('deletes a load balancer early unless it is protected or gone, and does not warn about it', async () => {
+    const lb = (name: string) =>
+      resource(
+        'AWS::ElasticLoadBalancingV2::LoadBalancer',
+        `arn:aws:elasticloadbalancing:eu-west-1:123456789012:loadbalancer/app/${name}/1`,
+        name
+      );
+    await withDeleteFixture(
+      [lb('Live'), lb('Protected'), lb('Gone')],
+      async ({ calls, warnings, runCleanUpHooks }) => {
+        monitorThat(({ onResourceDeletesStarted }) => {
+          onResourceDeletesStarted?.();
+          throw new Error('DELETE_FAILED');
+        });
+        await expect(stackManager.deleteStack()).rejects.toThrow('DELETE_FAILED');
+        await runCleanUpHooks();
+        expect(calls.filter((call) => call.startsWith('elb:'))).toEqual([
+          'elb:delete arn:aws:elasticloadbalancing:eu-west-1:123456789012:loadbalancer/app/Live/1'
+        ]);
+        // A load balancer holds no data, so a failed delete says nothing about it.
+        expect(warnings).toEqual([]);
+      },
+      {
+        liveLoadBalancers: {
+          'arn:aws:elasticloadbalancing:eu-west-1:123456789012:loadbalancer/app/Live/1': { deletionProtection: false },
+          'arn:aws:elasticloadbalancing:eu-west-1:123456789012:loadbalancer/app/Protected/1': {
+            deletionProtection: true
+          }
+        }
+      }
+    );
+  });
+
+  test('asks the monitor to finish in the background only when the caller allows it', async () => {
+    for (const finishInBackground of [false, true]) {
+      await withDeleteFixture([db], async () => {
+        let asked: boolean | undefined;
+        monitorThat(({ canFinishDeleteInBackground }) => {
+          asked = !!canFinishDeleteInBackground;
+          return {};
+        });
+        await stackManager.deleteStack({ finishInBackground });
+        expect(asked).toBe(finishInBackground);
+      });
+    }
+  });
+
   test('a refused DeleteStack request deletes no database', async () => {
     await withDeleteFixture(
       [db, redis],
@@ -611,7 +743,8 @@ describe('early database and cache deletes', () => {
       await withDeleteFixture(
         [db, redis],
         async ({ warnings, runCleanUpHooks }) => {
-          (stackManager.monitorStack as unknown as ReturnType<typeof spyOn>).mockImplementation(async () => {
+          monitorThat(({ onResourceDeletesStarted }) => {
+            onResourceDeletesStarted?.();
             throw new Error('DELETE_FAILED');
           });
           await expect(stackManager.deleteStack()).rejects.toThrow('DELETE_FAILED');
@@ -633,7 +766,8 @@ describe('early database and cache deletes', () => {
         (awsSdkManager.rds.deleteInstance as unknown as ReturnType<typeof spyOn>).mockImplementation(async () => {
           throw new Error('InvalidDBInstanceState: Instance stack-db is already being deleted.');
         });
-        (stackManager.monitorStack as unknown as ReturnType<typeof spyOn>).mockImplementation(async () => {
+        monitorThat(({ onResourceDeletesStarted }) => {
+          onResourceDeletesStarted?.();
           throw new Error('DELETE_FAILED');
         });
         await expect(stackManager.deleteStack()).rejects.toThrow('DELETE_FAILED');
@@ -691,6 +825,100 @@ describe('early database and cache deletes', () => {
       },
       { ...available, deletionPolicies }
     );
+  });
+});
+
+describe('finishing a delete in the background', () => {
+  const stacktapeCustomResource = (properties: Record<string, unknown>) => ({
+    Type: 'AWS::CloudFormation::CustomResource',
+    Properties: {
+      ServiceToken: { 'Fn::GetAtt': ['StacktapeServiceLambdaCustomResourceFunction', 'Arn'] },
+      ...properties
+    }
+  });
+  test.each<{ name: string; pending: [string, string][]; template?: Record<string, unknown>; expected: unknown }>([
+    {
+      name: 'the empty network, roles, logs and a VPC function releasing its network interfaces',
+      pending: [
+        ['StpVpc', 'AWS::EC2::VPC'],
+        ['StpPublicSubnet0', 'AWS::EC2::Subnet'],
+        ['WorkerFunction', 'AWS::Lambda::Function'],
+        ['WorkerRole', 'AWS::IAM::Role'],
+        ['ApiLogGroup', 'AWS::Logs::LogGroup'],
+        ['StpDiscoveryService', 'AWS::ServiceDiscovery::PrivateDnsNamespace']
+      ],
+      expected: []
+    },
+    {
+      name: 'an ECS service, a distribution and a load balancer need live checks',
+      pending: [
+        ['ApiService', 'AWS::ECS::Service'],
+        ['SiteCdn', 'AWS::CloudFront::Distribution'],
+        ['ApiLoadBalancer', 'AWS::ElasticLoadBalancingV2::LoadBalancer']
+      ],
+      expected: [
+        { kind: 'ecs-service-stopped', serviceArn: 'ApiService-id' },
+        { kind: 'distribution-disabled', distributionId: 'SiteCdn-id' },
+        { kind: 'load-balancer-gone', loadBalancerArn: 'ApiLoadBalancer-id' }
+      ]
+    },
+    {
+      name: "Stacktape's edge function and default domain custom resources",
+      pending: [
+        ['EdgeLambda', 'AWS::CloudFormation::CustomResource'],
+        ['Domain', 'AWS::CloudFormation::CustomResource']
+      ],
+      template: {
+        EdgeLambda: stacktapeCustomResource({ edgeLambda: {} }),
+        Domain: stacktapeCustomResource({ defaultDomain: {} })
+      },
+      expected: []
+    },
+    { name: 'a database instance', pending: [['Db', 'AWS::RDS::DBInstance']], expected: undefined },
+    { name: 'an Aurora cluster', pending: [['Cluster', 'AWS::RDS::DBCluster']], expected: undefined },
+    { name: 'a NAT gateway', pending: [['Nat', 'AWS::EC2::NatGateway']], expected: undefined },
+    { name: 'a queue', pending: [['Queue', 'AWS::SQS::Queue']], expected: undefined },
+    {
+      name: 'an interface VPC endpoint, billed per hour',
+      pending: [['Endpoint', 'AWS::EC2::VPCEndpoint']],
+      template: { Endpoint: { Type: 'AWS::EC2::VPCEndpoint', Properties: { VpcEndpointType: 'Interface' } } },
+      expected: undefined
+    },
+    {
+      name: 'a gateway VPC endpoint',
+      pending: [['Endpoint', 'AWS::EC2::VPCEndpoint']],
+      template: { Endpoint: { Type: 'AWS::EC2::VPCEndpoint', Properties: {} } },
+      expected: []
+    },
+    {
+      name: 'a before:delete deployment script',
+      pending: [['Script', 'AWS::CloudFormation::CustomResource']],
+      template: { Script: stacktapeCustomResource({ scriptFunction: { triggerType: 'before:delete' } }) },
+      expected: undefined
+    },
+    {
+      name: "a custom resource of the user's own",
+      pending: [['Backup', 'Custom::Backup']],
+      template: { Backup: { Type: 'Custom::Backup', Properties: { ServiceToken: 'arn:aws:lambda:backup' } } },
+      expected: undefined
+    },
+    {
+      name: 'a Stacktape custom resource that force-deletes an auto scaling group',
+      pending: [['ForceDelete', 'AWS::CloudFormation::CustomResource']],
+      template: { ForceDelete: stacktapeCustomResource({ forceDeleteAsg: {} }) },
+      expected: undefined
+    }
+  ])('$name', ({ pending, template = {}, expected }) => {
+    expect(
+      planBackgroundDeleteChecks({
+        pending: pending.map(([logicalId, resourceType]) => ({
+          logicalId,
+          resourceType,
+          physicalId: `${logicalId}-id`
+        })),
+        template: { Resources: template } as never
+      })
+    ).toEqual(expected as never);
   });
 });
 
@@ -799,12 +1027,15 @@ describe('deletion protection', () => {
 
   const runDelete = async ({
     resources,
-    stackStatus = 'UPDATE_COMPLETE'
+    stackStatus = 'UPDATE_COMPLETE',
+    deleteResult
   }: {
     resources: EnrichedStackResourceInfo[];
     stackStatus?: string;
+    deleteResult?: Awaited<ReturnType<Parameters<typeof executeDeleteOperation>[0]['stack']['deleteStack']>>;
   }) => {
     const calls: string[] = [];
+    const infos: string[] = [];
     const error = await executeDeleteOperation({
       config: { config: {}, hooks: [] } as never,
       deploymentArtifacts: {
@@ -824,17 +1055,25 @@ describe('deletion protection', () => {
       notification: { sendDeploymentNotification: async () => calls.push('notify') } as never,
       progress: { setPhase: () => {} } as never,
       stack: {
-        deleteStack: async () => calls.push('stack:delete'),
+        deleteStack: async ({ finishInBackground }) => {
+          calls.push(`stack:delete${finishInBackground ? ' (may finish in background)' : ''}`);
+          return deleteResult;
+        },
         existingStackDetails: { StackStatus: stackStatus },
         existingStackResources: resources
       },
       stackName: 'project-prod',
-      tui: { colorize: (_color: string, text: string) => text, info: () => {}, setPendingCompletion: () => {} } as never
+      finishInBackground: true,
+      tui: {
+        colorize: (_color: string, text: string) => text,
+        info: (message: string) => infos.push(message),
+        setPendingCompletion: () => {}
+      } as never
     }).then(
       () => undefined,
       (err: Error) => err
     );
-    return { calls, error };
+    return { calls, error, infos };
   };
 
   test('delete refuses before anything runs or is deleted, and says how to turn protection off', async () => {
@@ -856,6 +1095,22 @@ describe('deletion protection', () => {
   test('an unprotected stack is deleted', async () => {
     const { calls, error } = await runDelete({ resources: [db({ rdsInstanceDetail: { DeletionProtection: false } })] });
     expect(error).toBeUndefined();
-    expect(calls).toContain('stack:delete');
+    expect(calls).toContain('stack:delete (may finish in background)');
+  });
+
+  test('says what AWS still removes in the background and what a later deploy or delete does about it', async () => {
+    const { infos } = await runDelete({
+      resources: [],
+      deleteResult: {
+        deletionContinuesInBackground: [
+          { logicalId: 'ApiService', resourceType: 'AWS::ECS::Service' },
+          { logicalId: 'StpVpc', resourceType: 'AWS::EC2::VPC' }
+        ]
+      }
+    });
+    expect(infos).toHaveLength(1);
+    expect(infos[0]).toContain('2 resources that cost nothing: ApiService, StpVpc');
+    expect(infos[0]).toContain('A deploy of this stage waits');
+    expect(infos[0]).toContain('next delete retries');
   });
 });
