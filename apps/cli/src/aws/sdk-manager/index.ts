@@ -47,6 +47,7 @@ import { AwsIam } from '../iam';
 import { AwsSts } from '../identity';
 import { AwsEcr } from '../ecr';
 import { AwsLambda } from '../lambda';
+import { AwsEdgeFunctions } from '../edge-functions';
 import { AwsEcs } from '../ecs';
 import { AwsSystemsManager } from '../systems-manager';
 import { AwsCostManagement } from '../cost-management';
@@ -74,6 +75,7 @@ export class AwsSdkManager {
   #sts?: AwsSts;
   #ecr?: AwsEcr;
   #lambda?: AwsLambda;
+  #edgeFunctions?: AwsEdgeFunctions;
   #ecs?: AwsEcs;
   #systemsManager?: AwsSystemsManager;
   #costManagement?: AwsCostManagement;
@@ -162,6 +164,10 @@ export class AwsSdkManager {
     this.#lambda = new AwsLambda({
       createClient: () => this.#lambdaClient(),
       getErrorHandler: this.#getErrorHandler
+    });
+    this.#edgeFunctions = new AwsEdgeFunctions({
+      createLambdaClient: () => this.#applyPlugins(new LambdaClient(this.#getClientArgs({ region: 'us-east-1' }))),
+      createIamClient: () => this.#iamClient()
     });
     this.#ecs = new AwsEcs({
       createClient: () => this.#ecsClient(),
@@ -310,6 +316,15 @@ export class AwsSdkManager {
       throw new Error('AWS Lambda has not been initialized.');
     }
     return this.#lambda;
+  }
+
+  /** Lambda@Edge functions, which live in us-east-1. */
+  get edgeFunctions() {
+    this.#getContext();
+    if (!this.#edgeFunctions) {
+      throw new Error('AWS Lambda (us-east-1) has not been initialized.');
+    }
+    return this.#edgeFunctions;
   }
 
   get ecs() {
