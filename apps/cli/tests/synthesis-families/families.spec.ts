@@ -18,6 +18,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { operationReporter } from '@application-services/operation-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
@@ -37,9 +38,11 @@ import {
   LambdaFunction,
   PrivateService,
   WebService,
+  UserAuthPool,
   WorkerService,
   defineConfig
 } from '@stacktape/config-authoring';
+import type { UserAuthPoolProps } from '@stacktape/config/user-pools';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const fixturesDir = join(import.meta.dir, 'fixtures');
@@ -869,6 +872,73 @@ describe('container rolling deployment family', () => {
     });
     expect(deregistrationDelays(template, 'albWeb')).toEqual(['120']);
   });
+
+  test('scaling policies exist only when the instance count can change', async () => {
+    const cpuPolicy = (name: string) => cfLogicalNames.autoScalingPolicy(name, 'ECSServiceAverageCPUUtilization');
+    const memoryPolicy = (name: string) => cfLogicalNames.autoScalingPolicy(name, 'ECSServiceAverageMemoryUtilization');
+    const template = await synthesizeFamily(
+      'container-scaling',
+      defineConfig(() => ({
+        resources: {
+          fixed: new WebService({ packaging, resources, scaling: { minInstances: 2, maxInstances: 2 } }),
+          single: new WorkerService({ packaging, resources }),
+          scaled: new WebService({
+            packaging,
+            resources,
+            scaling: { minInstances: 1, maxInstances: 4, scalingPolicy: { keepAvgCpuUtilizationUnder: 60 } }
+          }),
+          // An override can widen the range after synthesis, or tune a policy, so both keep the policies.
+          widened: new WorkerService({
+            packaging,
+            resources,
+            overrides: { [cfLogicalNames.autoScalingTarget('widened')]: { MaxCapacity: 4 } }
+          }),
+          tuned: new WorkerService({
+            packaging,
+            resources,
+            overrides: { [cpuPolicy('tuned')]: { 'TargetTrackingScalingPolicyConfiguration.ScaleOutCooldown': 120 } }
+          })
+        }
+      }))
+    );
+    expectReferencesResolve(template);
+    const scalableTargets = Object.fromEntries(
+      resourcesOfType(template, 'AWS::ApplicationAutoScaling::ScalableTarget').map(([logicalId, resource]) => [
+        logicalId,
+        [resource.Properties?.MinCapacity, resource.Properties?.MaxCapacity]
+      ])
+    );
+    // Every service keeps its scalable target: it holds the task count at the configured value.
+    expect(scalableTargets).toEqual({
+      [cfLogicalNames.autoScalingTarget('fixed')]: [2, 2],
+      [cfLogicalNames.autoScalingTarget('single')]: [1, 1],
+      [cfLogicalNames.autoScalingTarget('scaled')]: [1, 4],
+      [cfLogicalNames.autoScalingTarget('widened')]: [1, 4],
+      [cfLogicalNames.autoScalingTarget('tuned')]: [1, 1]
+    });
+    const policies = Object.fromEntries(
+      resourcesOfType(template, 'AWS::ApplicationAutoScaling::ScalingPolicy').map(([logicalId, resource]) => [
+        logicalId,
+        [
+          resource.Properties?.ScalingTargetId,
+          resource.Properties?.TargetTrackingScalingPolicyConfiguration.TargetValue
+        ]
+      ])
+    );
+    const target = (name: string) => ({ Ref: cfLogicalNames.autoScalingTarget(name) });
+    expect(policies).toEqual({
+      [cpuPolicy('scaled')]: [target('scaled'), 60],
+      [memoryPolicy('scaled')]: [target('scaled'), 80],
+      [cpuPolicy('widened')]: [target('widened'), 80],
+      [memoryPolicy('widened')]: [target('widened'), 80],
+      [cpuPolicy('tuned')]: [target('tuned'), 80],
+      [memoryPolicy('tuned')]: [target('tuned'), 80]
+    });
+    expect(
+      (template.Resources[cpuPolicy('tuned')] as Resource).Properties?.TargetTrackingScalingPolicyConfiguration
+        .ScaleOutCooldown
+    ).toBe(120);
+  });
 });
 
 describe('EC2-backed container family', () => {
@@ -1003,4 +1073,70 @@ describe('EC2-backed container family', () => {
       }
     }
   );
+});
+
+describe('user auth pool family', () => {
+  const synthesizeClient = async (family: string, properties: Partial<UserAuthPoolProps>) => {
+    const template = await synthesizeFamily(
+      family,
+      defineConfig(() => ({
+        resources: { auth: new UserAuthPool({ userVerificationType: 'email-code', ...properties }) }
+      }))
+    );
+    expectReferencesResolve(template);
+    return onlyResourceOfType(template, 'AWS::Cognito::UserPoolClient').resource.Properties;
+  };
+  const units = { AccessToken: 'seconds', IdToken: 'seconds', RefreshToken: 'days' };
+
+  test('token lifetimes are sent with their units and default to one hour and 30 days', async () => {
+    expect(await synthesizeClient('user-auth-pool-defaults', {})).toMatchObject({
+      AccessTokenValidity: 3600,
+      IdTokenValidity: 3600,
+      RefreshTokenValidity: 30,
+      TokenValidityUnits: units
+    });
+    expect(
+      await synthesizeClient('user-auth-pool-token-lifetimes', {
+        accessTokenValiditySeconds: 900,
+        idTokenValiditySeconds: 86_400,
+        refreshTokenValidityDays: 3650
+      })
+    ).toMatchObject({
+      AccessTokenValidity: 900,
+      IdTokenValidity: 86_400,
+      RefreshTokenValidity: 3650,
+      TokenValidityUnits: units
+    });
+  });
+
+  test('a lifetime that Cognito read in hours before v4 keeps its meaning and warns', async () => {
+    const warn = spyOn(tuiManager, 'warn');
+    try {
+      expect(
+        await synthesizeClient('user-auth-pool-legacy-hours', {
+          accessTokenValiditySeconds: 1,
+          idTokenValiditySeconds: 24
+        })
+      ).toMatchObject({ AccessTokenValidity: 3600, IdTokenValidity: 86_400, TokenValidityUnits: units });
+      const warnings = warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.some((message) => message.includes('`accessTokenValiditySeconds: 3600`'))).toBe(true);
+      expect(warnings.some((message) => message.includes('`idTokenValiditySeconds: 86400`'))).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test.each([
+    ['accessTokenValiditySeconds', 25],
+    ['accessTokenValiditySeconds', 299],
+    ['idTokenValiditySeconds', 86_401],
+    ['idTokenValiditySeconds', 1.5],
+    ['refreshTokenValidityDays', 0],
+    ['refreshTokenValidityDays', 3651]
+  ] as const)('rejects %s: %p before deployment', async (property, value) => {
+    await expect(synthesizeClient(`user-auth-pool-invalid-${property}`, { [property]: value })).rejects.toMatchObject({
+      code: 'CONFIG_USER_AUTH_POOL_TOKEN_VALIDITY_INVALID',
+      category: 'CONFIG_VALIDATION'
+    });
+  });
 });

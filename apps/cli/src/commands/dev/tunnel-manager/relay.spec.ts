@@ -730,6 +730,7 @@ test('a box that stops itself before the first connection is started again and t
   let onlineChecks = 0;
   await startRelay({ idleSeconds: 3600 });
   const aws = {
+    stacks: { get: async () => ({ StackStatus: 'UPDATE_COMPLETE' }) },
     describeBox: async () => ({ state: box.state }),
     startBox: async () => {
       box.starts++;
@@ -787,3 +788,78 @@ test('a box that stops itself before the first connection is started again and t
   await cleanUpTunnels();
   await stopRelay();
 }, 30_000);
+
+/** A raw protocol client: sends one message to the control port and collects every frame it receives. */
+const rawClient = async (message: unknown) => {
+  const socket = createConnection({ host: '127.0.0.1', port: controlPort });
+  await new Promise<void>((resolve, reject) => {
+    socket.once('connect', resolve);
+    socket.once('error', reject);
+  });
+  socket.on('error', () => {});
+  const frames: Array<Record<string, unknown>> = [];
+  let buffer = '';
+  const state = { closed: false };
+  socket.on('data', (chunk) => {
+    buffer += String(chunk);
+    let end: number;
+    while ((end = buffer.indexOf('\0')) !== -1) {
+      const parsed = JSON.parse(buffer.slice(0, end));
+      if (parsed && typeof parsed === 'object') frames.push(parsed);
+      buffer = buffer.slice(end + 1);
+    }
+  });
+  socket.on('close', () => (state.closed = true));
+  socket.write(`${JSON.stringify(message)}\0`);
+  const next = async (kind: string) => {
+    await waitFor(`a ${kind} frame`, () => frames.some((frame) => kind in frame) || state.closed, 3000);
+    return frames.find((frame) => kind in frame)?.[kind];
+  };
+  return { socket, frames, state, next };
+};
+
+// r2af review, finding 4: two stages that leased one port (an allocation race of older CLIs) were refused as if one held
+// the other's stage, and the take-over the refusal suggested evicted the other stage.
+test('a take-over of one stage never moves another stage that holds the same port', async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const port = await freePort();
+  const first = await rawClient({ Lease: { port, key: 'shop-alice/db', owner: 'a', session: 'a', label: 'stage A' } });
+  expect(await first.next('Hello')).toBe(port);
+  const second = await rawClient({
+    Lease: { port, key: 'shop-bob/db', owner: 'b', session: 'b', label: 'stage B', takeOver: true }
+  });
+  expect(String(await second.next('Error'))).toContain(
+    `port ${port} is held by the dev session of another stage (shop-alice`
+  );
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(first.frames.some((frame) => 'TakenOver' in frame)).toBeFalse();
+  expect(first.state.closed).toBeFalse();
+  first.socket.destroy();
+  second.socket.destroy();
+  await stopRelay();
+});
+
+// r2af review: a tunnel whose control connection was lost kept its data connections, and one of them still reached the
+// lost session's database after another session leased the port.
+test("a lost tunnel's data connections end with it, before another session leases the port", async () => {
+  await startRelay({ idleSeconds: 3600 });
+  const port = await freePort();
+  const first = await rawClient({ Lease: { port, key: 'shop-carol/db', owner: 'a', session: 'a', label: 'A' } });
+  expect(await first.next('Hello')).toBe(port);
+  const application = await pooledConnection(port);
+  const connectionId = await first.next('Connection');
+  const accept = await rawClient({ Accept: connectionId });
+  const received: string[] = [];
+  accept.socket.on('data', (data) => received.push(String(data)));
+  application.socket.write('before');
+  await waitFor('the first database to receive the query', () => received.join('') === 'before');
+  // Only the control connection is lost.
+  first.socket.destroy();
+  await waitFor('the data connection to close', () => application.state.closed && accept.state.closed);
+  const second = await rawClient({
+    Lease: { port, key: 'shop-carol/db', owner: 'b', session: 'b', label: 'B', takeOver: true }
+  });
+  expect(await second.next('Hello')).toBe(port);
+  second.socket.destroy();
+  await stopRelay();
+});

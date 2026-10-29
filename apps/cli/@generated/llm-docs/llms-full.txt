@@ -1626,8 +1626,12 @@ and transcript would keep the value: Secrets Manager `GetSecretValue` and the SS
 `ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get`](/cli/secret-get) in your own
 terminal.
 
-Lambda function configurations and ECS task definitions come back with environment variable values replaced by
-`[redacted]`; variable names and the other settings stay. Other accepted reads return application data as it is: log
+Lambda function configurations, ECS task definitions and Batch job definitions come back with environment variable
+values replaced by `[redacted]`; variable names and the other settings stay. Cognito `DescribeUserPoolClient` redacts
+the client secret. CloudFormation `GetTemplate` returns the template's structure without any value, as JSON whether
+the stack was deployed from JSON or YAML: logical IDs, resource types, conditions, dependencies, property names and
+what `Ref`, `Fn::GetAtt`, `Fn::Sub` and `Fn::If` reference stay, and every literal value reads `[value]`. Parameters,
+mappings and outputs keep their names only. Other accepted reads return application data as it is: log
 events, S3 objects and DynamoDB items contain whatever the application wrote. Read them when a diagnosis needs that
 data.
 
@@ -3605,8 +3609,8 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
-| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
+| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
 | `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
 | `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
@@ -3635,7 +3639,7 @@ The `dev` command can run the following resource types locally:
 
 ### --resources / --skip-resources
 
-Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Selection limits session rebuild/watch; a dev-stack create/update still packages all functions and can fail on an unselected function. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
+Select Lambda functions, local containers, frontends and emulated databases. Without these flags, an interactive picker appears. Unselected functions remain in the dev stack with their configured triggers removed. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, which may not match your source, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. Batch jobs cannot be selected or skipped: they run in AWS when triggered, and their images update only when dev mode starts. Use a dev-specific configuration to omit a job or disable its triggers.
 
 Run all resources without prompting:
 
@@ -16094,6 +16098,8 @@ Existing organization-wide Console alarm rules remain as legacy rules. The Conso
 
 Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
 
+A container service whose `minInstances` equals `maxInstances` (the default is 1 and 1) no longer gets CPU and memory scaling policies, because they could never change its instance count. Services whose `overrides` change the scalable target or a scaling policy keep both policies. The first v4 deployment deletes both policies and their CloudWatch alarms. The service keeps its scalable target and its instance count.
+
 Code-only deployments of web services behind the default HTTP API finish once the new tasks are `RUNNING` and API Gateway can discover them, plus a 4-second routing allowance. Old tasks drain in the background. No health check is added by default, so this does not confirm that the new application works. Add an `internalHealthCheck` for application failure detection and automatic rollback. HTTP API tasks also gain a managed drain container, which waits 35 seconds before ECS signals the application so cached routes can expire. This uses one of ECS's 10 container slots and has a 16 MiB memory limit. The protection applies once those task definitions are running; the first rollout still retires the previous unprotected tasks. Keep an application shutdown delay or use a maintenance window for that transition. Services with an `internalHealthCheck`, and ALB/NLB services, keep their existing health-based completion checks. Code-only deploy timing stays the same. Full CloudFormation deployments, scale-in and deletion take about 36 seconds longer per task stop; tasks can stop in parallel. The 35-second delay can be raised through task definition overrides, with a matching increase to the helper’s stop timeout. The helper is non-essential and pulls a digest-pinned image from the stack’s private ECR; the CLI copies both amd64 and arm64 images there once without Docker. The privileged Console connection role already covers this copy. Restricted deployer roles need `ecr:BatchGetImage`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload` and `ecr:PutImage` on the stack’s deployment repository, even when all application images are prebuilt. Upgrade every team and Console runner CLI before adopting the helper: older CLIs can delete its cached images during retention. See [web-service health checks](/resources/compute/web-service#health-checks).
 
 ## CLI command and flag names
@@ -16127,6 +16133,10 @@ Check scripts and CI jobs that set an AWS profile or AWS keys for a different ac
 The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `$ResourceParam('<workload>', 'logGroupArn')` is rejected. Stacktape never published this parameter, so a v3 configuration using it could not deploy.
 
 A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
+
+## User auth pool token lifetimes
+
+v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito without a unit, so Cognito read them in hours and accepted only 1 to 24. v4 sends them in seconds. A value from 1 to 24 keeps its meaning in hours, and the CLI warns you to write it in seconds: replace `accessTokenValiditySeconds: 1` with `accessTokenValiditySeconds: 3600`. Unset lifetimes stay at 1 hour, and deploying updates the user pool client in place. See [token lifetimes](/resources/security/user-auth-pool#token-lifetimes).
 
 ## Packaging
 
@@ -18809,7 +18819,7 @@ The first `stacktape dev` that needs it creates the **dev network** of the AWS a
 
 A dev stage no longer creates a VPC or NAT of its own. VPC functions work in dev mode and reach the internet through the box. The exception is a dev stage that still deploys VPC resources itself, such as a database marked `dev.remote`: its VPC functions stay in that stage's VPC and cannot reach local databases.
 
-The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.70 per month for its disk. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
+The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.75 per month for its disk and the SSM parameter that holds its relay. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
 
 See the network with [`stacktape dev network`](/cli/dev-network) and delete it with `stacktape dev network delete`.
 
@@ -18821,9 +18831,11 @@ A second `stacktape dev` for a stage that another session holds is refused befor
 
 ### AWS permissions
 
-The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParameters`, `ssm:GetParametersByPath`, `ssm:PutParameter`, `ssm:DeleteParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases and the record of which session runs each stage are kept. Without the read, a start elsewhere is refused only after the dev network step; without the delete, starts in another directory or on another machine are refused for up to 3 minutes after a session stops.
+The AWS identity that runs `stacktape dev` needs, besides the usual deployment permissions: `cloudformation:DescribeStacks` on the dev network stack, `ec2:DescribeInstances`, `ec2:StartInstances` on the box, `ssm:DescribeInstanceInformation`, `ssm:StartSession` on the dev box and on the `AWS-StartPortForwardingSession` document, `ssm:TerminateSession`, and `ssm:GetParameters`, `ssm:GetParametersByPath`, `ssm:PutParameter`, `ssm:DeleteParameter` and `ssm:DeleteParameters` on `/stacktape/dev-network/*`, where the relay port leases, their port reservations and the record of which session runs each stage are kept. Without the read, a start elsewhere is refused only after the dev network step; without the delete, starts in another directory or on another machine are refused for up to 3 minutes after a session stops.
 
-When dev mode generates a missing database password for a `$Secret`, it tags the secret with the dev stack's name, so `stacktape delete` of that stage schedules it for deletion again, with a 7-day recovery window. Creating it needs `secretsmanager:CreateSecret` and `secretsmanager:TagResource`. A later deployment or dev session of another stage that uses the secret removes the tag (`secretsmanager:UntagResource`), and the secret then outlives the dev stage; without that right, the command warns and goes on. A deployment or dev session that uses a secret scheduled this way restores it (`secretsmanager:RestoreSecret`). The deletion needs `secretsmanager:ListSecrets` and `secretsmanager:DeleteSecret`.
+When a newer Stacktape version brings a new relay, the first session that finds the box running an older one restarts the relay with SSM Run Command, without stopping the box. Other sessions on the box lose their connections for a few seconds and reconnect on their own. This needs `ssm:SendCommand` on the dev box and on the `AWS-RunShellScript` document, and `ssm:GetCommandInvocation`. Without them, dev mode warns and runs with the older relay, and the next session tries again.
+
+When dev mode generates a missing database password for a `$Secret`, it tags the secret with each dev stage that uses it. Creating it needs `secretsmanager:CreateSecret` and `secretsmanager:TagResource`. `stacktape delete` of a dev stage never deletes the secret: it removes the stage's tag (`secretsmanager:ListSecrets`, `secretsmanager:UntagResource`) and prints `Kept generated secret <name>`. Delete it with [`stacktape secret delete`](/cli/secret-delete) when no stage needs it. A deployment that is not a dev session removes the dev tags, and the secret is then the deployment's. Stacktape 4.0.0-preview.11 and earlier scheduled a deleted stage's generated secrets for deletion; a deployment or dev session that uses a secret scheduled this way restores it (`secretsmanager:RestoreSecret`).
 
 Container workloads that run on your machine use the AWS permissions of their role in the dev stack: dev mode assumes the role with your credentials, so they need `sts:AssumeRole` on it. When your IAM permissions don't allow that, the container's start fails with `AWS_ASSUME_ROLE_NOT_PERMITTED` and the policy statement to add, instead of waiting for AWS. The container roles of the dev stack trust your AWS account only for your own IAM user, or the IAM role of your session (an `aws:PrincipalArn` condition), and no other principal. Credentials of a federated user cannot be named this way; for them, dev mode adds the trust after the deploy, and a container's first start on a new stage can then wait several minutes until AWS accepts it.
 
@@ -18916,7 +18928,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. A dev-stack create/update still packages every function, including unselected ones. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -18946,7 +18958,7 @@ Lambda functions are included as dev-compatible workloads, and dev mode deploys 
 
 ### Can I debug only some functions while keeping others untouched?
 
-Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions the running session rebuilds and watches. Creating or updating the dev stack still packages all functions, so skipping a broken function does not avoid its startup build failure. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
+Use `--resources myApi,myWorker` to select functions, or `--skip-resources myWorker` to exclude one. Selection limits which functions the running session rebuilds and watches. Updating the dev stack does not build unselected functions, so a broken function you skip does not fail the start: it keeps running the code it ran before, and the session's status lists it with when that code was deployed. Changes to its source are deployed only once you select it again. A function is built anyway when the dev stack has no code for it yet (a new dev stack or function) or when its configuration changed, such as its environment, memory or permissions: its old code never ran with the new configuration. The start output says why. Unselected functions stay in the dev stack with their configured triggers removed. Use a separate stage when another session's triggers need to keep running. Batch jobs cannot be selected or skipped; use a dev-specific configuration to omit them or disable their triggers, and restart dev mode after changing Batch code.
 
 ### Why does dev mode refuse to start on my stage?
 
@@ -18958,7 +18970,7 @@ Through the dev box of your account's dev network: functions connect to the box'
 
 ### How much does running dev mode cost?
 
-Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). The dev box costs about $0.01 per hour while a dev session runs and about $0.70 per month while it is stopped. Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
+Dev mode deploys a dev stack on real AWS infrastructure, so standard AWS charges apply for the resources it runs (Lambda invocations, API Gateway endpoints, and other deployed resources). The dev box costs about $0.01 per hour while a dev session runs and about $0.75 per month while it is stopped. Selected local databases run on your machine as Docker containers, so no AWS database service charges apply for those during the dev session. Note that `stacktape logs` CloudWatch Logs Insights queries (via `--query`) are billed by the amount of data scanned — use narrow time ranges and specific filters on high-volume functions.
 
 ### How do I view logs from a Lambda function that's already deployed?
 
@@ -18998,7 +19010,7 @@ When you run `stacktape dev`, the following steps execute in order:
 2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
 3. **Check references** — Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
 4. **Load AWS metadata** — Stacktape fetches stack information from AWS.
-5. **Ensure secrets and SSM parameters** — Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Generated dev database secrets are owned by the stage unless another stage uses them; deletion schedules them for seven-day recovery. See [secret ownership](/local-development/debugging-lambda-functions#the-dev-network).
+5. **Ensure secrets and SSM parameters** — Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Deleting a dev stage keeps the database secrets dev mode generated; delete one with `stacktape secret delete` when no stage needs it. See [secret ownership](/local-development/debugging-lambda-functions#aws-permissions).
 6. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
 7. **Deploy dev stack** — Create the stack if missing, or update it when cloud configuration, cloud images or required outputs change. Otherwise reuse it.
 8. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
@@ -19222,7 +19234,7 @@ Dev mode (`stacktape dev`) runs workloads on your local machine with Docker and 
 
 ### Does dev mode cost anything on AWS?
 
-Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remote-resources`. The dev box costs about $0.01 per hour while a dev session runs; it stops itself 30 minutes after the last session and then costs about $0.70 per month for its disk. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.
+Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AWS resources in that dev stack, Lambda invocations, and any deployed resources you choose to use through `--remote-resources`. The dev box costs about $0.01 per hour while a dev session runs; it stops itself 30 minutes after the last session and then costs about $0.75 per month for its disk and the SSM parameter that holds its relay. Container workloads and locally emulated databases run on your machine and don't generate AWS charges. Small development workloads may fall within AWS Lambda free-tier usage, depending on account eligibility and invocation volume.
 
 ---
 
@@ -42872,15 +42884,33 @@ The `temporaryPasswordValidityDays` inside `passwordPolicy` controls how long a 
 
 The `UserAuthPoolProps` type does not document Stacktape-specific defaults for `passwordPolicy`; set these values explicitly when they matter for your application. For production applications, set at least `minimumLength: 12` and enable `requireNumbers` and `requireUppercase` — this provides meaningful security without frustrating users.
 
+## Client restrictions
+
+The pool's app client accepts every sign-in flow and can read and write every user attribute unless you limit it:
+
+| Property | Limits |
+|---|---|
+| `allowedAuthFlows` | Which sign-in flows the client accepts, for example `ALLOW_USER_SRP_AUTH` and `ALLOW_REFRESH_TOKEN_AUTH` only |
+| `readAttributes` | Which user attributes tokens and `GetUser` return through the client |
+| `writeAttributes` | Which attributes users can set through the client, for example to keep `custom:role` admin-only |
+
+```typescript
+new UserAuthPool({
+  allowedAuthFlows: ['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+  readAttributes: ['email', 'name'],
+  writeAttributes: ['name']
+});
+```
+
 ## Token lifetimes
 
-Stacktape lets you control how long tokens issued by the user pool remain valid. These values are passed directly to the Cognito user pool client:
+Stacktape lets you control how long tokens issued by the user pool remain valid:
 
-| Property | Controls |
-|---|---|
-| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid, in seconds |
-| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid, in seconds |
-| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens, in days |
+| Property | Controls | Allowed values | Default |
+|---|---|---|---|
+| `accessTokenValiditySeconds` | How long access tokens (used for API authorization) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `idTokenValiditySeconds` | How long ID tokens (containing user profile claims) are valid | 300 to 86400 seconds | 3600 (1 hour) |
+| `refreshTokenValidityDays` | How long refresh tokens can obtain new access/ID tokens | 1 to 3650 days | 30 |
 
 
 Example (TypeScript):
@@ -42902,7 +42932,9 @@ export default defineConfig(() => {
 ```
 
 
-Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. A common starting point is 3600 seconds (1 hour) for access and ID tokens and 30 days for refresh tokens. The `UserAuthPoolProps` type does not document Stacktape-specific defaults for token lifetimes; set these values explicitly when they matter for your application.
+Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. The defaults, 1 hour for access and ID tokens and 30 days for refresh tokens, are a common starting point.
+
+Before Stacktape v4, Cognito read `accessTokenValiditySeconds` and `idTokenValiditySeconds` in hours, so only values from 1 to 24 deployed. Such a value still means that many hours, and the CLI warns you to write it in seconds instead: `accessTokenValiditySeconds: 1` becomes `accessTokenValiditySeconds: 3600`.
 
 ## Custom attributes
 
@@ -43002,11 +43034,12 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `accessTokenValiditySeconds` | no | `number` | - |
+| `accessTokenValiditySeconds` | no | `number` | `3600` |
 | `allowEmailAsUserName` | no | `boolean` | `true` |
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
 | `allowPhoneNumberAsUserName` | no | `boolean` | `true` |
+| `allowedAuthFlows` | no | `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" \| "ALLOW_CUSTOM_AUTH" \| "ALLOW_REFRESH_TOKEN_AUTH" \| "ALLOW_USER_AUTH" \| "ALLOW_USER_PASSWORD_AUTH" \| "ALLOW_USER_SRP_AUTH">` | - |
 | `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | - |
 | `allowedOAuthScopes` | no | `Array<string>` | - |
 | `callbackURLs` | no | `Array<string>` | - |
@@ -43017,13 +43050,14 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `hooks` | no | `UserPoolHooks` | - |
 | `hostedUiCSS` | no | `string` | - |
 | `hostedUiDomainPrefix` | no | `string` | - |
-| `idTokenValiditySeconds` | no | `number` | - |
+| `idTokenValiditySeconds` | no | `number` | `3600` |
 | `identityProviders` | no | `Array<IdentityProvider>` | - |
 | `inviteMessageConfig` | no | `InviteMessageConfig` | - |
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |
 | `passwordPolicy` | no | `PasswordPolicy` | - |
-| `refreshTokenValidityDays` | no | `number` | - |
+| `readAttributes` | no | `Array<string>` | - |
+| `refreshTokenValidityDays` | no | `number` | `30` |
 | `requireEmailVerification` | no | `boolean` | - |
 | `requirePhoneNumberVerification` | no | `boolean` | - |
 | `schema` | no | `Array<AttributeSchema>` | - |
@@ -43031,6 +43065,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `useFirewall` | no | `string` | - |
 | `userVerificationMessageConfig` | no | `UserVerificationMessageConfig` | - |
 | `userVerificationType` | no | `string: "email-code" \| "email-link" \| "none" \| "sms"` | - |
+| `writeAttributes` | no | `Array<string>` | - |
 
 
 ## Referenceable parameters
@@ -47089,6 +47124,14 @@ This configuration waits up to 30 seconds to fill a batch of 100 messages before
 > **Tip:** For high-throughput queues, increase `batchSize` and add a `maxBatchWindowSeconds` value to amortize Lambda invocation overhead across more messages. Larger batches reduce per-message cost at the expense of higher processing latency. Tune both values based on your throughput and latency requirements.
 
 
+### Limiting concurrency
+
+Set `maximumConcurrency` (2 to 1000) to cap how many copies of the function the queue runs at once, for example to protect a database or a rate-limited API. Messages wait in the queue while the cap is reached. Without it, Lambda scales the function up to its own concurrency limit.
+
+```typescript
+new SqsIntegration({ sqsQueueName: 'orderQueue', maximumConcurrency: 5 })
+```
+
 ## Using an external queue
 
 To consume messages from an existing SQS queue not managed by this stack — for example, a queue created by a different deployment tool — use `sqsQueueArn` instead of `sqsQueueName`.
@@ -47206,6 +47249,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `batchSize` | no | `number` | `10` |
 | `maxBatchWindowSeconds` | no | `number` | - |
+| `maximumConcurrency` | no | `number` | - |
 | `reportBatchItemFailures` | no | `boolean` | `false` |
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
@@ -48897,7 +48941,7 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role limits writes and most reads to stack resources, but CloudWatch metrics/alarm reads and API Gateway reads are account-wide read-only within the session region. CloudWatch Logs reads use the role's stack-name log-group ARN patterns. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch; it does not add stack filtering to the other services. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Environment variable values and Cognito client secrets come back redacted, CloudFormation templates come back as their structure without any value, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role only reads, and only the resources of this dev stack in the session region: it identifies them by the stack-name tag CloudFormation puts on every resource, or by their identifiers in the template. CloudWatch metric and alarm reads cover the whole session region, because metrics belong to no stack. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch, whose read actions IAM cannot limit to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
@@ -61300,7 +61344,7 @@ Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`, `maximumConcurrency?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
@@ -84817,6 +84861,8 @@ type SqsIntegrationProps = {
   batchSize?: number;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
+  /** The most function instances this queue may run at the same time. */
+  maximumConcurrency?: number;
   /** Lets the function report which records of a batch failed, so only those are retried. */
   reportBatchItemFailures?: boolean;
   /** The ARN of an existing SQS queue. */
@@ -84844,6 +84890,17 @@ Maximum is 10,000.
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
 Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+
+## Property: `maximumConcurrency`
+
+- Required: no
+- Type: `number`
+
+The most function instances this queue may run at the same time.
+
+Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a
+database or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is
+reached. Between 2 and 1000. Batch jobs ignore it.
 
 ## Property: `reportBatchItemFailures`
 
@@ -86413,7 +86470,7 @@ Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
 - `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
-- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`.
+- `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `reportBatchItemFailures?: boolean`, `maximumConcurrency?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `dynamo-db-stream` (`DynamoDbIntegration`) — Triggers a function when items are created, updated, or deleted in a DynamoDB table.. Properties: `streamArn: string`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`, `reportBatchItemFailures?: boolean`.
 - `s3` (`S3Integration`) — Triggers a function when files are created, deleted, or restored in an S3 bucket.. Properties: `bucketArn: string`, `s3EventType: string: "s3:ObjectCreated:*" | "s3:ObjectCreated:CompleteMultipartUpload" | "s3:ObjectCreated:Copy" | "s3:ObjectCreated:Post" | "s3:ObjectCreated:Put" | "s3:ObjectRemoved:*" | "s3:ObjectRemoved:Delete" | "s3:ObjectRemoved:DeleteMarkerCreated" | "s3:ObjectRestore:*" | "s3:ObjectRestore:Completed" | "s3:ObjectRestore:Post" | "s3:ReducedRedundancyLostObject" | "s3:Replication:*" | "s3:Replication:OperationFailedReplication" | "s3:Replication:OperationMissedThreshold" | "s3:Replication:OperationNotTracked" | "s3:Replication:OperationReplicatedAfterThreshold"`, `filterRule?: S3FilterRule`.
@@ -122173,6 +122230,8 @@ type UserAuthPoolProps = {
   allowOnlyExternalIdentityProviders?: boolean;
   /** Allow phone numbers as usernames */
   allowPhoneNumberAsUserName?: boolean;
+  /** The sign-in flows the app client accepts */
+  allowedAuthFlows?: Array<"ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">;
   /** OAuth flows */
   allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
   /** OAuth scopes */
@@ -122205,6 +122264,8 @@ type UserAuthPoolProps = {
   mfaConfiguration?: MfaConfiguration;
   /** Password strength rules */
   passwordPolicy?: PasswordPolicy;
+  /** The user attributes the app client may read */
+  readAttributes?: Array<string>;
   /** Refresh token lifetime */
   refreshTokenValidityDays?: number;
   /** (Reserved) Require verified emails */
@@ -122221,6 +122282,8 @@ type UserAuthPoolProps = {
   userVerificationMessageConfig?: UserVerificationMessageConfig;
   /** Verification strategy */
   userVerificationType?: "email-code" | "email-link" | "none" | "sms";
+  /** The user attributes the app client may change */
+  writeAttributes?: Array<string>;
 };
 ```
 
@@ -122228,13 +122291,15 @@ type UserAuthPoolProps = {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 Access token lifetime
 
 Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
 in which a stolen token can be abused, at the cost of more frequent refreshes.
 
-This value is passed to the user pool client as `AccessTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -122443,6 +122508,17 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `allowedAuthFlows`
+
+- Required: no
+- Type: `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">`
+
+The sign-in flows the app client accepts
+
+By default the client accepts every flow: SRP, username and password, admin username and password, custom
+authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+`['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
 
 ## Property: `allowedOAuthFlows`
 
@@ -122926,12 +123002,14 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 ID token lifetime
 
 Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
 
-This is set on the user pool client as `IdTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -123209,17 +123287,28 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `readAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may read
+
+By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+this client.
+
 ## Property: `refreshTokenValidityDays`
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
 Refresh token lifetime
 
 Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
 Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
 
-This value is used as `RefreshTokenValidity` on the Cognito user pool client.
+Set it in days, from 1 to 3650 (10 years).
 
 ### Example 1 (yaml)
 
@@ -123552,6 +123641,16 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `writeAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may change
+
+By default users can update every writable attribute through the client. Listing attributes limits what
+`UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.
 
 ---
 

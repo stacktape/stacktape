@@ -184,7 +184,73 @@ export const dependencyFactSchema = z.object({
     .object({
       fifo: z.literal(true).optional(),
       contentBasedDeduplication: z.literal(true).optional(),
-      visibilityTimeoutSeconds: z.number().int().min(0).max(43200).optional()
+      visibilityTimeoutSeconds: z.number().int().min(0).max(43200).optional(),
+      /**
+       * Where messages go after `maxReceiveCount` failed receives: another queue of this project, or an existing queue's
+       * ARN. Without it a message that keeps failing is retried until it expires and is then lost.
+       */
+      deadLetter: z
+        .object({
+          dependencyName: z.string().min(1).optional(),
+          queueArn: z
+            .string()
+            .regex(/^arn:aws[a-z-]*:sqs:[a-z0-9-]+:\d{12}:[A-Za-z0-9_.-]+$/)
+            .optional(),
+          maxReceiveCount: z.number().int().min(1).max(1000)
+        })
+        .optional()
+    })
+    .optional(),
+  /**
+   * The key a deployment manifest declares for a DynamoDB table, with its attribute types. Stronger than `itemKey`,
+   * which source code shows without types: a numeric sort key declared as a string rejects every request.
+   */
+  tableKey: z
+    .object({
+      partitionKey: z.object({ name: z.string().min(1), type: z.enum(['string', 'number', 'binary']) }),
+      sortKey: z.object({ name: z.string().min(1), type: z.enum(['string', 'number', 'binary']) }).optional()
+    })
+    .optional(),
+  /** A bucket the deployment manifest keeps every version of objects in, so a deleted or overwritten object is recoverable. */
+  bucketVersioning: z.literal(true).optional(),
+  /** Sign-in rules a user pool declaration states, which the pool init creates has to keep. */
+  userPoolSettings: z
+    .object({
+      mfa: z
+        .object({
+          status: z.enum(['ON', 'OPTIONAL']),
+          enabledTypes: z.array(z.enum(['SMS', 'SOFTWARE_TOKEN', 'EMAIL_OTP'])).optional()
+        })
+        .optional(),
+      passwordPolicy: z
+        .object({
+          minimumLength: z.number().int().min(6).max(99).optional(),
+          requireLowercase: z.boolean().optional(),
+          requireNumbers: z.boolean().optional(),
+          requireSymbols: z.boolean().optional(),
+          requireUppercase: z.boolean().optional(),
+          temporaryPasswordValidityDays: z.number().int().min(0).max(365).optional()
+        })
+        .optional(),
+      /** The declaration states who creates accounts (`AdminCreateUserConfig.AllowAdminCreateUserOnly`). */
+      allowOnlyAdminsToCreateAccount: z.boolean().optional(),
+      generateClientSecret: z.literal(true).optional(),
+      /** The sign-in flows the app client accepts; without it Stacktape's client accepts every flow. */
+      allowedAuthFlows: z
+        .array(
+          z.enum([
+            'ALLOW_ADMIN_USER_PASSWORD_AUTH',
+            'ALLOW_CUSTOM_AUTH',
+            'ALLOW_USER_PASSWORD_AUTH',
+            'ALLOW_USER_SRP_AUTH',
+            'ALLOW_REFRESH_TOKEN_AUTH',
+            'ALLOW_USER_AUTH'
+          ])
+        )
+        .optional(),
+      /** The user attributes the app client may read and change; without them it may read and change all. */
+      readAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional(),
+      writeAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional()
     })
     .optional(),
   /**

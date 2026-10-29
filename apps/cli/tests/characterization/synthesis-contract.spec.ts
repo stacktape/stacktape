@@ -1,3 +1,4 @@
+import { tagNames } from '@stacktape/naming/tag-names';
 import { settleResourceResolvers } from '@domain-services/calculated-stack-overview-manager/resolver-lifecycle';
 import { existingResourcesOf, synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
@@ -2132,13 +2133,12 @@ describe('full synthesis contract', () => {
     for (const action of ['dynamodb:PutItem', 's3:ListBucket', 'sqs:SendMessage', 'events:PutEvents']) {
       expect(apiActions).toContain(action);
     }
+    // The dev agent only reads queues (see the dev agent role test).
     const devAgentSqsActions = resources.StpDevAgentRole.Properties.Policies.find(
       ({ PolicyName }: { PolicyName: string }) => PolicyName === 'sqs-access'
     ).PolicyDocument.Statement[0].Action;
-    expect(devAgentSqsActions).toContain('sqs:SendMessage');
-    expect(devAgentSqsActions).toContain('sqs:DeleteMessage');
-    expect(devAgentSqsActions).not.toContain('sqs:SendMessageBatch');
-    expect(devAgentSqsActions).not.toContain('sqs:DeleteMessageBatch');
+    expect(devAgentSqsActions).toContain('sqs:GetQueueAttributes');
+    expect(devAgentSqsActions).not.toContain('sqs:SendMessage');
     for (const method of ['GET', 'PUT', 'POST', 'DELETE']) {
       expect(resources.FilesBucket.Properties.CorsConfiguration.CorsRules[0].AllowedMethods).toContain(method);
     }
@@ -2383,5 +2383,136 @@ test('the public codeSwap opt-in adds the protected runtime while ordinary synth
     );
   } finally {
     Object.assign(codeSwapIntegration, previous);
+  }
+});
+
+// r2af finding 2: the dev agent role of `shop-dev` granted Lambda, DynamoDB and other actions on `shop-dev-*` in every
+// region, which also names the resources of a stage `dev-production`, and it granted writes the agent never sends.
+test('the dev agent role reads only its own stack, in its own region', async () => {
+  const region = 'eu-west-1';
+  const accountId = '111111111111';
+  const template = await synthesizeDenseFixture({
+    synthesisContext: { stackName: 'shop-dev', projectName: 'shop', stage: 'dev', region, accountId }
+  });
+  const resources = template.Resources as Record<string, any>;
+  const statements = resources.StpDevAgentRole.Properties.Policies.flatMap(
+    ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
+  ) as { Effect: string; Action: string[]; Resource: unknown; Condition?: Record<string, Record<string, any>> }[];
+  const allows = statements.filter(({ Effect }) => Effect === 'Allow');
+
+  // What CloudFormation substitutes, for this test's account and region; a logical ID becomes the resource's name.
+  const physicalName = (logicalName: string) => {
+    const properties = resources[logicalName]?.Properties ?? {};
+    return (
+      properties.DBInstanceIdentifier ??
+      properties.DBClusterIdentifier ??
+      properties.ReplicationGroupId ??
+      properties.DomainName ??
+      `${logicalName}-id`
+    );
+  };
+  const resolve = (value: unknown): string => {
+    if (typeof value === 'string') return value;
+    const { 'Fn::Sub': sub, Ref: ref } = value as Record<string, any>;
+    if (ref === 'AWS::Region') return region;
+    return (sub as string).replaceAll(/\$\{([^}]+)\}/g, (_, name: string) =>
+      name === 'AWS::Region'
+        ? region
+        : name === 'AWS::AccountId'
+          ? accountId
+          : name === 'AWS::StackId'
+            ? `arn:aws:cloudformation:${region}:${accountId}:stack/shop-dev/abc`
+            : physicalName(name)
+    );
+  };
+  const matches = (pattern: string, value: string) =>
+    new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*')}$`).test(value);
+  /** IAM's answer for one request, with the stack-name tag the resource carries and the region the call goes to. */
+  const isAllowed = (
+    action: string,
+    arn: string,
+    { tag, requestRegion, cluster }: { tag: string; requestRegion: string; cluster?: string }
+  ) =>
+    allows.some(({ Action, Resource, Condition }) => {
+      if (!Action.some((pattern) => matches(pattern, action))) return false;
+      if (![Resource].flat().some((pattern) => matches(resolve(pattern), arn))) return false;
+      const clusters = Condition?.ArnEquals?.['ecs:cluster'];
+      if (clusters && !(cluster && [clusters].flat().map(resolve).includes(cluster))) return false;
+      return Object.entries(Condition?.StringEquals ?? {}).every(([key, expected]) =>
+        key === 'aws:RequestedRegion'
+          ? resolve(expected) === requestRegion
+          : key === `aws:ResourceTag/${tagNames.stackName()}`
+            ? expected === tag
+            : false
+      );
+    });
+
+  const own = { tag: 'shop-dev', requestRegion: region };
+  const otherStage = { tag: 'shop-dev-production', requestRegion: region };
+  const lambda = (name: string, inRegion = region) => `arn:aws:lambda:${inRegion}:${accountId}:function:${name}`;
+  const table = (name: string, inRegion = region) => `arn:aws:dynamodb:${inRegion}:${accountId}:table/${name}`;
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambda('shop-dev-api'), own)).toBe(true);
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambda('shop-dev-production-api'), otherStage)).toBe(false);
+  expect(isAllowed('dynamodb:Query', table('shop-dev-records'), own)).toBe(true);
+  expect(isAllowed('dynamodb:Query', table('shop-dev-production-orders'), otherStage)).toBe(false);
+  // The same stack name in another region is another stack.
+  expect(
+    isAllowed('dynamodb:Scan', table('shop-dev-records', 'eu-west-3'), { tag: 'shop-dev', requestRegion: 'eu-west-3' })
+  ).toBe(false);
+  expect(isAllowed('cloudwatch:GetMetricData', '*', { tag: '', requestRegion: 'eu-west-3' })).toBe(false);
+  expect(
+    isAllowed(
+      'cloudformation:GetTemplate',
+      `arn:aws:cloudformation:${region}:${accountId}:stack/shop-dev-production/x`,
+      otherStage
+    )
+  ).toBe(false);
+
+  // ECS lists services and tasks by cluster; a task definition read has no resource, only the region.
+  const cluster = Object.keys(resources).find((name) => resources[name].Type === 'AWS::ECS::Cluster')!;
+  const clusterArn = `arn:aws:ecs:${region}:${accountId}:cluster/${resources[cluster].Properties.ClusterName}`;
+  expect(isAllowed('ecs:ListServices', '*', { ...own, cluster: clusterArn })).toBe(true);
+  expect(
+    isAllowed('ecs:ListServices', '*', {
+      ...otherStage,
+      cluster: clusterArn.replace('shop-dev', 'shop-dev-production')
+    })
+  ).toBe(false);
+  expect(isAllowed('ecs:DescribeTaskDefinition', '*', { tag: '', requestRegion: region })).toBe(true);
+  expect(isAllowed('ecs:DescribeTaskDefinition', '*', { tag: '', requestRegion: 'eu-west-3' })).toBe(false);
+  expect(isAllowed('ecs:DescribeServices', `arn:aws:ecs:${region}:${accountId}:service/x/y`, otherStage)).toBe(false);
+
+  // Databases, caches and APIs by their identifiers in the template; another stage's are not among them.
+  const database = Object.keys(resources).find((name) => resources[name].Type === 'AWS::RDS::DBInstance')!;
+  const databaseArn = `arn:aws:rds:${region}:${accountId}:db:${physicalName(database)}`;
+  expect(isAllowed('rds:DescribeDBInstances', databaseArn, own)).toBe(true);
+  expect(isAllowed('rds:DescribeDBInstances', databaseArn.replace('shop-dev', 'shop-dev-production'), otherStage)).toBe(
+    false
+  );
+  const api = Object.keys(resources).find((name) => resources[name].Type === 'AWS::ApiGatewayV2::Api')!;
+  expect(isAllowed('apigateway:GET', `arn:aws:apigateway:${region}::/apis/${physicalName(api)}/routes`, own)).toBe(
+    true
+  );
+  expect(isAllowed('apigateway:GET', `arn:aws:apigateway:${region}::/apis/another-api/routes`, own)).toBe(false);
+
+  // Reads only: the agent's executor sends nothing else, and the role grants nothing else.
+  const actions = allows.flatMap(({ Action }) => Action);
+  expect(
+    actions.filter(
+      (action) => !/^[a-z0-9-]+:(Admin)?(Get|Describe|List|Query|Scan|BatchGet|Filter|StartQuery|GET)/.test(action)
+    )
+  ).toEqual([]);
+  // Every statement names this region, or is limited to it.
+  for (const { Resource, Condition } of allows) {
+    for (const pattern of [Resource].flat().map(resolve)) {
+      const arnRegion = pattern.split(':')[3];
+      if (pattern === '*' && Condition?.ArnEquals) {
+        for (const cluster of [Condition.ArnEquals['ecs:cluster']].flat().map(resolve)) {
+          expect(cluster.split(':')[3]).toBe(region);
+        }
+      } else if (pattern === '*') {
+        expect(Condition?.StringEquals?.['aws:RequestedRegion']).toEqual({ Ref: 'AWS::Region' });
+      } else if (!pattern.startsWith('arn:aws:s3:')) expect(arnRegion).toBe(region);
+    }
   }
 });

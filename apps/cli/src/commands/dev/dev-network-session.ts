@@ -21,7 +21,6 @@ import {
 } from '@domain-services/dev-network/holders';
 import { isMcpInvocation } from '@application-services/operation-invocation-context';
 import type { StackContext } from '@domain-services/stack-context';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import findFreePorts from 'find-free-ports';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -297,8 +296,8 @@ const COST_EXPLANATION = [
   'through it, and VPC functions get internet access through it. Nothing is exposed to the internet: your machine',
   'connects to the box through AWS Systems Manager.',
   'Cost: about $0.01 per hour while a dev session runs. The box stops itself 30 minutes after the last session ends;',
-  'stopped, it costs about $0.70 per month for its disk. See it with `stacktape dev network`, delete it with',
-  '`stacktape dev network delete`.'
+  'stopped, it costs about $0.75 per month for its disk and its relay parameter. See it with `stacktape dev network`,',
+  'delete it with `stacktape dev network delete`.'
 ];
 
 /**
@@ -363,7 +362,6 @@ export const startDevNetworkSession = async ({
   noTunnel,
   takeOver,
   agentPort,
-  orphanedSessionId,
   aws = createDevNetworkAws(),
   holderStore = createStageHolderStore()
 }: {
@@ -372,15 +370,10 @@ export const startDevNetworkSession = async ({
   takeOver: boolean;
   /** The agent's port in `--agent` mode, where the reason of a self-ended session is recorded. */
   agentPort?: number;
-  /** The SSM session of a killed earlier session of this stage, ended before the new one opens. */
-  orphanedSessionId?: string;
   aws?: DevNetworkAws;
   holderStore?: StageHolderStore;
 }): Promise<DevNetworkSession | undefined> => {
   const { stackName, projectName, stage } = stackContext;
-  if (orphanedSessionId) {
-    await awsSdkManager.systemsManager.terminateSession({ sessionId: orphanedSessionId }).catch(() => {});
-  }
   const { functions, batchJobs, unreachable } = getDevNetworkDemand({ noTunnel });
   for (const { kind, name, resources } of unreachable) {
     tuiManager.warn(
@@ -393,6 +386,10 @@ export const startDevNetworkSession = async ({
   const { network, action, ready } = await ensureDevNetwork({
     aws,
     onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')),
+    onUpgrade: () =>
+      tuiManager.info(
+        "Updating the dev network to this Stacktape version. The dev box keeps running; when its relay restarts with the new version, every dev session that uses the box, other developers' included, loses its connection for a few seconds and reconnects."
+      ),
     onDeletionWait: () =>
       tuiManager.info('The dev network is being deleted. Waiting for the deletion to finish, then creating it again.'),
     onJoinCreation: () =>
@@ -427,6 +424,10 @@ export const startDevNetworkSession = async ({
       aws,
       onSession: (sessionId) => recordDevBoxSession(sessionId, projectName, stage),
       findFreePort: async () => (await findFreePorts(1))[0],
+      onRelayUpdate: (version) =>
+        tuiManager.info(
+          `Restarting the dev box relay to update it from version ${version}. Dev sessions that use the box, other developers' included, reconnect within seconds.`
+        ),
       pingRelay,
       listSessions: listRelaySessions,
       holdPresence: holdRelayPresence,

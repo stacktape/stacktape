@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { DevNetworkAws } from '@domain-services/dev-network';
+import { DEV_BOX_RELAY_VERSION } from '@domain-services/dev-network/relay-source';
 import { DevBoxConnection, type DevBoxStatus, type RelaySession } from './index';
 
 // EC2 stop/start and SSM sessions cannot be emulated; these fakes keep their observable behavior: a box goes from
@@ -26,12 +27,15 @@ const network = {
 const fakeWorld = ({ boxState }: { boxState: string }) => {
   const world = {
     boxState,
+    stackStatus: 'UPDATE_COMPLETE',
     starts: 0,
     relayUp: false,
+    relayVersion: DEV_BOX_RELAY_VERSION,
     sessions: [] as Array<RelaySession & { exit: () => void; killed: boolean; ended: boolean }>,
     presences: [] as Array<{ end: () => void }>
   };
   const aws = {
+    stacks: { get: async () => ({ StackStatus: world.stackStatus }) },
     describeBox: async () => ({ state: world.boxState }),
     startBox: async () => {
       world.starts++;
@@ -70,7 +74,7 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
     // The relay is reached through the latest session; a session that ended carries nothing.
     pingRelay: async () => {
       if (!world.relayUp || world.sessions.at(-1)?.ended) throw new Error('connection refused');
-      return 1;
+      return world.relayVersion;
     },
     holdPresence: ({ signal }: { signal: AbortSignal }) =>
       new Promise<void>((resolve) => {
@@ -261,3 +265,106 @@ test('stop ends the SSM session after the release timeout when the relay keeps l
   expect(Date.now() - startedAt).toBeLessThan(1000);
   expect(world.sessions.every(({ killed }) => killed)).toBe(true);
 });
+
+// r2ab dogfood, finding 1: CloudFormation stopped the box to update it, a running session started it again at once, and
+// the update waited until someone stopped the box by hand.
+test('a box that an update of the network stopped is left to CloudFormation, which starts it again', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'stopped' });
+  world.stackStatus = 'UPDATE_IN_PROGRESS';
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
+  const statuses: string[] = [];
+  connection.onStatus = (status) => statuses.push(status.phase);
+  const ready = connection.connect();
+  await waitFor('the network-update status', () => statuses.includes('network-update'));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  expect(world.starts).toBe(0);
+  // CloudFormation has changed the box and starts it.
+  world.stackStatus = 'UPDATE_COMPLETE';
+  world.boxState = 'running';
+  world.relayUp = true;
+  await ready;
+  expect(world.starts).toBe(0);
+  expect(statuses).toEqual(['network-update', 'connecting', 'ready']);
+  await connection.stop();
+});
+
+test('a box still stopped once the update has ended is started', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'stopped' });
+  world.stackStatus = 'UPDATE_ROLLBACK_IN_PROGRESS';
+  const connection = new DevBoxConnection({ deps, network, owner: { id: 'u', label: 'U', session: 's' } });
+  const ready = connection.connect();
+  await waitFor('the network-update status', () => connection.status?.phase === 'network-update');
+  expect(world.starts).toBe(0);
+  world.stackStatus = 'UPDATE_ROLLBACK_COMPLETE';
+  await ready;
+  expect(world.starts).toBe(1);
+  await connection.stop();
+});
+
+test('a relay older than this CLI is updated once, and the session continues with the new relay', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  world.relayVersion = DEV_BOX_RELAY_VERSION - 1;
+  const updates: number[] = [];
+  let runs = 0;
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      onRelayUpdate: (version) => updates.push(version),
+      // The relay service restarts: the relay refuses connections for a moment, then answers with the new version.
+      updateRelay: async () => {
+        runs++;
+        world.relayUp = false;
+        setTimeout(() => {
+          world.relayVersion = DEV_BOX_RELAY_VERSION;
+          world.relayUp = true;
+        }, 30);
+      }
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  await connection.connect();
+  expect({ updates, runs, phase: connection.status?.phase }).toEqual({
+    updates: [DEV_BOX_RELAY_VERSION - 1],
+    runs: 1,
+    phase: 'ready'
+  });
+  // The restart drops the session's connections like any loss; the next connection does not update again.
+  world.sessions[0].exit();
+  await waitFor('a second session', () => world.sessions.length === 2 && connection.status?.phase === 'ready');
+  expect(runs).toBe(1);
+  await connection.stop();
+});
+
+// Review of #393: a failed relay update was not tried again, and the session reported ready on the old relay without
+// saying so.
+test('a relay update that fails is tried again, then the session runs on the old relay and says why', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  world.relayVersion = DEV_BOX_RELAY_VERSION - 1;
+  let runs = 0;
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      updateRelay: async () => {
+        runs++;
+        throw new Error('AccessDeniedException: ssm:SendCommand');
+      }
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  const statuses: string[] = [];
+  connection.onStatus = (status) => statuses.push(status.phase === 'reconnecting' ? status.reason : status.phase);
+  await connection.connect();
+  expect(runs).toBe(3);
+  expect(statuses).toContain(
+    `Updating the dev box relay from version ${DEV_BOX_RELAY_VERSION - 1} failed: AccessDeniedException: ssm:SendCommand`
+  );
+  expect(connection.status).toMatchObject({
+    phase: 'ready',
+    outdatedRelay: { version: DEV_BOX_RELAY_VERSION - 1, reason: 'AccessDeniedException: ssm:SendCommand' }
+  });
+  await connection.stop();
+}, 30_000);

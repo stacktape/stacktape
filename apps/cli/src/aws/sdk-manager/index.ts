@@ -27,7 +27,6 @@ import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { wait } from '@utils/misc';
 import {
   applyAwsClientPlugins,
   awsClientConfig,
@@ -180,8 +179,7 @@ export class AwsSdkManager {
     this.#cloudFront = new AwsCloudFront({
       createClient: () => this.#cloudfront(),
       getErrorHandler: this.#getErrorHandler,
-      region,
-      wait
+      region
     });
     this.#ec2 = new AwsEc2({
       createClient: () => this.#ec2Client(),

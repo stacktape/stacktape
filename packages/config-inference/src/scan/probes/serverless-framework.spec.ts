@@ -144,9 +144,16 @@ describe('the serverless framework probe', () => {
         sourceType: 'messages from the jobQueue queue that match its filterPatterns, which Stacktape cannot filter'
       },
       { type: 'unmapped', sourceType: 'the schedule cron(0 9 * * ? *) with the Europe/Bratislava time zone' },
-      // A variable may resolve either way, so the schedule deploys paused rather than running.
-      { type: 'schedule', rate: 'rate(1 day)', enabled: false }
+      // A variable init cannot resolve may be on or off; the schedule is left out and the import gap names it.
+      { type: 'unmapped', reason: 'import-gap', sourceType: 'the schedule event 7' }
     ]);
+    expect(facts.importGaps).toContainEqual({
+      file: 'serverless.yml',
+      object: 'functions.api.events.6',
+      keys: ['schedule.enabled'],
+      effect: 'omitted',
+      concern: 'execution'
+    });
   });
 
   it('refuses filters and payloads whose values are Serverless variables', async () => {

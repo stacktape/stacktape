@@ -828,7 +828,8 @@ export interface UserAuthPoolProps {
    * Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
    * in which a stolen token can be abused, at the cost of more frequent refreshes.
    *
-   * This value is passed to the user pool client as `AccessTokenValidity`.
+   * Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+   * value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
    *
    * **Example (YAML):**
    *
@@ -858,6 +859,8 @@ export interface UserAuthPoolProps {
    *   return { resources: { userPool } };
    * });
    * ```
+   *
+   * @default 3600
    */
   accessTokenValiditySeconds?: number;
   /**
@@ -867,7 +870,8 @@ export interface UserAuthPoolProps {
    *
    * Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
    *
-   * This is set on the user pool client as `IdTokenValidity`.
+   * Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+   * value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
    *
    * **Example (YAML):**
    *
@@ -897,6 +901,8 @@ export interface UserAuthPoolProps {
    *   return { resources: { userPool } };
    * });
    * ```
+   *
+   * @default 3600
    */
   idTokenValiditySeconds?: number;
   /**
@@ -907,7 +913,7 @@ export interface UserAuthPoolProps {
    * Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
    * Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
    *
-   * This value is used as `RefreshTokenValidity` on the Cognito user pool client.
+   * Set it in days, from 1 to 3650 (10 years).
    *
    * **Example (YAML):**
    *
@@ -937,6 +943,8 @@ export interface UserAuthPoolProps {
    *   return { resources: { userPool } };
    * });
    * ```
+   *
+   * @default 30
    */
   refreshTokenValidityDays?: number;
   /**
@@ -1444,7 +1452,43 @@ export interface UserAuthPoolProps {
    * @default false
    */
   allowOnlyExternalIdentityProviders?: boolean;
+  /**
+   * #### The sign-in flows the app client accepts
+   *
+   * ---
+   *
+   * By default the client accepts every flow: SRP, username and password, admin username and password, custom
+   * authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+   * `['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
+   */
+  allowedAuthFlows?: UserPoolClientAuthFlow[];
+  /**
+   * #### The user attributes the app client may read
+   *
+   * ---
+   *
+   * By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+   * this client.
+   */
+  readAttributes?: string[];
+  /**
+   * #### The user attributes the app client may change
+   *
+   * ---
+   *
+   * By default users can update every writable attribute through the client. Listing attributes limits what
+   * `UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.
+   */
+  writeAttributes?: string[];
 }
+
+export type UserPoolClientAuthFlow =
+  | 'ALLOW_ADMIN_USER_PASSWORD_AUTH'
+  | 'ALLOW_CUSTOM_AUTH'
+  | 'ALLOW_USER_PASSWORD_AUTH'
+  | 'ALLOW_USER_SRP_AUTH'
+  | 'ALLOW_REFRESH_TOKEN_AUTH'
+  | 'ALLOW_USER_AUTH';
 
 
 export type AllowedOauthFlow = 'code' | 'implicit' | 'client_credentials';

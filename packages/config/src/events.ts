@@ -1686,6 +1686,16 @@ export interface SqsIntegrationProps {
    * @default false
    */
   reportBatchItemFailures?: boolean;
+  /**
+   * #### The most function instances this queue may run at the same time.
+   *
+   * ---
+   *
+   * Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a
+   * database or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is
+   * reached. Between 2 and 1000. Batch jobs ignore it.
+   */
+  maximumConcurrency?: number;
 }
 
 

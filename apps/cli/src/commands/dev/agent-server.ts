@@ -21,6 +21,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getDevAgentCredentials } from './dev-agent-credentials';
+import { findAvailablePort } from './port-utils';
 import {
   postgresQuery,
   postgresSchema,
@@ -78,6 +79,7 @@ import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 import { runSeedScript } from './seed-script';
+import type { FunctionNotInSession } from './functions-not-in-session';
 
 /** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
 export type AgentWorkloadEnvironment = {
@@ -164,6 +166,12 @@ export type AgentSessionIdentity = {
 let agentNotices: string[] = [];
 export const setAgentNotices = (notices: string[]) => {
   agentNotices = [...notices];
+};
+
+/** Deployed functions the session leaves out, with the code they run; see `FunctionNotInSession`. */
+let functionsNotInSession: FunctionNotInSession[] = [];
+export const setFunctionsNotInSession = (functions: FunctionNotInSession[]) => {
+  functionsNotInSession = [...functions];
 };
 
 let httpServer: Server | null = null;
@@ -425,6 +433,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ...(getConfiguredBatchJobs().length ? { batchJobs: await getDeployedBatchJobs() } : {}),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
+      ...(functionsNotInSession.length ? { functionsNotInSession } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath(),
       ...agentSession,
@@ -447,6 +456,9 @@ addRoute('GET', '/status', async ({ query }) => {
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
+    ...(functionsNotInSession.length
+      ? { functionsNotInSession: Object.fromEntries(functionsNotInSession.map(({ name, message }) => [name, message])) }
+      : {}),
     ...getDevBoxStatus(),
     ...agentSession,
     pid: process.pid
@@ -1546,8 +1558,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     };
   }
 
-  // The dev agent reads the session's stack. Its role allows resources by the stack's name in any region, so a stack of
-  // the same name elsewhere, or a resource another region gives the same name, is outside the session.
+  // The dev agent reads the session's stack, which is in the session's region; its role reads nothing elsewhere.
   const awsRegion = globalStateManager.region;
   if (region && region !== awsRegion) {
     return {
@@ -2026,7 +2037,8 @@ export const buildStartupMessage = (params: {
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
   lines.push('            cognito, apigatewayv2, xray, kinesis, firehose, ...');
   lines.push('  Scoped to stack resources via IAM role. Writes and Secrets Manager/SSM value reads are rejected;');
-  lines.push('  Lambda/ECS environment values are redacted. Logs, objects and items return application data as is.');
+  lines.push('  environment values, client secrets and template values are redacted. Logs, objects and items return');
+  lines.push('  application data as is.');
   lines.push('');
   lines.push('  Examples:');
   lines.push(
@@ -2078,37 +2090,64 @@ const createSessionLogMasker = (): ((text: string) => string) => {
   };
 };
 
+/** Binds the agent's HTTP server to the port; rejects with the listener's error, `EADDRINUSE` included. */
+const listenOnAgentPort = (port: number) =>
+  new Promise<Server>((resolve, reject) => {
+    const server = createServer(handleRequest);
+    server.once('error', reject);
+    server.listen(port, AGENT_HOST, () => {
+      server.removeListener('error', reject);
+      resolve(server);
+    });
+  });
+
+/** How many other ports an automatically chosen agent port tries after the one chosen was taken meanwhile. */
+const AUTOMATIC_PORT_ATTEMPTS = 20;
+
+/**
+ * Starts the agent's HTTP server and resolves with its port. An automatically chosen port (no `--agent-port`) can be
+ * taken between the check that chose it and this bind: two dev sessions that start at the same time, through MCP for
+ * example, check the same free port before either listens (r2ab). Such a port is replaced with the next free one; an
+ * explicit port fails.
+ */
 export const startAgentServer = async (
   port: number,
   logDir: string,
   environment?: AgentWorkloadEnvironment,
-  session?: AgentSessionIdentity
-): Promise<void> => {
+  session?: AgentSessionIdentity,
+  {
+    automaticPort = false,
+    findFreePort = findAvailablePort
+  }: { automaticPort?: boolean; findFreePort?: typeof findAvailablePort } = {}
+): Promise<number> => {
+  const requested = port;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      httpServer = await listenOnAgentPort(port);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+      const next = automaticPort && attempt < AUTOMATIC_PORT_ATTEMPTS ? await findFreePort(port + 1) : null;
+      if (!next) {
+        throw new Error(
+          automaticPort
+            ? `Ports ${requested} to ${port} were taken while the dev agent started. Choose a port with --agent-port.`
+            : `Port ${port} is already in use. Choose a different --agent-port.`
+        );
+      }
+      port = next;
+    }
+  }
   if (environment) workloadEnvironment = environment;
   setAgentLogMasker(createSessionLogMasker());
   agentPort = port;
   agentSession = session ?? null;
   startTime = Date.now();
 
+  // The log file is named by the port, so it is opened only once this process owns the port.
   const logFile = `${logDir}/${port}-logs.txt`;
   initAgentLogger(logFile, { ...session, port, pid: process.pid });
   agentState.logFile = logFile;
-
-  await new Promise<void>((resolve, reject) => {
-    httpServer = createServer(handleRequest);
-
-    httpServer.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        reject(new Error(`Port ${port} is already in use. Choose a different --agent-port.`));
-      } else {
-        reject(err);
-      }
-    });
-
-    httpServer.listen(port, AGENT_HOST, () => {
-      resolve();
-    });
-  });
 
   // Written only once this process owns the port, so it replaces the file of an earlier agent that died on this port
   // and no live agent's token is overwritten. Only the user who started dev mode can read the directory and file.
@@ -2120,6 +2159,7 @@ export const startAgentServer = async (
   writeFileSync(agentTokenFile, agentToken, { mode: 0o600 });
   chmodSync(agentTokenFile, 0o600);
   await removeTokenFilesOfDeadAgents(port);
+  return port;
 };
 
 const isListening = (port: number) =>

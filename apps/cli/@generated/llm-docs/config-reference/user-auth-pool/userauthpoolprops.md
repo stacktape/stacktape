@@ -18,6 +18,8 @@ type UserAuthPoolProps = {
   allowOnlyExternalIdentityProviders?: boolean;
   /** Allow phone numbers as usernames */
   allowPhoneNumberAsUserName?: boolean;
+  /** The sign-in flows the app client accepts */
+  allowedAuthFlows?: Array<"ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">;
   /** OAuth flows */
   allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
   /** OAuth scopes */
@@ -50,6 +52,8 @@ type UserAuthPoolProps = {
   mfaConfiguration?: MfaConfiguration;
   /** Password strength rules */
   passwordPolicy?: PasswordPolicy;
+  /** The user attributes the app client may read */
+  readAttributes?: Array<string>;
   /** Refresh token lifetime */
   refreshTokenValidityDays?: number;
   /** (Reserved) Require verified emails */
@@ -66,6 +70,8 @@ type UserAuthPoolProps = {
   userVerificationMessageConfig?: UserVerificationMessageConfig;
   /** Verification strategy */
   userVerificationType?: "email-code" | "email-link" | "none" | "sms";
+  /** The user attributes the app client may change */
+  writeAttributes?: Array<string>;
 };
 ```
 
@@ -73,13 +79,15 @@ type UserAuthPoolProps = {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 Access token lifetime
 
 Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window
 in which a stolen token can be abused, at the cost of more frequent refreshes.
 
-This value is passed to the user pool client as `AccessTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -288,6 +296,17 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `allowedAuthFlows`
+
+- Required: no
+- Type: `Array<string: "ALLOW_ADMIN_USER_PASSWORD_AUTH" | "ALLOW_CUSTOM_AUTH" | "ALLOW_REFRESH_TOKEN_AUTH" | "ALLOW_USER_AUTH" | "ALLOW_USER_PASSWORD_AUTH" | "ALLOW_USER_SRP_AUTH">`
+
+The sign-in flows the app client accepts
+
+By default the client accepts every flow: SRP, username and password, admin username and password, custom
+authentication and refresh tokens. List only the ones your app uses so the others are refused, for example
+`['ALLOW_USER_SRP_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH']` for an app that never sends plain passwords.
 
 ## Property: `allowedOAuthFlows`
 
@@ -771,12 +790,14 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
+- Default: `3600`
 
 ID token lifetime
 
 Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
 
-This is set on the user pool client as `IdTokenValidity`.
+Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a
+value from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.
 
 ### Example 1 (yaml)
 
@@ -1054,17 +1075,28 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `readAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may read
+
+By default the client can read every attribute. Listing attributes limits what tokens and `GetUser` return through
+this client.
+
 ## Property: `refreshTokenValidityDays`
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
 Refresh token lifetime
 
 Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.
 Longer lifetimes mean fewer re-authentications, but keep sessions alive for longer.
 
-This value is used as `RefreshTokenValidity` on the Cognito user pool client.
+Set it in days, from 1 to 3650 (10 years).
 
 ### Example 1 (yaml)
 
@@ -1397,3 +1429,13 @@ export default defineConfig(() => {
   return { resources: { userPool } };
 });
 ```
+
+## Property: `writeAttributes`
+
+- Required: no
+- Type: `Array<string>`
+
+The user attributes the app client may change
+
+By default users can update every writable attribute through the client. Listing attributes limits what
+`UpdateUserAttributes` and sign-up may set, so users cannot change, for example, their own `custom:role`.

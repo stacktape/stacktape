@@ -2,12 +2,24 @@ import { describe, expect, it } from 'bun:test';
 import { parseCloudFormationYaml } from './cloudformation-yaml';
 
 describe('parseCloudFormationYaml', () => {
-  it('keeps short intrinsic targets as inert data', () => {
+  it('reads short intrinsics as their long form, apart from literal strings', () => {
     expect(
       parseCloudFormationYaml(
-        ['queue: !GetAtt Jobs.Arn', 'table: !Ref Orders', 'name: !Sub ${Stage}-orders'].join('\n')
+        [
+          'queue: !GetAtt Jobs.Arn',
+          'table: !Ref Orders',
+          'name: !Sub ${Stage}-orders',
+          'prefix: !ImportValue SharedPrefix',
+          'literal: Orders'
+        ].join('\n')
       )
-    ).toEqual({ queue: 'Jobs.Arn', table: 'Orders', name: '${Stage}-orders' });
+    ).toEqual({
+      queue: { 'Fn::GetAtt': 'Jobs.Arn' },
+      table: { Ref: 'Orders' },
+      name: { 'Fn::Sub': '${Stage}-orders' },
+      prefix: { 'Fn::ImportValue': 'SharedPrefix' },
+      literal: 'Orders'
+    });
   });
 
   it('handles nested flow tags without changing quoted text', () => {
@@ -21,7 +33,7 @@ describe('parseCloudFormationYaml', () => {
         ].join('\n')
       )
     ).toEqual({
-      Value: ['UsePrimary', 'PrimaryQueue', 'BackupQueue.Arn'],
+      Value: { 'Fn::If': ['UsePrimary', { Ref: 'PrimaryQueue' }, { 'Fn::GetAtt': 'BackupQueue.Arn' }] },
       Message: 'the text !Ref stays text'
     });
   });

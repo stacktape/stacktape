@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { operationReporter, operationSession } from '@application-services/operation-manager';
 import { GlobalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { resetAwsClockSync } from '@utils/time';
 
 class TestGlobalStateManager extends GlobalStateManager {
   runScheduledRefresh = () => this.refreshCredentialsAfterTimeout();
@@ -11,8 +12,12 @@ class TestGlobalStateManager extends GlobalStateManager {
 describe.serial('automatic AWS credential refresh', () => {
   const restores: (() => void)[] = [];
 
+  // Every test reads AWS's clock through its own fetch stub; the measured offset is otherwise reused for a minute.
+  beforeEach(() => resetAwsClockSync());
+
   afterEach(() => {
     for (const restore of restores.splice(0).toReversed()) restore();
+    resetAwsClockSync();
   });
 
   test('owns a refresh rejection, retains the current credentials and schedules a bounded retry', async () => {
@@ -129,7 +134,9 @@ describe.serial('automatic AWS credential refresh', () => {
   test('lets only the newest concurrent schedule own a refresh timer', async () => {
     const manager = new TestGlobalStateManager();
     const originalFetch = globalThis.fetch;
+    const originalSetTimeout = globalThis.setTimeout;
     const resolveFetches: Array<(response: Response) => void> = [];
+    const refreshDelays: number[] = [];
     globalThis.fetch = Object.assign(
       () =>
         new Promise<Response>((resolve) => {
@@ -137,20 +144,27 @@ describe.serial('automatic AWS credential refresh', () => {
         }),
       { preconnect: originalFetch.preconnect }
     );
+    globalThis.setTimeout = ((...args: Parameters<typeof setTimeout>) => {
+      const [callback, delay, ...callbackArgs] = args;
+      if ((delay ?? 0) > 60_000) refreshDelays.push(delay ?? 0);
+      return originalSetTimeout(callback, delay, ...callbackArgs);
+    }) as typeof setTimeout;
     restores.push(() => {
       globalThis.fetch = originalFetch;
+      globalThis.setTimeout = originalSetTimeout;
       manager.stopCredentialRefresh();
     });
 
     const first = manager.scheduleRefresh(new Date(Date.now() + 60 * 60 * 1000));
     const second = manager.scheduleRefresh(new Date(Date.now() + 30 * 60 * 1000));
-    resolveFetches[1]!(new Response(null, { headers: { date: new Date().toUTCString() } }));
-    await second;
-    const newestTimer = manager.credentialsRefreshTimeout;
+    // Both schedules wait for the same reading of AWS's clock.
+    expect(resolveFetches).toHaveLength(1);
     resolveFetches[0]!(new Response(null, { headers: { date: new Date().toUTCString() } }));
-    await first;
+    await Promise.all([first, second]);
 
-    expect(newestTimer).toBeDefined();
-    expect(manager.credentialsRefreshTimeout).toBe(newestTimer);
+    expect(manager.credentialsRefreshTimeout).toBeDefined();
+    // Only the newest schedule, for the credentials that expire in 30 minutes, installed a timer.
+    expect(refreshDelays).toHaveLength(1);
+    expect(refreshDelays[0]).toBeLessThan(26 * 60 * 1000);
   });
 });

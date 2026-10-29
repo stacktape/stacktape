@@ -14,9 +14,10 @@ import {
   type DevNetworkAws,
   type LiveDevSession
 } from './index';
-import { encodeRelayForUserData } from './boot-script';
+import { encodeRelayForParameter } from './boot-script';
 import { DEV_BOX_RELAY_SOURCE } from './relay-source';
 import { buildDevNetworkTemplate, DEV_NETWORK_CONTRACT_VERSION, DEV_NETWORK_KIND } from './template';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
 // CloudFormation, EC2 and SSM as the network commands see them: a stack whose status moves on each read, a box state,
 // and lease parameters. Stack operations from other machines are scripted as status sequences.
@@ -64,7 +65,7 @@ const fakeAws = ({
   boxState?: string;
   functions?: string[];
 }) => {
-  const calls = { deletes: 0, creates: 0, updates: 0 };
+  const calls = { deletes: 0, creates: 0, updates: 0, templates: [] as CloudFormationTemplate[] };
   const leasePrefix = getDevNetworkLeaseParameterPrefix(stackName);
   const leases = new Map([[`${leasePrefix}/shop-alice/db`, '20001']]);
   let read = 0;
@@ -81,19 +82,22 @@ const fakeAws = ({
         calls.creates++;
         created = true;
       },
-      update: async () => {
+      update: async ({ template }) => {
         calls.updates++;
+        calls.templates.push(template);
       },
       delete: async () => {
         calls.deletes++;
       },
-      listResources: async () => []
+      listResources: async () => [],
+      getTemplate: async () => buildDevNetworkTemplate({ networkName: stackName })
     },
     resolveBoxImageId: async () => 'ami-1',
     describeBox: async () => ({ state: boxState, hasInstanceProfile: true }),
     startBox: async () => {},
     attachBoxProfile: async () => {},
     isBoxOnline: async () => true,
+    runOnBox: async () => {},
     listFunctionsInSecurityGroup: async () => functions,
     leases: {
       list: async (prefix) =>
@@ -182,6 +186,44 @@ describe('dev network delete', () => {
       recreated: true
     });
     expect({ deletes: calls.deletes, leases: leases.size }).toEqual({ deletes: 1, leases: 1 });
+  });
+
+  // r2af review: the deletion saw the old stack gone, then a waiting start created the network again and recorded its
+  // lease and holder before the deletion listed the parameters, and the deletion removed them.
+  test('a network created again right after the old one is gone keeps the records the new one wrote', async () => {
+    const { aws, leases } = fakeAws({ statuses: ['CREATE_COMPLETE', 'CREATE_COMPLETE', 'DELETE_IN_PROGRESS'] });
+    const holder = `/stacktape/dev-network/${stackName}/holders/shop-alice`;
+    let reads = 0;
+    const get = aws.stacks.get;
+    aws.stacks.get = async (name) => {
+      reads++;
+      if (reads <= 3) return get(name);
+      if (reads === 4) {
+        // The old stack is gone; the waiting session creates the network and records its stage meanwhile.
+        leases.set(holder, 'new-live-session');
+        return undefined;
+      }
+      return stackIn('CREATE_IN_PROGRESS', 'stack-2');
+    };
+    expect(await deleteDevNetwork({ aws, network, findLiveSessions: noSessions, pollIntervalMs: 1 })).toEqual({
+      deletedLeases: 0,
+      recreated: true
+    });
+    expect([...leases.keys()]).toContain(holder);
+    expect(leases.size).toBe(2);
+  });
+
+  test('a deletion removes the leases, port reservations and holder records of the network', async () => {
+    const { aws, leases } = fakeAws({
+      statuses: ['CREATE_COMPLETE', 'CREATE_COMPLETE', 'DELETE_IN_PROGRESS', undefined]
+    });
+    leases.set(`/stacktape/dev-network/${stackName}/ports/20001`, 'lease');
+    leases.set(`/stacktape/dev-network/${stackName}/holders/shop-alice`, 'holder');
+    expect(await deleteDevNetwork({ aws, network, findLiveSessions: noSessions, pollIntervalMs: 1 })).toEqual({
+      deletedLeases: 1,
+      recreated: false
+    });
+    expect(leases.size).toBe(0);
   });
 
   test('a long deletion reports what it waits for, Lambda network interfaces included', async () => {
@@ -487,7 +529,8 @@ describe('a network whose creation failed', () => {
 // Review of #388: the relay changed to version 4 while the network contract stayed at 4, so no existing network was
 // updated and its box kept the old relay.
 describe('a network of an older contract', () => {
-  test('is updated once, for example to install a new relay on its box', async () => {
+  /** A network of contract 5: its box's user data carries the relay, and its template has no relay parameter. */
+  const olderNetwork = () => {
     const { aws, calls } = fakeAws({ statuses: ['CREATE_COMPLETE'] });
     const get = aws.stacks.get;
     let updated = false;
@@ -497,7 +540,7 @@ describe('a network of an older contract', () => {
       return {
         ...stack,
         Outputs: stack.Outputs!.map((output) =>
-          output.OutputKey === 'ContractVersion' ? { ...output, OutputValue: '4' } : output
+          output.OutputKey === 'ContractVersion' ? { ...output, OutputValue: '5' } : output
         )
       };
     };
@@ -506,16 +549,84 @@ describe('a network of an older contract', () => {
       updated = true;
       return update(input);
     };
+    const deployed = buildDevNetworkTemplate({ networkName: stackName });
+    delete deployed.Resources.RelayParameter;
+    (deployed.Resources.Box.Properties as Record<string, unknown>).UserData = {
+      'Fn::Base64': '#!/bin/bash\n# the contract 5 boot script and relay'
+    };
+    aws.stacks.getTemplate = async () => structuredClone(deployed);
+    return { aws, calls, deployed };
+  };
+
+  test('is updated once, for example to install a new relay on its box', async () => {
+    const { aws, calls } = olderNetwork();
     const { action, ready } = await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
     await ready;
     expect({ action, updates: calls.updates }).toEqual({ action: 'upgrade', updates: 1 });
   });
 
+  // r2ab dogfood, finding 1: the update changed the box's user data, so CloudFormation stopped the box, and a running
+  // session of the older CLI started it again before the update could continue.
+  test('keeps its box exactly as deployed, so the update never stops the box, and gets the relay parameter', async () => {
+    const { aws, calls, deployed } = olderNetwork();
+    const upgrades: string[] = [];
+    await ensureDevNetwork({ aws, onCreate: () => {}, onUpgrade: () => upgrades.push('upgrade'), pollIntervalMs: 1 });
+    const [template] = calls.templates;
+    expect(template.Resources.Box).toEqual(deployed.Resources.Box);
+    expect(template.Resources.RelayParameter.Properties).toMatchObject({
+      Name: `/stacktape/dev-network/${stackName}/relay`,
+      Value: encodeRelayForParameter(DEV_BOX_RELAY_SOURCE)
+    });
+    expect(upgrades).toEqual(['upgrade']);
+  });
+
+  // Review of #393: the user data was read before another CLI finished its own update of the network, and the update
+  // then put the older user data back, which stopped the box.
+  test('keeps the user data of an update another CLI finished while this one prepared its own', async () => {
+    const { aws, calls, deployed } = olderNetwork();
+    const contract5 = structuredClone(deployed);
+    (contract5.Resources.Box.Properties as Record<string, unknown>).UserData = {
+      'Fn::Base64': '#!/bin/bash\n# contract 5'
+    };
+    let reads = 0;
+    let finishedElsewhere = false;
+    const get = aws.stacks.get;
+    aws.stacks.get = async (name) => {
+      const stack = await get(name);
+      // The other CLI's update has completed: a later update time and its contract.
+      return finishedElsewhere && stack && !calls.updates ? { ...stack, LastUpdatedTime: new Date(1000) } : stack;
+    };
+    aws.stacks.getTemplate = async () => {
+      if (reads++ === 0) {
+        // This CLI reads the deployed template; the other CLI's update completes before this one submits.
+        const snapshot = structuredClone(deployed);
+        finishedElsewhere = true;
+        return snapshot;
+      }
+      return structuredClone(contract5);
+    };
+    await ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 });
+    expect(calls.updates).toBe(1);
+    expect(calls.templates[0].Resources.Box.Properties).toMatchObject({
+      UserData: { 'Fn::Base64': '#!/bin/bash\n# contract 5' }
+    });
+    expect(reads).toBe(2);
+  });
+
+  test('a template whose box user data Stacktape cannot keep is not updated', async () => {
+    const { aws, calls } = olderNetwork();
+    aws.stacks.getTemplate = async () => ({ Resources: { Box: { Properties: { UserData: { Ref: 'Elsewhere' } } } } });
+    expect(await failure(ensureDevNetwork({ aws, onCreate: () => {}, pollIntervalMs: 1 }))).toMatchObject({
+      code: 'DEV_NETWORK_TEMPLATE_UNREADABLE'
+    });
+    expect(calls.updates).toBe(0);
+  });
+
   test('the template a contract version stands for does not change without a new version', () => {
-    // Changing the template, the relay or the boot script included, changes this hash: increment
-    // DEV_NETWORK_CONTRACT_VERSION, so existing networks are updated, then record the new pair here.
-    // The relay is hashed as source: its gzip encoding in the user data may differ between zlib versions.
-    const encodedRelay = JSON.stringify(encodeRelayForUserData(DEV_BOX_RELAY_SOURCE)).slice(1, -1);
+    // Changing the template, the relay included, changes this hash: increment DEV_NETWORK_CONTRACT_VERSION, so existing
+    // networks are updated, then record the new pair here.
+    // The relay is hashed as source: its gzip encoding in the parameter may differ between zlib versions.
+    const encodedRelay = encodeRelayForParameter(DEV_BOX_RELAY_SOURCE);
     const template = JSON.stringify(buildDevNetworkTemplate({ networkName: stackName }));
     expect(template).toContain(encodedRelay);
     const hash = createHash('sha256')
@@ -523,6 +634,18 @@ describe('a network of an older contract', () => {
       .update(DEV_BOX_RELAY_SOURCE)
       .digest('hex')
       .slice(0, 16);
-    expect({ contract: DEV_NETWORK_CONTRACT_VERSION, hash }).toEqual({ contract: 5, hash: '6ca336e00cd5bfbb' });
+    expect({ contract: DEV_NETWORK_CONTRACT_VERSION, hash }).toEqual({ contract: 6, hash: '6a1cef28b62998d7' });
+  });
+
+  test('an update never changes the box', () => {
+    // CloudFormation stops the box to change most of its properties, and replaces it for others, which changes its
+    // private IP that every deployed dev stack carries. A `stacktape dev` session starts a stopped box again at once,
+    // older CLIs included, and the update then waits for the box to stop. Its user data is kept from the deployed
+    // template (see `buildDevNetworkTemplate`); everything else must stay as it is. Deliver changes to the box through
+    // the relay parameter and the relay update instead (see `getDevBoxRelayUpdateScript`).
+    const { UserData: _userData, ...box } = buildDevNetworkTemplate({ networkName: stackName }).Resources.Box
+      .Properties as Record<string, unknown>;
+    const hash = createHash('sha256').update(JSON.stringify(box)).digest('hex').slice(0, 16);
+    expect(hash).toBe('8390baffdc26843c');
   });
 });

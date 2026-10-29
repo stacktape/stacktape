@@ -370,8 +370,11 @@ export const runParallelWorkloads = async (
 
 const describeDevBoxStatus = (status: NonNullable<DevNetworkSession['connection']['status']>) => {
   if (status.phase === 'starting-box') return 'Starting the dev box…';
+  if (status.phase === 'network-update')
+    return `Waiting for CloudFormation to update the dev network (${status.status})…`;
   if (status.phase === 'connecting') return 'Connecting to the dev box…';
   if (status.phase === 'reconnecting') return `Reconnecting: ${status.reason}`;
+  if (status.outdatedRelay) return `dev box ${status.relay.relayHost}, relay version ${status.outdatedRelay.version}`;
   return `dev box ${status.relay.relayHost}`;
 };
 
@@ -393,8 +396,16 @@ const connectDevNetwork = async ({
   const failed = new Promise<string>((resolve) => (reportFailure = resolve));
   let warnedReason: string | undefined;
   if (useDevTui) devTuiManager.setSetupStepStatus('dev-box', 'running', 'Connecting to the dev box…');
+  let warnedOutdatedRelay = false;
   connection.onStatus = (status) => {
     if (status.phase === 'reconnecting') reportFailure(status.reason);
+    if (status.phase === 'ready' && status.outdatedRelay && !warnedOutdatedRelay) {
+      warnedOutdatedRelay = true;
+      tuiManager.warn(
+        `The dev box runs relay version ${status.outdatedRelay.version}, older than this Stacktape version, because updating it failed: ${status.outdatedRelay.reason}. ` +
+          'Dev mode works with it; the next `stacktape dev` tries the update again. Updating needs `ssm:SendCommand` and `ssm:GetCommandInvocation` (see the AWS permissions of dev mode).'
+      );
+    }
     if (useDevTui) {
       devTuiManager.setSetupStepStatus(
         'dev-box',
@@ -403,7 +414,8 @@ const connectDevNetwork = async ({
       );
       return;
     }
-    if (status.phase === 'starting-box') tuiManager.info('Starting the dev box…');
+    if (status.phase === 'starting-box' || status.phase === 'network-update')
+      tuiManager.info(describeDevBoxStatus(status));
     if (status.phase === 'ready' && warnedReason) {
       tuiManager.success('Connected to the dev box again.');
       warnedReason = undefined;

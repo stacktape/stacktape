@@ -8,6 +8,8 @@ type SqsIntegrationProps = {
   batchSize?: number;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
+  /** The most function instances this queue may run at the same time. */
+  maximumConcurrency?: number;
   /** Lets the function report which records of a batch failed, so only those are retried. */
   reportBatchItemFailures?: boolean;
   /** The ARN of an existing SQS queue. */
@@ -35,6 +37,17 @@ Maximum is 10,000.
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
 Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+
+## Property: `maximumConcurrency`
+
+- Required: no
+- Type: `number`
+
+The most function instances this queue may run at the same time.
+
+Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a
+database or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is
+reached. Between 2 and 1000. Batch jobs ignore it.
 
 ## Property: `reportBatchItemFailures`
 

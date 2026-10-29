@@ -48,6 +48,9 @@ const configInferenceScanTests = [
   'packages/config-inference/src/scan/probe.spec.ts',
   'packages/config-inference/src/scan/probes/aws-sam.spec.ts',
   'packages/config-inference/src/scan/probes/cdk.spec.ts',
+  'packages/config-inference/src/scan/probes/declared-function.spec.ts',
+  'packages/config-inference/src/scan/probes/declared-keys.spec.ts',
+  'packages/config-inference/src/scan/probes/declared-permissions.spec.ts',
   'packages/config-inference/src/scan/probes/docker-compose.spec.ts',
   'packages/config-inference/src/scan/probes/dockerfile.spec.ts',
   'packages/config-inference/src/scan/probes/environment.spec.ts',
@@ -541,6 +544,7 @@ export const lanes: readonly Lane[] = [
       'src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
+      'src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -564,6 +568,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -826,7 +831,7 @@ export const lanes: readonly Lane[] = [
     requires: ['python3'],
     release: 'every-candidate',
     proves:
-      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another session of the stage, of the same developer on another machine too, and names it, lets the same session take its port back, moves the stage once on take-over without the sessions taking the port in turn, closes the connections the replaced session carried (also for a client that ignores the take-over), ends the replaced session and never takes the stage back on a later reconnect, refuses one of two concurrent leases of a stage, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation; a running stage refuses a second session before it deploys unless it takes over; dev network delete refuses during live sessions and CloudFormation operations, and a session started during a deletion waits for it and creates the network again; a network being created is used once its box exists, is ready only once complete with the instance profile of the box attached, and a creation that fails later says to delete the dev stage; dev network lists who runs each stage from a running box only; a network whose creation failed is deleted by its stack name once no dev function uses it, and every command that meets it names the recovery order; a session that finds another creation running waits for it and checks the stage; the profile watcher of the box restarts the SSM agent only when credentials appear, never after a failed metadata request.'
+      'Dev-stop kills owned descendants, the agent refuses callers without its token and masks secrets, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners. The real dev box relay carries binary traffic at leased ports, refuses another session of the stage, of the same developer on another machine too, and names it, lets the same session take its port back, moves the stage once on take-over without the sessions taking the port in turn, closes the connections the replaced session carried (also for a client that ignores the take-over), ends the replaced session and never takes the stage back on a later reconnect, refuses one of two concurrent leases of a stage, reconnects past a relay restart and stops the box only after the idle time; the box connection starts a stopped box, reopens a lost session and keeps retrying a failed first connection, also when the box stops between the wake and the first session, until the tunnels open; a Ping restarts the idle time; leases stay stable per stage and resolve concurrent creation; a running stage refuses a second session before it deploys unless it takes over; dev network delete refuses during live sessions and CloudFormation operations, and a session started during a deletion waits for it and creates the network again; a network being created is used once its box exists, is ready only once complete with the instance profile of the box attached, and a creation that fails later says to delete the dev stage; dev network lists who runs each stage from a running box only; a network whose creation failed is deleted by its stack name once no dev function uses it, and every command that meets it names the recovery order; a session that finds another creation running waits for it and checks the stage; the profile watcher of the box restarts the SSM agent only when credentials appear, never after a failed metadata request; an update of an older network keeps the box exactly as deployed, so it never stops it, and a stopped box is left alone while CloudFormation updates the network; the relay service installs the relay from the relay parameter, or runs the one installed before; a relay older than the CLI is updated in place once; dev sessions that start at the same moment on one automatic agent port each get a port, while an explicit port still fails.'
   },
   {
     id: 'local-dev-containers',
@@ -842,7 +847,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; two dev containers on the bridge network listen on the same fixed port, reach a loopback-only database through the relay as host.docker.internal and each other at published ports; network is only for the fixture images.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; two dev containers on the bridge network listen on the same fixed port, reach a loopback-only database through the relay as host.docker.internal and each other at published ports; MySQL data that another version wrote is refused before a mismatched server opens it, and the version that wrote it still reads it; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -865,6 +870,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves:
       'Dev network leases persist in MiniStack Parameter Store, keep their port for the next session and are released with their stage; the real dev HTTP agent redacts reads and denies mutation.'
+  },
+  {
+    id: 'local-dev-stack-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:stack:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/dev-selected-packaging.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'The source CLI runs dev sessions against MiniStack: a session that leaves functions out does not build them, so a broken one does not fail the start, and they keep the code the dev stack ran, also after their source changed, with status naming when that code was deployed; selecting them again deploys their source; a new dev stack builds a left-out function once and says why.'
   },
   {
     id: 'local-dev-lambda-live',
@@ -2524,6 +2540,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/deploy/stacktape-account.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/dev-runnable.spec.ts',
+      'apps/cli/src/init/eval/import-audit-safety.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/eval/source-inference-e2e.spec.ts',
@@ -3862,6 +3879,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/dev-runnable.spec.ts',
+      'apps/cli/src/init/eval/import-audit-safety.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/eval/source-inference-e2e.spec.ts',
@@ -4247,6 +4265,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/ministack/artifact-store.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
@@ -4385,7 +4404,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/container/exit-reason.spec.ts',
       'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
       'apps/cli/src/commands/dev/function-logs.spec.ts',
+      'apps/cli/src/commands/dev/functions-not-in-session.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
+      'apps/cli/tests/ministack/dev-selected-packaging.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
     lanes: [
@@ -4396,6 +4417,7 @@ export const slices: readonly Slice[] = [
       'local-dev-next',
       'local-dev-containers',
       'local-dev-ministack',
+      'local-dev-stack-ministack',
       'local-dev-lambda-live',
       'local-dev-live',
       'cli-test-real-aws-dev-canary'
@@ -4440,7 +4462,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/**',
       'apps/cli/src/commands/info-stack/agent-contract.ts',
       'packages/aws-read-only/src/operations.ts',
-      'packages/aws-read-only/src/executor.ts'
+      'packages/aws-read-only/src/executor.ts',
+      'packages/aws-read-only/src/template-skeleton.ts'
     ],
     tests: [
       'apps/cli/scripts/operations/validate.spec.ts',
@@ -4452,6 +4475,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/src/commands/aws-call/stack-without-outputs.spec.ts',
+      'apps/cli/src/commands/aws-call/get-template.spec.ts',
       'apps/cli/src/utils/lambda-log-lines.spec.ts',
       'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
       'apps/cli/src/utils/cloudwatch-logs.spec.ts',

@@ -1,6 +1,7 @@
 /** Parse CloudFormation-flavoured YAML without executing or resolving intrinsics. */
 
 import yaml from 'yaml';
+import { Pair, Scalar, YAMLMap, YAMLSeq } from 'yaml/types';
 
 const SHORT_INTRINSICS = new Set([
   'Ref',
@@ -23,74 +24,39 @@ const SHORT_INTRINSICS = new Set([
   'Condition'
 ]);
 
-/** Remove intrinsic tag markers outside YAML strings/comments, including tags nested in flow lists. */
-const stripShortIntrinsicTags = (contents: string): string => {
-  let result = '';
-  let singleQuoted = false;
-  let doubleQuoted = false;
-  let comment = false;
-  let escaped = false;
+/** `!Ref X` is `{ Ref: X }`, `!Condition X` is `{ Condition: X }`, and every other short form is `{ 'Fn::Name': ... }`. */
+const longFormKey = (tag: string): string => (tag === 'Ref' || tag === 'Condition' ? tag : `Fn::${tag}`);
 
-  for (let index = 0; index < contents.length; index += 1) {
-    const character = contents[index]!;
-    if (character === '\n') comment = false;
-    if (comment) {
-      result += character;
-      continue;
-    }
-    if (doubleQuoted) {
-      result += character;
-      if (escaped) escaped = false;
-      else if (character === '\\') escaped = true;
-      else if (character === '"') doubleQuoted = false;
-      continue;
-    }
-    if (singleQuoted) {
-      result += character;
-      if (character === "'" && contents[index + 1] === "'") {
-        result += contents[index + 1];
-        index += 1;
-      } else if (character === "'") singleQuoted = false;
-      continue;
-    }
-    if (character === '#') {
-      comment = true;
-      result += character;
-      continue;
-    }
-    if (character === '"') {
-      doubleQuoted = true;
-      result += character;
-      continue;
-    }
-    if (character === "'") {
-      singleQuoted = true;
-      result += character;
-      continue;
-    }
-    if (character === '!') {
-      const tag = /^[A-Za-z]+/.exec(contents.slice(index + 1))?.[0];
-      if (tag !== undefined && SHORT_INTRINSICS.has(tag)) {
-        index += tag.length;
-        continue;
-      }
-    }
-    result += character;
+/** Replace each node tagged with a short intrinsic by the long-form map CloudFormation reads it as. */
+const expandShortIntrinsics = (node: unknown): unknown => {
+  if (node instanceof Pair) {
+    node.value = expandShortIntrinsics(node.value);
+    return node;
   }
-  return result;
+  if (node instanceof YAMLMap || node instanceof YAMLSeq) {
+    node.items = node.items.map((item: unknown) => expandShortIntrinsics(item));
+  }
+  if (typeof node !== 'object' || node === null) return node;
+  const tag = (node as { tag?: unknown }).tag;
+  if (typeof tag !== 'string' || !tag.startsWith('!')) return node;
+  const name = tag.slice(1);
+  delete (node as { tag?: string }).tag;
+  if (!SHORT_INTRINSICS.has(name)) return node;
+  const map = new YAMLMap();
+  map.items.push(new Pair(new Scalar(longFormKey(name)), node));
+  return map;
 };
 
 /**
- * YAML 1.2 does not know CloudFormation's `!Ref`/`!GetAtt` shorthand. The parser otherwise falls
- * back to strings but prints a warning for every tag — noisy in the wizard and test output. Removing
- * only the tag marker preserves the literal scalar/sequence we need for reference matching. No
- * intrinsic is evaluated and no external state is consulted.
+ * YAML 1.2 does not know CloudFormation's `!Ref`/`!GetAtt` shorthand. Each tagged value becomes the long form
+ * CloudFormation itself reads it as, so `!Ref Prefix` stays distinguishable from the literal string `Prefix` and
+ * `!ImportValue Shared` from `Shared`. No intrinsic is evaluated and no external state is consulted. An unknown tag
+ * degrades to its plain value.
  */
 export const parseCloudFormationYaml = (contents: string): unknown => {
-  // `parse()` writes every unknown-tag warning to stderr. Even after stripping the ordinary forms,
-  // a future intrinsic or unusual quoting style should degrade to inert data without dumping a
-  // parser stack trace into the init wizard. `parseDocument()` returns the same warnings as data.
-  const document = yaml.parseDocument(stripShortIntrinsicTags(contents));
+  // `parse()` writes every unknown-tag warning to stderr; `parseDocument()` returns them as data.
+  const document = yaml.parseDocument(contents);
   if (document.errors.length > 0) throw document.errors[0];
+  document.contents = expandShortIntrinsics(document.contents) as typeof document.contents;
   return document.toJSON() as unknown;
 };

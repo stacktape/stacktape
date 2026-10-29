@@ -283,7 +283,9 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
       name,
       type: resource.type
     }));
-    if (resources.length === 0) throw new Error('Init completed but generated no resources.');
+    if (resources.length === 0 && corpusCase.expect.deploysNothing !== true) {
+      throw new Error('Init completed but generated no resources.');
+    }
 
     const summary: CorpusResult = {
       id: corpusCase.id,

@@ -10127,6 +10127,18 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "maximumConcurrency",
+                    "required": false,
+                    "shortDescription": "<p> The most function instances this queue may run at the same time.</p>",
+                    "longDescription": "<p>Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a\ndatabase or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is\nreached. Between 2 and 1000. Batch jobs ignore it.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "number"
+                      ]
+                    }
                   }
                 ]
               },
@@ -37205,6 +37217,18 @@
                         "boolean"
                       ]
                     }
+                  },
+                  {
+                    "name": "maximumConcurrency",
+                    "required": false,
+                    "shortDescription": "<p> The most function instances this queue may run at the same time.</p>",
+                    "longDescription": "<p>Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a\ndatabase or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is\nreached. Between 2 and 1000. Batch jobs ignore it.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "number"
+                      ]
+                    }
                   }
                 ]
               },
@@ -53229,6 +53253,18 @@
         }
       },
       {
+        "name": "maximumConcurrency",
+        "required": false,
+        "shortDescription": "<p> The most function instances this queue may run at the same time.</p>",
+        "longDescription": "<p>Without it, Lambda scales the function up to its concurrency limit as messages arrive. Set it to protect a\ndatabase or a third-party API from too many parallel consumers. Messages wait in the queue while the limit is\nreached. Between 2 and 1000. Batch jobs ignore it.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
         "name": "reportBatchItemFailures",
         "required": false,
         "shortDescription": "<p> Lets the function report which records of a batch failed, so only those are retried.</p>",
@@ -53268,9 +53304,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 5
+      "optionalCount": 6
     },
-    "typeDeclaration": "// [!code focus-start]\ntype SqsIntegrationProps = {\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** Lets the function report which records of a batch failed, so only those are retried. */\n  reportBatchItemFailures?: boolean;\n  /** The ARN of an existing SQS queue. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue defined in your stack's resources. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype SqsIntegrationProps = {\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n  /** The most function instances this queue may run at the same time. */\n  maximumConcurrency?: number;\n  /** Lets the function report which records of a batch failed, so only those are retried. */\n  reportBatchItemFailures?: boolean;\n  /** The ARN of an existing SQS queue. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue defined in your stack's resources. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
   },
   "SqsQueue": {
     "definitionName": "SqsQueue",
@@ -58844,7 +58880,8 @@
         "name": "accessTokenValiditySeconds",
         "required": false,
         "shortDescription": "<p> Access token lifetime</p>",
-        "longDescription": "<p>Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window\nin which a stolen token can be abused, at the cost of more frequent refreshes.</p>\n<p>This value is passed to the user pool client as <code>AccessTokenValidity</code>.</p>",
+        "longDescription": "<p>Controls how long an access token issued by Cognito stays valid after login. Shorter lifetimes reduce the window\nin which a stolen token can be abused, at the cost of more frequent refreshes.</p>\n<p>Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a\nvalue from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.</p>",
+        "defaultValue": "3600",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -58953,6 +58990,29 @@
             "code": "import { UserAuthPool, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const userPool = new UserAuthPool({\n    userVerificationType: 'email-code',\n    // [!code focus-start]\n    allowPhoneNumberAsUserName: false\n    // [!code focus-end]\n  });\n  return { resources: { userPool } };\n});"
           }
         ]
+      },
+      {
+        "name": "allowedAuthFlows",
+        "required": false,
+        "shortDescription": "<p> The sign-in flows the app client accepts</p>",
+        "longDescription": "<p>By default the client accepts every flow: SRP, username and password, admin username and password, custom\nauthentication and refresh tokens. List only the ones your app uses so the others are refused, for example\n<code>[&#39;ALLOW_USER_SRP_AUTH&#39;, &#39;ALLOW_REFRESH_TOKEN_AUTH&#39;]</code> for an app that never sends plain passwords.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ],
+            "enumValues": [
+              "ALLOW_ADMIN_USER_PASSWORD_AUTH",
+              "ALLOW_CUSTOM_AUTH",
+              "ALLOW_REFRESH_TOKEN_AUTH",
+              "ALLOW_USER_AUTH",
+              "ALLOW_USER_PASSWORD_AUTH",
+              "ALLOW_USER_SRP_AUTH"
+            ]
+          }
+        }
       },
       {
         "name": "allowedOAuthFlows",
@@ -59188,7 +59248,8 @@
         "name": "idTokenValiditySeconds",
         "required": false,
         "shortDescription": "<p> ID token lifetime</p>",
-        "longDescription": "<p>Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.</p>\n<p>This is set on the user pool client as <code>IdTokenValidity</code>.</p>",
+        "longDescription": "<p>Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.</p>\n<p>Set it in seconds, from 300 (5 minutes) to 86400 (1 day). Before v4, Cognito read this value in hours, so a\nvalue from 1 to 24 still means that many hours and the CLI warns you to write it in seconds.</p>",
+        "defaultValue": "3600",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -59315,10 +59376,26 @@
         ]
       },
       {
+        "name": "readAttributes",
+        "required": false,
+        "shortDescription": "<p> The user attributes the app client may read</p>",
+        "longDescription": "<p>By default the client can read every attribute. Listing attributes limits what tokens and <code>GetUser</code> return through\nthis client.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
+      },
+      {
         "name": "refreshTokenValidityDays",
         "required": false,
         "shortDescription": "<p> Refresh token lifetime</p>",
-        "longDescription": "<p>Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.\nLonger lifetimes mean fewer re-authentications, but keep sessions alive for longer.</p>\n<p>This value is used as <code>RefreshTokenValidity</code> on the Cognito user pool client.</p>",
+        "longDescription": "<p>Sets for how many days a refresh token can be used to obtain new access / ID tokens without requiring the user to sign in again.\nLonger lifetimes mean fewer re-authentications, but keep sessions alive for longer.</p>\n<p>Set it in days, from 1 to 3650 (10 years).</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -59495,13 +59572,28 @@
             "code": "import { UserAuthPool, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const userPool = new UserAuthPool({\n    // [!code focus-start]\n    userVerificationType: 'email-link',\n    // [!code focus-end]\n    allowEmailAsUserName: true\n  });\n  return { resources: { userPool } };\n});"
           }
         ]
+      },
+      {
+        "name": "writeAttributes",
+        "required": false,
+        "shortDescription": "<p> The user attributes the app client may change</p>",
+        "longDescription": "<p>By default users can update every writable attribute through the client. Listing attributes limits what\n<code>UpdateUserAttributes</code> and sign-up may set, so users cannot change, for example, their own <code>custom:role</code>.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        }
       }
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 29
+      "optionalCount": 32
     },
-    "typeDeclaration": "import type { AttributeSchema, EmailConfiguration, IdentityProvider, InviteMessageConfig, MfaConfiguration, PasswordPolicy, UserPoolCustomDomainConfiguration, UserPoolHooks, UserVerificationMessageConfig } from 'stacktape';\n\n// [!code focus-start]\ntype UserAuthPoolProps = {\n  /** Access token lifetime */\n  accessTokenValiditySeconds?: number;\n  /** Allow email addresses as usernames */\n  allowEmailAsUserName?: boolean;\n  /** Restrict account creation to administrators */\n  allowOnlyAdminsToCreateAccount?: boolean;\n  /** Force external identity providers */\n  allowOnlyExternalIdentityProviders?: boolean;\n  /** Allow phone numbers as usernames */\n  allowPhoneNumberAsUserName?: boolean;\n  /** OAuth flows */\n  allowedOAuthFlows?: Array<\"client_credentials\" | \"code\" | \"implicit\">;\n  /** OAuth scopes */\n  allowedOAuthScopes?: Array<string>;\n  /** OAuth callback URLs */\n  callbackURLs?: Array<string>;\n  /** Custom Domain */\n  customDomain?: UserPoolCustomDomainConfiguration;\n  /** Email delivery settings */\n  emailConfiguration?: EmailConfiguration;\n  /** Enable the Cognito Hosted UI */\n  enableHostedUi?: boolean;\n  /** Generate a client secret */\n  generateClientSecret?: boolean;\n  /** Lambda triggers for the user pool */\n  hooks?: UserPoolHooks;\n  /** Custom CSS for the Hosted UI */\n  hostedUiCSS?: string;\n  /** Hosted UI domain prefix */\n  hostedUiDomainPrefix?: string;\n  /** ID token lifetime */\n  idTokenValiditySeconds?: number;\n  /** External identity providers */\n  identityProviders?: Array<IdentityProvider>;\n  /** Invite message overrides */\n  inviteMessageConfig?: InviteMessageConfig;\n  /** OAuth logout URLs */\n  logoutURLs?: Array<string>;\n  /** Multi-factor authentication */\n  mfaConfiguration?: MfaConfiguration;\n  /** Password strength rules */\n  passwordPolicy?: PasswordPolicy;\n  /** Refresh token lifetime */\n  refreshTokenValidityDays?: number;\n  /** (Reserved) Require verified emails */\n  requireEmailVerification?: boolean;\n  /** (Reserved) Require verified phone numbers */\n  requirePhoneNumberVerification?: boolean;\n  /** Custom attributes schema */\n  schema?: Array<AttributeSchema>;\n  /** Expire unused admin-created accounts */\n  unusedAccountValidityDays?: number;\n  /** Associate a WAF */\n  useFirewall?: string;\n  /** Verification message text */\n  userVerificationMessageConfig?: UserVerificationMessageConfig;\n  /** Verification strategy */\n  userVerificationType?: \"email-code\" | \"email-link\" | \"none\" | \"sms\";\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { AttributeSchema, EmailConfiguration, IdentityProvider, InviteMessageConfig, MfaConfiguration, PasswordPolicy, UserPoolCustomDomainConfiguration, UserPoolHooks, UserVerificationMessageConfig } from 'stacktape';\n\n// [!code focus-start]\ntype UserAuthPoolProps = {\n  /** Access token lifetime */\n  accessTokenValiditySeconds?: number;\n  /** Allow email addresses as usernames */\n  allowEmailAsUserName?: boolean;\n  /** Restrict account creation to administrators */\n  allowOnlyAdminsToCreateAccount?: boolean;\n  /** Force external identity providers */\n  allowOnlyExternalIdentityProviders?: boolean;\n  /** Allow phone numbers as usernames */\n  allowPhoneNumberAsUserName?: boolean;\n  /** The sign-in flows the app client accepts */\n  allowedAuthFlows?: Array<\"ALLOW_ADMIN_USER_PASSWORD_AUTH\" | \"ALLOW_CUSTOM_AUTH\" | \"ALLOW_REFRESH_TOKEN_AUTH\" | \"ALLOW_USER_AUTH\" | \"ALLOW_USER_PASSWORD_AUTH\" | \"ALLOW_USER_SRP_AUTH\">;\n  /** OAuth flows */\n  allowedOAuthFlows?: Array<\"client_credentials\" | \"code\" | \"implicit\">;\n  /** OAuth scopes */\n  allowedOAuthScopes?: Array<string>;\n  /** OAuth callback URLs */\n  callbackURLs?: Array<string>;\n  /** Custom Domain */\n  customDomain?: UserPoolCustomDomainConfiguration;\n  /** Email delivery settings */\n  emailConfiguration?: EmailConfiguration;\n  /** Enable the Cognito Hosted UI */\n  enableHostedUi?: boolean;\n  /** Generate a client secret */\n  generateClientSecret?: boolean;\n  /** Lambda triggers for the user pool */\n  hooks?: UserPoolHooks;\n  /** Custom CSS for the Hosted UI */\n  hostedUiCSS?: string;\n  /** Hosted UI domain prefix */\n  hostedUiDomainPrefix?: string;\n  /** ID token lifetime */\n  idTokenValiditySeconds?: number;\n  /** External identity providers */\n  identityProviders?: Array<IdentityProvider>;\n  /** Invite message overrides */\n  inviteMessageConfig?: InviteMessageConfig;\n  /** OAuth logout URLs */\n  logoutURLs?: Array<string>;\n  /** Multi-factor authentication */\n  mfaConfiguration?: MfaConfiguration;\n  /** Password strength rules */\n  passwordPolicy?: PasswordPolicy;\n  /** The user attributes the app client may read */\n  readAttributes?: Array<string>;\n  /** Refresh token lifetime */\n  refreshTokenValidityDays?: number;\n  /** (Reserved) Require verified emails */\n  requireEmailVerification?: boolean;\n  /** (Reserved) Require verified phone numbers */\n  requirePhoneNumberVerification?: boolean;\n  /** Custom attributes schema */\n  schema?: Array<AttributeSchema>;\n  /** Expire unused admin-created accounts */\n  unusedAccountValidityDays?: number;\n  /** Associate a WAF */\n  useFirewall?: string;\n  /** Verification message text */\n  userVerificationMessageConfig?: UserVerificationMessageConfig;\n  /** Verification strategy */\n  userVerificationType?: \"email-code\" | \"email-link\" | \"none\" | \"sms\";\n  /** The user attributes the app client may change */\n  writeAttributes?: Array<string>;\n};\n// [!code focus-end]"
   },
   "UserPoolCustomDomainConfiguration": {
     "definitionName": "UserPoolCustomDomainConfiguration",

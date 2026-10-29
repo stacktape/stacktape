@@ -31,7 +31,11 @@ describe('the pinned real-project init corpus', () => {
   it('defines a meaningful semantic release contract for every project', () => {
     for (const corpusCase of REAL_PROJECT_CORPUS) {
       const expectation = corpusCase.expect;
-      expect(Object.keys(expectation.resourceTypes).length).toBeGreaterThan(0);
+      expect(Object.keys(expectation.resourceTypes).length > 0 || expectation.deploysNothing === true).toBe(true);
+      if (expectation.deploysNothing === true) {
+        expect(Object.keys(expectation.resourceTypes)).toEqual([]);
+        expect(expectation.requiredGapPatterns?.length ?? 0).toBeGreaterThan(0);
+      }
       expect(Object.values(expectation.resourceTypes).every((count) => Number.isInteger(count) && count > 0)).toBe(
         true
       );

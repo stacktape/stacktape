@@ -1779,13 +1779,11 @@ resources:
   auth:
     type: user-auth-pool
     properties:
-      allowSignUp: true
-      emailVerificationRequired: true
+      userVerificationType: email-code
       passwordPolicy:
         minimumLength: 8
-      # Enable refresh tokens for mobile
-      accessTokenValidity: 1  # 1 hour
-      refreshTokenValidity: 30  # 30 days
+      accessTokenValiditySeconds: 3600  # 1 hour
+      refreshTokenValidityDays: 30
 
   database:
     type: relational-database

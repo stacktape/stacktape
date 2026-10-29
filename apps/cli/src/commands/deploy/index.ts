@@ -83,8 +83,6 @@ type FullDeployOperation = {
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     /** CloudFormation rolls this deploy back when it fails. */
     rollsBackOnFailure: boolean;
-    /** This deploy continues a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
-    continuesFailedStack: boolean;
     getTemplateBeforeReplacing: () => { template: object; removedResources: string[] } | undefined;
     stackActionType: string;
   };
@@ -504,20 +502,32 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     } else {
       await performFullDeploy({ deploymentArtifacts, stack, tui });
     }
-  } finally {
-    // Also after a failure: functions a partial deployment switched still need their maps. It never throws.
+  } catch (error) {
+    // Functions a partial deployment switched still need their maps. It never throws.
     await recordSourceMapActivation(sourceMapManifest);
+    throw error;
   }
+  // Recorded while the post-deploy steps run; nothing below depends on it. It never throws. A failing post-deploy step
+  // still lets it finish before the command exits.
+  const sourceMapActivation = recordSourceMapActivation(sourceMapManifest);
+  application.registerCleanUpHook(() => sourceMapActivation);
 
   progress.setPhase('POST_DEPLOY');
 
+  // Removing the artifacts of releases that are no longer kept runs alongside the bucket sync and the CDN invalidation.
+  // Its failure still fails the deployment, before it is reported as successful.
+  let obsoleteArtifactDeletion: Promise<unknown> | undefined;
   // A fast deployment leaves the stack unchanged.
   if (!fastDeployPlan) {
+    // Read before the refetch replaces the details of the stack as it was before this deployment.
+    const fixedFailedUpdate = stack.continuesFailedStack;
     await Promise.all([
       stack.refetchStackDetails(stackContext.stackName),
       budget.loadBudgets(),
       deleteUndeployedStage()
     ]);
+    obsoleteArtifactDeletion = deleteObsoleteArtifacts({ deploymentArtifacts, fixedFailedUpdate });
+    obsoleteArtifactDeletion.catch(() => {});
     await deployedStackOverview.refreshStackInfoMap({
       stackDetails: stack.existingStackDetails,
       stackResources: stack.existingStackResources,
@@ -567,6 +577,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
   lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
+  await obsoleteArtifactDeletion;
+
   // Sent while the remaining reporting runs; the command waits for it before it returns.
   notification.queueDeploymentNotification({
     message: {
@@ -581,7 +593,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Fast deployments skip the sync: changed uptime definitions always change the template and therefore
   // force a full deploy, so a fast deployment could only re-announce unchanged definitions —
   // and must never announce anything the manifests (untouched by it) do not carry.
-  if (!fastDeployPlan) {
+  const syncUptimeChecks = async () => {
+    if (fastDeployPlan) return;
     try {
       // The revision hashes the authored (unresolved) definition, so it is computed BEFORE resolving
       // directives — it must stay byte-identical to the revision the prober manifests carry. The
@@ -605,7 +618,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     } catch (err) {
       tui.warn(`Could not sync uptime check definitions to the Stacktape Console: ${err}`);
     }
-  }
+  };
 
   const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
   const resourceLinks = deployedStackOverview.getResourceLinks();
@@ -624,7 +637,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     lifecycle.addFinalAction(() => hintCodingAgentSetupAfterFirstDeploy());
   }
 
-  if (securityAssessment) {
+  const reportSecurityFindings = async () => {
+    if (!securityAssessment) return;
     const securityInventory = await uploadSecurityInventory({
       inventory: securityInventoryPromise ? await securityInventoryPromise : null,
       deploymentArtifacts,
@@ -645,8 +659,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     } catch (err) {
       tui.warn(`Could not report the security findings to the Stacktape Console: ${err}`);
     }
-  }
+  };
 
+  // The Console syncs are independent of each other and of the remaining AWS work.
+  await Promise.all([syncUptimeChecks(), reportSecurityFindings(), sourceMapActivation]);
   await notification.waitForQueuedEvents();
   await codeSwapComplete(createsRelease);
 
@@ -731,11 +747,21 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
     }
     throw err;
   }
+};
+
+/** Removes the artifacts a successful full deployment no longer needs. */
+export const deleteObsoleteArtifacts = async ({
+  deploymentArtifacts,
+  fixedFailedUpdate
+}: {
+  deploymentArtifacts: FullDeployOperation['deploymentArtifacts'];
+  /** The deployment continued a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
+  fixedFailedUpdate: boolean;
+}) => {
   // A deploy that continued a failed stack can leave artifacts of the earlier attempts with the same version. They are
   // cleaned up before old versions are deleted with deleteAllObsoleteArtifacts.
-  if (stack.continuesFailedStack) {
+  if (fixedFailedUpdate) {
     await deploymentArtifacts.deleteArtifactsFixedDeploy();
   }
-
   await deploymentArtifacts.deleteAllObsoleteArtifacts();
 };

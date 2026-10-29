@@ -17,6 +17,7 @@ import {
   SqsIntegration,
   SqsQueue,
   StateMachine,
+  UserAuthPool,
   LambdaFunction,
   JsBundleLambdaPackaging,
   defineConfig
@@ -429,7 +430,7 @@ describe('Batch and Step Functions family', () => {
 });
 
 describe('Lambda event delivery settings', () => {
-  test('IAM-protected routes, partial batch responses and a paused schedule reach their AWS resources', async () => {
+  test('IAM-protected routes, partial batch responses, a queue concurrency cap and a paused schedule reach their AWS resources', async () => {
     const template = await synthesizeFamily(
       'lambda-event-delivery',
       defineConfig(() => {
@@ -449,7 +450,7 @@ describe('Lambda event delivery settings', () => {
               authorizer: { type: 'aws-iam' }
             }),
             new HttpApiIntegration({ httpApiGatewayName: 'api', method: 'GET', path: '/health' }),
-            new SqsIntegration({ sqsQueueName: 'jobs', reportBatchItemFailures: true }),
+            new SqsIntegration({ sqsQueueName: 'jobs', reportBatchItemFailures: true, maximumConcurrency: 5 }),
             new DynamoDbIntegration({
               streamArn: "$ResourceParam('changes', 'streamArn')",
               reportBatchItemFailures: true
@@ -480,6 +481,10 @@ describe('Lambda event delivery settings', () => {
     );
     expect(mappings).toHaveLength(2);
     for (const mapping of mappings) expect(mapping.FunctionResponseTypes).toEqual(['ReportBatchItemFailures']);
+    // The queue's concurrency cap reaches its mapping only.
+    expect(mappings.map((mapping) => mapping.ScalingConfig)).toEqual(
+      expect.arrayContaining([{ MaximumConcurrency: 5 }, undefined])
+    );
 
     const states = Object.fromEntries(
       resourcesOfType(template, 'AWS::Events::Rule').map(([, resource]) => [
@@ -488,5 +493,37 @@ describe('Lambda event delivery settings', () => {
       ])
     );
     expect(states).toEqual({ 'rate(1 day)': 'DISABLED', 'rate(1 hour)': 'ENABLED' });
+  });
+});
+
+describe('user pool client restrictions', () => {
+  test('declared sign-in flows and attribute access reach the app client; without them it accepts every flow', async () => {
+    const template = await synthesizeFamily(
+      'user-pool-client-restrictions',
+      defineConfig(() => ({
+        resources: {
+          staff: new UserAuthPool({
+            allowedAuthFlows: ['ALLOW_ADMIN_USER_PASSWORD_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+            readAttributes: ['email', 'name'],
+            writeAttributes: ['name']
+          }),
+          customers: new UserAuthPool({})
+        }
+      }))
+    );
+    expectReferencesResolve(template);
+    const clients = resourcesOfType(template, 'AWS::Cognito::UserPoolClient').map(
+      ([, resource]) => resource.Properties
+    );
+    expect(clients).toHaveLength(2);
+    const restricted = clients.find((client) => client.WriteAttributes !== undefined);
+    expect(restricted).toMatchObject({
+      ExplicitAuthFlows: ['ALLOW_ADMIN_USER_PASSWORD_AUTH', 'ALLOW_REFRESH_TOKEN_AUTH'],
+      ReadAttributes: ['email', 'name'],
+      WriteAttributes: ['name']
+    });
+    const open = clients.find((client) => client !== restricted);
+    expect(open?.ExplicitAuthFlows).toHaveLength(5);
+    expect(open?.ReadAttributes).toBeUndefined();
   });
 });

@@ -7096,6 +7096,7 @@
         "SqsIntegrationProps",
         "batchSize",
         "maxBatchWindowSeconds",
+        "maximumConcurrency",
         "reportBatchItemFailures",
         "sqsQueueArn",
         "sqsQueueName"
@@ -7105,6 +7106,7 @@
         "config-reference:SqsIntegrationProps#typescript-definition",
         "config-reference:SqsIntegrationProps#property-batchsize",
         "config-reference:SqsIntegrationProps#property-maxbatchwindowseconds",
+        "config-reference:SqsIntegrationProps#property-maximumconcurrency",
         "config-reference:SqsIntegrationProps#property-reportbatchitemfailures",
         "config-reference:SqsIntegrationProps#property-sqsqueuearn",
         "config-reference:SqsIntegrationProps#property-sqsqueuename"
@@ -13777,6 +13779,7 @@
         "allowOnlyAdminsToCreateAccount",
         "allowOnlyExternalIdentityProviders",
         "allowPhoneNumberAsUserName",
+        "allowedAuthFlows",
         "allowedOAuthFlows",
         "allowedOAuthScopes",
         "callbackURLs",
@@ -13793,6 +13796,7 @@
         "logoutURLs",
         "mfaConfiguration",
         "passwordPolicy",
+        "readAttributes",
         "refreshTokenValidityDays",
         "requireEmailVerification",
         "requirePhoneNumberVerification",
@@ -13801,6 +13805,7 @@
         "useFirewall",
         "userVerificationMessageConfig",
         "userVerificationType",
+        "writeAttributes",
         "user-auth-pool"
       ],
       "chunks": [
@@ -13821,6 +13826,7 @@
         "config-reference:UserAuthPoolProps#property-allowphonenumberasusername",
         "config-reference:UserAuthPoolProps#example-1-yaml-5",
         "config-reference:UserAuthPoolProps#example-2-typescript-5",
+        "config-reference:UserAuthPoolProps#property-allowedauthflows",
         "config-reference:UserAuthPoolProps#property-allowedoauthflows",
         "config-reference:UserAuthPoolProps#example-1-yaml-6",
         "config-reference:UserAuthPoolProps#example-2-typescript-6",
@@ -13869,6 +13875,7 @@
         "config-reference:UserAuthPoolProps#property-passwordpolicy",
         "config-reference:UserAuthPoolProps#example-1-yaml-21",
         "config-reference:UserAuthPoolProps#example-2-typescript-21",
+        "config-reference:UserAuthPoolProps#property-readattributes",
         "config-reference:UserAuthPoolProps#property-refreshtokenvaliditydays",
         "config-reference:UserAuthPoolProps#example-1-yaml-22",
         "config-reference:UserAuthPoolProps#example-2-typescript-22",
@@ -13892,7 +13899,8 @@
         "config-reference:UserAuthPoolProps#example-2-typescript-28",
         "config-reference:UserAuthPoolProps#property-userverificationtype",
         "config-reference:UserAuthPoolProps#example-1-yaml-29",
-        "config-reference:UserAuthPoolProps#example-2-typescript-29"
+        "config-reference:UserAuthPoolProps#example-2-typescript-29",
+        "config-reference:UserAuthPoolProps#property-writeattributes"
       ]
     },
     {
@@ -18127,6 +18135,7 @@
         "page:/getting-started/upgrading-from-v3#security-findings-in-agent-output",
         "page:/getting-started/upgrading-from-v3#target-aws-account",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
+        "page:/getting-started/upgrading-from-v3#user-auth-pool-token-lifetimes",
         "page:/getting-started/upgrading-from-v3#packaging",
         "page:/getting-started/upgrading-from-v3#javascript-and-typescript-lambda-functions",
         "page:/getting-started/upgrading-from-v3#python-java-go-ruby-and-net-lambda-functions",
@@ -21640,6 +21649,7 @@
         "page:/resources/security/user-auth-pool#custom-domain",
         "page:/resources/security/user-auth-pool#oauth",
         "page:/resources/security/user-auth-pool#password-policy",
+        "page:/resources/security/user-auth-pool#client-restrictions",
         "page:/resources/security/user-auth-pool#token-lifetimes",
         "page:/resources/security/user-auth-pool#custom-attributes",
         "page:/resources/security/user-auth-pool#firewall",
@@ -22233,6 +22243,7 @@
         "page:/resources/triggers/sqs-events#when-not-to-use",
         "page:/resources/triggers/sqs-events#basic-example",
         "page:/resources/triggers/sqs-events#batching-and-throughput",
+        "page:/resources/triggers/sqs-events#limiting-concurrency",
         "page:/resources/triggers/sqs-events#using-an-external-queue",
         "page:/resources/triggers/sqs-events#handling-failures",
         "page:/resources/triggers/sqs-events#retrying-only-the-failed-messages",
