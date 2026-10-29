@@ -61,6 +61,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { prepareStageNetwork } from '@domain-services/shared-network';
 import { SHARED_NAT_INSTANCE_TYPE } from '@domain-services/shared-network/template';
 import { getSharedNatStackName } from '@stacktape/naming/shared-stacks';
+import { newDistributionInputs } from '@domain-services/cloudfront-manager/new-distribution-inputs';
 import { recordSourceMapActivation, recordSourceMapsBeforeSwitch } from '../_utils/source-map-manifest';
 import { deleteSupersededSharedLayerVersions, getSharedLayerHotswapInformation } from '../_utils/fn-deployment';
 
@@ -217,6 +218,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   await codeSwapOperation('deploy');
   config.validateGuardrails({ hasConfig: true });
+  // A new distribution's certificate is looked up and its Stacktape edge functions are created while the deploy
+  // prepares and builds, so CloudFront does not wait for the service Lambda's custom resources. Best effort; see
+  // `new-distribution-inputs.ts`.
+  newDistributionInputs.start({ stackContext });
   // Evaluated before the build so the findings sit next to the other pre-deploy notes; reported only after the
   // deployment succeeds, because they describe the configuration that is then actually running.
   const securityAssessment = assessAndPrintSecurityPosture({ config, tui, command: 'deploy' });

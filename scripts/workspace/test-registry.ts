@@ -4078,6 +4078,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/template-manager/index.spec.ts',
       'apps/cli/src/domain/template-manager/log-group-class.spec.ts',
       'apps/cli/src/domain/template-manager/service-lambda-created-resources.spec.ts',
+      'apps/cli/src/domain/cloudfront-manager/new-distribution-inputs.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/sqs-queue.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/events-rule.test.ts',
       'apps/cli/tests/characterization/convex-materialization.spec.ts',

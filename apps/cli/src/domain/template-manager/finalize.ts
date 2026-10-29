@@ -22,6 +22,10 @@ import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions
 import { deriveAuroraInstanceAddressesForNewFunctions } from './aurora-instance-addresses';
 import { keepDeployedBatchComputeEnvironmentImages } from './batch-compute-environment-images';
 import { createNewQueuesAndRulesThroughServiceLambda } from './service-lambda-created-resources';
+import {
+  newDistributionInputs,
+  useNewDistributionInputs
+} from '@domain-services/cloudfront-manager/new-distribution-inputs';
 
 const throwTransformFailure = ({
   code,
@@ -345,9 +349,29 @@ const createNewResourcesThroughServiceLambda = () => {
   });
 };
 
+/**
+ * New distributions reference the default-domain certificate and helper edge function versions `deploy` prepared
+ * during the build; deployed ones keep the values they were created with while these are current. See
+ * `new-distribution-inputs.ts`.
+ */
+const useDistributionInputsPreparedDuringBuild = async () => {
+  if (calculatedStackOverviewManager.context.command === 'dev') return;
+  useNewDistributionInputs({
+    template: templateManager.template,
+    deployedTemplate: templateManager.oldTemplate,
+    deployedLogicalIds: new Set(
+      stackManager.existingStackResources
+        .filter(({ PhysicalResourceId }) => PhysicalResourceId)
+        .map(({ LogicalResourceId }) => LogicalResourceId)
+    ),
+    prepared: await newDistributionInputs.getPrepared()
+  });
+};
+
 export const prepareTemplateForDeploy = async () => {
   await finalizeTemplate();
   createNewResourcesThroughServiceLambda();
+  await useDistributionInputsPreparedDuringBuild();
   assertNoUnresolvedPlaceholders(templateManager.getTemplate());
 
   await Promise.all([

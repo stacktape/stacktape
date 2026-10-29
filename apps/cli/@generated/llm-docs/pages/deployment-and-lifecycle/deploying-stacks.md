@@ -242,7 +242,7 @@ Common causes of slow Stacktape deployments:
 - **Large container images** — Use multi-stage Docker builds or [`js-bundle` packaging](/packaging/containers/js-bundle) for Node.js services to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
 - **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
-- **First deploy of a stage** — Stacktape creates the stage's deployment bucket and ECR repository directly while your workloads build (a few seconds), then creates the whole stack in one CloudFormation operation after the upload.
+- **First deploy of a stage** — Stacktape creates the stage's deployment bucket and ECR repository directly while your workloads build (a few seconds), then creates the whole stack in one CloudFormation operation after the upload. For a new CDN, it also looks up the default domain certificate and creates the version of Stacktape's edge functions (URL normalization, single-page-app rewrites) in us-east-1 during the build, so CloudFormation starts the distribution without waiting for them.
 
 Run with `--debug` to see detailed timing for each phase.
 
