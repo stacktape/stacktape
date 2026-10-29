@@ -13418,6 +13418,12 @@ By default, a failed full deployment keeps everything it created or updated, and
 
 The CLI prints which state the stack is in and these options when a deployment fails. A deployment over a failed stack always goes through CloudFormation, even when only code changed. When it succeeds, Stacktape removes the deployment artifacts that the failed attempts left behind.
 
+CloudFormation can replace a resource (for example a container's task definition, which every container change replaces) only in a deployment it may roll back. Stacktape therefore handles replacements this way:
+
+- An update of a healthy stack that replaces resources rolls back if it fails. The CLI says so before it deploys.
+- When the fix for a failed first deployment replaces resources it already created, Stacktape first removes those resources and everything that depends on them, then deploys the full configuration, which creates them again. Nothing serves traffic yet, so this interrupts nothing. It stops instead if this would remove a database or another data store; delete the stack and deploy again in that case.
+- When the fix for a failed update of a stack that was deployed before replaces resources, Stacktape stops before changing anything. Run [`stacktape stack recover`](/cli/cf-rollback), then deploy again.
+
 
 > **Warning:** A failed stack can run a mix of old and new configuration. On production stacks, fix the issue and redeploy promptly, or recover the stack with [`stacktape stack recover`](/cli/cf-rollback).
 
@@ -16100,7 +16106,7 @@ Use `error list`, `error ignore`, `error resolve`, and `error reopen` in place o
 
 ## Failed deployments keep what they created
 
-v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure. To undo a failed update, run `stacktape stack recover`; to remove a failed first deployment, run `stacktape delete`. See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated, unless it replaced existing resources: CloudFormation can only replace resources in a deployment it may roll back. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure. To undo a failed update, run `stacktape stack recover`; to remove a failed first deployment, run `stacktape delete`. See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 - Replace `deploymentConfig.disableAutoRollback: true` by deleting it; this is now the default. The old name is rejected.
 - To keep the v3 behaviour, set `deploymentConfig.autoRollback: true`, or pass `--auto-rollback` to one deployment. Stacks with `triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` keep rolling back automatically without a change.
@@ -88464,7 +88470,8 @@ type DeploymentConfig = {
 Roll a failed deployment back automatically instead of keeping what it created.
 
 By default, a failed deployment keeps every resource it created or updated, and the next
-deployment continues from the failure. A failed first deployment keeps, for example, a database
+deployment continues from the failure. An update that replaces existing resources still rolls
+back, because CloudFormation can only replace resources in a deployment it may roll back. A failed first deployment keeps, for example, a database
 that took minutes to create; a failed update keeps the resources that updated. Fix the error and
 deploy again. To undo a failed update instead, run `stacktape stack recover`; to remove a failed
 first deployment, run `stacktape delete`.

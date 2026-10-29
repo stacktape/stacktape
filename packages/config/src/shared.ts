@@ -2467,7 +2467,8 @@ export interface DeploymentConfig {
    * ---
    *
    * By default, a failed deployment keeps every resource it created or updated, and the next
-   * deployment continues from the failure. A failed first deployment keeps, for example, a database
+   * deployment continues from the failure. An update that replaces existing resources still rolls
+   * back, because CloudFormation can only replace resources in a deployment it may roll back. A failed first deployment keeps, for example, a database
    * that took minutes to create; a failed update keeps the resources that updated. Fix the error and
    * deploy again. To undo a failed update instead, run `stacktape stack recover`; to remove a failed
    * first deployment, run `stacktape delete`.
