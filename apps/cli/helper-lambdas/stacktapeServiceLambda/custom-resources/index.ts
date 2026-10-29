@@ -12,6 +12,7 @@ import { disableEcsManagedTerminationProtection } from './resolvers/disable-ecs-
 import { edgeFunctions } from './resolvers/edge-functions';
 import { edgeLambda } from './resolvers/edge-lambda';
 import { edgeLambdaBucket } from './resolvers/edge-lambda-bucket';
+import { eventsRule } from './resolvers/events-rule';
 import { forceDeleteAsg } from './resolvers/force-delete-asg';
 import { instanceProfile } from './resolvers/instance-profile';
 import { openSearch } from './resolvers/open-search';
@@ -19,6 +20,8 @@ import { publishLambdaVersion } from './resolvers/publish-lambda-version';
 import { s3Events } from './resolvers/s3-event';
 import { scriptFunction } from './resolvers/script-function';
 import { sensitiveData } from './resolvers/sensitive-data';
+import { sqsQueue } from './resolvers/sqs-queue';
+import { sqsQueuePolicy } from './resolvers/sqs-queue-policy';
 import { ssmParameterRetrieve } from './resolvers/ssm-parameter-retrieve';
 import { kafkaBootstrapBrokers } from './resolvers/kafka-bootstrap-brokers';
 import { natRoutes } from './resolvers/nat-routes';
@@ -54,6 +57,9 @@ const resolversMap: {
   kafkaBootstrapBrokers,
   natRoutes,
   instanceProfile,
+  sqsQueue,
+  sqsQueuePolicy,
+  eventsRule,
   uptimeMonitoring,
   transactionSearch
 };
@@ -134,6 +140,8 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
   } catch (err) {
     console.error(err);
     error = err;
+    // A resolver that created something before it failed names it, so CloudFormation's rollback deletes it.
+    physicalResourceId = (err as { physicalResourceId?: string })?.physicalResourceId ?? physicalResourceId;
   }
 
   await respondToCloudformation({

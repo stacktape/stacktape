@@ -987,6 +987,13 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::IAM::Policy' }
     });
   },
+  /** The service Lambda's permission to manage the SQS queues, queue policies and EventBridge rules it creates. */
+  serviceLambdaCreatedResourcesPolicy() {
+    return buildCfLogicalName({
+      specifier: { type: 'ServiceLambdaCreatedResources' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Policy' }
+    });
+  },
   natFailoverProbeRule() {
     return buildCfLogicalName({
       specifier: { type: 'StpNatFailoverProbe' },

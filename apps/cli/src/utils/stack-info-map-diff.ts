@@ -8,8 +8,13 @@ import type {
   StackMetadata
 } from '@domain-services/stack-info/types';
 import type { SupportedPrivateCfResourceType } from '@domain-services/cloudformation-registry-manager/types';
-import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
+import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
+import {
+  STP_EVENTS_RULE_TYPE,
+  STP_SQS_QUEUE_POLICY_TYPE,
+  STP_SQS_QUEUE_TYPE
+} from '@helper-lambdas/stacktapeServiceLambda/custom-resources/created-resource-properties';
 import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { serialize } from '@utils/misc';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
@@ -103,7 +108,7 @@ const calculateCfChildResourcesOverviews = ({
       const diffedResource =
         cfTemplateDiff.resources.logicalIds.includes(cfResourceName) && cfTemplateDiff.resources.get(cfResourceName);
       resources[cfResourceName] = {
-        status: diffedResource?.changeImpact || ResourceImpact.NO_CHANGE,
+        status: getChangeImpact(diffedResource),
         cloudformationResourceType: (diffedResource?.oldResourceType ||
           diffedResource?.newResourceType ||
           cloudformationResourceType) as KnownCloudFormationResourceType,
@@ -124,6 +129,28 @@ const calculateCfChildResourcesOverviews = ({
     }
   });
   return resources;
+};
+
+/**
+ * CloudFormation's diff library knows no update semantics for custom resource types and reports their property changes
+ * as `NO_CHANGE`. A queue, queue policy or rule the service Lambda created is updated in place (its resolver refuses to
+ * replace a queue), so a change shows as an update.
+ */
+const SERVICE_LAMBDA_CREATED_TYPES: ReadonlySet<string> = new Set([
+  STP_SQS_QUEUE_TYPE,
+  STP_SQS_QUEUE_POLICY_TYPE,
+  STP_EVENTS_RULE_TYPE
+]);
+const getChangeImpact = (diffedResource: ResourceDifference | false | undefined) => {
+  if (!diffedResource) return ResourceImpact.NO_CHANGE;
+  if (
+    diffedResource.changeImpact === ResourceImpact.NO_CHANGE &&
+    diffedResource.isDifferent &&
+    SERVICE_LAMBDA_CREATED_TYPES.has(diffedResource.newResourceType ?? '')
+  ) {
+    return ResourceImpact.WILL_UPDATE;
+  }
+  return diffedResource.changeImpact;
 };
 
 const adjustReferenceableParams = ({
@@ -226,7 +253,7 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
     cfTemplateDiff,
     showSensitiveValues: false
   });
-  const cfResourceTypesToWatch: (KnownCloudFormationResourceType | SupportedPrivateCfResourceType)[] = [
+  const cfResourceTypesToWatch: string[] = [
     'AWS::RDS::DBCluster',
     'AWS::RDS::DBInstance',
     'AWS::DSQL::Cluster',
@@ -238,6 +265,8 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
     'AWS::ElastiCache::ServerlessCache',
     'AWS::Kinesis::Stream',
     'AWS::SQS::Queue',
+    // An SQS queue the service Lambda created.
+    STP_SQS_QUEUE_TYPE,
     'AWS::S3::Bucket',
     'MongoDB::StpAtlasV1::Cluster',
     'AWS::Cognito::UserPool',

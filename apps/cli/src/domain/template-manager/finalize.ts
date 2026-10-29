@@ -6,6 +6,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stampLambdaVersionPublishers } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/functions/versioned-configuration';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
@@ -13,13 +14,14 @@ import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFil
 import { stringifyToYaml } from '@utils/yaml';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
-import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
+import { NOT_YET_KNOWN_IDENTIFIER, PARENT_IDENTIFIER_CUSTOM_CF } from 'src/config/constants';
 import { shouldExcludeResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { templateManager } from '.';
 import { applyResourceOverride, getPropertiesPrefixMistake } from './resource-overrides';
 import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
 import { deriveAuroraInstanceAddressesForNewFunctions } from './aurora-instance-addresses';
 import { keepDeployedBatchComputeEnvironmentImages } from './batch-compute-environment-images';
+import { createNewQueuesAndRulesThroughServiceLambda } from './service-lambda-created-resources';
 
 const throwTransformFailure = ({
   code,
@@ -161,6 +163,28 @@ const resolveDependenciesBetweenResources = () => {
   });
 };
 
+/** The type each logical ID is deployed with: the deployed template, and the stack's resources for a failed stack. */
+const getDeployedResourceTypes = () => {
+  const types = new Map<string, string>();
+  for (const { LogicalResourceId, ResourceType } of stackManager.existingStackResources) {
+    if (LogicalResourceId && ResourceType) types.set(LogicalResourceId, ResourceType);
+  }
+  for (const [logicalId, resource] of Object.entries(templateManager.oldTemplate?.Resources ?? {})) {
+    if (!types.has(logicalId) && resource?.Type) types.set(logicalId, resource.Type);
+  }
+  return types;
+};
+
+/** Logical IDs of the resources Stacktape synthesizes, without user CloudFormation resources and CDK constructs. */
+const getStacktapeSynthesizedLogicalNames = () =>
+  new Set(
+    Object.entries(calculatedStackOverviewManager.stackInfoMap.resources)
+      .filter(
+        ([name, resource]) => name !== PARENT_IDENTIFIER_CUSTOM_CF && resource.resourceType !== 'aws-cdk-construct'
+      )
+      .flatMap(([, resource]) => Object.keys(getCloudformationChildResources({ resource })))
+  );
+
 export const finalizeTemplate = async () => {
   // Everything below mutates the template in place, so each pass has to start from the same pre-finalization state.
   templateManager.beginFinalization();
@@ -297,8 +321,33 @@ export const assertNoUnresolvedPlaceholders = (template: CloudFormationTemplate)
   });
 };
 
+/**
+ * New queues, queue policies and rules are created by the service Lambda. This depends on the deployed stack, so it is
+ * part of what a deploy sends rather than of the synthesized template that `synth` and `validate` show.
+ */
+const createNewResourcesThroughServiceLambda = () => {
+  // Dev stacks keep CloudFormation's own resource types; `stacktape dev` manages them separately.
+  if (calculatedStackOverviewManager.context.command === 'dev') return;
+  createNewQueuesAndRulesThroughServiceLambda({
+    template: templateManager.template,
+    deployedTypes: getDeployedResourceTypes(),
+    deployedQueueNames: new Map(
+      Object.entries(templateManager.oldTemplate?.Resources ?? {}).flatMap(([logicalId, resource]) => {
+        const name = (resource?.Properties as { sqsQueue?: { QueueName?: unknown } } | undefined)?.sqsQueue?.QueueName;
+        return typeof name === 'string' ? [[logicalId, name] as const] : [];
+      })
+    ),
+    stacktapeLogicalNames: getStacktapeSynthesizedLogicalNames(),
+    stackName: calculatedStackOverviewManager.context.stackName,
+    serviceLambdaLogicalName: configManager.stacktapeServiceLambdaProps.cfLogicalName,
+    serviceLambdaRoleLogicalName: cfLogicalNames.lambdaRole(configManager.stacktapeServiceLambdaProps.name),
+    tags: stackManager.getTags()
+  });
+};
+
 export const prepareTemplateForDeploy = async () => {
   await finalizeTemplate();
+  createNewResourcesThroughServiceLambda();
   assertNoUnresolvedPlaceholders(templateManager.getTemplate());
 
   await Promise.all([
