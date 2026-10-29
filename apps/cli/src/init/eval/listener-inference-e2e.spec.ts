@@ -93,6 +93,30 @@ const WEBSOCKET_CASES: EvalCase[] = [
     expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ALB] }
   },
   {
+    name: 'F21 review control: a ws server in a dev script the server never imports does not',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', ws: '8.0.0' }
+      }),
+      'server.js': "require('express')().listen(3000);\n",
+      'scripts/dev-socket.js': "const {WebSocketServer: WSS}=require('ws'); new WSS({port:9001});\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [NO_ALB] }
+  },
+  {
+    name: 'F21 review control: a ws server in a test does not',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', ws: '8.0.0' }
+      }),
+      'server.js': "require('express')().listen(3000);\n",
+      'tests/socket.js': "const {WebSocketServer: WSS}=require('ws'); new WSS({port:9001});\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [NO_ALB] }
+  },
+  {
     name: 'F21 (r2ah 58) control: an outbound ws client does not',
     files: {
       'package.json': expressPackage,
@@ -256,6 +280,54 @@ const PORT_CASES: EvalCase[] = [
   }
 ];
 
+const aspNetProject = (program: string) => ({
+  'Review.csproj':
+    '<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>\n',
+  'Program.cs': program
+});
+
+const ASPNET_CASES: EvalCase[] = [
+  {
+    name: 'F22 review: an app.Run URL in a block comment is no listener, and a variable URL keeps the port unset',
+    files: aspNetProject(
+      lines(
+        'var builder = WebApplication.CreateBuilder(args);',
+        'var app = builder.Build();',
+        'app.MapGet("/", () => "ok");',
+        '/* Previous deployment: app.Run("http://0.0.0.0:4321"); */',
+        'const string url = "http://0.0.0.0:3000";',
+        'app.Run(url);'
+      )
+    ),
+    expect: {
+      resources: { Review: 'web-service' },
+      resourceProperties: [{ resource: 'Review', path: 'port', value: undefined }]
+    }
+  },
+  {
+    name: 'F22 review: UseUrls with several addresses routes to its first one',
+    files: aspNetProject(
+      lines(
+        'var builder = WebApplication.CreateBuilder(args);',
+        'builder.WebHost.UseUrls("http://0.0.0.0:4321", "http://0.0.0.0:5432");',
+        'var app=builder.Build(); app.MapGet("/", () => "ok"); app.Run();'
+      )
+    ),
+    expect: { servicePorts: [{ resource: 'Review', port: 4321 }] }
+  },
+  {
+    name: 'F22 review control: a verbatim-string URL is read',
+    files: aspNetProject(
+      lines(
+        'var app = WebApplication.CreateBuilder(args).Build();',
+        '// app.Run("http://0.0.0.0:9999");',
+        'app.Run(@"http://0.0.0.0:4321");'
+      )
+    ),
+    expect: { servicePorts: [{ resource: 'Review', port: 4321 }] }
+  }
+];
+
 const nestPackage = (dependencies: Record<string, string>) =>
   packageJson({
     scripts: { build: 'nest build', start: 'node dist/main.js' },
@@ -291,6 +363,26 @@ const PROCESS_CASES: EvalCase[] = [
       'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n"
     },
     expect: { resources: { auditApp: 'worker-service' } }
+  },
+  {
+    name: 'F23 review: a NestJS microservice beside an Express server in the same file stays a web service',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node server.js' },
+        dependencies: {
+          '@nestjs/common': '11.0.0',
+          '@nestjs/core': '11.0.0',
+          '@nestjs/microservices': '11.0.0',
+          '@nestjs/platform-express': '11.0.0',
+          express: '5.0.0',
+          'reflect-metadata': '0.2.2',
+          rxjs: '7.8.2'
+        }
+      }),
+      'server.js':
+        "require('reflect-metadata'); const {Module}=require('@nestjs/common'); class WorkerModule{}; Module({})(WorkerModule); const {NestFactory}=require('@nestjs/core'); const {Transport}=require('@nestjs/microservices'); const express=require('express'); async function main(){const app=await NestFactory.createMicroservice(WorkerModule, {transport:Transport.TCP,options:{port:4321}}); await app.listen(); express().get('/',(q,s)=>s.send('ok')).listen(3000);} main();\n"
+    },
+    expect: { resources: { auditApp: 'web-service' } }
   },
   {
     name: 'F23 control: a hybrid NestJS application that also serves HTTP stays a web service',
@@ -427,7 +519,7 @@ const VITE_CASES: EvalCase[] = [
 ];
 
 describe('listener inference end-to-end corpus', () => {
-  for (const evalCase of [...WEBSOCKET_CASES, ...PORT_CASES, ...PROCESS_CASES, ...VITE_CASES]) {
+  for (const evalCase of [...WEBSOCKET_CASES, ...PORT_CASES, ...ASPNET_CASES, ...PROCESS_CASES, ...VITE_CASES]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

@@ -90,6 +90,18 @@ const CASES: ReadonlyArray<{
     raw: 'var help = `lambda.Start(x)\n` + "\\"q\\""',
     comments: [],
     strings: ['lambda.Start(x)\n', '\\"q\\"']
+  },
+  {
+    language: 'csharp',
+    raw: '/* app.Run("http://0.0.0.0:4321"); */\napp.Run("http://0.0.0.0:3000"); // app.Run("x")',
+    comments: ['/* app.Run("http://0.0.0.0:4321"); */', '// app.Run("x")'],
+    strings: ['http://0.0.0.0:3000']
+  },
+  {
+    language: 'csharp',
+    raw: 'var a = @"C:\\dir\\"; var b = $"http://*:{port}"; var c = \'q\';',
+    comments: [],
+    strings: ['C:\\dir\\', 'http://*:{port}', 'q']
   }
 ];
 

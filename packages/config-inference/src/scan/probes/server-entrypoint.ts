@@ -141,6 +141,10 @@ const reexportsOf = (keep: string): Reexport[] =>
   });
 
 const JS_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs', '.cjs', '/index.ts', '/index.js'];
+/** Every module a file names: `import ... from`, `export ... from`, `import('...')`, `require('...')`. */
+const MODULE_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]/g;
+/** Development tooling: scripts, tools, mocks and dev servers are no part of a deployed process. */
+const DEVELOPMENT_PATH = /(?:^|\/)(?:scripts?|tools?|dev|devtools|mocks?|__mocks__|e2e|playground)\//i;
 
 /** The project file a relative import names, when it is one of `files`. */
 const resolveRelative = (from: string, specifier: string, files: ReadonlySet<string>): string | undefined => {
@@ -253,9 +257,19 @@ const detectionFor = (path: string, raw: string, code: string): Detection | unde
       };
     }
     // `NestFactory.createMicroservice()` without `NestFactory.create()`: its `app.listen()` starts a transport, not an
-    // HTTP server. A hybrid application (`create` and `connectMicroservice`) does serve HTTP.
+    // HTTP server. A hybrid application (`create` and `connectMicroservice`) does serve HTTP, and so does a file that
+    // starts any other server beside the microservice (`express().listen(3000)`).
     const nestMicroservice = /\bNestFactory\s*\.\s*createMicroservice\s*(?:<[^>]*>)?\s*\(/;
-    if (nestMicroservice.test(code) && !/\bNestFactory\s*\.\s*create\s*(?:<[^>]*>)?\s*\(/.test(code)) {
+    const microserviceApplication =
+      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?NestFactory\s*\.\s*createMicroservice\b/.exec(
+        code
+      )?.[1];
+    const otherServer =
+      [...code.matchAll(/([\w$]+|\))\s*\.listen\s*\(/g)].some((call) => call[1] !== microserviceApplication) ||
+      /\bcreateServer\s*\(|\bBun\.serve\s*\(|\bDeno\.serve\s*\(|\bserve\s*\(\s*\{|\bconnectMicroservice\s*\(/.test(
+        code
+      );
+    if (nestMicroservice.test(code) && !otherServer && !/\bNestFactory\s*\.\s*create\s*(?:<[^>]*>)?\s*\(/.test(code)) {
       // TCP is Nest's default transport, and gRPC or a custom `strategy` also accepts connections; only a broker
       // transport (Redis, NATS, MQTT, Kafka, RabbitMQ) alone accepts none.
       const broker =
@@ -504,14 +518,37 @@ export const serverEntrypointProbe: Probe = {
       })
     );
     const rootOf = (path: string) => nearestManifestRoot(path, context.files, entered) ?? '.';
-    // A WebSocket server is often set up in its own module (`realtime.js`) beside the file that listens. It is evidence
-    // for the service of the directory it is in.
-    const websocketByRoot = new Map<string, { path: string; raw: string; code: string; pattern: RegExp }>();
-    for (const source of sources) {
-      const pattern = websocketIn(source.path, source.raw, source.code, reexports, files);
-      const root = pattern === undefined ? undefined : rootOf(source.path);
-      if (root !== undefined && !websocketByRoot.has(root)) websocketByRoot.set(root, { ...source, pattern: pattern! });
-    }
+    const websocketOf = new Map(
+      sources.flatMap((source) => {
+        const pattern = websocketIn(source.path, source.raw, source.code, reexports, files);
+        return pattern === undefined ? [] : [[source.path, { ...source, pattern }] as const];
+      })
+    );
+    const sourceByPath = new Map(sources.map((source) => [source.path, source]));
+    /**
+     * A WebSocket server is often set up in its own module (`realtime.js`) that the listening file imports. Only a
+     * module the listening file reaches through relative imports counts: a socket server in a dev script or a test
+     * belongs to no deployed process.
+     */
+    const reachableWebsocket = (entry: string) => {
+      const seen = new Set([entry]);
+      const queue = [entry];
+      while (queue.length > 0) {
+        const path = queue.shift()!;
+        const source = sourceByPath.get(path);
+        if (source === undefined || !/\.(?:[cm]?js|tsx?)$/.test(path)) continue;
+        const found = websocketOf.get(path);
+        if (found !== undefined && path !== entry && !DEVELOPMENT_PATH.test(path)) return found;
+        for (const match of maskFile(path, source.raw, 'keep').matchAll(MODULE_SPECIFIER)) {
+          const target = resolveRelative(path, match[1]!, files);
+          if (target !== undefined && !seen.has(target)) {
+            seen.add(target);
+            queue.push(target);
+          }
+        }
+      }
+      return undefined;
+    };
     for (const { path, raw, code } of sources) {
       const detection = detectionFor(path, raw, code);
       if (detection === undefined) continue;
@@ -545,13 +582,9 @@ export const serverEntrypointProbe: Probe = {
               : undefined;
       const port = listenPort !== undefined && 'port' in listenPort ? listenPort : undefined;
       const unreadPort = listenPort !== undefined && 'unread' in listenPort ? listenPort.unread : undefined;
-      const ownWebsocket = exposesHttp ? websocketIn(path, raw, code, reexports, files) : undefined;
-      const websocket =
-        ownWebsocket !== undefined
-          ? { path, raw, code, pattern: ownWebsocket }
-          : exposesHttp && detection.processType === undefined
-            ? websocketByRoot.get(root)
-            : undefined;
+      const websocket = !exposesHttp
+        ? undefined
+        : (websocketOf.get(path) ?? (detection.processType === undefined ? reachableWebsocket(path) : undefined));
       const websocketCitation =
         websocket === undefined
           ? undefined

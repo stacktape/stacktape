@@ -9,7 +9,8 @@
 import type { Citation } from '../facts/citation';
 import { citeLine } from './probe';
 
-export type MaskedLanguage = 'javascript' | 'python' | 'go';
+/** `csharp` is applied by name (`maskSource`); `.cs` files are not masked by `maskFile`. */
+export type MaskedLanguage = 'javascript' | 'python' | 'go' | 'csharp';
 
 /** The masking a file gets, by extension; undefined when its comments and strings are not understood here. */
 const maskedLanguageOf = (path: string): MaskedLanguage | undefined =>
@@ -144,6 +145,22 @@ export const maskSource = (
       const closed = raw[end - 1] === character && end - 1 > index;
       // Escapes become two spaces, as the escape and its character were two.
       out.push(character, keepOrBlank(raw.slice(index + 1, closed ? end - 1 : end)), closed ? character : '');
+      index = end;
+      continue;
+    }
+    if (language === 'csharp' && (character === '"' || character === "'")) {
+      // A raw string (`"""..."""`) and a verbatim one (`@"..."`, `$@"..."`) have no backslash escapes and can span
+      // lines; an interpolated string's holes are blanked with it.
+      const raw3 = character === '"' && raw.startsWith('"""', index);
+      const quote = raw3 ? '"""' : character;
+      const verbatim = raw3 || (character === '"' && /@\$?$|\$@$/.test(raw.slice(Math.max(0, index - 2), index)));
+      const end = quoted(quote, !verbatim, verbatim);
+      const closed = raw.startsWith(quote, end - quote.length) && end - quote.length > index;
+      out.push(
+        quote,
+        keepOrBlank(raw.slice(index + quote.length, closed ? end - quote.length : end)),
+        closed ? quote : ''
+      );
       index = end;
       continue;
     }
