@@ -1252,6 +1252,14 @@ class StackManager {
           return awsSdkManager.cloudFront.isDistributionDisabled({ distributionId: check.distributionId });
         }
         if (check.kind === 'bucket-empty') return awsSdkManager.s3.isBucketEmpty(check.bucketName);
+        if (check.kind === 'db-instance-gone') {
+          return !(await awsSdkManager.rds.instanceExists({ identifier: check.instanceId }));
+        }
+        if (check.kind === 'replication-group-gone') {
+          return !(await awsSdkManager.elastiCache.replicationGroupExists({
+            replicationGroupId: check.replicationGroupId
+          }));
+        }
         return !(await awsSdkManager.loadBalancers.exists({ loadBalancerArn: check.loadBalancerArn }));
       })
     );

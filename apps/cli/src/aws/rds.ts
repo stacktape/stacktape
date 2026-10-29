@@ -26,6 +26,19 @@ export class AwsRds {
     return response.DBInstances?.[0];
   };
 
+  /** Whether the DB instance still exists. An instance that is being deleted still exists. */
+  instanceExists = async ({ identifier }: { identifier: string }) => {
+    try {
+      const response = await this.#createClient().send(
+        new DescribeDBInstancesCommand({ DBInstanceIdentifier: identifier })
+      );
+      return !!response.DBInstances?.length;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'DBInstanceNotFoundFault') return false;
+      throw error;
+    }
+  };
+
   getCluster = async ({ identifier }: { identifier: string }) => {
     const errorHandler = this.#getErrorHandler('Unable to get RDS cluster detail');
     const response = await this.#createClient()

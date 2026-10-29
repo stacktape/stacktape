@@ -739,7 +739,8 @@ describe('early database and cache deletes', () => {
           spyOn(awsSdkManager.ecs, 'serviceHasUnstoppedTasks').mockResolvedValue(tasksRunning),
           spyOn(awsSdkManager.cloudFront, 'isDistributionDisabled').mockResolvedValue(true),
           spyOn(awsSdkManager.loadBalancers, 'exists').mockResolvedValue(false),
-          spyOn(awsSdkManager.s3, 'isBucketEmpty').mockResolvedValue(bucketEmpty)
+          spyOn(awsSdkManager.s3, 'isBucketEmpty').mockResolvedValue(bucketEmpty),
+          spyOn(awsSdkManager.rds, 'instanceExists').mockResolvedValue(true)
         ];
         try {
           monitorThat(async ({ canFinishDeleteInBackground }) => {
@@ -766,7 +767,8 @@ describe('early database and cache deletes', () => {
     expect((await decide(network))?.map(({ logicalId }) => logicalId)).toEqual(['StpVpc', 'ApiService']);
     // A task that has not stopped yet still runs (and costs).
     expect(await decide(network, { tasksRunning: true })).toBeUndefined();
-    // A database a failed deploy left in CREATE_FAILED is missing from the events' view, but CloudFormation deletes it.
+    // A database a failed deploy left in CREATE_FAILED is missing from the events' view, but CloudFormation deletes it
+    // (and it still exists).
     expect(
       await decide([
         ...network,
@@ -942,7 +944,17 @@ describe('finishing a delete in the background', () => {
       },
       expected: []
     },
-    { name: 'a database instance', pending: [['Db', 'AWS::RDS::DBInstance']], expected: undefined },
+    {
+      name: 'a database instance and a cache, billed until they are gone',
+      pending: [
+        ['Db', 'AWS::RDS::DBInstance'],
+        ['Cache', 'AWS::ElastiCache::ReplicationGroup']
+      ],
+      expected: [
+        { kind: 'db-instance-gone', instanceId: 'Db-id' },
+        { kind: 'replication-group-gone', replicationGroupId: 'Cache-id' }
+      ]
+    },
     { name: 'an Aurora cluster', pending: [['Cluster', 'AWS::RDS::DBCluster']], expected: undefined },
     { name: 'a NAT gateway', pending: [['Nat', 'AWS::EC2::NatGateway']], expected: undefined },
     { name: 'a queue', pending: [['Queue', 'AWS::SQS::Queue']], expected: undefined },

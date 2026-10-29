@@ -14,8 +14,8 @@ import { runsUserCodeOnDelete } from './early-deletes';
  * - it is a Stacktape custom resource from `STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST`, or
  * - a live check proves it idle: every task of an ECS service has stopped, a distribution is disabled, a load balancer
  *   is gone (the CLI deletes load balancers early, see `early-deletes.ts`), a bucket is empty (`delete` empties the
- *   stack's buckets before CloudFormation starts).
- * Everything else (databases, caches, NAT gateways, queues, rules, user custom resources...) is waited for.
+ *   stack's buckets before CloudFormation starts), a database instance or cache is gone (they bill until then).
+ * Everything else (Aurora clusters, NAT gateways, queues, rules, user custom resources...) is waited for.
  */
 export type PendingDelete = { logicalId: string; resourceType: string; physicalId?: string };
 
@@ -23,7 +23,10 @@ export type IdleCheck =
   | { kind: 'ecs-service-stopped'; serviceArn: string }
   | { kind: 'distribution-disabled'; distributionId: string }
   | { kind: 'load-balancer-gone'; loadBalancerArn: string }
-  | { kind: 'bucket-empty'; bucketName: string };
+  | { kind: 'bucket-empty'; bucketName: string }
+  /** Billed until gone. CloudFormation notices that up to ~20 s late. */
+  | { kind: 'db-instance-gone'; instanceId: string }
+  | { kind: 'replication-group-gone'; replicationGroupId: string };
 
 const COST_NOTHING_WHILE_DELETED = new Set([
   'AWS::EC2::VPC',
@@ -141,7 +144,10 @@ export const planBackgroundDeleteChecks = ({
     } else if (resourceType === 'AWS::ElasticLoadBalancingV2::LoadBalancer') {
       checks.push({ kind: 'load-balancer-gone', loadBalancerArn: physicalId });
     } else if (resourceType === 'AWS::S3::Bucket') checks.push({ kind: 'bucket-empty', bucketName: physicalId });
-    else return undefined;
+    else if (resourceType === 'AWS::RDS::DBInstance') checks.push({ kind: 'db-instance-gone', instanceId: physicalId });
+    else if (resourceType === 'AWS::ElastiCache::ReplicationGroup') {
+      checks.push({ kind: 'replication-group-gone', replicationGroupId: physicalId });
+    } else return undefined;
   }
   return checks;
 };
