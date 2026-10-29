@@ -79,7 +79,7 @@ type FullDeployOperation = {
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     deployStack: (
       templateUrl: string,
-      options: { finishWhenCleanupStarts: boolean }
+      options: { finishWhenCleanupStarts: boolean; allowExpressMode?: boolean }
     ) => Promise<{ warningMessages?: string[]; resourcesDeletedInBackground?: number }>;
     /** CloudFormation rolls this deploy back when it fails. */
     rollsBackOnFailure: boolean;
@@ -725,7 +725,11 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
     const { warningMessages, resourcesDeletedInBackground } =
       stack.stackActionType === 'create'
         ? await stack.createStack(deploymentArtifacts.cloudformationTemplateUrl)
-        : await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl, { finishWhenCleanupStarts: true });
+        : await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl, {
+            finishWhenCleanupStarts: true,
+            // The resources removed above make the deployed template unknown here.
+            allowExpressMode: !beforeReplacing
+          });
     warningMessages?.forEach((msg) => {
       tui.warn(msg);
     });
