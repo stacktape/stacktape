@@ -16,7 +16,9 @@ Stacktape's two rollback commands serve different failure scenarios. Choosing th
 | Scenario | Command | What it does |
 |----------|---------|--------------|
 | Last deploy succeeded but introduced a bug | `stacktape rollback` | Re-deploys a previous version's CloudFormation template as a new deployment |
-| Deploy failed and the stack is stuck in a failed CloudFormation state | `stacktape stack recover` | Triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts |
+| Deploy failed and you want to continue from the failure | `stacktape deploy` | Fixes and continues a stack left in `CREATE_FAILED` or `UPDATE_FAILED`, keeping what the failed deploy created |
+| Update failed and you want to undo it instead | `stacktape stack recover` | Triggers Stacktape's CloudFormation rollback flow and cleans up rolled-back deployment artifacts |
+| First deploy failed and you want to remove it | `stacktape delete` | Deletes the stack and everything the failed deploy created |
 | You want to undo multiple deploys back | `stacktape rollback --rollback-steps 3` | Targets an older version by stepping back N versions |
 
 ## Version rollback
@@ -122,7 +124,7 @@ The [`stacktape stack recover`](/cli/cf-rollback) command triggers Stacktape's C
 
 ### When to use stack recover
 
-Use `stacktape stack recover` when a deployment failed and left the CloudFormation stack in a failed state. The command triggers Stacktape's CloudFormation rollback flow and then deletes the artifacts uploaded during the failed deployment. Note that CloudFormation rollback itself can still fail in some cases — if the stack cannot be restored, manual recovery through the AWS Console or AWS CLI may be required.
+A failed deployment keeps what it created and leaves the stack in `CREATE_FAILED` or `UPDATE_FAILED` unless [automatic rollback](/deployment-and-lifecycle/deploying-stacks#automatic-rollback) is on. Deploying again continues from the failure. Use `stacktape stack recover` when you want to undo a failed update instead. For a failed first deployment there is no earlier state to return to: CloudFormation deletes its resources and leaves an empty `ROLLBACK_COMPLETE` stack, which you then delete, so run `stacktape delete` directly. The command triggers Stacktape's CloudFormation rollback flow and then deletes the artifacts uploaded during the failed deployment. Note that CloudFormation rollback itself can still fail in some cases — if the stack cannot be restored, manual recovery through the AWS Console or AWS CLI may be required.
 
 You do NOT need this command when:
 

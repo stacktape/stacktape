@@ -2,7 +2,7 @@
 title: 'deploy'
 order: 136
 seoTitle: 'stacktape deploy — Deploy Stacks to AWS | Stacktape CLI'
-seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Code-only changes deploy in seconds, with auto-rollback and non-interactive deploys via --yes.'
+seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new stacks or updates existing ones. Code-only changes deploy in seconds; failed deploys continue where they stopped; non-interactive deploys via --yes.'
 ---
 
 # deploy
@@ -69,15 +69,15 @@ Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD
 stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
-### `--no-auto-rollback`
+### `--auto-rollback`
 
-By default, if a deployment fails, CloudFormation automatically rolls the stack back to its last known good state. Without auto-rollback, a failed deployment can leave the stack in `UPDATE_FAILED` state. This is useful for debugging — you can inspect the partial state, fix the issue, and redeploy without waiting for a rollback first.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
 
 ```bash
-stacktape deploy --stage dev --region eu-west-1 --no-auto-rollback
+stacktape deploy --stage production --region eu-west-1 --auto-rollback
 ```
 
-After fixing the issue, redeploy normally. To roll back to a previous deployment version after disabling auto-rollback, use [`rollback`](/cli/rollback). To recover a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state, use [`stack recover`](/cli/cf-rollback).
+To undo a failed update later, use [`stack recover`](/cli/cf-rollback). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### `--no-cache`
 

@@ -74,15 +74,15 @@ When only code changed, `stacktape deploy` updates the changed [Lambda functions
 npx stacktape deploy --stage staging --region us-east-1 --full --yes
 ```
 
-### --no-auto-rollback
+### --auto-rollback
 
-By default, failed deployments auto-rollback to the last working state. The `--no-auto-rollback` flag keeps the stack in a failed state instead, so you can inspect what went wrong. When auto-rollback is enabled and a deploy fails (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. See the [`deploy` CLI reference](/cli/deploy) for details.
+By default, a failed deployment keeps what it created or updated, and the next pipeline run continues from the failure. The `--auto-rollback` flag makes CloudFormation undo a failed deployment instead, so the stack returns to the last successful deployment (or, for a first deployment, is deleted). When a deploy is rolled back (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. See the [`deploy` CLI reference](/cli/deploy) for details.
 
 ```bash
-npx stacktape deploy --stage staging --region us-east-1 --no-auto-rollback --yes
+npx stacktape deploy --stage production --region us-east-1 --auto-rollback --yes
 ```
 
-Disabling auto-rollback is useful for debugging deployment failures. Keep auto-rollback enabled (the default) for production pipelines.
+Use automatic rollback for production pipelines that must never leave a stack between two versions. To set it for every deployment of a stage, use `deploymentConfig.autoRollback` with `$Stage()`.
 
 ## GitHub Actions
 
@@ -376,7 +376,7 @@ The standard [`deploy`](/cli/deploy) command builds on the CI worker that invoke
 
 ### What happens when a deploy fails in CI?
 
-By default, failed deployments auto-rollback to the last working state, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). To debug a failure, pass `--no-auto-rollback` so the stack stays in its failed state for inspection, then fix the issue and redeploy. Keep auto-rollback enabled for production pipelines. See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
+By default, the stack keeps what the failed deployment created or updated and stays in `CREATE_FAILED` or `UPDATE_FAILED`. Fix the issue and run the pipeline again; the deploy continues from the failure. With `--auto-rollback` or `deploymentConfig.autoRollback`, CloudFormation rolls the deployment back instead, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
 
 ### How do I deploy to multiple AWS regions from CI?
 

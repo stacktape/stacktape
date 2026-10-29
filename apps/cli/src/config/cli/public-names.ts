@@ -41,7 +41,6 @@ const flagOverrides: Record<string, string> = {
   noCache: 'no-cache',
   noTunnel: 'no-tunnel',
   noBrowser: 'no-browser',
-  disableAutoRollback: 'no-auto-rollback',
   disableEmulation: 'no-emulation',
   disableDockerRemoteCache: 'no-remote-cache',
   disableLayerOptimization: 'no-layer-optimization'

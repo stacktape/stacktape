@@ -72,7 +72,9 @@ import { getNextVersionString, getNumericVersion } from '@utils/versioning';
 import isEqual from 'lodash/isEqual';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
+import { isFailedStackStatus, resolveAutoRollback } from './auto-rollback';
 import { isFirstDeployOfStack } from './first-deploy';
+import { DATA_RESOURCE_TYPES, templateWithoutResources } from './replace-in-failed-stack';
 import { getPlannedResources } from './progress-plan';
 import {
   cfFailedEventHandlers,
@@ -420,7 +422,11 @@ class StackManager {
       return 'dev';
     }
     if (command === 'deploy') {
-      return this.existingStackDetails && this.existingStackResources.length ? 'update' : 'create';
+      // A deploy that failed without rollback is continued by updating the stack, even when nothing was created.
+      return this.existingStackDetails &&
+        (this.existingStackResources.length || isFailedStackStatus(this.existingStackDetails.StackStatus))
+        ? 'update'
+        : 'create';
     }
     if (command === 'diff') {
       return 'update';
@@ -435,11 +441,153 @@ class StackManager {
     return isFirstDeployOfStack(this.existingStackDetails);
   }
 
+  /** Whether a failed deploy rolls back, as configured. See {@link resolveAutoRollback}. */
   get isAutoRollbackEnabled() {
-    const isDisabled =
-      globalStateManager.args.disableAutoRollback === true ||
-      configManager.deploymentConfig?.disableAutoRollback === true;
-    return !isDisabled;
+    return resolveAutoRollback({
+      deploymentConfig: configManager.config?.deploymentConfig,
+      cliValue: globalStateManager.args.autoRollback,
+      isDevCommand: globalStateManager.command === 'dev'
+    });
+  }
+
+  /**
+   * Whether this operation continues a stack that an earlier deploy without automatic rollback left in CREATE_FAILED or
+   * UPDATE_FAILED. CloudFormation updates such a stack only with rollback disabled. Dev mode keeps its own handling.
+   */
+  get continuesFailedStack() {
+    return this.stackActionType !== 'dev' && isFailedStackStatus(this.existingStackDetails?.StackStatus);
+  }
+
+  /** Existing resources this deploy's update replaces, recorded by {@link planUpdate}. */
+  #replacedResources: string[] = [];
+
+  /**
+   * Whether the update changes mappings, conditions or parameters. Resource properties that use them change without a
+   * resource difference in the template, so such an update may replace resources nobody can predict from the diff.
+   */
+  #mayReplaceIndirectly = false;
+
+  /** Whether an existing resource was created after the last successful release, recorded by {@link planUpdate}. */
+  #isNewSinceLastRelease: (logicalId: string) => boolean = () => false;
+
+  /**
+   * Records which existing resources the update replaces. CloudFormation replaces a resource only in an update that may
+   * roll back, so such an update rolls back on failure even when automatic rollback is off. A stack that a failed deploy
+   * left in CREATE_FAILED or UPDATE_FAILED can only be updated without rollback: resources the failed deploys created
+   * are removed first and created again (see {@link getTemplateBeforeReplacing}); resources of the last successful
+   * release may serve traffic, so the stack has to be recovered first, which this reports before anything changes.
+   *
+   * `lastReleaseTemplate` is the template of the last successful release, for a failed stack that had one.
+   */
+  planUpdate = (
+    templateDiff: TemplateDiff,
+    { lastReleaseTemplate }: { lastReleaseTemplate?: CloudFormationTemplate } = {}
+  ) => {
+    const neverDeployed = this.isFirstDeploy;
+    this.#isNewSinceLastRelease = (logicalId) =>
+      neverDeployed || (!!lastReleaseTemplate && !(logicalId in (lastReleaseTemplate.Resources ?? {})));
+    const existing = new Set(this.existingStackResources.map(({ LogicalResourceId }) => LogicalResourceId));
+    const replaced = new Set<string>();
+    templateDiff.resources?.forEachDifference((logicalId, diff) => {
+      const replaces =
+        diff.changeImpact === ResourceImpact.WILL_REPLACE || diff.changeImpact === ResourceImpact.MAY_REPLACE;
+      if (replaces && existing.has(logicalId)) replaced.add(logicalId);
+    });
+    // A failed stack's template is the one the failed deploy attempted. A resource whose update failed went back to its
+    // earlier state, so the template no longer describes it, and continuing may have to replace it. Such resources that
+    // the failed deploys created are recreated too (data stores excepted, which CloudFormation then updates in place).
+    if (this.continuesFailedStack) {
+      for (const { LogicalResourceId, ResourceStatus, ResourceType } of this.existingStackResources) {
+        const failed = ResourceStatus === 'UPDATE_FAILED' || ResourceStatus === 'UPDATE_ROLLBACK_COMPLETE';
+        if (failed && !DATA_RESOURCE_TYPES.has(ResourceType) && this.#isNewSinceLastRelease(LogicalResourceId)) {
+          replaced.add(LogicalResourceId);
+        }
+      }
+    }
+    this.#replacedResources = [...replaced].toSorted();
+    this.#mayReplaceIndirectly = [templateDiff.mappings, templateDiff.conditions, templateDiff.parameters].some(
+      (section) => Object.keys(section?.changes ?? {}).length > 0
+    );
+    // Fails before anything is uploaded or changed when the failed stack cannot be continued.
+    this.getTemplateBeforeReplacing();
+  };
+
+  /** Whether CloudFormation rolls this operation back when it fails. */
+  get rollsBackOnFailure() {
+    if (this.continuesFailedStack) return false;
+    if (this.isAutoRollbackEnabled) return true;
+    return this.stackActionType === 'update' && (this.#replacedResources.length > 0 || this.#mayReplaceIndirectly);
+  }
+
+  /** Why this update rolls back on failure although automatic rollback is off, for the deploy output. */
+  get reasonForRollbackOfUpdate(): string | undefined {
+    if (this.continuesFailedStack || this.isAutoRollbackEnabled || this.stackActionType !== 'update') return undefined;
+    const replaces = this.#replacedResources.length
+      ? `This deploy replaces ${this.#replacedResources.join(', ')}.`
+      : this.#mayReplaceIndirectly
+        ? 'This deploy changes template mappings, conditions or parameters, which can replace resources.'
+        : undefined;
+    if (!replaces) return undefined;
+    return `${replaces} CloudFormation replaces resources only in a deploy it may roll back, so if this deploy fails, it is rolled back.`;
+  }
+
+  /**
+   * The template to deploy before the full one when this deploy continues a failed stack and replaces resources: the
+   * new template without those resources and everything that depends on them. Undefined when no such step is needed.
+   * Throws when the stack cannot be continued that way: the step would remove a resource of the last successful release
+   * (it may serve traffic) or a data store.
+   */
+  getTemplateBeforeReplacing = (): { template: CloudFormationTemplate; removedResources: string[] } | undefined => {
+    if (!this.continuesFailedStack || !this.#replacedResources.length) return undefined;
+    const replaced = this.#replacedResources.join(', ');
+    const status = this.existingStackDetails.StackStatus;
+    const { template, removedResources, removedDataResources } = templateWithoutResources(
+      templateManager.template,
+      this.#replacedResources
+    );
+    const existing = new Set(this.existingStackResources.map(({ LogicalResourceId }) => LogicalResourceId));
+    const released = removedResources.filter((id) => existing.has(id) && !this.#isNewSinceLastRelease(id));
+    if (released.length) {
+      throw new ExpectedError(
+        'EXISTING_STACK',
+        `The last deploy failed and left the stack in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy.`,
+        [
+          `Run ${tuiManager.prettyCommand('stack recover')} to return the stack to the last successful deploy, then deploy again.`
+        ]
+      );
+    }
+    if (removedDataResources.length) {
+      throw new ExpectedError(
+        'EXISTING_STACK',
+        `The last deploy failed and left the stack in ${status}. This deploy replaces ${replaced}, which CloudFormation cannot do while it continues a failed deploy, and removing them first would also delete ${removedDataResources.join(', ')}.`,
+        [
+          this.isFirstDeploy
+            ? `Run ${tuiManager.prettyCommand('delete')} to remove the failed stack, then deploy again.`
+            : `Run ${tuiManager.prettyCommand('stack recover')} to return the stack to the last successful deploy, then deploy again.`
+        ]
+      );
+    }
+    // The step keeps the version of the last successful release (none for a stack never deployed), so a failure of the
+    // full deploy still reports that release.
+    const { [outputNames.deploymentVersion()]: versionOutput, ...outputs } = template.Outputs ?? {};
+    const deployedVersion = this.lastDeploymentStackOutput[outputNames.deploymentVersion()];
+    if (versionOutput && deployedVersion) {
+      outputs[outputNames.deploymentVersion()] = { ...versionOutput, Value: deployedVersion };
+    }
+    return {
+      template: { ...template, ...(Object.keys(outputs).length ? { Outputs: outputs } : { Outputs: undefined }) },
+      removedResources
+    };
+  };
+
+  /**
+   * Why this deploy must go through CloudFormation although only code changed: a direct code update would leave the
+   * failed resources and the stack status as they are.
+   */
+  get reasonToContinueFailedStack(): string | undefined {
+    return this.continuesFailedStack
+      ? `the last deploy failed and left the stack in ${this.existingStackDetails.StackStatus}; this deploy continues from there`
+      : undefined;
   }
 
   refetchStackDetails = async (stackName: string) => {
@@ -547,7 +695,7 @@ class StackManager {
       Tags: operationRequiresTags ? this.getTags() : [],
       Parameters: [],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
-      ...(!this.isAutoRollbackEnabled && { DisableRollback: true }),
+      ...(!this.rollsBackOnFailure && { DisableRollback: true }),
       ...(terminationProtection && { EnableTerminationProtection: true }),
       ...(cloudformationRoleArn && { RoleARN: cloudformationRoleArn as string }),
       ...(publishEventsToArn && { NotificationARNs: publishEventsToArn as string[] }),
@@ -586,7 +734,7 @@ class StackManager {
     const { StackPolicyBody, ...onCreateParams } = stackParams;
     const { StackId } = await awsSdkManager.cloudFormation.create(template, {
       ...onCreateParams,
-      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+      ...(this.rollsBackOnFailure && { OnFailure: OnFailure.DELETE })
     });
     await this.monitorStack(
       'create',
@@ -769,7 +917,7 @@ class StackManager {
     });
     const { StackId } = await awsSdkManager.cloudFormation.createFromUrl(templateUrl, {
       ...stackParams,
-      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+      ...(this.rollsBackOnFailure && { OnFailure: OnFailure.DELETE })
     });
     this.createdStackId = StackId;
     const result = await this.monitorStack(
@@ -797,7 +945,8 @@ class StackManager {
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
-    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    const updateResult = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    const { skipped } = updateResult;
     if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack(
@@ -810,7 +959,7 @@ class StackManager {
             detail: progress.detail
           });
         },
-        { finishWhenCleanupStarts }
+        { finishWhenCleanupStarts, operationId: 'OperationId' in updateResult ? updateResult.OperationId : undefined }
       );
       if (finishWhenCleanupStarts) {
         this.#resourcesRemovedByUpdate = new Set(
@@ -851,6 +1000,7 @@ class StackManager {
       Tags: this.getTags(),
       Parameters: [] as { ParameterKey: string; ParameterValue: string }[],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
+      ...(this.continuesFailedStack && { DisableRollback: true }),
       ...(roleArn && { RoleARN: roleArn })
     };
     await operationReporter.startEvent({
@@ -1122,7 +1272,8 @@ class StackManager {
     onProgress: (progress: StackProgressUpdate) => any,
     {
       finishWhenCleanupStarts = false,
-      createdTemplate = templateManager.initialTemplate
+      createdTemplate = templateManager.initialTemplate,
+      operationId
     }: {
       /** The template a `create` operation creates the stack from. */
       createdTemplate?: CloudFormationTemplate;
@@ -1132,6 +1283,11 @@ class StackManager {
        * next command that modifies the stack waits for it.
        */
       finishWhenCleanupStarts?: boolean;
+      /**
+       * The operation to monitor. A deploy can run two updates in a row, and the events of the first one, still within
+       * the polling window, must not be taken for the second one's.
+       */
+      operationId?: string;
     } = {}
   ): Promise<StackMonitoringResult> => {
     const handledEvents: string[] = [];
@@ -1245,9 +1401,10 @@ class StackManager {
       );
       if (hasFailedEcsTask || hasFailedLambdaProvisionedConcurrency) {
         cancelBannerShown = true;
-        const message = hasFailedEcsTask
-          ? 'Container startup failed. CloudFormation will eventually time out and rollback.'
-          : 'Lambda provisioned concurrency failed. CloudFormation will eventually time out and rollback.';
+        const outcome = this.rollsBackOnFailure
+          ? 'CloudFormation will eventually time out and roll back.'
+          : 'CloudFormation will eventually time out and keep the stack in a failed state.';
+        const message = `${hasFailedEcsTask ? 'Container startup failed.' : 'Lambda provisioned concurrency failed.'} ${outcome}`;
         tuiManager.setCancelDeployment({
           message,
           onCancel: async () => {
@@ -1487,7 +1644,7 @@ class StackManager {
         return resolve({});
       };
 
-      const afterStackOperationFailure = async () => {
+      const afterStackOperationFailure = async (failedStackStatus?: StackStatus) => {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
@@ -1495,13 +1652,30 @@ class StackManager {
         const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
         // Collect hints from individual error handlers
         const errorSpecificHints = handledFailedEvents.flatMap((event) => event.hints || []);
-        const generalHints = getHintsAfterStackFailureOperation({
-          cfStackAction,
-          stackId,
-          isAutoRollbackEnabled: this.isAutoRollbackEnabled
-        });
+        const generalHints =
+          cfStackAction === 'create' || cfStackAction === 'update'
+            ? getHintsAfterStackFailureOperation({
+                cfStackAction,
+                stackId,
+                // An update CloudFormation could not keep in UPDATE_FAILED (for example a failed replacement) rolls back.
+                rolledBack: this.rollsBackOnFailure || failedStackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS,
+                isFirstDeploy: this.isFirstDeploy
+              })
+            : getHintsAfterStackFailureOperation({ cfStackAction, stackId, rolledBack: false, isFirstDeploy: false });
         // Merge all hints - error-specific hints first, then general hints
-        const allHints = [...errorSpecificHints, ...generalHints];
+        // CloudFormation refuses to replace resources in an update without rollback, and a deploy that continues the
+        // failed stack cannot roll back either. Only a recovery (or, for a stack never deployed, a delete) gets past it.
+        const replacementRefused = Object.values(potentialErrorCausingEvents).some(({ ResourceStatusReason }) =>
+          /replacement[^.]* (are )?not (supported|allowed)/i.test(ResourceStatusReason ?? '')
+        );
+        // A stack that was never deployed has such resources recreated by the next deploy, so the general hints apply.
+        const allHints =
+          replacementRefused && !this.isFirstDeploy
+            ? [
+                ...errorSpecificHints,
+                `CloudFormation cannot replace resources while continuing a failed deploy. Run ${tuiManager.prettyCommand('stack recover')} to return to the last successful deploy, then deploy again.`
+              ]
+            : [...errorSpecificHints, ...generalHints];
         return reject(
           new ExpectedError(
             'STACK',
@@ -1547,7 +1721,7 @@ class StackManager {
               return afterStackOperationSuccess();
             }
             if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
-              return afterStackOperationFailure();
+              return afterStackOperationFailure(stackStatus);
             }
             eventBatchEvaluationInProgress = false;
             return;
@@ -1557,6 +1731,7 @@ class StackManager {
             const lastStackEvent = stackEvents.find((stackEvent) => {
               return (
                 this.#isCloudformationStackEvent({ stackEvent }) &&
+                (!operationId || !stackEvent.OperationId || stackEvent.OperationId === operationId) &&
                 this.#stackStatusSignalsStackOperationStart({
                   stackStatus: stackEvent.ResourceStatus as StackStatus,
                   cfStackAction
@@ -1608,7 +1783,7 @@ class StackManager {
                   potentialErrorCausingEvents[LogicalResourceId] = event;
                 }
                 handleProgress();
-                return afterStackOperationFailure();
+                return afterStackOperationFailure(event.ResourceStatus as StackStatus);
               }
               // if we are performing update and cleanup is happening after successful update
               if (
@@ -1683,7 +1858,7 @@ class StackManager {
             return afterStackOperationSuccess();
           }
           if (this.#stackStatusSignalsStackOperationFailure({ stackStatus, cfStackAction })) {
-            return afterStackOperationFailure();
+            return afterStackOperationFailure(stackStatus);
           }
           const earlyFailureMessage = getEarlyStartupFailureMessage();
           if (earlyFailureMessage) {
@@ -1691,7 +1866,17 @@ class StackManager {
             return reject(
               new ExpectedError(
                 'STACK',
-                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`
+                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`,
+                cfStackAction === 'create' || cfStackAction === 'update'
+                  ? getHintsAfterStackFailureOperation({
+                      cfStackAction,
+                      stackId,
+                      rolledBack: this.rollsBackOnFailure,
+                      isFirstDeploy: this.isFirstDeploy,
+                      stillRunning: true
+                    })
+                  : undefined,
+                { stackOperationStillRunning: true }
               )
             );
           }

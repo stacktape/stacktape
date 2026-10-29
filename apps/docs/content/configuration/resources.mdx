@@ -210,7 +210,7 @@ All resources defined in one configuration file deploy together as a single Clou
 - They share a lifecycle — deploy, update, and delete together.
 - By default, Stacktape creates a VPC for stacks that need VPC networking. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.
 - Cross-resource references resolve at deploy time.
-- A failed deployment rolls back all changes atomically (unless `deploymentConfig.disableAutoRollback` is set).
+- A failed deployment keeps what it created or updated, and the next deployment continues from the failure. With `deploymentConfig.autoRollback`, it rolls back all changes instead.
 
 One stack per [stage](/configuration/stages-and-environments) is the standard pattern. A typical project has a `dev` stage for development and a `production` stage for live traffic — same config, different stages, separate AWS resources.
 

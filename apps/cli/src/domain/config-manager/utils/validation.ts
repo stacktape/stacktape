@@ -26,6 +26,7 @@ import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@uti
 import { GUARDRAIL_TITLES } from '@stacktape/console-api/guardrails';
 import { CliError } from '@utils/errors';
 import { isGravitonInstanceSize } from './nat';
+import { resolveAutoRollback } from '@domain-services/cloudformation-stack-manager/auto-rollback';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
 import type { ConfigManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
@@ -790,6 +791,8 @@ export const runInitialValidations = ({
   validateReuseVpcConfig({ configManager });
   validateNatConfig({ configManager });
   validateStackTags({ configManager });
+  // Rejects `autoRollback: false` next to rollback alarms before anything is built.
+  resolveAutoRollback({ deploymentConfig: configManager.config?.deploymentConfig });
   // validateProviders();
   validateBastionReferences({ configManager });
   validateKafkaConsumerGroupUniqueness({ configManager });
