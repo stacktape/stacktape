@@ -1,5 +1,10 @@
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
-import type { ExpectedError } from '@utils/errors';
+import { CliError, type ExpectedError } from '@utils/errors';
+import {
+  decideSkippedFunctionCode,
+  findKeptFunctionsWithChangedConfiguration,
+  type SkippedFunctionBuildReason
+} from '@domain-services/deployment-artifact-manager/kept-function-code';
 import { applicationManager } from '@application-services/application-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -56,6 +61,46 @@ export const packageDevStackImages = async (): Promise<string[]> => {
   ];
 };
 
+const SKIPPED_FUNCTION_BUILD_CAUSES: Record<SkippedFunctionBuildReason, string> = {
+  'not-deployed': 'the dev stack has no code for it yet',
+  'stored-code-missing': 'the deployment bucket no longer holds the code it runs',
+  'code-unknown': 'an earlier update of its code did not finish, so the code it runs is unknown',
+  'uses-shared-layers': 'it runs on shared layers that dev stacks no longer build',
+  'configuration-changed': 'its configuration changed, and its old code was never run with the new one'
+};
+
+/** Why the dev stack builds a function the session leaves out, which otherwise keeps the code it runs. */
+export const describeSkippedFunctionBuild = (name: string, reason: SkippedFunctionBuildReason) =>
+  `\`${name}\` is not in this session, but ${SKIPPED_FUNCTION_BUILD_CAUSES[reason]}, so the dev stack builds it from your source. Later starts without it keep that code while its configuration stays the same.`;
+
+/**
+ * Packages workloads; says first why each function the session leaves out is built, and again when its build fails.
+ */
+const packageExplainingSkippedFunctions = async ({
+  builtSkippedFunctions,
+  excludeWorkloads,
+  onlyWorkloads
+}: {
+  builtSkippedFunctions: { name: string; build: SkippedFunctionBuildReason }[];
+  excludeWorkloads?: string[];
+  onlyWorkloads?: string[];
+}) => {
+  builtSkippedFunctions.forEach(({ name, build }) => tuiManager.info(describeSkippedFunctionBuild(name, build)));
+  try {
+    await packagingManager.packageAllWorkloads({ commandCanUseCache: true, excludeWorkloads, onlyWorkloads });
+  } catch (error) {
+    const failedSkipped = builtSkippedFunctions.filter(({ name }) => !packagingManager.getPackagingOutputForJob(name));
+    if (error instanceof CliError && failedSkipped.length) {
+      error.hints.push(
+        ...failedSkipped.map(
+          ({ name, build }) => `${describeSkippedFunctionBuild(name, build)} Fix its build to start.`
+        )
+      );
+    }
+    throw error;
+  }
+};
+
 /**
  * Local containers, frontends and scripts read raw CloudFormation resources (`$CfResourceParam`) from the dev stack's
  * outputs. A deployment adds such an output when its template resolves the reference, but the dev template leaves those
@@ -108,9 +153,26 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
     await deploymentArtifactManager.loadPreviousBucketObjects(deploymentArtifactManager.deploymentBucketName, 'dev');
   }
 
+  // Functions the session leaves out keep the code they run; only those the dev stack has no code for are built.
+  const skippedFunctionCode = decideSkippedFunctionCode({
+    functions: configManager.functions,
+    skippedFunctionNames: configManager.devSkippedFunctionNames,
+    deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined,
+    deployedTags: (cfLogicalName) =>
+      stackManager.existingStackResources.find(({ LogicalResourceId }) => LogicalResourceId === cfLogicalName)?.tags,
+    storedObjects: deploymentArtifactManager.previousObjects
+  });
+  const keptFunctionCode = new Map(
+    skippedFunctionCode.flatMap((decision) => ('keep' in decision ? [[decision.name, decision.keep]] : []))
+  );
+  deploymentArtifactManager.setKeptFunctionCode(keptFunctionCode);
+
   // Functions, and the images of what the dev stack deploys that `packageDevStackImages` has not built. Local services
   // and frontends are built by the session itself.
-  await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
+  await packageExplainingSkippedFunctions({
+    builtSkippedFunctions: skippedFunctionCode.flatMap((decision) => ('build' in decision ? [decision] : [])),
+    excludeWorkloads: [...keptFunctionCode.keys()]
+  });
 
   // Resolve resources (the config-manager should filter based on dev mode)
   await resolveAllResources();
@@ -124,6 +186,25 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   await calculatedStackOverviewManager.populateStackMetadata();
   await prepareTemplateForDeploy();
+
+  // Old code is kept only where nothing else about the function changes. The others are built and the template is
+  // finalized again, now naming their new code.
+  const changedKeptFunctions = findKeptFunctionsWithChangedConfiguration({
+    functions: configManager.functions.filter(({ name }) => keptFunctionCode.has(name)),
+    ownedLogicalNames: (name) =>
+      Object.keys(calculatedStackOverviewManager.getChildResourceList({ stpResourceName: name })),
+    template: templateManager.getTemplate(),
+    deployedTemplate: templateManager.oldTemplate
+  });
+  if (changedKeptFunctions.length) {
+    changedKeptFunctions.forEach((name) => keptFunctionCode.delete(name));
+    deploymentArtifactManager.setKeptFunctionCode(keptFunctionCode);
+    await packageExplainingSkippedFunctions({
+      builtSkippedFunctions: changedKeptFunctions.map((name) => ({ name, build: 'configuration-changed' as const })),
+      onlyWorkloads: changedKeptFunctions
+    });
+    await prepareTemplateForDeploy();
+  }
 
   // Register cloudformation private types if needed
   await cloudformationRegistryManager.registerLatestCfPrivateTypes(configManager.requiredCloudformationPrivateTypes);

@@ -168,6 +168,100 @@ const parseTerminalResult = (stdout: string) =>
     })
     .findLast((record) => record?.type === 'result');
 
+/** The environment of a source CLI child: the emulator, the control-plane fake and nothing of the developer's. */
+const sourceCliEnvironment = ({
+  project,
+  ministack,
+  invocationName,
+  scannerPath
+}: {
+  project: FamilyProject;
+  ministack: MiniStack;
+  invocationName: string;
+  scannerPath?: string;
+}) => {
+  const account = ministack.defaultAccount;
+  return {
+    ...buildOfflineQualificationEnvironment({
+      endpoint: ministack.endpoint,
+      invocationId: `${project.projectName}-${invocationName}-${randomUUID().slice(0, 8)}`,
+      homeDirectory: project.home
+    }),
+    ...ministack.childEnvironment(account),
+    MINISTACK_ENDPOINT: ministack.endpoint,
+    MINISTACK_ACCESS_KEY_ID: account.credentials.accessKeyId,
+    MINISTACK_SECRET_ACCESS_KEY: account.credentials.secretAccessKey,
+    // MiniStack has no usable Cost Explorer or Budgets; the CLI allows skipping discovery only on loopback endpoints.
+    STP_SKIP_COST_DISCOVERY: '1',
+    STP_CUSTOM_TRPC_API_ENDPOINT: project.controlPlane.endpoint,
+    ...(scannerPath ? { STACKTAPE_TRIVY_PATH: scannerPath } : {})
+  };
+};
+
+/**
+ * Any source CLI command against the project's stage, such as `dev --agent`. Returns its exit code and output; the
+ * output is also written to `<logName>.log` in the project directory.
+ */
+export const runSourceCliCommand = async ({
+  project,
+  ministack,
+  args,
+  logName,
+  deadlineMs = CLI_DEADLINE_MS,
+  env = {},
+  targetArgs = true
+}: {
+  project: FamilyProject;
+  ministack: MiniStack;
+  args: string[];
+  logName: string;
+  deadlineMs?: number;
+  env?: Record<string, string>;
+  /** False for a command that takes no stage target, such as `dev:stop`. */
+  targetArgs?: boolean;
+}) => {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      '--preload',
+      join(import.meta.dir, 'offline-preload.ts'),
+      join(cliRoot, 'scripts', 'dev.ts'),
+      ...args,
+      ...(targetArgs
+        ? [
+            '--stage',
+            STAGE,
+            '--region',
+            ministack.region,
+            '--projectName',
+            project.projectName,
+            '--awsAccount',
+            'cli-process-account',
+            '--currentWorkingDirectory',
+            project.directory
+          ]
+        : [])
+    ],
+    {
+      cwd: cliRoot,
+      env: { ...sourceCliEnvironment({ project, ministack, invocationName: logName }), ...env },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe'
+    }
+  );
+  const started = performance.now();
+  const timer = setTimeout(() => child.kill('SIGKILL'), deadlineMs);
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited
+  ]);
+  clearTimeout(timer);
+  await writeFile(join(project.directory, `${logName}.log`), `${stdout}\n${stderr}`);
+  return { exitCode, stdout, stderr, ms: Math.round(performance.now() - started) };
+};
+
 /** One `deploy` or `delete` of the project through the source CLI. */
 export const runSourceCli = async ({
   project,
@@ -191,23 +285,7 @@ export const runSourceCli = async ({
   /** Further CLI arguments, such as `--fullDeploy`. */
   extraArgs?: string[];
 }): Promise<CliStepResult> => {
-  const invocationId = `${project.projectName}-${step}-${randomUUID().slice(0, 8)}`;
-  const account = ministack.defaultAccount;
-  const env = {
-    ...buildOfflineQualificationEnvironment({
-      endpoint: ministack.endpoint,
-      invocationId,
-      homeDirectory: project.home
-    }),
-    ...ministack.childEnvironment(account),
-    MINISTACK_ENDPOINT: ministack.endpoint,
-    MINISTACK_ACCESS_KEY_ID: account.credentials.accessKeyId,
-    MINISTACK_SECRET_ACCESS_KEY: account.credentials.secretAccessKey,
-    // MiniStack has no usable Cost Explorer or Budgets; the CLI allows skipping discovery only on loopback endpoints.
-    STP_SKIP_COST_DISCOVERY: '1',
-    STP_CUSTOM_TRPC_API_ENDPOINT: project.controlPlane.endpoint,
-    ...(scannerPath ? { STACKTAPE_TRIVY_PATH: scannerPath } : {})
-  };
+  const env = sourceCliEnvironment({ project, ministack, invocationName: step, scannerPath });
   const args = [
     process.execPath,
     '--preload',

@@ -79,6 +79,7 @@ import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 import { runSeedScript } from './seed-script';
+import type { FunctionNotInSession } from './functions-not-in-session';
 
 /** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
 export type AgentWorkloadEnvironment = {
@@ -165,6 +166,12 @@ export type AgentSessionIdentity = {
 let agentNotices: string[] = [];
 export const setAgentNotices = (notices: string[]) => {
   agentNotices = [...notices];
+};
+
+/** Deployed functions the session leaves out, with the code they run; see `FunctionNotInSession`. */
+let functionsNotInSession: FunctionNotInSession[] = [];
+export const setFunctionsNotInSession = (functions: FunctionNotInSession[]) => {
+  functionsNotInSession = [...functions];
 };
 
 let httpServer: Server | null = null;
@@ -426,6 +433,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ...(getConfiguredBatchJobs().length ? { batchJobs: await getDeployedBatchJobs() } : {}),
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
+      ...(functionsNotInSession.length ? { functionsNotInSession } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath(),
       ...agentSession,
@@ -448,6 +456,9 @@ addRoute('GET', '/status', async ({ query }) => {
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
+    ...(functionsNotInSession.length
+      ? { functionsNotInSession: Object.fromEntries(functionsNotInSession.map(({ name, message }) => [name, message])) }
+      : {}),
     ...getDevBoxStatus(),
     ...agentSession,
     pid: process.pid
@@ -1547,8 +1558,7 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     };
   }
 
-  // The dev agent reads the session's stack. Its role allows resources by the stack's name in any region, so a stack of
-  // the same name elsewhere, or a resource another region gives the same name, is outside the session.
+  // The dev agent reads the session's stack, which is in the session's region; its role reads nothing elsewhere.
   const awsRegion = globalStateManager.region;
   if (region && region !== awsRegion) {
     return {
@@ -2027,7 +2037,8 @@ export const buildStartupMessage = (params: {
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
   lines.push('            cognito, apigatewayv2, xray, kinesis, firehose, ...');
   lines.push('  Scoped to stack resources via IAM role. Writes and Secrets Manager/SSM value reads are rejected;');
-  lines.push('  Lambda/ECS environment values are redacted. Logs, objects and items return application data as is.');
+  lines.push('  environment values, client secrets and template values are redacted. Logs, objects and items return');
+  lines.push('  application data as is.');
   lines.push('');
   lines.push('  Examples:');
   lines.push(

@@ -8,6 +8,7 @@ import type {
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { ResourceOverrides } from '@stacktape/config/shared';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -66,6 +67,29 @@ import {
 } from '@domain-services/config-manager/utils/container-tracing';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
+
+/**
+ * A fixed instance count leaves target-tracking policies nothing to do. Each one still takes ~12 s to create after the
+ * service is stable, which is the end of a first deploy behind a load balancer, and owns two CloudWatch alarms.
+ *
+ * Overrides of the scalable target can widen the range after synthesis, and overrides of a policy need the policy to
+ * exist, so either keeps the policies.
+ */
+const needsScalingPolicies = (workload: StpContainerWorkload) => {
+  if (workload.scaling.maxInstances > workload.scaling.minInstances) {
+    return true;
+  }
+  const overriddenLogicalNames = new Set(
+    configManager.allConfigResources.flatMap((resource) =>
+      Object.keys((resource as { overrides?: ResourceOverrides }).overrides ?? {})
+    )
+  );
+  return [
+    cfLogicalNames.autoScalingTarget(workload.name),
+    cfLogicalNames.autoScalingPolicy(workload.name, 'ECSServiceAverageCPUUtilization'),
+    cfLogicalNames.autoScalingPolicy(workload.name, 'ECSServiceAverageMemoryUtilization')
+  ].some((logicalName) => overriddenLogicalNames.has(logicalName));
+};
 
 export const resolveContainerWorkloads = () => {
   const containerWorkloads = filterResourcesForDevMode(
@@ -173,12 +197,15 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   }
 
   if (definition.scaling) {
-    const { scalingPolicy } = definition.scaling;
+    // The scalable target keeps the task count within the configured range, also when the range is a single value.
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.autoScalingTarget(definition.name),
       resource: getAutoScalingTarget(definition.name, definition),
       nameChain
     });
+  }
+  if (definition.scaling && needsScalingPolicies(definition)) {
+    const { scalingPolicy } = definition.scaling;
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.autoScalingPolicy(definition.name, 'ECSServiceAverageCPUUtilization'),
       resource: getAutoScalingPolicy(

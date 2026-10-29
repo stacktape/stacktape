@@ -544,6 +544,7 @@ export const lanes: readonly Lane[] = [
       'src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
+      'src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
       'tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -567,6 +568,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-monitoring.spec.ts',
@@ -868,6 +870,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves:
       'Dev network leases persist in MiniStack Parameter Store, keep their port for the next session and are released with their stage; the real dev HTTP agent redacts reads and denies mutation.'
+  },
+  {
+    id: 'local-dev-stack-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:stack:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/dev-selected-packaging.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'The source CLI runs dev sessions against MiniStack: a session that leaves functions out does not build them, so a broken one does not fail the start, and they keep the code the dev stack ran, also after their source changed, with status naming when that code was deployed; selecting them again deploys their source; a new dev stack builds a left-out function once and says why.'
   },
   {
     id: 'local-dev-lambda-live',
@@ -4252,6 +4265,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/ministack/artifact-store.spec.ts',
       'apps/cli/src/domain/deployed-stack-overview-manager/hotswap-utils.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layers.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/kept-function-code.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
@@ -4390,7 +4404,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/container/exit-reason.spec.ts',
       'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
       'apps/cli/src/commands/dev/function-logs.spec.ts',
+      'apps/cli/src/commands/dev/functions-not-in-session.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
+      'apps/cli/tests/ministack/dev-selected-packaging.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
     lanes: [
@@ -4401,6 +4417,7 @@ export const slices: readonly Slice[] = [
       'local-dev-next',
       'local-dev-containers',
       'local-dev-ministack',
+      'local-dev-stack-ministack',
       'local-dev-lambda-live',
       'local-dev-live',
       'cli-test-real-aws-dev-canary'
@@ -4445,7 +4462,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/**',
       'apps/cli/src/commands/info-stack/agent-contract.ts',
       'packages/aws-read-only/src/operations.ts',
-      'packages/aws-read-only/src/executor.ts'
+      'packages/aws-read-only/src/executor.ts',
+      'packages/aws-read-only/src/template-skeleton.ts'
     ],
     tests: [
       'apps/cli/scripts/operations/validate.spec.ts',
@@ -4457,6 +4475,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/src/commands/aws-call/stack-without-outputs.spec.ts',
+      'apps/cli/src/commands/aws-call/get-template.spec.ts',
       'apps/cli/src/utils/lambda-log-lines.spec.ts',
       'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
       'apps/cli/src/utils/cloudwatch-logs.spec.ts',
