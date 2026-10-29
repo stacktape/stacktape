@@ -44,7 +44,7 @@ const ownResourceArns = (
  * `aws:RequestedRegion`, picks out exactly this stack; a name prefix does not (`shop-dev-*` also names the resources of
  * a stage `dev-production`). Where an action ignores resource tags, the role lists this stack's resources by their
  * identifiers in the template instead. Checked against IAM on 28 Oct 2026 for every tag-limited action here except ECS
- * and Batch, which kept their earlier tag conditions.
+ * and Batch.
  */
 export const resolveDevAgentRole = () => {
   const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
@@ -197,15 +197,19 @@ export const resolveDevAgentRole = () => {
             'ecs:DescribeClusters',
             'ecs:DescribeServices',
             'ecs:DescribeTasks',
-            'ecs:DescribeTaskDefinition',
-            'ecs:DescribeContainerInstances',
-            'ecs:ListTasks',
-            'ecs:ListServices',
             'ecs:ListContainerInstances',
             'ecs:ListTagsForResource'
           ],
+          Resource: [regional('ecs', '*')],
+          Condition: ownStack
+        },
+        // ECS authorizes a task definition read with no resource or tag: within the region. The executor redacts the
+        // environment values it returns.
+        {
+          Effect: 'Allow',
+          Action: ['ecs:DescribeTaskDefinition'],
           Resource: '*',
-          Condition: ownStackInRegion
+          Condition: { StringEquals: inRegion }
         }
       ]),
       policy('cognito-access', [
@@ -334,6 +338,22 @@ export const resolveDevAgentRole = () => {
         regional('es', `domain/${name}`)
       ])
     );
+    // ECS authorizes these by the cluster they list or describe in (`ecs:cluster`), not by its tags.
+    const clusters = ownResourceArns(template, 'AWS::ECS::Cluster', 'ClusterName', (name) => [
+      regional('ecs', `cluster/${name}`)
+    ]);
+    if (clusters.length) {
+      policies.push(
+        policy('ecs-cluster-access', [
+          {
+            Effect: 'Allow',
+            Action: ['ecs:ListServices', 'ecs:ListTasks', 'ecs:DescribeContainerInstances'],
+            Resource: '*',
+            Condition: { ArnEquals: { 'ecs:cluster': clusters } }
+          }
+        ])
+      );
+    }
     // AWS generates an API's ID, so these name the API by its `Ref`.
     add(
       'apigateway-access',

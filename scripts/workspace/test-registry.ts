@@ -4440,7 +4440,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/aws/**',
       'apps/cli/src/commands/info-stack/agent-contract.ts',
       'packages/aws-read-only/src/operations.ts',
-      'packages/aws-read-only/src/executor.ts'
+      'packages/aws-read-only/src/executor.ts',
+      'packages/aws-read-only/src/template-skeleton.ts'
     ],
     tests: [
       'apps/cli/scripts/operations/validate.spec.ts',
@@ -4452,6 +4453,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/src/commands/aws-call/stack-without-outputs.spec.ts',
+      'apps/cli/src/commands/aws-call/get-template.spec.ts',
       'apps/cli/src/utils/lambda-log-lines.spec.ts',
       'apps/cli/src/utils/cloudwatch-log-poller.spec.ts',
       'apps/cli/src/utils/cloudwatch-logs.spec.ts',

@@ -1628,10 +1628,10 @@ terminal.
 
 Lambda function configurations, ECS task definitions and Batch job definitions come back with environment variable
 values replaced by `[redacted]`; variable names and the other settings stay. Cognito `DescribeUserPoolClient` redacts
-the client secret. CloudFormation `GetTemplate` redacts the template's literal values: environment variables,
-credential properties such as `MasterUserPassword` and the defaults of `NoEcho` parameters. A template that is not
-JSON, such as a YAML template, is refused, because its values cannot be masked reliably; read the stack with
-`DescribeStacks` or `DescribeStackResources` instead. Other accepted reads return application data as it is: log
+the client secret. CloudFormation `GetTemplate` returns the template's structure without any value, as JSON whether
+the stack was deployed from JSON or YAML: logical IDs, resource types, conditions, dependencies, property names and
+what `Ref`, `Fn::GetAtt`, `Fn::Sub` and `Fn::If` reference stay, and every literal value reads `[value]`. Parameters,
+mappings and outputs keep their names only. Other accepted reads return application data as it is: log
 events, S3 objects and DynamoDB items contain whatever the application wrote. Read them when a diagnosis needs that
 data.
 
@@ -48883,7 +48883,7 @@ scripts: {
 
 ## AWS SDK access
 
-Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Environment variable values, Cognito client secrets and the literal values of CloudFormation templates come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role only reads, and only the resources of this dev stack in the session region: it identifies them by the stack-name tag CloudFormation puts on every resource, or by their identifiers in the template. CloudWatch metric and alarm reads cover the whole session region, because metrics belong to no stack. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch, whose read actions IAM cannot limit to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Environment variable values and Cognito client secrets come back redacted, CloudFormation templates come back as their structure without any value, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses the dev agent IAM role. The role only reads, and only the resources of this dev stack in the session region: it identifies them by the stack-name tag CloudFormation puts on every resource, or by their identifiers in the template. CloudWatch metric and alarm reads cover the whole session region, because metrics belong to no stack. The HTTP endpoint accepts only reviewed read operations and adds resource filtering for Batch, whose read actions IAM cannot limit to the stack. If the role is missing or cannot be assumed after the IAM-propagation retry, the request fails; it never falls back to the developer's credentials. Restart dev mode to update the stack and role when needed.
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \

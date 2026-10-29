@@ -8,56 +8,108 @@ let server: Server;
 let endpoint: string;
 const requests: string[] = [];
 
-/** A deployed template with literal values: environment variables, a password and a stored connection string. */
-const JSON_TEMPLATE = {
-  Parameters: {
-    ApiKey: { Type: 'String', NoEcho: true, Default: 'noecho_default_secret_value' },
-    Tier: { Type: 'String', Default: 'standard' }
+const TOKEN = 'template_literal_not_a_real_secret';
+/** Deployed templates by stack name: the places a literal value hides in, as the review of #394 found them. */
+const TEMPLATES: Record<string, unknown> = {
+  direct: {
+    Resources: {
+      Task: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: { ContainerDefinitions: [{ Name: 'app', Environment: [{ Name: 'API_TOKEN', Value: TOKEN }] }] }
+      }
+    }
   },
-  Resources: {
-    ApiFunction: {
-      Type: 'AWS::Lambda::Function',
-      Properties: {
-        FunctionName: 'shop-dev-api',
-        Environment: { Variables: { STRIPE_KEY: 'lambda_template_secret_value', TABLE: { Ref: 'Table' } } }
+  conditionalEcs: {
+    Conditions: { UseToken: { 'Fn::Equals': ['enabled', 'enabled'] } },
+    Resources: {
+      Task: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Condition: 'UseToken',
+        Properties: {
+          ContainerDefinitions: [
+            {
+              Name: 'app',
+              Environment: [{ 'Fn::If': ['UseToken', { Name: 'API_TOKEN', Value: TOKEN }, { Ref: 'AWS::NoValue' }] }]
+            }
+          ]
+        }
+      }
+    }
+  },
+  conditionalBatch: {
+    Conditions: { UseToken: { 'Fn::Equals': ['enabled', 'enabled'] } },
+    Resources: {
+      Job: {
+        Type: 'AWS::Batch::JobDefinition',
+        Properties: {
+          ContainerProperties: {
+            Environment: [{ 'Fn::If': ['UseToken', { Name: 'API_TOKEN', Value: TOKEN }, { Ref: 'AWS::NoValue' }] }]
+          }
+        }
+      }
+    }
+  },
+  parameter: {
+    Parameters: { ApiToken: { Type: 'String', Default: TOKEN, NoEcho: true } },
+    Resources: {
+      Fn: {
+        Type: 'AWS::Lambda::Function',
+        Properties: { Environment: { Variables: { API_TOKEN: { Ref: 'ApiToken' } } } }
+      }
+    }
+  },
+  mapping: {
+    Mappings: { Config: { prod: { Token: TOKEN } } },
+    Resources: {
+      Fn: {
+        Type: 'AWS::Lambda::Function',
+        Properties: { Environment: { Variables: { API_TOKEN: { 'Fn::FindInMap': ['Config', 'prod', 'Token'] } } } }
       }
     },
-    TaskDefinition: {
-      Type: 'AWS::ECS::TaskDefinition',
-      Properties: {
-        ContainerDefinitions: [{ Name: 'web', Environment: [{ Name: 'TOKEN', Value: 'ecs_template_secret_value' }] }]
-      }
-    },
-    JobDefinition: {
-      Type: 'AWS::Batch::JobDefinition',
-      Properties: {
-        ContainerProperties: { Environment: [{ Name: 'TOKEN', Value: 'batch_template_secret_value' }] },
-        EksProperties: { PodProperties: { Containers: [{ Env: [{ Name: 'T', Value: 'eks_template_secret_value' }] }] } }
-      }
-    },
-    Canary: {
-      Type: 'AWS::Synthetics::Canary',
-      Properties: { RunConfig: { EnvironmentVariables: { TOKEN: 'canary_template_secret_value' } } }
-    },
-    Database: {
-      Type: 'AWS::RDS::DBInstance',
-      Properties: { DBInstanceIdentifier: 'shop-dev-db', MasterUserPassword: 'rds_template_secret_value' }
-    },
-    StpSensitiveData: {
-      Type: 'Custom::StacktapeServiceLambda',
-      Properties: {
-        sensitiveData: [{ ssmParameterName: '/stp/shop-dev/db', value: 'connection_secret_value' }]
+    Outputs: { Token: { Value: { 'Fn::FindInMap': ['Config', 'prod', 'Token'] }, Description: TOKEN } }
+  },
+  stateMachineSub: {
+    Resources: {
+      Machine: {
+        Type: 'AWS::StepFunctions::StateMachine',
+        DependsOn: ['Task'],
+        Properties: {
+          DefinitionString: {
+            'Fn::Sub': JSON.stringify({
+              StartAt: 'Run',
+              States: {
+                Run: {
+                  Type: 'Task',
+                  Parameters: {
+                    Cluster: '${Cluster}',
+                    TaskDefinition: '${Task.Arn}',
+                    Overrides: {
+                      ContainerOverrides: [{ Name: 'app', Environment: [{ Name: 'API_TOKEN', Value: TOKEN }] }]
+                    }
+                  },
+                  End: true
+                }
+              }
+            })
+          }
+        }
       }
     }
   }
 };
-const YAML_TEMPLATE = `Resources:
-  ApiFunction:
+/** A YAML template with CloudFormation's short-form tags, as a hand-written stack is often deployed. */
+const YAML_TEMPLATE = `AWSTemplateFormatVersion: '2010-09-09'
+Conditions:
+  UseToken: !Equals [enabled, enabled]
+Resources:
+  Fn:
     Type: AWS::Lambda::Function
     Properties:
+      Role: !GetAtt FnRole.Arn
       Environment:
         Variables:
-          STRIPE_KEY: yaml_template_secret_value
+          API_TOKEN: !If [UseToken, ${TOKEN}, !Ref AWS::NoValue]
+          URL: !Sub 'https://${TOKEN}.example.com/\${Api}'
 `;
 
 beforeAll(async () => {
@@ -97,8 +149,13 @@ beforeAll(async () => {
       }
       if (new URLSearchParams(body).get('Action') === 'GetTemplate') {
         requests.push('cloudformation.GetTemplate');
-        const stackName = new URLSearchParams(body).get('StackName');
-        const templateBody = stackName === 'shop-yaml' ? YAML_TEMPLATE : JSON.stringify(JSON_TEMPLATE);
+        const stackName = new URLSearchParams(body).get('StackName') ?? '';
+        const templateBody =
+          stackName === 'yaml'
+            ? YAML_TEMPLATE
+            : stackName === 'garbage'
+              ? '{: ['
+              : JSON.stringify(TEMPLATES[stackName]);
         const escaped = templateBody.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
         return answer(
           'text/xml',
@@ -259,7 +316,7 @@ test('Batch jobs keep the container overrides and EKS environment of the run red
 
 // r2af finding 3: reads the catalog accepts returned a Cognito client secret, a canary's environment and the literal
 // values of a template, which `aws call` and the dev agent pass on to the caller's transcript.
-test('Cognito client secrets, canary environments and literal template values are masked', async () => {
+test('Cognito client secrets and canary environments are masked', async () => {
   const client = await executeAwsSdkCommand(
     'cognito',
     'DescribeUserPoolClient',
@@ -275,38 +332,64 @@ test('Cognito client secrets, canary environments and literal template values ar
   const canary = await executeAwsSdkCommand('synthetics', 'GetCanary', { Name: 'shop-dev-check' }, context());
   expect(canary).toMatchObject({ ok: true, data: { Canary: { RunConfig: { TimeoutInSeconds: 60 } } } });
   expect(JSON.stringify(canary)).not.toContain('canary_secret_value');
+});
 
-  const result = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: 'shop-dev' }, context());
-  expect(result.ok).toBeTrue();
-  const body = result.ok ? (result.data as { TemplateBody: string }).TemplateBody : '';
-  for (const secret of [
-    'noecho_default_secret_value',
-    'lambda_template_secret_value',
-    'ecs_template_secret_value',
-    'batch_template_secret_value',
-    'eks_template_secret_value',
-    'canary_template_secret_value',
-    'rds_template_secret_value',
-    'connection_secret_value'
-  ]) {
-    expect(body).not.toContain(secret);
-  }
-  // The rest of the template stays readable.
-  const template = JSON.parse(body);
-  expect(template.Parameters.Tier.Default).toBe('standard');
-  expect(template.Resources.ApiFunction.Properties).toEqual({
-    FunctionName: 'shop-dev-api',
-    Environment: { Variables: { STRIPE_KEY: '[redacted]', TABLE: '[redacted]' } }
+const getTemplate = async (stackName: string) => {
+  const result = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: stackName }, context());
+  expect(JSON.stringify(result)).not.toContain(TOKEN);
+  return result.ok ? JSON.parse((result.data as { TemplateBody: string }).TemplateBody) : result;
+};
+
+// r2af finding 3 and the review of #394: masking known places kept missing others (a conditional entry, a parameter
+// default, a mapping, a state machine definition), so a template comes back as its structure, without any value.
+test('a template comes back as its structure, references kept and every literal value left out', async () => {
+  await Promise.all(Object.keys(TEMPLATES).map(getTemplate));
+
+  expect((await getTemplate('conditionalEcs')).Resources.Task).toEqual({
+    Type: 'AWS::ECS::TaskDefinition',
+    Condition: 'UseToken',
+    Properties: {
+      ContainerDefinitions: [
+        {
+          Name: '[value]',
+          Environment: [{ 'Fn::If': ['UseToken', { Name: '[value]', Value: '[value]' }, { Ref: 'AWS::NoValue' }] }]
+        }
+      ]
+    }
   });
-  expect(template.Resources.TaskDefinition.Properties.ContainerDefinitions[0].Environment).toEqual([
-    { Name: 'TOKEN', Value: '[redacted]' }
-  ]);
-  expect(template.Resources.StpSensitiveData.Properties.sensitiveData).toEqual([
-    { ssmParameterName: '/stp/shop-dev/db', value: '[redacted]' }
-  ]);
+  const parameter = await getTemplate('parameter');
+  expect(parameter.Parameters).toEqual({ ApiToken: { Type: 'String' } });
+  expect(parameter.Resources.Fn.Properties.Environment.Variables).toEqual({ API_TOKEN: { Ref: 'ApiToken' } });
+  const mapping = await getTemplate('mapping');
+  expect(mapping.Mappings).toEqual({ Config: { prod: { Token: '[value]' } } });
+  expect(mapping.Outputs).toEqual({
+    Token: { Value: { 'Fn::FindInMap': ['Config', '[value]', '[value]'] }, Description: '[value]' }
+  });
+  // A substitution keeps what it references, not the text around it.
+  expect((await getTemplate('stateMachineSub')).Resources.Machine).toEqual({
+    Type: 'AWS::StepFunctions::StateMachine',
+    DependsOn: ['Task'],
+    Properties: { DefinitionString: { 'Fn::Sub': '${Cluster}[value]${Task.Arn}' } }
+  });
 
-  // A YAML template is not parsed for masking; it is refused instead.
-  const yaml = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: 'shop-yaml' }, context());
-  expect(yaml).toMatchObject({ ok: false, code: 'OPERATION_NOT_ALLOWED' });
-  expect(JSON.stringify(yaml)).not.toContain('yaml_template_secret_value');
+  // YAML with short-form tags is read as the long form, and returned as JSON.
+  expect(await getTemplate('yaml')).toEqual({
+    AWSTemplateFormatVersion: '2010-09-09',
+    Conditions: { UseToken: { 'Fn::Equals': ['[value]', '[value]'] } },
+    Resources: {
+      Fn: {
+        Type: 'AWS::Lambda::Function',
+        Properties: {
+          Role: { 'Fn::GetAtt': 'FnRole.Arn' },
+          Environment: {
+            Variables: {
+              API_TOKEN: { 'Fn::If': ['UseToken', '[value]', { Ref: 'AWS::NoValue' }] },
+              URL: { 'Fn::Sub': '${Api}' }
+            }
+          }
+        }
+      }
+    }
+  });
+  expect(await getTemplate('garbage')).toMatchObject({ ok: false, code: 'OPERATION_NOT_ALLOWED' });
 });

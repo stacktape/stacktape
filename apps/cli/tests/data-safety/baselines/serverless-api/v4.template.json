@@ -1388,17 +1388,26 @@
                     "ecs:DescribeClusters",
                     "ecs:DescribeServices",
                     "ecs:DescribeTasks",
-                    "ecs:DescribeTaskDefinition",
-                    "ecs:DescribeContainerInstances",
-                    "ecs:ListTasks",
-                    "ecs:ListServices",
                     "ecs:ListContainerInstances",
                     "ecs:ListTagsForResource"
                   ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["ecs:DescribeTaskDefinition"],
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base",
                       "aws:RequestedRegion": {
                         "Ref": "AWS::Region"
                       }

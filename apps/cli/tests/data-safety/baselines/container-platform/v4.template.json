@@ -2682,17 +2682,26 @@
                     "ecs:DescribeClusters",
                     "ecs:DescribeServices",
                     "ecs:DescribeTasks",
-                    "ecs:DescribeTaskDefinition",
-                    "ecs:DescribeContainerInstances",
-                    "ecs:ListTasks",
-                    "ecs:ListServices",
                     "ecs:ListContainerInstances",
                     "ecs:ListTagsForResource"
                   ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["ecs:DescribeTaskDefinition"],
                   "Resource": "*",
                   "Condition": {
                     "StringEquals": {
-                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base",
                       "aws:RequestedRegion": {
                         "Ref": "AWS::Region"
                       }
@@ -2885,6 +2894,31 @@
                       "Fn::Sub": "arn:aws:elasticache:${AWS::Region}:${AWS::AccountId}:replicationgroup:j2-v3-baseline-j2base-cache"
                     }
                   ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "ecs-cluster-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["ecs:ListServices", "ecs:ListTasks", "ecs:DescribeContainerInstances"],
+                  "Resource": "*",
+                  "Condition": {
+                    "ArnEquals": {
+                      "ecs:cluster": [
+                        {
+                          "Fn::Sub": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/j2-v3-baseline-j2base-web-cluster"
+                        },
+                        {
+                          "Fn::Sub": "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/j2-v3-baseline-j2base-worker-cluster"
+                        }
+                      ]
+                    }
+                  }
                 }
               ]
             }

@@ -2397,7 +2397,7 @@ test('the dev agent role reads only its own stack, in its own region', async () 
   const resources = template.Resources as Record<string, any>;
   const statements = resources.StpDevAgentRole.Properties.Policies.flatMap(
     ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
-  ) as { Effect: string; Action: string[]; Resource: unknown; Condition?: Record<string, Record<string, unknown>> }[];
+  ) as { Effect: string; Action: string[]; Resource: unknown; Condition?: Record<string, Record<string, any>> }[];
   const allows = statements.filter(({ Effect }) => Effect === 'Allow');
 
   // What CloudFormation substitutes, for this test's account and region; a logical ID becomes the resource's name.
@@ -2428,10 +2428,16 @@ test('the dev agent role reads only its own stack, in its own region', async () 
   const matches = (pattern: string, value: string) =>
     new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*')}$`).test(value);
   /** IAM's answer for one request, with the stack-name tag the resource carries and the region the call goes to. */
-  const isAllowed = (action: string, arn: string, { tag, requestRegion }: { tag: string; requestRegion: string }) =>
+  const isAllowed = (
+    action: string,
+    arn: string,
+    { tag, requestRegion, cluster }: { tag: string; requestRegion: string; cluster?: string }
+  ) =>
     allows.some(({ Action, Resource, Condition }) => {
       if (!Action.some((pattern) => matches(pattern, action))) return false;
       if (![Resource].flat().some((pattern) => matches(resolve(pattern), arn))) return false;
+      const clusters = Condition?.ArnEquals?.['ecs:cluster'];
+      if (clusters && !(cluster && [clusters].flat().map(resolve).includes(cluster))) return false;
       return Object.entries(Condition?.StringEquals ?? {}).every(([key, expected]) =>
         key === 'aws:RequestedRegion'
           ? resolve(expected) === requestRegion
@@ -2462,6 +2468,20 @@ test('the dev agent role reads only its own stack, in its own region', async () 
     )
   ).toBe(false);
 
+  // ECS lists services and tasks by cluster; a task definition read has no resource, only the region.
+  const cluster = Object.keys(resources).find((name) => resources[name].Type === 'AWS::ECS::Cluster')!;
+  const clusterArn = `arn:aws:ecs:${region}:${accountId}:cluster/${resources[cluster].Properties.ClusterName}`;
+  expect(isAllowed('ecs:ListServices', '*', { ...own, cluster: clusterArn })).toBe(true);
+  expect(
+    isAllowed('ecs:ListServices', '*', {
+      ...otherStage,
+      cluster: clusterArn.replace('shop-dev', 'shop-dev-production')
+    })
+  ).toBe(false);
+  expect(isAllowed('ecs:DescribeTaskDefinition', '*', { tag: '', requestRegion: region })).toBe(true);
+  expect(isAllowed('ecs:DescribeTaskDefinition', '*', { tag: '', requestRegion: 'eu-west-3' })).toBe(false);
+  expect(isAllowed('ecs:DescribeServices', `arn:aws:ecs:${region}:${accountId}:service/x/y`, otherStage)).toBe(false);
+
   // Databases, caches and APIs by their identifiers in the template; another stage's are not among them.
   const database = Object.keys(resources).find((name) => resources[name].Type === 'AWS::RDS::DBInstance')!;
   const databaseArn = `arn:aws:rds:${region}:${accountId}:db:${physicalName(database)}`;
@@ -2486,8 +2506,13 @@ test('the dev agent role reads only its own stack, in its own region', async () 
   for (const { Resource, Condition } of allows) {
     for (const pattern of [Resource].flat().map(resolve)) {
       const arnRegion = pattern.split(':')[3];
-      if (pattern === '*') expect(Condition?.StringEquals?.['aws:RequestedRegion']).toEqual({ Ref: 'AWS::Region' });
-      else if (!pattern.startsWith('arn:aws:s3:')) expect(arnRegion).toBe(region);
+      if (pattern === '*' && Condition?.ArnEquals) {
+        for (const cluster of [Condition.ArnEquals['ecs:cluster']].flat().map(resolve)) {
+          expect(cluster.split(':')[3]).toBe(region);
+        }
+      } else if (pattern === '*') {
+        expect(Condition?.StringEquals?.['aws:RequestedRegion']).toEqual({ Ref: 'AWS::Region' });
+      } else if (!pattern.startsWith('arn:aws:s3:')) expect(arnRegion).toBe(region);
     }
   }
 });

@@ -2026,7 +2026,7 @@ export const buildStartupMessage = (params: {
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
   lines.push('            cognito, apigatewayv2, xray, kinesis, firehose, ...');
   lines.push('  Scoped to stack resources via IAM role. Writes and Secrets Manager/SSM value reads are rejected;');
-  lines.push('  environment values, client secrets and template literals are redacted. Logs, objects and items return');
+  lines.push('  environment values, client secrets and template values are redacted. Logs, objects and items return');
   lines.push('  application data as is.');
   lines.push('');
   lines.push('  Examples:');

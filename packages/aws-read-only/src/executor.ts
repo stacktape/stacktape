@@ -12,6 +12,7 @@ import {
   describeAwsCallRefusal,
   resolveAwsServiceName
 } from './operations';
+import { getTemplateSkeleton, parseTemplateBody } from './template-skeleton';
 
 export type AwsSdkContext = {
   region: string;
@@ -217,59 +218,12 @@ const redactKeys = (node: unknown, redact: (key: string, value: unknown) => unkn
   );
 };
 
-/** Template properties that hold a credential itself rather than a reference to one. */
-const TEMPLATE_CREDENTIAL_PROPERTIES = new Set([
-  'AuthToken',
-  'ClientSecret',
-  'MasterUserPassword',
-  'Password',
-  'SecretString'
-]);
-
 /**
- * The values a deployed template holds literally: environment variables of Lambda functions (`Environment.Variables`),
- * ECS and Batch containers (`Environment`, `Env`) and canaries (`EnvironmentVariables`), the connection details
- * Stacktape stores through its sensitive-data resource (`sensitiveData`), credential properties such as
- * `MasterUserPassword`, and the defaults of `NoEcho` parameters. `aws call` masks the same environment values in
- * Lambda, ECS and Batch reads, and the template must not show them either.
- */
-const redactTemplate = (template: Record<string, unknown>) => {
-  const parameters = isPlainObject(template.Parameters)
-    ? Object.fromEntries(
-        Object.entries(template.Parameters).map(([name, parameter]) => [
-          name,
-          isPlainObject(parameter) && parameter.NoEcho !== undefined && parameter.Default !== undefined
-            ? { ...parameter, Default: REDACTED_VALUE }
-            : parameter
-        ])
-      )
-    : template.Parameters;
-  const redactEntries = (entries: unknown[]) =>
-    entries.map((entry) =>
-      isPlainObject(entry)
-        ? Object.fromEntries(
-            Object.entries(entry).map(([key, value]) => [key, /^value$/i.test(key) ? REDACTED_VALUE : value])
-          )
-        : entry
-    );
-  return redactKeys({ ...template, ...(parameters === undefined ? {} : { Parameters: parameters }) }, (key, value) => {
-    if (TEMPLATE_CREDENTIAL_PROPERTIES.has(key)) return REDACTED_VALUE;
-    if (key === 'sensitiveData' && Array.isArray(value)) return redactEntries(value);
-    if (key !== 'Environment' && key !== 'Env' && key !== 'EnvironmentVariables') return undefined;
-    if (Array.isArray(value)) return redactEntries(value);
-    if (!isPlainObject(value)) return undefined;
-    return isPlainObject(value.Variables)
-      ? { ...value, Variables: redactRecordValues(value.Variables) }
-      : redactRecordValues(value);
-  });
-};
-
-/**
- * Masks what a read returns of credentials and configuration values, or refuses to return a response it cannot mask:
- * environment values (see `redactEnvironmentValues`), a Cognito app client's `ClientSecret` (`DescribeUserPoolClient`),
- * a canary's `RunConfig.EnvironmentVariables` (`GetCanary`, `DescribeCanaries`) and the literal values of a
- * CloudFormation template (`GetTemplate`, see `redactTemplate`). A template that is not JSON (a YAML template) is
- * refused: its masking would depend on parsing CloudFormation's YAML tags.
+ * Masks what a read returns of credentials and configuration values: environment values (see
+ * `redactEnvironmentValues`), a Cognito app client's `ClientSecret` (`DescribeUserPoolClient`) and a canary's
+ * `RunConfig.EnvironmentVariables` (`GetCanary`, `DescribeCanaries`). A CloudFormation template (`GetTemplate`) comes
+ * back as its structure without any literal value (`getTemplateSkeleton`), as JSON whichever format it was deployed in;
+ * a body that parses as neither JSON nor YAML is refused.
  */
 const redactResponse = (service: AwsReadOnlyService, data: unknown): AwsSdkResult => {
   if (service === 'lambda' || service === 'ecs' || service === 'batch') {
@@ -292,22 +246,16 @@ const redactResponse = (service: AwsReadOnlyService, data: unknown): AwsSdkResul
     };
   }
   if (service === 'cloudformation' && isPlainObject(data) && typeof data.TemplateBody === 'string') {
-    let template: unknown;
-    try {
-      template = JSON.parse(data.TemplateBody);
-    } catch {
-      template = undefined;
-    }
-    if (!isPlainObject(template)) {
+    const template = parseTemplateBody(data.TemplateBody);
+    if (!template) {
       return {
         ok: false,
         code: 'OPERATION_NOT_ALLOWED',
-        error:
-          'The template is not JSON, so its literal values, such as environment variables, cannot be masked. It is not returned.',
+        error: 'The template is neither JSON nor YAML, so its literal values cannot be left out. It is not returned.',
         hint: 'Read the stack with DescribeStacks or DescribeStackResources, or the resources it created with their own describe operations.'
       };
     }
-    return { ok: true, data: { ...data, TemplateBody: JSON.stringify(redactTemplate(template), null, 2) } };
+    return { ok: true, data: { ...data, TemplateBody: JSON.stringify(getTemplateSkeleton(template), null, 2) } };
   }
   return { ok: true, data };
 };

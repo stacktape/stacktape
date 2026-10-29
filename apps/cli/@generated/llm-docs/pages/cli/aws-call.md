@@ -27,10 +27,10 @@ terminal.
 
 Lambda function configurations, ECS task definitions and Batch job definitions come back with environment variable
 values replaced by `[redacted]`; variable names and the other settings stay. Cognito `DescribeUserPoolClient` redacts
-the client secret. CloudFormation `GetTemplate` redacts the template's literal values: environment variables,
-credential properties such as `MasterUserPassword` and the defaults of `NoEcho` parameters. A template that is not
-JSON, such as a YAML template, is refused, because its values cannot be masked reliably; read the stack with
-`DescribeStacks` or `DescribeStackResources` instead. Other accepted reads return application data as it is: log
+the client secret. CloudFormation `GetTemplate` returns the template's structure without any value, as JSON whether
+the stack was deployed from JSON or YAML: logical IDs, resource types, conditions, dependencies, property names and
+what `Ref`, `Fn::GetAtt`, `Fn::Sub` and `Fn::If` reference stay, and every literal value reads `[value]`. Parameters,
+mappings and outputs keep their names only. Other accepted reads return application data as it is: log
 events, S3 objects and DynamoDB items contain whatever the application wrote. Read them when a diagnosis needs that
 data.
 
