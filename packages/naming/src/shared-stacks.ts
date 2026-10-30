@@ -60,6 +60,19 @@ export const getSharedNetworkStackName = () => 'stacktape-network';
 /** The NAT of the shared network: a separate stack, created by the first stage that needs outbound internet. */
 export const getSharedNatStackName = () => 'stacktape-network-nat';
 
+/** The network stack's janitor, which removes the NAT and then the network once no stage used them for a while. */
+export const getSharedNetworkJanitorFunctionName = () => `${getSharedNetworkStackName()}-janitor`;
+
+/** Parameters of the shared network that live outside its stacks, so a deploy can write them before the stacks exist. */
+export const getSharedNetworkParameterPrefix = () => '/stacktape/shared-network';
+
+/**
+ * When a shared stack was last used: written by each deploy before it makes sure of the stack, and by the janitor
+ * while a stage imports it. The janitor removes the stack once this is older than its grace period.
+ */
+export const getSharedNetworkLastUsedParameterName = (stackName: string) =>
+  `${getSharedNetworkParameterPrefix()}/${stackName}/last-used`;
+
 /**
  * Exports of the shared network and its NAT. A stage in the shared network imports `vpc-id` in its stage security
  * group, and a stage that uses the NAT imports `nat` in a tag of that group: CloudFormation then refuses to delete

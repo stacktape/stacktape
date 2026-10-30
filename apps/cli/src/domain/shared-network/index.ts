@@ -14,7 +14,11 @@ import {
 import { templateManager } from '@domain-services/template-manager';
 import { vpcManager, type SharedNetwork } from '@domain-services/vpc-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getSharedNatStackName, getSharedNetworkStackName } from '@stacktape/naming/shared-stacks';
+import {
+  getSharedNatStackName,
+  getSharedNetworkLastUsedParameterName,
+  getSharedNetworkStackName
+} from '@stacktape/naming/shared-stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../../commands/_utils/agent-mode';
@@ -77,7 +81,8 @@ const requirement = ({
   parameters: {},
   roleArn: configManager.deploymentConfig?.cloudformationRoleArn,
   beforeCreate: async () => {},
-  // The last stage's delete removes the shared stacks (`removal.ts`); a deploy meanwhile waits and creates them again.
+  // The network's janitor removes the shared stacks after a day without stages; a deploy meanwhile waits and creates
+  // them again.
   recreateAfterDeletion: true
 });
 
@@ -111,9 +116,42 @@ export const readSharedNetworkOutputs = (stack: SharedStackDetails): SharedNetwo
 
 const sharedStackManager = new SharedResourceStackManager({ adapter });
 
-/** The shared stacks this deploy's template is built for, by stack ID. */
-const ensuredStacks = new Map<string, string>();
+const markUsed = (stackName: string) =>
+  awsSdkManager.parameterStore.put({
+    name: getSharedNetworkLastUsedParameterName(stackName),
+    value: new Date().toISOString()
+  });
 
+/** The shared stacks this deploy made sure of. It marks them again while it runs, so a long deploy keeps them too. */
+const markedStacks = new Set<string>();
+let markTimer: ReturnType<typeof setInterval> | undefined;
+
+const keepMarkingUsed = (stackName: string) => {
+  markedStacks.add(stackName);
+  if (markTimer) return;
+  markTimer = setInterval(() => {
+    // The first mark was required; a later one that fails is retried on the next tick.
+    for (const name of markedStacks) markUsed(name).catch(() => {});
+  }, 30_000);
+  markTimer.unref();
+};
+
+/** Called once the stage stack imports the shared stacks, or the deploy ended. */
+export const stopMarkingSharedNetworkUsed = () => {
+  clearInterval(markTimer);
+  markTimer = undefined;
+  markedStacks.clear();
+};
+
+/**
+ * Makes sure of a shared stack and keeps the network's janitor from removing it while this deploy builds.
+ *
+ * The deploy first marks the stack as used (`getSharedNetworkLastUsedParameterName`): the janitor removes a stack only
+ * when that mark is older than its grace period, and it reads the mark again after it turned termination protection
+ * off. After making sure of the stack, the deploy turns protection on again if it is off, which makes a later delete
+ * fail, and reads the stack by ID once more: a delete that got in before that is waited for, and the stack is created
+ * again. The deploy marks the stack again every 30 seconds until its stage stack imports it.
+ */
 const ensureStack = async ({
   stackName,
   creatingMessage,
@@ -123,46 +161,43 @@ const ensureStack = async ({
   creatingMessage: string;
   requirementInput: Parameters<typeof requirement>[0];
 }) => {
-  const before = await adapter.get(stackName);
-  if (!before) tuiManager.info(creatingMessage);
-  else if (before.StackStatus === 'DELETE_IN_PROGRESS') {
-    tuiManager.info(
-      `The shared stack \`${stackName}\` is being removed because the last stage that used it was deleted. Waiting for that to finish, then creating it again.`
-    );
-  }
-  await sharedStackManager.ensure(requirement(requirementInput));
-  const stack = await adapter.get(stackName);
-  if (!stack) {
-    throw new CliError({
-      category: 'CLOUDFORMATION',
-      code: 'SHARED_NETWORK_DISAPPEARED',
-      message: `The shared stack \`${stackName}\` disappeared right after it was ready.`,
-      hints: 'Check CloudFormation for a deletion, then retry the deployment.'
-    });
-  }
-  // A removal that CloudFormation canceled, because a stage started using the stack meanwhile, can leave it unprotected.
-  if (stack.EnableTerminationProtection === false) {
-    await awsSdkManager.cloudFormation.setTerminationProtection(true, stackName);
-  }
-  if (stack.StackId) ensuredStacks.set(stackName, stack.StackId);
-  return stack;
-};
-
-/**
- * Fails the deploy when a shared stack its template was built for is gone: the delete of the last stage that used it
- * removed it after this deploy had made sure of it. The template holds the network's IDs, so it cannot be submitted,
- * and CloudFormation would refuse its imports anyway. Running the deploy again creates the stacks again.
- */
-export const confirmSharedNetworkUnchanged = async () => {
-  for (const [stackName, stackId] of ensuredStacks) {
+  for (let attempt = 1; ; attempt += 1) {
+    await markUsed(stackName);
+    const before = await adapter.get(stackName);
+    if (!before) tuiManager.info(creatingMessage);
+    else if (before.StackStatus === 'DELETE_IN_PROGRESS') {
+      tuiManager.info(
+        `The shared stack \`${stackName}\` is being removed because no stage used it for a day. Waiting for that to finish, then creating it again.`
+      );
+    }
+    await sharedStackManager.ensure(requirement(requirementInput));
     const stack = await adapter.get(stackName);
-    if (stack?.StackId === stackId && stack.StackStatus !== 'DELETE_IN_PROGRESS') continue;
-    throw new CliError({
-      category: 'CLOUDFORMATION',
-      code: 'SHARED_NETWORK_REMOVED_DURING_DEPLOY',
-      message: `The shared stack \`${stackName}\` was removed while this deploy was building: the delete of the last stage that used it removed it.`,
-      hints: 'Run the deploy again. It creates the shared stack again before it builds the template.'
-    });
+    if (stack?.StackId && stack.StackStatus !== 'DELETE_IN_PROGRESS') {
+      // A removal that stopped, or one that has yet to send its delete, leaves the stack unprotected.
+      const protect =
+        stack.EnableTerminationProtection === false
+          ? awsSdkManager.cloudFormation.setTerminationProtection(true, stack.StackId)
+          : Promise.resolve();
+      const protectError = await protect.then(
+        () => undefined,
+        (error: unknown) => error
+      );
+      const current = await adapter.get(stack.StackId);
+      // Protection cannot be changed on a stack being deleted; any other failure leaves the stack unguarded.
+      if (protectError && current?.StackStatus !== 'DELETE_IN_PROGRESS') throw protectError;
+      if (current?.StackStatus !== 'DELETE_IN_PROGRESS' && current?.StackStatus !== 'DELETE_COMPLETE') {
+        keepMarkingUsed(stackName);
+        return stack;
+      }
+    }
+    if (attempt >= 3) {
+      throw new CliError({
+        category: 'CLOUDFORMATION',
+        code: 'SHARED_NETWORK_KEEPS_CHANGING',
+        message: `The shared stack \`${stackName}\` kept being removed while this deploy made sure of it.`,
+        hints: 'Check CloudFormation for deletes of the stack, then retry the deployment.'
+      });
+    }
   }
 };
 
@@ -171,7 +206,7 @@ const ensureSharedNetwork = async ({ usesNat }: { usesNat: boolean }): Promise<S
   for (let attempt = 1; ; attempt += 1) {
     const networkStack = await ensureStack({
       stackName: getSharedNetworkStackName(),
-      creatingMessage: `Creating the shared non-production network \`${getSharedNetworkStackName()}\` in this account and region (about a minute, once; it costs nothing).`,
+      creatingMessage: `Creating the shared non-production network \`${getSharedNetworkStackName()}\` in this account and region (about a minute; it costs nothing).`,
       requirementInput: {
         kind: SHARED_NETWORK_KIND,
         stackName: getSharedNetworkStackName(),
@@ -184,7 +219,7 @@ const ensureSharedNetwork = async ({ usesNat }: { usesNat: boolean }): Promise<S
     try {
       const natStack = await ensureStack({
         stackName: getSharedNatStackName(),
-        creatingMessage: `Creating the shared NAT \`${getSharedNatStackName()}\`: one ${SHARED_NAT_INSTANCE_TYPE} instance (about $7.70 a month) that gives every non-production stage here outbound internet. It takes a few minutes, once, and is removed with the last stage that uses it.`,
+        creatingMessage: `Creating the shared NAT \`${getSharedNatStackName()}\`: one ${SHARED_NAT_INSTANCE_TYPE} instance (about $7.70 a month) that gives every non-production stage here outbound internet. It takes a few minutes, and it is removed once no stage has used it for a day.`,
         requirementInput: {
           kind: SHARED_NAT_KIND,
           stackName: getSharedNatStackName(),
