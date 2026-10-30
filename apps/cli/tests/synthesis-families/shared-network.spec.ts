@@ -197,3 +197,68 @@ describe('the shared NAT stack', () => {
     expect(SHARED_NAT_CONTRACT_VERSION).toBe(1);
   });
 });
+
+describe('the shared network stack', () => {
+  test('adds its janitor without touching the VPC, subnets, route tables or exports of version 1', async () => {
+    const { buildSharedNetworkTemplate } = await import('../../src/domain/shared-network/template');
+    const network = buildSharedNetworkTemplate() as unknown as {
+      Resources: Record<string, Resource>;
+      Outputs: Record<string, { Export?: { Name: string } }>;
+    };
+    const janitor = Object.keys(network.Resources).filter((logicalId) => logicalId.startsWith('Janitor'));
+    expect(janitor.sort()).toEqual([
+      'JanitorDeletionBarrier',
+      'JanitorFunction',
+      'JanitorLogGroup',
+      'JanitorRole',
+      'JanitorSchedule'
+    ]);
+    // Version 1 resources neither reference nor depend on the janitor, so the upgrade only adds resources.
+    const version1 = Object.entries(network.Resources).filter(([logicalId]) => !logicalId.startsWith('Janitor'));
+    expect(version1).toHaveLength(22);
+    for (const [, resource] of version1) expect(JSON.stringify(resource)).not.toContain('Janitor');
+    expect(
+      Object.values(network.Outputs)
+        .flatMap(({ Export }) => (Export ? [Export.Name] : []))
+        .sort()
+    ).toEqual([
+      'stacktape-network-private-route-table-ids',
+      'stacktape-network-private-subnet-ids',
+      'stacktape-network-public-subnet-ids',
+      'stacktape-network-vpc-id'
+    ]);
+  });
+
+  test("keeps the janitor's function and role until everything else of the stack is deleted", async () => {
+    const { buildSharedNetworkTemplate } = await import('../../src/domain/shared-network/template');
+    const { Resources } = buildSharedNetworkTemplate() as unknown as { Resources: Record<string, Resource> };
+    // CloudFormation deletes a resource only after everything that depends on it. The barrier, whose delete waits for
+    // the rest of the stack, depends on the function and the role; the rest of the janitor depends on the role.
+    expect(Resources.JanitorDeletionBarrier.Properties?.ServiceToken).toEqual({
+      'Fn::GetAtt': ['JanitorFunction', 'Arn']
+    });
+    expect(Resources.JanitorDeletionBarrier.DependsOn).toEqual(['JanitorRole']);
+    expect(Resources.JanitorFunction.Properties?.Role).toEqual({ 'Fn::GetAtt': ['JanitorRole', 'Arn'] });
+    expect(Resources.JanitorLogGroup.DependsOn).toEqual(['JanitorRole']);
+    // What deletes resources applies in CloudFormation's session only, never in the function's own.
+    const statements = Resources.JanitorRole.Properties?.Policies[0].PolicyDocument.Statement as Array<{
+      Action: string | string[];
+      Condition?: unknown;
+    }>;
+    const functionDeletes = new Set([
+      'cloudformation:DeleteStack',
+      'cloudformation:UpdateTerminationProtection',
+      'ssm:DeleteParameter'
+    ]);
+    const cloudFormationOnly = statements.filter(({ Condition }) =>
+      JSON.stringify(Condition ?? {}).includes('AWSCloudFormation')
+    );
+    for (const statement of statements) {
+      if (cloudFormationOnly.includes(statement)) continue;
+      const deletes = [statement.Action]
+        .flat()
+        .filter((action) => /:(Delete|Detach|Disassociate|Release|Revoke|Remove|Update)/.test(action));
+      expect(deletes.filter((action) => !functionDeletes.has(action))).toEqual([]);
+    }
+  });
+});

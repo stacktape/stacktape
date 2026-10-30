@@ -1,21 +1,8 @@
-import type {
-  _InstanceType,
-  EC2Client,
-  InstanceTypeInfo,
-  NetworkInterface,
-  RouteTable,
-  SecurityGroup,
-  Subnet,
-  Vpc,
-  VpcEndpoint
-} from '@aws-sdk/client-ec2';
+import type { _InstanceType, EC2Client, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import {
   AssociateIamInstanceProfileCommand,
   DescribeInstancesCommand,
   DescribeInstanceTypesCommand,
-  DescribeNetworkInterfacesCommand,
-  DescribeSecurityGroupsCommand,
-  DescribeVpcEndpointsCommand,
   StartInstancesCommand,
   DescribeRouteTablesCommand,
   DescribeSubnetsCommand,
@@ -70,55 +57,6 @@ export class AwsEc2 {
       .send(new DescribeRouteTablesCommand({ Filters: [{ Name: 'vpc-id', Values: [vpcId] }] }))
       .catch(errorHandler);
     return result.RouteTables || [];
-  };
-
-  describeNetworkInterfaces = async (vpcId: string): Promise<NetworkInterface[]> => {
-    const errorHandler = this.#getErrorHandler('Could not describe network interfaces.');
-    const result: NetworkInterface[] = [];
-    let nextToken: string | undefined;
-    do {
-      const page = await this.#createClient()
-        .send(
-          new DescribeNetworkInterfacesCommand({
-            Filters: [{ Name: 'vpc-id', Values: [vpcId] }],
-            NextToken: nextToken
-          })
-        )
-        .catch(errorHandler);
-      result.push(...(page.NetworkInterfaces ?? []));
-      nextToken = page.NextToken;
-    } while (nextToken);
-    return result;
-  };
-
-  describeSecurityGroups = async (vpcId: string): Promise<SecurityGroup[]> => {
-    const errorHandler = this.#getErrorHandler('Could not describe security groups.');
-    const result: SecurityGroup[] = [];
-    let nextToken: string | undefined;
-    do {
-      const page = await this.#createClient()
-        .send(
-          new DescribeSecurityGroupsCommand({ Filters: [{ Name: 'vpc-id', Values: [vpcId] }], NextToken: nextToken })
-        )
-        .catch(errorHandler);
-      result.push(...(page.SecurityGroups ?? []));
-      nextToken = page.NextToken;
-    } while (nextToken);
-    return result;
-  };
-
-  describeVpcEndpoints = async (vpcId: string): Promise<VpcEndpoint[]> => {
-    const errorHandler = this.#getErrorHandler('Could not describe VPC endpoints.');
-    const result: VpcEndpoint[] = [];
-    let nextToken: string | undefined;
-    do {
-      const page = await this.#createClient()
-        .send(new DescribeVpcEndpointsCommand({ Filters: [{ Name: 'vpc-id', Values: [vpcId] }], NextToken: nextToken }))
-        .catch(errorHandler);
-      result.push(...(page.VpcEndpoints ?? []));
-      nextToken = page.NextToken;
-    } while (nextToken);
-    return result;
   };
 
   describeVpcs = async (vpcIds: string[]): Promise<Vpc[]> => {

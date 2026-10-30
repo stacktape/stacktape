@@ -14,12 +14,15 @@ import {
 import {
   getSharedNatStackName,
   getSharedNetworkExportName,
+  getSharedNetworkJanitorFunctionName,
+  getSharedNetworkParameterPrefix,
   getSharedNetworkStackName
 } from '@stacktape/naming/shared-stacks';
 import { getNatInstanceHeartbeatParameterName } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getNatInstanceBootScript } from '../calculated-stack-overview-manager/resource-resolvers/background-resources/nat-instance-boot-script';
 import { INSTANCE_PROFILE_FUNCTION_SOURCE } from './instance-profile-function';
+import { JANITOR_FUNCTION_SOURCE } from './janitor-function';
 
 export const SHARED_NETWORK_KIND = 'shared-network';
 export const SHARED_NAT_KIND = 'shared-network-nat';
@@ -28,10 +31,10 @@ export const SHARED_NETWORK_OWNERSHIP_KEY = 'default';
 
 /**
  * Version 1: the VPC, three public and three private subnets, the route tables and the S3 and DynamoDB gateway
- * endpoints. Upgrades must be additive: stages use the subnet IDs as literals, and Lambda and RDS place resources in
- * them, so existing subnets, route tables and exports never change.
+ * endpoints. Version 2 adds the janitor (`janitor-function.ts`). Upgrades must be additive: stages use the subnet IDs
+ * as literals, and Lambda and RDS place resources in them, so existing subnets, route tables and exports never change.
  */
-export const SHARED_NETWORK_CONTRACT_VERSION = 1;
+export const SHARED_NETWORK_CONTRACT_VERSION = 2;
 export const SHARED_NAT_CONTRACT_VERSION = 1;
 
 /** The dev network uses 10.230.0.0/16 and stage VPCs 172.16.0.0/16; none overlap, so they can be peered later. */
@@ -45,11 +48,227 @@ export const SHARED_NAT_INSTANCE_TYPE = 't4g.nano';
 const AL2023_ARM64_IMAGE = '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}';
 const NAT_READY_TIMEOUT = 'PT6M';
 
+/** How long a shared stack stays without users before the janitor removes it: a day, so preview stages that come and go keep the NAT. */
+const DEFAULT_UNUSED_SECONDS = 24 * 60 * 60;
+
+/**
+ * The grace period. `STP_SHARED_NETWORK_UNUSED_MINUTES` is internal, for live tests: it applies when a deploy creates
+ * or upgrades the network stack, and a value under an hour also makes the janitor run every minute.
+ */
+export const getSharedNetworkUnusedSeconds = () => {
+  const minutes = Number(process.env.STP_SHARED_NETWORK_UNUSED_MINUTES);
+  return Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes * 60) : DEFAULT_UNUSED_SECONDS;
+};
+
 const ownershipOutputs = (kind: string, contractVersion: number) => ({
   ContractVersion: { Value: `${contractVersion}` },
   ResourceKind: { Value: kind },
   OwnershipKey: { Value: SHARED_NETWORK_OWNERSHIP_KEY }
 });
+
+/**
+ * The janitor of the shared stacks (`janitor-function.ts`): a function that a schedule runs, its log group, and one
+ * role that the function, the schedule and CloudFormation use. Every logical ID starts with `Janitor`, which the deletion
+ * barrier relies on.
+ *
+ * The role reads what the function checks, deletes only the two shared stacks, and passes itself to CloudFormation for
+ * those deletes. The delete actions CloudFormation needs for the stacks' resources apply only in CloudFormation's
+ * session (`AWSCloudFormation`), never in the function's own. CloudFormation deletes the role it is using last: the
+ * barrier, which the function's delete handler holds until everything else is deleted, depends on the role and the
+ * function. None of this delays the VPC, which does not depend on it. The schedule is an EventBridge Scheduler schedule:
+ * CloudFormation creates it in about 2 seconds, and an `AWS::Events::Rule` in about 60.
+ */
+const buildJanitorResources = (): CloudFormationTemplate['Resources'] => {
+  const networkName = getSharedNetworkStackName();
+  const natName = getSharedNatStackName();
+  const functionName = getSharedNetworkJanitorFunctionName();
+  const unusedSeconds = getSharedNetworkUnusedSeconds();
+  const arn = (service: string, resource: string, region = '${AWS::Region}') =>
+    sub(`arn:\${AWS::Partition}:${service}:${region}:\${AWS::AccountId}:${resource}`);
+  const sharedStackArns = [networkName, natName].map((name) => arn('cloudformation', `stack/${name}/*`));
+  const logGroupName = `/aws/lambda/${functionName}`;
+  const onlyCloudFormation = { StringLike: { 'aws:userid': '*:AWSCloudFormation' } };
+  return {
+    JanitorRole: cfnResource('AWS::IAM::Role', {
+      AssumeRolePolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: {
+              Service: ['lambda.amazonaws.com', 'scheduler.amazonaws.com', 'cloudformation.amazonaws.com']
+            },
+            Action: 'sts:AssumeRole'
+          }
+        ]
+      },
+      Policies: [
+        {
+          PolicyName: 'janitor',
+          PolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: [
+                  'cloudformation:DescribeStacks',
+                  'cloudformation:DescribeStackResources',
+                  'cloudformation:ListStackResources',
+                  'cloudformation:ListImports',
+                  'ec2:Describe*',
+                  'autoscaling:Describe*'
+                ],
+                Resource: '*'
+              },
+              {
+                Effect: 'Allow',
+                Action: ['cloudformation:DeleteStack', 'cloudformation:UpdateTerminationProtection'],
+                Resource: sharedStackArns
+              },
+              // The schedule runs the function with this role.
+              { Effect: 'Allow', Action: 'lambda:InvokeFunction', Resource: arn('lambda', `function:${functionName}`) },
+              {
+                Effect: 'Allow',
+                Action: 'iam:PassRole',
+                // The role's own ARN; a name pattern, because a policy of the role cannot reference the role.
+                Resource: sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:role/${networkName}-JanitorRole-*`),
+                Condition: { StringEquals: { 'iam:PassedToService': 'cloudformation.amazonaws.com' } }
+              },
+              {
+                Effect: 'Allow',
+                Action: ['ssm:GetParameter', 'ssm:PutParameter', 'ssm:DeleteParameter'],
+                Resource: arn('ssm', `parameter${getSharedNetworkParameterPrefix()}/*`)
+              },
+              {
+                Effect: 'Allow',
+                Action: ['logs:CreateLogStream', 'logs:PutLogEvents'],
+                Resource: arn('logs', `log-group:${logGroupName}:*`)
+              },
+              // What CloudFormation needs to delete the NAT stack, in either of its forms, and the network stack.
+              {
+                Effect: 'Allow',
+                Action: [
+                  'ec2:DeleteVpc',
+                  'ec2:DeleteSubnet',
+                  'ec2:DeleteRouteTable',
+                  'ec2:DisassociateRouteTable',
+                  'ec2:DeleteRoute',
+                  'ec2:DetachInternetGateway',
+                  'ec2:DeleteInternetGateway',
+                  'ec2:DeleteVpcEndpoints',
+                  'ec2:ModifyVpcEndpoint',
+                  'ec2:DeleteSecurityGroup',
+                  'ec2:RevokeSecurityGroupIngress',
+                  'ec2:RevokeSecurityGroupEgress',
+                  'ec2:DeleteNetworkInterface',
+                  'ec2:DetachNetworkInterface',
+                  'ec2:DisassociateAddress',
+                  'ec2:ReleaseAddress',
+                  'ec2:DeleteLaunchTemplate',
+                  'autoscaling:UpdateAutoScalingGroup',
+                  'autoscaling:DeleteAutoScalingGroup'
+                ],
+                Resource: '*',
+                Condition: onlyCloudFormation
+              },
+              {
+                Effect: 'Allow',
+                Action: [
+                  'iam:GetRole',
+                  'iam:DeleteRole',
+                  'iam:DeleteRolePolicy',
+                  'iam:ListRolePolicies',
+                  'iam:ListAttachedRolePolicies',
+                  'iam:DetachRolePolicy',
+                  'iam:ListInstanceProfilesForRole',
+                  'iam:GetInstanceProfile',
+                  'iam:RemoveRoleFromInstanceProfile',
+                  'iam:DeleteInstanceProfile'
+                ],
+                Resource: [
+                  sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:role/${networkName}-*`),
+                  sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:instance-profile/${networkName}-*`)
+                ],
+                Condition: onlyCloudFormation
+              },
+              {
+                Effect: 'Allow',
+                Action: [
+                  'lambda:GetFunction',
+                  'lambda:InvokeFunction',
+                  'lambda:DeleteFunction',
+                  'lambda:RemovePermission'
+                ],
+                Resource: arn('lambda', `function:${networkName}-*`),
+                Condition: onlyCloudFormation
+              },
+              {
+                Effect: 'Allow',
+                Action: ['scheduler:GetSchedule', 'scheduler:DeleteSchedule'],
+                Resource: arn('scheduler', `schedule/default/${networkName}-*`),
+                Condition: onlyCloudFormation
+              },
+              {
+                Effect: 'Allow',
+                Action: ['ssm:GetParameters', 'ssm:DeleteParameter'],
+                Resource: arn('ssm', `parameter/stp/\${AWS::Region}/${natName}/*`),
+                Condition: onlyCloudFormation
+              },
+              {
+                Effect: 'Allow',
+                Action: ['logs:DescribeLogGroups', 'logs:DeleteLogGroup'],
+                Resource: arn('logs', `log-group:${logGroupName}*`),
+                Condition: onlyCloudFormation
+              }
+            ]
+          }
+        }
+      ]
+    }),
+    // The function writes only to this group, which goes with the stack, and cannot create another. Like everything of
+    // the janitor, it depends on the role, so CloudFormation deletes it while the role still exists.
+    JanitorLogGroup: {
+      ...cfnResource('AWS::Logs::LogGroup', { LogGroupName: logGroupName, RetentionInDays: 14 }),
+      DependsOn: ['JanitorRole']
+    },
+    JanitorFunction: cfnResource('AWS::Lambda::Function', {
+      FunctionName: functionName,
+      Description: 'Removes the Stacktape shared NAT and network once no stage used them for a while',
+      Runtime: 'python3.14',
+      Architectures: ['arm64'],
+      Handler: 'index.handler',
+      MemorySize: 128,
+      // A run waits for the NAT's delete (about 2.5 minutes) before it removes the network.
+      Timeout: 900,
+      Role: getAtt('JanitorRole', 'Arn'),
+      Code: { ZipFile: JANITOR_FUNCTION_SOURCE },
+      Environment: {
+        Variables: {
+          NETWORK_STACK: networkName,
+          NAT_STACK: natName,
+          ROLE_ARN: getAtt('JanitorRole', 'Arn'),
+          UNUSED_SECONDS: `${unusedSeconds}`,
+          PARAMETER_PREFIX: getSharedNetworkParameterPrefix(),
+          STACK_NAME_TAG: tagNames.stackName()
+        }
+      }
+    }),
+    JanitorSchedule: cfnResource('AWS::Scheduler::Schedule', {
+      Name: functionName,
+      Description: 'Runs the janitor of the Stacktape shared network',
+      ScheduleExpression: unusedSeconds < 60 * 60 ? 'rate(1 minute)' : 'rate(1 hour)',
+      FlexibleTimeWindow: { Mode: 'OFF' },
+      Target: { Arn: getAtt('JanitorFunction', 'Arn'), RoleArn: getAtt('JanitorRole', 'Arn') }
+    }),
+    JanitorDeletionBarrier: {
+      ...cfnResource('AWS::CloudFormation::CustomResource', {
+        ServiceToken: getAtt('JanitorFunction', 'Arn'),
+        ServiceTimeout: 900
+      }),
+      DependsOn: ['JanitorRole']
+    }
+  };
+};
 
 /** The shared network stack. It has no parameters: everything that varies (the zones) is resolved by CloudFormation. */
 export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
@@ -101,6 +320,7 @@ export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
       SubnetId: ref(`PrivateSubnet${zone}`)
     });
   }
+  Object.assign(resources, buildJanitorResources());
   const allRouteTables = [ref('PublicRouteTable'), ...ZONES.map((zone) => ref(`PrivateRouteTable${zone}`))];
   for (const [logicalId, service] of [
     ['S3GatewayEndpoint', 's3'],

@@ -58,7 +58,7 @@ import {
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { confirmSharedNetworkUnchanged, prepareStageNetwork } from '@domain-services/shared-network';
+import { prepareStageNetwork, stopMarkingSharedNetworkUsed } from '@domain-services/shared-network';
 import { SHARED_NAT_INSTANCE_TYPE } from '@domain-services/shared-network/template';
 import { getSharedNatStackName } from '@stacktape/naming/shared-stacks';
 import { newDistributionInputs } from '@domain-services/cloudfront-manager/new-distribution-inputs';
@@ -232,6 +232,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Where the stage's networked resources run. In the shared network, its stacks are created or upgraded while the
   // workloads build; the template is built only once they are ready.
   const stageNetwork = await prepareStageNetwork({ stage: stackContext.stage, mode: 'deploy' });
+  application.registerCleanUpHook(stopMarkingSharedNetworkUsed);
   const inSharedNetwork = stageNetwork.decision.kind === 'shared';
 
   // A function in the VPC has no outbound internet until the stack has NAT; the failure otherwise only shows at
@@ -506,9 +507,6 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   }
 
-  // The delete of the last stage in the shared network may have removed it while this deploy built.
-  if (!fastDeployPlan && inSharedNetwork) await confirmSharedNetworkUnchanged();
-
   progress.setPhase('DEPLOY');
   codeSwapBeginMutation();
   try {
@@ -527,6 +525,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     // Functions a partial deployment switched still need their maps. It never throws.
     await recordSourceMapActivation(sourceMapManifest);
     throw error;
+  } finally {
+    // The stage stack now imports the shared stacks it uses, which keeps them.
+    stopMarkingSharedNetworkUsed();
   }
   // Recorded while the post-deploy steps run; nothing below depends on it. It never throws. A failing post-deploy step
   // still lets it finish before the command exits.
