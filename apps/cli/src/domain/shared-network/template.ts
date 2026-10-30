@@ -248,8 +248,13 @@ export const buildSharedNatTemplate = ({ region }: { region: string }): CloudFor
                 ],
                 Resource: sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:instance-profile/${instanceProfileName}`)
               },
-              // Adding a role to a profile requires passing it.
-              { Effect: 'Allow', Action: 'iam:PassRole', Resource: getAtt('Role', 'Arn') }
+              // Adding a role to a profile requires passing it. The name pattern CloudFormation gives `Role` instead of
+              // its ARN, so this role and the function are created while `Role` is (about 18 s each).
+              {
+                Effect: 'Allow',
+                Action: 'iam:PassRole',
+                Resource: sub('arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-Role-*')
+              }
             ]
           }
         }
