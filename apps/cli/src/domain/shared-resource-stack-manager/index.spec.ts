@@ -203,3 +203,55 @@ describe('waiting for a failed creation', () => {
     expect((timeout as { message: string }).message).toContain(`current state: DELETE_IN_PROGRESS: ${reason}`);
   });
 });
+
+describe('a stack that is being deleted', () => {
+  /** A stack under deletion that CloudFormation still reports by ID after it vanished from reads by name. */
+  const deletingAccount = (ending: 'deleted' | 'canceled') => {
+    let polls = 0;
+    const calls: string[] = [];
+    const deleting = { ...details(), StackId: 'arn:stack/1', StackStatus: 'DELETE_IN_PROGRESS' };
+    let created: SharedStackDetails | undefined;
+    const adapter: SharedResourceStackAdapter = {
+      get: async (nameOrId) => {
+        if (created) return created;
+        if (polls < 2) return deleting;
+        if (ending === 'canceled') return { ...deleting, StackStatus: 'CREATE_COMPLETE' };
+        return nameOrId === 'arn:stack/1' ? { ...deleting, StackStatus: 'DELETE_COMPLETE' } : undefined;
+      },
+      create: async () => {
+        calls.push('create');
+        created = { ...details(), StackId: 'arn:stack/2' };
+      },
+      update: async () => {
+        calls.push('update');
+      }
+    };
+    const wait = async () => {
+      polls += 1;
+    };
+    return { adapter, calls, wait };
+  };
+
+  test('is waited for by stack ID and created again', async () => {
+    const { adapter, calls, wait } = deletingAccount('deleted');
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 1, wait });
+    expect(await manager.ensure(requirement({ recreateAfterDeletion: true }))).toEqual({
+      action: 'create',
+      stackName: 'stacktape-shared-test'
+    });
+    expect(calls).toEqual(['create']);
+  });
+
+  test('is reused when CloudFormation cancels the deletion', async () => {
+    const { adapter, calls, wait } = deletingAccount('canceled');
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 1, wait });
+    expect((await manager.ensure(requirement({ recreateAfterDeletion: true }))).action).toBe('reuse');
+    expect(calls).toEqual([]);
+  });
+
+  test('fails a caller that did not ask to wait for it', async () => {
+    const { adapter, wait } = deletingAccount('deleted');
+    const manager = new SharedResourceStackManager({ adapter, pollIntervalMs: 1, wait });
+    await expect(manager.ensure(requirement())).rejects.toMatchObject({ code: 'SHARED_STACK_DISAPPEARED' });
+  });
+});

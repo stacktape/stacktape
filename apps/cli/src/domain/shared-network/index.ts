@@ -76,7 +76,9 @@ const requirement = ({
   ownershipKey: SHARED_NETWORK_OWNERSHIP_KEY,
   parameters: {},
   roleArn: configManager.deploymentConfig?.cloudformationRoleArn,
-  beforeCreate: async () => {}
+  beforeCreate: async () => {},
+  // The last stage's delete removes the shared stacks (`removal.ts`); a deploy meanwhile waits and creates them again.
+  recreateAfterDeletion: true
 });
 
 const outputOf = (stack: SharedStackDetails, key: string) => {
@@ -109,6 +111,9 @@ export const readSharedNetworkOutputs = (stack: SharedStackDetails): SharedNetwo
 
 const sharedStackManager = new SharedResourceStackManager({ adapter });
 
+/** The shared stacks this deploy's template is built for, by stack ID. */
+const ensuredStacks = new Map<string, string>();
+
 const ensureStack = async ({
   stackName,
   creatingMessage,
@@ -118,7 +123,13 @@ const ensureStack = async ({
   creatingMessage: string;
   requirementInput: Parameters<typeof requirement>[0];
 }) => {
-  if (!(await adapter.get(stackName))) tuiManager.info(creatingMessage);
+  const before = await adapter.get(stackName);
+  if (!before) tuiManager.info(creatingMessage);
+  else if (before.StackStatus === 'DELETE_IN_PROGRESS') {
+    tuiManager.info(
+      `The shared stack \`${stackName}\` is being removed because the last stage that used it was deleted. Waiting for that to finish, then creating it again.`
+    );
+  }
   await sharedStackManager.ensure(requirement(requirementInput));
   const stack = await adapter.get(stackName);
   if (!stack) {
@@ -129,34 +140,81 @@ const ensureStack = async ({
       hints: 'Check CloudFormation for a deletion, then retry the deployment.'
     });
   }
+  // A removal that CloudFormation canceled, because a stage started using the stack meanwhile, can leave it unprotected.
+  if (stack.EnableTerminationProtection === false) {
+    await awsSdkManager.cloudFormation.setTerminationProtection(true, stackName);
+  }
+  if (stack.StackId) ensuredStacks.set(stackName, stack.StackId);
   return stack;
+};
+
+/**
+ * Fails the deploy when a shared stack its template was built for is gone: the delete of the last stage that used it
+ * removed it after this deploy had made sure of it. The template holds the network's IDs, so it cannot be submitted,
+ * and CloudFormation would refuse its imports anyway. Running the deploy again creates the stacks again.
+ */
+export const confirmSharedNetworkUnchanged = async () => {
+  for (const [stackName, stackId] of ensuredStacks) {
+    const stack = await adapter.get(stackName);
+    if (stack?.StackId === stackId && stack.StackStatus !== 'DELETE_IN_PROGRESS') continue;
+    throw new CliError({
+      category: 'CLOUDFORMATION',
+      code: 'SHARED_NETWORK_REMOVED_DURING_DEPLOY',
+      message: `The shared stack \`${stackName}\` was removed while this deploy was building: the delete of the last stage that used it removed it.`,
+      hints: 'Run the deploy again. It creates the shared stack again before it builds the template.'
+    });
+  }
 };
 
 /** Creates or upgrades the shared network and, when the stage needs outbound internet, its NAT. */
 const ensureSharedNetwork = async ({ usesNat }: { usesNat: boolean }): Promise<SharedNetwork> => {
-  const networkStack = await ensureStack({
-    stackName: getSharedNetworkStackName(),
-    creatingMessage: `Creating the shared non-production network \`${getSharedNetworkStackName()}\` in this account and region (about a minute, once; it costs nothing).`,
-    requirementInput: {
-      kind: SHARED_NETWORK_KIND,
+  for (let attempt = 1; ; attempt += 1) {
+    const networkStack = await ensureStack({
       stackName: getSharedNetworkStackName(),
-      contractVersion: SHARED_NETWORK_CONTRACT_VERSION,
-      template: buildSharedNetworkTemplate()
+      creatingMessage: `Creating the shared non-production network \`${getSharedNetworkStackName()}\` in this account and region (about a minute, once; it costs nothing).`,
+      requirementInput: {
+        kind: SHARED_NETWORK_KIND,
+        stackName: getSharedNetworkStackName(),
+        contractVersion: SHARED_NETWORK_CONTRACT_VERSION,
+        template: buildSharedNetworkTemplate()
+      }
+    });
+    const network = readSharedNetworkOutputs(networkStack);
+    if (!usesNat) return network;
+    try {
+      const natStack = await ensureStack({
+        stackName: getSharedNatStackName(),
+        creatingMessage: `Creating the shared NAT \`${getSharedNatStackName()}\`: one ${SHARED_NAT_INSTANCE_TYPE} instance (about $7.70 a month) that gives every non-production stage here outbound internet. It takes a few minutes, once, and is removed with the last stage that uses it.`,
+        requirementInput: {
+          kind: SHARED_NAT_KIND,
+          stackName: getSharedNatStackName(),
+          contractVersion: SHARED_NAT_CONTRACT_VERSION,
+          template: buildSharedNatTemplate({ region: globalStateManager.region })
+        }
+      });
+      // The NAT imports the network's exports, so the network it now uses stays. While this deploy waited for the NAT,
+      // another deploy may have created the network again; its outputs are then read again.
+      const current = await adapter.get(getSharedNetworkStackName());
+      if (current?.StackId === networkStack.StackId) {
+        return { ...network, natPublicIp: outputOf(natStack, 'PublicIp') };
+      }
+      if (attempt >= 3) {
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'SHARED_NETWORK_KEEPS_CHANGING',
+          message: `The shared network \`${getSharedNetworkStackName()}\` kept being removed and created again during this deploy.`,
+          hints: 'Wait for other deploys and deletes of non-production stages in this account and region, then retry.'
+        });
+      }
+    } catch (error) {
+      // The removal that deleted the NAT went on to delete the network before the NAT was created again, so its
+      // creation found no network exports. The network is then created again first.
+      const current = await adapter.get(getSharedNetworkStackName());
+      const networkReplaced =
+        current?.StackId !== networkStack.StackId || current?.StackStatus === 'DELETE_IN_PROGRESS';
+      if (!networkReplaced || attempt >= 3) throw error;
     }
-  });
-  const network = readSharedNetworkOutputs(networkStack);
-  if (!usesNat) return network;
-  const natStack = await ensureStack({
-    stackName: getSharedNatStackName(),
-    creatingMessage: `Creating the shared NAT \`${getSharedNatStackName()}\`: one ${SHARED_NAT_INSTANCE_TYPE} instance (about $7.70 a month) that gives every non-production stage here outbound internet. It takes a few minutes, once, and stays when stages are deleted.`,
-    requirementInput: {
-      kind: SHARED_NAT_KIND,
-      stackName: getSharedNatStackName(),
-      contractVersion: SHARED_NAT_CONTRACT_VERSION,
-      template: buildSharedNatTemplate({ region: globalStateManager.region })
-    }
-  });
-  return { ...network, natPublicIp: outputOf(natStack, 'PublicIp') };
+  }
 };
 
 /** What the deployed template says about placement: a stack with its own VPC keeps it, a shared stage stays shared. */

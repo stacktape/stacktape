@@ -23,6 +23,7 @@ import {
   DescribeStackEventsCommand,
   DescribeStacksCommand,
   GetTemplateCommand,
+  ListImportsCommand,
   ListStackResourcesCommand,
   ListStacksCommand,
   RollbackStackCommand,
@@ -341,6 +342,28 @@ export class AwsCloudFormationStacks {
     return this.#createClient()
       .send(new UpdateTerminationProtectionCommand({ EnableTerminationProtection: enabled, StackName: stackName }))
       .catch(handleError);
+  };
+
+  /**
+   * The names of the stacks that import an export. CloudFormation reports an export nobody imports, and one whose stack
+   * is being deleted, as errors; neither has importers.
+   */
+  listImports = async (exportName: string): Promise<string[]> => {
+    const handleError = this.#getErrorHandler(`Could not list the stacks that import \`${exportName}\``);
+    const result: string[] = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.#createClient()
+        .send(new ListImportsCommand({ ExportName: exportName, NextToken: nextToken }))
+        .catch((error) => {
+          if (/is not imported by any stack|Export '.*' does not exist/i.test(error.message))
+            return { Imports: [], NextToken: undefined };
+          return handleError(error);
+        });
+      result.push(...(page.Imports ?? []));
+      nextToken = page.NextToken;
+    } while (nextToken);
+    return result;
   };
 
   getTemplate = async (stackName: string) => {

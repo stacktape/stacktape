@@ -10,6 +10,8 @@ import { releaseDevGeneratedSecrets } from '../_utils/secret-preflight';
 import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { createSharedNetworkRemovalAws, removeUnusedSharedNetwork } from '@domain-services/shared-network/removal';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { SHARED_LAYER_NUMBERS } from '@domain-services/deployment-artifact-manager/shared-layers';
 import { deleteSupersededSharedLayerVersions } from '../_utils/fn-deployment';
@@ -121,6 +123,9 @@ export const commandDelete = async () => {
     isDevStack: deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack()),
     tags: stack.existingStackDetails?.Tags
   });
+  // The stage group exists only in the shared network; its imports keep the shared stacks until the stack is gone.
+  const wasInSharedNetwork =
+    !wasDevStack && !!template.oldTemplate?.Resources?.[cfLogicalNames.stageNetworkSecurityGroup()];
   const retainedMetadata = deployedStackOverview.getStackMetadata(stackMetadataNames.retainedSharedResources());
   const retainedSharedResources =
     typeof retainedMetadata === 'string' ? parseRetainedSharedResources(retainedMetadata) : undefined;
@@ -180,6 +185,14 @@ export const commandDelete = async () => {
     );
   } catch (err) {
     tui.info(`Could not remove uptime check definitions from the Stacktape Console: ${err}`);
+  }
+  // The shared NAT and network go with the last stage that uses them. The stage itself is deleted either way.
+  if (wasInSharedNetwork) {
+    try {
+      await removeUnusedSharedNetwork({ aws: createSharedNetworkRemovalAws(), report: tui });
+    } catch (err) {
+      tui.warn(`Could not check whether the shared network can be removed: ${err}`);
+    }
   }
   return result;
 };

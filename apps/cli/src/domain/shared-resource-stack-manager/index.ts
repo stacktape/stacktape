@@ -11,6 +11,7 @@ export type SharedStackDetails = {
   Outputs?: Array<{ OutputKey?: string; OutputValue?: string }>;
   RoleARN?: string;
   Tags?: Array<{ Key?: string; Value?: string }>;
+  EnableTerminationProtection?: boolean;
 };
 
 export type SharedStackRequirement = {
@@ -31,6 +32,12 @@ export type SharedStackRequirement = {
    */
   templateForUpdate?: (existing: SharedStackDetails) => Promise<CloudFormationTemplate>;
   beforeCreate: () => Promise<void>;
+  /**
+   * The stack may be deleted while it is in use: a deletion in progress is waited for by stack ID (a deleted stack
+   * vanishes from reads by name), and the stack is then created again. A deletion CloudFormation canceled leaves the
+   * stack as it was. Without this, a deletion fails the caller.
+   */
+  recreateAfterDeletion?: boolean;
 };
 
 export type SharedResourceStackAdapter = {
@@ -188,6 +195,9 @@ export class SharedResourceStackManager {
 
   ensure = async (requirement: SharedStackRequirement): Promise<{ action: SharedStackAction; stackName: string }> => {
     let existing = await this.#adapter.get(requirement.stackName);
+    if (existing?.StackStatus === 'DELETE_IN_PROGRESS' && requirement.recreateAfterDeletion) {
+      existing = await this.#waitForDeletion(requirement.stackName, existing);
+    }
     if (existing) {
       existing = await this.#waitUntilStable(requirement.stackName, existing);
       return this.#reuseOrUpdate(requirement, existing);
@@ -441,6 +451,37 @@ export class SharedResourceStackManager {
       });
     }
     return stack;
+  };
+
+  /**
+   * Waits for a deletion by stack ID. Returns `undefined` once the stack is deleted, or the stack under its name when
+   * the deletion ended otherwise (canceled because a stack still imports an export, or failed).
+   */
+  #waitForDeletion = async (stackName: string, deleting: SharedStackDetails) => {
+    const stackId = deleting.StackId;
+    if (!stackId) {
+      throw sharedStackError({
+        code: 'SHARED_STACK_DELETE_UNTRACKABLE',
+        message: `Shared stack \`${stackName}\` is being deleted, and CloudFormation did not return its ID.`,
+        hints: 'Wait for the deletion to finish, then retry.'
+      });
+    }
+    let stack: SharedStackDetails | undefined = deleting;
+    let elapsed = 0;
+    while (stack?.StackStatus === 'DELETE_IN_PROGRESS') {
+      if (elapsed >= this.#rollbackMaxWaitMs) {
+        throw sharedStackError({
+          code: 'SHARED_STACK_WAIT_TIMEOUT',
+          message: `Timed out waiting for the deletion of shared stack \`${stackName}\`.`,
+          hints: 'Wait for the CloudFormation deletion to finish, then retry.'
+        });
+      }
+      await this.#wait(this.#pollIntervalMs);
+      elapsed += this.#pollIntervalMs;
+      stack = await this.#adapter.get(stackId);
+    }
+    if (!stack || stack.StackStatus === 'DELETE_COMPLETE') return undefined;
+    return this.#adapter.get(stackName);
   };
 
   #findRacedStack = async (stackName: string) => {
