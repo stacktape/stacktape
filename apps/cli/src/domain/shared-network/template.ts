@@ -15,6 +15,7 @@ import {
   getSharedNatStackName,
   getSharedNetworkExportName,
   getSharedNetworkJanitorFunctionName,
+  getSharedNetworkKeeperFunctionName,
   getSharedNetworkParameterPrefix,
   getSharedNetworkStackName
 } from '@stacktape/naming/shared-stacks';
@@ -31,10 +32,11 @@ export const SHARED_NETWORK_OWNERSHIP_KEY = 'default';
 
 /**
  * Version 1: the VPC, three public and three private subnets, the route tables and the S3 and DynamoDB gateway
- * endpoints. Version 2 adds the janitor (`janitor-function.ts`). Upgrades must be additive: stages use the subnet IDs
- * as literals, and Lambda and RDS place resources in them, so existing subnets, route tables and exports never change.
+ * endpoints. Version 2 adds the janitor (`janitor-function.ts`). Version 3 adds the no-access security group and its
+ * keepers (`buildNoAccessGroupResources`). Upgrades must be additive: stages use the subnet IDs as literals, and Lambda
+ * and RDS place resources in them, so existing subnets, route tables and exports never change.
  */
-export const SHARED_NETWORK_CONTRACT_VERSION = 2;
+export const SHARED_NETWORK_CONTRACT_VERSION = 3;
 export const SHARED_NAT_CONTRACT_VERSION = 1;
 
 /** The dev network uses 10.230.0.0/16 and stage VPCs 172.16.0.0/16; none overlap, so they can be peered later. */
@@ -127,6 +129,25 @@ const buildJanitorResources = (): CloudFormationTemplate['Resources'] => {
               },
               // The schedule runs the function with this role.
               { Effect: 'Allow', Action: 'lambda:InvokeFunction', Resource: arn('lambda', `function:${functionName}`) },
+              // The keepers of the no-access group, which the function creates, invokes and deletes itself.
+              {
+                Effect: 'Allow',
+                Action: [
+                  'lambda:GetFunction',
+                  'lambda:CreateFunction',
+                  'lambda:InvokeFunction',
+                  'lambda:DeleteFunction'
+                ],
+                Resource: (['public', 'private'] as const).map((subnets) =>
+                  arn('lambda', `function:${getSharedNetworkKeeperFunctionName(subnets)}`)
+                )
+              },
+              {
+                Effect: 'Allow',
+                Action: 'iam:PassRole',
+                Resource: sub(`arn:\${AWS::Partition}:iam::\${AWS::AccountId}:role/${networkName}-KeeperRole-*`),
+                Condition: { StringEquals: { 'iam:PassedToService': 'lambda.amazonaws.com' } }
+              },
               {
                 Effect: 'Allow',
                 Action: 'iam:PassRole',
@@ -270,6 +291,74 @@ const buildJanitorResources = (): CloudFormationTemplate['Resources'] => {
   };
 };
 
+/**
+ * The no-access security group and its keepers (version 3).
+ *
+ * The group has no inbound rules, its outbound rules are the default (everything), and no stage resource admits it. A
+ * stage function that connects to nothing private runs in it instead of the stage's groups
+ * (`shared-network/no-access-group.ts`), so functions of every non-production stage share one subnet and
+ * security-group combination. Lambda creates the network interfaces of a new combination in about 4 minutes and
+ * releases them up to 20 minutes after its last function is gone; in a combination that is in use, a function is
+ * created and deleted in seconds.
+ *
+ * The keepers hold the combination of each subnet set (public and private) while no stage does. They are idle
+ * functions that the janitor creates (`Keeper`, a custom resource, does it right after the group exists), invokes on
+ * every run, because Lambda reclaims the interfaces of functions not invoked for about 14 days, and deletes before it
+ * removes the network. CloudFormation would wait about 4 minutes for a function in the VPC, which would delay every
+ * first stage in the account; the custom resource does not wait. Their role can only manage network interfaces.
+ */
+const buildNoAccessGroupResources = (): CloudFormationTemplate['Resources'] => ({
+  // Depends on the keepers' role, so CloudFormation deletes the role only after the group, whose delete waits until
+  // Lambda has released the keepers' interfaces; Lambda manages them with that role. The janitor waits for the release
+  // before it removes the network; a rollback or a manual delete may not. The role is created alongside the VPC.
+  NoAccessSecurityGroup: {
+    ...cfnResource('AWS::EC2::SecurityGroup', {
+      VpcId: ref('Vpc'),
+      GroupDescription:
+        'Stacktape functions of non-production stages that connect to nothing private. Nothing admits this group.',
+      Tags: [{ Key: 'Name', Value: `${getSharedNetworkStackName()}-no-access` }]
+    }),
+    DependsOn: ['KeeperRole']
+  },
+  KeeperRole: cfnResource('AWS::IAM::Role', {
+    AssumeRolePolicyDocument: {
+      Version: '2012-10-17',
+      Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+    },
+    Policies: [
+      {
+        PolicyName: 'keeper',
+        PolicyDocument: {
+          Version: '2012-10-17',
+          Statement: [
+            // What Lambda needs to manage a function's network interfaces; the keepers write no logs.
+            {
+              Effect: 'Allow',
+              Action: [
+                'ec2:CreateNetworkInterface',
+                'ec2:DescribeNetworkInterfaces',
+                'ec2:DescribeSubnets',
+                'ec2:DeleteNetworkInterface',
+                'ec2:AssignPrivateIpAddresses',
+                'ec2:UnassignPrivateIpAddresses'
+              ],
+              Resource: '*'
+            }
+          ]
+        }
+      }
+    ]
+  }),
+  Keeper: cfnResource('AWS::CloudFormation::CustomResource', {
+    ServiceToken: getAtt('JanitorFunction', 'Arn'),
+    ServiceTimeout: 300,
+    NoAccessSecurityGroupId: ref('NoAccessSecurityGroup'),
+    PublicSubnetIds: ZONES.map((zone) => ref(`PublicSubnet${zone}`)),
+    PrivateSubnetIds: ZONES.map((zone) => ref(`PrivateSubnet${zone}`)),
+    RoleArn: getAtt('KeeperRole', 'Arn')
+  })
+});
+
 /** The shared network stack. It has no parameters: everything that varies (the zones) is resolved by CloudFormation. */
 export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
   const resources: CloudFormationTemplate['Resources'] = {
@@ -320,7 +409,7 @@ export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
       SubnetId: ref(`PrivateSubnet${zone}`)
     });
   }
-  Object.assign(resources, buildJanitorResources());
+  Object.assign(resources, buildJanitorResources(), buildNoAccessGroupResources());
   const allRouteTables = [ref('PublicRouteTable'), ...ZONES.map((zone) => ref(`PrivateRouteTable${zone}`))];
   for (const [logicalId, service] of [
     ['S3GatewayEndpoint', 's3'],
@@ -362,6 +451,13 @@ export const buildSharedNetworkTemplate = (): CloudFormationTemplate => {
         ),
         Export: { Name: getSharedNetworkExportName('private-route-table-ids') }
       },
+      NoAccessSecurityGroupId: {
+        Value: ref('NoAccessSecurityGroup'),
+        Export: { Name: getSharedNetworkExportName('no-access-security-group-id') }
+      },
+      // Read by the janitor's runs. The janitor function must not reference the keepers' resources: its deletion
+      // barrier waits for them, and CloudFormation deletes a resource only after what references it.
+      KeeperRoleArn: { Value: getAtt('KeeperRole', 'Arn') },
       /** Public subnet `i` and private subnet `i` share zone `i`. */
       AvailabilityZones: {
         Value: join(

@@ -25,6 +25,8 @@ export type SharedNetwork = {
   privateSubnets: Array<{ id: string; availabilityZone: string }>;
   /** The public IP of the shared NAT, when the stage uses it. */
   natPublicIp?: string;
+  /** The group of functions that connect to nothing private (`shared-network/no-access-group.ts`); network version 3. */
+  noAccessSecurityGroupId?: string;
 };
 
 /** A security group ingress rule without its source. */
@@ -40,9 +42,14 @@ const sharedNetworkPlaceholders = () => {
   return {
     vpc: { VpcId: importValue(getSharedNetworkExportName('vpc-id')) as unknown as string, CidrBlock: '10.231.0.0/16' },
     publicSubnets: subnets('public-subnet-ids'),
-    privateSubnets: subnets('private-subnet-ids')
+    privateSubnets: subnets('private-subnet-ids'),
+    noAccessSecurityGroupId: sharedNetworkNoAccessGroupPlaceholder()
   };
 };
+
+/** The no-access group of a network that a preview has yet to see in version 3: its export, which a deploy replaces. */
+export const sharedNetworkNoAccessGroupPlaceholder = () =>
+  importValue(getSharedNetworkExportName('no-access-security-group-id')) as unknown as string;
 
 // Helper function to validate VPC CIDR is within RFC 1918 private IP ranges
 const isPrivateCidr = (cidrBlock: string): boolean => {
@@ -77,7 +84,7 @@ class VpcManager {
   #vpc: Vpc | null = null;
   #publicSubnets: SubnetDetails[] = [];
   #privateSubnets: SubnetDetails[] = [];
-  #shared: { usesNat: boolean; natPublicIp?: string } | null = null;
+  #shared: { usesNat: boolean; natPublicIp?: string; noAccessSecurityGroupId?: string } | null = null;
 
   /**
    * Places the stack's networked resources in the shared non-production network, or back in a VPC of its own
@@ -93,10 +100,11 @@ class VpcManager {
       }
       return;
     }
-    const { vpc, publicSubnets, privateSubnets } =
+    const { vpc, publicSubnets, privateSubnets, noAccessSecurityGroupId } =
       network === 'not-created'
         ? sharedNetworkPlaceholders()
         : {
+            noAccessSecurityGroupId: network.noAccessSecurityGroupId,
             vpc: { VpcId: network.vpcId, CidrBlock: network.vpcCidr },
             publicSubnets: network.publicSubnets.map(({ id, availabilityZone }) => ({
               SubnetId: id,
@@ -110,7 +118,11 @@ class VpcManager {
     this.#vpc = vpc;
     this.#publicSubnets = publicSubnets.map((subnet) => ({ subnet }));
     this.#privateSubnets = privateSubnets.map((subnet) => ({ subnet }));
-    this.#shared = { usesNat, natPublicIp: network === 'not-created' ? undefined : network.natPublicIp };
+    this.#shared = {
+      usesNat,
+      natPublicIp: network === 'not-created' ? undefined : network.natPublicIp,
+      noAccessSecurityGroupId
+    };
   };
 
   /** Whether the stack runs in the shared non-production network instead of a VPC it creates or reuses. */
@@ -120,6 +132,11 @@ class VpcManager {
 
   get sharedNetwork() {
     return this.#shared;
+  }
+
+  /** The shared network's no-access security group, when the stack runs in a network that has one. */
+  get noAccessSecurityGroupId() {
+    return this.#shared?.noAccessSecurityGroupId;
   }
 
   /**

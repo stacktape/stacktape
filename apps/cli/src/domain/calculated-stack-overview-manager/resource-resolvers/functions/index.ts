@@ -18,6 +18,7 @@ import { tuiManager } from '@application-services/tui-manager';
 
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { getVpcLambdaSecurityGroup } from '@domain-services/config-manager/utils/lambda-security-groups';
+import { getNoAccessSecurityGroup } from '@domain-services/shared-network/no-access-group';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { domainManager } from '@domain-services/domain-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -375,7 +376,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       connectedTo,
       previousSecurityGroup
     } = getVpcLambdaSecurityGroup({ lambda: lambdaProps, activeConfig: configManager });
-    if (!templateManager.getCfResourceFromTemplate(securityGroupLogicalName)) {
+    // In the shared network, a function that reaches nothing private of its stage shares the network's no-access group
+    // with every non-production stage instead, and with it Lambda's network interfaces.
+    const noAccessSecurityGroupId = getNoAccessSecurityGroup({
+      lambdaName: name,
+      connectedTo,
+      stageGroupCfLogicalName: securityGroupLogicalName
+    });
+    if (!noAccessSecurityGroupId && !templateManager.getCfResourceFromTemplate(securityGroupLogicalName)) {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: securityGroupLogicalName,
         resource: getVpcFunctionsSecurityGroup({ stackName, scopeId, connectedTo }),
@@ -395,7 +403,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     }
     Object.assign(lambdaFunctionResource.Properties, {
       VpcConfig: {
-        SecurityGroupIds: vpcManager.withStageSecurityGroup([ref(securityGroupLogicalName)]),
+        SecurityGroupIds: noAccessSecurityGroupId
+          ? [noAccessSecurityGroupId]
+          : vpcManager.withStageSecurityGroup([ref(securityGroupLogicalName)]),
         // A function in the public subnets has no internet (no public IP). Once the stack has private subnets with
         // NAT, every VPC function uses them and gets outbound internet through the NAT.
         SubnetIds: configManager.allResourcesRequiringPrivateSubnets.length

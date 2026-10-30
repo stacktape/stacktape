@@ -96,7 +96,12 @@ class Ec2(Client):
     nat = lambda item: 'sg-nat' in json.dumps(item) or 'eni-nat' in json.dumps(item)
     if key == 'routeTables': return [dict(t, Routes=[r for r in t.get('Routes', []) if not nat(r)]) for t in items]
     return [item for item in items if not nat(item)]
-  def describe_network_interfaces(self, Filters): return {'NetworkInterfaces': self._vpc('interfaces')}
+  def describe_network_interfaces(self, Filters):
+    items = self._vpc('interfaces')
+    for f in Filters:
+      if f['Name'] == 'group-id':
+        items = [n for n in items if any(g['GroupId'] in f['Values'] for g in n.get('Groups', []))]
+    return {'NetworkInterfaces': items}
   def describe_subnets(self, Filters): return {'Subnets': self._vpc('subnets')}
   def describe_security_groups(self, Filters): return {'SecurityGroups': self._vpc('securityGroups')}
   def describe_route_tables(self, Filters): return {'RouteTables': self._vpc('routeTables')}
@@ -115,7 +120,30 @@ class Ssm(Client):
     if Name.endswith('/last-used'): calls.append('unmark ' + Name.split('/')[-2])
     del params[Name]
 
-clients = {'cloudformation': CloudFormation(), 'ec2': Ec2(), 'ssm': Ssm()}
+functions = {name: {'State': state} for name, state in account.get('functions', {}).items()}
+lambda_calls = []
+
+class Lambda(Client):
+  def get_function(self, FunctionName):
+    if FunctionName not in functions: raise ClientError('ResourceNotFoundException', 'Function not found: ' + FunctionName)
+    return {'Configuration': {'State': functions[FunctionName]['State']}}
+  def create_function(self, FunctionName, Role, VpcConfig, **kw):
+    if account.get('roleUnusableFor', 0) > 0:
+      account['roleUnusableFor'] -= 1
+      lambda_calls.append('refused ' + FunctionName)
+      raise ClientError('InvalidParameterValueException', 'The role defined for the function cannot be assumed by Lambda.')
+    functions[FunctionName] = {'State': 'Pending'}
+    lambda_calls.append('create ' + FunctionName + ' as ' + Role + ' in ' + ','.join(VpcConfig['SubnetIds']) + ' with ' + ','.join(VpcConfig['SecurityGroupIds']))
+  def invoke(self, FunctionName, InvocationType, Payload):
+    state = functions.get(FunctionName, {}).get('State')
+    if state != 'Active': raise ClientError('ResourceConflictException', 'The function is in the state ' + str(state))
+    lambda_calls.append('invoke ' + FunctionName)
+  def delete_function(self, FunctionName):
+    if FunctionName not in functions: raise ClientError('ResourceNotFoundException', 'Function not found: ' + FunctionName)
+    del functions[FunctionName]
+    lambda_calls.append('delete ' + FunctionName)
+
+clients = {'cloudformation': CloudFormation(), 'ec2': Ec2(), 'ssm': Ssm(), 'lambda': Lambda()}
 boto3 = types.ModuleType('boto3'); boto3.client = lambda name: clients[name]
 sys.modules['boto3'] = boto3
 
@@ -147,7 +175,7 @@ class Context:
 responses = []
 index.respond = lambda event, status, reason='': responses.append([status, reason])
 index.handler(account.get('event', {'source': 'aws.events'}), Context())
-print(json.dumps({'calls': calls, 'logs': logs, 'params': sorted(params), 'responses': responses,
+print(json.dumps({'calls': calls, 'lambda': lambda_calls, 'logs': logs, 'params': sorted(params), 'responses': responses,
                   'stacks': {s['StackName']: s['StackStatus'] for s in by_id.values()},
                   'protection': {n: bool(s.get('EnableTerminationProtection')) for n, s in live.items()}}))
 `;
@@ -177,6 +205,10 @@ type Account = {
   deletesHang?: boolean;
   /** What DescribeStackResources returns. */
   stackResources?: Array<{ LogicalResourceId: string; ResourceStatus: string }>;
+  /** Functions that exist, by name, with their state. */
+  functions?: Record<string, string>;
+  /** How many creations Lambda refuses because the keepers' new role cannot be assumed yet. */
+  roleUnusableFor?: number;
 };
 
 const DAY = 86_400;
@@ -211,6 +243,33 @@ const networkStack = (): Stack => ({
     S3GatewayEndpoint: 'vpce-1'
   }
 });
+/** A network of version 3, with the no-access group and the keepers' role. */
+const networkStackV3 = (): Stack => {
+  const network = networkStack();
+  return {
+    ...network,
+    Outputs: [
+      ...network.Outputs,
+      { OutputKey: 'PublicSubnetIds', OutputValue: 'subnet-p0,subnet-p1' },
+      {
+        OutputKey: 'NoAccessSecurityGroupId',
+        OutputValue: 'sg-none',
+        ExportName: 'stacktape-network-no-access-security-group-id'
+      },
+      { OutputKey: 'KeeperRoleArn', OutputValue: 'keeper-role' }
+    ],
+    resources: { ...network.resources, NoAccessSecurityGroup: 'sg-none' }
+  };
+};
+const PUBLIC_KEEPER = 'stacktape-network-keeper-public';
+const PRIVATE_KEEPER = 'stacktape-network-keeper-private';
+/** An interface Lambda keeps in the no-access group. */
+const noAccessInterface = (id: string) => ({
+  NetworkInterfaceId: id,
+  Groups: [{ GroupId: 'sg-none' }],
+  Description: 'AWS Lambda VPC ENI'
+});
+
 const stage = (name: string, resources: Record<string, string> = {}): Stack => ({
   StackId: `arn:${name}`,
   StackName: name,
@@ -277,6 +336,7 @@ const runJanitor = async (account: Account) => {
   if (result.status !== 0) throw new Error(result.stderr);
   return JSON.parse(result.stdout) as {
     calls: string[];
+    lambda: string[];
     logs: string[];
     params: string[];
     responses: Array<[string, string]>;
@@ -506,6 +566,133 @@ describe('the shared network janitor', () => {
     });
     expect(result.calls).toEqual([]);
     expect(result.logs).toEqual(['Kept stacktape-network: it is not a stack Stacktape created']);
+  });
+});
+
+describe('the keepers of the no-access group', () => {
+  test('are created when missing and invoked on every run while the network is used', async () => {
+    const result = await runJanitor({
+      stacks: [networkStackV3(), stage('app-dev-b')],
+      imports: usedBy('stacktape-network-vpc-id', 'app-dev-b'),
+      functions: { [PUBLIC_KEEPER]: 'Active' },
+      vpc: sharedVpc({ withNat: false })
+    });
+    expect(result.lambda).toEqual([
+      `create ${PRIVATE_KEEPER} as keeper-role in subnet-1 with sg-none`,
+      `invoke ${PUBLIC_KEEPER}`
+    ]);
+    // The new keeper cannot be invoked while Lambda creates its interfaces; that is not an error.
+    expect(result.logs).toEqual([`Created ${PRIVATE_KEEPER}`, 'stacktape-network is used by app-dev-b']);
+  });
+
+  test('are created again when their creation failed', async () => {
+    const result = await runJanitor({
+      stacks: [networkStackV3(), stage('app-dev-b')],
+      imports: usedBy('stacktape-network-vpc-id', 'app-dev-b'),
+      functions: { [PUBLIC_KEEPER]: 'Failed', [PRIVATE_KEEPER]: 'Active' },
+      vpc: sharedVpc({ withNat: false })
+    });
+    expect(result.lambda).toEqual([
+      `delete ${PUBLIC_KEEPER}`,
+      `create ${PUBLIC_KEEPER} as keeper-role in subnet-p0,subnet-p1 with sg-none`,
+      `invoke ${PRIVATE_KEEPER}`
+    ]);
+  });
+
+  test('are kept warm within the grace period, and left alone by an older network without the group', async () => {
+    const withinGrace = await runJanitor({
+      stacks: [networkStackV3()],
+      idle: { 'stacktape-network': DAY - 60 },
+      functions: { [PUBLIC_KEEPER]: 'Active', [PRIVATE_KEEPER]: 'Active' },
+      vpc: sharedVpc({ withNat: false })
+    });
+    expect(withinGrace.lambda).toEqual([`invoke ${PUBLIC_KEEPER}`, `invoke ${PRIVATE_KEEPER}`]);
+
+    const older = await runJanitor({
+      stacks: [networkStack()],
+      idle: { 'stacktape-network': 60 },
+      vpc: sharedVpc({ withNat: false })
+    });
+    expect(older.lambda).toEqual([]);
+  });
+
+  test('are deleted before the network, which is kept until Lambda has released their interfaces', async () => {
+    const releasing = await runJanitor({
+      stacks: [networkStackV3()],
+      idle: { 'stacktape-network': DAY + 1 },
+      functions: { [PUBLIC_KEEPER]: 'Active', [PRIVATE_KEEPER]: 'Active' },
+      vpc: sharedVpc({ withNat: false, interfaces: [noAccessInterface('eni-1'), noAccessInterface('eni-2')] })
+    });
+    expect(releasing.lambda).toEqual([`delete ${PUBLIC_KEEPER}`, `delete ${PRIVATE_KEEPER}`]);
+    expect(releasing.calls).toEqual([]);
+    expect(releasing.stacks['stacktape-network']).toBe('CREATE_COMPLETE');
+    expect(releasing.logs).toContain(
+      'Kept stacktape-network: Lambda has yet to release 2 network interfaces of the no-access group; a later run removes the network'
+    );
+
+    const released = await runJanitor({
+      stacks: [networkStackV3()],
+      idle: { 'stacktape-network': DAY + 1 },
+      vpc: sharedVpc({ withNat: false })
+    });
+    expect(released.calls).toEqual([
+      'protection stacktape-network false',
+      'delete stacktape-network as janitor-role',
+      'unmark stacktape-network'
+    ]);
+  });
+
+  test("counts a stage function's interface in the no-access group as Stacktape's", async () => {
+    // A failed stage keeps its functions without importing the network: the network then waits for them.
+    const result = await runJanitor({
+      stacks: [networkStackV3()],
+      idle: { 'stacktape-network': DAY + 1 },
+      vpc: sharedVpc({ withNat: false, interfaces: [noAccessInterface('eni-1')] })
+    });
+    expect(result.calls).toEqual([]);
+    expect(result.logs.join('\n')).not.toContain('did not create');
+  });
+
+  const keeperEvent = (RequestType: string) => ({
+    RequestType,
+    StackId: 'arn:network/1',
+    RequestId: 'r',
+    LogicalResourceId: 'Keeper',
+    ResourceProperties: {
+      NoAccessSecurityGroupId: 'sg-none',
+      PublicSubnetIds: ['subnet-p0', 'subnet-p1'],
+      PrivateSubnetIds: ['subnet-1'],
+      RoleArn: 'keeper-role'
+    }
+  });
+
+  test('are created by the custom resource once the role can be used, without failing the network', async () => {
+    const created = await runJanitor({ stacks: [networkStackV3()], event: keeperEvent('Create'), roleUnusableFor: 2 });
+    expect(created.lambda).toEqual([
+      `refused ${PUBLIC_KEEPER}`,
+      `refused ${PUBLIC_KEEPER}`,
+      `create ${PUBLIC_KEEPER} as keeper-role in subnet-p0,subnet-p1 with sg-none`,
+      `create ${PRIVATE_KEEPER} as keeper-role in subnet-1 with sg-none`
+    ]);
+    expect(created.responses).toEqual([['SUCCESS', '']]);
+
+    const refused = await runJanitor({
+      stacks: [networkStackV3()],
+      event: keeperEvent('Create'),
+      roleUnusableFor: 1000
+    });
+    expect(refused.responses).toEqual([['SUCCESS', '']]);
+    expect(refused.logs[0]).toStartWith('Could not create the keepers; the next run does');
+  });
+
+  test('are deleted by the custom resource with the stack', async () => {
+    const result = await runJanitor({
+      stacks: [{ ...networkStackV3(), StackStatus: 'DELETE_IN_PROGRESS' }],
+      event: keeperEvent('Delete'),
+      functions: { [PRIVATE_KEEPER]: 'Active' }
+    });
+    expect(result.lambda).toEqual([`delete ${PRIVATE_KEEPER}`]);
+    expect(result.responses).toEqual([['SUCCESS', '']]);
   });
 });
 

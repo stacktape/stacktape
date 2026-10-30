@@ -15,9 +15,15 @@
  * stack itself, the `JanitorDeletionBarrier` custom resource keeps the function and the role until everything else
  * of the stack is gone.
  *
+ * It also keeps the no-access security group's network interfaces (see `buildNoAccessGroupResources`): while the
+ * network is used or within its grace period, every run creates a missing keeper and invokes both, because Lambda
+ * reclaims the interfaces of functions not invoked for about 14 days. Before it removes the network, it deletes the
+ * keepers and waits, over later runs, until Lambda has released the group's interfaces, so the network's delete never
+ * waits for them.
+ *
  * The function never fails a run on purpose: what it decided goes to its log group.
  */
-export const JANITOR_FUNCTION_SOURCE = `import json, os, re, time, urllib.request
+export const JANITOR_FUNCTION_SOURCE = `import io, json, os, re, time, urllib.request, zipfile
 from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError
@@ -32,6 +38,9 @@ READY = ('CREATE_COMPLETE', 'UPDATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE')
 KINDS = {NETWORK: 'shared-network', NAT: 'shared-network-nat'}
 
 cf, ec2, ssm = boto3.client('cloudformation'), boto3.client('ec2'), boto3.client('ssm')
+lam = boto3.client('lambda')
+# The keepers of the no-access group: one per subnet set, named by the set, with the stack output of its subnets.
+KEEPERS = (('public', 'PublicSubnetIds'), ('private', 'PrivateSubnetIds'))
 
 
 def log(message):
@@ -279,8 +288,12 @@ def tidy(deadline):
   # The network's own use counts while the NAT is kept, so its grace period starts when its last stage goes.
   network = stack(NETWORK)
   if network and network['StackStatus'] in READY and output(network, 'ResourceKind') == KINDS[NETWORK]:
-    if importers(network) - {NAT}:
+    in_use = bool(importers(network) - {NAT})
+    if in_use:
       mark_used(NETWORK)
+    used = last_used(NETWORK)
+    if in_use or used is None or time.time() - used < GRACE:
+      keep_warm(network)
   nat = stack(NAT)
   if nat and nat['StackStatus'] == 'DELETE_IN_PROGRESS':
     if not wait_for_deletion(nat['StackId'], deadline):
@@ -296,14 +309,115 @@ def tidy(deadline):
   network = removable(NETWORK)
   if not network:
     return
-  if not unused_long_enough(NETWORK, importers(network) - {NAT}):
+  if not unused_long_enough(NETWORK, importers(network) - {NAT}) or not keepers_released(network):
     protect(network['StackId'])
     return
   remove(network)
 
 
+def keeper_name(subnets):
+  return NETWORK + '-keeper-' + subnets
+
+
+def keeper_code():
+  buffer = io.BytesIO()
+  with zipfile.ZipFile(buffer, 'w') as archive:
+    archive.writestr('index.py', 'def handler(event, context):\\n  return None\\n')
+  return buffer.getvalue()
+
+
+def create_keepers(group, subnets, role, deadline):
+  """Creates the keepers that do not exist, and again those whose creation failed: a failed function stays failed.
+  Lambda creates their network interfaces after this returns."""
+  for kind, _ in KEEPERS:
+    name = keeper_name(kind)
+    try:
+      if lam.get_function(FunctionName=name)['Configuration'].get('State') != 'Failed':
+        continue
+      lam.delete_function(FunctionName=name)
+      log('Deleted ' + name + ', whose creation failed')
+    except ClientError as e:
+      if code(e) != 'ResourceNotFoundException':
+        raise
+    while True:
+      try:
+        lam.create_function(
+          FunctionName=name, Runtime='python3.14', Architectures=['arm64'], Handler='index.handler', Role=role,
+          Code={'ZipFile': keeper_code()}, MemorySize=128, Timeout=3,
+          Description='Keeps the Lambda network interfaces of the Stacktape shared network',
+          VpcConfig={'SubnetIds': subnets[kind], 'SecurityGroupIds': [group]})
+        log('Created ' + name)
+        break
+      except ClientError as e:
+        if code(e) == 'ResourceConflictException':
+          break
+        # Lambda cannot assume a role in its first seconds.
+        if code(e) != 'InvalidParameterValueException' or time.time() > deadline:
+          raise
+        time.sleep(5)
+
+
+def keep_warm(network):
+  group, role = output(network, 'NoAccessSecurityGroupId'), output(network, 'KeeperRoleArn')
+  if not group or not role:
+    return
+  try:
+    create_keepers(group, {kind: output(network, key).split(',') for kind, key in KEEPERS}, role, time.time() + 60)
+    for kind, _ in KEEPERS:
+      try:
+        lam.invoke(FunctionName=keeper_name(kind), InvocationType='Event', Payload=b'{}')
+      except ClientError as e:
+        # A keeper whose interfaces are being created, or restored after it was idle, cannot be invoked yet.
+        if code(e) not in ('ResourceConflictException', 'ResourceNotReadyException'):
+          raise
+  except Exception as e:
+    log('Could not keep the network interfaces of the no-access group: ' + repr(e))
+
+
+def delete_keepers():
+  for kind, _ in KEEPERS:
+    try:
+      lam.delete_function(FunctionName=keeper_name(kind))
+      log('Deleted ' + keeper_name(kind))
+    except ClientError as e:
+      if code(e) != 'ResourceNotFoundException':
+        raise
+
+
+def keepers_released(network):
+  """Deletes the keepers. Returns whether no network interface is left in the no-access group: Lambda releases them up
+  to about 20 minutes after their last function, and the group's delete would wait for that."""
+  group = output(network, 'NoAccessSecurityGroupId')
+  if not group:
+    return True
+  delete_keepers()
+  pages = ec2.get_paginator('describe_network_interfaces').paginate(Filters=[{'Name': 'group-id', 'Values': [group]}])
+  left = [n['NetworkInterfaceId'] for page in pages for n in page['NetworkInterfaces']]
+  if left:
+    log('Kept ' + NETWORK + ': Lambda has yet to release ' + str(len(left)) +
+        ' network interfaces of the no-access group; a later run removes the network')
+    return False
+  return True
+
+
+def keeper_event(event, context):
+  """The \`Keeper\` custom resource: creates the keepers once the group exists, and deletes them with the stack. A
+  creation that fails still succeeds: the next run creates what is missing."""
+  if event['RequestType'] == 'Delete':
+    delete_keepers()
+    return
+  props = event['ResourceProperties']
+  try:
+    create_keepers(props['NoAccessSecurityGroupId'],
+                   {kind: props[key] for kind, key in KEEPERS}, props['RoleArn'],
+                   time.time() + min(120, context.get_remaining_time_in_millis() / 1000 - 30))
+  except Exception as e:
+    log('Could not create the keepers; the next run does: ' + repr(e))
+
+
 def respond(event, status, reason=''):
-  body = json.dumps({'Status': status, 'Reason': reason[:900] or status, 'PhysicalResourceId': 'deletion-barrier',
+  physical_id = 'keepers' if event['LogicalResourceId'] == 'Keeper' else 'deletion-barrier'
+  body = json.dumps({'Status': status, 'Reason': reason[:900] or status, 'PhysicalResourceId': physical_id,
                      'StackId': event['StackId'], 'RequestId': event['RequestId'],
                      'LogicalResourceId': event['LogicalResourceId'], 'Data': {}}).encode()
   request = urllib.request.Request(event['ResponseURL'], data=body, method='PUT', headers={'Content-Type': ''})
@@ -336,10 +450,12 @@ def handler(event, context):
   if 'RequestType' in event:
     failure = None
     try:
-      if event['RequestType'] == 'Delete':
+      if event['LogicalResourceId'] == 'Keeper':
+        keeper_event(event, context)
+      elif event['RequestType'] == 'Delete':
         failure = hold_until_rest_is_deleted(event, context)
     except Exception as e:
-      failure = 'The deletion barrier could not check the stack: ' + repr(e)
+      failure = 'The ' + event['LogicalResourceId'] + ' resource failed: ' + repr(e)
     if failure:
       log(failure)
     respond(event, 'FAILED' if failure else 'SUCCESS', failure or '')
