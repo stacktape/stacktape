@@ -12,7 +12,7 @@ import {
   type SharedStackRequirement
 } from '@domain-services/shared-resource-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { vpcManager, type SharedNetwork } from '@domain-services/vpc-manager';
+import { sharedNetworkNoAccessGroupPlaceholder, vpcManager, type SharedNetwork } from '@domain-services/vpc-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   getSharedNatStackName,
@@ -110,7 +110,10 @@ export const readSharedNetworkOutputs = (stack: SharedStackDetails): SharedNetwo
     vpcId: outputOf(stack, 'VpcId'),
     vpcCidr: outputOf(stack, 'VpcCidr'),
     publicSubnets: subnets('PublicSubnetIds'),
-    privateSubnets: subnets('PrivateSubnetIds')
+    privateSubnets: subnets('PrivateSubnetIds'),
+    // Version 3 and later; a deploy upgrades an older network before it reads this.
+    noAccessSecurityGroupId: stack.Outputs?.find(({ OutputKey }) => OutputKey === 'NoAccessSecurityGroupId')
+      ?.OutputValue
   };
 };
 
@@ -350,8 +353,16 @@ export const prepareStageNetwork = async ({
     const stack = await read(getSharedNetworkStackName());
     const natStack = usesNat ? await read(getSharedNatStackName()) : undefined;
     const natPublicIp = natStack?.Outputs?.find(({ OutputKey }) => OutputKey === 'PublicIp')?.OutputValue;
+    const existing = stack?.Outputs?.length ? readSharedNetworkOutputs(stack) : undefined;
     vpcManager.useSharedNetwork(
-      stack?.Outputs?.length ? { ...readSharedNetworkOutputs(stack), natPublicIp } : 'not-created',
+      existing
+        ? {
+            ...existing,
+            natPublicIp,
+            // A deploy upgrades a network older than version 3 first.
+            noAccessSecurityGroupId: existing.noAccessSecurityGroupId ?? sharedNetworkNoAccessGroupPlaceholder()
+          }
+        : 'not-created',
       { usesNat }
     );
     return { decision, ready: Promise.resolve() };

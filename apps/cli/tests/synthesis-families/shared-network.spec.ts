@@ -84,13 +84,17 @@ resources:
       usePrivateSubnetsWithNAT: true
 `;
 
-const synthesize = async (config: string, deployedTemplate?: CloudFormationTemplate) => {
+const synthesize = async (
+  config: string,
+  deployedTemplate?: CloudFormationTemplate,
+  sharedNetwork: SharedNetwork = network
+) => {
   await writeFile(join(directory, 'stacktape.yml'), config);
   return synthesizeFixture({
     configPath: join(directory, 'stacktape.yml'),
     workingDir: directory,
     identity: { projectName: 'shop', stage: 'dev' },
-    sharedNetwork: { network, usesNat: true },
+    sharedNetwork: { network: sharedNetwork, usesNat: true },
     deployedTemplate
   });
 };
@@ -178,6 +182,99 @@ describe('a stage in the shared network', () => {
   });
 });
 
+describe('a function in the no-access group of the shared network', () => {
+  const NO_ACCESS = 'sg-0noaccess';
+  const withNoAccess: SharedNetwork = { ...network, noAccessSecurityGroupId: NO_ACCESS };
+  const groupsOf = (template: CloudFormationTemplate, fn: string) =>
+    resources(template)[cfLogicalNames.lambda(fn)].Properties?.VpcConfig.SecurityGroupIds as unknown[];
+  /** A stage whose only private resource admits the functions that connect to it, not the whole stage. */
+  const scopedStage = ({ apiConnectTo }: { apiConnectTo?: string } = {}) => `stackConfig:
+  nat: ec2
+resources:
+  orders:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: synthetic-password
+      engine:
+        type: postgres
+        properties:
+          version: '16.9'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+  api:${vpcFunction(apiConnectTo ? `\n      connectTo: [${apiConnectTo}]` : '')}
+  reporter:${vpcFunction('\n      connectTo: [orders]')}
+`;
+
+  let template: CloudFormationTemplate;
+  beforeAll(async () => {
+    template = await synthesize(scopedStage(), undefined, withNoAccess);
+  });
+
+  test('replaces both stage groups for a new function that connects to nothing private', () => {
+    expect(groupsOf(template, 'api')).toEqual([NO_ACCESS]);
+    const fn = resources(template)[cfLogicalNames.lambda('api')];
+    expect(fn.Properties?.VpcConfig.SubnetIds).toEqual(['subnet-private-a', 'subnet-private-b', 'subnet-private-c']);
+    // No function uses the stage's plain function group, so it is not created. The stage group stays: its import keeps
+    // the network from being removed while the stage exists.
+    expect(resources(template)[cfLogicalNames.vpcFunctionsSecurityGroup()]).toBeUndefined();
+    expect(resources(template)[cfLogicalNames.stageNetworkSecurityGroup()]?.Type).toBe('AWS::EC2::SecurityGroup');
+  });
+
+  test('keeps the stage groups of a function that connects to a database, and nothing admits the no-access group', () => {
+    const reporter = groupsOf(template, 'reporter');
+    expect(reporter).toContainEqual(stageGroup);
+    expect(reporter).not.toContain(NO_ACCESS);
+    const others = Object.entries(resources(template)).filter(([, { Type }]) => Type !== 'AWS::Lambda::Function');
+    expect(json(others)).not.toContain(NO_ACCESS);
+    const ingress = resources(template)[cfLogicalNames.dbSecurityGroup('orders')].Properties?.SecurityGroupIngress;
+    expect(json(ingress)).not.toContain(cfLogicalNames.stageNetworkSecurityGroup());
+  });
+
+  test('is not used while anything in the stage admits the whole stage group', async () => {
+    // vpc-mode database, Redis and an internal load balancer: every function of the stage reaches them.
+    const admitting = await synthesize(stage(), undefined, withNoAccess);
+    expect(groupsOf(admitting, 'api')).toContainEqual(stageGroup);
+    expect(json(admitting)).not.toContain(NO_ACCESS);
+  });
+
+  test('keeps a deployed function in the group it runs in, and moves it only when its group changes anyway', async () => {
+    // Deployed before the network had the group: the function stays in the stage's plain group.
+    const deployed = await synthesize(scopedStage(), undefined, network);
+    const kept = await synthesize(scopedStage(), deployed, withNoAccess);
+    expect(groupsOf(kept, 'api')).toEqual(groupsOf(deployed, 'api'));
+    expect(groupsOf(kept, 'api')).toContainEqual(stageGroup);
+
+    // Its connections change: Lambda moves it anyway, so it moves to the no-access group. The previous group stays for
+    // that deploy, as for any move.
+    const connected = await synthesize(scopedStage({ apiConnectTo: 'orders' }), undefined, network);
+    const moved = await synthesize(scopedStage(), connected, withNoAccess);
+    expect(groupsOf(moved, 'api')).toEqual([NO_ACCESS]);
+    const previous = (groupsOf(connected, 'api')[0] as { Ref: string }).Ref;
+    expect(resources(moved)[previous]?.Type).toBe('AWS::EC2::SecurityGroup');
+
+    // A function in the no-access group stays there, and leaves it when it starts connecting.
+    expect(groupsOf(await synthesize(scopedStage(), template, withNoAccess), 'api')).toEqual([NO_ACCESS]);
+    const leaving = await synthesize(scopedStage({ apiConnectTo: 'orders' }), template, withNoAccess);
+    expect(groupsOf(leaving, 'api')).toContainEqual(stageGroup);
+  });
+
+  test('fails the deploy when a resource admits the stage group next to a function in the no-access group', async () => {
+    const { assertNoAccessGroupIsolation } = await import('../../src/domain/shared-network/no-access-group');
+    const admitting = {
+      Resources: {
+        Ingress: {
+          Type: 'AWS::EC2::SecurityGroupIngress',
+          Properties: { GroupId: 'sg-x', SourceSecurityGroupId: { 'Fn::GetAtt': [stageGroup.Ref, 'GroupId'] } }
+        }
+      }
+    } as unknown as CloudFormationTemplate;
+    await expect(assertNoAccessGroupIsolation(admitting)).rejects.toThrow('admits the stage group');
+  });
+});
+
 describe('the shared NAT stack', () => {
   test('creates its instance profile through its own function, not the 2-minute AWS::IAM::InstanceProfile', async () => {
     const { buildSharedNatTemplate, SHARED_NAT_CONTRACT_VERSION } =
@@ -199,12 +296,13 @@ describe('the shared NAT stack', () => {
 });
 
 describe('the shared network stack', () => {
-  test('adds its janitor without touching the VPC, subnets, route tables or exports of version 1', async () => {
+  test('adds its janitor and the no-access group without touching the resources or exports of version 1', async () => {
     const { buildSharedNetworkTemplate } = await import('../../src/domain/shared-network/template');
     const network = buildSharedNetworkTemplate() as unknown as {
       Resources: Record<string, Resource>;
       Outputs: Record<string, { Export?: { Name: string } }>;
     };
+    const version3 = ['NoAccessSecurityGroup', 'KeeperRole', 'Keeper'];
     const janitor = Object.keys(network.Resources).filter((logicalId) => logicalId.startsWith('Janitor'));
     expect(janitor.sort()).toEqual([
       'JanitorDeletionBarrier',
@@ -214,14 +312,26 @@ describe('the shared network stack', () => {
       'JanitorSchedule'
     ]);
     // Version 1 resources neither reference nor depend on the janitor, so the upgrade only adds resources.
-    const version1 = Object.entries(network.Resources).filter(([logicalId]) => !logicalId.startsWith('Janitor'));
+    const version1 = Object.entries(network.Resources).filter(
+      ([logicalId]) => !logicalId.startsWith('Janitor') && !version3.includes(logicalId)
+    );
     expect(version1).toHaveLength(22);
-    for (const [, resource] of version1) expect(JSON.stringify(resource)).not.toContain('Janitor');
+    for (const [, resource] of version1) {
+      expect(JSON.stringify(resource)).not.toContain('Janitor');
+      expect(JSON.stringify(resource)).not.toMatch(/"(Keeper|NoAccess)/);
+    }
+    // The janitor must not reference the keepers' resources: its barrier waits for them to be deleted first.
+    for (const [logicalId, resource] of Object.entries(network.Resources)) {
+      if (logicalId.startsWith('Janitor')) expect(JSON.stringify(resource)).not.toMatch(/"(Keeper|NoAccess)/);
+    }
+    expect(network.Resources.NoAccessSecurityGroup.Properties?.SecurityGroupIngress).toBeUndefined();
+    expect(network.Resources.NoAccessSecurityGroup.Properties?.SecurityGroupEgress).toBeUndefined();
     expect(
       Object.values(network.Outputs)
         .flatMap(({ Export }) => (Export ? [Export.Name] : []))
         .sort()
     ).toEqual([
+      'stacktape-network-no-access-security-group-id',
       'stacktape-network-private-route-table-ids',
       'stacktape-network-private-subnet-ids',
       'stacktape-network-public-subnet-ids',
@@ -238,6 +348,10 @@ describe('the shared network stack', () => {
       'Fn::GetAtt': ['JanitorFunction', 'Arn']
     });
     expect(Resources.JanitorDeletionBarrier.DependsOn).toEqual(['JanitorRole']);
+    // The keepers' role outlives the no-access group, whose delete waits for Lambda to release their interfaces:
+    // CloudFormation deletes a resource before what it depends on.
+    expect(Resources.NoAccessSecurityGroup.DependsOn).toEqual(['KeeperRole']);
+    expect(Resources.KeeperRole.DependsOn).toBeUndefined();
     expect(Resources.JanitorFunction.Properties?.Role).toEqual({ 'Fn::GetAtt': ['JanitorRole', 'Arn'] });
     expect(Resources.JanitorLogGroup.DependsOn).toEqual(['JanitorRole']);
     // What deletes resources applies in CloudFormation's session only, never in the function's own.
@@ -248,7 +362,9 @@ describe('the shared network stack', () => {
     const functionDeletes = new Set([
       'cloudformation:DeleteStack',
       'cloudformation:UpdateTerminationProtection',
-      'ssm:DeleteParameter'
+      'ssm:DeleteParameter',
+      // Only the keepers, which the function creates itself.
+      'lambda:DeleteFunction'
     ]);
     const cloudFormationOnly = statements.filter(({ Condition }) =>
       JSON.stringify(Condition ?? {}).includes('AWSCloudFormation')
@@ -259,6 +375,10 @@ describe('the shared network stack', () => {
         .flat()
         .filter((action) => /:(Delete|Detach|Disassociate|Release|Revoke|Remove|Update)/.test(action));
       expect(deletes.filter((action) => !functionDeletes.has(action))).toEqual([]);
+      if ([statement.Action].flat().includes('lambda:DeleteFunction')) {
+        expect(JSON.stringify(statement)).toContain('stacktape-network-keeper-public');
+        expect(JSON.stringify(statement)).not.toContain('*');
+      }
     }
   });
 });

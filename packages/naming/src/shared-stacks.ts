@@ -63,6 +63,15 @@ export const getSharedNatStackName = () => 'stacktape-network-nat';
 /** The network stack's janitor, which removes the NAT and then the network once no stage used them for a while. */
 export const getSharedNetworkJanitorFunctionName = () => `${getSharedNetworkStackName()}-janitor`;
 
+/**
+ * The network's keepers: one idle function per subnet set (public, private) in the network's no-access security group.
+ * Lambda keeps the network interfaces of a subnet and security-group combination while a function uses it, so a stage
+ * function in that group is created in seconds. The janitor creates them and invokes them, because Lambda reclaims
+ * the interfaces of functions that are not invoked for about 14 days.
+ */
+export const getSharedNetworkKeeperFunctionName = (subnets: 'public' | 'private') =>
+  `${getSharedNetworkStackName()}-keeper-${subnets}`;
+
 /** Parameters of the shared network that live outside its stacks, so a deploy can write them before the stacks exist. */
 export const getSharedNetworkParameterPrefix = () => '/stacktape/shared-network';
 
@@ -79,5 +88,11 @@ export const getSharedNetworkLastUsedParameterName = (stackName: string) =>
  * either stack while a stage uses it, and `ListImports` on these names lists the stages that do.
  */
 export const getSharedNetworkExportName = (
-  output: 'vpc-id' | 'public-subnet-ids' | 'private-subnet-ids' | 'private-route-table-ids' | 'nat'
+  output:
+    | 'vpc-id'
+    | 'public-subnet-ids'
+    | 'private-subnet-ids'
+    | 'private-route-table-ids'
+    | 'no-access-security-group-id'
+    | 'nat'
 ) => (output === 'nat' ? `${getSharedNatStackName()}-id` : `${getSharedNetworkStackName()}-${output}`);
