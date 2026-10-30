@@ -1,13 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import { findForeignUse, removeUnusedSharedNetwork, type SharedNetworkRemovalAws } from './removal';
 
+type Interfaces = Array<{
+  NetworkInterfaceId: string;
+  Groups?: Array<{ GroupId: string }>;
+  Description?: string;
+  TagSet?: Array<{ Key: string; Value: string }>;
+}>;
+
 type FakeStack = {
   StackId: string;
   StackName: string;
   StackStatus: string;
   StackStatusReason?: string;
   Outputs: Array<{ OutputKey: string; OutputValue: string; ExportName?: string }>;
-  physicalIds: string[];
+  resources: Record<string, string>;
 };
 
 const natStack = (): FakeStack => ({
@@ -18,7 +25,7 @@ const natStack = (): FakeStack => ({
     { OutputKey: 'ResourceKind', OutputValue: 'shared-network-nat' },
     { OutputKey: 'NatId', OutputValue: 'eni-nat', ExportName: 'stacktape-network-nat' }
   ],
-  physicalIds: ['eni-nat', 'sg-nat']
+  resources: { NetworkInterface: 'eni-nat', SecurityGroup: 'sg-nat' }
 });
 const networkStack = (): FakeStack => ({
   StackId: 'arn:network/1',
@@ -29,7 +36,13 @@ const networkStack = (): FakeStack => ({
     { OutputKey: 'VpcId', OutputValue: 'vpc-1', ExportName: 'stacktape-network-vpc-id' },
     { OutputKey: 'PrivateSubnetIds', OutputValue: 'subnet-1', ExportName: 'stacktape-network-private-subnet-ids' }
   ],
-  physicalIds: ['vpc-1', 'subnet-1', 'rtb-1', 'igw-1', 'vpce-1']
+  resources: {
+    Vpc: 'vpc-1',
+    PrivateSubnet0: 'subnet-1',
+    PublicRouteTable: 'rtb-1',
+    InternetGateway: 'igw-1',
+    S3GatewayEndpoint: 'vpce-1'
+  }
 });
 
 /**
@@ -39,11 +52,16 @@ const networkStack = (): FakeStack => ({
 const createAccount = ({
   stacks,
   imports = {},
-  interfaces = [] as Array<{ NetworkInterfaceId: string; Groups?: Array<{ GroupId: string }>; Description?: string }>
+  interfaces = [] as Interfaces,
+  failDelete = false,
+  extraRoutes = [] as Array<Record<string, string>>
 }: {
   stacks: FakeStack[];
   imports?: Record<string, string[]>;
-  interfaces?: Array<{ NetworkInterfaceId: string; Groups?: Array<{ GroupId: string }>; Description?: string }>;
+  interfaces?: Interfaces;
+  /** CloudFormation ends the delete in DELETE_FAILED. */
+  failDelete?: boolean;
+  extraRoutes?: Array<Record<string, string>>;
 }) => {
   const live = new Map(stacks.map((stack) => [stack.StackName, stack]));
   const deleted = new Map<string, FakeStack>();
@@ -67,7 +85,11 @@ const createAccount = ({
   const aws: SharedNetworkRemovalAws = {
     getStack: async (nameOrId) => find(nameOrId),
     listImports: async (exportName) => (imports[exportName] ?? []).filter((name) => live.has(name)),
-    listPhysicalIds: async (stackName) => live.get(stackName)?.physicalIds ?? [],
+    listResources: async (stackName) =>
+      Object.entries(live.get(stackName)?.resources ?? {}).map(([logicalId, physicalId]) => ({
+        logicalId,
+        physicalId
+      })),
     setTerminationProtection: async (stackId, enabled) => {
       calls.push(`protection ${find(stackId)?.StackName} ${enabled}`);
     },
@@ -80,8 +102,8 @@ const createAccount = ({
         stack.StackStatusReason = `Delete canceled. Cannot delete export as it is in use by ${users[0]}.`;
         return;
       }
-      stack.StackStatus = 'DELETE_IN_PROGRESS';
-      pendingDeletes.add(stack.StackName);
+      stack.StackStatus = failDelete ? 'DELETE_FAILED' : 'DELETE_IN_PROGRESS';
+      if (!failDelete) pendingDeletes.add(stack.StackName);
     },
     describeVpc: async () => ({
       interfaces,
@@ -99,7 +121,8 @@ const createAccount = ({
             { GatewayId: 'vpce-1', DestinationPrefixListId: 'pl-1' },
             ...(live.has('stacktape-network-nat')
               ? [{ NetworkInterfaceId: 'eni-nat', DestinationCidrBlock: '0.0.0.0/0' }]
-              : [])
+              : []),
+            ...extraRoutes
           ]
         }
       ],
@@ -129,7 +152,7 @@ describe('removing the shared network after a stage delete', () => {
       stacks: [
         natStack(),
         networkStack(),
-        { ...natStack(), StackId: 'arn:b', StackName: 'app-dev-b', Outputs: [], physicalIds: [] }
+        { ...natStack(), StackId: 'arn:b', StackName: 'app-dev-b', Outputs: [], resources: {} }
       ],
       imports: {
         'stacktape-network-nat': ['app-dev-b'],
@@ -148,7 +171,7 @@ describe('removing the shared network after a stage delete', () => {
       StackName: 'app-dev-a',
       StackStatus: 'DELETE_IN_PROGRESS',
       Outputs: [],
-      physicalIds: []
+      resources: {}
     };
     const account = createAccount({
       stacks: [natStack(), networkStack(), stage],
@@ -182,7 +205,7 @@ describe('removing the shared network after a stage delete', () => {
       StackName: 'app-dev-a',
       StackStatus: 'DELETE_FAILED',
       Outputs: [],
-      physicalIds: []
+      resources: {}
     };
     const account = createAccount({
       stacks: [natStack(), networkStack(), stage],
@@ -205,16 +228,69 @@ describe('removing the shared network after a stage delete', () => {
     ]);
   });
 
-  test("counts the NAT instance's own interface as Stacktape's", async () => {
+  test("counts the NAT instance's own interface as Stacktape's, and not another interface in the NAT's group", async () => {
+    const natInstance = {
+      NetworkInterfaceId: 'eni-instance',
+      Groups: [{ GroupId: 'sg-nat' }],
+      TagSet: [{ Key: 'stp:stack-name', Value: 'stacktape-network-nat' }]
+    };
     const account = createAccount({
       stacks: [natStack(), networkStack()],
+      interfaces: [{ NetworkInterfaceId: 'eni-nat', Groups: [{ GroupId: 'sg-nat' }] }, natInstance]
+    });
+    expect((await run(account))[0]).toBe('Removed the shared NAT `stacktape-network-nat`: no stage uses it any more.');
+
+    const borrowed = createAccount({
+      stacks: [natStack(), networkStack()],
+      interfaces: [natInstance, { NetworkInterfaceId: 'eni-user', Groups: [{ GroupId: 'sg-nat' }] }]
+    });
+    expect((await run(borrowed))[0]).toContain('holds resources Stacktape did not create: network interface eni-user');
+    expect(borrowed.calls).toEqual([]);
+  });
+
+  test('removes the NAT while a stage without NAT still uses the network, whose interfaces are its own', async () => {
+    const stage = {
+      ...natStack(),
+      StackId: 'arn:b',
+      StackName: 'app-dev-b',
+      Outputs: [],
+      resources: { Group: 'sg-b' }
+    };
+    const account = createAccount({
+      stacks: [natStack(), networkStack(), stage],
+      imports: { 'stacktape-network-vpc-id': ['app-dev-b', 'stacktape-network-nat'] },
       interfaces: [
-        { NetworkInterfaceId: 'eni-nat', Groups: [{ GroupId: 'sg-nat' }] },
-        { NetworkInterfaceId: 'eni-instance', Groups: [{ GroupId: 'sg-nat' }] }
+        { NetworkInterfaceId: 'eni-lambda-b', Groups: [{ GroupId: 'sg-b' }], Description: 'AWS Lambda VPC ENI' }
       ]
     });
     const messages = await run(account);
-    expect(messages[0]).toBe('Removed the shared NAT `stacktape-network-nat`: no stage uses it any more.');
+    expect(account.calls).toEqual(['protection stacktape-network-nat false', 'delete stacktape-network-nat']);
+    expect(messages).toEqual([
+      'Removed the shared NAT `stacktape-network-nat`: no stage uses it any more.',
+      'Kept the shared network `stacktape-network`: the stack `app-dev-b` still uses it.'
+    ]);
+  });
+
+  test('keeps the stack and its protection when CloudFormation fails to delete it', async () => {
+    const account = createAccount({ stacks: [natStack(), networkStack()], failDelete: true });
+    const messages = await run(account);
+    expect(account.calls).toEqual([
+      'protection stacktape-network-nat false',
+      'delete stacktape-network-nat',
+      'protection stacktape-network-nat true'
+    ]);
+    expect(messages[0]).toStartWith(
+      'WARN Kept the shared NAT `stacktape-network-nat`: CloudFormation could not delete it'
+    );
+  });
+
+  test('keeps the network when someone added a route to its internet gateway', async () => {
+    const account = createAccount({
+      stacks: [networkStack()],
+      extraRoutes: [{ GatewayId: 'igw-1', DestinationCidrBlock: '198.51.100.0/24' }]
+    });
+    expect((await run(account))[0]).toContain('route to 198.51.100.0/24 through igw-1 in route table rtb-1');
+    expect(account.calls).toEqual([]);
   });
 
   test('turns protection on again when CloudFormation cancels the delete because a deploy started using the stack', async () => {

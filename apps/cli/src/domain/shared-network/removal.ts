@@ -1,5 +1,6 @@
 import type { NetworkInterface, RouteTable, SecurityGroup, Subnet, VpcEndpoint } from '@aws-sdk/client-ec2';
 import { getSharedNatStackName, getSharedNetworkStackName } from '@stacktape/naming/shared-stacks';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { SHARED_NAT_KIND, SHARED_NETWORK_KIND } from './template';
 
@@ -23,8 +24,8 @@ export type SharedNetworkRemovalAws = {
   /** By name or stack ID; `undefined` for a stack that does not exist under that name. */
   getStack: (stackNameOrId: string) => Promise<RemovableStack | undefined>;
   listImports: (exportName: string) => Promise<string[]>;
-  /** The physical IDs of the stack's resources. */
-  listPhysicalIds: (stackName: string) => Promise<string[]>;
+  /** The stack's resources that have a physical ID; none for a stack that does not exist. */
+  listResources: (stackName: string) => Promise<Array<{ logicalId: string; physicalId: string }>>;
   setTerminationProtection: (stackId: string, enabled: boolean) => Promise<unknown>;
   deleteStack: (stackId: string) => Promise<unknown>;
   describeVpc: (vpcId: string) => Promise<VpcContents>;
@@ -50,15 +51,35 @@ const listNames = (names: string[]) =>
 
 /**
  * What in the shared VPC Stacktape did not create: anything else a network interface, subnet, security group, route
- * table, route or endpoint belongs to. `owned` holds the physical IDs of the network's and the NAT's stacks. The NAT
- * instance's own interface is not a stack resource; it carries the NAT's security group.
+ * table, route or endpoint belongs to. `owned` holds the physical IDs of the network's and the NAT's stacks and of the
+ * stages that import the network.
+ *
+ * Interfaces AWS creates for a stage's functions, tasks, databases and load balancers are not stack resources; every
+ * group they carry is one of the stage's. The NAT instance's own interface carries the NAT's group and the NAT stack's
+ * tag, which an interface someone else put in that group lacks. A route counts only in the form Stacktape creates it:
+ * the default route to the network's internet gateway or the NAT, or an endpoint's prefix-list route.
  */
-export const findForeignUse = ({ contents, owned }: { contents: VpcContents; owned: Set<string> }): string[] => {
+export const findForeignUse = ({
+  contents,
+  owned,
+  natSecurityGroupIds = new Set()
+}: {
+  contents: VpcContents;
+  owned: Set<string>;
+  natSecurityGroupIds?: Set<string>;
+}): string[] => {
   const found: string[] = [];
+  const natStackName = getSharedNatStackName();
   for (const networkInterface of contents.interfaces) {
+    const groups = (networkInterface.Groups ?? []).map(({ GroupId }) => GroupId ?? '');
+    const isNatInstance = networkInterface.TagSet?.some(
+      ({ Key, Value }) => Key === tagNames.stackName() && Value === natStackName
+    );
     const ours =
       owned.has(networkInterface.NetworkInterfaceId ?? '') ||
-      (networkInterface.Groups ?? []).some(({ GroupId }) => owned.has(GroupId ?? ''));
+      (groups.length > 0 &&
+        groups.every((group) => owned.has(group)) &&
+        (isNatInstance || !groups.some((group) => natSecurityGroupIds.has(group))));
     if (!ours) {
       found.push(
         `network interface ${networkInterface.NetworkInterfaceId}${networkInterface.Description ? ` (${networkInterface.Description})` : ''}`
@@ -90,7 +111,10 @@ export const findForeignUse = ({ contents, owned }: { contents: VpcContents; own
         route.CarrierGatewayId ??
         route.CoreNetworkArn ??
         '';
-      if (target === 'local' || owned.has(target)) continue;
+      const createdByStacktape =
+        target === 'local' ||
+        (owned.has(target) && (route.DestinationCidrBlock === '0.0.0.0/0' || !!route.DestinationPrefixListId));
+      if (createdByStacktape) continue;
       const destination = route.DestinationCidrBlock ?? route.DestinationPrefixListId ?? route.DestinationIpv6CidrBlock;
       found.push(`route to ${destination} through ${target} in route table ${id}`);
     }
@@ -133,16 +157,26 @@ export const removeUnusedSharedNetwork = async ({
   const networkName = getSharedNetworkStackName();
   let announcedWait = false;
 
-  const ownedIds = async () => {
-    const ids = await Promise.all([natName, networkName].map((name) => aws.listPhysicalIds(name)));
-    return new Set(ids.flat());
+  const exportNamesOf = (stack: RemovableStack) =>
+    (stack.Outputs ?? []).map(({ ExportName }) => ExportName).filter((name): name is string => !!name);
+
+  /** What Stacktape created in the VPC: the shared stacks' resources and those of the stages in the network. */
+  const listOwned = async (network: RemovableStack) => {
+    const stages = (await Promise.all(exportNamesOf(network).map(aws.listImports))).flat();
+    const stacks = [...new Set([natName, networkName, ...stages])];
+    const resources = (await Promise.all(stacks.map((name) => aws.listResources(name)))).flat();
+    const nat = await aws.listResources(natName);
+    return {
+      owned: new Set(resources.map(({ physicalId }) => physicalId)),
+      natSecurityGroupIds: new Set(
+        nat.filter(({ logicalId }) => logicalId === 'SecurityGroup').map(({ physicalId }) => physicalId)
+      )
+    };
   };
 
   /** Waits until no stage imports the stack's exports. Importers that are being deleted are waited for. */
   const waitForImporters = async (stack: RemovableStack, label: string): Promise<Outcome | undefined> => {
-    const exportNames = (stack.Outputs ?? [])
-      .map(({ ExportName }) => ExportName)
-      .filter((name): name is string => !!name);
+    const exportNames = exportNamesOf(stack);
     const startedAt = Date.now();
     for (;;) {
       const importers = [...new Set((await Promise.all(exportNames.map(aws.listImports))).flat())];
@@ -176,6 +210,15 @@ export const removeUnusedSharedNetwork = async ({
     }
   };
 
+  /** A stack that stays keeps its termination protection. Best effort: the failure being reported matters more. */
+  const restoreProtection = async (stackId: string) => {
+    try {
+      await aws.setTerminationProtection(stackId, true);
+    } catch (error) {
+      report.warn(`Could not turn termination protection on again for ${stackId}: ${error}`);
+    }
+  };
+
   /** Waits for a delete by stack ID: a deleted stack vanishes from reads by name. */
   const waitForDeletion = async (stackId: string, { requested }: { requested: boolean }): Promise<Outcome> => {
     const startedAt = Date.now();
@@ -185,10 +228,11 @@ export const removeUnusedSharedNetwork = async ({
       if (!current || current.StackStatus === 'DELETE_COMPLETE') return { kind: 'removed' };
       if (current.StackStatus === 'DELETE_IN_PROGRESS') seenDeleting = true;
       else if (current.StackStatus === 'DELETE_FAILED') {
+        await restoreProtection(stackId);
         return { kind: 'kept', warn: true, reason: `CloudFormation could not delete it (${describeStatus(current)})` };
       } else if (seenDeleting || !requested || /delete canceled/i.test(current.StackStatusReason ?? '')) {
         // CloudFormation cancels the delete of a stack whose export a stage imports: a deploy started using it.
-        await aws.setTerminationProtection(stackId, true);
+        await restoreProtection(stackId);
         return { kind: 'kept', reason: 'a stage started using it while it was being removed' };
       }
       if (Date.now() - startedAt > deleteTimeoutMs) {
@@ -215,9 +259,10 @@ export const removeUnusedSharedNetwork = async ({
     if (!READY_STATUSES.has(stack.StackStatus ?? '')) {
       return { kind: 'kept', reason: `CloudFormation is changing it (${describeStatus(stack)})` } as Outcome;
     }
-    const vpcId = output((await aws.getStack(networkName)) ?? {}, 'VpcId');
-    if (vpcId) {
-      const foreign = findForeignUse({ contents: await aws.describeVpc(vpcId), owned: await ownedIds() });
+    const network = await aws.getStack(networkName);
+    const vpcId = network && output(network, 'VpcId');
+    if (network && vpcId) {
+      const foreign = findForeignUse({ contents: await aws.describeVpc(vpcId), ...(await listOwned(network)) });
       if (foreign.length) {
         return {
           kind: 'kept',
@@ -232,7 +277,10 @@ export const removeUnusedSharedNetwork = async ({
       // Another stage's delete removed it between the read and these calls.
       const current = await aws.getStack(stackId);
       if (!current || current.StackStatus === 'DELETE_COMPLETE') return { kind: 'removed' } as Outcome;
-      if (current.StackStatus !== 'DELETE_IN_PROGRESS') throw error;
+      if (current.StackStatus !== 'DELETE_IN_PROGRESS') {
+        await restoreProtection(stackId);
+        throw error;
+      }
     }
     return waitForDeletion(stackId, { requested: true });
   };
@@ -257,10 +305,10 @@ export const removeUnusedSharedNetwork = async ({
 export const createSharedNetworkRemovalAws = (): SharedNetworkRemovalAws => ({
   getStack: async (stackNameOrId) => (await awsSdkManager.cloudFormation.getDetails(stackNameOrId)) ?? undefined,
   listImports: (exportName) => awsSdkManager.cloudFormation.listImports(exportName),
-  listPhysicalIds: async (stackName) =>
-    (await awsSdkManager.cloudFormation.getResources(stackName))
-      .map(({ PhysicalResourceId }) => PhysicalResourceId)
-      .filter((id): id is string => !!id),
+  listResources: async (stackName) =>
+    (await awsSdkManager.cloudFormation.getResources(stackName)).flatMap(({ LogicalResourceId, PhysicalResourceId }) =>
+      LogicalResourceId && PhysicalResourceId ? [{ logicalId: LogicalResourceId, physicalId: PhysicalResourceId }] : []
+    ),
   setTerminationProtection: (stackId, enabled) =>
     awsSdkManager.cloudFormation.setTerminationProtection(enabled, stackId),
   // The stacks keep the CloudFormation role they were created with, if any.

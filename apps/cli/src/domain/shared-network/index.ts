@@ -192,8 +192,20 @@ const ensureSharedNetwork = async ({ usesNat }: { usesNat: boolean }): Promise<S
           template: buildSharedNatTemplate({ region: globalStateManager.region })
         }
       });
-      // The NAT imports the network's exports, so the network it was created or found with stays.
-      return { ...network, natPublicIp: outputOf(natStack, 'PublicIp') };
+      // The NAT imports the network's exports, so the network it now uses stays. While this deploy waited for the NAT,
+      // another deploy may have created the network again; its outputs are then read again.
+      const current = await adapter.get(getSharedNetworkStackName());
+      if (current?.StackId === networkStack.StackId) {
+        return { ...network, natPublicIp: outputOf(natStack, 'PublicIp') };
+      }
+      if (attempt >= 3) {
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'SHARED_NETWORK_KEEPS_CHANGING',
+          message: `The shared network \`${getSharedNetworkStackName()}\` kept being removed and created again during this deploy.`,
+          hints: 'Wait for other deploys and deletes of non-production stages in this account and region, then retry.'
+        });
+      }
     } catch (error) {
       // The removal that deleted the NAT went on to delete the network before the NAT was created again, so its
       // creation found no network exports. The network is then created again first.
