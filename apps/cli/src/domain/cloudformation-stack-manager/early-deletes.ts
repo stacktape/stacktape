@@ -5,10 +5,12 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 /**
  * Databases, caches, search domains and load balancers take minutes to delete, and CloudFormation starts deleting one
- * only after every workload that references it is gone (an ECS service takes 2-3 minutes). A function URL waits for
- * the distribution in front of it, and keeps running the function for direct callers until then. On a stack delete that order
- * protects nothing, so once CloudFormation has started deleting the stack's resources, `delete` starts these deletes
- * itself and CloudFormation finds them already deleting or gone.
+ * only after every workload that references it is gone (an ECS service takes 2-3 minutes). A DynamoDB table deletes in
+ * seconds, but a container's task definition references it, so it waits for the ECS service as well. A function URL
+ * waits for the distribution in front of it, and keeps running the function for direct callers until then. On a stack
+ * delete that order protects nothing, so once CloudFormation has started deleting the stack's resources, `delete` starts
+ * these deletes itself and CloudFormation finds them already deleting or gone (measured for DynamoDB tables in both
+ * states).
  *
  * A resource qualifies only when CloudFormation would delete it the same way: its DeletionPolicy deletes it without a
  * snapshot, AWS deletion protection is off, and it is not part of a read-replica or global setup. Anything else stays
@@ -33,6 +35,8 @@ export type EarlyDelete =
     }
   | { kind: 'elasticache-replication-group'; logicalId: string; replicationGroupId: string }
   | { kind: 'opensearch-domain'; logicalId: string; domainName: string }
+  /** A DynamoDB table in this region only; tables with replicas in other regions stay with CloudFormation. */
+  | { kind: 'dynamodb-table'; logicalId: string; tableName: string }
   /** Deleting a load balancer deletes its listeners and rules too. Its target groups stay with CloudFormation. */
   | { kind: 'load-balancer'; logicalId: string; loadBalancerArn: string }
   /**
@@ -223,6 +227,24 @@ export const planEarlyDeletes = ({
       return [{ kind: 'opensearch-domain', logicalId, domainName: PhysicalResourceId }];
     }
 
+    if (ResourceType === 'AWS::DynamoDB::Table' || ResourceType === 'AWS::DynamoDB::GlobalTable') {
+      // The default policy is Delete, without a backup. A global table with replicas in other regions stays with
+      // CloudFormation, which removes the replicas first; so does a table with deletion protection.
+      const replicas = properties.Replicas;
+      const unprotected = (value: unknown) => value === undefined || value === false;
+      if (
+        (deployed.DeletionPolicy !== undefined && deployed.DeletionPolicy !== 'Delete') ||
+        !unprotected(properties.DeletionProtectionEnabled) ||
+        (ResourceType === 'AWS::DynamoDB::GlobalTable' &&
+          (!Array.isArray(replicas) ||
+            replicas.length !== 1 ||
+            !unprotected((replicas[0] as { DeletionProtectionEnabled?: unknown })?.DeletionProtectionEnabled)))
+      ) {
+        return [];
+      }
+      return [{ kind: 'dynamodb-table', logicalId, tableName: PhysicalResourceId }];
+    }
+
     if (ResourceType === 'AWS::ElasticLoadBalancingV2::LoadBalancer') {
       // The default policy is Delete.
       if (
@@ -255,6 +277,9 @@ export const describeEarlyDelete = (item: EarlyDelete) => {
   }
   if (item.kind === 'opensearch-domain') {
     return `${item.logicalId} (OpenSearch domain ${item.domainName})`;
+  }
+  if (item.kind === 'dynamodb-table') {
+    return `${item.logicalId} (DynamoDB table ${item.tableName})`;
   }
   return `${item.logicalId} (${item.kind === 'aurora-instance' ? 'Aurora DB instance' : 'RDS DB instance'} ${item.instanceId})`;
 };
@@ -329,6 +354,19 @@ export const startEarlyDeletes = async ({
             return;
           }
           await awsSdkManager.loadBalancers.deleteLoadBalancer({ loadBalancerArn: item.loadBalancerArn });
+        } else if (item.kind === 'dynamodb-table') {
+          const table = await awsSdkManager.dynamoDb.getTable({ tableName: item.tableName });
+          if (
+            !table ||
+            table.TableStatus !== 'ACTIVE' ||
+            table.DeletionProtectionEnabled ||
+            table.Replicas?.length ||
+            table.GlobalTableVersion
+          ) {
+            onDebug(`Leaving ${describeEarlyDelete(item)} to CloudFormation: its current state does not allow it.`);
+            return;
+          }
+          await awsSdkManager.dynamoDb.deleteTable({ tableName: item.tableName });
         } else if (item.kind === 'opensearch-domain') {
           const domain = await awsSdkManager.openSearch.getDomain({ domainName: item.domainName });
           if (!domain || domain.Deleted || domain.Processing || domain.UpgradeProcessing) {

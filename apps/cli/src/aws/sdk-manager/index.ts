@@ -8,6 +8,7 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
@@ -57,6 +58,7 @@ import { AwsAutoScaling } from '../auto-scaling';
 import { AwsOpenSearch } from '../open-search';
 import { AwsRds } from '../rds';
 import { AwsElastiCache } from '../elasticache';
+import { AwsDynamoDb } from '../dynamodb';
 import { AwsLoadBalancers } from '../load-balancers';
 import { AwsEmail } from '../email';
 import { AwsApiGatewayAccount } from '../api-gateway-account';
@@ -85,6 +87,7 @@ export class AwsSdkManager {
   #openSearch?: AwsOpenSearch;
   #rds?: AwsRds;
   #elastiCache?: AwsElastiCache;
+  #dynamoDb?: AwsDynamoDb;
   #loadBalancers?: AwsLoadBalancers;
   #email?: AwsEmail;
   #apiGatewayAccount?: AwsApiGatewayAccount;
@@ -204,6 +207,9 @@ export class AwsSdkManager {
     });
     this.#elastiCache = new AwsElastiCache({
       createClient: () => this.#applyPlugins(new ElastiCacheClient(this.#getClientArgs()))
+    });
+    this.#dynamoDb = new AwsDynamoDb({
+      createClient: () => this.#applyPlugins(new DynamoDBClient(this.#getClientArgs()))
     });
     this.#loadBalancers = new AwsLoadBalancers({
       createClient: () => this.#applyPlugins(new ElasticLoadBalancingV2Client(this.#getClientArgs()))
@@ -397,6 +403,14 @@ export class AwsSdkManager {
       throw new Error('AWS ElastiCache has not been initialized.');
     }
     return this.#elastiCache;
+  }
+
+  get dynamoDb() {
+    this.#getContext();
+    if (!this.#dynamoDb) {
+      throw new Error('AWS DynamoDB has not been initialized.');
+    }
+    return this.#dynamoDb;
   }
 
   get loadBalancers() {

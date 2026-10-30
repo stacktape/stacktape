@@ -15,7 +15,11 @@ import { runsUserCodeOnDelete } from './early-deletes';
  * - a live check proves it idle: every task of an ECS service has stopped, a distribution is disabled, a load balancer
  *   is gone (the CLI deletes load balancers early, see `early-deletes.ts`), a bucket is empty (`delete` empties the
  *   stack's buckets before CloudFormation starts), a function URL is gone (it runs the function for any caller;
- *   `delete` deletes URLs early), a database instance or cache is gone (they bill until then).
+ *   `delete` deletes URLs early), a database instance, DynamoDB table or cache is gone (they bill until then and hold
+ *   data; `delete` deletes them early, see `early-deletes.ts`).
+ * An ECS service counts once its tasks have stopped, and so does everything CloudFormation deletes only after it: its
+ * task definition, cluster, target groups and service discovery are in the list above, and its load balancer, and the
+ * databases and tables its task definition references, are deleted early.
  * Everything else (Aurora clusters, NAT gateways, topics, rules, user custom resources...) is waited for.
  */
 export type PendingDelete = { logicalId: string; resourceType: string; physicalId?: string };
@@ -28,6 +32,7 @@ export type IdleCheck =
   | { kind: 'function-url-gone'; functionArn: string }
   /** Billed until gone. CloudFormation notices that up to ~20 s late. */
   | { kind: 'db-instance-gone'; instanceId: string }
+  | { kind: 'dynamodb-table-gone'; tableName: string }
   | { kind: 'replication-group-gone'; replicationGroupId: string }
   | { kind: 'serverless-cache-gone'; serverlessCacheName: string };
 
@@ -98,10 +103,10 @@ const COST_NOTHING_WHILE_DELETED = new Set([
 ]);
 
 /**
- * Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies.
- * The queues, queue policies and rules the service Lambda creates (`sqsQueue`, `sqsQueuePolicy`, `eventsRule`) are not
- * listed: a rule can still invoke its targets, and the service Lambda deletes all three within seconds once nothing
- * uses them, so waiting for them costs no time.
+ * Stacktape custom resources whose delete only removes records, certificates, parameters or edge function copies, and
+ * the queues and queue policies the service Lambda creates (`sqsQueue`, `sqsQueuePolicy`), which cost nothing like
+ * `AWS::SQS::Queue`. CloudFormation deletes them before the service Lambda and its permission, which they depend on.
+ * The rules it creates (`eventsRule`) are not listed: a rule can still invoke its targets.
  */
 const STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST = new Set([
   'defaultDomain',
@@ -111,7 +116,9 @@ const STACKTAPE_CUSTOM_RESOURCES_WITHOUT_COST = new Set([
   'edgeLambdaBucket',
   'sensitiveData',
   'deregisterTargets',
-  'publishLambdaVersion'
+  'publishLambdaVersion',
+  'sqsQueue',
+  'sqsQueuePolicy'
 ]);
 
 type TemplateResource = { Type?: string; Properties?: Record<string, unknown> };
@@ -158,7 +165,14 @@ export const planBackgroundDeleteChecks = ({
     } else if (resourceType === 'AWS::S3::Bucket') checks.push({ kind: 'bucket-empty', bucketName: physicalId });
     else if (resourceType === 'AWS::Lambda::Url') checks.push({ kind: 'function-url-gone', functionArn: physicalId });
     else if (resourceType === 'AWS::RDS::DBInstance') checks.push({ kind: 'db-instance-gone', instanceId: physicalId });
-    else if (resourceType === 'AWS::ElastiCache::ReplicationGroup') {
+    else if (resourceType === 'AWS::DynamoDB::Table' || resourceType === 'AWS::DynamoDB::GlobalTable') {
+      // Replicas in other regions bill until CloudFormation has removed them; only this region's table is checked.
+      const replicas = templateResources[logicalId]?.Properties?.Replicas;
+      if (resourceType === 'AWS::DynamoDB::GlobalTable' && !(Array.isArray(replicas) && replicas.length === 1)) {
+        return undefined;
+      }
+      checks.push({ kind: 'dynamodb-table-gone', tableName: physicalId });
+    } else if (resourceType === 'AWS::ElastiCache::ReplicationGroup') {
       checks.push({ kind: 'replication-group-gone', replicationGroupId: physicalId });
     } else if (resourceType === 'AWS::ElastiCache::ServerlessCache') {
       checks.push({ kind: 'serverless-cache-gone', serverlessCacheName: physicalId });
