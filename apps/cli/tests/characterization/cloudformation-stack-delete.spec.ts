@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import type { ReplicationGroup } from '@aws-sdk/client-elasticache';
+import type { TableDescription } from '@aws-sdk/client-dynamodb';
 import type { DomainStatus } from '@aws-sdk/client-opensearch';
 import type { DBCluster, DBInstance } from '@aws-sdk/client-rds';
 import type { EnrichedStackResourceInfo, StackDetails } from '../../src/domain/cloudformation-stack-manager/types';
@@ -79,6 +80,7 @@ const withDeleteFixture = async (
     liveReplicationGroups = {},
     liveDomains = {},
     liveLoadBalancers = {},
+    liveTables = {},
     priorEvents = [],
     currentTemplate,
     currentResources,
@@ -91,6 +93,7 @@ const withDeleteFixture = async (
     liveReplicationGroups?: Record<string, Partial<ReplicationGroup>>;
     liveDomains?: Record<string, Partial<DomainStatus>>;
     liveLoadBalancers?: Record<string, { deletionProtection: boolean }>;
+    liveTables?: Record<string, Partial<TableDescription>>;
     /** The stack's events before DeleteStack; an Error when they cannot be read. */
     priorEvents?: { Timestamp: Date }[] | Error;
     /** The template CloudFormation reports once the delete has started, when it differs from the one loaded first. */
@@ -173,6 +176,12 @@ const withDeleteFixture = async (
       spyOn(awsSdkManager.openSearch, 'deleteDomain').mockImplementation(async ({ domainName }) => {
         calls.push(`opensearch:delete ${domainName}`);
         return {} as DomainStatus;
+      }),
+      spyOn(awsSdkManager.dynamoDb, 'getTable').mockImplementation(
+        async ({ tableName }) => liveTables[tableName] as TableDescription
+      ),
+      spyOn(awsSdkManager.dynamoDb, 'deleteTable').mockImplementation(async ({ tableName }) => {
+        calls.push(`dynamodb:delete ${tableName}`);
       }),
       spyOn(tuiManager, 'warn').mockImplementation((message: string) => {
         warnings.push(message);
@@ -396,6 +405,8 @@ describe('early database and cache deletes', () => {
   const serverlessCache = 'AWS::ElastiCache::ServerlessCache';
   const domain = 'AWS::OpenSearchService::Domain';
   const loadBalancer = 'AWS::ElasticLoadBalancingV2::LoadBalancer';
+  const globalTable = 'AWS::DynamoDB::GlobalTable';
+  const table = 'AWS::DynamoDB::Table';
 
   test.each([
     ['a standalone instance with DeletionPolicy Delete', { Db: { type: instance, deletionPolicy: 'Delete' } }, ['Db']],
@@ -554,6 +565,43 @@ describe('early database and cache deletes', () => {
       { Cluster: { type: cluster, deletionPolicy: 'Delete' } },
       []
     ],
+    [
+      'a single-region global table without a DeletionPolicy (Delete)',
+      { Records: { type: globalTable, properties: { Replicas: [{ Region: 'eu-west-1' }] } } },
+      ['Records']
+    ],
+    ['a table without a DeletionPolicy (Delete)', { Records: { type: table } }, ['Records']],
+    ['a retained table', { Records: { type: table, deletionPolicy: 'Retain' } }, []],
+    [
+      'a table with deletion protection',
+      { Records: { type: table, properties: { DeletionProtectionEnabled: true } } },
+      []
+    ],
+    [
+      'a table whose deletion protection is not a literal',
+      { Records: { type: table, properties: { DeletionProtectionEnabled: { 'Fn::If': ['Prod', true, false] } } } },
+      []
+    ],
+    [
+      'a global table with a replica in another region',
+      {
+        Records: {
+          type: globalTable,
+          properties: { Replicas: [{ Region: 'eu-west-1' }, { Region: 'us-east-1' }] }
+        }
+      },
+      []
+    ],
+    [
+      'a global table whose replica has deletion protection',
+      {
+        Records: {
+          type: globalTable,
+          properties: { Replicas: [{ Region: 'eu-west-1', DeletionProtectionEnabled: true }] }
+        }
+      },
+      []
+    ],
     ['a load balancer without a DeletionPolicy (Delete)', { Lb: { type: loadBalancer } }, ['Lb']],
     ['a function URL without a DeletionPolicy (Delete)', { ApiUrl: { type: 'AWS::Lambda::Url' } }, ['ApiUrl']],
     ['a retained function URL', { ApiUrl: { type: 'AWS::Lambda::Url', deletionPolicy: 'Retain' } }, []],
@@ -701,6 +749,35 @@ describe('early database and cache deletes', () => {
       {
         deletionPolicies,
         liveInstances: { 'stack-db': { DBInstanceStatus: 'available', ReadReplicaDBInstanceIdentifiers: ['replica'] } }
+      }
+    );
+  });
+
+  test('deletes a DynamoDB table early unless it is protected, busy or has replicas', async () => {
+    const tables = ['ready', 'protected', 'updating', 'replicated', 'legacy-global'].map((name) =>
+      resource('AWS::DynamoDB::GlobalTable', `stack-${name}`, `${name.replace('-', '')}Table`)
+    );
+    await withDeleteFixture(
+      tables,
+      async ({ calls, warnings, runCleanUpHooks }) => {
+        await stackManager.deleteStack();
+        expect(calls.filter((call) => call.startsWith('dynamodb:'))).toEqual(['dynamodb:delete stack-ready']);
+        // A failed delete names the table among the data stores Stacktape had already started deleting.
+        await runCleanUpHooks({ success: false });
+        expect(warnings.join('\n')).toContain('readyTable (DynamoDB table stack-ready)');
+      },
+      {
+        properties: Object.fromEntries(
+          tables.map(({ LogicalResourceId }) => [LogicalResourceId, { Replicas: [{ Region: 'eu-west-1' }] }])
+        ),
+        liveTables: {
+          'stack-ready': { TableStatus: 'ACTIVE', DeletionProtectionEnabled: false },
+          'stack-protected': { TableStatus: 'ACTIVE', DeletionProtectionEnabled: true },
+          'stack-updating': { TableStatus: 'UPDATING' },
+          // Replicas added outside the template, or a global table of the 2017 version.
+          'stack-replicated': { TableStatus: 'ACTIVE', Replicas: [{ RegionName: 'us-east-1' }] },
+          'stack-legacy-global': { TableStatus: 'ACTIVE', GlobalTableVersion: '2017.11.29' }
+        }
       }
     );
   });
@@ -1101,15 +1178,41 @@ describe('finishing a delete in the background', () => {
     },
     { name: 'a queue, billed per request', pending: [['Queue', 'AWS::SQS::Queue']], expected: [] },
     ...[
-      ['Custom::StpSqsQueue', 'sqsQueue'],
-      ['Custom::StpSqsQueuePolicy', 'sqsQueuePolicy'],
-      ['Custom::StpEventsRule', 'eventsRule']
-    ].map(([type, resolver]) => ({
-      name: `a ${type} the service Lambda deletes within seconds`,
+      ['Custom::StpSqsQueue', 'sqsQueue', []],
+      ['Custom::StpSqsQueuePolicy', 'sqsQueuePolicy', []],
+      // A rule can still invoke its targets.
+      ['Custom::StpEventsRule', 'eventsRule', undefined]
+    ].map(([type, resolver, expected]) => ({
+      name: `a ${type} the service Lambda creates`,
       pending: [['Created', type]] as [string, string][],
-      template: { Created: { ...stacktapeCustomResource({ [resolver]: {} }), Type: type } },
-      expected: undefined
+      template: { Created: { ...stacktapeCustomResource({ [resolver as string]: {} }), Type: type } },
+      expected
     })),
+    {
+      name: 'a global table with replicas in other regions, which bill until CloudFormation removed them',
+      pending: [['Records', 'AWS::DynamoDB::GlobalTable']],
+      template: {
+        Records: {
+          Type: 'AWS::DynamoDB::GlobalTable',
+          Properties: { Replicas: [{ Region: 'eu-west-1' }, { Region: 'us-east-1' }] }
+        }
+      },
+      expected: undefined
+    },
+    {
+      name: 'DynamoDB tables, which hold data until they are gone',
+      pending: [
+        ['Records', 'AWS::DynamoDB::GlobalTable'],
+        ['Plain', 'AWS::DynamoDB::Table']
+      ],
+      template: {
+        Records: { Type: 'AWS::DynamoDB::GlobalTable', Properties: { Replicas: [{ Region: 'eu-west-1' }] } }
+      },
+      expected: [
+        { kind: 'dynamodb-table-gone', tableName: 'Records-id' },
+        { kind: 'dynamodb-table-gone', tableName: 'Plain-id' }
+      ]
+    },
     {
       name: 'a topic, which can still invoke its subscribers',
       pending: [['Topic', 'AWS::SNS::Topic']],

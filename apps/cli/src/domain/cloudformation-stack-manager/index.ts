@@ -1226,7 +1226,7 @@ class StackManager {
   };
 
   /**
-   * Starts deleting the stack's databases, caches, search domains, load balancers and function URLs once CloudFormation has started
+   * Starts deleting the stack's databases, tables, caches, search domains, load balancers and function URLs once CloudFormation has started
    * deleting the stack's resources, so they delete in parallel with the workloads that reference them instead of after
    * them. See `early-deletes.ts` for which resources qualify.
    */
@@ -1316,6 +1316,9 @@ class StackManager {
         }
         if (check.kind === 'db-instance-gone') {
           return !(await awsSdkManager.rds.instanceExists({ identifier: check.instanceId }));
+        }
+        if (check.kind === 'dynamodb-table-gone') {
+          return !(await awsSdkManager.dynamoDb.tableExists({ tableName: check.tableName }));
         }
         if (check.kind === 'serverless-cache-gone') {
           return !(await awsSdkManager.elastiCache.serverlessCacheExists({
