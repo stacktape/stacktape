@@ -344,7 +344,10 @@ export class AwsCloudFormationStacks {
       .catch(handleError);
   };
 
-  /** The names of the stacks that import an export. CloudFormation reports an export nobody imports as an error. */
+  /**
+   * The names of the stacks that import an export. CloudFormation reports an export nobody imports, and one whose stack
+   * is being deleted, as errors; neither has importers.
+   */
   listImports = async (exportName: string): Promise<string[]> => {
     const handleError = this.#getErrorHandler(`Could not list the stacks that import \`${exportName}\``);
     const result: string[] = [];
@@ -353,7 +356,8 @@ export class AwsCloudFormationStacks {
       const page = await this.#createClient()
         .send(new ListImportsCommand({ ExportName: exportName, NextToken: nextToken }))
         .catch((error) => {
-          if (/is not imported by any stack/i.test(error.message)) return { Imports: [], NextToken: undefined };
+          if (/is not imported by any stack|Export '.*' does not exist/i.test(error.message))
+            return { Imports: [], NextToken: undefined };
           return handleError(error);
         });
       result.push(...(page.Imports ?? []));
