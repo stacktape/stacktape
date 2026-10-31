@@ -6,7 +6,7 @@ import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 import { citeFirstCodeMatch, maskFile } from '../lexical';
-import { createModuleResolver, reachableFrom, startEntriesOf, type StartEntry } from '../start-entries';
+import { createModuleResolver, loadedOnLoad, runsOnLoad, unambiguousStartFile } from '../start-entries';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -492,314 +492,80 @@ const springBootPort = async (
     : { port: SPRING_BOOT_DEFAULT_PORT, citation: { ...entrypoint, field: 'port' } };
 };
 
-/** Browser UI frameworks: a package that depends on one is a frontend unless a file in it starts a server. */
-const BROWSER_FRAMEWORKS = ['react', 'react-dom', 'vue', 'nuxt', 'svelte', '@angular/core', 'solid-js', 'preact'];
-/** Modules a JavaScript server is built on; a `.listen()` in a file that imports none of them is no server's. */
-const SERVER_MODULE =
-  /^(?:node:)?(?:http|https|http2|net)$|^(?:express|fastify|koa|hono|@hono\/node-server|@nestjs\/.+|ws|socket\.io|@hapi\/hapi|restify|polka|h3|micro|next|@remix-run\/.+|@react-router\/.+|@koa\/.+)$/;
-
-const dependsOnBrowserFramework = async (root: string, context: ProbeContext): Promise<boolean> => {
-  const path = root === '.' ? 'package.json' : posix.join(root, 'package.json');
-  if (!context.files.includes(path)) return false;
-  try {
-    const manifest = JSON.parse((await readText(context, path, { fullFile: true })) ?? '{}') as Record<string, unknown>;
-    return ['dependencies', 'devDependencies'].some((field) => {
-      const dependencies = manifest[field];
-      return (
-        typeof dependencies === 'object' &&
-        dependencies !== null &&
-        BROWSER_FRAMEWORKS.some((name) => Object.hasOwn(dependencies, name))
-      );
-    });
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Whether a JavaScript file builds a server: it imports a server module or calls `createServer`, `Bun.serve` or
- * `Deno.serve`. In a frontend package, `history.listen()`, a Tauri event `listen()` or an API client's
- * `jobs.listen()` is not one.
- */
-const startsServer = (path: string, raw: string, code: string): boolean =>
-  /\bcreateServer\s*\(|\bBun\.serve\s*\(|\bDeno\.serve\s*\(/.test(code) ||
-  [...maskFile(path, raw, 'keep').matchAll(/(?:\bfrom\s*|\brequire\s*\(\s*|\bimport\s*\(\s*)['"]([^'"\n]+)['"]/g)].some(
-    (match) => SERVER_MODULE.test(match[1]!)
-  );
-
-/**
- * Go `main` files that are not how their module starts. A Go file beside a `package.json` with no `go.mod` belongs to
- * a JavaScript package (a local file server for an extension, say). And Go's project layout keeps a module's own
- * program in `cmd/<module name>`: when `cmd/fleet/main.go` exists in module `github.com/fleetdm/fleet/v4`, the other
- * `main` packages of the module (`cmd/apple-apns-mock`, `orbit/cmd/desktop`) are mocks, tools and other programs.
- */
-const unstartedGoMains = async (detected: readonly Detected[], context: ProbeContext): Promise<ReadonlySet<string>> => {
-  const dropped = new Set<string>();
-  const goMains = detected.filter(({ detection }) => detection.language === 'go');
-  for (const root of new Set(goMains.map((candidate) => candidate.root))) {
-    const inRoot = goMains.filter((candidate) => candidate.root === root);
-    const goMod = root === '.' ? 'go.mod' : posix.join(root, 'go.mod');
-    if (!context.files.includes(goMod)) {
-      for (const { path } of inRoot) dropped.add(path);
-      continue;
-    }
-    // oxlint-disable-next-line no-await-in-loop -- one small manifest per Go module.
-    const module = /^module\s+(\S+)/m.exec((await readText(context, goMod)) ?? '')?.[1];
-    const name = module
-      ?.replace(/\/v\d+$/, '')
-      .split('/')
-      .at(-1);
-    const commands = root === '.' ? 'cmd/' : `${root}/cmd/`;
-    if (name === undefined || !context.files.includes(`${commands}${name}/main.go`)) continue;
-    for (const { path } of inRoot) {
-      if (!path.startsWith(`${commands}${name}/`)) dropped.add(path);
-    }
-  }
-  return dropped;
-};
-
-/** Words before `(...)` that open a block, not a function body. */
-const BLOCK_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'with']);
-
-/** Whether the `{` at `index` of `code` (strings and comments blanked) opens a function body, and the function's name. */
-const functionAt = (code: string, index: number): { opens: boolean; name?: string } => {
-  const before = code.slice(0, index).trimEnd();
-  if (before.endsWith('=>')) return { opens: true, ...arrowName(code, before.length - 2) };
-  if (!before.endsWith(')')) return { opens: false };
-  let depth = 0;
-  let open = before.length - 1;
-  for (; open >= 0; open -= 1) {
-    if (before[open] === ')') depth += 1;
-    else if (before[open] === '(' && --depth === 0) break;
-  }
-  const word = /([A-Za-z_$][\w$]*)\s*$/.exec(before.slice(0, Math.max(open, 0)))?.[1];
-  if (word !== undefined && BLOCK_KEYWORDS.has(word)) return { opens: false };
-  // `function start(`, a method `listen(`, `start = function (` or `start: function (`.
-  const assigned = /([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s+)?function\s*\*?\s*[\w$]*\s*$/.exec(before.slice(0, open));
-  return {
-    opens: true,
-    ...(word !== undefined && word !== 'function' ? { name: word } : assigned ? { name: assigned[1]! } : {})
-  };
-};
-
-/** The name an arrow function at `index` (its `=>`) is assigned to: `start = () =>`, `exports.start = async (x) =>`. */
-const arrowName = (code: string, index: number): { name?: string } => {
-  const name = /([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:\([^()]*\)|[A-Za-z_$][\w$]*)\s*$/.exec(
-    code.slice(0, index)
-  )?.[1];
-  return name === undefined ? {} : { name };
-};
-
-/**
- * Whether the code at `index` runs when its module loads, and otherwise the name of the outermost function it is in.
- * Blocks (`if`, `try`, `for`) run; a function body, or an arrow's expression body, runs only when it is called.
- * `code` has strings and comments blanked, at the same offsets.
- */
-const loadPosition = (code: string, index: number): { onLoad: boolean; outer?: string; start: number } => {
-  type Frame = {
-    function?: { name?: string; start: number };
-    parens: number;
-    arrows: Array<{ depth: number; name?: string; start: number }>;
-  };
-  const frames: Frame[] = [{ parens: 0, arrows: [] }];
-  for (let at = 0; at < index; at += 1) {
-    const char = code[at]!;
-    const frame = frames.at(-1)!;
-    if (char === '(') frame.parens += 1;
-    else if (char === ')') {
-      frame.parens -= 1;
-      frame.arrows = frame.arrows.filter((arrow) => arrow.depth <= frame.parens);
-    } else if (char === '=' && code[at + 1] === '>') {
-      // An arrow with an expression body; one with a block body opens a function frame at its `{`.
-      if (!/^\s*\{/.test(code.slice(at + 2, at + 40))) {
-        frame.arrows.push({ depth: frame.parens, ...arrowName(code, at), start: at });
-      }
-      at += 1;
-    } else if (char === ';' || (char === ',' && frame.parens === 0)) {
-      frame.arrows = frame.arrows.filter((arrow) => arrow.depth < frame.parens);
-    } else if (char === '\n') {
-      // A statement ends at a line break unless the expression continues (`.listen(...)` on the next line).
-      const next = /\S/.exec(code.slice(at + 1))?.[0];
-      const previous = /(\S)\s*$/.exec(code.slice(0, at))?.[1];
-      if (
-        next !== undefined &&
-        !'.?:)+-*/&|,'.includes(next) &&
-        previous !== undefined &&
-        !'=>(,+-*/&|?:'.includes(previous)
-      ) {
-        frame.arrows = frame.arrows.filter((arrow) => arrow.depth < frame.parens);
-      }
-    } else if (char === '{') {
-      const opened = functionAt(code, at);
-      frames.push({
-        ...(opened.opens
-          ? { function: { ...(opened.name === undefined ? {} : { name: opened.name }), start: at } }
-          : {}),
-        parens: 0,
-        arrows: []
-      });
-    } else if (char === '}' && frames.length > 1) frames.pop();
-  }
-  for (const frame of frames) {
-    const outer = frame.function ?? frame.arrows[0];
-    if (outer !== undefined)
-      return { onLoad: false, ...(outer.name === undefined ? {} : { outer: outer.name }), start: outer.start };
-  }
-  return { onLoad: true, start: 0 };
-};
-
-/**
- * Whether a listener runs when the started program loads: its `.listen()` is at module level, or it is in a function
- * that a reached file calls (`void bootstrap()`, `require('./server').start()`). A function nobody calls (an exported
- * helper) does not run; `undefined` when the scan cannot tell.
- */
-const listenerRuns = (
-  path: string,
-  code: string,
-  pattern: RegExp,
-  reached: readonly string[],
-  codeOf: (path: string) => string | undefined
-): boolean | undefined => {
-  const match = new RegExp(pattern.source, pattern.flags.replace('g', '')).exec(code);
-  if (match === null) return undefined;
-  const position = loadPosition(code, match.index);
-  if (position.onLoad) return true;
-  if (position.outer === undefined) return undefined;
-  const call = new RegExp(`(?<![\\w$])${escapeRegExp(position.outer)}\\s*\\(`, 'g');
-  /** A call, not the declaration: `name(...) {` and `name(...) =>` declare. */
-  const calls = (text: string, skip?: readonly [number, number]) =>
-    [...text.matchAll(call)].some((found) => {
-      if (skip !== undefined && found.index >= skip[0] && found.index < skip[1]) return false;
-      const after = text.slice(found.index + found[0].length);
-      const close = /^[^()]*\)\s*(\{|=>)?/.exec(after);
-      return close === null || close[1] === undefined;
-    });
-  // The function's own body does not start it (`listen() { this.app.listen() }`).
-  const own = [position.start, match.index + 1] as const;
-  return calls(code, own) || reached.some((file) => file !== path && calls(codeOf(file) ?? ''));
-};
-
-/** Lexicographic order of two ranking tuples. */
-const earlier = (left: readonly number[], right: readonly number[]): boolean => {
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    if ((left[index] ?? 0) !== (right[index] ?? 0)) return (left[index] ?? 0) < (right[index] ?? 0);
-  }
-  return false;
-};
-
 type Detected = { path: string; raw: string; code: string; root: string; detection: Detection };
 
-/** A background process the package declares: a Procfile process other than `web`, or a worker script. */
-const declaresBackgroundProcess = (entry: StartEntry): boolean =>
-  entry.origin === 'worker-script' || (entry.origin === 'procfile' && entry.processName !== undefined);
+/** Whether one of the file's listener calls runs unconditionally when the module loads. */
+const listensOnLoad = ({ code, detection }: Detected): boolean =>
+  [...code.matchAll(new RegExp(detection.pattern.source, `${detection.pattern.flags.replace('g', '')}g`))].some(
+    (match) => runsOnLoad(code, match.index)
+  );
+
+/** Files that can start a process: deployment manifests, process managers and build files. */
+const PROCESS_DECLARATION =
+  /(?:^|\/)(?:Procfile[\w.-]*|[\w.-]*Dockerfile[\w.-]*|[\w.-]*compose[\w.-]*\.ya?ml|render\.ya?ml|fly\.toml|railway\.(?:json|toml)|app\.json|nixpacks\.toml|ecosystem\.config\.[cm]?js|Makefile)$/;
 
 /**
- * Which JavaScript listener files the package's own start commands run.
- *
- * In a package whose start script, Procfile, Dockerfile or framework convention names a start file, a listener file that
- * no start file imports runs in no process (a React hook's `history.listen()`, a helper, an end-to-end test server) and
- * is dropped, but only when every start command was read and no reached file loads a module by a computed name;
- * otherwise nothing is dropped. A listener whose `.listen()` runs on load, or in a function a reached file calls, wins
- * over one the scan cannot tell runs; among those, the one closest to the strongest start file wins. Listeners that may
- * not run keep the first-file order, as before.
- *
- * A queue worker is its own process when a declared background process (`worker: node dist/worker.js`, a `worker`
- * script) or a start file that starts no web server runs it, and that start file is its entry; one only a web process
- * imports runs inside it. A package with no start file the scan can read keeps its first listener file, as before,
- * unless it is a frontend package and the file builds no server.
+ * Where a package's start command proves a different choice than the first listener file, as the
+ * `${root}::main` winner, and queue workers it proves run inside the web process. Only a package whose start command is
+ * one simple process with one source file counts (`unambiguousStartFile`). Its listener is that file when it is one,
+ * otherwise the first file it loads unconditionally whose `.listen()` runs on load. A queue worker is dropped only when
+ * the start file loads it on load and no script or deployment file of the repository names it, so nothing can start it
+ * as a process of its own. Every other package keeps the first-file order.
  */
-const startedListeners = async (
+const provenByStartCommand = async (
   detected: readonly Detected[],
-  context: ProbeContext,
-  codeOf: (path: string) => string | undefined
-): Promise<{
-  dropped: ReadonlySet<string>;
-  winners: ReadonlyMap<string, string>;
-  workers: ReadonlyMap<string, { entrypoint: string; processType: string }>;
-}> => {
+  context: ProbeContext
+): Promise<{ winners: ReadonlyMap<string, string>; dropped: ReadonlySet<string>; roots: ReadonlySet<string> }> => {
   const resolver = createModuleResolver(context);
-  const importsCache = new Map<string, Promise<{ targets: string[]; computed: boolean }>>();
-  const dropped = new Set<string>();
   const winners = new Map<string, string>();
-  const workers = new Map<string, { entrypoint: string; processType: string }>();
+  const dropped = new Set<string>();
+  const roots = new Set<string>();
+  const declarations = context.files.filter((file) => PROCESS_DECLARATION.test(file));
   for (const root of new Set(detected.map((candidate) => candidate.root))) {
+    // oxlint-disable-next-line no-await-in-loop -- one package at a time.
+    const start = await unambiguousStartFile(root, context, resolver);
+    if (start === undefined) continue;
+    const loaded = [start];
+    for (let index = 0; index < loaded.length; index += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- breadth-first order decides which listener is closest.
+      const raw = await readText(context, loaded[index]!, { fullFile: true });
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      for (const target of raw === undefined ? [] : await loadedOnLoad(loaded[index]!, raw, resolver)) {
+        if (!loaded.includes(target)) loaded.push(target);
+      }
+    }
     const inRoot = detected.filter((candidate) => candidate.root === root);
-    // oxlint-disable-next-line no-await-in-loop -- one package at a time keeps the shared import cache warm.
-    const { entries, resolved } = await startEntriesOf(root, context, resolver);
-    if (entries.length === 0) {
-      // Without a start file, a frontend package's `.listen()` that builds no server is a client-side listener.
-      // oxlint-disable-next-line no-await-in-loop -- one manifest per package.
-      if (await dependsOnBrowserFramework(root, context)) {
-        for (const { path, raw, code, detection } of inRoot) {
-          if (detection.processType === undefined && !startsServer(path, raw, code)) dropped.add(path);
-        }
-      }
-      continue;
-    }
-    // oxlint-disable-next-line no-await-in-loop -- see above.
-    const graphs = await Promise.all(
-      entries.map((entry) => reachableFrom(entry.file, context, resolver, importsCache))
-    );
-    const reached = graphs.map((graph) => graph.order);
-    // A command the scan could not read, or a module loaded by a computed name, may start any file.
-    const complete = resolved && graphs.every((graph) => graph.complete);
-    const everything = [...new Set(reached.flat())];
-    // A start file that reaches a listener starts a web process; a queue worker it reaches runs inside it.
-    const startsWebProcess = reached.map((files) =>
-      inRoot.some(({ path, detection }) => detection.processType === undefined && files.includes(path))
-    );
-    const best = new Map<string, { path: string; rank: number; order: readonly number[] }>();
-    for (const [position, { path, code, detection }] of inRoot.entries()) {
-      const queueWorker = detection.processType !== undefined;
-      const reaches = (index: number) => reached[index]!.includes(path);
-      let processType = detection.processType;
-      let order: readonly number[];
-      if (queueWorker) {
-        const declared = reached.findIndex(
-          (_files, index) => reaches(index) && declaresBackgroundProcess(entries[index]!)
+    const listeners = inRoot.filter(({ detection }) => detection.processType === undefined);
+    const topRank = Math.max(...listeners.map(({ detection }) => detection.rank ?? 1));
+    const winner =
+      listeners.find(({ path, detection }) => path === start && (detection.rank ?? 1) === topRank) ??
+      loaded
+        .map((path) => listeners.find((candidate) => candidate.path === path))
+        .find(
+          (candidate): candidate is Detected =>
+            candidate !== undefined && (candidate.detection.rank ?? 1) === topRank && listensOnLoad(candidate)
         );
-        // A library's `main` or a CLI's `bin` runs no process of its own.
-        const ownProcess = reached.findIndex(
-          (_files, index) =>
-            reaches(index) && !startsWebProcess[index] && !['main', 'bin'].includes(entries[index]!.origin)
-        );
-        const entryIndex = declared !== -1 ? declared : complete ? ownProcess : -1;
-        if (entryIndex !== -1) {
-          const entry = entries[entryIndex]!;
-          processType = entry.origin === 'procfile' ? entry.processName! : workerProcessType(entry.file);
-          workers.set(path, { entrypoint: entry.file, processType });
-          order = [0, entryIndex, reached[entryIndex]!.indexOf(path)];
-        } else if (complete) {
-          dropped.add(path);
-          continue;
-        } else {
-          order = [2, position];
-        }
-      } else {
-        const entryIndex = reached.findIndex((_files, index) => reaches(index));
-        if (entryIndex === -1) {
-          if (complete) {
-            dropped.add(path);
-            continue;
-          }
-          order = [2, position];
-        } else {
-          order =
-            listenerRuns(path, code, detection.pattern, everything, codeOf) === true
-              ? [0, entryIndex, reached[entryIndex]!.indexOf(path)]
-              : [1, position];
-        }
-      }
-      const key = `${root}::${processType ?? 'main'}`;
-      const rank = detection.rank ?? 1;
-      const current = best.get(key);
-      if (current === undefined || rank > current.rank || (rank === current.rank && earlier(order, current.order))) {
-        best.set(key, { path, rank, order });
-      }
+    if (winner !== undefined) {
+      winners.set(`${root}::main`, winner.path);
+      roots.add(root);
     }
-    for (const [key, { path }] of best) winners.set(key, path);
+    const manifest = root === '.' ? 'package.json' : posix.join(root, 'package.json');
+    // oxlint-disable-next-line no-await-in-loop -- read once per package with a start file.
+    const named = [await readText(context, manifest, { fullFile: true })];
+    for (const declaration of declarations) {
+      // oxlint-disable-next-line no-await-in-loop -- a handful of deployment files per repository.
+      named.push(await readText(context, declaration, { fullFile: true }));
+    }
+    for (const { path, detection } of inRoot) {
+      if (detection.processType === undefined || path === start || !loaded.includes(path)) continue;
+      const stem = posix.basename(path).replace(/\.[^.]+$/, '');
+      const mention = new RegExp(`(?<![\\w-])${escapeRegExp(stem)}(?![\\w-])`);
+      if (named.some((text) => text !== undefined && mention.test(text))) continue;
+      dropped.add(path);
+      roots.add(root);
+    }
   }
-  return { dropped, winners, workers };
+  return { winners, dropped, roots };
 };
 
 export const serverEntrypointProbe: Probe = {
@@ -808,10 +574,8 @@ export const serverEntrypointProbe: Probe = {
     const candidates = withoutSampleDirectories(context.files).filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
-        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures|e2e|playwright|cypress)(?:\/|$)/i.test(path) &&
-        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path) &&
-        // Test runner setup (`jest.setup.ts`, `setupTests.ts`) starts no deployed process.
-        !/(?:^|\/)(?:(?:jest|vitest)\.setup|setupTests|test-setup)\.[cm]?[jt]sx?$/i.test(path)
+        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&
+        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
     const ranks = new Map<string, number>();
@@ -862,24 +626,19 @@ export const serverEntrypointProbe: Probe = {
       }
       return undefined;
     };
-    const detected: Array<(typeof sources)[number] & Detected> = [];
+    const detected: Detected[] = [];
     for (const source of sources) {
       const detection = detectionFor(source.path, source.raw, source.code);
       if (detection !== undefined) detected.push({ ...source, detection, root: rootOf(source.path) });
     }
-    const started = await startedListeners(
+    const proven = await provenByStartCommand(
       detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
-      context,
-      (path) => sourceByPath.get(path)?.code
+      context
     );
-    const unstartedGo = await unstartedGoMains(detected, context);
-    for (const { path, raw, code, detection: found, root } of detected) {
-      if (unstartedGo.has(path)) continue;
-      if (started.dropped.has(path)) continue;
-      const worker = started.workers.get(path);
-      const detection = worker === undefined ? found : { ...found, ...worker };
+    for (const { path, raw, code, detection, root } of detected) {
+      if (proven.dropped.has(path)) continue;
       const key = `${root}::${detection.processType ?? 'main'}`;
-      const winner = started.winners.get(key);
+      const winner = proven.winners.get(key);
       if (winner !== undefined && winner !== path) continue;
       // A NestJS microservice bootstrap gives way to an HTTP server in the same service, and a WSGI module to the
       // Channels router that also serves WebSockets.
@@ -956,14 +715,19 @@ export const serverEntrypointProbe: Probe = {
       });
     }
 
-    // A package's web process comes before its background processes: assembly folds a package-level service into the
-    // only declared process beside it, and a worker listed first would absorb the web server.
-    const roots = [...new Set([...byRoot.values()].map((service) => service.path))];
-    const services = [...byRoot.values()].toSorted(
-      (left, right) =>
-        roots.indexOf(left.path) - roots.indexOf(right.path) ||
-        Number(left.processType !== undefined) - Number(right.processType !== undefined)
-    );
+    // In a package its start command decided, the web process comes before its background processes: assembly folds a
+    // package-level service into the only declared process beside it, and a worker listed first would absorb it.
+    const services: ServiceFactInput[] = [];
+    for (const service of byRoot.values()) {
+      if (services.includes(service)) continue;
+      if (service.processType !== undefined && proven.roots.has(service.path)) {
+        const web = [...byRoot.values()].find(
+          (other) => other.path === service.path && other.processType === undefined
+        );
+        if (web !== undefined && !services.includes(web)) services.push(web);
+      }
+      services.push(service);
+    }
     return services.length === 0 ? {} : { services };
   }
 };

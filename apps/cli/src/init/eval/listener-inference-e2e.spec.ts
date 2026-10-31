@@ -525,41 +525,18 @@ const ENTRY = (resource: string, value: string | undefined) => ({
 });
 
 /**
- * Which listener file is the service's entry (r2ap): the one the package's own start command reaches. Reduced from
- * the init corpus, where a React hook, a gateway helper, an end-to-end test server and library queue workers were
- * chosen because they call `.listen(` or `new Worker(`.
+ * Which listener file is the service's entry (r2ap). Init changes its first-file choice only when the package's start
+ * command is one simple process and the listener is that file, or a file it provably loads whose `.listen()` runs on
+ * load. Reduced from the init corpus, where an end-to-end test server, a helper and a queue driver were chosen because
+ * they sort first.
  */
 const ENTRY_CASES: EvalCase[] = [
   {
-    name: 'r2ap (Outline): the listener the compiled start file reaches wins over a React hook that calls history.listen()',
-    files: {
-      'package.json': packageJson({
-        scripts: { start: 'node ./build/server/index.js', build: 'node ./build.js' },
-        dependencies: { koa: '2.0.0', react: '18.0.0' }
-      }),
-      'app/hooks/useLastVisitedPath.tsx': lines(
-        "import { useEffect } from 'react';",
-        "import { useHistory } from 'react-router-dom';",
-        'export default function useLastVisitedPath() {',
-        '  const history = useHistory();',
-        '  useEffect(() => history.listen(() => undefined), [history]);',
-        '}'
-      ),
-      'server/index.ts': "void import('./main').then(({ start }) => start());\n",
-      'server/main.ts': lines(
-        "import Koa from 'koa';",
-        'export const start = () => new Koa().listen(process.env.PORT || 3000);'
-      )
-    },
-    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server/main.ts')] }
-  },
-  {
-    name: 'r2ap (Infisical): a tsconfig path alias reaches the server; a helper that listens elsewhere is ignored',
+    name: 'r2ap: a tsconfig path alias the start file imports reaches the server that listens on load',
     files: {
       'package.json': packageJson({
         scripts: { start: 'node --enable-source-maps dist/main.mjs', build: 'tsup' },
-        // Email templates in React do not make it a frontend: its start file reaches the server.
-        dependencies: { fastify: '5.0.0', react: '18.0.0' }
+        dependencies: { fastify: '5.0.0' }
       }),
       'tsconfig.json': lines(
         '{',
@@ -571,10 +548,10 @@ const ENTRY_CASES: EvalCase[] = [
         "import net from 'node:net';",
         'export const openTunnel = (port: number) => net.createServer().listen(port);'
       ),
-      'src/main.ts': "import { main } from '@app/server/app';\nawait main();\n",
+      'src/main.ts': "import '@app/server/app';\n",
       'src/server/app.ts': lines(
         "import Fastify from 'fastify';",
-        'export const main = async () => Fastify().listen({ port: 4000, host: "0.0.0.0" });'
+        'await Fastify().listen({ port: 4000, host: "0.0.0.0" });'
       )
     },
     expect: {
@@ -624,7 +601,7 @@ const ENTRY_CASES: EvalCase[] = [
     }
   },
   {
-    name: 'r2ap (Twenty): a worker script starts its own worker; a library driver with new Worker() is not its entry',
+    name: 'r2ap (Twenty): the NestJS start file is the web service, not a queue driver listed before it',
     files: {
       'package.json': packageJson({
         scripts: {
@@ -652,14 +629,7 @@ const ENTRY_CASES: EvalCase[] = [
         'new BullMqDriver().work();'
       )
     },
-    expect: {
-      resources: { auditApp: 'web-service', queueWorker: 'worker-service' },
-      resourceProperties: [
-        ENTRY('auditApp', 'src/main.ts'),
-        ENTRY('queueWorker', 'src/queue-worker/queue-worker.ts'),
-        ENTRY('bullmqDriver', undefined)
-      ]
-    }
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/main.ts')] }
   },
   {
     name: 'r2ap control: a start script that runs a source file under lib/ keeps it',
@@ -677,24 +647,10 @@ const ENTRY_CASES: EvalCase[] = [
       'app.js': "const express = require('express');\nexpress().listen(process.env.PORT || 3000);\n"
     },
     expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'app.js')] }
-  },
-  {
-    name: 'r2ap (Hoppscotch): a Tauri event listen() in a Vue package is no web service',
-    files: {
-      'package.json': packageJson({ workspaces: ['packages/*'] }),
-      'packages/common/package.json': packageJson({ name: 'common', dependencies: { vue: '3.0.0' } }),
-      'packages/common/src/kernel/io.ts': lines(
-        "import { listen as module } from './tauri';",
-        'export const io = { listen: (event: string, handler: () => void) => module().listen(event, handler) };'
-      ),
-      'packages/common/src/kernel/tauri.ts':
-        'export const listen = () => ({ listen: (_e: string, _h: () => void) => undefined });\n'
-    },
-    expect: { resourceProperties: [{ resource: 'common', path: 'packaging', value: undefined }] }
   }
 ];
 
-/** The #416 review: a start command init cannot read, or a listener that does not run, must not decide the entry. */
+/** The #416 reviews: a start command init cannot read, or a listener that may not run, keeps the first-file choice. */
 const reviewPackage = (scripts: Record<string, string>, extra: Record<string, unknown> = {}) =>
   packageJson({ scripts, dependencies: { express: '5.0.0', bullmq: '5.0.0' }, ...extra });
 const reviewServer = "require('http').createServer((req, res) => res.end('ok')).listen(4100);\n";
@@ -794,33 +750,6 @@ const REVIEW_CASES: EvalCase[] = [
       'src/server.js': reviewServer
     },
     expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/server.js')] }
-  },
-  {
-    name: 'r2ap review: in "npm run build && node dist/server.js" the build script is not the server',
-    files: {
-      'package.json': reviewPackage({ start: 'npm run build && node dist/server.js', build: 'node scripts/build.js' }),
-      'scripts/build.js': "require('http').createServer(() => {}).listen(9200);\n",
-      'src/server.js': reviewServer
-    },
-    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/server.js')] }
-  },
-  {
-    name: 'r2ap review: "cd api && node index.js" runs api/index.js',
-    files: {
-      'package.json': reviewPackage({ start: 'cd api && node index.js' }),
-      'index.js': 'exports.data = 42;\n',
-      'api/index.js': reviewServer
-    },
-    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'api/index.js')] }
-  },
-  {
-    name: 'r2ap review: a module preloaded with node -r runs too',
-    files: {
-      'package.json': reviewPackage({ start: 'node -r ./server.js index.js' }),
-      'server.js': reviewServer,
-      'index.js': 'setInterval(() => {}, 10000);\n'
-    },
-    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server.js')] }
   }
 ];
 

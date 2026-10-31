@@ -1,0 +1,642 @@
+[
+  {
+    "name": "computed-concat",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js\", \"worker\": \"node launcher.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "launcher.js": "const name = 'worker.js'; import('./' + name);",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "computed-concat-suffix",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js\", \"worker\": \"node launcher.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "launcher.js": "const name = 'worker.js'; import('./worker' + '.js');",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "computed-template",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js\", \"worker\": \"node launcher.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "launcher.js": "const name = 'worker.js'; import(`./${name}`);",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "computed-variable",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js\", \"worker\": \"node launcher.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "launcher.js": "const name = 'worker.js'; import(name);",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "quoted-cd",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"cd \\\"api\\\" && node index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api/index.js", 4100, true]]
+  },
+  {
+    "name": "space-cd",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"cd \\\"api folder\\\" && node index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "api folder/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api folder/index.js", 4100, true]]
+  },
+  {
+    "name": "bun-cwd",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"bun --cwd api index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api/index.js", 4100, true]]
+  },
+  {
+    "name": "pm2-cwd",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"pm2-runtime start --cwd api index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api/index.js", 4100, true]]
+  },
+  {
+    "name": "ts-node-cwd",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"ts-node --cwd api index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api/index.js", 4100, true]]
+  },
+  {
+    "name": "cross-env",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"cross-env NODE_ENV=production node api/index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "exports.data=42;",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "api folder/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api folder/index.js", 4100, true]],
+    "improvement": {
+      "startCommand": "cross-env NODE_ENV=production node api/index.js",
+      "reason": "The start script runs api/index.js; first-file order picked \"api folder/index.js\", which nothing runs.",
+      "choice": [["main", "api/index.js", 4100, true]]
+    }
+  },
+  {
+    "name": "set-windows",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"set NODE_ENV=production&& node api/index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "exports.data=42;",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "api folder/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api folder/index.js", 4100, true]]
+  },
+  {
+    "name": "quoted-flag",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node --title \\\"my server\\\" api/index.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "index.js": "exports.data=42;",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "api folder/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api folder/index.js", 4100, true]]
+  },
+  {
+    "name": "parallel-and",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node worker.js & node migrate.js && node server.js\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "parallel-semi",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node worker.js & node migrate.js; node server.js\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "parallel-only",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js & node worker.js\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "or",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node server.js || node worker.js\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "concurrently",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"concurrently \\\"node server.js\\\" \\\"node worker.js\\\"\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "npm-run-all",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"npm-run-all --parallel web background\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "concurrently-build",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"concurrently \\\"node worker.js\\\" \\\"node migrate.js\\\" && node server.js\", \"web\": \"node server.js\", \"background\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "helper-name-collision",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); const other = { start() {} }; other.start(); require('./a-server.js');",
+      "z-helper.js": "exports.start = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "helper-dead-call",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "const helper=require('./z-helper.js'); function unused() { helper.start(); } require('./a-server.js');",
+      "z-helper.js": "exports.start = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "helper-class-listen",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); require('./a-server.js');",
+      "z-helper.js": "module.exports=class Helper { listen() { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n } };"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "guard-main",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); require('./a-server.js');",
+      "z-helper.js": "if (require.main === module) { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n }"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "guard-env",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); require('./a-server.js');",
+      "z-helper.js": "if (process.env.DEBUG_SERVER) { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n }"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "uncalled-control",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); require('./a-server.js');",
+      "z-helper.js": "exports.start = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "default-app",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "const app = require('./z-helper.js').default; app.listen(4100);",
+      "z-helper.js": "const app=require('express')(); exports.default=app; exports.debug=()=>app.listen(9200);"
+    },
+    "main": [["main", "a-server.js", 4100, true]],
+    "improvement": {
+      "startCommand": "node start.js",
+      "reason": "The start file itself calls app.listen(4100); first-file order picked a-server.js, which start.js never loads.",
+      "choice": [["main", "start.js", 4100, true]]
+    }
+  },
+  {
+    "name": "called-alias",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-helper.js": "exports.debug = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };",
+      "start.js": "const {start: run} = require('./z-server.js'); require('./a-helper.js'); run();",
+      "z-server.js": "exports.start = () => { require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n};"
+    },
+    "main": [["main", "a-helper.js", 9200, true]]
+  },
+  {
+    "name": "called-iife",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-helper.js": "exports.debug = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };",
+      "start.js": "require('./z-server.js'); require('./a-helper.js');",
+      "z-server.js": "(()=> {require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n})();"
+    },
+    "main": [["main", "a-helper.js", 9200, true]]
+  },
+  {
+    "name": "called-class",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-helper.js": "exports.debug = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };",
+      "start.js": "const Server=require('./z-server.js'); require('./a-helper.js'); new Server().start();",
+      "z-server.js": "class Server { start() { require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n} }; module.exports=Server;"
+    },
+    "main": [["main", "a-helper.js", 9200, true]]
+  },
+  {
+    "name": "called-bootstrap",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-helper.js": "exports.debug = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };",
+      "start.js": "const srv=require('./z-server.js'); require('./a-helper.js'); srv.start();",
+      "z-server.js": "exports.start=()=>{ require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n};"
+    },
+    "main": [["main", "a-helper.js", 9200, true]]
+  },
+  {
+    "name": "called-default",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node start.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "a-helper.js": "exports.debug = () => { require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n };",
+      "start.js": "import run from './z-server.js'; import './a-helper.js'; run();",
+      "z-server.js": "export default function start() { require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n}"
+    },
+    "main": [["main", "a-helper.js", 9200, true]]
+  },
+  {
+    "name": "flags-pm2-n",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"pm2-runtime start -n api server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-pm2-i",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"pm2-runtime start -i max server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-nodemon-e",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"nodemon -e js,json server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-tsx-watch",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"tsx watch --include src server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-forever-l",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"forever start -l ./logs server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-node-title",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node --title api server.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-node-e",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node -e \\\"require('./server.js')\\\"\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-sh",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"sh serve.sh\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-pm2-config",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"pm2-runtime start ecosystem.config.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "flags-compiled-unmapped",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"node dist/runtime.js\", \"worker\": \"node worker.js\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "serve.sh": "node server.js",
+      "ecosystem.config.js": "module.exports={apps:[{script:'server.js'}]};"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "alias-wildcard",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"bun start.ts\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "tsconfig.json": "{\"compilerOptions\": {\"baseUrl\": \".\", \"paths\": {\"@app/*\": [\"src/*\"], \"@app/web/*\": [\"real/*\"]}}}",
+      "start.ts": "import '@app/web/server';",
+      "src/web/server.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "real/server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "real/server.js", 4100, true]]
+  },
+  {
+    "name": "alias-exact",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"bun start.ts\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "tsconfig.json": "{\"compilerOptions\": {\"baseUrl\": \".\", \"paths\": {\"@app/*\": [\"src/*\"], \"@app/web/server\": [\"real/server.js\"]}}}",
+      "start.ts": "import '@app/web/server';",
+      "src/web/server.js": "require('http').createServer((req,res)=>res.end('decoy')).listen(9200);\n",
+      "real/server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "real/server.js", 4100, true]]
+  },
+  {
+    "name": "concurrently-inner-chain",
+    "files": {
+      "package.json": "{\"name\": \"audit-app\", \"scripts\": {\"start\": \"concurrently \\\"node worker.js\\\" \\\"node migrate.js && node server.js --production\\\"\"}, \"dependencies\": {\"express\": \"5.0.0\", \"bullmq\": \"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n",
+      "migrate.js": "console.log(\"migrated\");"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "alias-priority",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"bun src/main.ts\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"},\"devDependencies\":{\"@types/bun\":\"latest\"}}",
+      "tsconfig.json": "{\"compilerOptions\":{\"outDir\":\"dist\",\"rootDir\":\"src\",\"baseUrl\":\".\",\"paths\":{\"@app/*\":[\"src/*\"],\"@app/server\":[\"src/real-server.ts\"]}}}",
+      "src/main.ts": "import '@app/server';",
+      "src/real-server.ts": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "src/server.ts": "require('http').createServer(()=>{}).listen(9200);"
+    },
+    "main": [["main", "src/real-server.ts", 4100, true]]
+  },
+  {
+    "name": "dynamic-worker",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node server.js\",\"worker\":\"node launcher.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "launcher.js": "const file = './worker.js'; import(file);",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "unparsed-worker",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node server.js\",\"worker\":\"sh worker.sh\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.sh": "node worker.js",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "nodemon-watch",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"nodemon --watch src src/server.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "src/index.js": "exports.data = 42;",
+      "src/server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "src/server.js", 4100, true]]
+  },
+  {
+    "name": "build-chain",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"npm run build && node dist/server.js\",\"build\":\"node scripts/build.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "scripts/build.js": "require('http').createServer(()=>{}).listen(9200);",
+      "src/server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "scripts/build.js", 9200, true]]
+  },
+  {
+    "name": "runtime-helper",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node start.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "a-server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "start.js": "require('./z-helper.js'); require('./a-server.js');",
+      "z-helper.js": "exports.start = () => require('http').createServer(()=>{}).listen(9200);"
+    },
+    "main": [["main", "a-server.js", 4100, true]]
+  },
+  {
+    "name": "cd-start",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"cd api && node index.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "index.js": "exports.data = 42;",
+      "api/index.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n"
+    },
+    "main": [["main", "api/index.js", 4100, true]]
+  },
+  {
+    "name": "preload-listener",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node -r ./server.js index.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "index.js": "setInterval(() => {}, 10000);"
+    },
+    "main": [["main", "server.js", 4100, true]]
+  },
+  {
+    "name": "worker-only-equals",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node server.js\",\"worker:prod\":\"node --require=dotenv/config worker.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "unknown-web-known-worker",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"sh start.sh\",\"worker\":\"node worker.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "start.sh": "node server.js",
+      "server.js": "require('http').createServer((req,res)=>res.end('ok')).listen(4100);\n",
+      "worker.js": "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.js", 4100, true],
+      ["worker", "worker.js", null, false]
+    ]
+  },
+  {
+    "name": "bootstrap",
+    "files": {
+      "package.json": "{\"name\":\"audit-app\",\"scripts\":{\"start\":\"node bootstrap.js\"},\"dependencies\":{\"express\":\"5.0.0\",\"bullmq\":\"5.0.0\"}}",
+      "server.js": "exports.start = () => require('http').createServer((req,res)=>res.end('ok')).listen(4100);",
+      "bootstrap.js": "require('./server.js').start();"
+    },
+    "main": [["main", "server.js", 4100, true]]
+  }
+]

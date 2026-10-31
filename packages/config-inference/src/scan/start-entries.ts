@@ -1,42 +1,20 @@
 /**
- * The source files a JavaScript service's own start commands run, and the project modules each of them reaches.
+ * The source file a JavaScript package's start command runs, when the command says so without ambiguity, and what that
+ * file provably runs when it loads.
  *
  * A file that calls `.listen(` proves a server only when the process runs it: a React hook (`history.listen()`), a
- * gateway helper or an end-to-end test server sits in the same package but in no process. The package's start script,
- * Procfile, Dockerfile command and framework conventions say what runs; a compiled path such as `dist/main.js` is read
- * back to its source through the build's output directory.
+ * helper or a test server sits in the same package but in no process. Init only changes its first-file choice on
+ * evidence it can prove: a single simple start process, and imports and listeners that run unconditionally on load.
  */
 
 import { posix } from 'node:path';
 import { readText, type ProbeContext } from './probe';
 import { maskFile } from './lexical';
 
-/** Where a start file came from, strongest first: the order a service's entry is chosen in. */
-export type StartEntryOrigin =
-  | 'procfile'
-  | 'dockerfile'
-  | 'start-script'
-  | 'production-script'
-  | 'worker-script'
-  | 'nest-convention'
-  | 'npm-default'
-  | 'main'
-  | 'bin';
-
-export type StartEntry = {
-  /** Repository-relative source file. */
-  file: string;
-  origin: StartEntryOrigin;
-  /** The Procfile process or script name, when it names a background process. */
-  processName?: string;
-};
-
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.jsx'];
 const MODULE_EXTENSIONS = ['', ...SOURCE_EXTENSIONS, ...SOURCE_EXTENSIONS.map((extension) => `/index${extension}`)];
 /** Directories a build writes compiled JavaScript to. */
 const OUTPUT_DIRECTORIES = new Set(['dist', 'build', 'out', 'lib', 'output', '.output', 'compiled']);
-/** `npm run x`, `npm start`, `yarn x`, `pnpm x`, `pnpm run x`, `bun run x`: another script of the same package. */
-const SCRIPT_REFERENCE = /^(?:npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+)?([\w:.-]+)(?:\s|$)/;
 
 const join = (root: string, path: string): string =>
   posix.normalize(root === '.' ? path : posix.join(root, path)).replace(/^\.\//, '');
@@ -196,328 +174,213 @@ export const createModuleResolver = (context: ProbeContext) => {
 
 export type ModuleResolver = ReturnType<typeof createModuleResolver>;
 
-/** Every module a file names: `import ... from`, `export ... from`, `import('...')`, `require('...')`. */
-const MODULE_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]/g;
-/** A module named at run time (`import(file)`, `require(name)`, a template literal): the graph is incomplete. */
-const COMPUTED_IMPORT = /\b(?:import|require)\s*\(\s*(?!['"\s)])/;
+/** A static import or re-export (`import x from`, `import 'x'`, `export * from`), always evaluated on load. */
+const STATIC_IMPORT = /^\s*(?:import\s+(?:[^'";]*?\s+from\s+)?|export\s+[^'";]*?\s+from\s+)['"]([^'"\n]+)['"]/gm;
+const REQUIRE_CALL = /\brequire\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
+/** Code that makes the rest of a statement conditional or deferred, when it appears at the statement's own level. */
+const DEFERRING_TOKEN = /=>|\?|&&|\|\||\b(?:if|else|while|for|do|switch|case|function|return|catch|class|yield)\b/;
 
 /**
- * The project files reachable from `entry` through imports, in breadth-first order (`entry` first), so the first
- * listener found is the one closest to what the start command runs. `complete` is false when a reached file loads a
- * module whose name is computed at run time: that module may be anything.
+ * Whether the code at `index` of `code` (strings and comments blanked) runs unconditionally when its module loads: it
+ * is outside every block, and the statement it is in has no function, arrow, condition or `return` at its own level.
+ * `createServer((req, res) => res.end()).listen(4100)` runs; `if (main) app.listen()`, `exports.start = () =>
+ * app.listen()` and anything inside braces do not. When unsure, it does not.
  */
-export const reachableFrom = async (
-  entry: string,
-  context: ProbeContext,
-  resolver: ModuleResolver,
-  importsCache: Map<string, Promise<{ targets: string[]; computed: boolean }>>
-): Promise<{ order: string[]; complete: boolean }> => {
-  const importsOf = (path: string): Promise<{ targets: string[]; computed: boolean }> => {
-    const cached = importsCache.get(path);
-    if (cached !== undefined) return cached;
-    const found = (async () => {
-      const raw = await readText(context, path, { fullFile: true });
-      if (raw === undefined) return { targets: [], computed: false };
-      const keep = maskFile(path, raw, 'keep');
-      const targets = await Promise.all(
-        [...keep.matchAll(MODULE_SPECIFIER)].map((match) => resolver.resolve(path, match[1]!))
-      );
-      return {
-        targets: targets.filter((target): target is string => target !== undefined),
-        computed: COMPUTED_IMPORT.test(keep)
-      };
-    })();
-    importsCache.set(path, found);
-    return found;
-  };
-  const order = [entry];
-  const seen = new Set(order);
-  let complete = true;
-  for (let index = 0; index < order.length; index += 1) {
-    // oxlint-disable-next-line no-await-in-loop -- breadth-first order decides which listener is closest.
-    const { targets, computed } = await importsOf(order[index]!);
-    if (computed) complete = false;
-    for (const target of targets) {
-      if (!seen.has(target)) {
-        seen.add(target);
-        order.push(target);
-      }
-    }
+export const runsOnLoad = (code: string, index: number): boolean => {
+  let braces = 0;
+  let statementStart = 0;
+  for (let at = 0; at < index; at += 1) {
+    const char = code[at];
+    if (char === '{') braces += 1;
+    else if (char === '}') {
+      braces -= 1;
+      if (braces === 0) statementStart = at + 1;
+    } else if (char === ';' && braces === 0) statementStart = at + 1;
   }
-  return { order, complete };
-};
-
-/** The words of a command after environment assignments and `cross-env`/`dotenv --` wrappers. */
-const commandWords = (segment: string): string[] => {
-  const words = segment.trim().split(/\s+/).filter(Boolean);
-  while (words.length > 0) {
-    const first = words[0]!;
-    if (/^[A-Z_][A-Z0-9_]*=/.test(first) || first === 'cross-env' || first === 'env' || first === 'exec') words.shift();
-    else if ((first === 'dotenv' || first === 'env-cmd') && words.includes('--'))
-      words.splice(0, words.indexOf('--') + 1);
-    else break;
+  if (braces !== 0) return false;
+  // Only what is outside parentheses belongs to the statement's own level.
+  let parens = 0;
+  let own = '';
+  for (const char of code.slice(statementStart, index)) {
+    if (char === '(') parens += 1;
+    else if (char === ')') parens -= 1;
+    else if (parens === 0) own += char;
   }
-  return words;
+  return parens === 0 && !DEFERRING_TOKEN.test(own);
 };
 
 /**
- * Runners whose first operand is the file they run: the flags of each that take the next word as their value
- * (`--flag=value` needs no entry), the mode words that come before the file (`tsx watch`, `pm2 start`), and whether
- * `-e`/`-p` runs inline code instead of a file. Flags that load a module first (`-r`, `--import`, `--preload`) name
- * files that run too.
+ * The project modules a file loads unconditionally on load: its static imports, and `require('...')` calls that run on
+ * load. A dynamic `import()` or a `require` inside a function or condition is left out.
  */
-const NODE_FLAGS = [
-  '-r',
-  '--require',
-  '--import',
-  '--loader',
-  '--experimental-loader',
-  '--env-file',
-  '-C',
-  '--conditions',
-  '--title',
-  '--inspect-port',
-  '--stack-size'
-];
-type Runner = { command: RegExp; values: ReadonlySet<string>; modes: ReadonlySet<string>; evaluates: boolean };
+export const loadedOnLoad = async (path: string, raw: string, resolver: ModuleResolver): Promise<string[]> => {
+  const keep = maskFile(path, raw, 'keep');
+  const blank = maskFile(path, raw, 'blank');
+  const specifiers = [
+    ...[...keep.matchAll(STATIC_IMPORT)].filter((match) => runsOnLoad(blank, match.index)).map((match) => match[1]!),
+    ...[...keep.matchAll(REQUIRE_CALL)].filter((match) => runsOnLoad(blank, match.index)).map((match) => match[1]!)
+  ];
+  const targets = await Promise.all(specifiers.map((specifier) => resolver.resolve(path, specifier)));
+  return [...new Set(targets.filter((target): target is string => target !== undefined))];
+};
+
+/**
+ * Runners init reads, with the flags each takes. A flag outside these lists, a working-directory flag (`--cwd`),
+ * inline code (`-e`) or a preloaded project file (`-r ./x`) makes the command one init does not read.
+ */
+type Runner = {
+  command: string;
+  /** Words that must or may come before the file: `deno run`, `bun run`, `tsx watch`. */
+  modes: readonly string[];
+  modeRequired?: true;
+  /** Flags that take the next word (or `=value`) as their value. */
+  values: ReadonlySet<string>;
+  /** Flags that take no value. */
+  switches: RegExp;
+};
+const NODE_SWITCHES =
+  /^--(?:enable-source-maps|no-[\w-]+|trace-[\w-]+|experimental-[\w-]+|inspect(?:-brk)?|watch|expose-gc|preserve-symlinks|abort-on-uncaught-exception|max-old-space-size=\d+|max-semi-space-size=\d+|max-http-header-size=\d+|unhandled-rejections=[\w-]+|stack-trace-limit=\d+|harmony[\w-]*|frozen-intrinsics|throw-deprecation|pending-deprecation|inspect(?:-brk)?=[\w.:]+)$/;
+const NODE_VALUES = ['-r', '--require', '--import', '--loader', '--experimental-loader', '--env-file', '--title'];
 const RUNNERS: readonly Runner[] = [
-  { command: /^node$/, values: new Set(NODE_FLAGS), modes: new Set(), evaluates: true },
+  { command: 'node', modes: [], values: new Set(NODE_VALUES), switches: NODE_SWITCHES },
   {
-    command: /^nodemon$/,
-    values: new Set([
-      ...NODE_FLAGS,
-      '-w',
-      '--watch',
-      '-e',
-      '--ext',
-      '-x',
-      '--exec',
-      '-i',
-      '--ignore',
-      '-d',
-      '--delay',
-      '--signal',
-      '--config'
-    ]),
-    modes: new Set(),
-    evaluates: false
+    command: 'nodemon',
+    modes: [],
+    values: new Set([...NODE_VALUES, '-w', '--watch', '-e', '--ext', '-i', '--ignore', '-d', '--delay', '--signal']),
+    switches: new RegExp(
+      `${NODE_SWITCHES.source}|^(?:-L|--legacy-watch|-q|--quiet|-V|--verbose|--no-colors|--no-stdin)$`
+    )
   },
   {
-    command: /^(?:ts-node|ts-node-dev|tsnd)$/,
-    values: new Set([
-      ...NODE_FLAGS,
-      '-P',
-      '--project',
-      '-O',
-      '--compiler-options',
-      '--compiler',
-      '-I',
-      '--ignore',
-      '--cwd',
-      '--scope-dir',
-      '--respawn-delay',
-      '--watch',
-      '--ignore-watch'
-    ]),
-    modes: new Set(),
-    evaluates: true
+    command: 'ts-node',
+    modes: [],
+    values: new Set(['-r', '--require', '-P', '--project', '-O', '--compiler-options', '-C', '--compiler']),
+    switches: /^(?:-T|--transpile-only|--files|-H|--compiler-host|--swc|--esm|--prefer-ts-exts|--pretty)$/
   },
   {
-    command: /^(?:tsx|esno|esr|babel-node|node-dev)$/,
-    values: new Set([...NODE_FLAGS, '--tsconfig', '--include', '--exclude', '--ignore', '--config-file']),
-    modes: new Set(['watch']),
-    evaluates: true
+    command: 'tsx',
+    modes: ['watch'],
+    values: new Set([...NODE_VALUES, '--tsconfig', '--include', '--exclude']),
+    switches: new RegExp(`${NODE_SWITCHES.source}|^(?:--no-cache|--clear-screen=false)$`)
   },
   {
-    command: /^bun$/,
-    values: new Set(['-r', '--preload', '--cwd', '-c', '--config', '--env-file', '--tsconfig-override', '--port']),
-    modes: new Set(['run']),
-    evaluates: true
+    command: 'bun',
+    modes: ['run'],
+    values: new Set(['--env-file', '-r', '--preload', '--tsconfig-override', '-c', '--config']),
+    switches: /^(?:--smol|--hot|--watch|--bun|-b|--silent|--no-clear-screen)$/
   },
   {
-    command: /^deno$/,
-    values: new Set(['-c', '--config', '--import-map', '--env-file', '--location', '--seed', '--v8-flags', '--lock']),
-    modes: new Set(['run']),
-    evaluates: false
-  },
-  {
-    command: /^(?:pm2|pm2-runtime)$/,
-    values: new Set([
-      '-n',
-      '--name',
-      '-i',
-      '--instances',
-      '--max-memory-restart',
-      '--node-args',
-      '--interpreter',
-      '--interpreter-args',
-      '--env',
-      '-o',
-      '--output',
-      '-e',
-      '--error',
-      '-l',
-      '--log',
-      '--cwd',
-      '--cron',
-      '--restart-delay',
-      '--max-restarts',
-      '--namespace',
-      '--kill-timeout'
-    ]),
-    modes: new Set(['start']),
-    evaluates: false
-  },
-  {
-    command: /^forever$/,
-    values: new Set(['-l', '-o', '-e', '-c', '-p', '-m', '--uid', '--minUptime', '--spinSleepTime', '--sourceDir']),
-    modes: new Set(['start']),
-    evaluates: false
+    command: 'deno',
+    modes: ['run'],
+    modeRequired: true,
+    values: new Set(['-c', '--config', '--import-map']),
+    switches:
+      /^(?:-A|--allow-[\w-]+(?:=\S+)?|--deny-[\w-]+(?:=\S+)?|--unstable[\w-]*|--watch|--no-check|--check|--env(?:-file)?(?:=\S+)?|--node-modules-dir(?:=\S+)?|--cached-only|--no-prompt|-q|--quiet)$/
   }
 ];
-const EVAL_FLAGS = new Set(['-e', '--eval', '-p', '--print']);
 const PRELOAD_FLAGS = new Set(['-r', '--require', '--import', '--preload']);
-/** Commands that start a framework's own server, so no project file of the package is its entry. */
-const FRAMEWORK_SERVER =
-  /^(?:next|nuxt|nuxi|remix-serve|react-router-serve|astro|vite|svelte-kit|gatsby|serve|http-server|docusaurus|ng|react-scripts|strapi|sails|meteor|blitz|rw|redwood|medusa|keystone|payload|directus|vinxi)$/;
-
-type RunnerFiles = { files: string[]; resolved: boolean };
-
-const relativeModule = (value: string | undefined): string | undefined =>
-  value !== undefined && /^\.\.?\//.test(value) ? value.replace(/^\.\//, '') : undefined;
-
-/**
- * The files a runner command runs (`node --enable-source-maps dist/main.mjs` runs `dist/main.mjs`), or `undefined` when
- * the command is no runner. `.` names the package itself.
- */
-const runnerFiles = (words: readonly string[]): RunnerFiles | undefined => {
-  const runner = RUNNERS.find(({ command }) => command.test(words[0] ?? ''));
-  if (runner === undefined) return undefined;
-  const files: string[] = [];
-  let modes = true;
-  for (let index = 1; index < words.length; index += 1) {
-    const word = words[index]!;
-    if (word.startsWith('-')) {
-      const [flag, inline] = word.split('=', 2) as [string, string | undefined];
-      if (runner.evaluates && EVAL_FLAGS.has(flag)) return { files: [], resolved: false };
-      const value = inline ?? (runner.values.has(flag) ? words[index + 1] : undefined);
-      if (inline === undefined && runner.values.has(flag)) index += 1;
-      const preload = PRELOAD_FLAGS.has(flag) ? relativeModule(value) : undefined;
-      if (preload !== undefined) files.push(preload);
-      continue;
-    }
-    if (modes && runner.modes.has(word)) {
-      modes = false;
-      continue;
-    }
-    // `bun run start` runs a script, not a file.
-    if (words[0] === 'bun' && !/[./]/.test(word)) return undefined;
-    if (word === '.' || word === './') return { files: [...files, '.'], resolved: true };
-    if (!/^[\w./@-]+$/.test(word) || word.includes('node_modules')) return { files, resolved: false };
-    return { files: [...files, word.replace(/^\.\//, '')], resolved: true };
-  }
-  return { files, resolved: false };
-};
+/** Shell syntax that runs more than one process, moves it, or computes its words. */
+const SHELL_SYNTAX = /["'`$&|;<>()*?\\\n]/;
+const ENVIRONMENT_ASSIGNMENT = /^[A-Za-z_]\w*=\S*$/;
 
 type Manifest = { scripts: Record<string, string>; raw: Record<string, unknown> };
 
-/** What a command runs: the package-relative files of its long-running process, and whether all of it was read. */
-type CommandFiles = { files: string[]; resolved: boolean };
-
 /**
- * The files one command runs, relative to the package: runner commands, references to the package's other scripts,
- * and `nest start`. In `a && b; c` only the last statement is the process that keeps running; the ones before it
- * finish first (a build, a migration), except `cd`, which moves the rest. `a & b` runs both. Anything else (`sh
- * start.sh`, a process-manager configuration, inline code) leaves the command unresolved.
+ * The one file a command runs, when it is a single simple process: a runner with known flags and a file (`node
+ * --enable-source-maps dist/main.mjs`), a package script that is one (`npm start`, `yarn start:prod`), or `nest start`.
+ * Chains, background jobs, `cd`, quoting, shell scripts, process managers and parallel runners are not read.
+ * `undefined` when the command is anything else.
  */
-const filesOfCommand = (
+const simpleCommandFile = (
   command: string,
   manifest: Manifest | undefined,
   nestEntry: string | undefined,
   depth = 0
-): CommandFiles => {
-  if (depth > 3) return { files: [], resolved: false };
-  const unwrapped = command.trim().replace(/^(?:\/bin\/)?(?:sh|bash)\s+-c\s+(["']?)([\s\S]*)\1$/, '$2');
-  const statements = unwrapped
-    .split(/&&|;|\n/)
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-  let directory = '';
-  for (const statement of statements.slice(0, -1)) {
-    const cd = /^cd\s+(?:\.\/)?([\w./-]+)$/.exec(statement);
-    if (cd !== null) directory = posix.join(directory, cd[1]!);
+): string | undefined => {
+  if (depth > 3 || SHELL_SYNTAX.test(command)) return undefined;
+  const words = command.trim().split(/\s+/).filter(Boolean);
+  if (words[0] === 'cross-env') words.shift();
+  while (words.length > 0 && ENVIRONMENT_ASSIGNMENT.test(words[0]!)) words.shift();
+  const [first, second, third] = words;
+  if (first === undefined) return undefined;
+  if (first === 'nest' && second === 'start' && words.length === 2) return nestEntry;
+  // `npm start`, `npm run x`, `yarn x`, `pnpm run x`, `bun run x`; words after the name are the script's arguments.
+  if (['npm', 'yarn', 'pnpm', 'bun'].includes(first)) {
+    const runs = second === 'run' || second === 'run-script';
+    const name = runs
+      ? third
+      : first === 'npm'
+        ? second === 'start'
+          ? 'start'
+          : undefined
+        : first === 'bun'
+          ? undefined
+          : second;
+    // `bun run src/index.ts` and `bun src/index.ts` run a file.
+    const bunFile = first === 'bun' && /[./]/.test((runs ? third : second) ?? '');
+    if (!bunFile) {
+      const script = name === undefined ? undefined : manifest?.scripts[name];
+      return script === undefined ? undefined : simpleCommandFile(script, manifest, nestEntry, depth + 1);
+    }
   }
-  const last = statements.at(-1);
-  if (last === undefined) return { files: [], resolved: false };
-  const results = last.split(/\|\||(?<![&>])&(?!&)/).map((part): CommandFiles => {
-    const words = commandWords(part);
-    const runner = runnerFiles(words);
-    if (runner !== undefined) {
-      return {
-        // `node .` runs the package's `main`.
-        files: runner.files.map((file) =>
-          file === '.' ? (stringOf(manifest?.raw.main) ?? 'index.js') : posix.join(directory, file)
-        ),
-        resolved: runner.resolved
-      };
+  const runner = RUNNERS.find((candidate) => candidate.command === first);
+  if (runner === undefined) return undefined;
+  let index = 1;
+  if (runner.modes.includes(words[index] ?? '')) index += 1;
+  else if (runner.modeRequired === true) return undefined;
+  for (; index < words.length; index += 1) {
+    const word = words[index]!;
+    if (!word.startsWith('-')) {
+      if (word === '.' || word === './') return stringOf(manifest?.raw.main) ?? 'index.js';
+      return /^[\w@][\w@./-]*$/.test(word.replace(/^\.\//, '')) ? word.replace(/^\.\//, '') : undefined;
     }
-    if (words[0] === 'nest' && words[1] === 'start') {
-      return nestEntry === undefined ? { files: [], resolved: false } : { files: [nestEntry], resolved: true };
-    }
-    if (FRAMEWORK_SERVER.test(words[0] ?? '')) return { files: [], resolved: true };
-    const reference = SCRIPT_REFERENCE.exec(words.join(' '));
-    // `npm run --prefix server start` runs another package.
-    if (
-      reference === null ||
-      directory !== '' ||
-      words.some((word) => word.startsWith('--prefix') || word === '--filter')
-    ) {
-      return { files: [], resolved: false };
-    }
-    const name = reference[1]!;
-    const script = manifest?.scripts[name];
-    if (script === undefined) return { files: [], resolved: false };
-    return filesOfCommand(script, manifest, nestEntry, depth + 1);
-  });
-  return { files: results.flatMap((result) => result.files), resolved: results.every((result) => result.resolved) };
+    const [flag, inline] = word.split('=', 2) as [string, string | undefined];
+    if (runner.values.has(flag)) {
+      const value = inline ?? words[index + 1];
+      if (inline === undefined) index += 1;
+      // A preloaded project file runs too; which one is the entry is then not one file.
+      if (value === undefined || (PRELOAD_FLAGS.has(flag) && /^[./]/.test(value))) return undefined;
+    } else if (!runner.switches.test(word)) return undefined;
+  }
+  return undefined;
 };
 
-/** The last `CMD`/`ENTRYPOINT` of a Dockerfile as a shell command (exec form joined with spaces). */
-const dockerfileCommand = (raw: string): string | undefined => {
+/** The single `CMD` or `ENTRYPOINT` of a Dockerfile's last stage, in exec form, as words. */
+const dockerfileExecCommand = (raw: string): string | undefined => {
   const lines = raw.replace(/\\\r?\n/g, ' ').split(/\r?\n/);
-  const instruction = lines.findLast((line) => /^\s*(?:CMD|ENTRYPOINT)\s/i.test(line));
-  if (instruction === undefined) return undefined;
-  const value = instruction.replace(/^\s*(?:CMD|ENTRYPOINT)\s+/i, '').trim();
-  if (!value.startsWith('[')) return value;
+  const lastStage = lines.slice(lines.findLastIndex((line) => /^\s*FROM\s/i.test(line)) + 1);
+  const instructions = lastStage.filter((line) => /^\s*(?:CMD|ENTRYPOINT)\s/i.test(line));
+  if (instructions.length !== 1) return undefined;
+  const value = instructions[0]!.replace(/^\s*(?:CMD|ENTRYPOINT)\s+/i, '').trim();
+  if (!value.startsWith('[')) return undefined;
   try {
     const parts: unknown = JSON.parse(value);
-    return Array.isArray(parts) && parts.every((part) => typeof part === 'string')
-      ? parts.map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(' ')
+    return Array.isArray(parts) && parts.every((part) => typeof part === 'string' && !/\s/.test(part))
+      ? parts.join(' ')
       : undefined;
   } catch {
     return undefined;
   }
 };
 
-const WORKER_SCRIPT = /(?:^|:)(?:worker|workers|queue|queue-worker|consumer|jobs?)(?::prod(?:uction)?)?$/i;
-
 /**
- * The start files of the JavaScript package at `root`, strongest first, and whether every start command was read
- * (`resolved`). Compiled paths are read back to their source (`dist/main.js` to `src/main.ts`) through the tsconfig
- * `outDir`/`rootDir`, or a conventional output directory; a path with no source in the repository is left out rather
- * than guessed, and leaves the command unresolved.
+ * The one source file the JavaScript package at `root` starts with, when its start commands say so without ambiguity.
+ *
+ * The commands are the package's `start` script (`start:prod` when there is no `start`), a Procfile with a single
+ * process and a Dockerfile's exec-form command. Each one present must be a single simple process, and they must all
+ * name the same file. A compiled path (`dist/main.js`) is read back to its source through the tsconfig
+ * `outDir`/`rootDir` or a conventional output directory. Anything else, including a path with no source, a directory
+ * or disagreeing commands, gives `undefined`, and the scan keeps its earlier behavior for the package.
  */
-export const startEntriesOf = async (
+export const unambiguousStartFile = async (
   root: string,
   context: ProbeContext,
   resolver: ModuleResolver
-): Promise<{ entries: StartEntry[]; resolved: boolean }> => {
+): Promise<string | undefined> => {
   const files = new Set(context.files);
-  const manifestRaw = parseJson(
-    files.has(join(root, 'package.json'))
-      ? await readText(context, join(root, 'package.json'), { fullFile: true })
-      : undefined
-  );
+  const read = async (name: string) =>
+    files.has(join(root, name)) ? readText(context, join(root, name), { fullFile: true }) : undefined;
+  const manifestRaw = parseJson(await read('package.json'));
   const manifest: Manifest | undefined =
     manifestRaw === undefined
       ? undefined
@@ -529,27 +392,19 @@ export const startEntriesOf = async (
             )
           )
         };
-  const nestCli = files.has(join(root, 'nest-cli.json'))
-    ? (parseJson(await readText(context, join(root, 'nest-cli.json'), { fullFile: true })) ?? {})
-    : undefined;
+  const nestCli = parseJson(await read('nest-cli.json'));
   const nestEntry =
     nestCli === undefined
       ? undefined
       : `${stringOf(nestCli.sourceRoot) ?? 'src'}/${stringOf(nestCli.entryFile) ?? 'main'}.ts`;
-
   const tsconfigs = (
     await Promise.all(
       ['tsconfig.build.json', 'tsconfig.json'].map((name) => readTsconfig(context, join(root, name), files))
     )
   ).filter((entry): entry is TsconfigOptions => entry !== undefined);
   const main = manifest === undefined ? undefined : stringOf(manifest.raw.main);
-  /**
-   * The source a package-relative path runs from, when the repository holds it. A directory is no entry, except the
-   * package's own `main`, which Node resolves like a module.
-   */
+  /** The source a package-relative path runs from; a directory only when it is the package's own `main`. */
   const toSource = (file: string): string | undefined => {
-    // A process manager's configuration (`pm2-runtime start ecosystem.config.js`) names no application file.
-    if (/(?:^|\/)(?:ecosystem|[\w-]+\.config)\.[cm]?js$/.test(file)) return undefined;
     const directories = main !== undefined && posix.normalize(file) === posix.normalize(main);
     const path = join(root, file);
     const compiled: string[] = [];
@@ -570,63 +425,29 @@ export const startEntriesOf = async (
     return undefined;
   };
 
-  const entries: StartEntry[] = [];
-  let resolved = true;
-  const add = (origin: StartEntryOrigin, command: CommandFiles, processName?: string) => {
-    if (!command.resolved) resolved = false;
-    for (const file of command.files) {
-      const source = toSource(file);
-      if (source === undefined) {
-        resolved = false;
-        continue;
-      }
-      if (!entries.some((entry) => entry.file === source && entry.origin === origin)) {
-        entries.push({ file: source, origin, ...(processName === undefined ? {} : { processName }) });
-      }
-    }
-  };
-  /** A convention file: added when it exists, and no command is left unread when it does not. */
-  const addConvention = (origin: StartEntryOrigin, conventionFiles: readonly string[]) => {
-    for (const file of conventionFiles) {
-      const source = toSource(file);
-      if (source !== undefined && !entries.some((entry) => entry.file === source && entry.origin === origin)) {
-        entries.push({ file: source, origin });
-      }
-    }
-  };
-
-  const procfile = join(root, 'Procfile');
-  if (files.has(procfile)) {
-    for (const line of ((await readText(context, procfile, { fullFile: true })) ?? '').split(/\r?\n/)) {
-      const match = /^([\w-]+)\s*:\s*(.+)$/.exec(line.trim());
-      if (match === null || match[1] === 'release') continue;
-      add('procfile', filesOfCommand(match[2]!, manifest, nestEntry), match[1] === 'web' ? undefined : match[1]);
-    }
+  const commands: string[] = [];
+  const start = manifest?.scripts.start ?? manifest?.scripts['start:prod'];
+  if (start !== undefined) commands.push(start);
+  const procfile = await read('Procfile');
+  if (procfile !== undefined) {
+    const processes = procfile
+      .split(/\r?\n/)
+      .map((line) => /^([\w-]+)\s*:\s*(.+)$/.exec(line.trim()))
+      .filter((match): match is RegExpExecArray => match !== null && match[1] !== 'release');
+    if (processes.length !== 1) return undefined;
+    commands.push(processes[0]![2]!);
   }
-  const dockerfile = join(root, 'Dockerfile');
-  if (files.has(dockerfile)) {
-    const command = dockerfileCommand((await readText(context, dockerfile, { fullFile: true })) ?? '');
-    if (command !== undefined) add('dockerfile', filesOfCommand(command, manifest, nestEntry));
+  const dockerfile = await read('Dockerfile');
+  if (dockerfile !== undefined) {
+    const command = dockerfileExecCommand(dockerfile);
+    if (command === undefined) return undefined;
+    commands.push(command);
   }
-  if (manifest !== undefined) {
-    const { scripts } = manifest;
-    if (scripts.start !== undefined) add('start-script', filesOfCommand(scripts.start, manifest, nestEntry));
-    for (const name of ['start:prod', 'start:production', 'prod']) {
-      if (scripts[name] !== undefined) add('production-script', filesOfCommand(scripts[name], manifest, nestEntry));
-    }
-    for (const [name, script] of Object.entries(scripts)) {
-      if (WORKER_SCRIPT.test(name)) add('worker-script', filesOfCommand(script, manifest, nestEntry), name);
-    }
-    // NestJS builds `sourceRoot/entryFile` and `nest start` runs it.
-    if (nestEntry !== undefined) addConvention('nest-convention', [nestEntry]);
-    // Without a start script, `npm start` runs `node server.js`.
-    if (scripts.start === undefined) addConvention('npm-default', ['server.js']);
-    if (main !== undefined) addConvention('main', [main]);
-    const bin = manifest.raw.bin;
-    addConvention(
-      'bin',
-      typeof bin === 'string' ? [bin] : Object.values(recordOf(bin)).filter((value) => typeof value === 'string')
-    );
-  }
-  return { entries, resolved };
+  if (commands.length === 0) return undefined;
+  const sources = commands.map((command) => {
+    const file = simpleCommandFile(command, manifest, nestEntry);
+    return file === undefined ? undefined : toSource(file);
+  });
+  const [file] = sources;
+  return file !== undefined && sources.every((source) => source === file) ? file : undefined;
 };
