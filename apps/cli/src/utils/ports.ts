@@ -25,24 +25,140 @@ const probeBind = (port: number, host: string): Promise<BindProbe> =>
   });
 
 /**
- * The addresses a port must be free on. A program listening on only one loopback address takes the requests that a
- * client resolving `localhost` to that address sends: on Windows, WSL's port forwarding and other dev servers listen on
- * `127.0.0.1` and `::1` separately, and a frontend Stacktape started on a port held on `::1` shared it with them
- * (r2bd2). The wildcard addresses cover a workload that listens on every interface. Windows lets a later program bind a
- * specific address over a wildcard listener and the reverse, so every address is probed on its own.
+ * The only addresses Stacktape binds to probe a port. A program listening on only one loopback address takes the
+ * requests that a client resolving `localhost` to that address sends: on Windows, WSL's port forwarding and other dev
+ * servers listen on `127.0.0.1` and `::1` separately, and a frontend Stacktape started on a port held on `::1` shared it
+ * with them (r2bd2). A probe never binds a wildcard address: listening on `0.0.0.0` or `::` makes Windows Defender
+ * Firewall ask the user, with administrator rights, to let the program onto the network (r2bj).
  */
-const PORT_PROBE_HOSTS = ['127.0.0.1', '0.0.0.0', '::1', '::'];
+const LOOPBACK_PROBE_HOSTS = ['127.0.0.1', '::1'];
+
+/** `127.0.0.1`, `0.0.0.0`, `::1` and `::` in one spelling; an IPv4 address mapped into IPv6 is its IPv4 address. */
+export const normalizeAddress = (address: string): string => {
+  const bare = address.replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(bare);
+  if (mapped) return mapped[1]!;
+  if (bare === '*') return bare;
+  if (/^[0:]+$/.test(bare)) return '::';
+  if (/^[0:]+:0*1$/.test(bare)) return '::1';
+  return bare.toLowerCase();
+};
+
+/** An address of `/proc/net/tcp` or `tcp6`: hexadecimal, each 32-bit word in the machine's byte order (little-endian). */
+export const decodeProcNetAddress = (hex: string): string => {
+  const words = hex.match(/.{8}/g) ?? [];
+  const bytes = words.flatMap((word) => (word.match(/../g) ?? []).reverse().map((byte) => Number.parseInt(byte, 16)));
+  if (bytes.length === 4) return bytes.join('.');
+  // An IPv4 address mapped into IPv6 (`::ffff:127.0.0.1`) is that IPv4 address.
+  if (bytes.slice(0, 10).every((byte) => byte === 0) && bytes[10] === 255 && bytes[11] === 255) {
+    return bytes.slice(12).join('.');
+  }
+  const groups = Array.from({ length: 8 }, (_, index) =>
+    ((bytes[index * 2]! << 8) | bytes[index * 2 + 1]!).toString(16)
+  );
+  return normalizeAddress(groups.join(':'));
+};
+
+/** A listening TCP socket from the system's table: its address as `normalizeAddress` writes it, and its port. */
+type TableListener = { address: string; port: number };
+
+/** The listening sockets in `/proc/net/tcp`-format text, with their socket inodes. */
+export const parseProcNetListeners = (text: string): (TableListener & { inode: string })[] =>
+  text
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((fields) => fields[3] === '0A' && fields[1]?.includes(':'))
+    .map((fields) => {
+      const [address, port] = fields[1]!.split(':');
+      return { address: decodeProcNetAddress(address!), port: Number.parseInt(port!, 16), inode: fields[9]! };
+    });
 
 /**
- * Check if port is in use: whether any program listens on it on an IPv4 or IPv6 loopback or wildcard address. An
- * address family this machine lacks is skipped. The probes run one after another, because these binds overlap on
- * Linux and parallel probes can mistake each other for an existing listener.
+ * Listening sockets in `netstat -an` output on Windows (`TCP  [::]:3000  [::]:0  LISTENING`) or macOS
+ * (`tcp46  0  0  *.3000  *.*  LISTEN`). The state column is translated on Windows, so a listener is told by its foreign
+ * address, which is unset (`0.0.0.0:0`, `[::]:0`, `*.*`) only for a socket that accepts connections.
  */
-export const isPortInUse = async (port: number, host?: string): Promise<boolean> => {
-  for (const probeHost of host ? [host] : PORT_PROBE_HOSTS) {
+export const parseNetstatListeners = (text: string): TableListener[] => {
+  const listeners: TableListener[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const fields = line.trim().split(/\s+/);
+    const windows = fields[0] === 'TCP';
+    const macos = /^tcp(4|6|46)?$/.test(fields[0] ?? '');
+    const [local, foreign] = windows ? [fields[1], fields[2]] : macos ? [fields[3], fields[4]] : [];
+    if (!local || !foreign) continue;
+    const separator = windows ? ':' : '.';
+    const unset = windows ? /:0$/.test(foreign) : foreign === '*.*';
+    const port = Number(local.slice(local.lastIndexOf(separator) + 1));
+    if (!unset || !Number.isInteger(port) || port <= 0) continue;
+    const address = normalizeAddress(local.slice(0, local.lastIndexOf(separator)));
+    // macOS writes an unspecified address as `*` and says the family only in the protocol column.
+    listeners.push({ address: address === '*' ? (fields[0] === 'tcp4' ? '0.0.0.0' : '::') : address, port });
+  }
+  return listeners;
+};
+
+const execFileAsync = promisify(execFile);
+
+/** The system's listening TCP sockets; none where it does not say (a restricted `/proc`, no `netstat`). */
+const readListenerTable = async (): Promise<TableListener[]> => {
+  try {
+    if (process.platform === 'linux') {
+      // `tcp6` is missing where IPv6 is switched off.
+      const tables = await Promise.all(
+        ['/proc/net/tcp', '/proc/net/tcp6'].map((path) => readFile(path, 'utf8').catch(() => ''))
+      );
+      return tables.flatMap((text) => parseProcNetListeners(text));
+    }
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      // Windows lists both address families of every protocol; macOS both families under `tcp`.
+      const args = process.platform === 'win32' ? ['-an'] : ['-an', '-p', 'tcp'];
+      const { stdout } = await execFileAsync('netstat', args, { timeout: 10_000, windowsHide: true });
+      return parseNetstatListeners(stdout);
+    }
+  } catch {
+    // Unknown: only the loopback probes decide.
+  }
+  return [];
+};
+
+/** The ports a program listens on at `0.0.0.0` or `::`, from one read of the system's table. */
+export type WildcardListenerPorts = (options?: { fresh?: boolean }) => Promise<ReadonlySet<number>>;
+
+/** How long one read of the listener table serves the checks of a port scan. */
+const LISTENER_TABLE_TTL_MS = 500;
+let listenerTableRead: { readAt: number; ports: Promise<ReadonlySet<number>> } | undefined;
+
+export const readWildcardListenerPorts: WildcardListenerPorts = ({ fresh = false } = {}) => {
+  if (!fresh && listenerTableRead && Date.now() - listenerTableRead.readAt < LISTENER_TABLE_TTL_MS) {
+    return listenerTableRead.ports;
+  }
+  const ports = readListenerTable().then(
+    (listeners) =>
+      new Set(listeners.filter(({ address }) => address === '0.0.0.0' || address === '::').map(({ port }) => port))
+  );
+  listenerTableRead = { readAt: Date.now(), ports };
+  return ports;
+};
+
+/**
+ * Check if port is in use: whether any program listens on it on an IPv4 or IPv6 loopback or wildcard address.
+ * Loopback addresses are probed by binding them: that also finds ports the system reserves, such as Windows' excluded
+ * port ranges. Windows and macOS let a program bind a loopback address over another program's wildcard listener, so
+ * wildcard listeners come from the system's listener table instead (`readWildcardListenerPorts`); where the system does
+ * not say, only the loopback probes decide. An address family this machine lacks is skipped. The probes run one after
+ * another so that they never mistake each other for an existing listener.
+ */
+export const isPortInUse = async (
+  port: number,
+  { wildcardListenerPorts = readWildcardListenerPorts }: { wildcardListenerPorts?: WildcardListenerPorts } = {}
+): Promise<boolean> => {
+  for (const probeHost of LOOPBACK_PROBE_HOSTS) {
     if ((await probeBind(port, probeHost)) === 'in-use') return true;
   }
-  return false;
+  if (!(await wildcardListenerPorts()).has(port)) return false;
+  // A table read for an earlier port of the scan can list a listener that has closed since.
+  return (await wildcardListenerPorts({ fresh: true })).has(port);
 };
 
 /**
@@ -72,8 +188,6 @@ const UNREADABLE_RESERVATION_STALE_MS = 10_000;
 
 /** `ps` reports a start to the second: readings of one process that a second boundary separates still match. */
 const START_TIME_TOLERANCE_MS = 1000;
-
-const execFileAsync = promisify(execFile);
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
