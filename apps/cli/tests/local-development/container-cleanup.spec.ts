@@ -14,7 +14,12 @@ test('container cleanup removes abandoned and stopped containers while preservin
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-container-cleanup-'));
   const owner = randomUUID();
   // `unlocked`: a live session whose lock file a refused second start deleted (r2rr). Its process still runs.
-  const names = ['live', 'abandoned', 'stopped', 'legacy', 'unlocked'].map((kind) => `stp-t07-${owner}-${kind}`);
+  // `adopted`: a database a crashed session started and the recovered session took over as it ran (r2bd). Docker cannot
+  // change a running container's labels, so its process label still names the crashed session; the lock file at its
+  // lock-file label is held by the live session that uses it now.
+  const names = ['live', 'abandoned', 'stopped', 'legacy', 'unlocked', 'adopted'].map(
+    (kind) => `stp-t07-${owner}-${kind}`
+  );
   // A customer's own stopped container: not a Stacktape dev container, so cleanup must never list or remove it.
   const foreign = `customer-${owner}-stopped`;
   const lock = join(directory, 'live.json');
@@ -38,12 +43,12 @@ test('container cleanup removes abandoned and stopped containers while preservin
     expect(foreignCreated.status, foreignCreated.stderr).toBe(0);
     for (const [index, name] of names.entries()) {
       const labels = ['--label', `stacktape.qa.task=${owner}`];
-      if (index < 2 || index === 4)
+      if (index < 2 || index >= 4)
         labels.push(
           '--label',
-          `stacktape.dev.lock=${index === 0 ? lock : join(directory, 'missing.json')}`,
+          `stacktape.dev.lock=${index === 0 || index === 5 ? lock : join(directory, 'missing.json')}`,
           '--label',
-          `stacktape.dev.pid=${index === 1 ? endedPid : process.pid}`
+          `stacktape.dev.pid=${index === 1 || index === 5 ? endedPid : process.pid}`
         );
       const created = invoke(['create', '--name', name, ...labels, 'alpine:3', 'sleep', '600']);
       expect(created.status, created.stderr).toBe(0);
@@ -98,6 +103,7 @@ console.log('REMOVED ' + JSON.stringify(await cleanupOrphanedContainers()));
     expect(inspect(names[0]).stdout.trim()).toBe('running');
     expect(inspect(names[3]).stdout.trim()).toBe('running');
     expect(inspect(names[4]).stdout.trim()).toBe('running');
+    expect(inspect(names[5]).stdout.trim()).toBe('running');
     expect(inspect(foreign).stdout.trim()).toBe('created');
     for (const name of [names[1], names[2]]) {
       const absent = inspect(name);

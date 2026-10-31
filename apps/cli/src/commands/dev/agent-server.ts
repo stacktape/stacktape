@@ -2284,6 +2284,9 @@ type ResourceInfo = {
   type: string;
 };
 
+/** A PowerShell literal string: nothing inside single quotes is expanded, and a quote is doubled. */
+const quotePowerShell = (value: string) => `'${value.replaceAll("'", "''")}'`;
+
 export const buildStartupMessage = (params: {
   projectName: string;
   stage: string;
@@ -2292,8 +2295,11 @@ export const buildStartupMessage = (params: {
   databases: ResourceInfo[];
   port?: number;
   logFile?: string;
+  /** The examples use PowerShell on Windows, where Bash, `cat`, `tail` and `grep` are not there by default. */
+  platform?: NodeJS.Platform;
 }): string => {
   const { projectName, stage, region, workloads, databases } = params;
+  const powerShell = (params.platform ?? process.platform) === 'win32';
   const port = params.port ?? agentPort;
   const logFile = params.logFile ?? agentState.logFile;
   const tokenFile = port ? localStatePaths.devAgentTokenFile({ port }) : agentTokenFile;
@@ -2312,11 +2318,21 @@ export const buildStartupMessage = (params: {
   lines.push(`  ${tokenFile}`);
   lines.push('  POST requests also need "content-type: application/json". Requests from web pages are refused.');
   lines.push('  Examples:');
-  lines.push(`    TOKEN=$(cat '${tokenFile}')`);
-  lines.push(`    curl -H "Authorization: Bearer $TOKEN" ${baseUrl}/status`);
-  lines.push(
-    `    curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{}' ${baseUrl}/rebuild/all`
-  );
+  if (powerShell) {
+    lines.push(
+      `    $headers = @{ Authorization = "Bearer $((Get-Content -Raw -LiteralPath ${quotePowerShell(tokenFile)}).Trim())" }`
+    );
+    lines.push(`    Invoke-RestMethod -Headers $headers ${baseUrl}/status`);
+    lines.push(
+      `    Invoke-RestMethod -Method Post -Headers $headers -ContentType application/json -Body '{}' ${baseUrl}/rebuild/all`
+    );
+  } else {
+    lines.push(`    TOKEN=$(cat '${tokenFile}')`);
+    lines.push(`    curl -H "Authorization: Bearer $TOKEN" ${baseUrl}/status`);
+    lines.push(
+      `    curl -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{}' ${baseUrl}/rebuild/all`
+    );
+  }
   lines.push('');
 
   // Resources
@@ -2348,9 +2364,16 @@ export const buildStartupMessage = (params: {
     // The examples name this session's log file and its first workload, so they run as printed.
     const example = workloads[0]?.name ?? databases[0]?.name;
     lines.push('  Examples:');
-    lines.push(`    tail -n 50 '${logFile}'`);
-    lines.push(`    grep '"level":"error"' '${logFile}'`);
-    if (example) lines.push(`    grep '"source":"${example}"' '${logFile}'`);
+    if (powerShell) {
+      const path = quotePowerShell(logFile);
+      lines.push(`    Get-Content -Tail 50 -LiteralPath ${path}`);
+      lines.push(`    Select-String -SimpleMatch '"level":"error"' -LiteralPath ${path}`);
+      if (example) lines.push(`    Select-String -SimpleMatch '"source":"${example}"' -LiteralPath ${path}`);
+    } else {
+      lines.push(`    tail -n 50 '${logFile}'`);
+      lines.push(`    grep '"level":"error"' '${logFile}'`);
+      if (example) lines.push(`    grep '"source":"${example}"' '${logFile}'`);
+    }
     lines.push('');
   }
 

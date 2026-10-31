@@ -17,7 +17,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { dockerRun, execDocker, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
+import { dockerRun, execDocker, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { createLogPollScheduler } from '@utils/cloudwatch-log-poller';
 import { getResourceParamReferences } from '../resource-references';
@@ -36,6 +36,7 @@ import {
   DOCKER_HOST_NAME,
   ensureLoopbackRelays,
   findSpareLoopbackPort,
+  getLocalWorkloadEndpoint,
   resolveDevContainerNetwork,
   startPortSwitch,
   stopLoopbackRelays
@@ -559,7 +560,6 @@ const getLocalWorkloadInfo = async (
   const addresses: Record<string, string> = {};
   const stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[] = [];
   if (!containerResources.length) return { envVars, envVarsByWorkload, addresses, stackInfoWorkloads };
-  const tunnelHost = await getDockerHostAddress();
 
   for (const resource of containerResources) {
     const workload = configManager.allContainerWorkloads.find(
@@ -578,30 +578,18 @@ const getLocalWorkloadInfo = async (
     const port = containerDefinition?.events?.[0]?.properties?.containerPort;
     const binding = containerPortBindings.get(resource.name);
     const hostPort = binding?.primaryHostPort || port;
+    if (!hostPort) continue;
 
-    if (hostPort) {
-      // For private-service, set ADDRESS (format: host:port)
-      // For web-service/worker-service, set URL (format: http://host:port)
-      if (workload.configParentResourceType === 'private-service') {
-        const address = `${tunnelHost}:${hostPort}`;
-        // Only set env vars for referenced workloads
-        if (allReferencedResources.has(resource.name)) {
-          envVarsByWorkload[resource.name] = { [injectedParameterEnvVarName(resource.name, 'address')]: address };
-          addresses[resource.name] = address;
-        }
-        // Always add to stackInfoWorkloads for $ResourceParam resolution
-        stackInfoWorkloads.push({ name: resource.name, resourceType: 'private-service', address });
-      } else {
-        const url = `http://${tunnelHost}:${hostPort}`;
-        // Only set env vars for referenced workloads
-        if (allReferencedResources.has(resource.name)) {
-          envVarsByWorkload[resource.name] = { [injectedParameterEnvVarName(resource.name, 'url')]: url };
-          addresses[resource.name] = url;
-        }
-        // Always add to stackInfoWorkloads for $ResourceParam resolution
-        stackInfoWorkloads.push({ name: resource.name, resourceType: workload.configParentResourceType, url });
-      }
+    // The host-side address: containers get it translated to the Docker host alias (`getWorkloadEnvironmentVars`).
+    const resourceType = workload.configParentResourceType;
+    const { param, value } = getLocalWorkloadEndpoint({ resourceType, hostPort });
+    // Only workloads that something references get environment variables.
+    if (allReferencedResources.has(resource.name)) {
+      envVarsByWorkload[resource.name] = { [injectedParameterEnvVarName(resource.name, param)]: value };
+      addresses[resource.name] = value;
     }
+    // Every workload resolves `$ResourceParam` directives.
+    stackInfoWorkloads.push({ name: resource.name, resourceType, [param]: value });
   }
 
   Object.assign(envVars, ...Object.values(envVarsByWorkload));

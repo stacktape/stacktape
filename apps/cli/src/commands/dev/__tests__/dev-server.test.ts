@@ -460,3 +460,55 @@ process.exit(1);
     await rm(directory, { recursive: true, force: true });
   }
 }, 30_000);
+
+// r2bf: on Windows, Ledger's Next server called Cognito in the AWS profile's default region (eu-west-1) while the dev
+// session ran in eu-north-1, and sign-in failed with "User pool client ... does not exist". A dev server runs in the
+// session's region, as its deployed server and a dev container do, also when the shell names another; a region the
+// frontend's configuration sets explicitly wins.
+test("a frontend dev server runs in the session's region unless its configuration sets one", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  const previous = {
+    rawArgs: globalStateManager.rawArgs,
+    AWS_REGION: process.env.AWS_REGION,
+    AWS_DEFAULT_REGION: process.env.AWS_DEFAULT_REGION
+  };
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+const { AWS_REGION, AWS_DEFAULT_REGION } = process.env;
+require('node:http').createServer((_q, r) => r.end(JSON.stringify({ AWS_REGION, AWS_DEFAULT_REGION })))
+  .listen(port, '127.0.0.1', () => console.log('  ready in 5 ms'));
+`
+    );
+    // The developer's shell names another region than the session.
+    process.env.AWS_REGION = 'eu-west-1';
+    process.env.AWS_DEFAULT_REGION = 'eu-west-1';
+    globalStateManager.rawArgs = { stage: 'region', region: 'eu-north-1', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const regionsOf = async (name: string, environment?: Record<string, string>) => {
+      const state = await startDevServer({
+        name,
+        config: { command: './vite dev', workingDirectory: directory, framework: 'vite', environment }
+      });
+      expect(state.status, state.error).toBe('ready');
+      return (await fetch(`http://127.0.0.1:${state.port}`)).json();
+    };
+
+    expect(await regionsOf('web')).toEqual({ AWS_REGION: 'eu-north-1', AWS_DEFAULT_REGION: 'eu-north-1' });
+    await runCleanupHooks();
+    expect(await regionsOf('web', { AWS_REGION: 'us-east-1', AWS_DEFAULT_REGION: 'us-east-1' })).toEqual({
+      AWS_REGION: 'us-east-1',
+      AWS_DEFAULT_REGION: 'us-east-1'
+    });
+  } finally {
+    globalStateManager.rawArgs = previous.rawArgs;
+    for (const name of ['AWS_REGION', 'AWS_DEFAULT_REGION'] as const) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);

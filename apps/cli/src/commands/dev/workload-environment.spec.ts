@@ -5,6 +5,8 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { connect, createServer, type AddressInfo } from 'node:net';
+import { DOCKER_HOST_NAME, getLocalWorkloadEndpoint } from './container/network';
 import { getWorkloadEnvironmentVars, pointLoopbackAtHost } from './utils';
 
 /**
@@ -213,3 +215,74 @@ test('only a loopback host is replaced, not a name that contains one', () => {
   expect(at('my-localhost:1')).toBe('my-localhost:1');
   expect(at('localhost.example.com')).toBe('localhost.example.com');
 });
+
+// r2bd: on Docker Desktop for Windows, the native Next.js server got API_URL=http://host.docker.internal:3000 and failed
+// with `getaddrinfo ENOTFOUND`: that name resolves only inside Docker Desktop's containers, on macOS too. Linux passed
+// because native Docker Engine made the shared address 127.0.0.1. Each consumer now gets the address it can reach from
+// where it runs: processes on this machine get loopback and the stable host port, containers the Docker host alias.
+const platforms: { docker: string; containerDockerHost: string | undefined; containerHost: string }[] = [
+  // Docker Desktop: Windows, macOS, and WSL using Docker Desktop. The container is on its own network.
+  { docker: 'Docker Desktop', containerDockerHost: DOCKER_HOST_NAME, containerHost: DOCKER_HOST_NAME },
+  // Native Linux Docker Engine: own network too, with `--add-host` and loopback relays for the alias.
+  { docker: 'Linux Docker Engine', containerDockerHost: DOCKER_HOST_NAME, containerHost: DOCKER_HOST_NAME },
+  // Rootless Docker: the container shares this machine's network.
+  { docker: 'rootless Docker', containerDockerHost: undefined, containerHost: '127.0.0.1' }
+];
+
+test.each(platforms)(
+  'with $docker, a native frontend reaches a local workload at loopback and a container at $containerHost',
+  async ({ containerDockerHost, containerHost }) => {
+    // A local workload's stable host port, as the port switch serves it on this machine's loopback.
+    const workload = createServer((socket) => socket.end('ok'));
+    await new Promise<void>((resolve) => workload.listen(0, '127.0.0.1', resolve));
+    const hostPort = (workload.address() as AddressInfo).port;
+    try {
+      const api = getLocalWorkloadEndpoint({ resourceType: 'web-service', hostPort });
+      const queue = getLocalWorkloadEndpoint({ resourceType: 'private-service', hostPort });
+      expect(api).toEqual({ param: 'url', value: `http://127.0.0.1:${hostPort}` });
+      expect(queue).toEqual({ param: 'address', value: `127.0.0.1:${hostPort}` });
+
+      // A native process (the Next.js dev server, a hook, a script) uses the address as it is, and it answers.
+      const { hostname, port } = new URL(api.value);
+      const reply = await new Promise<string>((resolve, reject) => {
+        let data = '';
+        connect({ host: hostname, port: Number(port) })
+          .on('data', (chunk) => (data += chunk))
+          .on('close', () => resolve(data))
+          .on('error', reject);
+      });
+      expect(reply).toBe('ok');
+
+      deployedStackOverviewManager.injectLocalWorkloadInfo(
+        [
+          { name: 'api', resourceType: 'web-service', url: api.value },
+          { name: 'queue', resourceType: 'private-service', address: queue.value }
+        ],
+        { markAsLocallyInjected: false }
+      );
+      const environment = await getWorkloadEnvironmentVars({
+        workloadType: 'multi-container-workload',
+        jobName: 'worker',
+        workloadName: 'worker',
+        jobEnvironment: [
+          { name: 'API_URL', value: "$ResourceParam('api', 'url')" },
+          { name: 'QUEUE_ADDRESS', value: "$ResourceParam('queue', 'address')" }
+        ],
+        connectTo: [],
+        skipAwsCredentials: true,
+        dockerHost: containerDockerHost,
+        localWorkloadAddresses: { api: api.value, queue: queue.value },
+        localResourceEnvVars: { STP_API_URL: api.value, STP_QUEUE_ADDRESS: queue.value }
+      });
+      expect(environment).toMatchObject({
+        API_URL: `http://${containerHost}:${hostPort}`,
+        QUEUE_ADDRESS: `${containerHost}:${hostPort}`,
+        STP_API_URL: `http://${containerHost}:${hostPort}`,
+        STP_QUEUE_ADDRESS: `${containerHost}:${hostPort}`
+      });
+    } finally {
+      await new Promise((resolve) => workload.close(resolve));
+    }
+  },
+  20_000
+);

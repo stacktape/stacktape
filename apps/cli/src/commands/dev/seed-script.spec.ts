@@ -281,6 +281,54 @@ describe('seed output and errors are masked before they reach an agent', () => {
   });
 });
 
+// r2bf: dev mode's native processes ran in the shell's or the AWS profile's default region, not the session's. A local
+// script (seed, migration, hook) runs in the session's region, as a dev container does; a region its configuration sets
+// explicitly wins.
+describe("a local script runs in the session's region", () => {
+  const regionsCommand = 'echo "AWS_REGION=$AWS_REGION AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"';
+  const runInSession = async (script: Record<string, unknown>) => {
+    const shell = { AWS_REGION: process.env.AWS_REGION, AWS_DEFAULT_REGION: process.env.AWS_DEFAULT_REGION };
+    // The developer's shell names another region than the session.
+    process.env.AWS_REGION = 'eu-west-1';
+    process.env.AWS_DEFAULT_REGION = 'eu-west-1';
+    try {
+      let output: string[] = [];
+      await withScripts(
+        () => ({ seed: script }),
+        async () => {
+          globalStateManager.rawArgs = { ...globalStateManager.rawArgs, region: 'eu-north-1' };
+          const result = await runSeedScript('seed');
+          expect(result).toMatchObject({ ok: true });
+          output = result.ok ? result.output : [];
+        }
+      );
+      return output;
+    } finally {
+      for (const name of ['AWS_REGION', 'AWS_DEFAULT_REGION'] as const) {
+        if (shell[name] === undefined) delete process.env[name];
+        else process.env[name] = shell[name];
+      }
+    }
+  };
+
+  test('without a region in its configuration', async () => {
+    expect(await runInSession(localScript({ executeCommand: regionsCommand }))).toEqual([
+      'AWS_REGION=eu-north-1 AWS_DEFAULT_REGION=eu-north-1'
+    ]);
+  });
+
+  test('with a region in its configuration', async () => {
+    const script = localScript({
+      environment: [
+        { name: 'AWS_REGION', value: 'us-east-1' },
+        { name: 'AWS_DEFAULT_REGION', value: 'us-east-1' }
+      ],
+      executeCommand: regionsCommand
+    });
+    expect(await runInSession(script)).toEqual(['AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1']);
+  });
+});
+
 // Review of #391: a grandchild that left the process group with setsid() and ignored SIGTERM kept running after the
 // seed answered that every process had stopped.
 const hasPython = Bun.which('python3') !== null;

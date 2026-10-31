@@ -2,11 +2,12 @@ import { expect, test } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
-import { request } from 'node:http';
+import { createServer as createHttpServer, request } from 'node:http';
 import { createConnection, createServer, type AddressInfo } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  buildStartupMessage,
   describeBatchFailureCause,
   getAgentTokenFile,
   getDeployedResources,
@@ -908,3 +909,94 @@ test('invoke refuses a request without the session binding', async () => {
     await session.close();
   }
 });
+
+// r2bd: on Windows the startup summary proposed `TOKEN=$(cat ...)`, `tail` and `grep`, which the default Windows shells
+// do not run. The Windows examples are PowerShell; this runs them as printed against a stand-in agent that checks the
+// token and the content type, with paths that contain a space and a quote.
+test('the startup examples run as printed: PowerShell on Windows, Bash elsewhere', async () => {
+  const directory = await mkdtemp(join(tmpdir(), "stp agent's examples-"));
+  const previousTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  const requests: string[] = [];
+  const server = createHttpServer((request, response) => {
+    const authorized = request.headers.authorization === 'Bearer example-token';
+    const json = request.method !== 'POST' || request.headers['content-type'] === 'application/json';
+    requests.push(`${request.method} ${request.url} ${authorized && json ? 'accepted' : 'refused'}`);
+    response.writeHead(authorized && json ? 200 : 401, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({ ok: authorized && json }));
+  });
+  try {
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = directory;
+    await writeFile(join(directory, `${port}.token`), 'example-token\n');
+    const logFile = join(directory, 'agent.jsonl');
+    await writeFile(
+      logFile,
+      [
+        { ts: '2026-10-31T10:00:00Z', source: 'api', level: 'info', msg: 'listening' },
+        { ts: '2026-10-31T10:00:01Z', source: 'web', level: 'error', msg: 'build failed' }
+      ]
+        .map((line) => JSON.stringify(line))
+        .join('\n') + '\n'
+    );
+    const message = (platform: NodeJS.Platform) =>
+      buildStartupMessage({
+        projectName: 'shop',
+        stage: 'dev',
+        region: 'eu-north-1',
+        workloads: [{ name: 'api', type: 'web-service' }],
+        databases: [],
+        port,
+        logFile,
+        platform
+      });
+    // The indented lines below each "Examples:" heading.
+    const examples = (text: string) => {
+      const commands: string[] = [];
+      let inExamples = false;
+      for (const line of text.split('\n')) {
+        if (line.trim() === 'Examples:') inExamples = true;
+        else if (inExamples && line.startsWith('    ')) commands.push(line.trim());
+        else inExamples = false;
+      }
+      return commands;
+    };
+
+    for (const platform of ['linux', 'darwin'] as const) {
+      expect(message(platform)).toContain("TOKEN=$(cat '");
+      expect(message(platform)).toContain(`tail -n 50 '${logFile}'`);
+    }
+    expect(message('win32')).not.toMatch(/\b(cat|curl|tail|grep) |TOKEN=/);
+    // The authentication and log examples; the AWS SDK examples after them are request bodies.
+    const windows = examples(message('win32')).slice(0, 6);
+    expect(windows[0]).toStartWith('$headers = ');
+    expect(windows[5]).toStartWith('Select-String ');
+
+    if (!Bun.which('pwsh')) return;
+    const run = (commands: string[]) =>
+      new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
+        const child = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-Command', '-'], { stdio: 'pipe' });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (chunk) => (stdout += chunk));
+        child.stderr.on('data', (chunk) => (stderr += chunk));
+        child.on('close', (code) => resolve({ code, stdout, stderr }));
+        child.stdin.end(`$ErrorActionPreference = 'Stop'\n${commands.join('\n')}\n`);
+      });
+    const authentication = await run(windows.slice(0, 3));
+    expect(authentication.code, authentication.stderr).toBe(0);
+    expect(requests).toEqual(['GET /status accepted', 'POST /rebuild/all accepted']);
+    const [tail, errors, source] = await Promise.all(windows.slice(3).map((command) => run([command])));
+    expect(tail!.stdout).toContain('"msg":"listening"');
+    expect(tail!.stdout).toContain('"msg":"build failed"');
+    expect(errors!.stdout).toContain('"msg":"build failed"');
+    expect(errors!.stdout).not.toContain('"msg":"listening"');
+    expect(source!.stdout).toContain('"msg":"listening"');
+    expect(source!.stdout).not.toContain('"msg":"build failed"');
+  } finally {
+    if (previousTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = previousTokenDirectory;
+    await new Promise((resolve) => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 60_000);

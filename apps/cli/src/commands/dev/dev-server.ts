@@ -228,8 +228,13 @@ export const startDevServer = async ({
   const ensureTargetPortAvailable = async (): Promise<boolean> => isPortAvailable(targetPort);
 
   // Build environment with PORT for frameworks that support it
+  // The dev server runs in the session's region, as the deployed server runs in its stack's region and a dev container
+  // gets it (r2bf: a Next server on Windows called Cognito in the profile's default region). A value the frontend's
+  // configuration sets wins.
+  const region = globalStateManager.region;
   const env: Record<string, string> = {
     ...serialize(process.env),
+    ...(region && { AWS_REGION: region, AWS_DEFAULT_REGION: region }),
     ...(config.environment || {}),
     FORCE_COLOR: '1'
   };
