@@ -719,7 +719,8 @@ test("invoke runs only a running function of this session, after confirmation, a
       workloads: [
         { name: 'report', type: 'function', status: 'running' },
         { name: 'web', type: 'nextjs-web', status: 'running', url: 'http://web.localhost' },
-        { name: 'broken', type: 'function', status: 'error', error: 'Build failed: Unexpected ;' }
+        { name: 'broken', type: 'function', status: 'error', error: 'Build failed: Unexpected ;' },
+        { name: 'echo', type: 'function', status: 'starting' }
       ]
     });
     setFunctionsNotInSession([{ name: 'legacy', message: 'runs code deployed on 28 October' }]);
@@ -729,11 +730,21 @@ test("invoke runs only a running function of this session, after confirmation, a
     expect(await invoke('web', { event, confirm: true })).toMatchObject({
       ok: false,
       code: 'NOT_FOUND',
-      data: { available: ['report', 'broken'] }
+      data: { available: ['report', 'broken', 'echo'] }
     });
     expect(await invoke('orders', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_FOUND' });
     expect(await invoke('legacy', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_IN_SESSION' });
     expect(await invoke('broken', { event, confirm: true })).toMatchObject({ ok: false, code: 'WORKLOAD_NOT_RUNNING' });
+    // r2bc: watch mode was rebuilding the function; the answer said to fix it.
+    expect(await invoke('echo', { event, confirm: true })).toMatchObject({
+      ok: false,
+      code: 'WORKLOAD_REBUILDING',
+      message: 'echo is being rebuilt and redeployed; nothing was invoked.',
+      data: { hint: 'Wait until status reports echo running, then invoke it again.' }
+    });
+    updateAgentState({ phase: 'starting' });
+    expect(await invoke('echo', { event, confirm: true })).toMatchObject({ ok: false, code: 'WORKLOAD_STARTING' });
+    updateAgentState({ phase: 'ready' });
     expect(invoked).toEqual([]);
 
     const invoked1 = await invoke('report', { event, confirm: true });

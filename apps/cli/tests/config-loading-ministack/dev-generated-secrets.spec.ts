@@ -1,4 +1,4 @@
-import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { CreateSecretCommand, GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { configManager } from '@domain-services/config-manager';
 import { startMiniStack, type MiniStack, type MiniStackAccount } from '@stacktape/ministack/fixture';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -189,4 +189,124 @@ test('a dev start at the tag limit and a deployment that may not untag both go o
     Object.assign(awsSdkManager.secrets, { tag, untag });
   }
   expect(await state('shop-shared')).toEqual({ deleted: false, tags: devTags('shop-alice', 'shop-alice') });
+});
+
+/** Holds every `list` call until `parties` calls have listed, so each command decides from a list without the others. */
+const listTogether = (parties: number) => {
+  const original = awsSdkManager.secrets.list;
+  let release!: () => void;
+  const allListed = new Promise<void>((resolve) => (release = resolve));
+  let listed = 0;
+  awsSdkManager.secrets.list = async (input) => {
+    const result = await original(input);
+    if (++listed === parties) release();
+    await allListed;
+    return result;
+  };
+  return () => (awsSdkManager.secrets.list = original);
+};
+
+type SecretInput = {
+  Name: string;
+  SecretString: string;
+  Description?: string;
+  Tags?: { Key: string; Value: string }[];
+};
+const createSecret = (account: MiniStackAccount, input: SecretInput) =>
+  new SecretsManagerClient({ ...ministack.clientConfig(account), region: 'eu-west-1' }).send(
+    new CreateSecretCommand(input)
+  );
+
+// r2bc: two fresh stages that share a generated database password started at the same moment. Both listed no secret,
+// and the second CreateSecret failed with ResourceExistsException.
+test('two stages that generate a shared secret at the same moment both start and use the value that won', async () => {
+  const account = ministack.account();
+  const { state, value } = useAccount(account);
+  referenceSecrets('probe-db');
+  const restoreList = listTogether(2);
+  const create = awsSdkManager.secrets.createUnlessExists;
+  const createResults: boolean[] = [];
+  awsSdkManager.secrets.createUnlessExists = async (input) => {
+    const created = await create(input);
+    createResults.push(created);
+    return created;
+  };
+  try {
+    await Promise.all([
+      ensureMissingSecretsCreated({ devStackName: 'probe-neta' }),
+      ensureMissingSecretsCreated({ devStackName: 'probe-netb' })
+    ]);
+  } finally {
+    restoreList();
+    awsSdkManager.secrets.createUnlessExists = create;
+  }
+  expect(createResults.sort()).toEqual([false, true]);
+  const secret = await state('probe-db');
+  expect(secret?.deleted).toBe(false);
+  expect(userCount(secret!.tags)).toBe(2);
+  expect(secret?.tags).toEqual(
+    expect.arrayContaining([
+      { Key: tagNames.devSecretUser('probe-neta'), Value: 'probe-neta' },
+      { Key: tagNames.devSecretUser('probe-netb'), Value: 'probe-netb' }
+    ])
+  );
+  const winner = secret!.tags.find(({ Key }) => Key === tagNames.devGeneratedSecret())?.Value;
+  expect(['probe-neta', 'probe-netb']).toContain(winner);
+  expect(Object.keys(JSON.parse((await value('probe-db'))!))).toEqual(['password']);
+
+  // A deployment that generates the same password at the same moment as a dev stage uses the same value too.
+  referenceSecrets('probe-cache');
+  const restoreList2 = listTogether(2);
+  try {
+    await Promise.all([ensureMissingSecretsCreated({ devStackName: 'probe-neta' }), ensureMissingSecretsCreated()]);
+  } finally {
+    restoreList2();
+  }
+  expect((await state('probe-cache'))?.deleted).toBe(false);
+  expect(Object.keys(JSON.parse((await value('probe-cache'))!))).toEqual(['password']);
+});
+
+test('a secret created meanwhile by something other than Stacktape, or in another shape, stops the start', async () => {
+  const account = ministack.account();
+  const { value } = useAccount(account);
+  const createMeanwhile = (input: SecretInput) => {
+    const create = awsSdkManager.secrets.createUnlessExists;
+    awsSdkManager.secrets.createUnlessExists = async (args) => {
+      awsSdkManager.secrets.createUnlessExists = create;
+      await createSecret(account, input);
+      return create(args);
+    };
+    return () => (awsSdkManager.secrets.createUnlessExists = create);
+  };
+
+  referenceSecrets('probe-foreign');
+  const restoreForeign = createMeanwhile({
+    Name: 'probe-foreign',
+    SecretString: JSON.stringify({ password: 'set-by-hand' }),
+    Description: 'Production credentials'
+  });
+  try {
+    await expect(ensureMissingSecretsCreated({ devStackName: 'probe-neta' })).rejects.toThrow(
+      'Secret probe-foreign was created by something other than Stacktape while this command was generating it.'
+    );
+  } finally {
+    restoreForeign();
+  }
+  expect(JSON.parse((await value('probe-foreign'))!)).toEqual({ password: 'set-by-hand' });
+
+  referenceSecrets('probe-shape');
+  // Generated by another stage, but as a plain value where this config reads `probe-shape.password`.
+  const restoreShape = createMeanwhile({
+    Name: 'probe-shape',
+    SecretString: 'plain-not-json',
+    Tags: [{ Key: tagNames.devGeneratedSecret(), Value: 'probe-other' }]
+  });
+  try {
+    await expect(ensureMissingSecretsCreated({ devStackName: 'probe-neta' })).rejects.toThrow(
+      'Secret probe-shape was created by something other than Stacktape'
+    );
+  } finally {
+    restoreShape();
+  }
+  expect(await value('probe-shape')).toBe('plain-not-json');
 });

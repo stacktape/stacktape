@@ -80,6 +80,8 @@ import {
 } from '../function-logs';
 import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { createWorkloadRebuilder } from '../workload-rebuild';
+import { waitForApiStage, type ApiStageReadiness } from '../api-stage-readiness';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { startSourceWatcher } from '../source-watcher';
 import { createEnvironmentMasker, getSecretSourcedEnvNames } from '../agent-env-masking';
 import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
@@ -1521,6 +1523,64 @@ const readPreviousSessionEnd = (now: number) => {
   return previousSessionEnd;
 };
 
+/** One wait per API for the whole session: every function behind it waits for the same stage. */
+const apiStageReadiness = new Map<string, Promise<ApiStageReadiness>>();
+
+/**
+ * Waits until the WebSocket and HTTP APIs that invoke this function serve requests (see `waitForApiStage`). CloudFormation
+ * reports a new stage complete about half a minute before API Gateway serves it everywhere, and a session that said
+ * ready meanwhile failed its first browser connection with HTTP 403 (r2bc Shop).
+ */
+const getFunctionApiGateways = (resourceName: string) => {
+  const gateways = new Map<string, 'websocket' | 'http'>();
+  for (const event of configManager.functions.find((f) => f.name === resourceName)?.events ?? []) {
+    if (event.type === 'http-api-gateway') gateways.set(event.properties.httpApiGatewayName, 'http');
+    if (event.type === 'websocket-api-gateway') gateways.set(event.properties.websocketApiGatewayName, 'websocket');
+  }
+  return gateways;
+};
+
+const waitForFunctionApiStages = async (resourceName: string): Promise<ApiStageReadiness[]> => {
+  const gateways = getFunctionApiGateways(resourceName);
+  if (!gateways.size) return [];
+  const awsClockOffset = (await getAwsSynchronizedTime()).getTime() - Date.now();
+  return Promise.all(
+    [...gateways].map(([name, kind]) => {
+      const key = `${kind}:${name}`;
+      let readiness = apiStageReadiness.get(key);
+      if (!readiness) {
+        const stageLogicalName =
+          kind === 'websocket' ? cfLogicalNames.websocketApiStage(name) : cfLogicalNames.httpApiStage(name);
+        const stageUpdatedAt = stackManager.existingStackResources
+          .find(({ LogicalResourceId }) => LogicalResourceId === stageLogicalName)
+          ?.LastUpdatedTimestamp?.getTime();
+        // The check sends no IAM signature, which a `$connect` route with IAM authorization requires.
+        const connectRequiresIam = configManager.functions.some(({ events: functionEvents }) =>
+          (functionEvents ?? []).some(
+            (event) =>
+              event.type === 'websocket-api-gateway' &&
+              event.properties.websocketApiGatewayName === name &&
+              event.properties.routeKey === '$connect' &&
+              event.properties.authorizer?.type === 'aws-iam'
+          )
+        );
+        readiness = waitForApiStage({
+          kind,
+          name,
+          url: deployedStackOverviewManager.getStpResource({ nameChain: name })?.referencableParams?.url?.value as
+            | string
+            | undefined,
+          stageUpdatedAt,
+          handshake: !connectRequiresIam,
+          now: () => Date.now() + awsClockOffset
+        });
+        apiStageReadiness.set(key, readiness);
+      }
+      return readiness;
+    })
+  );
+};
+
 const startFunctionWorkload = async (resourceName: string, stackContext: StackContext): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
@@ -1546,6 +1606,9 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
   let startErrorHints: string[] | undefined;
   // The files a failed build reads: the watcher rebuilds the function when one of them changes, as after a success.
   let attemptedSourceFiles: string[] | undefined;
+  // Runs while the function builds: a stage the dev stack just created needs time before it serves requests.
+  const apiStagesReady = waitForFunctionApiStages(resourceName);
+  apiStagesReady.catch(() => {});
   try {
     ({ packagingOutput, codeUnchanged } = await buildAndUpdateFunctionCode(resourceName, {
       devMode: true,
@@ -1562,6 +1625,19 @@ const startFunctionWorkload = async (resourceName: string, stackContext: StackCo
 
   // Get integration info (URL or status message)
   const integrationInfo = getFunctionIntegrationInfo(resourceName);
+
+  if (startError === undefined && getFunctionApiGateways(resourceName).size) {
+    if (useDevTui) {
+      devTuiManager.setWorkloadStatus(resourceName, 'starting', {
+        statusMessage: 'Waiting until API Gateway serves the API...'
+      });
+    }
+    for (const { note } of await apiStagesReady.catch(() => [] as ApiStageReadiness[])) {
+      if (!note) continue;
+      if (useDevTui) devTuiManager.log(resourceName, note, 'warn');
+      else tuiManager.warn(`[${resourceName}] ${note}`);
+    }
+  }
 
   // Get package size (use zipped size for Lambda - already in MB)
   const packageSize = packagingOutput?.zippedSize ? `${packagingOutput.zippedSize} MB zipped` : undefined;
