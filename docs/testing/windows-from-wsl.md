@@ -84,6 +84,10 @@ next `stacktape dev` of the stage replaces it. After a test that ends with `kill
 `aws ssm describe-sessions --state Active` and terminate the ones your run opened. Delete stacks and the dev network
 with the Windows CLI, then verify them in AWS as [Live AWS testing](live-aws.md) requires.
 
+The Windows CLI keeps its state in the real profile, `C:\Users\<user>\.stacktape`: dev-agent tokens, the AWS identity
+cache and downloaded tools such as Trivy. `cleanup` leaves that folder alone because the owner's own sessions use it.
+List it before your first run and remove only what your run added.
+
 ## A dev-mode check
 
 The order below covers what Windows changes in dev mode. Without Docker on Windows, a function with
