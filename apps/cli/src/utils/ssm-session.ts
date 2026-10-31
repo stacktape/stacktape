@@ -3,6 +3,7 @@ import type { Task as ECSTask, ExecuteCommandCommandInput } from '@aws-sdk/clien
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
 import type { ResultPromise } from 'execa';
+import type { Readable } from 'node:stream';
 import readline from 'node:readline';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -14,9 +15,8 @@ import { describeToolDownload } from '@utils/external-tools';
 import { fsPaths } from 'src/config/runtime-paths';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { wait } from '@utils/misc';
-import { isPortInUse } from '@utils/ports';
+import { type LocalPortReservation, reserveFreeLocalPort, reserveLocalPort } from '@utils/ports';
 import { execa } from 'execa';
-import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
@@ -25,6 +25,108 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 /** Resolved before a session starts, so a first-use download that fails never leaves a server session open. */
 const sessionManagerPluginPath = () =>
   fsPaths.sessionManagerPath({ onDownloadStart: (details) => tuiManager.info(describeToolDownload(details)) });
+
+/** The error codes of a plugin that did not start listening on its local port. */
+export const SSM_TUNNEL_START_FAILURE_CODES = ['SSM_TUNNEL_START_TIMEOUT', 'SSM_TUNNEL_START_FAILED'] as const;
+
+/** How long the Session Manager plugin may take to say that it listens on the local port. */
+const PLUGIN_LISTEN_TIMEOUT_MS = 10_000;
+
+/** How many of the plugin's latest output lines are kept to explain a failed start. */
+const PLUGIN_OUTPUT_LINES_KEPT = 20;
+
+/**
+ * Why the Session Manager plugin did not listen, as a fixed phrase chosen from its output. The output itself is never
+ * repeated: it carries the session ID, and a transport error can carry the stream URL.
+ */
+export const describePluginStartFailure = (output: readonly string[]): string | undefined => {
+  const text = output.join('\n');
+  if (/permission denied|access is denied|forbidden by its access permissions/i.test(text)) {
+    return 'the system did not let the Session Manager plugin listen on the local port';
+  }
+  if (/address already in use|only one usage of each socket address|bind:/i.test(text)) {
+    return 'another program already listens on the local port';
+  }
+  if (
+    /websocket|dial tcp|connection (?:reset|refused)|i\/o timeout|\btls\b|handshake|no such host|network is unreachable|\beof\b/i.test(
+      text
+    )
+  ) {
+    return 'the Session Manager plugin lost its connection to AWS Systems Manager (transport error)';
+  }
+  return undefined;
+};
+
+/**
+ * Resolves when the Session Manager plugin says it listens on the local port, and rejects when it exits first or does
+ * not say so within `PLUGIN_LISTEN_TIMEOUT_MS`. The error names the local port and a sanitized cause.
+ */
+export const waitForPluginListening = ({
+  plugin,
+  exited,
+  tunnel,
+  exitCode,
+  timeoutMs = PLUGIN_LISTEN_TIMEOUT_MS
+}: {
+  plugin: { stdout: Readable | null; stderr: Readable | null };
+  exited: Promise<unknown>;
+  /** The plugin's exit code once it has exited, when the caller knows it. */
+  exitCode?: () => number | null | undefined;
+  /** Names the tunnel in errors, for example `from local port 4321 to 127.0.0.1:7835`. */
+  tunnel: string;
+  timeoutMs?: number;
+}) =>
+  new Promise<void>((resolve, reject) => {
+    const output: string[] = [];
+    const readers = [plugin.stdout, plugin.stderr]
+      .filter((stream): stream is Readable => stream !== null)
+      .map((input) => readline.createInterface({ input, crlfDelay: Infinity }));
+    let settled = false;
+    const settle = (error?: CliError) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      for (const reader of readers) reader.close();
+      if (error) reject(error);
+      else resolve();
+    };
+    const timeout = setTimeout(() => {
+      const cause =
+        describePluginStartFailure(output) ?? 'the Session Manager plugin did not report that it listens on the port';
+      settle(
+        new CliError({
+          category: 'AWS',
+          code: 'SSM_TUNNEL_START_TIMEOUT',
+          message: `The SSM tunnel ${tunnel} was not ready within ${Math.ceil(timeoutMs / 1000)} s: ${cause}.`,
+          hints: 'Check the bastion connection and retry the command.'
+        })
+      );
+    }, timeoutMs);
+    for (const reader of readers) {
+      reader.on('line', (line) => {
+        if (line.includes('Waiting for connections')) return settle();
+        output.push(line);
+        if (output.length > PLUGIN_OUTPUT_LINES_KEPT) output.shift();
+      });
+    }
+    void exited.then(() => {
+      // The last lines may still be buffered in the streams; read them before naming the cause.
+      setImmediate(() => {
+        const code = exitCode?.();
+        const cause =
+          describePluginStartFailure(output) ??
+          `the Session Manager plugin exited${typeof code === 'number' ? ` with code ${code}` : ''}`;
+        settle(
+          new CliError({
+            category: 'AWS',
+            code: 'SSM_TUNNEL_START_FAILED',
+            message: `The SSM tunnel ${tunnel} closed before it was ready: ${cause}.`,
+            hints: 'Check the bastion connection and retry the command.'
+          })
+        );
+      });
+    });
+  });
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;
@@ -37,14 +139,25 @@ export class SsmPortForwardingTunnel {
   #tunnelExited: Promise<void>;
   #killPromise: Promise<boolean> | undefined;
   #targetInfo: ResolvedRemoteTarget;
+  #portReservation: LocalPortReservation | undefined;
 
-  constructor({ localPort, targetInfo }: { localPort: number; targetInfo: ResolvedRemoteTarget }) {
+  constructor({
+    localPort,
+    targetInfo,
+    portReservation
+  }: {
+    localPort: number;
+    targetInfo: ResolvedRemoteTarget;
+    /** Released when the tunnel is killed. */
+    portReservation?: LocalPortReservation;
+  }) {
     this.#instanceId = targetInfo.bastionInstanceId;
     this.#region = globalStateManager.region;
     this.#remoteHost = targetInfo.remoteHost;
     this.#remotePort = targetInfo.remotePort;
     this.#localPort = localPort;
     this.#targetInfo = targetInfo;
+    this.#portReservation = portReservation;
   }
 
   get localPort() {
@@ -106,38 +219,11 @@ export class SsmPortForwardingTunnel {
       () => undefined
     );
 
-    await new Promise<void>((resolve, reject) => {
-      const lines = readline.createInterface({ input: this.#tunnelProcess.stdout, crlfDelay: Infinity });
-      const timeout = setTimeout(() => {
-        lines.close();
-        reject(
-          new CliError({
-            category: 'AWS',
-            code: 'SSM_TUNNEL_START_TIMEOUT',
-            message: `Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`,
-            hints: 'Check the bastion connection and retry the command.'
-          })
-        );
-      }, 10000);
-      lines.on('line', (line) => {
-        if (line.includes('Waiting for connections')) {
-          clearTimeout(timeout);
-          lines.close();
-          resolve();
-        }
-      });
-      void this.#tunnelExited.then(() => {
-        clearTimeout(timeout);
-        lines.close();
-        reject(
-          new CliError({
-            category: 'AWS',
-            code: 'SSM_TUNNEL_START_FAILED',
-            message: `The SSM tunnel to ${this.#remoteHost}:${this.#remotePort} closed before it was ready.`,
-            hints: 'Check the bastion connection and retry the command.'
-          })
-        );
-      });
+    await waitForPluginListening({
+      plugin: this.#tunnelProcess,
+      exited: this.#tunnelExited,
+      exitCode: () => this.#tunnelProcess.nodeChildProcess.exitCode,
+      tunnel: `from local port ${this.localPort} to ${this.#remoteHost}:${this.#remotePort}`
     });
     return true;
   };
@@ -155,6 +241,7 @@ export class SsmPortForwardingTunnel {
         if (this.#tunnelProcess.nodeChildProcess.exitCode === null) this.#tunnelProcess.kill('SIGKILL');
         await this.#tunnelExited;
       }
+      await this.#portReservation?.release();
       // Terminate the server session even if the plugin has already exited or could not start.
       if (this.#ssmSessionId) {
         await awsSdkManager.systemsManager.terminateSession({ sessionId: this.#ssmSessionId });
@@ -372,20 +459,27 @@ export const startPortForwardingSessions = async ({
   targets: ResolvedRemoteTarget[];
   startAtPort?: number;
 }) => {
-  let localPortsToUse = [];
-  if (startAtPort) {
-    localPortsToUse = Array.from({ length: targets.length }, (_, i) => startAtPort + i);
-    for (const localPort of localPortsToUse) {
-      if (await isPortInUse(localPort)) {
-        throw stpErrors.e130({ port: localPort });
+  // Reserved ports stay held until each tunnel is killed, so a concurrent Stacktape process never picks them.
+  const reservations: LocalPortReservation[] = [];
+  try {
+    if (startAtPort) {
+      // A user-chosen port is never replaced: a port in use is an error.
+      for (let index = 0; index < targets.length; index++) {
+        const reservation = await reserveLocalPort(startAtPort + index);
+        if (!reservation) throw stpErrors.e130({ port: startAtPort + index });
+        reservations.push(reservation);
       }
+    } else {
+      for (let index = 0; index < targets.length; index++) reservations.push(await reserveFreeLocalPort());
     }
-  } else {
-    localPortsToUse = await findFreePorts(targets.length, { jobCount: 1 });
+  } catch (error) {
+    await Promise.all(reservations.map((reservation) => reservation.release()));
+    throw error;
   }
   const tunnels = targets.map((targetInfo, index) => {
     return new SsmPortForwardingTunnel({
-      localPort: localPortsToUse[index],
+      localPort: reservations[index].port,
+      portReservation: reservations[index],
       targetInfo
     });
   });

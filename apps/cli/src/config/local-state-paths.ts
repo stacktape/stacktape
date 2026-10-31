@@ -26,7 +26,9 @@ import { getHomeDir } from '@utils/misc';
  *   `devStagePasswordFile`, shared by every worktree of the project on this machine. Deleting it only gives the next
  *   new data directory a new password.
  * - Runtime coordination: dev-agent logs and lock files, when the last dev session of each stage ended in
- *   `devSessionEndFile` (replaced by the next session's end), plus dependency-install hashes and locks.
+ *   `devSessionEndFile` (replaced by the next session's end), plus dependency-install hashes and locks. Local ports
+ *   that running Stacktape processes hold for their SSM port forwards, one file per port in
+ *   `localPortReservationDirectory`; the owner deletes its file, and a file whose process has exited is reclaimed.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
  * - Operation-temporary: `starterArchiveFile`; its owner removes it after use.
@@ -135,6 +137,10 @@ export const localStatePaths = {
     resourceName: string;
   }) {
     return join(localStatePaths.userDataDirectory(), 'dev-passwords', projectName, stage, resourceName);
+  },
+  /** One file per local port a running Stacktape process holds (`reserveLocalPort`); the override isolates tests. */
+  localPortReservationDirectory() {
+    return process.env.STACKTAPE_PORT_RESERVATION_DIR || join(localStatePaths.userDataDirectory(), 'port-reservations');
   },
   devAgentDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(localStatePaths.projectStateDirectory({ workingDirectory }), 'dev-agent');

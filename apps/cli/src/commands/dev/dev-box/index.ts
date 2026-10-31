@@ -4,9 +4,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { DEV_BOX_RELAY_CONTROL_PORT } from '@domain-services/dev-network/boot-script';
 import { updateDevBoxRelay, wakeDevBox, waitForDevBoxOnline } from '@domain-services/dev-network';
 import { DEV_BOX_RELAY_VERSION } from '@domain-services/dev-network/relay-source';
-import { SsmPortForwardingTunnel } from '@utils/ssm-session';
-import findFreePorts from 'find-free-ports';
+import { type LocalPortReservation, reserveFreeLocalPort } from '@utils/ports';
+import { SSM_TUNNEL_START_FAILURE_CODES, SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { pingRelay } from '../tunnel-manager';
+
+const isPluginStartFailure = (error: unknown) =>
+  SSM_TUNNEL_START_FAILURE_CODES.some((code) => code === (error as { code?: unknown } | undefined)?.code);
 
 /** How many times one session tries to update a relay older than this CLI's before it runs on the older relay. */
 const MAX_RELAY_UPDATE_ATTEMPTS = 3;
@@ -34,7 +37,11 @@ export type DevBoxStatus =
 export type DevBoxDependencies = {
   aws: DevNetworkAws;
   openSession: (input: { instanceId: string; localPort: number; remotePort: number }) => Promise<RelaySession>;
-  findFreePort: () => Promise<number>;
+  /**
+   * Reserves the local port of the SSM session; the connection keeps it through reconnects and releases it when the
+   * plugin cannot listen on it, and on `stop`.
+   */
+  reservePort: () => Promise<LocalPortReservation>;
   pingRelay: (relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>) => Promise<number>;
   holdPresence: (input: {
     relay: Pick<RelayEndpoint, 'controlHost' | 'controlPort'>;
@@ -129,13 +136,16 @@ export const queryDevBoxRelay = async <T>({
       throw new Error('the dev box stopped');
     }
   });
-  const localPort = (await findFreePorts(1))[0];
+  const reservation = await reserveFreeLocalPort();
   const session = await openDevBoxRelaySession({
     instanceId: network.boxInstanceId,
-    localPort,
+    localPort: reservation.port,
     remotePort: DEV_BOX_RELAY_CONTROL_PORT
+  }).catch(async (error) => {
+    await reservation.release();
+    throw error;
   });
-  const relay = { controlHost: '127.0.0.1', controlPort: localPort };
+  const relay = { controlHost: '127.0.0.1', controlPort: reservation.port };
   try {
     for (;;) {
       try {
@@ -149,6 +159,7 @@ export const queryDevBoxRelay = async <T>({
     return await request(relay);
   } finally {
     await session.kill().catch(() => {});
+    await reservation.release();
   }
 };
 
@@ -157,8 +168,10 @@ export const queryDevBoxRelay = async <T>({
  * stopped box, waits for it, opens the SSM session to the relay and keeps a presence connection, so the box does not
  * stop itself while this session deploys and runs. Every attempt, the first one included, runs in one supervised loop:
  * after any failure or loss (network drop, killed plugin, a box that stopped) it ends the old server-side session,
- * starts the box again if it stopped, and reopens the session on the same local port, where the tunnels reconnect on
- * their own. It retries until the session stops; the status reports each failure as `reconnecting`.
+ * starts the box again if it stopped, and reopens the session on the same reserved local port, where the tunnels
+ * reconnect on their own. Only a plugin that could not listen on that port gets a new one: the next attempt reserves
+ * another port, and the tunnels reach it through the shared endpoint. It retries until the session stops; the status
+ * reports each failure as `reconnecting`.
  */
 export class DevBoxConnection {
   readonly #deps: DevBoxDependencies;
@@ -169,7 +182,13 @@ export class DevBoxConnection {
   #ready: Promise<RelayEndpoint> | undefined;
   #session: RelaySession | undefined;
   #presence: AbortController | undefined;
-  #localPort: number | undefined;
+  /** The local port of the SSM session, held across reconnects so that no other Stacktape process takes it. */
+  #port: LocalPortReservation | undefined;
+  /**
+   * The one endpoint of this session. The tunnels keep the object `connect` resolved with, so a new local port after a
+   * failed plugin start reaches them on their next reconnect.
+   */
+  readonly #relay: RelayEndpoint;
   #status: DevBoxStatus | undefined;
   #onStatus: ((status: DevBoxStatus) => void) | undefined;
   /** The relay accepted a presence of this session once: from then on, a refusal means the stage was lost. */
@@ -195,6 +214,7 @@ export class DevBoxConnection {
     this.#network = network;
     this.#owner = owner;
     this.#stackName = stackName;
+    this.#relay = { controlHost: '127.0.0.1', controlPort: 0, relayHost: network.boxPrivateIp };
   }
 
   /**
@@ -245,11 +265,18 @@ export class DevBoxConnection {
     if (wasReady && this.#session) await this.#waitUntilReleased();
     await this.#session?.kill().catch(() => {});
     this.#session = undefined;
+    await this.#releasePort();
+  };
+
+  #releasePort = async () => {
+    const port = this.#port;
+    this.#port = undefined;
+    await port?.release().catch(() => {});
   };
 
   #waitUntilReleased = async () => {
     const { listSessions, releaseTimeoutMs = 5000, pollMs = 1000 } = this.#deps;
-    if (!listSessions || !this.#stackName || this.#localPort === undefined) return;
+    if (!listSessions || !this.#stackName || !this.#port) return;
     const deadline = Date.now() + releaseTimeoutMs;
     while (Date.now() < deadline) {
       const sessions = await listSessions(this.#endpoint(), this.#stackName).catch(() => undefined);
@@ -258,11 +285,7 @@ export class DevBoxConnection {
     }
   };
 
-  #endpoint = (): RelayEndpoint => ({
-    controlHost: '127.0.0.1',
-    controlPort: this.#localPort!,
-    relayHost: this.#network.boxPrivateIp
-  });
+  #endpoint = (): RelayEndpoint => this.#relay;
 
   #open = async (): Promise<RelayEndpoint> => {
     const { aws, openSession, pingRelay, relayTimeoutMs = 5 * 60_000, pollMs = 1000 } = this.#deps;
@@ -275,12 +298,28 @@ export class DevBoxConnection {
     this.#setStatus({ phase: 'connecting' });
     await waitForDevBoxOnline({ aws, instanceId, stackName, pollMs, onStart, onNetworkUpdate });
     this.#stopped.signal.throwIfAborted();
-    this.#localPort ??= await this.#deps.findFreePort();
-    this.#session = await openSession({
-      instanceId,
-      localPort: this.#localPort,
-      remotePort: DEV_BOX_RELAY_CONTROL_PORT
-    });
+    if (!this.#port) {
+      const port = await this.#deps.reservePort();
+      // `stop` ran meanwhile and released nothing: this reservation is the last one.
+      if (this.#stopped.signal.aborted) {
+        await port.release().catch(() => {});
+        this.#stopped.signal.throwIfAborted();
+      }
+      this.#port = port;
+      this.#relay.controlPort = port.port;
+    }
+    try {
+      this.#session = await openSession({
+        instanceId,
+        localPort: this.#port.port,
+        remotePort: DEV_BOX_RELAY_CONTROL_PORT
+      });
+    } catch (error) {
+      // The plugin did not listen on the port: another program may hold it, and retrying the same port would fail the
+      // same way. Concurrent starts that picked one port left a session reconnecting for good.
+      if (isPluginStartFailure(error)) await this.#releasePort();
+      throw error;
+    }
     this.#deps.onSession?.(this.#session.sessionId);
     const relay = this.#endpoint();
     const deadline = Date.now() + relayTimeoutMs;

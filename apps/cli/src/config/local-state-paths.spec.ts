@@ -5,7 +5,8 @@ import { localStatePaths } from './local-state-paths';
 
 const originalEnvironment = {
   STACKTAPE_DEV_PROXY_STATE_DIR: process.env.STACKTAPE_DEV_PROXY_STATE_DIR,
-  STACKTAPE_DEV_AGENT_TOKEN_DIR: process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR
+  STACKTAPE_DEV_AGENT_TOKEN_DIR: process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR,
+  STACKTAPE_PORT_RESERVATION_DIR: process.env.STACKTAPE_PORT_RESERVATION_DIR
 };
 
 afterEach(() => {
@@ -21,6 +22,7 @@ test('local state stays at the paths released CLIs use', () => {
   const project = join(process.cwd(), 'example-project');
   delete process.env.STACKTAPE_DEV_PROXY_STATE_DIR;
   delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  delete process.env.STACKTAPE_PORT_RESERVATION_DIR;
 
   expect({
     persistedState: localStatePaths.persistedStateFile(),
@@ -31,7 +33,9 @@ test('local state stays at the paths released CLIs use', () => {
     devAgent: localStatePaths.devAgentDirectory({ workingDirectory: project }),
     devAgentRegistry: localStatePaths.devAgentRegistryDirectory({ workingDirectory: project }),
     // Clients find a running agent's token by port alone, from any directory and any CLI version.
-    devAgentToken: localStatePaths.devAgentTokenFile({ port: 7331 })
+    devAgentToken: localStatePaths.devAgentTokenFile({ port: 7331 }),
+    // Concurrent CLIs, of any version, skip each other's SSM ports only while they share this directory.
+    portReservations: localStatePaths.localPortReservationDirectory()
   }).toEqual({
     persistedState: join(home, 'persisted-state.json'),
     devProxy: join(home, 'dev-proxy'),
@@ -39,7 +43,8 @@ test('local state stays at the paths released CLIs use', () => {
     devData: join(project, '.stacktape', 'dev-data', 'dev', 'db', 'data'),
     devAgent: join(project, '.stacktape', 'dev-agent'),
     devAgentRegistry: join(project, '.stacktape', 'dev-agents'),
-    devAgentToken: join(home, 'dev-agent-tokens', '7331.token')
+    devAgentToken: join(home, 'dev-agent-tokens', '7331.token'),
+    portReservations: join(home, 'port-reservations')
   });
 
   process.env.STACKTAPE_DEV_PROXY_STATE_DIR = join(process.cwd(), 'proxy-state');
