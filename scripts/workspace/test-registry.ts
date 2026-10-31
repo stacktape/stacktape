@@ -1682,6 +1682,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
+      'apps/console/api/scripts/audit-coverage-database.test.ts',
       'apps/console/api/scripts/better-auth-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
       'apps/console/ui/scripts/console-s3-ministack.test.ts'
@@ -1690,6 +1691,18 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Real console-access services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-console-access']
+  },
+  {
+    id: 'console-database-audit-log',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--audit-log'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/audit-log-database.test.ts', 'apps/console/ui/e2e/isolated-audit-log.test.ts'],
+    requires: ['console', 'docker', 'chromium', 'network'],
+    release: 'every-candidate',
+    proves:
+      'The audit log merges, pages, filters and exports Stacktape events, stack operations and CloudTrail (the real SDK against a loopback CloudTrail stub) through the real router, disposable PostgreSQL and browser.',
+    selections: ['console-database-audit-log']
   },
   {
     id: 'console-database-secrets',
@@ -2219,7 +2232,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-setup-states.test.ts',
       'apps/console/ui/e2e/isolated-sign-in.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
-      'apps/console/ui/e2e/isolated-errors.test.ts'
+      'apps/console/ui/e2e/isolated-errors.test.ts',
+      'apps/console/ui/e2e/isolated-audit-log.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -5312,10 +5326,24 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/organizations/**',
       'apps/console/api/src/api/**',
       'apps/console/ui/src/pages/UsersPage/**',
-      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/**'
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/**',
+      'apps/console/api/src/audit/audit-log.ts',
+      'apps/console/api/src/audit/audit-retention.ts',
+      'apps/console/api/src/audit/cloudtrail-*.ts',
+      'apps/console/ui/src/pages/AuditLogPage/**',
+      'apps/console/api/src/audit/audit-events.ts',
+      'apps/console/api/src/audit/audit-registry.ts',
+      'apps/console/api/src/audit/audit-denials.ts',
+      'apps/console/api/src/auth/account-security-events.ts'
     ],
     tests: [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
+      'apps/console/api/scripts/audit-log-database.test.ts',
+      'apps/console/api/src/audit/cloudtrail-actor.test.ts',
+      'apps/console/api/src/audit/audit-registry.test.ts',
+      'apps/console/api/scripts/audit-coverage-database.test.ts',
+      'apps/console/ui/e2e/isolated-audit-log.test.ts',
+      'apps/console/ui/src/pages/AuditLogPage/audit-log-format.test.ts',
       'apps/console/api/scripts/console-member-scope-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
@@ -5336,6 +5364,7 @@ export const slices: readonly Slice[] = [
       'console-ui-3',
       'console-database-console-access',
       'console-database-sign-up',
+      'console-database-audit-log',
       'console-browser-project-access',
       'console-browser-isolated',
       'console-ui-test-e2e-project-access'
@@ -5354,6 +5383,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/aws-primary-region.ts',
       'apps/console/api/src/services/connection-stack-delete.ts',
       'apps/console/api/src/utils/connected-aws-account.ts',
+      'apps/console/api/src/utils/connection-template-revision.ts',
       'apps/console/ui/src/aws/access-cache.ts',
       'apps/console/ui/src/aws/s3-commands.ts',
       'apps/console/ui/src/aws/s3.ts',

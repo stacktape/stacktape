@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   'members:update-role',
   'members:assign-projects',
   'members:view',
+  'audit-log:view',
   'projects:create',
   'projects:delete',
   'projects:update-settings',

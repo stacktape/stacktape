@@ -45,10 +45,16 @@ pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --audit-log
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 pnpm --filter @stacktape/console-api-app test:db --isolated-browser
 pnpm --filter @stacktape/console-api-app test:db --ui-capture
 ```
+
+`--audit-log` runs the audit log's API suite and its isolated browser test. CloudTrail is the one substitution: the real
+SDK sends `LookupEvents` to a loopback stub of CloudTrail's JSON API (`apps/console/api/scripts/cloudtrail-fixture.ts`),
+which pages, filters and fails per account and region. Set `STP_AUDIT_LOG_SCREENSHOT_DIR` to keep screenshots of the
+page.
 
 `--isolated-browser` runs the [isolated Console application](e2e.md#isolated-console-application): it starts and stops
 the real local UI and API itself, so it needs neither dev credentials nor a shared-dev reservation. `--ui-capture` runs

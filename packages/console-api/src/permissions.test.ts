@@ -17,6 +17,13 @@ test('the owner has every declared permission and the deprecated member role fol
   assert.equal(roleHasPermission('VIEWER', 'secrets:manage'), false);
 });
 
+test('only owners and admins read the audit log', () => {
+  assert.deepEqual(
+    ASSIGNABLE_ROLES.filter((role) => roleHasPermission(role, 'audit-log:view')),
+    ['OWNER', 'ADMIN']
+  );
+});
+
 test('role scope, hierarchy and assignability describe the same role model', () => {
   assert.deepEqual(ASSIGNABLE_ROLES, ['OWNER', 'ADMIN', 'DEVELOPER', 'VIEWER']);
   assert.equal(isAlwaysUnscopedRole('OWNER'), true);
