@@ -17,8 +17,14 @@ export const getScriptEnv = ({
   errorData,
   command,
   fullHookTrigger,
-  hookType
+  hookType,
+  region
 }: {
+  /**
+   * The command's AWS region. A local script runs in it, as a deployed workload runs in its stack's region: without it,
+   * an SDK in the script fell back to the shell's or the profile's default region. Values in `userDefinedEnv` win.
+   */
+  region?: string;
   errorData?: Record<string, any>;
   userDefinedEnv: EnvironmentVar[];
   connectToEnv: EnvironmentVar[];
@@ -28,6 +34,7 @@ export const getScriptEnv = ({
   fullHookTrigger: string;
 }) => {
   const finalEnv = {
+    ...(region && { AWS_REGION: region, AWS_DEFAULT_REGION: region }),
     ...(hookType && {
       STP_HOOK_TYPE: hookType,
       STP_HOOK_TRIGGER: fullHookTrigger,

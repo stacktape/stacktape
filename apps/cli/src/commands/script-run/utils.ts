@@ -244,6 +244,7 @@ const getLocalScriptExecutionFn = ({
         userDefinedEnv: userDefinedEnvVars,
         connectToEnv: connectToEnvVars,
         command: globalStateManager.command,
+        region: globalStateManager.region,
         fullHookTrigger: hookTrigger,
         errorData,
         hookType,
