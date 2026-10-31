@@ -11,6 +11,9 @@ import {
   getAgentTokenFile,
   getDeployedResources,
   getNotReadyReasons,
+  setDeployedFunctionClient,
+  setFunctionsNotInSession,
+  type DeployedFunctionClient,
   startAgentServer,
   stopAgentServer,
   updateAgentState,
@@ -18,6 +21,8 @@ import {
 } from '../agent-server';
 import { agentLog } from '../agent-logger';
 import { spawnAgentDaemon } from '../agent-daemon';
+import { configManager } from '@domain-services/config-manager';
+import { getWorkloadEnvVars, getWorkloadSecretEnvNames } from '../parallel-runner';
 
 // The dev agent runs SQL, rebuilds and stops dev mode, and reads workload environments. These scenarios run the real
 // agent server and call it the way a web page, a DNS-rebinding page, another program on the network and the
@@ -590,3 +595,316 @@ setInterval(() => {}, 1000);
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+/**
+ * Lambda as the agent sees it, for a stack whose functions run `handler` with their deployed environment. Only AWS is
+ * replaced: the agent reads the function, then invokes it by ARN.
+ */
+const fakeLambda = (
+  environments: Record<string, Record<string, string>>,
+  handler: (event: Record<string, unknown>, env: Record<string, string>) => unknown
+) => {
+  const invoked: { functionArn: string; event: unknown }[] = [];
+  const client: DeployedFunctionClient = {
+    describe: async (name) =>
+      environments[name]
+        ? {
+            functionName: `shop-dev-${name}`,
+            functionArn: `arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-${name}`,
+            environment: environments[name]
+          }
+        : null,
+    invoke: async ({ functionArn, event }) => {
+      invoked.push({ functionArn, event });
+      const name = functionArn.split(':function:shop-dev-')[1]!;
+      try {
+        return {
+          statusCode: 200,
+          payload: JSON.stringify(handler(event as Record<string, unknown>, environments[name]!))
+        };
+      } catch (error) {
+        return {
+          statusCode: 200,
+          functionError: 'Unhandled',
+          payload: JSON.stringify({ errorType: 'Error', errorMessage: (error as Error).message })
+        };
+      }
+    }
+  };
+  return { client, invoked };
+};
+
+/** The agent as `stacktape dev` starts it, with the runner's environment callbacks and `config` as the configuration. */
+const startInvokeSession = async (config: unknown, sessionId = 'session-a') => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-invoke-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  const originalConfig = configManager.config;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  configManager.config = config as typeof configManager.config;
+  configManager.setStackContext({
+    accountId: '123456789012',
+    command: 'dev',
+    globallyUniqueStackHash: 'invoke-test',
+    invocationId: 'invocation',
+    projectName: 'shop',
+    region: 'eu-west-1',
+    stackName: 'shop-dev',
+    stage: 'dev',
+    workingDir: directory
+  });
+  const port = await freePort();
+  await startAgentServer(
+    port,
+    directory,
+    { getEnvVars: getWorkloadEnvVars, getSecretEnvNames: getWorkloadSecretEnvNames },
+    { sessionId, projectDirectory: directory, projectName: 'shop', stage: 'dev', region: 'eu-west-1' }
+  );
+  const token = await readFile(getAgentTokenFile()!, 'utf8');
+  /** A request as the MCP server sends it: bound to this session, its stage and the function's ARN, unless `bind` is false. */
+  const invoke = async (name: string, body: Record<string, unknown>, { bind = true } = {}) =>
+    (await (
+      await fetch(`http://127.0.0.1:${port}/functions/${name}/invoke`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...(bind
+            ? {
+                expectedSessionId: sessionId,
+                expectedStage: 'dev',
+                expectedFunctionArn: `arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-${name}`
+              }
+            : {}),
+          ...body
+        })
+      })
+    ).json()) as { ok: boolean; code: string; message: string; data: Record<string, unknown> };
+  const close = async () => {
+    setDeployedFunctionClient(undefined);
+    setFunctionsNotInSession([]);
+    stopAgentServer();
+    configManager.config = originalConfig;
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  };
+  return { invoke, close };
+};
+
+const functionConfig = (environment: { name: string; value: string }[]) => ({
+  resources: {
+    report: {
+      type: 'function',
+      properties: {
+        packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'report.ts' } },
+        environment
+      }
+    }
+  }
+});
+
+// r2p: an agent could not test a scheduled or topic-triggered function: the agent had no way to invoke it, and the aws
+// endpoint refuses Lambda Invoke because it changes things.
+test("invoke runs only a running function of this session, after confirmation, and reports the function's failure", async () => {
+  const { client, invoked } = fakeLambda({ report: { REGION: 'eu-west-1' } }, (event) => {
+    if (event.fail) throw new Error('report bucket missing');
+    return { sent: 3 };
+  });
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(functionConfig([{ name: 'REGION', value: 'eu-west-1' }]));
+  try {
+    const { invoke } = session;
+    updateAgentState({
+      phase: 'ready',
+      workloads: [
+        { name: 'report', type: 'function', status: 'running' },
+        { name: 'web', type: 'nextjs-web', status: 'running', url: 'http://web.localhost' },
+        { name: 'broken', type: 'function', status: 'error', error: 'Build failed: Unexpected ;' }
+      ]
+    });
+    setFunctionsNotInSession([{ name: 'legacy', message: 'runs code deployed on 28 October' }]);
+    const event = { source: 'aws.events', 'detail-type': 'Scheduled Event' };
+
+    expect(await invoke('report', { event })).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+    expect(await invoke('web', { event, confirm: true })).toMatchObject({
+      ok: false,
+      code: 'NOT_FOUND',
+      data: { available: ['report', 'broken'] }
+    });
+    expect(await invoke('orders', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+    expect(await invoke('legacy', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_IN_SESSION' });
+    expect(await invoke('broken', { event, confirm: true })).toMatchObject({ ok: false, code: 'WORKLOAD_NOT_RUNNING' });
+    expect(invoked).toEqual([]);
+
+    const invoked1 = await invoke('report', { event, confirm: true });
+    expect(invoked1).toMatchObject({
+      ok: true,
+      data: { function: 'report', functionName: 'shop-dev-report', statusCode: 200, payload: '{"sent":3}' }
+    });
+    expect(await invoke('report', { event: { fail: true }, confirm: true })).toMatchObject({
+      ok: false,
+      code: 'FUNCTION_ERROR',
+      data: { functionError: 'Unhandled', payload: '{"errorType":"Error","errorMessage":"report bucket missing"}' }
+    });
+    expect(invoked.map(({ event: sent }) => sent)).toEqual([event, { fail: true }]);
+
+    setDeployedFunctionClient({
+      ...client,
+      invoke: async () => {
+        throw new Error('User is not authorized to perform: lambda:InvokeFunction');
+      }
+    });
+    expect(await invoke('report', { event, confirm: true })).toMatchObject({ ok: false, code: 'INVOKE_FAILED' });
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: function workloads have no local environment, so invoke masked with nothing, and a handler that
+// returned a $Secret value sent it to the agent's conversation.
+test("invoke masks the function's secret-sourced values in what it returns, and invokes nothing without them", async () => {
+  const webhook = SECRETS[2];
+  const { client, invoked } = fakeLambda({ report: { PAYMENT_WEBHOOK: webhook } }, (_event, env) => ({
+    echo: env.PAYMENT_WEBHOOK
+  }));
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(
+    functionConfig([{ name: 'PAYMENT_WEBHOOK', value: "$Secret('payment-webhook')" }])
+  );
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const result = await session.invoke('report', { event: {}, confirm: true });
+    expect(result).toMatchObject({ ok: true, data: { statusCode: 200 } });
+    expect(JSON.stringify(result)).not.toContain(webhook);
+    expect(String(result.data.payload)).toStartWith('{"echo":"');
+
+    // The function's environment cannot be read: nothing is invoked, so nothing unmasked can come back.
+    setDeployedFunctionClient({
+      ...client,
+      describe: async () => {
+        throw new Error('AccessDeniedException: lambda:GetFunctionConfiguration');
+      }
+    });
+    expect(await session.invoke('report', { event: {}, confirm: true })).toMatchObject({
+      ok: false,
+      code: 'MASKING_UNAVAILABLE'
+    });
+    expect(invoked).toHaveLength(1);
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: a client that checked session A could reach session B, which took the port over meanwhile.
+test('invoke refuses a request that names another session, stage or function than this agent runs', async () => {
+  const { client, invoked } = fakeLambda({ report: {} }, () => ({ ok: true }));
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(functionConfig([]), 'session-b');
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const confirmed = { event: {}, confirm: true };
+    for (const expected of [
+      { expectedSessionId: 'session-a' },
+      { expectedSessionId: 'session-b', expectedStage: 'prod' },
+      { expectedSessionId: 'session-b', expectedFunctionArn: 'arn:aws:lambda:eu-west-1:123456789012:function:old' }
+    ]) {
+      expect(await session.invoke('report', { ...confirmed, ...expected })).toMatchObject({
+        ok: false,
+        code: 'DEV_SESSION_CHANGED'
+      });
+    }
+    expect(invoked).toEqual([]);
+    expect(
+      await session.invoke('report', {
+        ...confirmed,
+        expectedSessionId: 'session-b',
+        expectedStage: 'dev',
+        expectedFunctionArn: 'arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-report'
+      })
+    ).toMatchObject({ ok: true });
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: a secret with `"` or `\` was escaped in the serialized payload, so masking the text missed it, in a
+// successful result and in a function error.
+test('invoke masks a secret that JSON escapes, in a result and in a function error', async () => {
+  const secret = 'demo"secret\\material-42';
+  const { client } = fakeLambda({ report: { WEBHOOK_SIGNING: secret } }, (event, env) => {
+    if (event.fail) throw new Error(`signature check failed with ${env.WEBHOOK_SIGNING}`);
+    return { echo: env.WEBHOOK_SIGNING, nested: [{ again: `x${env.WEBHOOK_SIGNING}y` }] };
+  });
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(
+    functionConfig([{ name: 'WEBHOOK_SIGNING', value: "$Secret('webhook-signing')" }])
+  );
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const escaped = JSON.stringify(secret).slice(1, -1);
+    const result = await session.invoke('report', { event: {}, confirm: true });
+    expect(result).toMatchObject({ ok: true });
+    expect(JSON.parse(String(result.data.payload))).toEqual({
+      echo: '[redacted]',
+      nested: [{ again: 'x[redacted]y' }]
+    });
+    const failed = await session.invoke('report', { event: { fail: true }, confirm: true });
+    expect(failed).toMatchObject({ ok: false, code: 'FUNCTION_ERROR' });
+    for (const response of [result, failed]) {
+      const serialized = JSON.stringify(response);
+      expect(serialized).not.toContain(secret);
+      expect(serialized).not.toContain(escaped);
+      expect(serialized).not.toContain('secret\\\\material');
+    }
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: Lambda's `Environment.Error` became an empty environment, and the function was invoked unmasked.
+test('invoke invokes nothing when Lambda returns an environment error or no environment for a configured one', async () => {
+  const { client, invoked } = fakeLambda({ report: { TOKEN: 'abc' } }, () => ({ ok: true }));
+  const session = await startInvokeSession(functionConfig([{ name: 'PAYMENT_WEBHOOK', value: "$Secret('w')" }]));
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const describe = async (name: string) => (await client.describe(name))!;
+    for (const deployed of [
+      async (name: string) => ({
+        ...(await describe(name)),
+        environment: undefined,
+        environmentError: 'KMSAccessDeniedException: Lambda was unable to decrypt the environment variables'
+      }),
+      async (name: string) => ({ ...(await describe(name)), environment: undefined })
+    ]) {
+      setDeployedFunctionClient({ ...client, describe: deployed });
+      expect(await session.invoke('report', { event: {}, confirm: true })).toMatchObject({
+        ok: false,
+        code: 'MASKING_UNAVAILABLE'
+      });
+    }
+    expect(invoked).toEqual([]);
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: the session binding was optional, so an older or a direct client could leave it out.
+test('invoke refuses a request without the session binding', async () => {
+  const { client, invoked } = fakeLambda({ report: {} }, () => ({ ok: true }));
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(functionConfig([]));
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const unbound = await session.invoke('report', { event: {}, confirm: true }, { bind: false });
+    expect(unbound).toMatchObject({ ok: false, code: 'SESSION_BINDING_REQUIRED' });
+    expect(unbound.message).toContain('expectedSessionId, expectedStage, expectedFunctionArn');
+    const partly = await session.invoke(
+      'report',
+      { event: {}, confirm: true, expectedSessionId: 'session-a', expectedStage: 'dev' },
+      { bind: false }
+    );
+    expect(partly).toMatchObject({ ok: false, code: 'SESSION_BINDING_REQUIRED' });
+    expect(invoked).toEqual([]);
+  } finally {
+    await session.close();
+  }
+});

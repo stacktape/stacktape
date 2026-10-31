@@ -388,7 +388,9 @@ export const serviceShape = {
        * A build config that sets the output directory in a way init could not read (a computed `outDir`, a moved Vite
        * `root`). `path` is then the framework default, not a proven location.
        */
-      unreadOutputConfig: repositoryPathSchema.optional()
+      unreadOutputConfig: repositoryPathSchema.optional(),
+      /** Every route is the one page the client renders (`ssr: false`), so unknown paths must fall back to it. */
+      singlePageApp: z.literal(true).optional()
     })
     .optional(),
   /**

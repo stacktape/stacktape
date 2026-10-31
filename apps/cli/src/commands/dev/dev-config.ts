@@ -69,6 +69,11 @@ export const DEV_CONFIG = {
      * How long a dev server may take from its start until its port accepts connections (ms). One that needs longer is
      * reported as failed, and becomes running once it serves.
      */
-    serveTimeoutMs: 120000
+    serveTimeoutMs: 120000,
+    /**
+     * How often a serving dev server's port is checked (ms). A server whose process still runs can close its listener;
+     * two failed checks in a row make it an error, and a later accepted connection makes it ready again.
+     */
+    listenerCheckIntervalMs: 5000
   }
 } as const;

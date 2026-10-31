@@ -1383,7 +1383,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       {
         subject: 'jobQueue.consumers',
         message:
-          'billing and audit both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it. README.md line 3 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose.'
+          "billing and audit both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying. For billing: add billingQueue as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('notificationsTopic', 'arn') } } }], point billing's sqs event at billingQueue, and add billingQueueSubscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('notificationsTopic', 'arn'), Endpoint: $ResourceParam('billingQueue', 'arn') } }. Do the same for audit. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope. README.md line 3 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose."
       }
     ]);
   });
@@ -1473,5 +1473,74 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       hostingContentType: 'static-website'
     });
     expect(result.gaps.map((gap) => gap.subject)).toContain('functions/image/Dockerfile');
+  });
+
+  it('a static Nuxt build and fixed Redis; README queue intent and Amplify sign-in stay gaps', () => {
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({ name: 'api' }),
+          service({
+            name: 'process',
+            path: 'functions',
+            language: 'typescript',
+            exposesHttp: false,
+            executionModel: 'per-request',
+            startCommand: undefined,
+            functionEntrypoint: 'functions/process.ts',
+            functionTriggers: [{ type: 'queue', dependencyName: 'jobQueue' }]
+          }),
+          service({
+            name: 'site',
+            path: 'site',
+            framework: 'nuxt',
+            exposesHttp: false,
+            startCommand: undefined,
+            buildCommand: 'npm run build',
+            servesStaticAssets: { path: 'site/.output/public', singlePageApp: true }
+          })
+        ],
+        dependencies: [
+          {
+            ...dependency('jobQueue', 'queue', []),
+            deadLetterRequirement: { file: 'README.md', line: 4, maxReceiveCount: 2 }
+          },
+          {
+            name: 'userPool',
+            kind: 'user-pool',
+            consumedBy: ['api'],
+            userPoolOwnership: 'unproven',
+            amplifyAuth: { declaration: { file: 'amplify/auth/resource.ts', line: 1 }, loginWith: ['email'] },
+            evidence: [],
+            source: 'probe'
+          },
+          {
+            name: 'cache',
+            kind: 'redis',
+            consumedBy: ['api'],
+            fixedAddress: { file: 'project/settings.py', line: 2, setting: 'CHANNEL_LAYERS' },
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources } = result.config;
+    expect(resources.jobQueue?.properties.redrivePolicy).toBeUndefined();
+    expect(resources.userPool).toBeUndefined();
+    expect(Object.keys(result.config)).not.toContain('cloudformationResources');
+    expect(resources.site).toMatchObject({
+      type: 'hosting-bucket',
+      properties: { uploadDirectoryPath: 'site/.output/public', hostingContentType: 'single-page-app' }
+    });
+    expect(result.gaps.map((gap) => gap.subject).toSorted()).toEqual([
+      'cache.address',
+      'jobQueue.redrivePolicy',
+      'userPool'
+    ]);
   });
 });

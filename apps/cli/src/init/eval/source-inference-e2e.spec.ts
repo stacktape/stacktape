@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
+import { DEV_RUNNABLE_FIXTURES } from './dev-runnable-fixtures';
 import { runEvalCase, type EvalCase } from './harness';
 
 const lines = (...entries: string[]) => `${entries.join('\n')}\n`;
@@ -724,11 +725,598 @@ const DOGFOOD_CASES: EvalCase[] = [
       )
     },
     expect: { gapsInclude: ['reads BILLING_URL, an address nothing in the configuration sets'] }
+  },
+  {
+    name: "r2au O09: API_URL binds to the project's one backend when no other variable names it",
+    files: {
+      'web/package.json': packageJson({
+        name: 'shop-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        "export async function load() { return fetch(process.env.API_URL + '/orders'); }"
+      ),
+      'api/package.json': packageJson({ name: 'shop-api', scripts: { start: 'node server.mjs' } }),
+      'api/server.mjs': lines(
+        "import http from 'node:http';",
+        "http.createServer((req, res) => res.end('[]')).listen(Number(process.env.PORT || 3000), '0.0.0.0');"
+      )
+    },
+    expect: {
+      serviceEnvironment: [{ resource: 'shopWeb', name: 'API_URL', value: "$ResourceParam('shopApi', 'url')" }]
+    }
+  },
+  {
+    name: 'r2au O09 control: API_URL stays a gap when two backends remain',
+    files: {
+      'web/package.json': packageJson({
+        name: 'ledger-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        "export async function load() { return fetch(process.env.API_URL + '/experiments'); }"
+      ),
+      'orders/package.json': packageJson({ name: 'orders', scripts: { start: 'node server.mjs' } }),
+      'orders/server.mjs': "import http from 'node:http';\nhttp.createServer((q, r) => r.end()).listen(3000);\n",
+      'billing/package.json': packageJson({ name: 'billing', scripts: { start: 'node server.mjs' } }),
+      'billing/server.mjs': "import http from 'node:http';\nhttp.createServer((q, r) => r.end()).listen(3001);\n"
+    },
+    expect: { gapsInclude: ['reads API_URL, an address nothing in the configuration sets'] }
+  },
+  {
+    name: 'r2au O11: Amplify sign-in with a defineAuth pool creates no pool and says why and what to add',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        type: undefined,
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', 'aws-amplify': '6.0.0', '@aws-amplify/backend': '1.0.0' }
+      }),
+      'server.js':
+        "const express=require('express');const {signIn}=require('aws-amplify/auth');const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await signIn({username:req.body.username,password:req.body.password})));app.listen(4100);\n",
+      'amplify/auth/resource.ts':
+        "import {defineAuth} from '@aws-amplify/backend';export const auth=defineAuth({loginWith:{email:true}});\n"
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      onlyResources: true,
+      gapsInclude: [
+        'amplify/auth/resource.ts line 1 declares a pool with defineAuth',
+        'Stacktape does not reuse a pool Amplify deployed and does not move its users to a new one',
+        "add userPool: { type: user-auth-pool, properties: { allowEmailAsUserName: true } } and pass $ResourceParam('userPool', 'id')"
+      ]
+    }
+  },
+  {
+    name: 'r2au O11 control: Amplify sign-in with no pool in the repository creates none and says so',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', 'aws-amplify': '6.0.0' }
+      }),
+      'server.js': lines(
+        "import express from 'express';",
+        "import { signIn } from 'aws-amplify/auth';",
+        'const app = express();',
+        "app.post('/login', async (req, res) => res.json(await signIn({ username: 'a', password: 'b' })));",
+        'app.listen(4100);'
+      )
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      onlyResources: true,
+      gapsInclude: ['Nothing in the repository creates that pool, so it is probably an existing one']
+    }
+  },
+  {
+    name: 'r2au O12: a Go main that blocks forever and prints listener text is a worker',
+    files: {
+      'go.mod': 'module example.org/audit\ngo 1.24\n',
+      'main.go': 'package main\nimport "fmt"\nfunc main(){fmt.Println(`http.ListenAndServe(":9876", nil)`);select{}}\n'
+    },
+    expect: {
+      resources: { audit: 'worker-service' },
+      resourceProperties: [
+        { resource: 'audit', path: 'packaging', value: { type: 'buildpack', properties: { sourceDirectoryPath: '.' } } }
+      ]
+    }
+  },
+  {
+    name: 'r2au O12: each go.work member gets a resource, the server and its worker sibling',
+    files: {
+      'go.work': 'go 1.24\nuse (\n ./api\n ./worker\n)\n',
+      'api/go.mod': 'module example.org/api\ngo 1.24\n',
+      'api/main.go': 'package main\nimport "net/http"\nfunc main(){http.ListenAndServe(":4321",nil)}\n',
+      'worker/go.mod': 'module example.org/worker\ngo 1.24\n',
+      'worker/main.go': lines(
+        'package main',
+        'func main() {',
+        ' jobs := make(chan string)',
+        ' for {',
+        '  job := <-jobs',
+        '  println(job)',
+        ' }',
+        '}'
+      )
+    },
+    expect: {
+      resources: { api: 'web-service', worker: 'worker-service' },
+      onlyResources: true,
+      servicePorts: [{ resource: 'api', port: 4321 }]
+    }
+  },
+  {
+    name: 'r2au O12 control: a run-once Go program, a signal-cancelled one and a library module are no services',
+    files: {
+      'go.work': 'go 1.24\nuse (\n ./tool\n ./cancel\n ./lib\n)\n',
+      'tool/go.mod': 'module example.org/tool\ngo 1.24\n',
+      'tool/main.go': 'package main\nimport "fmt"\nfunc main(){fmt.Println("done")}\n',
+      'cancel/go.mod': 'module example.org/cancel\ngo 1.24\n',
+      'cancel/main.go': lines(
+        'package main',
+        'import ("context"; "os"; "os/signal")',
+        'func main() {',
+        ' ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)',
+        ' defer stop()',
+        ' <-ctx.Done()',
+        '}'
+      ),
+      'lib/go.mod': 'module example.org/lib\ngo 1.24\n',
+      'lib/lib.go': 'package lib\nfunc Loop(){for {}}\n'
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'tool', path: 'packaging', value: undefined },
+        { resource: 'cancel', path: 'packaging', value: undefined },
+        { resource: 'lib', path: 'packaging', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'r2au O13: a Nuxt app built with nuxt generate and a top-level ssr:false is a single-page static site',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { build: 'nuxt generate', start: 'npx serve .output/public' },
+        dependencies: { nuxt: '3.16.0' }
+      }),
+      'nuxt.config.ts': 'export default defineNuxtConfig({ssr:false});\n',
+      'app.vue': '<template><main>ok</main></template>\n'
+    },
+    expect: {
+      resources: { auditApp: 'hosting-bucket' },
+      resourceProperties: [
+        { resource: 'auditApp', path: 'uploadDirectoryPath', value: '.output/public' },
+        { resource: 'auditApp', path: 'hostingContentType', value: 'single-page-app' },
+        { resource: 'auditApp', path: 'build', value: { command: 'npm run build' } }
+      ]
+    }
+  },
+  {
+    name: 'r2au O13: a generated Nuxt app that renders on the server is a static website',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { build: 'nuxt generate' },
+        dependencies: { nuxt: '3.16.0' }
+      }),
+      'nuxt.config.ts': 'export default defineNuxtConfig({});\n',
+      'app.vue': '<template><main>ok</main></template>\n'
+    },
+    expect: {
+      resources: { auditApp: 'hosting-bucket' },
+      resourceProperties: [{ resource: 'auditApp', path: 'hostingContentType', value: 'static-website' }]
+    }
+  },
+  {
+    name: 'r2au O13 control: a generated Nuxt app with server routes keeps its server',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { build: 'nuxt generate' },
+        dependencies: { nuxt: '3.16.0' }
+      }),
+      'nuxt.config.ts': 'export default defineNuxtConfig({});\n',
+      'server/api/hello.ts': "export default defineEventHandler(() => 'hi');\n",
+      'app.vue': '<template><main>ok</main></template>\n'
+    },
+    expect: { resources: { auditApp: 'nuxt-web' } }
+  },
+  {
+    name: 'r2au O14: a channels_redis layer gets a Redis and a gap naming its fixed address',
+    files: {
+      'requirements.txt': 'Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n',
+      'manage.py': 'import os\nos.environ.setdefault("DJANGO_SETTINGS_MODULE","project.settings")\n',
+      Procfile: 'web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n',
+      'project/asgi.py': lines(
+        'from channels.routing import ProtocolTypeRouter, URLRouter',
+        'from django.core.asgi import get_asgi_application',
+        'application=ProtocolTypeRouter({"http":get_asgi_application(),"websocket":URLRouter([])})'
+      ),
+      'project/settings.py': lines(
+        'ASGI_APPLICATION="project.asgi.application"',
+        'CHANNEL_LAYERS={"default":{"BACKEND":"channels_redis.core.RedisChannelLayer","CONFIG":{"hosts":[("redis",6379)]}}}'
+      )
+    },
+    expect: {
+      dependencyKinds: ['redis'],
+      resources: { cache: 'redis' },
+      gapsInclude: ['project/settings.py line 2 sets CHANNEL_LAYERS to a fixed Redis address']
+    }
+  },
+  {
+    name: 'r2au O14 control: a channels_redis layer that reads REDIS_URL needs no address gap',
+    files: {
+      'requirements.txt': 'Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n',
+      'manage.py': 'import os\nos.environ.setdefault("DJANGO_SETTINGS_MODULE","project.settings")\n',
+      Procfile: 'web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n',
+      'project/asgi.py': lines(
+        'from channels.routing import ProtocolTypeRouter, URLRouter',
+        'from django.core.asgi import get_asgi_application',
+        'application=ProtocolTypeRouter({"http":get_asgi_application(),"websocket":URLRouter([])})'
+      ),
+      'project/settings.py': lines(
+        'import os',
+        'CHANNEL_LAYERS={"default":{"BACKEND":"channels_redis.core.RedisChannelLayer","CONFIG":{"hosts":[os.environ["REDIS_URL"]]}}}'
+      )
+    },
+    expect: {
+      resources: { cache: 'redis' },
+      gapsExclude: ['fixed Redis address', 'does not read a configurable address']
+    }
+  },
+  {
+    name: 'r2au O22: a one-argument handler reading pathParameters and returning statusCode is an HTTP function',
+    files: {
+      'package.json': packageJson({
+        dependencies: { '@aws-sdk/client-dynamodb': '^3.0.0', '@aws-sdk/lib-dynamodb': '^3.0.0' }
+      }),
+      'handler.js': lines(
+        "import {DynamoDBClient} from '@aws-sdk/client-dynamodb';",
+        "import {DynamoDBDocumentClient, GetCommand} from '@aws-sdk/lib-dynamodb';",
+        'const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));',
+        'export async function handler(event){',
+        '  const item=await client.send(new GetCommand({TableName:process.env.TABLE_NAME,Key:{tenant:event.pathParameters.tenant,id:event.pathParameters.id}}));',
+        '  return {statusCode:200,body:JSON.stringify(item.Item)};',
+        '}'
+      )
+    },
+    expect: {
+      resources: { handler: 'function', mainTable: 'dynamo-db-table' },
+      gapsInclude: ['handler reads the path parameters tenant, id, but init could not tell its route']
+    }
+  },
+  {
+    name: 'r2au O22 control: an exported one-argument function that reads no request is not deployed',
+    files: {
+      'package.json': packageJson({}),
+      'handler.js': 'export async function handler(event) { return { statusCode: 200, body: String(event) }; }\n'
+    },
+    expect: { resourceProperties: [{ resource: 'handler', path: 'packaging', value: undefined }] }
+  }
+];
+
+/**
+ * The PR #424 review's fixtures (r2av): repositories where an inference rule of the first version produced a confident
+ * wrong configuration. Each must compose exactly what main composed, adding at most a named gap. Resource sets are main's
+ * and complete (`onlyResources`), and the wiring main emitted is asserted, so a different wired config fails.
+ */
+const parcel = DEV_RUNNABLE_FIXTURES['r2ll-parcel'];
+const PARCEL_MAIN_RESOURCES = {
+  mainDatabase: 'relational-database',
+  mainTable: 'dynamo-db-table',
+  jobQueue: 'sqs-queue',
+  notificationsTopic: 'sns-topic',
+  httpApiGateway: 'http-api-gateway',
+  parcelWeb: 'sveltekit-web',
+  audit: 'function',
+  billing: 'function',
+  ping: 'function',
+  api: 'web-service'
+};
+const PARCEL_MAIN_WIRING = [
+  { resource: 'audit', path: 'events', value: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }] },
+  { resource: 'billing', path: 'events', value: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }] },
+  { resource: 'jobQueue', path: 'policyStatements', value: undefined }
+];
+const sqsHandlerMain = (handler: string) => ({
+  resources: { jobQueue: 'sqs-queue', [handler]: 'function' },
+  onlyResources: true,
+  resourceProperties: [
+    { resource: handler, path: 'events', value: [{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }] }
+  ]
+});
+
+const REVIEW_CASES: EvalCase[] = [
+  {
+    name: 'r2av review sqs-forwarded-http: an SQS handler reading a forwarded request keeps its queue',
+    files: {
+      'package.json': '{"name": "replay-worker"}',
+      'functions/replay.js': lines(
+        'export async function handler(event) {',
+        ' for (const record of event.Records) {',
+        '   const original = JSON.parse(record.body);',
+        '   console.log(original.pathParameters.id);',
+        ' }',
+        ' return { statusCode: 200 };',
+        '}'
+      )
+    },
+    expect: sqsHandlerMain('replay')
+  },
+  {
+    name: 'r2av review sqs-test-http-string: request-shaped samples beside an SQS handler change nothing',
+    files: {
+      'package.json': '{"name": "job-worker"}',
+      'functions/handler.js': lines(
+        'export async function handler(event) {',
+        ' for (const record of event.Records) console.log(JSON.parse(record.body));',
+        ' return { batchItemFailures: [] };',
+        '}',
+        'const sample = {pathParameters: {id: "123"}};',
+        'const expectedResponse = {statusCode: 200};'
+      )
+    },
+    expect: sqsHandlerMain('handler')
+  },
+  {
+    name: 'r2av review api-url-same-backend: API_URL is a gap when ME_URL already names the one backend',
+    files: {
+      'README.md': '# Dashboard\nME_URL and API_URL both point to the public HTTP API Gateway.\n',
+      'admin/package.json': '{"name": "admin-api", "scripts": {"start": "node server.mjs"}}',
+      'admin/server.mjs':
+        "import http from 'node:http';\nhttp.createServer((req,res)=>{res.end('healthy')}).listen(3000);\n",
+      'functions/package.json': '{"dependencies": {"@types/aws-lambda": "^8.10.0"}}',
+      'functions/me.ts': lines(
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        'export const handler: APIGatewayProxyHandlerV2 = async(event)=>{',
+        " if(event.rawPath === '/me') return {statusCode:200,body:'{}'};",
+        " return {statusCode:404,body:'not found'};",
+        '};'
+      ),
+      'web/package.json': packageJson({
+        name: 'dashboard-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        'export async function load(){',
+        " const me = await fetch(process.env.ME_URL + '/me');",
+        " const profile = await fetch(process.env.API_URL + '/profile');",
+        ' return [await me.json(), await profile.json()];',
+        '}'
+      )
+    },
+    expect: {
+      resources: {
+        httpApiGateway: 'http-api-gateway',
+        adminApi: 'web-service',
+        dashboardWeb: 'nextjs-web',
+        me: 'function'
+      },
+      onlyResources: true,
+      resourceProperties: [
+        {
+          resource: 'dashboardWeb',
+          path: 'environment',
+          value: [{ name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }]
+        }
+      ],
+      gapsInclude: ['dashboard-web reads API_URL, an address nothing in the configuration sets']
+    }
+  },
+  {
+    name: 'r2av review api-url-named-single-backend: API_URL is a gap when ME_URL names the only backend',
+    files: {
+      'functions/package.json': '{"dependencies": {"@types/aws-lambda": "^8.10.0"}}',
+      'functions/me.ts': lines(
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        "export const handler: APIGatewayProxyHandlerV2 = async () => ({ statusCode: 200, body: '{}' });"
+      ),
+      'web/package.json': packageJson({
+        name: 'dashboard-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        "export async function load(){ await fetch(process.env.ME_URL + '/me'); return fetch(process.env.API_URL + '/profile'); }"
+      )
+    },
+    expect: {
+      resources: { httpApiGateway: 'http-api-gateway', dashboardWeb: 'nextjs-web', me: 'function' },
+      onlyResources: true,
+      resourceProperties: [
+        {
+          resource: 'dashboardWeb',
+          path: 'environment',
+          value: [{ name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }]
+        }
+      ],
+      gapsInclude: ['dashboard-web reads API_URL, an address nothing in the configuration sets']
+    }
+  },
+  {
+    name: 'r2av review finite-go-migration: a Go main that cancels one statement on a signal is no worker',
+    files: {
+      'go.mod': 'module example.org/migrate\ngo 1.24\nrequire github.com/lib/pq v1.10.9\n',
+      'main.go': lines(
+        'package main',
+        'import("context";"os";"os/signal";"database/sql"; _ "github.com/lib/pq")',
+        'func main() {',
+        ' ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)',
+        ' defer stop()',
+        ' db, err := sql.Open("postgres",os.Getenv("DATABASE_URL")); if err != nil {panic(err)}',
+        ' defer db.Close()',
+        ' if _,err := db.ExecContext(ctx,"ALTER TABLE invoices ADD COLUMN archived BOOLEAN DEFAULT false"); err != nil {panic(err)}',
+        '}'
+      ),
+      'README.md': '# Schema migration CLI\nRun once with `go run .` before deploying.\n'
+    },
+    expect: {
+      resources: { mainDatabase: 'relational-database', databaseBastion: 'bastion' },
+      onlyResources: true
+    }
+  },
+  {
+    name: 'r2av review amplify-external-pool: a sandbox defineAuth beside an existing pool creates no pool',
+    files: {
+      'README.md': lines(
+        '# Login application',
+        'Production signs in to the existing shared company Cognito pool with its current users.',
+        'The amplify/auth/resource.ts declaration is for isolated sandbox environments only.'
+      ),
+      'server.js': lines(
+        "import {Amplify} from 'aws-amplify';",
+        "import outputs from './amplify_outputs.json';",
+        'Amplify.configure(outputs);',
+        "import express from 'express';",
+        "import {signIn} from 'aws-amplify/auth';",
+        'const app = express();',
+        "app.post('/login',async(req,res)=>res.json(await signIn(req.body)));",
+        'app.listen(4100);'
+      ),
+      'amplify_outputs.json':
+        '{"auth": {"user_pool_id": "eu-west-1_existing", "user_pool_client_id": "existing-client"}}',
+      'package.json':
+        '{"name": "login-app", "scripts": {"start": "node server.js"}, "dependencies": {"express": "5.0.0", "aws-amplify": "6.0.0", "@aws-amplify/backend": "1.0.0"}}',
+      'amplify/auth/resource.ts':
+        "import {defineAuth} from '@aws-amplify/backend';\nexport const auth=defineAuth({loginWith:{email:true}});\n"
+    },
+    expect: {
+      resources: { loginApp: 'web-service' },
+      onlyResources: true,
+      resourceProperties: [{ resource: 'loginApp', path: 'connectTo', value: undefined }],
+      gapsInclude: ['Stacktape does not reuse a pool Amplify deployed']
+    }
+  },
+  {
+    name: 'r2av review readme-example-dlq: a tutorial dead-letter queue in the README is a gap, not a redrive policy',
+    files: {
+      'README.md': lines(
+        '# Payment processor',
+        'This worker retries failed payments until the external gateway recovers.',
+        '',
+        '## Related AWS example',
+        "The AWS tutorial's demo queue sends messages to a dead-letter queue after two failed attempts."
+      ),
+      'package.json': '{"name": "job-worker"}',
+      'functions/handler.js': lines(
+        'export async function handler(event) {',
+        ' for (const record of event.Records) {',
+        '   console.log(JSON.parse(record.body));',
+        ' }',
+        '}'
+      )
+    },
+    expect: {
+      ...sqsHandlerMain('handler'),
+      resourceProperties: [
+        ...sqsHandlerMain('handler').resourceProperties,
+        { resource: 'jobQueue', path: 'redrivePolicy', value: undefined }
+      ],
+      gapsInclude: [
+        'README.md line 5 mentions a dead-letter queue after 2 failed receives. init does not add one from README text, and the line does not say which queue it means'
+      ]
+    }
+  },
+  {
+    name: 'r2av review sns-intentionally-shared: historical fanout text keeps the shared queue and its gap',
+    files: {
+      ...parcel,
+      'README.md': lines(
+        '# Parcel',
+        'Previously, the SNS topic fanned out to billingQueue and auditQueue.',
+        'The current billing and audit functions compete for work on one shared queue; process each parcel only once.'
+      )
+    },
+    expect: {
+      resources: PARCEL_MAIN_RESOURCES,
+      onlyResources: true,
+      configAbsent: ['cloudformationResources'],
+      resourceProperties: PARCEL_MAIN_WIRING,
+      gapsInclude: ['audit and billing both consume jobQueue, so each message reaches only one of them']
+    }
+  },
+  {
+    name: 'r2av review sns-envelope-helper: consumers decoding the SNS envelope keep the shared queue and its gap',
+    files: {
+      ...parcel,
+      'functions/decode.ts':
+        'export function decodeSnsBody(body: string) { return JSON.parse(JSON.parse(body).Message); }\n',
+      'functions/audit.ts': parcel['functions/audit.ts']!.replace(/JSON\.parse\(r\.body\)/, 'decodeSnsBody(r.body)'),
+      'functions/billing.ts': parcel['functions/billing.ts']!.replace(
+        /JSON\.parse\(record\.body\)/,
+        'decodeSnsBody(record.body)'
+      )
+    },
+    expect: {
+      resources: PARCEL_MAIN_RESOURCES,
+      onlyResources: true,
+      configAbsent: ['cloudformationResources'],
+      resourceProperties: PARCEL_MAIN_WIRING,
+      gapsInclude: ['Add RawMessageDelivery: true to a subscription only if its handler parses the published message']
+    }
+  },
+  {
+    name: 'r2av review nuxt-mixed-ssr: route rules keep the Nuxt server resource',
+    files: {
+      'nuxt.config.ts': "export default defineNuxtConfig({\n routeRules: {'/dashboard/**': {ssr: false}}\n});\n",
+      'app.vue': '<template><NuxtPage/></template>\n',
+      'package.json': '{"name": "blog", "scripts": {"build": "nuxt generate"}, "dependencies": {"nuxt": "3.16.0"}}',
+      'pages/index.vue': '<template><p>Home</p></template>\n'
+    },
+    expect: { resources: { blog: 'nuxt-web' }, onlyResources: true }
+  },
+  {
+    name: 'r2av review nuxt-custom-output: a moved output directory keeps the Nuxt server resource',
+    files: {
+      'nuxt.config.ts': "export default defineNuxtConfig({nitro:{output:{publicDir:'dist'}}});\n",
+      'app.vue': '<template><h1>Docs</h1></template>\n',
+      'package.json': '{"name": "docs", "scripts": {"build": "nuxt generate"}, "dependencies": {"nuxt": "3.16.0"}}'
+    },
+    expect: { resources: { docs: 'nuxt-web' }, onlyResources: true }
+  },
+  {
+    name: 'r2av review nuxt-wrong-preset: an image preset named static does not make a server build static',
+    files: {
+      'nuxt.config.ts': lines(
+        'export default defineNuxtConfig({',
+        " nitro: { preset: 'node-server' },",
+        " image: { presets: { hero: { modifiers: { preset: 'static' } } } }",
+        '});'
+      ),
+      'app.vue': '<template><NuxtPage/></template>\n',
+      'package.json':
+        '{"name": "blog", "scripts": {"build": "nuxt build"}, "dependencies": {"nuxt": "3.16.0", "@nuxt/image": "1.10.0"}}'
+    },
+    expect: { resources: { blog: 'nuxt-web' }, onlyResources: true }
+  },
+  {
+    name: 'r2av review channels-memory: the in-memory channel layer needs no Redis',
+    files: {
+      'requirements.txt': 'Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n',
+      'manage.py': 'import os\nos.environ.setdefault("DJANGO_SETTINGS_MODULE","project.settings")\n',
+      Procfile: 'web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n',
+      'project/asgi.py': 'from django.core.asgi import get_asgi_application\napplication=get_asgi_application()\n',
+      'project/settings.py': 'CHANNEL_LAYERS={"default":{"BACKEND":"channels.layers.InMemoryChannelLayer"}}\n'
+    },
+    expect: {
+      absentDependencyKinds: ['redis'],
+      resourceProperties: [{ resource: 'cache', path: 'engine', value: undefined }],
+      gapsExclude: ['Redis']
+    }
   }
 ];
 
 describe('source inference end-to-end corpus', () => {
-  for (const evalCase of [...CASES, ...DOGFOOD_CASES]) {
+  for (const evalCase of [...CASES, ...DOGFOOD_CASES, ...REVIEW_CASES]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

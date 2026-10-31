@@ -211,6 +211,8 @@ class DevTuiManager {
   private localResourceStatusSignatures: Map<string, string> = new Map();
   private setupStepStatusSignatures: Map<string, string> = new Map();
   private workloadStatusSignatures: Map<string, string> = new Map();
+  /** What was last reported of each workload's status, without the request error a running frontend printed. */
+  private workloadReportSignatures: Map<string, string> = new Map();
   private hookStatusSignatures: Map<string, string> = new Map();
   private _agentMode = false;
 
@@ -224,6 +226,7 @@ class DevTuiManager {
     this.localResourceStatusSignatures.clear();
     this.setupStepStatusSignatures.clear();
     this.workloadStatusSignatures.clear();
+    this.workloadReportSignatures.clear();
     this.hookStatusSignatures.clear();
 
     tuiManager.setDevTuiActive(true);
@@ -274,6 +277,7 @@ class DevTuiManager {
     this.localResourceStatusSignatures.clear();
     this.setupStepStatusSignatures.clear();
     this.workloadStatusSignatures.clear();
+    this.workloadReportSignatures.clear();
     this.hookStatusSignatures.clear();
     devTuiState.reset();
     tuiManager.setDevTuiActive(false);
@@ -484,13 +488,21 @@ class DevTuiManager {
       error?: string;
       hints?: string[];
       size?: string;
+      /** The last error a running frontend printed; see `Workload.requestError`. */
+      requestError?: string;
     }
   ) {
     const signature = JSON.stringify({ status, extras: extras || null });
     if (this.workloadStatusSignatures.get(name) === signature) return;
     this.workloadStatusSignatures.set(name, signature);
-    // Hints belong to the error they come with; a status without them clears the previous error's.
-    devTuiState.setWorkloadStatus(name, status, { hints: undefined, ...extras });
+    // Hints belong to the error they come with, and a request error to the server that printed it; a status without
+    // them clears the previous ones.
+    devTuiState.setWorkloadStatus(name, status, { hints: undefined, requestError: undefined, ...extras });
+    // A request that failed or succeeded since does not change whether the workload runs: nothing to report.
+    const { requestError: _requestError, ...reported } = extras ?? {};
+    const reportSignature = JSON.stringify({ status, extras: reported });
+    if (this.workloadReportSignatures.get(name) === reportSignature) return;
+    this.workloadReportSignatures.set(name, reportSignature);
     this.reportResourceStatus('DEV_WORKLOAD', `Workload ${name}`, name, status, extras);
 
     if (status === 'running') {

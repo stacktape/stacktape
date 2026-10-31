@@ -108,8 +108,8 @@ test('a crash summary that quotes an environment dump masks the secret values th
     expect.stringMatching(/^\{"DATABASE_PASSWORD" .{200,300}\.\.\.$/),
     "/app/config/application.rb:6:in '<top (required)>'"
   ]);
-  // Short values such as ports also appear as line numbers; they stay as they are.
-  expect(maskEnvironmentValuesInText('main.rb:3000', { API_TOKEN_TTL: '3000' })).toBe('main.rb:3000');
+  // Short values such as ports also appear as line numbers; under a name that does not say secret, they stay as they are.
+  expect(maskEnvironmentValuesInText('main.rb:3000', { CACHE_TTL: '3000' })).toBe('main.rb:3000');
 });
 
 // #386 review: a five-character secret appeared unmasked in a frontend's failure summary.
@@ -141,4 +141,21 @@ test('a container crash summary masks a multi-line secret that ends with a newli
   const mask = createEnvironmentMasker(environment, new Set(['SIGNING_KEY']));
   expect(mask('last line: k3yL1n3TwoSecretTail')).toBe('last line: [redacted]');
   expect(mask(key.trimEnd())).not.toContain('r2tt-first-secret-line');
+});
+
+// Review of #422: `DB_PASSWORD=a1b` set with `$Env` was masked in /env but not in text, because the value was short and
+// not read from a secret. Its name says it is secret.
+test('a value under a secret name is masked in text whatever its length and source', () => {
+  const environment = { DB_PASSWORD: 'a1b', API_KEY: 'k7', PORT: '3000', MODE: 'dev' };
+  expect(maskEnvironmentValuesInText('login a1b with k7 on port 3000 in dev', environment)).toBe(
+    'login [redacted] with [redacted] on port 3000 in dev'
+  );
+});
+
+// Review of #422: a secret with `"` or `\` survived in serialized JSON, where it appears escaped.
+test('a masked value is also masked in its JSON-escaped form', () => {
+  const secret = 'demo"secret\\material';
+  const mask = createEnvironmentMasker({ WEBHOOK_SECRET: secret });
+  expect(mask(JSON.stringify({ echo: secret }))).toBe('{"echo":"[redacted]"}');
+  expect(mask(`plain ${secret}`)).toBe('plain [redacted]');
 });

@@ -52,7 +52,7 @@ const queueOf = (resources: Record<string, { properties: Record<string, unknown>
   (resources[name]!.properties.events as Array<{ properties: { sqsQueueName: string } }>)[0]!.properties.sqsQueueName;
 
 const SHARED_QUEUE =
-  'audit and billing both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it.';
+  "audit and billing both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying. For audit: add auditQueue as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('notificationsTopic', 'arn') } } }], point audit's sqs event at auditQueue, and add auditQueueSubscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('notificationsTopic', 'arn'), Endpoint: $ResourceParam('auditQueue', 'arn') } }. Do the same for billing. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope.";
 
 describe('consumers sharing one queue', () => {
   it.each([

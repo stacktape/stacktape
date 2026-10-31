@@ -1207,6 +1207,24 @@ def handler(event, context):
  * SvelteKit server, and a Python job whose docstring states its schedule. Init's output needed seven config edits.
  */
 const r2ccReceipts: Record<string, string> = {
+  'README.md': `# Receipts
+
+Upload a receipt, let the queue worker count its lines, then approve it through a workflow.
+
+- \`api/\`: FastAPI service (Python 3.13). Stores receipts in PostgreSQL (\`DATABASE_URL\`, Alembic migrations in
+  \`api/migrations\`, applied on start), writes uploaded files to the S3 bucket \`UPLOAD_BUCKET\`, and starts the approval
+  workflow (\`APPROVAL_WORKFLOW_ARN\`).
+- \`functions/on-upload.ts\`: runs for every object created under \`receipts/\` in the upload bucket and sends a message to
+  the receipts queue (\`RECEIPTS_QUEUE_URL\`).
+- \`workers/process_receipt.py\`: consumes the receipts queue and marks the receipt \`processed\`. Messages that fail twice
+  go to a dead-letter queue.
+- \`functions/score.ts\` and \`workers/mark_decision.py\`: the two steps of the approval workflow (Step Functions):
+  score the receipt, then record \`approved\` or \`rejected\`.
+- \`workers/cleanup.py\`: runs every minute and expires receipts stuck in \`uploaded\` for more than 10 minutes.
+- \`functions/stats.ts\`: public HTTPS endpoint (Lambda function URL) with receipt counts per status.
+- \`web/\`: SvelteKit SSR app. The server calls the API (\`API_URL\`) and the stats endpoint (\`STATS_URL\`).
+- \`npm run seed\`: inserts three sample receipts. \`npm run test:e2e\`: Playwright test with \`WEB_URL\`.
+`,
   'package.json': `{
   "name": "receipts",
   "private": true,

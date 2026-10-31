@@ -131,17 +131,20 @@ export const findDeployedIdentifier = (values: unknown[], identifiers: string[])
 
 class SeedRefusal extends Error {}
 
+type CurrentScripts = { ok: true; scripts: typeof configManager.scripts } | { ok: false; error: string };
+
 /**
- * Whether the configuration file defines `scriptName` now. The session runs the configuration it started with, so a
- * script added to the file since then exists only after a restart. A file that does not load answers no.
+ * The scripts the configuration file defines now. Scripts run only on request, so a seed uses the file as it is and an
+ * added or edited script needs no restart; the session's workloads keep the configuration they started with. Without a
+ * configuration file, the session's own scripts.
  */
-const isScriptAddedSinceStart = async (scriptName: string): Promise<boolean> => {
-  if (!globalStateManager.configPath) return false;
+const loadCurrentScripts = async (): Promise<CurrentScripts> => {
+  if (!globalStateManager.configPath) return { ok: true, scripts: configManager.scripts ?? {} };
   try {
     const current = await configManager.configResolver.reloadRawConfig();
-    return Boolean(current?.scripts?.[scriptName]);
-  } catch {
-    return false;
+    return { ok: true, scripts: current?.scripts ?? {} };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 };
 
@@ -161,17 +164,18 @@ export const runSeedScript = async (
       error: `timeoutSeconds must be a number above 0 and at most ${MAX_SEED_TIMEOUT_SECONDS}.`
     };
   }
-  const scripts = configManager.scripts ?? {};
+  const current = await loadCurrentScripts();
+  if (current.ok === false) {
+    return {
+      ok: false,
+      code: 'CONFIG_INVALID',
+      error: `${basename(globalStateManager.configPath)} no longer loads, so its scripts cannot be read: ${current.error}`,
+      hint: 'Fix the configuration file and run the script again.'
+    };
+  }
+  const { scripts } = current;
   const script = scripts[scriptName];
   if (!script) {
-    if (await isScriptAddedSinceStart(scriptName)) {
-      return {
-        ok: false,
-        code: 'CONFIG_CHANGED_RESTART_REQUIRED',
-        error: `${basename(globalStateManager.configPath)} defines script "${scriptName}" now, but it was added after dev mode started. Dev mode runs the configuration it started with.`,
-        hint: 'Stop dev mode and start it again, then run the script.'
-      };
-    }
     return {
       ok: false,
       code: 'NOT_FOUND',

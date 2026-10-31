@@ -18,17 +18,24 @@ type TemplateResource = { Type: string; Properties?: Record<string, any> };
 const isLoggingOn = (settings: { LoggingLevel?: string; DataTraceEnabled?: boolean } | undefined) =>
   !!settings && ((!!settings.LoggingLevel && settings.LoggingLevel !== 'OFF') || !!settings.DataTraceEnabled);
 
+/** REST stage settings that make API Gateway write logs with the account's role: access logs or execution logs. */
+const restStageLogs = (settings: Record<string, any> | undefined) =>
+  !!settings &&
+  (!!settings.AccessLogSetting ||
+    isLoggingOn(settings as { LoggingLevel?: string; DataTraceEnabled?: boolean }) ||
+    (Array.isArray(settings.MethodSettings) ? settings.MethodSettings : []).some(isLoggingOn));
+
 /**
  * Whether a stage in the template writes access or execution logs that API Gateway delivers with the account's
- * CloudWatch role: WebSocket stages (`AWS::ApiGatewayV2::Stage` of a `WEBSOCKET` API) and REST stages. HTTP API stages
- * deliver access logs without that role.
+ * CloudWatch role: WebSocket stages (`AWS::ApiGatewayV2::Stage` of a `WEBSOCKET` API) and REST stages, declared as
+ * `AWS::ApiGateway::Stage`, as the `StageDescription` of an `AWS::ApiGateway::Deployment`, or as an
+ * `AWS::Serverless::Api`. HTTP API stages deliver access logs without that role.
  */
 export const templateNeedsApiGatewayCloudWatchRole = (template: CloudFormationTemplate) => {
   const resources = (template.Resources ?? {}) as Record<string, TemplateResource>;
   return Object.values(resources).some(({ Type, Properties = {} }) => {
-    if (Type === 'AWS::ApiGateway::Stage') {
-      return !!Properties.AccessLogSetting || (Properties.MethodSettings ?? []).some(isLoggingOn);
-    }
+    if (Type === 'AWS::ApiGateway::Stage' || Type === 'AWS::Serverless::Api') return restStageLogs(Properties);
+    if (Type === 'AWS::ApiGateway::Deployment') return restStageLogs(Properties.StageDescription);
     if (Type !== 'AWS::ApiGatewayV2::Stage') return false;
     const logs =
       !!Properties.AccessLogSettings ||

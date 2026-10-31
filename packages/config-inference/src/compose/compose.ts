@@ -888,6 +888,22 @@ const composeDependency = (
     case 'user-pool': {
       const variables = dependency.addressedBy;
       const client = variables.find((name) => /CLIENT_?ID$/.test(name)) ?? 'the client ID variable';
+      const amplify = dependency.amplifyAuth;
+      if (amplify !== undefined && variables.length === 0) {
+        // Amplify takes the pool from `Amplify.configure()`. The pool `defineAuth` declares is deployed by Amplify and may
+        // hold users, or serve only sandboxes: Stacktape neither reuses it nor creates a replacement on its own.
+        const declared =
+          amplify.declaration === undefined
+            ? 'Nothing in the repository creates that pool, so it is probably an existing one with its users.'
+            : `${amplify.declaration.file} line ${amplify.declaration.line} declares a pool with defineAuth, which Amplify deploys, not Stacktape.`;
+        const usernames = [
+          ...(amplify.loginWith?.includes('email') ? ['allowEmailAsUserName: true'] : []),
+          ...(amplify.loginWith?.includes('phone') ? ['allowPhoneNumberAsUserName: true'] : [])
+        ];
+        return {
+          unsupported: `Your code signs users in through Amplify (aws-amplify/auth), which takes its user pool from Amplify.configure() or amplify_outputs.json. ${declared} init created no pool: Stacktape does not reuse a pool Amplify deployed and does not move its users to a new one. To keep signing in to that pool, leave Amplify configured as it is. To use a new, empty pool instead, add userPool: { type: user-auth-pool${usernames.length === 0 ? '' : `, properties: { ${usernames.join(', ')} }`} } and pass $ResourceParam('userPool', 'id') and $ResourceParam('userPool', 'clientId') to Amplify.configure().`
+        };
+      }
       return dependency.userPoolOwnership === 'project'
         ? {
             resource: {
@@ -1346,6 +1362,26 @@ export const composeConfig = ({
     };
   }
 
+  // A README line about a dead-letter queue is no wiring: it can describe a tutorial or another queue. It becomes a gap
+  // with the exact configuration, and the user decides whether it applies.
+  const reportedDeadLetterLines = new Set<number>();
+  for (const dependency of dependencies) {
+    const requirement = dependency.deadLetterRequirement;
+    const queueName = dependencyResourceNames.get(dependency.name);
+    const queue = queueName === undefined ? undefined : resources[queueName];
+    if (requirement === undefined || queue === undefined || queue.properties.redrivePolicy !== undefined) continue;
+    if (reportedDeadLetterLines.has(requirement.line)) continue;
+    reportedDeadLetterLines.add(requirement.line);
+    const ambiguous = requirement.ambiguous === true;
+    const target = ambiguous ? '<queue>' : queueName!;
+    const deadLetterName = ambiguous ? '<queue>DeadLetterQueue' : `${queueName!.replace(/Queue$/, '')}DeadLetterQueue`;
+    const count = requirement.maxReceiveCount;
+    gaps.push({
+      subject: `${dependency.name}.redrivePolicy`,
+      message: `${requirement.file} line ${requirement.line} mentions a dead-letter queue${ambiguous ? '' : ` for ${queueName}`}${count === undefined ? '' : ` after ${count} failed ${count === 1 ? 'receive' : 'receives'}`}. init does not add one from README text${ambiguous ? ', and the line does not say which queue it means' : ''}. If ${ambiguous ? 'one of your queues' : queueName} should keep failed messages, add ${deadLetterName} as an sqs-queue and set redrivePolicy on ${target} to { targetSqsQueueName: ${deadLetterName}, maxReceiveCount: ${count ?? '<failed receives>'} } before deploying. Without it, a message that keeps failing is retried until it expires and is then lost.`
+    });
+  }
+
   // A private database still needs an operator path for generated migrations and local database
   // tools. One keyless SSM bastion serves every private RDS resource in this stack.
   const bastionResourceName =
@@ -1513,9 +1549,12 @@ export const composeConfig = ({
       consumers.length === 2
         ? `${consumers[0]} and ${consumers[1]} both`
         : `${consumers.slice(0, -1).join(', ')} and ${consumers.at(-1)} all`;
+    const [first, ...rest] = [...new Set(consumers)];
+    const topic = topicNames[0];
+    const example = `${first}Queue`;
     const subscription =
       topicNames.length === 1
-        ? `give each its own queue subscribed to ${topicNames[0]} before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it`
+        ? `give each its own queue subscribed to ${topic} before deploying. For ${first}: add ${example} as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('${topic}', 'arn') } } }], point ${first}'s sqs event at ${example}, and add ${example}Subscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('${topic}', 'arn'), Endpoint: $ResourceParam('${example}', 'arn') } }. Do the same for ${rest.join(' and ')}. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope`
         : 'publish to an SNS topic and give each its own queue subscribed to it before deploying';
     const hint = facts.dependencies.find((dependency) => dependency.name === dependencyName)?.fanoutHint;
     const queues =
@@ -1527,6 +1566,20 @@ export const composeConfig = ({
     gaps.push({
       subject: `${queueName}.consumers`,
       message: `${listed} consume ${queueName}, so each message reaches only one of them. If each consumer must receive every message, ${subscription}.${hint === undefined ? '' : ` ${hint.file} line ${hint.line} names ${queues} in a sentence about a topic.`} Leave it as is only if they share the work on purpose.`
+    });
+  }
+
+  // A setting that fixes the address in source (`CHANNEL_LAYERS` at `("redis", 6379)`) never reaches the resource
+  // created here, which has another address and requires a password.
+  for (const dependency of facts.dependencies) {
+    const resourceName = dependencyResourceNames.get(dependency.name);
+    if (dependency.fixedAddress === undefined || resourceName === undefined) continue;
+    const { file, line, setting } = dependency.fixedAddress;
+    const consumers = dependency.consumedBy.flatMap((serviceName) => serviceResourceNames.get(serviceName) ?? []);
+    const where = consumers.length === 0 ? 'its consumer' : consumers.join(' and ');
+    gaps.push({
+      subject: `${dependency.name}.address`,
+      message: `${file} line ${line} sets ${setting} to a fixed Redis address, so ${where} would not reach ${resourceName}, the Redis init created. Before deploying, read the address from an environment variable there, for example os.environ['REDIS_URL'], and set REDIS_URL to $ResourceParam('${resourceName}', 'connectionString') in ${where}'s environment.`
     });
   }
 
@@ -2028,6 +2081,8 @@ export const composeConfig = ({
 
   for (const dependency of facts.dependencies) {
     if (!ADDRESS_REQUIRED_KINDS.has(dependency.kind) || !composedDependencyNames.has(dependency.name)) continue;
+    // The fixed address the code uses has its own, more specific gap.
+    if (dependency.fixedAddress !== undefined) continue;
     const consumersWithoutAddress = dependency.consumedBy.filter((serviceName) => {
       const service = facts.services.find((candidate) => candidate.name === serviceName);
       return (
@@ -2223,7 +2278,8 @@ const buildServiceResource = ({
         : service.framework === 'react' ||
             service.framework === 'vue' ||
             service.framework === 'angular' ||
-            service.framework === 'vite'
+            service.framework === 'vite' ||
+            service.servesStaticAssets?.singlePageApp === true
           ? 'single-page-app'
           : 'static-website';
     return {

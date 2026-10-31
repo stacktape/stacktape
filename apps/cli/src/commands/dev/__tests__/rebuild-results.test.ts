@@ -17,6 +17,7 @@ import { createConfigChangeDetector } from '../config-change';
 import { getReturnableError, type HandledError } from '@utils/errors';
 import { getRunningAgentReadyPayload, reportRunningAgent } from '../index';
 import { createWorkloadRebuilder } from '../workload-rebuild';
+import { createFrontendStatusReporter } from '../frontend-status';
 import { CliError } from '@utils/errors';
 
 const freePort = async () => {
@@ -45,13 +46,19 @@ const startSession = async ({
   workloads,
   build,
   retryDelayMs = 20,
-  sourceFiles
+  sourceFiles,
+  frontends = [],
+  remoteImageInputs
 }: {
   workloads: string[];
   build: (name: string) => Promise<void>;
   retryDelayMs?: number;
   /** The files each workload's builds read, relative to the session directory. */
   sourceFiles?: Record<string, string[]>;
+  /** Workloads that are Next.js frontends, whose dev servers load changed code themselves. */
+  frontends?: string[];
+  /** The files each batch job's image was built from at the start, relative to the session directory. */
+  remoteImageInputs?: Record<string, string[]>;
 }) => {
   const sessionStartedAt = Date.now();
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-rebuild-results-'));
@@ -60,13 +67,14 @@ const startSession = async ({
   const configPath = join(directory, 'stacktape.json');
   const config = { resources: Object.fromEntries(workloads.map((name) => [name, { type: 'function' }])) };
   await writeFile(configPath, JSON.stringify(config));
+  const inSession = (files: Record<string, string[]> = {}) =>
+    new Map(Object.entries(files).map(([name, paths]) => [name, paths.map((file) => join(directory, file))]));
   const rebuilder = createWorkloadRebuilder({
     rebuild: build,
     retryDelayMs,
-    getSourceFiles: () =>
-      new Map(
-        Object.entries(sourceFiles ?? {}).map(([name, files]) => [name, files.map((file) => join(directory, file))])
-      ),
+    getSourceFiles: () => inSession(sourceFiles),
+    getRemoteImageInputs: () => inSession(remoteImageInputs),
+    reloadsCodeItself: (name) => frontends.includes(name),
     getSessionStartedAt: () => sessionStartedAt,
     detectConfigChange: createConfigChangeDetector({
       configPath,
@@ -76,7 +84,7 @@ const startSession = async ({
   });
   setRebuildFunctions(
     (name) => rebuilder.rebuildWorkload(name, workloads.includes(name)),
-    () => rebuilder.rebuildWorkloads(workloads)
+    () => rebuilder.rebuildAllWorkloads(workloads)
   );
 
   devTuiManager.start({ projectName: 'todos', stageName: 'dev', agentMode: true });
@@ -98,7 +106,7 @@ const startSession = async ({
     await rm(directory, { recursive: true, force: true });
   });
   for (const name of workloads) {
-    devTuiManager.addWorkload({ name, type: 'function' });
+    devTuiManager.addWorkload({ name, type: frontends.includes(name) ? 'nextjs-web' : 'function' });
     devTuiManager.setWorkloadStatus(name, 'running', { url: `https://${name}.example.test` });
   }
   devTuiManager.transitionToRunning();
@@ -432,4 +440,90 @@ test('a rebuild names the other workloads that use its changed files and still r
   const all = await call('POST', '/rebuild/all');
   expect(all.message).toBe('Rebuilt api, quote, report, web.');
   expect((await call('POST', '/rebuild/api')).data.staleWorkloads).toBeUndefined();
+});
+
+// r2gg/r2an: after a change to a shared package, a rebuild named the stale local consumers but not the batch job whose
+// image, built at the start, also used the package; rebuild_all did not deploy it either.
+test('a rebuild names a batch job whose image uses its changed files, and says only a restart builds it again', async () => {
+  const shared = 'packages/shared/src/index.ts';
+  const { call, directory } = await startSession({
+    workloads: ['api', 'quote'],
+    build: async () => {},
+    sourceFiles: { api: ['apps/api/src/index.ts', shared], quote: ['functions/quote/src/handler.ts'] },
+    remoteImageInputs: { report: ['jobs/report/main.ts', shared] }
+  });
+  await mkdir(join(directory, 'packages/shared/src'), { recursive: true });
+  await delay(20);
+  await writeFile(join(directory, shared), 'export const SHARED_VERSION = 2;');
+
+  const restartNote = `report runs in AWS from the image built when dev mode started, which also uses changed files (${shared}). Restart dev mode to build and push it again; rebuilds do not.`;
+  const api = await call('POST', '/rebuild/api');
+  expect(api.message).toBe(`Rebuilt api. ${restartNote}`);
+  expect(api.data.staleRemoteImages).toEqual([{ name: 'report', changedFiles: [join(directory, shared)] }]);
+  expect(api.data.staleWorkloads).toBeUndefined();
+
+  // rebuild_all rebuilds every local workload and still leaves the image as the start built it.
+  const all = await call('POST', '/rebuild/all');
+  expect(all.message).toBe(`Rebuilt api, quote. ${restartNote}`);
+
+  // A rebuild that did not read the changed file says nothing about the image.
+  expect((await call('POST', '/rebuild/quote')).data.staleRemoteImages).toBeUndefined();
+});
+
+// r2p: rebuild_all also restarted the Vite dev server, which loads changed code itself.
+test('rebuild all leaves a running frontend to its own hot reload, and restarts a failed one', async () => {
+  const built: string[] = [];
+  const { call } = await startSession({
+    workloads: ['api', 'web'],
+    frontends: ['web'],
+    build: async (name) => {
+      built.push(name);
+    }
+  });
+  const all = await call('POST', '/rebuild/all');
+  expect(all).toMatchObject({ ok: true, data: { rebuilt: ['api'], leftRunning: ['web'] } });
+  expect(all.message).toBe(
+    'Rebuilt api. web kept running: its dev server loads changed code itself. Rebuild it by name to restart it.'
+  );
+  expect(built).toEqual(['api']);
+
+  // Rebuilding the frontend by name still restarts its server.
+  expect(await call('POST', '/rebuild/web')).toMatchObject({ ok: true, data: { rebuilt: ['web'] } });
+  expect(built).toEqual(['api', 'web']);
+
+  // A frontend whose server stopped is restarted with the others.
+  devTuiManager.setWorkloadStatus('web', 'error', { error: 'The dev server exited with code 1.' });
+  const recovery = await call('POST', '/rebuild/all');
+  expect(recovery).toMatchObject({ ok: true, data: { rebuilt: ['api', 'web'] } });
+  expect(recovery.data.leftRunning).toBeUndefined();
+  expect(built).toEqual(['api', 'web', 'api', 'web']);
+});
+
+// r2an: Ledger's handled SDK timeout made its Next.js frontend a failed workload and the session not ready, although the
+// server kept serving; the error was only the access log line.
+test("a frontend's failed request leaves it running and the session ready; status names the error apart", async () => {
+  const { call } = await startSession({ workloads: ['web'], frontends: ['web'], build: async () => {} });
+  const reporter = createFrontendStatusReporter('web');
+  const url = 'http://web.todos.localhost:1360';
+  reporter.onStateChange({ status: 'ready', url });
+  const requestError =
+    "⨯ [Error [TimeoutError]: ] {\n  code: 'ETIMEDOUT',\n  '$metadata': [Object],\nPOST / 500 in 2536ms";
+  reporter.onStateChange({ status: 'ready', url, requestError });
+  expect((await call('GET', '/status')).data).toMatchObject({
+    ready: true,
+    failedWorkloads: [],
+    requestErrors: [{ name: 'web', error: requestError }],
+    workloads: { web: url }
+  });
+
+  // The next successful request clears it.
+  reporter.onStateChange({ status: 'ready', url });
+  expect((await call('GET', '/status')).data.requestErrors).toBeUndefined();
+
+  // A server that stops is a failed workload.
+  reporter.onStateChange({ status: 'error', error: 'The dev server exited with code 1.' });
+  expect((await call('GET', '/status')).data).toMatchObject({
+    ready: false,
+    failedWorkloads: [{ name: 'web', error: 'The dev server exited with code 1.' }]
+  });
 });

@@ -100,6 +100,8 @@ type WorkloadInfo = {
   sourceFiles: string[];
   rebuild: () => Promise<void>;
   envVars?: Record<string, string>;
+  /** A frontend whose dev server loads changed code itself; rebuild all leaves it running while it runs. */
+  reloadsCodeItself?: boolean;
 };
 
 type ContainerPortBinding = {
@@ -115,6 +117,8 @@ type ParallelRunnerState = {
   detectConfigChange?: () => Promise<ConfigChange>;
   /** When the session started its first builds. */
   sessionStartedAt?: number;
+  /** The files each image the dev stack runs in AWS was built from at the start, when its build reported them. */
+  remoteImageInputs: Map<string, string[]>;
   localResources: LocalResourceInstance[];
   tunnels: SsmPortForwardingTunnel[];
   relayTunnels: TunnelInfo[];
@@ -123,6 +127,7 @@ type ParallelRunnerState = {
 
 const state: ParallelRunnerState = {
   workloads: new Map(),
+  remoteImageInputs: new Map(),
   localResources: [],
   tunnels: [],
   relayTunnels: [],
@@ -159,6 +164,7 @@ export const runParallelWorkloads = async (
 ): Promise<void> => {
   const { args, stackContext } = operation;
   const { watch } = args;
+  captureRemoteImageInputs();
 
   // All resources run - no filtering needed in new dev mode
   const filteredResources = resources;
@@ -1286,6 +1292,7 @@ const startHostingBucketWorkload = async (resourceName: string, { withheldEnvNam
     type: 'hosting-bucket',
     resourceType: 'hosting-bucket',
     sourceFiles: [],
+    reloadsCodeItself: true,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -1325,6 +1332,7 @@ const startNextjsWebWorkload = async (resourceName: string, frontendEnv: Fronten
     type: 'nextjs-web',
     resourceType: 'nextjs-web',
     sourceFiles: [],
+    reloadsCodeItself: true,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -1369,6 +1377,7 @@ const startSsrWebWorkload = async (
     type: 'ssr-web',
     resourceType,
     sourceFiles: [],
+    reloadsCodeItself: true,
     rebuild: async () => {
       const inRebuildPhase = devTuiManager.inRebuildPhase;
 
@@ -1694,6 +1703,22 @@ export const captureSessionConfig = () => {
   });
 };
 
+/**
+ * Records which files the images of batch jobs and AgentCore runtimes, which run in AWS, were built from at this start.
+ * A Dockerfile or Railpack build reports its context's files; an image without reported files is not checked.
+ */
+const captureRemoteImageInputs = () => {
+  const images = [
+    ...configManager.containersToPackage.map(({ jobName, workloadName }) => ({ jobName, name: workloadName })),
+    ...configManager.agentCoreRuntimesRequiringPackaging.map(({ jobName, name }) => ({ jobName, name }))
+  ];
+  state.remoteImageInputs = new Map();
+  for (const { jobName, name } of images) {
+    const files = packagingManager.takeAttemptedSourceFiles(jobName);
+    if (files?.length) state.remoteImageInputs.set(name, [...(state.remoteImageInputs.get(name) ?? []), ...files]);
+  }
+};
+
 const getWorkloadSourceFiles = () =>
   new Map([...state.workloads].map(([name, workload]) => [name, workload.sourceFiles]));
 
@@ -1701,6 +1726,8 @@ const rebuilder = createWorkloadRebuilder({
   rebuild: (name) => state.workloads.get(name)!.rebuild(),
   detectConfigChange: () => state.detectConfigChange?.() ?? Promise.resolve({ changed: false }),
   getSourceFiles: getWorkloadSourceFiles,
+  getRemoteImageInputs: () => state.remoteImageInputs,
+  reloadsCodeItself: (name) => state.workloads.get(name)?.reloadsCodeItself === true,
   getSessionStartedAt: () => state.sessionStartedAt ?? 0
 });
 
@@ -1821,7 +1848,7 @@ export const rebuildWorkload = (name: string): Promise<RebuildResult | undefined
   rebuilder.rebuildWorkload(name, state.workloads.has(name));
 
 export const rebuildAllWorkloads = (): Promise<RebuildResult> =>
-  rebuilder.rebuildWorkloads([...state.workloads.keys()]);
+  rebuilder.rebuildAllWorkloads([...state.workloads.keys()]);
 
 /**
  * Get environment variables for a specific workload

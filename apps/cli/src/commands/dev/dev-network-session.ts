@@ -37,6 +37,8 @@ import { formatTimeWithZone } from '@utils/formatting';
 
 export type DevNetworkSession = {
   network: DevNetwork;
+  /** What this start did with the network: created it, joined another session's creation, updated or reused it. */
+  action: 'create' | 'join' | 'upgrade' | 'reuse';
   connection: DevBoxConnection;
   placement: DevNetworkPlacement;
   /** The leased relay port of each relayed local resource. */
@@ -385,7 +387,14 @@ export const startDevNetworkSession = async ({
 
   const { network, action, ready } = await ensureDevNetwork({
     aws,
-    onCreate: () => tuiManager.info(COST_EXPLANATION.join(' ')),
+    onCreate: () => {
+      tuiManager.info(COST_EXPLANATION.join(' '));
+      reportDevStartup({
+        step: 'DEV_NETWORK',
+        status: 'running',
+        message: 'Creating the dev network for this AWS account and region; this first start takes about 5 minutes'
+      });
+    },
     onUpgrade: () =>
       tuiManager.info(
         "Updating the dev network to this Stacktape version. The dev box keeps running; when its relay restarts with the new version, every dev session that uses the box, other developers' included, loses its connection for a few seconds and reconnects."
@@ -501,6 +510,7 @@ export const startDevNetworkSession = async ({
   );
   session = {
     network,
+    action,
     connection,
     placement,
     leases,
