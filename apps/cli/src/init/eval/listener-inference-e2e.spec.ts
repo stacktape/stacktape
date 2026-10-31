@@ -518,8 +518,175 @@ const VITE_CASES: EvalCase[] = [
   }
 ];
 
+const ENTRY = (resource: string, value: string | undefined) => ({
+  resource,
+  path: 'packaging.properties.entryfilePath',
+  value
+});
+
+/**
+ * Which listener file is the service's entry (r2ap). Init changes its first-file choice only when the package's start
+ * commands unambiguously run one file and that file listens itself. Reduced from the init corpus, where an end-to-end
+ * test server and a queue driver were chosen because they sort first.
+ */
+const ENTRY_CASES: EvalCase[] = [
+  {
+    name: 'r2ap (Novu): a NestJS bootstrap wins over an end-to-end test server',
+    files: {
+      'package.json': nestPackage({ '@nestjs/platform-express': '11.0.0', express: '5.0.0' }),
+      'nest-cli.json': '{ "sourceRoot": "src" }\n',
+      'e2e/test-bridge-server.ts': "import express from 'express';\nexpress().listen(9999);\n",
+      'src/main.ts': lines(
+        "import { NestFactory } from '@nestjs/core';",
+        "import { AppModule } from './app.module';",
+        'const app = await NestFactory.create(AppModule);',
+        'await app.listen(3000);'
+      ),
+      'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/main.ts')] }
+  },
+  {
+    name: 'r2ap (Twenty): the NestJS start file is the web service, not a queue driver listed before it',
+    files: {
+      'package.json': packageJson({
+        scripts: {
+          build: 'nest build',
+          start: 'nest start',
+          'start:prod': 'node dist/main',
+          'worker:prod': 'node dist/queue-worker/queue-worker'
+        },
+        dependencies: { '@nestjs/core': '11.0.0', '@nestjs/common': '11.0.0', bullmq: '5.0.0', rxjs: '7.0.0' }
+      }),
+      'nest-cli.json': '{ "sourceRoot": "src" }\n',
+      'src/engine/drivers/bullmq.driver.ts': lines(
+        "import { Worker } from 'bullmq';",
+        "export class BullMqDriver { work() { return new Worker('jobs', async () => undefined); } }"
+      ),
+      'src/main.ts': lines(
+        "import { NestFactory } from '@nestjs/core';",
+        "import { AppModule } from './app.module';",
+        'const app = await NestFactory.create(AppModule);',
+        'await app.listen(3000);'
+      ),
+      'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n",
+      'src/queue-worker/queue-worker.ts': lines(
+        "import { BullMqDriver } from '../engine/drivers/bullmq.driver';",
+        'new BullMqDriver().work();'
+      )
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/main.ts')] }
+  },
+  {
+    name: 'r2ap control: a start script that runs a source file under lib/ keeps it',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node lib/index.js' }, dependencies: { express: '5.0.0' } }),
+      'lib/index.js': "const express = require('express');\nexpress().listen(process.env.PORT || 3000);\n",
+      'tools/mock-server.js': "require('http').createServer(() => undefined).listen(4999);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'lib/index.js')] }
+  },
+  {
+    name: 'r2ap control: without a start file the scan can read, the listener stays the entry',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node scripts/run.js' }, dependencies: { express: '5.0.0' } }),
+      'app.js': "const express = require('express');\nexpress().listen(process.env.PORT || 3000);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'app.js')] }
+  }
+];
+
+/** The #416 reviews: a start command init cannot read, or a listener that may not run, keeps the first-file choice. */
+const reviewPackage = (scripts: Record<string, string>, extra: Record<string, unknown> = {}) =>
+  packageJson({ scripts, dependencies: { express: '5.0.0', bullmq: '5.0.0' }, ...extra });
+const reviewServer = "require('http').createServer((req, res) => res.end('ok')).listen(4100);\n";
+const reviewWorker = "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n";
+const WORKER = { resource: 'worker', path: 'packaging.properties.entryfilePath', value: 'worker.js' };
+
+const REVIEW_CASES: EvalCase[] = [
+  {
+    name: 'r2ap review: a worker script init cannot read (sh worker.sh) keeps its BullMQ worker',
+    files: {
+      'package.json': reviewPackage({ start: 'node server.js', worker: 'sh worker.sh' }),
+      'server.js': reviewServer,
+      'worker.sh': 'node worker.js\n',
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: a worker loaded through a computed import keeps its worker service',
+    files: {
+      'package.json': reviewPackage({ start: 'node server.js', worker: 'node launcher.js' }),
+      'server.js': reviewServer,
+      'launcher.js': "const file = './worker.js';\nimport(file);\n",
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: a web start command init cannot read keeps its listener',
+    files: {
+      'package.json': reviewPackage({ start: 'sh start.sh', worker: 'node worker.js' }),
+      'start.sh': 'node server.js\n',
+      'server.js': reviewServer,
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: an exported helper nobody calls does not beat the server that listens on load',
+    files: {
+      'package.json': reviewPackage({ start: 'node start.js' }),
+      'start.js': "require('./z-helper.js');\nrequire('./a-server.js');\n",
+      'z-helper.js': "exports.start = () => require('http').createServer(() => {}).listen(9200);\n",
+      'a-server.js': reviewServer
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      resourceProperties: [ENTRY('auditApp', 'a-server.js')],
+      servicePorts: [{ resource: 'auditApp', port: 4100 }]
+    }
+  },
+  {
+    name: 'r2ap review control: an exported start function the start file calls is the listener',
+    files: {
+      'package.json': reviewPackage({ start: 'node bootstrap.js' }),
+      'bootstrap.js': "require('./server.js').start();\n",
+      'server.js': "exports.start = () => require('http').createServer((req, res) => res.end('ok')).listen(4100);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server.js')] }
+  },
+  {
+    name: 'r2ap review: nodemon --watch src runs src/server.js, not the src directory',
+    files: {
+      'package.json': reviewPackage({ start: 'nodemon --watch src --ext js,json src/server.js' }),
+      'src/index.js': 'exports.data = 42;\n',
+      'src/server.js': reviewServer
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/server.js')] }
+  }
+];
+
 describe('listener inference end-to-end corpus', () => {
-  for (const evalCase of [...WEBSOCKET_CASES, ...PORT_CASES, ...ASPNET_CASES, ...PROCESS_CASES, ...VITE_CASES]) {
+  for (const evalCase of [
+    ...WEBSOCKET_CASES,
+    ...PORT_CASES,
+    ...ASPNET_CASES,
+    ...PROCESS_CASES,
+    ...VITE_CASES,
+    ...ENTRY_CASES,
+    ...REVIEW_CASES
+  ]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

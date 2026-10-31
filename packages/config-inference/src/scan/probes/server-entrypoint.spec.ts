@@ -1,8 +1,9 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { assembleCandidateFacts } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
+import { listRepositoryFiles } from '../file-tree';
 import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
 import { procfileProbe } from './procfile';
@@ -324,4 +325,40 @@ describe('the port a server listens on', () => {
       ]);
     }
   );
+});
+
+/**
+ * The start-command rule never makes init worse than first-file order. Each fixture records what first-file order (the
+ * probe before the rule) chose; the probe must choose the same, except the listed improvements, where the start command
+ * unambiguously runs a file that listens itself. The fixtures are the variants three reviews of #416 used to find
+ * regressions.
+ */
+/** Per service: process type, entry file, port and whether it serves HTTP. */
+type Choice = Array<[string, string | null, number | null, boolean]>;
+type StartFixture = {
+  name: string;
+  files: Record<string, string>;
+  main: Choice;
+  improvement?: { startCommand: string; reason: string; choice: Choice };
+};
+const startFixtures = JSON.parse(
+  await readFile(join(import.meta.dir, 'server-entrypoint.start-fixtures.json'), 'utf8')
+) as StartFixture[];
+
+describe('the server entrypoint probe against first-file order', () => {
+  for (const fixture of startFixtures) {
+    it(`${fixture.name}: ${fixture.improvement === undefined ? 'keeps the first-file choice' : `${fixture.improvement.startCommand}: ${fixture.improvement.reason}`}`, async () => {
+      const repositoryRoot = await makeRepo(fixture.files);
+      const { services } = await serverEntrypointProbe.run(
+        createProbeContext(repositoryRoot, (await listRepositoryFiles(repositoryRoot)).files)
+      );
+      const choice: Choice = (services ?? []).map((service) => [
+        service.processType ?? 'main',
+        service.containerEntrypoint ?? null,
+        service.port ?? null,
+        service.exposesHttp
+      ]);
+      expect(choice).toEqual(fixture.improvement?.choice ?? fixture.main);
+    });
+  }
 });

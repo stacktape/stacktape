@@ -1911,6 +1911,8 @@ export const composeConfig = ({
     if (
       service.startCommand === undefined &&
       service.dockerfile === undefined &&
+      // A published image runs its own command.
+      service.containerImage === undefined &&
       service.containerEntrypoint === undefined &&
       service.functionEntrypoint === undefined &&
       classification.resourceType !== 'hosting-bucket' &&
