@@ -113,7 +113,12 @@ const readListenerTable = async (): Promise<TableListener[]> => {
     if (process.platform === 'win32' || process.platform === 'darwin') {
       // Windows lists both address families of every protocol; macOS both families under `tcp`.
       const args = process.platform === 'win32' ? ['-an'] : ['-an', '-p', 'tcp'];
-      const { stdout } = await execFileAsync('netstat', args, { timeout: 10_000, windowsHide: true });
+      const { stdout } = await execFileAsync('netstat', args, {
+        timeout: 10_000,
+        windowsHide: true,
+        // A busy machine's table exceeds the 1 MB default, and a truncated read would hide listeners.
+        maxBuffer: 64 * 1024 * 1024
+      });
       return parseNetstatListeners(stdout);
     }
   } catch {
