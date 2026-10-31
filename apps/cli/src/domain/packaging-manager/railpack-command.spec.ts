@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createRailpackPrepare } from './railpack-command';
+import { join, win32 } from 'node:path';
+import { containerPlannerArguments, createPlannerImageEnsurer, createRailpackPrepare } from './railpack-command';
 
 const roots: string[] = [];
 
@@ -88,5 +88,57 @@ describe('railpack prepare', () => {
     expect(failure?.message).toContain('Railpack exited without writing its plan');
     expect(failure?.message).toContain('resolved NPM_TOKEN=[redacted]');
     expect(failure?.message).not.toContain('tok-5f2c9e');
+  });
+
+  // r2bd: on Windows the containerized planner got `--plan-out \out\plan.json`. The Linux planner exited 0 and wrote
+  // nothing to the mounted directory, so every Railpack workload failed with "Railpack exited without writing its plan".
+  test('the containerized planner gets Linux paths for its files when the CLI runs on Windows', () => {
+    const args = containerPlannerArguments({
+      sourceDirectoryPath: 'C:\\Users\\dev\\Shop žluťoučký\\orders',
+      outputDirectory: 'C:\\Users\\dev\\AppData\\Local\\Temp\\stp-railpack-a1b2c3',
+      variableNames: ['GOFLAGS'],
+      configFile: '.stacktape-railpack-0a1b2c3d4e5f.json',
+      hostPaths: win32
+    });
+
+    expect(args).toContain('C:\\Users\\dev\\Shop žluťoučký\\orders:/src/orders:ro');
+    expect(args).toContain('C:\\Users\\dev\\AppData\\Local\\Temp\\stp-railpack-a1b2c3:/out');
+    const prepare = args.slice(args.indexOf('prepare'));
+    expect(prepare).toEqual([
+      'prepare',
+      '/src/orders',
+      '--plan-out',
+      '/out/plan.json',
+      '--info-out',
+      '/out/info.json',
+      '--config-file',
+      '.stacktape-railpack-0a1b2c3d4e5f.json',
+      '--env',
+      'GOFLAGS'
+    ]);
+  });
+});
+
+// r2bd: Buildx was missing, the planner image build failed, and after installing Buildx every rebuild in the same
+// session repeated the old error instantly because the rejected build was kept for the process lifetime.
+describe('railpack planner image', () => {
+  test('a failed build is tried again by the next plan, and concurrent plans share one build', async () => {
+    const calls: string[] = [];
+    let buildxInstalled = false;
+    const ensure = createPlannerImageEnsurer(async (args) => {
+      calls.push(args[0]!);
+      if (args[0] === 'image') return { stdout: '' };
+      await Bun.sleep(5);
+      if (!buildxInstalled)
+        throw new Error('ERROR: BuildKit is enabled but the buildx component is missing or broken.');
+      return { stdout: '' };
+    });
+
+    await expect(ensure()).rejects.toThrow('buildx component is missing');
+    buildxInstalled = true;
+    await Promise.all([ensure(), ensure(), ensure()]);
+    await ensure();
+
+    expect(calls).toEqual(['image', 'build', 'image', 'build']);
   });
 });

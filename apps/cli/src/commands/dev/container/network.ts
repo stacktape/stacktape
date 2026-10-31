@@ -23,6 +23,21 @@ export type DevContainerNetwork =
   | { mode: 'bridge'; dockerArgs: string[]; gatewayAddress?: string; subnet?: string }
   | { mode: 'host'; dockerArgs: string[] };
 
+/**
+ * The host at which processes on this machine reach a dev container: its stable host port is on loopback
+ * (`startPortSwitch`, or the port itself on the host network). Native frontends, hooks and scripts use this address as
+ * it is; a container on its own network gets it with loopback replaced by `DOCKER_HOST_NAME` (`pointLoopbackAtHost`).
+ * Docker Desktop (Windows, macOS) resolves `host.docker.internal` only inside its containers, so a native process given
+ * that name failed with `getaddrinfo ENOTFOUND` (r2bd).
+ */
+export const LOCAL_WORKLOAD_HOST = '127.0.0.1';
+
+/** The injected parameter of a local container workload: `address` (host:port) for a private service, else `url`. */
+export const getLocalWorkloadEndpoint = ({ resourceType, hostPort }: { resourceType: string; hostPort: number }) =>
+  resourceType === 'private-service'
+    ? { param: 'address' as const, value: `${LOCAL_WORKLOAD_HOST}:${hostPort}` }
+    : { param: 'url' as const, value: `http://${LOCAL_WORKLOAD_HOST}:${hostPort}` };
+
 let resolvedNetwork: Promise<DevContainerNetwork> | undefined;
 
 export const resolveDevContainerNetwork = (): Promise<DevContainerNetwork> =>

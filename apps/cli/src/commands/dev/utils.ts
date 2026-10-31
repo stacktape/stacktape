@@ -7,18 +7,13 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import {
-  execDocker,
-  getDockerHostAddress,
-  inspectDockerContainer,
-  listDockerContainers,
-  stopDockerContainer
-} from '@utils/docker';
+import { execDocker, inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import { createCleanupHook } from './cleanup-utils';
+import { LOCAL_WORKLOAD_HOST } from './container/network';
 import {
   DEV_SESSION_DURATION_SECONDS,
   getLocalInvokeAwsCredentials,
@@ -220,7 +215,8 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     jobDetails.connectTo || []
   );
 
-  const tunnelHost = dockerHost ?? (await getDockerHostAddress());
+  // Without a Docker host alias the container is on this machine's network (rootless Docker), where loopback works.
+  const tunnelHost = dockerHost ?? LOCAL_WORKLOAD_HOST;
   const substitutedInjectedEnvVars = substituteTunneledEndpointsInEnvironmentVars({
     tunnels: jobDetails.tunnels || [],
     env: Object.entries(resolvedInjectedVars).map(([key, value]) => ({ name: key, value })),

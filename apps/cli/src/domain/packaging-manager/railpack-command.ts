@@ -2,7 +2,7 @@ import type { RunRailpackPrepare } from '@stacktape/packaging/runtime-contracts'
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, posix } from 'node:path';
+import path, { join, posix } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
@@ -41,23 +41,29 @@ const railpackFailure = ({ exitCode, message, cwd }: { exitCode: number | undefi
  */
 const configFileName = () => `.stacktape-railpack-${randomBytes(6).toString('hex')}.json`;
 
+/**
+ * The planner's arguments. `paths` joins the paths the planner itself opens: the host's flavor for the host binary,
+ * POSIX for the Linux container, where a Windows join (`\out\plan.json`) made the planner write nowhere visible.
+ */
 const prepareArguments = ({
   sourceDirectory,
   outputDirectory,
   variableNames,
-  configFile
+  configFile,
+  paths
 }: {
   sourceDirectory: string;
   outputDirectory: string;
   variableNames: string[];
   configFile: string | undefined;
+  paths: Pick<typeof posix, 'join'>;
 }) => [
   'prepare',
   sourceDirectory,
   '--plan-out',
-  join(outputDirectory, 'plan.json'),
+  paths.join(outputDirectory, 'plan.json'),
   '--info-out',
-  join(outputDirectory, 'info.json'),
+  paths.join(outputDirectory, 'info.json'),
   ...(configFile ? ['--config-file', configFile] : []),
   // A bare `--env NAME` makes railpack read the value from its own environment: values stay off the command line.
   ...variableNames.flatMap((name) => ['--env', name])
@@ -71,23 +77,77 @@ const readPreparedFiles = async (outputDirectory: string) => {
   return { plan, info };
 };
 
-let plannerImagePromise: Promise<void> | undefined;
+type ExecDocker = (args: string[], options?: Parameters<typeof execDocker>[1]) => Promise<{ stdout: string }>;
 
-/** Builds the planner image once per CLI process; Docker's own cache makes later processes fast. */
-const ensurePlannerImage = () => {
-  plannerImagePromise ??= (async () => {
-    const { stdout } = await execDocker(['image', 'ls', '--quiet', RAILPACK_PLANNER_IMAGE], { skipHandleError: true });
-    if (stdout.trim()) return;
-    const dockerfile = [
-      `FROM ${RAILPACK_FRONTEND_IMAGE} AS railpack`,
-      'FROM public.ecr.aws/docker/library/debian:trixie-slim',
-      'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git bash tar gzip xz-utils && rm -rf /var/lib/apt/lists/*',
-      'COPY --from=railpack /railpack /usr/local/bin/railpack',
-      'ENTRYPOINT ["railpack"]'
-    ].join('\n');
-    await execDocker(['build', '--tag', RAILPACK_PLANNER_IMAGE, '-'], { stdinInput: dockerfile });
-  })();
-  return plannerImagePromise;
+/**
+ * Builds the planner image once per CLI process; Docker's own cache makes later processes fast. A failed build is not
+ * remembered: after the developer fixes Docker (installs Buildx), the next rebuild in the same session tries again.
+ */
+export const createPlannerImageEnsurer = (runDocker: ExecDocker) => {
+  let pending: Promise<void> | undefined;
+  return () => {
+    pending ??= (async () => {
+      const { stdout } = await runDocker(['image', 'ls', '--quiet', RAILPACK_PLANNER_IMAGE], { skipHandleError: true });
+      if (stdout.trim()) return;
+      const dockerfile = [
+        `FROM ${RAILPACK_FRONTEND_IMAGE} AS railpack`,
+        'FROM public.ecr.aws/docker/library/debian:trixie-slim',
+        'RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git bash tar gzip xz-utils && rm -rf /var/lib/apt/lists/*',
+        'COPY --from=railpack /railpack /usr/local/bin/railpack',
+        'ENTRYPOINT ["railpack"]'
+      ].join('\n');
+      await runDocker(['build', '--tag', RAILPACK_PLANNER_IMAGE, '-'], { stdinInput: dockerfile });
+    })().catch((error: unknown) => {
+      pending = undefined;
+      throw error;
+    });
+    return pending;
+  };
+};
+
+const ensurePlannerImage = createPlannerImageEnsurer(execDocker);
+
+/**
+ * `docker run` arguments of the containerized planner. Host paths (`hostPaths`, the CLI's own platform by default) only
+ * name the bind mounts; every path the planner opens is a POSIX path inside the Linux container.
+ */
+export const containerPlannerArguments = ({
+  sourceDirectoryPath,
+  outputDirectory,
+  variableNames,
+  configFile,
+  hostPaths = path
+}: {
+  sourceDirectoryPath: string;
+  outputDirectory: string;
+  variableNames: string[];
+  configFile: string | undefined;
+  hostPaths?: Pick<typeof posix, 'basename'>;
+}) => {
+  // The directory keeps its own name inside the container: a provider may derive a name from it (C/C++ names the
+  // built executable after the source directory).
+  const containerSource = posix.join('/src', hostPaths.basename(sourceDirectoryPath) || 'app');
+  return [
+    'run',
+    '--rm',
+    '--volume',
+    `${sourceDirectoryPath}:${containerSource}:ro`,
+    '--volume',
+    `${outputDirectory}:/out`,
+    // mise and the version lists it fetches, kept between plans; one volume per Railpack release.
+    '--volume',
+    `stacktape-railpack-cache-v${RAILPACK_VERSION}:/tmp/railpack`,
+    // Bare `-e NAME` makes Docker read the value from this process's environment.
+    ...variableNames.flatMap((name) => ['--env', name]),
+    RAILPACK_PLANNER_IMAGE,
+    ...prepareArguments({
+      sourceDirectory: containerSource,
+      outputDirectory: '/out',
+      variableNames,
+      configFile,
+      paths: posix
+    })
+  ];
 };
 
 const runInContainer = async ({
@@ -103,27 +163,11 @@ const runInContainer = async ({
 }) => {
   await ensurePlannerImage();
   const variableNames = Object.keys(variables);
-  // The directory keeps its own name inside the container: a provider may derive a name from it (C/C++ names the
-  // built executable after the source directory).
-  const containerSource = posix.join('/src', basename(sourceDirectoryPath) || 'app');
-  return execDocker(
-    [
-      'run',
-      '--rm',
-      '--volume',
-      `${sourceDirectoryPath}:${containerSource}:ro`,
-      '--volume',
-      `${outputDirectory}:/out`,
-      // mise and the version lists it fetches, kept between plans; one volume per Railpack release.
-      '--volume',
-      `stacktape-railpack-cache-v${RAILPACK_VERSION}:/tmp/railpack`,
-      // Bare `-e NAME` makes Docker read the value from this process's environment.
-      ...variableNames.flatMap((name) => ['--env', name]),
-      RAILPACK_PLANNER_IMAGE,
-      ...prepareArguments({ sourceDirectory: containerSource, outputDirectory: '/out', variableNames, configFile })
-    ],
-    { env: variables, skipHandleError: true, redactedValues: Object.values(variables) }
-  );
+  return execDocker(containerPlannerArguments({ sourceDirectoryPath, outputDirectory, variableNames, configFile }), {
+    env: variables,
+    skipHandleError: true,
+    redactedValues: Object.values(variables)
+  });
 };
 
 const runOnHost = async ({
@@ -147,7 +191,8 @@ const runOnHost = async ({
       sourceDirectory: sourceDirectoryPath,
       outputDirectory,
       variableNames: Object.keys(variables),
-      configFile
+      configFile,
+      paths: path
     }),
     {
       cwd: sourceDirectoryPath,
