@@ -1,3 +1,4 @@
+import { getIsDirective } from '@utils/directives';
 import type {
   NumberAttributeConstraints,
   SchemaAttribute,
@@ -395,7 +396,11 @@ export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolNam
 export const getUserPoolHostedUiDomainPrefix = (userPool: StpUserAuthPool, userPoolName: string) => {
   const { hostedUiDomainPrefix } = userPool;
   if (hostedUiDomainPrefix) {
-    const problem = typeof hostedUiDomainPrefix === 'string' && getUserPoolDomainPrefixProblem(hostedUiDomainPrefix);
+    // A directive such as `$CfFormat(...)` resolves only at deploy time, so Cognito checks that value itself.
+    const problem =
+      typeof hostedUiDomainPrefix === 'string' &&
+      !getIsDirective(hostedUiDomainPrefix) &&
+      getUserPoolDomainPrefixProblem(hostedUiDomainPrefix);
     if (problem) {
       throw new CliError({
         category: 'CONFIG_VALIDATION',
