@@ -152,3 +152,107 @@ export const getTemplateSkeleton = (template: Record<string, unknown>) => {
   }
   return skeleton;
 };
+
+/**
+ * The longest template structure `GetTemplate` returns whole, in characters of compact JSON. It leaves room for the rest
+ * of a 30 000-character MCP tool result, so an ordinary stack (about 25 resources) reads in one call.
+ */
+export const TEMPLATE_STRUCTURE_LIMIT = 28_000;
+
+/** The input field that selects resources of a `GetTemplate` call; it is Stacktape's, never sent to AWS. */
+export const TEMPLATE_RESOURCE_SELECTOR = 'LogicalResourceIds';
+
+/** The most resources one `GetTemplate` call selects. */
+const MAX_SELECTED_TEMPLATE_RESOURCES = 100;
+
+const compactLength = (value: unknown) => JSON.stringify(value).length;
+
+/**
+ * Why a `LogicalResourceIds` value cannot select resources, or `undefined`: it must be a list of 1 to 100 logical IDs.
+ */
+export const describeInvalidResourceSelection = (selection: unknown): string | undefined =>
+  Array.isArray(selection) &&
+  selection.length > 0 &&
+  selection.length <= MAX_SELECTED_TEMPLATE_RESOURCES &&
+  selection.every((id) => typeof id === 'string' && id.length > 0)
+    ? undefined
+    : `${TEMPLATE_RESOURCE_SELECTOR} must be a list of 1 to ${MAX_SELECTED_TEMPLATE_RESOURCES} logical IDs of the template's resources.`;
+
+/** Resource logical IDs by resource type, sorted, or the number of resources of each type when the lists are too long. */
+const resourcesByType = (resources: Record<string, unknown>) => {
+  const byType: Record<string, string[]> = {};
+  for (const [logicalId, resource] of Object.entries(resources).toSorted(([left], [right]) =>
+    left.localeCompare(right)
+  )) {
+    const type = isRecord(resource) && typeof resource.Type === 'string' ? resource.Type : 'Unknown';
+    (byType[type] ??= []).push(logicalId);
+  }
+  const sorted = Object.fromEntries(Object.entries(byType).toSorted(([left], [right]) => left.localeCompare(right)));
+  return compactLength(sorted) <= TEMPLATE_STRUCTURE_LIMIT
+    ? sorted
+    : Object.fromEntries(Object.entries(sorted).map(([type, ids]) => [type, ids.length]));
+};
+
+/**
+ * What `GetTemplate` returns of a template's structure (`getTemplateSkeleton`), bounded by `TEMPLATE_STRUCTURE_LIMIT`:
+ *
+ * - without a selection, the whole structure as `Template` when it fits, and otherwise `TemplateIndex`: the template's
+ *   resources by type and the names of its parameters, conditions and outputs, with a `Note` on how to read resources;
+ * - with `LogicalResourceIds`, the structure of those resources as `Template.Resources`, in the order asked, as many as
+ *   fit. IDs the template lacks are listed in `MissingLogicalResourceIds`, those that did not fit in
+ *   `OmittedLogicalResourceIds`.
+ */
+export const boundTemplateStructure = (
+  skeleton: Record<string, unknown>,
+  selection?: string[]
+): Record<string, unknown> => {
+  const resources = isRecord(skeleton.Resources) ? skeleton.Resources : {};
+  if (selection) {
+    const selected: Record<string, unknown> = {};
+    const missing: string[] = [];
+    const omitted: string[] = [];
+    for (const logicalId of new Set(selection)) {
+      if (!Object.hasOwn(resources, logicalId)) {
+        missing.push(logicalId);
+        continue;
+      }
+      const fits =
+        !omitted.length &&
+        compactLength({ ...selected, [logicalId]: resources[logicalId] }) <= TEMPLATE_STRUCTURE_LIMIT;
+      if (fits) selected[logicalId] = resources[logicalId];
+      else omitted.push(logicalId);
+    }
+    return {
+      Template: { Resources: selected },
+      ...(missing.length && { MissingLogicalResourceIds: missing }),
+      ...(omitted.length && {
+        OmittedLogicalResourceIds: omitted,
+        Note: `The selected resources' structure is longer than ${TEMPLATE_STRUCTURE_LIMIT} characters. Read the omitted ones in another GetTemplate call with ${TEMPLATE_RESOURCE_SELECTOR}.`
+      })
+    };
+  }
+  const length = compactLength(skeleton);
+  if (length <= TEMPLATE_STRUCTURE_LIMIT) return { Template: skeleton };
+  const names = (section: unknown) => (isRecord(section) ? Object.keys(section) : undefined);
+  const parameters = isRecord(skeleton.Parameters) ? skeleton.Parameters : undefined;
+  return {
+    TemplateIndex: {
+      ...(typeof skeleton.AWSTemplateFormatVersion === 'string' && {
+        AWSTemplateFormatVersion: skeleton.AWSTemplateFormatVersion
+      }),
+      ...(parameters && {
+        Parameters: Object.fromEntries(
+          Object.entries(parameters).map(([name, parameter]) => [
+            name,
+            isRecord(parameter) && typeof parameter.Type === 'string' ? parameter.Type : TEMPLATE_VALUE_PLACEHOLDER
+          ])
+        )
+      }),
+      ...(names(skeleton.Conditions) && { Conditions: names(skeleton.Conditions) }),
+      ...(names(skeleton.Outputs) && { Outputs: names(skeleton.Outputs) }),
+      ResourceCount: Object.keys(resources).length,
+      ResourcesByType: resourcesByType(resources)
+    },
+    Note: `The template's structure is ${length} characters, longer than the ${TEMPLATE_STRUCTURE_LIMIT} returned whole, so this lists its resources by type. To read the structure of chosen resources, repeat GetTemplate with "${TEMPLATE_RESOURCE_SELECTOR}": ["<logical ID>", ...] in its input (at most ${MAX_SELECTED_TEMPLATE_RESOURCES}).`
+  };
+};

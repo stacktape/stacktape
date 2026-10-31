@@ -46,7 +46,7 @@ export const ownResourceArns = (
  * does not (`shop-dev-*` also names the resources of a stage `dev-production`). Where an action ignores resource tags,
  * the policies list this stack's resources by their identifiers in the finished template instead
  * ({@link stackIdentifierPolicies}). Checked against IAM on 28 Oct 2026 for every tag-limited action here except ECS
- * and Batch.
+ * and Batch, and on 31 Oct 2026 for `lambda:GetEventSourceMapping` and `events:ListRules`.
  *
  * These are the policies that the stack-name tag, the stack ID or the region can limit.
  */
@@ -71,6 +71,15 @@ export const stackReadPolicies = () => {
           'lambda:ListTags'
         ],
         Resource: [regionalArn('lambda', 'function:*')],
+        Condition: ownStack
+      },
+      // A mapping's state, last processing result and last transition. `ListEventSourceMappings` has no resource or
+      // condition that limits it to a stack, so `aws call` and the dev agent answer it from the stack's own mappings
+      // (`listStackResources`).
+      {
+        Effect: 'Allow',
+        Action: ['lambda:GetEventSourceMapping'],
+        Resource: [regionalArn('lambda', 'event-source-mapping:*')],
         Condition: ownStack
       }
     ]),
@@ -291,8 +300,8 @@ export const stackReadPolicies = () => {
 };
 
 /**
- * The policies that name this stack's databases, caches, search domains, ECS clusters and HTTP APIs by their
- * identifiers in the finished template: their read actions are not authorized by the stack tag.
+ * The policies that name this stack's databases, caches, search domains, ECS clusters, event buses and HTTP APIs by
+ * their identifiers in the finished template: their read actions are not authorized by the stack tag.
  */
 export const stackIdentifierPolicies = (template: CloudFormationTemplate) => {
   const policies: InlinePolicy[] = [];
@@ -348,6 +357,12 @@ export const stackIdentifierPolicies = (template: CloudFormationTemplate) => {
       ])
     );
   }
+  // `ListRules` is authorized by the rules of the bus it names; rules on the default bus belong to many stacks.
+  add(
+    'eventbridge-list-rules',
+    ['events:ListRules'],
+    ownResourceArns(template, 'AWS::Events::EventBus', 'Name', (name) => [regionalArn('events', `rule/${name}/*`)])
+  );
   // AWS generates an API's ID, so these name the API by its `Ref`.
   add(
     'apigateway-access',

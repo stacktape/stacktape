@@ -19,6 +19,7 @@ import {
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
 import { getBatchScope, scopeBatchCall } from '../dev/deployed-batch-job';
+import { listStackResources } from '../dev/stack-listings';
 import { scopeToStackWithoutOutputs, summarizeStackEvents } from './stack-without-outputs';
 
 const isMissingStackOverview = (error: unknown) => error instanceof CliError && error.category === 'MISSING_OUTPUT';
@@ -141,14 +142,24 @@ export const commandAwsCall = async () => {
   // without outputs has no role yet; its requests were limited above to CloudFormation reads of that stack.
   const credentials = stackWithoutOutputs ? globalStateManager.credentials : await getDebugAgentCredentials();
 
-  const result = await executeAwsSdkCommand(service, command, inputObj, {
+  const sdkContext = {
     region: awsRegion,
     credentials: {
       accessKeyId: credentials.accessKeyId,
       secretAccessKey: credentials.secretAccessKey,
       sessionToken: credentials.sessionToken
     }
-  });
+  };
+  const listed = stackWithoutOutputs
+    ? undefined
+    : await listStackResources({
+        service,
+        command,
+        input: inputObj,
+        stackResources: stackManager.existingStackResources,
+        send: (read, readInput) => executeAwsSdkCommand(service, read, readInput, sdkContext)
+      });
+  const result = listed ?? (await executeAwsSdkCommand(service, command, inputObj, sdkContext));
 
   if (!result.ok) {
     const errResult = result as { ok: false; error: string; hint?: string };

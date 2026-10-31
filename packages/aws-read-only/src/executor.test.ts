@@ -334,10 +334,12 @@ test('Cognito client secrets and canary environments are masked', async () => {
   expect(JSON.stringify(canary)).not.toContain('canary_secret_value');
 });
 
+/** The template structure a read returns (parsed from JSON, so the tests can read it by path), or the failed result. */
 const getTemplate = async (stackName: string) => {
   const result = await executeAwsSdkCommand('cloudformation', 'GetTemplate', { StackName: stackName }, context());
-  expect(JSON.stringify(result)).not.toContain(TOKEN);
-  return result.ok ? JSON.parse((result.data as { TemplateBody: string }).TemplateBody) : result;
+  const text = JSON.stringify(result);
+  expect(text).not.toContain(TOKEN);
+  return result.ok ? JSON.parse(text).data.Template : result;
 };
 
 // r2af finding 3 and the review of #394: masking known places kept missing others (a conditional entry, a parameter

@@ -2629,6 +2629,29 @@ test('the dev agent role reads only its own stack, in its own region', async () 
   expect(isAllowed('rds:DescribeDBInstances', databaseArn.replace('shop-dev', 'shop-dev-production'), otherStage)).toBe(
     false
   );
+  // r2an: a stream's first event vanished, and the agent could read neither the mapping's state nor the custom bus's
+  // rules. It reads its own mappings and rules; listing mappings has no stack scope in IAM, so it stays denied.
+  const mappingArn = (uuid: string) => `arn:aws:lambda:${region}:${accountId}:event-source-mapping:${uuid}`;
+  expect(isAllowed('lambda:GetEventSourceMapping', mappingArn('0de2cd96'), own)).toBe(true);
+  expect(isAllowed('lambda:GetEventSourceMapping', mappingArn('ba3b41e9'), otherStage)).toBe(false);
+  expect(isAllowed('lambda:ListEventSourceMappings', '*', own)).toBe(false);
+  const bus = physicalName(firstOfType('AWS::Events::EventBus'));
+  expect(bus).toStartWith('shop-dev-');
+  const rulesOf = (busName: string) => `arn:aws:events:${region}:${accountId}:rule/${busName}/*`;
+  expect(isAllowed('events:ListRules', rulesOf(bus), { tag: '', requestRegion: region })).toBe(true);
+  expect(
+    isAllowed('events:ListRules', rulesOf(bus.replace('shop-dev', 'shop-dev-production')), {
+      tag: '',
+      requestRegion: region
+    })
+  ).toBe(false);
+  expect(isAllowed('events:ListRules', rulesOf('default'), { tag: '', requestRegion: region })).toBe(false);
+  const ruleArn = `arn:aws:events:${region}:${accountId}:rule/${bus}/shop-dev-ApiEvent0Rule-AbC`;
+  expect(isAllowed('events:DescribeRule', ruleArn, own)).toBe(true);
+  expect(isAllowed('events:ListTargetsByRule', ruleArn, own)).toBe(true);
+  expect(isAllowed('events:DescribeRule', ruleArn.replaceAll('shop-dev', 'shop-dev-production'), otherStage)).toBe(
+    false
+  );
   // Reads only: the agent's executor sends nothing else, and the role grants nothing else.
   expect(nonReadActions()).toEqual([]);
   expectEveryStatementInRegion();

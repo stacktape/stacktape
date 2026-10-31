@@ -246,7 +246,7 @@ const trimCliResultLists = (payload: Record<string, unknown>): Record<string, un
       data: { ...data, cli: { ...cli, result: { ...trimmed, omittedItems } } },
       truncated: true
     };
-    if (JSON.stringify(candidate, null, 2).length <= MAX_RESPONSE_CHARS) return candidate;
+    if (JSON.stringify(candidate).length <= MAX_RESPONSE_CHARS) return candidate;
     const longest = Object.entries(trimmed)
       .filter((entry): entry is [string, unknown[]] => Array.isArray(entry[1]) && entry[1].length > 1)
       .sort(([, left], [, right]) => right.length - left.length)[0];
@@ -281,20 +281,23 @@ export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
     payload = { ...payload, rawTail: truncateRawTail(payload.rawTail as string, 8000) };
   }
 
+  // Indented while it fits; a larger result is sent compact before anything of it is dropped. Indentation alone
+  // doubles a nested result such as a template structure.
   let text = JSON.stringify(payload, null, 2);
+  if (text.length > MAX_RESPONSE_CHARS) text = JSON.stringify(payload);
   if (text.length > MAX_RESPONSE_CHARS) {
     // Remove rawTail entirely if still too large
     const withoutTail = { ...payload };
     delete (withoutTail as Record<string, unknown>).rawTail;
-    text = JSON.stringify(withoutTail, null, 2);
+    text = JSON.stringify(withoutTail);
 
     if (text.length > MAX_RESPONSE_CHARS) {
-      text = JSON.stringify(shrinkToolPayload(withoutTail), null, 2);
+      text = JSON.stringify(shrinkToolPayload(withoutTail));
     }
 
     if (text.length > MAX_RESPONSE_CHARS) {
       const trimmedLists = trimCliResultLists(withoutTail);
-      if (trimmedLists) text = JSON.stringify(trimmedLists, null, 2);
+      if (trimmedLists) text = JSON.stringify(trimmedLists);
     }
 
     if (text.length > MAX_RESPONSE_CHARS) {
@@ -303,10 +306,10 @@ export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
           schemaVersion: MCP_TOOL_RESULT_SCHEMA_VERSION,
           ok: false,
           code: 'RESPONSE_TOO_LARGE',
-          message: `Tool response exceeded ${MAX_RESPONSE_CHARS} characters even after compaction. Retry with fewer results, a narrower query, a headingPath, or a lower maxChars.`,
+          message: `Tool response exceeded ${MAX_RESPONSE_CHARS} characters even after compaction.`,
           truncated: true,
           nextActions: [
-            'Retry the same Stacktape MCP tool with a narrower query, fewer results, or a more specific Stacktape project/stage/resource selector.',
+            'Retry the same Stacktape MCP tool with a narrower request: fewer results, a narrower query, or a more specific selector this tool documents.',
             GENERIC_AWS_MCP_BOUNDARY
           ]
         },
