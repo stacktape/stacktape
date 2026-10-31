@@ -366,3 +366,37 @@ pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
 An interrupted run prints its exact recovery command. Keep the same variables and run
 `pnpm --filter @stacktape/cli run test:real-aws-lambda-dev -- --cleanup-only` before starting another run. This is an
 explicit release lane; normal test commands cannot opt into it.
+
+## Stream first-event canary
+
+`test:real-aws-stream-first-event` checks whether a DynamoDB stream record written right after a start reaches its
+function. Its project has one table with a stream and two functions on it: `fromLatest` (`startingPosition: LATEST`) and
+`fromTrimHorizon` (`TRIM_HORIZON`). After each start, the run writes a probe item every 10 seconds until the LATEST
+function has received one, then waits for the rest and reads both functions' log groups. It does this after a fresh
+`dev --agent` (which creates the dev stack), a warm `dev --agent` of the same unchanged stage, and a plain `deploy` of a
+second stage, `RUNS` times each.
+
+The run fails if the TRIM_HORIZON function misses a probe after any start, or if either function misses one after a warm
+start. It also fails if a fresh start's status does not say that both new mappings read late (with the LATEST warning
+for `fromLatest` only), or if a warm start's status mentions new mappings. LATEST losses after a fresh start are
+recorded rather than asserted: AWS documents that a new mapping can take several minutes to start polling and that
+LATEST skips what is written meanwhile. The report lists, per start, how many probes each function received, how many
+seconds after the start the first probe it received was written, and the mappings' state. The fixture uses no local
+resource, so no dev network is created. Cleanup deletes both stages with the CLI and verifies that the stacks, functions
+and log groups are gone.
+
+```sh
+export STP_AWS_STREAM_EVENT_DEPLOY=1
+export STP_AWS_STREAM_EVENT_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_AWS_STREAM_EVENT_PROFILE=stacktape-e2e
+export STP_AWS_STREAM_EVENT_EXPECTED_ACCOUNT_ID='<exact disposable account id>'
+export STP_AWS_STREAM_EVENT_OWNER='<1-12 lowercase letters or digits, unique per run>'
+export STP_AWS_STREAM_EVENT_STATE_FILE='<absolute fresh state file>'
+export STP_AWS_STREAM_EVENT_REPORT='<absolute report file>'
+# Optional: region (default eu-west-1), dev network suffix (default: the owner), starts per scenario (default 2).
+export STP_AWS_STREAM_EVENT_REGION=eu-west-1
+export STP_AWS_STREAM_EVENT_RUNS=2
+pnpm --filter @stacktape/cli run test:real-aws-stream-first-event
+```
+
+An interrupted run keeps its state file. Rerun with the same variables and `-- --cleanup-only` before another run.

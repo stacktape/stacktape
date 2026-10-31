@@ -826,7 +826,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/dev-network',
       'apps/cli/src/domain/dev-network',
       'apps/cli/src/utils/ports.test.ts',
-      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
+      'apps/cli/scripts/real-aws/stream-first-event-canary.spec.ts'
     ],
     requires: ['python3'],
     release: 'every-candidate',
@@ -892,6 +893,17 @@ export const lanes: readonly Lane[] = [
     release: 'affected-external-contract',
     proves:
       'Through the real `stacktape dev`, a first run creates the dev network and deploys the dev stack while CloudFormation finishes the network; arm64 and x86_64 functions read initial and edited local PostgreSQL rows and ping local Redis through the dev box; a VPC function reaches the database and the internet through the box; a killed SSM plugin recovers on its own; with two stages running, dev network names the session that runs each; a stopped box is started by the next session; a box stopped while a session starts is started again and the tunnels open; a session of the running stage on a second machine is refused before it deploys, network delete is refused during the session, and take-over moves the stage once, closes the pooled connection a warm function holds to the first machine and stops the first session with a recorded reason; deleting the stage and the network leaves no stack, instance, interface, lease, function, log group, SSM session or container.'
+  },
+  {
+    id: 'local-dev-stream-live',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:real-aws-stream-first-event'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/stream-first-event-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A DynamoDB stream record written right after a fresh `stacktape dev` start or a plain deploy reaches a TRIM_HORIZON reader; a warm start of an unchanged stage loses nothing at either starting position; the run measures how long a new LATEST mapping takes to start reading and deletes every stack, function and log group it created.'
   },
   {
     id: 'nat-instances',
@@ -2413,6 +2425,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/qualification/runner-integration.spec.ts',
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
+      'apps/cli/scripts/real-aws/stream-first-event-canary.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
@@ -4359,6 +4372,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
+      'apps/cli/scripts/real-aws/stream-first-event-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/daemon-child-args.spec.ts',
       'apps/cli/src/commands/dev/seed-script.spec.ts',
@@ -4421,9 +4435,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/container/run-readiness.spec.ts',
       'apps/cli/src/commands/dev/function-logs.spec.ts',
       'apps/cli/src/commands/dev/functions-not-in-session.spec.ts',
+      'apps/cli/src/commands/dev/stream-starting-position.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/tests/ministack/dev-selected-packaging.spec.ts',
-      'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
+      'apps/cli/scripts/real-aws/lambda-dev-canary.ts',
+      'apps/cli/scripts/real-aws/stream-first-event-canary.ts'
     ],
     lanes: [
       'cli',
@@ -4435,6 +4451,7 @@ export const slices: readonly Slice[] = [
       'local-dev-ministack',
       'local-dev-stack-ministack',
       'local-dev-lambda-live',
+      'local-dev-stream-live',
       'local-dev-live',
       'cli-test-real-aws-dev-canary'
     ]
