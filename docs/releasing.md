@@ -170,6 +170,13 @@ Keep the canary reports and verified-cleanup results with the release record. Ne
 Also qualify local development with `pnpm test:aws --aws-scenario=dev-mode-local-loop`, using its separate
 `STP_AWS_DEV_CANARY_*` guards and recovery state from the
 [dev-mode canary procedure](../apps/cli/scripts/real-aws/README.md#dev-mode-canary).
+Then run `pnpm --filter @stacktape/cli test:real-aws-lambda-dev` and
+`pnpm --filter @stacktape/cli test:real-aws-stream-first-event` with the same guards. The first starts two stages at
+the same moment, cold and warm, and both must reach their database; the second writes a record the moment dev mode is
+ready, and it must arrive. Repeat a cold `stacktape dev` start with the extracted Windows candidate on a Windows host
+through the [Windows-from-WSL procedure](testing/windows-from-wsl.md), with another program holding the chosen port on
+`::1`: the generated URL must reach the session's own app on the first request, and no Windows Firewall prompt may
+appear.
 
 Before publishing the v4 CLI, run `pnpm --filter @stacktape/cli test:config-loading:ministack` on the candidate. Its
 rotation scenario must show local `$Secret()` and `$SsmParam()` directives reading current values while deployed
