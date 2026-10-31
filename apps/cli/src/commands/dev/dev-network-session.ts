@@ -22,7 +22,7 @@ import {
 import { isMcpInvocation } from '@application-services/operation-invocation-context';
 import type { StackContext } from '@domain-services/stack-context';
 import { CliError } from '@utils/errors';
-import findFreePorts from 'find-free-ports';
+import { reserveFreeLocalPort } from '@utils/ports';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { createSpinner } from '@application-services/tui-manager/spinner';
 import { recordDevBoxSession } from './agent-daemon';
@@ -423,7 +423,7 @@ export const startDevNetworkSession = async ({
       onStageLost: ({ label, refused }) => loseStage({ label, refused }),
       aws,
       onSession: (sessionId) => recordDevBoxSession(sessionId, projectName, stage),
-      findFreePort: async () => (await findFreePorts(1))[0],
+      reservePort: () => reserveFreeLocalPort(),
       onRelayUpdate: (version) =>
         tuiManager.info(
           `Restarting the dev box relay to update it from version ${version}. Dev sessions that use the box, other developers' included, reconnect within seconds.`

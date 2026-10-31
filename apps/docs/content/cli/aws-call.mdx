@@ -47,7 +47,11 @@ which AWS charges for by the data it scans. `StopQuery` is not accepted.
 Stacktape enforces the allowlist where the AWS request is sent, so the dev mode agent's
 [`/aws/sdk` endpoint](/using-with-ai/agent-mode-in-dev#aws-sdk-access) applies the same list. It is a read-only guard,
 not an IAM permission boundary. The call runs with the deployed stack's read-only debug role, assumed with the
-caller's selected AWS credentials. If the stack has no debug role or it cannot be assumed, the command fails with
+caller's selected AWS credentials. The role reads only the stack's own resources in the stack's region: it identifies
+them by the stack-name tag CloudFormation puts on every resource, or by their identifiers in the template. CloudWatch
+metric and alarm reads cover the whole region, because metrics belong to no stack. A read of another stack, another
+region, the account-wide `aws/spans` trace log group or a Secrets Manager or SSM Parameter Store value returns
+AccessDenied. If the stack has no debug role or it cannot be assumed, the command fails with
 `CLI_DEBUG_AGENT_ROLE_MISSING` or `CLI_DEBUG_AGENT_ROLE_ASSUME_FAILED` instead of using your own, broader credentials;
 redeploy the stack to create or repair the role. A stack whose first deployment failed before it had outputs has no
 role yet: there, only CloudFormation reads of that stack are accepted, and they run with your selected credentials.
@@ -67,13 +71,14 @@ credentials assume the deployed stack's debug role; the AWS request itself runs 
 
 ## Basic usage
 
-List Lambda functions visible to the target stack's debug role:
+Read the configuration of one of the stack's Lambda functions:
 
 ```bash
-stacktape aws call lambda ListFunctions \
+stacktape aws call lambda GetFunctionConfiguration \
   --project my-project \
   --stage production \
-  --region eu-west-1
+  --region eu-west-1 \
+  --input '{"FunctionName":"my-project-production-api"}'
 ```
 
 Pass command input as JSON:
@@ -135,9 +140,10 @@ configure defaults that identify that same stack.
 
 ### The call returns AccessDenied
 
-The debug role does not allow the operation for the requested resource. Verify the selected
-AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not grant IAM
-permissions.
+The debug role does not allow the operation for the requested resource. It reads only the target stack's resources in
+the stack's region, and it cannot list resources account-wide, as `ListFunctions` or `ListTables` would. Verify the
+selected AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not
+grant IAM permissions.
 
 ### Can I use `aws call` without a Stacktape project?
 
