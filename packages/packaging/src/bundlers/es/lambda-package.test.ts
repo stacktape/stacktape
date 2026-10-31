@@ -198,7 +198,7 @@ describe('the source maps of a Lambda ZIP', () => {
 
 // r2l/r2qq: a dev rebuild of a function with a syntax error said only "Build failed: Unexpected ;".
 describe('a build error', () => {
-  test('names the file, line and column relative to the project, with the source line', async () => {
+  test('names the file, line and column relative to the project', async () => {
     const cwd = await createProject({
       'handler.ts': "import { quote } from './src/quote';\nexport default async () => quote();\n",
       'src/quote.ts': 'export const quote = () => {\n  const total = ;\n  return total;\n};\n'
@@ -206,7 +206,7 @@ describe('a build error', () => {
     const error = await bundle(cwd).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe(
-      'Failed to build code at ./handler.ts\nBuild failed: src/quote.ts:2:17: Unexpected ;\n    const total = ;'
+      'Failed to build code at ./handler.ts\nBuild failed: src/quote.ts:2:17: Unexpected ;'
     );
   });
 });

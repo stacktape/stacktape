@@ -43,7 +43,8 @@ import {
   validateAwsProfile,
   validateCommand,
   validateCredentialsWithRespectToAccount,
-  validateProjectName
+  validateProjectName,
+  validateStackName
 } from '@utils/validator';
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
@@ -811,9 +812,10 @@ export class GlobalStateManager {
     //   eventType: 'LOAD_TARGET_STACK_INFO',
     //   description: 'Loading target stack info'
     // });
-    const { id: projectId, name: projectName } = await this.#resolveTargetProject({ configProjectName });
+    // The stage first: a project created below must fit the stack name together with it.
     const stage = await this.#resolveStage();
-    const stackName = `${projectName}-${stage}`;
+    const { id: projectId, name: projectName } = await this.#resolveTargetProject({ configProjectName, stage });
+    const stackName = validateStackName({ projectName, stage });
     const globallyUniqueStackHash = getGloballyUniqueStackHash({
       region: this.region,
       accountId: this.targetAwsAccount.awsAccountId,
@@ -846,7 +848,7 @@ export class GlobalStateManager {
     validateProjectName(projectName);
 
     const stage = await this.#resolveStage();
-    const stackName = `${projectName}-${stage}`;
+    const stackName = validateStackName({ projectName, stage });
     const { region } = this;
     const accountId = () => this.targetAwsAccount.awsAccountId;
     this.targetStack = {
@@ -871,7 +873,7 @@ export class GlobalStateManager {
     return stage;
   };
 
-  #resolveTargetProject = async ({ configProjectName }: { configProjectName?: string }) => {
+  #resolveTargetProject = async ({ configProjectName, stage }: { configProjectName?: string; stage: string }) => {
     const createNewProject = async (projectName?: string) => {
       let chosenProjectName = projectName;
       if (!chosenProjectName) {
@@ -880,6 +882,7 @@ export class GlobalStateManager {
         });
       }
       validateProjectName(chosenProjectName);
+      validateStackName({ projectName: chosenProjectName, stage });
       const projectInfo = await stacktapeTrpcApiManager.apiClient.createProject({
         name: chosenProjectName,
         configPath: this.args.configPath,

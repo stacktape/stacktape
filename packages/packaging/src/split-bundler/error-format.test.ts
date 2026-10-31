@@ -14,15 +14,21 @@ describe('formatBuildError', () => {
   });
 
   // r2l/r2qq: a dev rebuild reported only "Build failed: Unexpected ;", without the file, line or column.
-  test('keeps the file, line, column and source line of a Bun diagnostic, the file relative to the project', () => {
+  // The message is recorded in the Console and the operation's log stream: Bun's copy of the source line stays out.
+  test('keeps the file, line and column of a Bun diagnostic, the file relative to the project, not its source line', () => {
     const cwd = join('/', 'work', 'shop');
     const diagnostic = {
       message: 'Unexpected ;',
-      position: { file: join(cwd, 'src', 'api.ts'), line: 12, column: 5, lineText: '  const x = ;' }
+      position: {
+        file: join(cwd, 'src', 'api.ts'),
+        line: 12,
+        column: 5,
+        lineText: 'const password: string = "REVIEW_CANARY_NOT_A_SECRET"; const broken = ;'
+      }
     };
-    expect(formatBuildError({ errors: [diagnostic] }, { cwd })).toBe('src/api.ts:12:5: Unexpected ;\n    const x = ;');
+    expect(formatBuildError({ errors: [diagnostic] }, { cwd })).toBe('src/api.ts:12:5: Unexpected ;');
     expect(formatBuildLogs([{ level: 'warning' }, { level: 'error', ...diagnostic }], { cwd })).toBe(
-      'src/api.ts:12:5: Unexpected ;\n    const x = ;'
+      'src/api.ts:12:5: Unexpected ;'
     );
   });
 

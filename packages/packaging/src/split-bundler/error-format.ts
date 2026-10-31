@@ -1,6 +1,6 @@
 import { isAbsolute, relative } from 'node:path';
 
-type DiagnosticPosition = { file: string; line: number; column: number; lineText?: string };
+type DiagnosticPosition = { file: string; line: number; column: number };
 
 const messageFrom = (value: unknown): string => {
   if (typeof value === 'object' && value !== null && 'message' in value && value.message) {
@@ -13,14 +13,9 @@ const positionFrom = (value: unknown): DiagnosticPosition | undefined => {
   if (typeof value !== 'object' || value === null || !('position' in value)) return undefined;
   const { position } = value;
   if (typeof position !== 'object' || position === null) return undefined;
-  const { file, line, column, lineText } = position as Record<string, unknown>;
+  const { file, line, column } = position as Record<string, unknown>;
   if (typeof file !== 'string' || !file || typeof line !== 'number') return undefined;
-  return {
-    file,
-    line,
-    column: typeof column === 'number' ? column : 0,
-    ...(typeof lineText === 'string' ? { lineText } : {})
-  };
+  return { file, line, column: typeof column === 'number' ? column : 0 };
 };
 
 /** A file inside `cwd` relative to it, with forward slashes; a file elsewhere keeps its path. */
@@ -31,16 +26,15 @@ export const displayPath = (file: string, cwd: string | undefined) => {
 };
 
 /**
- * One Bun diagnostic: `src/api.ts:12:5: Unexpected ;` with the source line below it. Bun reports the line and the
- * column from 1.
+ * One Bun diagnostic: `src/api.ts:12:5: Unexpected ;`. Bun reports the line and the column from 1. Bun's copy of the
+ * source line (`lineText`) is left out: the message is recorded in the Stacktape Console and in the operation's log
+ * stream, and a source line can hold a credential.
  */
 const formatDiagnostic = (diagnostic: unknown, cwd: string | undefined) => {
   const message = messageFrom(diagnostic);
   const position = positionFrom(diagnostic);
   if (!position) return message;
-  const location = `${displayPath(position.file, cwd)}:${position.line}${position.column ? `:${position.column}` : ''}`;
-  const source = position.lineText?.trim();
-  return `${location}: ${message}${source ? `\n    ${source}` : ''}`;
+  return `${displayPath(position.file, cwd)}:${position.line}${position.column ? `:${position.column}` : ''}: ${message}`;
 };
 
 /**

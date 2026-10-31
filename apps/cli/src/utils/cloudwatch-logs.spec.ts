@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import kleur from 'kleur';
 import { isTextStylingEnabled, setTextStylingEnabled } from '../app/tui-manager/format/text';
 import { LambdaCloudwatchLogPrinter } from './cloudwatch-logs';
+import { filePathFromUrl } from './errors';
 
 const HOUR = 3_600_000;
 const UNTIL = 1_800_000_000_000;
@@ -376,6 +377,17 @@ test("a Node error record's file URL frames show their paths, the runtime's grey
   expect(output).toContain('at Runtime.handler (/var/task/index.mjs:7:37)');
   expect(output).toContain(kleur.gray('at Runtime.handleOnceNonStreaming (/var/runtime/index.mjs:1150:22)'));
   expect(output).not.toContain('./var/');
+});
+
+// PR #419 review: Windows' fileURLToPath rejects `file:///var/runtime/index.mjs`, so a CLI on Windows kept the URL.
+test.each([false, true])('a Lambda file URL is a POSIX path, also with Windows path rules (%p)', (windows) => {
+  expect(filePathFromUrl('file:///var/runtime/index.mjs', windows)).toBe('/var/runtime/index.mjs');
+  expect(filePathFromUrl('file:///var/task/my%20app/index.mjs', windows)).toBe('/var/task/my app/index.mjs');
+});
+
+test('a Windows file URL is a Windows path with Windows path rules', () => {
+  expect(filePathFromUrl('file:///C:/shop/src/handler.ts', true)).toBe('C:\\shop\\src\\handler.ts');
+  expect(filePathFromUrl('file://server/share/handler.ts', true)).toBe('\\\\server\\share\\handler.ts');
 });
 
 // r2gg: an invocation still running at a restart lost its START line, and one a second before the stop lost every

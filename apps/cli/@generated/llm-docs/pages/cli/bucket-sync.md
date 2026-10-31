@@ -43,7 +43,7 @@ stacktape bucket sync --bucket-id my-app-assets-bucket --source-path ./dist --re
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--resource-name (positional 1)` | no | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `--source-path` | no | `string` | Source Path — The path to the directory to synchronize with the bucket. This can be an absolute path or relative to the current working directory. | - |
-| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters and no fixed maximum. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 
 
 ## Important flags

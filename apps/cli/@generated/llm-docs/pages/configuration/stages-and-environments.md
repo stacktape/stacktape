@@ -31,7 +31,7 @@ A project named `my-api` deployed to stage `dev` creates a stack called `my-api-
 
 ### Stage name constraints
 
-A stage name has at least 2 characters and contains only lowercase letters, numbers and hyphens. There is no fixed maximum length. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
+A stage name has at least 2 characters and contains only lowercase letters, numbers and hyphens. The project name, a hyphen and the stage form the CloudFormation stack name, which can have at most 128 characters. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
 
 
 > **Warning:** Keep stage names short. The combined project name + stage forms the CloudFormation stack name and the names of AWS

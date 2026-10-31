@@ -192,6 +192,20 @@ export const getReturnableError = (error: HandledError): Error => {
 };
 
 /**
+ * The path of a `file://` URL. A URL with a drive letter or a host is a Windows path. Any other one, like Lambda's
+ * `file:///var/runtime/index.mjs`, is a POSIX path on every platform: Windows' `fileURLToPath` rejects it.
+ */
+export const filePathFromUrl = (url: string, windows = process.platform === 'win32') => {
+  try {
+    const { host, pathname } = new URL(url);
+    if (host || /^\/[A-Za-z]:/.test(pathname)) return fileURLToPath(url, { windows });
+    return decodeURIComponent(pathname);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * The path of a stack frame's file as the reader can find it. A `file://` URL (Node ES modules, Lambda's runtime
  * `file:///var/runtime/index.mjs`) is read as its path first. A local file is shown relative to the working directory;
  * an absolute path that is not on this machine (`/var/task`, `/var/runtime` in a Lambda log) stays absolute, so it does
@@ -200,11 +214,9 @@ export const getReturnableError = (error: HandledError): Error => {
 const getFramePath = (fileName: string) => {
   let path = fileName;
   if (path.startsWith('file://')) {
-    try {
-      path = fileURLToPath(path);
-    } catch {
-      return { path, isLocal: false };
-    }
+    const urlPath = filePathFromUrl(path);
+    if (urlPath === undefined) return { path, isLocal: false };
+    path = urlPath;
   }
   if (isAbsolute(path)) {
     return isFileAccessible(path)

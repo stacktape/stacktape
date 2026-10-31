@@ -75,7 +75,8 @@ describe('split bundle failure translation', () => {
       (caught: unknown) => caught
     );
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toContain('src/handler.ts:2:13: Unexpected ;\n    const x = ;');
+    expect((error as Error).message).toContain('src/handler.ts:2:13: Unexpected ;');
+    expect((error as Error).message).not.toContain('const x');
   });
 
   test('preserves an unexpected Bun failure as the semantic error cause', async () => {
