@@ -46,6 +46,95 @@ describe('templateNeedsApiGatewayCloudWatchRole', () => {
       true
     ],
     ['REST stage without logs', { Stage: { Type: 'AWS::ApiGateway::Stage', Properties: {} } }, false],
+    [
+      'REST deployment stage with method logging',
+      {
+        Deployment: {
+          Type: 'AWS::ApiGateway::Deployment',
+          Properties: { StageName: 'prod', StageDescription: { MethodSettings: [{ LoggingLevel: 'INFO' }] } }
+        }
+      },
+      true
+    ],
+    [
+      'REST deployment stage with logging level',
+      {
+        Deployment: {
+          Type: 'AWS::ApiGateway::Deployment',
+          Properties: { StageName: 'prod', StageDescription: { LoggingLevel: 'ERROR' } }
+        }
+      },
+      true
+    ],
+    [
+      'REST deployment stage with access logs',
+      {
+        Deployment: {
+          Type: 'AWS::ApiGateway::Deployment',
+          Properties: { StageName: 'prod', StageDescription: { AccessLogSetting: { DestinationArn: 'arn' } } }
+        }
+      },
+      true
+    ],
+    [
+      'REST deployment stage with data trace',
+      {
+        Deployment: {
+          Type: 'AWS::ApiGateway::Deployment',
+          Properties: { StageName: 'prod', StageDescription: { DataTraceEnabled: true } }
+        }
+      },
+      true
+    ],
+    [
+      'REST deployment stage without logs',
+      {
+        Deployment: {
+          Type: 'AWS::ApiGateway::Deployment',
+          Properties: { StageName: 'prod', StageDescription: { MethodSettings: [{ LoggingLevel: 'OFF' }] } }
+        }
+      },
+      false
+    ],
+    [
+      'REST deployment without a stage',
+      { Deployment: { Type: 'AWS::ApiGateway::Deployment', Properties: { RestApiId: { Ref: 'Api' } } } },
+      false
+    ],
+    [
+      'SAM REST API with method logging',
+      {
+        Api: {
+          Type: 'AWS::Serverless::Api',
+          Properties: {
+            StageName: 'prod',
+            MethodSettings: [{ HttpMethod: '*', ResourcePath: '/*', LoggingLevel: 'INFO' }]
+          }
+        }
+      },
+      true
+    ],
+    [
+      'SAM REST API with access logs',
+      {
+        Api: {
+          Type: 'AWS::Serverless::Api',
+          Properties: { StageName: 'prod', AccessLogSetting: { DestinationArn: 'arn', Format: '$context.requestId' } }
+        }
+      },
+      true
+    ],
+    ['SAM REST API without logs', { Api: { Type: 'AWS::Serverless::Api', Properties: { StageName: 'prod' } } }, false],
+    [
+      'SAM HTTP API with access logs',
+      {
+        Api: {
+          Type: 'AWS::Serverless::HttpApi',
+          Properties: { AccessLogSettings: { DestinationArn: 'arn', Format: '$context.requestId' } }
+        }
+      },
+      false
+    ],
     ['no API stages', { Bucket: { Type: 'AWS::S3::Bucket' } }, false]
   ] as const)('%s: %p', (_, resources, expected) => {
     expect(templateNeedsApiGatewayCloudWatchRole(templateWith(resources))).toBe(expected);
