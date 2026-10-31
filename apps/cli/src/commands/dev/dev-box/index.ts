@@ -179,6 +179,7 @@ export class DevBoxConnection {
   readonly #owner: RelayOwner;
   readonly #stackName: string | undefined;
   readonly #stopped = new AbortController();
+  #stopping: Promise<void> | undefined;
   #ready: Promise<RelayEndpoint> | undefined;
   #session: RelaySession | undefined;
   #presence: AbortController | undefined;
@@ -258,14 +259,18 @@ export class DevBoxConnection {
    * start right after the stop was refused because the stopped session still seemed to hold the stage. The tunnels
    * close at the same time, in their own cleanup.
    */
-  stop = async () => {
-    const wasReady = this.#status?.phase === 'ready';
-    this.#stopped.abort();
-    this.#presence?.abort();
-    if (wasReady && this.#session) await this.#waitUntilReleased();
-    await this.#session?.kill().catch(() => {});
-    this.#session = undefined;
-    await this.#releasePort();
+  stop = (): Promise<void> => {
+    // Cleanup can call this twice at once; the second call must not return before the first has finished.
+    this.#stopping ??= (async () => {
+      const wasReady = this.#status?.phase === 'ready';
+      this.#stopped.abort();
+      this.#presence?.abort();
+      if (wasReady && this.#session) await this.#waitUntilReleased();
+      await this.#session?.kill().catch(() => {});
+      this.#session = undefined;
+      await this.#releasePort();
+    })();
+    return this.#stopping;
   };
 
   #releasePort = async () => {

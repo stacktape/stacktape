@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync, unlinkSync } from 'node:fs';
 import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import * as net from 'node:net';
 import { hostname } from 'node:os';
@@ -70,6 +71,31 @@ const readReservationOwner = async (path: string): Promise<ReservationOwner | nu
   }
 };
 
+/** Reservations this process holds, by file, with their tokens; deleted when the process exits. */
+const heldReservations = new Map<string, string>();
+let exitHandlerInstalled = false;
+
+/**
+ * Deletes this process's reservations however it exits, except a kill that runs no handler: a session can end before
+ * its cleanup reaches `release`. Other processes reclaim what a killed process leaves.
+ */
+const releaseHeldReservationsOnExit = () => {
+  if (exitHandlerInstalled) return;
+  exitHandlerInstalled = true;
+  process.once('exit', () => {
+    for (const [path, token] of heldReservations) deleteOwnReservation(path, token);
+  });
+};
+
+/** Deletes a reservation file unless another process reclaimed it as stale meanwhile. */
+const deleteOwnReservation = (path: string, token: string) => {
+  try {
+    if ((JSON.parse(readFileSync(path, 'utf8')) as ReservationOwner).token === token) unlinkSync(path);
+  } catch {
+    // Already deleted.
+  }
+};
+
 const createReservation = async (directory: string, port: number): Promise<LocalPortReservation | undefined> => {
   const path = join(directory, `${port}.json`);
   const owner: ReservationOwner = {
@@ -84,14 +110,15 @@ const createReservation = async (directory: string, port: number): Promise<Local
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return undefined;
     throw error;
   }
-  let released = false;
+  heldReservations.set(path, owner.token);
+  releaseHeldReservationsOnExit();
   return {
     port,
+    // Synchronous, so a process that exits while a cleanup awaits something else never stops halfway.
     release: async () => {
-      if (released) return;
-      released = true;
-      // A reservation reclaimed as stale belongs to its new owner.
-      if ((await readReservationOwner(path))?.token === owner.token) await unlink(path).catch(() => {});
+      if (!heldReservations.has(path)) return;
+      deleteOwnReservation(path, owner.token);
+      heldReservations.delete(path);
     }
   };
 };

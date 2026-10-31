@@ -485,3 +485,29 @@ test('a failure that is not about the local port keeps the reserved port', async
   await connection.stop();
   expect(ports.released).toEqual([40001]);
 });
+
+// The cleanup ran `stop` twice at once: the second call returned at once, the process exited, and the first call never
+// released the port, so every stopped session left its reservation behind.
+test('a second stop waits until the first has released the port', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  let released = false;
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      reservePort: async () => ({
+        port: 40001,
+        release: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          released = true;
+        }
+      })
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  await connection.connect();
+  void connection.stop();
+  await connection.stop();
+  expect(released).toBe(true);
+});

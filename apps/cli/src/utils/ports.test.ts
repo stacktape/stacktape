@@ -123,7 +123,7 @@ test('processes that start together and propose the same ports reserve distinct 
 });
 
 // Nothing listens on a reserved port until the plugin starts, so a probe alone would hand it out again.
-test('a port another process reserved is skipped until that process exits', async () => {
+test('a port another process reserved is skipped until that process exits, which deletes its reservation', async () => {
   const directory = await reservationDirectory();
   const candidates = await freePorts(2);
   const holder = await startReservingProcess({ directory, candidates, holdMs: 60_000 });
@@ -134,10 +134,12 @@ test('a port another process reserved is skipped until that process exits', asyn
     const second = await startReservingProcess({ directory, candidates });
     expect(await second.port).toBe(candidates[1]);
     await second.exited;
-    // Its reservation is now stale: the next process reclaims it.
+    // The second process exited, which deleted its reservation: the next process gets that port.
     const third = await startReservingProcess({ directory, candidates });
     expect(await third.port).toBe(candidates[1]);
     await third.exited;
+    // Neither process called release; only the live holder keeps a reservation.
+    expect((await readdir(join(directory, 'reservations'))).sort()).toEqual([`${held}.json`]);
   } finally {
     holder.kill();
   }
