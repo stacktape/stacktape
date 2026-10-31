@@ -1474,4 +1474,115 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     });
     expect(result.gaps.map((gap) => gap.subject)).toContain('functions/image/Dockerfile');
   });
+
+  it('queues a topic fans out to, a README dead-letter queue, an Amplify pool, a static Nuxt build and fixed Redis', () => {
+    const consumer = (name: string, queue: string) =>
+      service({
+        name,
+        path: 'functions',
+        language: 'typescript',
+        exposesHttp: false,
+        executionModel: 'per-request',
+        startCommand: undefined,
+        functionEntrypoint: `functions/${name}.ts`,
+        functionTriggers: [{ type: 'queue', dependencyName: queue }]
+      });
+    const result = composeConfig({
+      facts: projectFactsSchema.parse({
+        schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+        services: [
+          service({ name: 'api' }),
+          consumer('billing', 'billingQueue'),
+          consumer('audit', 'auditQueue'),
+          consumer('process', 'jobQueue'),
+          service({
+            name: 'site',
+            path: 'site',
+            framework: 'nuxt',
+            exposesHttp: false,
+            startCommand: undefined,
+            buildCommand: 'npm run build',
+            servesStaticAssets: { path: 'site/.output/public', singlePageApp: true }
+          })
+        ],
+        dependencies: [
+          { ...dependency('notificationsTopic', 'topic', ['api']) },
+          {
+            ...dependency('billingQueue', 'queue', []),
+            topicSubscription: { dependencyName: 'notificationsTopic', rawMessageDelivery: true }
+          },
+          {
+            ...dependency('auditQueue', 'queue', []),
+            topicSubscription: { dependencyName: 'notificationsTopic', rawMessageDelivery: false }
+          },
+          {
+            ...dependency('jobQueue', 'queue', []),
+            deadLetterRequirement: { file: 'README.md', line: 4, maxReceiveCount: 2 }
+          },
+          {
+            name: 'userPool',
+            kind: 'user-pool',
+            consumedBy: ['api'],
+            userPoolOwnership: 'project',
+            userPoolConfiguredBy: 'amplify',
+            userPoolSettings: { usernameAttributes: ['email'] },
+            evidence: [{ file: 'amplify/auth/resource.ts', line: 1, quote: 'defineAuth(' }],
+            source: 'probe'
+          },
+          {
+            name: 'cache',
+            kind: 'redis',
+            consumedBy: ['api'],
+            fixedAddress: { file: 'project/settings.py', line: 2, setting: 'CHANNEL_LAYERS' },
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      projectName: 'demo'
+    });
+
+    expectValid(result.config);
+    const { resources, cloudformationResources } = result.config;
+    const sendFromTopic = {
+      Effect: 'Allow',
+      Principal: { Service: 'sns.amazonaws.com' },
+      Action: ['sqs:SendMessage'],
+      Condition: { ArnEquals: { 'aws:SourceArn': "$ResourceParam('notificationsTopic', 'arn')" } }
+    };
+    expect(resources.billingQueue?.properties.policyStatements).toEqual([sendFromTopic]);
+    expect(cloudformationResources).toEqual({
+      billingQueueSubscription: {
+        Type: 'AWS::SNS::Subscription',
+        Properties: {
+          Protocol: 'sqs',
+          TopicArn: "$ResourceParam('notificationsTopic', 'arn')",
+          Endpoint: "$ResourceParam('billingQueue', 'arn')",
+          RawMessageDelivery: true
+        }
+      },
+      auditQueueSubscription: {
+        Type: 'AWS::SNS::Subscription',
+        Properties: {
+          Protocol: 'sqs',
+          TopicArn: "$ResourceParam('notificationsTopic', 'arn')",
+          Endpoint: "$ResourceParam('auditQueue', 'arn')"
+        }
+      }
+    });
+    expect(resources.jobQueue?.properties.redrivePolicy).toEqual({
+      targetSqsQueueName: 'jobDeadLetterQueue',
+      maxReceiveCount: 2
+    });
+    expect(resources.jobDeadLetterQueue).toEqual({ type: 'sqs-queue', properties: {} });
+    expect(resources.userPool).toEqual({
+      type: 'user-auth-pool',
+      properties: { allowOnlyAdminsToCreateAccount: true, allowEmailAsUserName: true }
+    });
+    expect(resources.site).toMatchObject({
+      type: 'hosting-bucket',
+      properties: { uploadDirectoryPath: 'site/.output/public', hostingContentType: 'single-page-app' }
+    });
+    expect(result.gaps.map((gap) => gap.subject).toSorted()).toEqual(['cache.address', 'userPool.amplify']);
+  });
 });

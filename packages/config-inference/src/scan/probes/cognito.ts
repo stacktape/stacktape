@@ -26,6 +26,37 @@ const POOL_ID_FIELD = /\b(?:UserPoolId|userPoolId)\s*(?::|=(?!=))\s*/g;
  */
 export const JWT_CLAIMS_READ = /\bauthorizer\b['"\]]*\s*(?:\.\s*jwt\b|\[\s*['"]jwt['"])/;
 
+/** Amplify's auth client: `import { signIn } from 'aws-amplify/auth'`, or v5's `Auth` from `aws-amplify`. */
+const AMPLIFY_AUTH_IMPORT =
+  /(?:\bfrom\s*|\brequire\s*\(\s*)['"](?:aws-amplify\/auth|@aws-amplify\/auth)['"]|\bimport\s*\{[^}]*\bAuth\b[^}]*\}\s*from\s*['"]aws-amplify['"]/;
+const AMPLIFY_AUTH_CALL =
+  /\b(?:Auth\s*\.\s*)?(?:signIn|signUp|confirmSignIn|confirmSignUp|fetchAuthSession|getCurrentUser|currentSession)\s*\(/;
+const AMPLIFY_SIGN_UP = /\b(?:Auth\s*\.\s*)?signUp\s*\(/;
+/** Amplify Gen 2's own declaration of the project's user pool: `defineAuth(...)` in `amplify/auth/resource.ts`. */
+const AMPLIFY_AUTH_RESOURCE = /(?:^|\/)amplify\/auth\/resource\.[cm]?[jt]s$/;
+const AMPLIFY_AUTH_DEFINITION = /\bdefineAuth\s*\(/;
+
+/** The pool Amplify Gen 2 declares, and the usernames its `loginWith` accepts. */
+const amplifyAuthDefinition = async (
+  context: ProbeContext
+): Promise<{ citation: Citation; usernameAttributes: Array<'email' | 'phone'> } | undefined> => {
+  for (const path of context.files.filter((file) => AMPLIFY_AUTH_RESOURCE.test(file)).slice(0, 5)) {
+    // oxlint-disable-next-line no-await-in-loop -- at most a few declaration files.
+    const raw = await readText(context, path, { fullFile: true });
+    if (raw === undefined) continue;
+    const code = maskFile(path, raw, 'blank');
+    if (!AMPLIFY_AUTH_DEFINITION.test(code)) continue;
+    const citation = citeFirstMatchOnly(path, raw, AMPLIFY_AUTH_DEFINITION);
+    if (citation === undefined) continue;
+    const loginWith = /\bloginWith\s*:\s*\{([^}]*)/.exec(code)?.[1] ?? '';
+    const usernameAttributes = (['email', 'phone'] as const).filter((attribute) =>
+      new RegExp(`\\b${attribute}\\s*:\\s*(?:true|\\{)`).test(loginWith)
+    );
+    return { citation, usernameAttributes };
+  }
+  return undefined;
+};
+
 /** Infrastructure code that defines a user pool: CloudFormation, Terraform, CDK, SST, Pulumi. */
 const POOL_DEFINITION =
   /\bAWS::Cognito::UserPool\b|\bresource\s+"aws_cognito_user_pool"|\bnew\s+(?:cognito\.)?UserPool\s*\(|\bnew\s+sst\.aws\.CognitoUserPool\s*\(|\bnew\s+aws\.cognito\.UserPool\s*\(/;
@@ -95,12 +126,20 @@ export const cognitoProbe: Probe = {
     const poolVariables = new Set<string>();
     const evidence: Citation[] = [];
     let selfSignUp = false;
+    let amplifySignIn: Citation | undefined;
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- bounded, policy-controlled reads in a stable order.
       const raw = await readText(context, path, { fullFile: true });
       if (raw === undefined) continue;
       // Comments are no calls; string contents stay, because the variable names are read from them.
       const code = maskFile(path, raw, 'keep');
+      if (AMPLIFY_AUTH_IMPORT.test(code)) {
+        const calls = maskFile(path, raw, 'blank');
+        if (AMPLIFY_AUTH_CALL.test(calls)) {
+          amplifySignIn ??= citeFirstMatchOnly(path, raw, AMPLIFY_AUTH_IMPORT, 'addressedBy');
+          if (AMPLIFY_SIGN_UP.test(calls)) selfSignUp = true;
+        }
+      }
       for (const call of code.matchAll(SIGN_IN_CALL)) {
         // The call's own arguments: a request object or keyword list fits in the next 800 characters.
         const start = call.index ?? 0;
@@ -118,9 +157,13 @@ export const cognitoProbe: Probe = {
         poolVariables.add(variable);
       }
     }
-    if (clientVariables.size === 0) return {};
-    const owned = await ownershipEvidence(context, sources);
+    if (clientVariables.size === 0 && amplifySignIn === undefined) return {};
+    if (amplifySignIn !== undefined && evidence.length < 3) evidence.push(amplifySignIn);
+    // Amplify Gen 2 declares the project's own pool beside the code that signs in to it.
+    const amplifyDefinition = amplifySignIn === undefined ? undefined : await amplifyAuthDefinition(context);
+    const owned = amplifyDefinition?.citation ?? (await ownershipEvidence(context, sources));
     if (owned !== undefined) evidence.push(owned);
+    const usernameAttributes = amplifyDefinition?.usernameAttributes ?? [];
     const dependency: DependencyFact = {
       name: defaultDependencyName('user-pool'),
       kind: 'user-pool',
@@ -129,6 +172,8 @@ export const cognitoProbe: Probe = {
       addressedBy: [...clientVariables, ...poolVariables],
       userPoolOwnership: owned === undefined ? 'unproven' : 'project',
       ...(selfSignUp ? { userPoolSelfSignUp: true as const } : {}),
+      ...(amplifySignIn === undefined ? {} : { userPoolConfiguredBy: 'amplify' as const }),
+      ...(usernameAttributes.length === 0 ? {} : { userPoolSettings: { usernameAttributes } }),
       evidence,
       source: 'probe'
     };

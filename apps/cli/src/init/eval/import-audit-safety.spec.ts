@@ -334,7 +334,12 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
     }),
   'r2ah/49-cognito-unrelated-admin-script': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   'r2ah/50-cognito-template-string-admin': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
-  'r2ah/51-cognito-amplify-owned': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
+  // The repository declares the pool for Amplify (`defineAuth` in amplify/auth/resource.ts), as infrastructure code
+  // does, so the pool is the project's. Amplify reads it from Amplify.configure(), which the gap says how to set.
+  'r2ah/51-cognito-amplify-owned': (outcome) => {
+    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(1);
+    expectGap(outcome, 'Amplify.configure()', 'stop deploying the pool from amplify/auth/resource.ts');
+  },
   'r2ah/52-cognito-readme-negation': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   // Two pools stay two pools. Nothing says which client each variable names, so neither is bound to a pool.
   'r2ah/53-cognito-two-owned-pools': (outcome) => {
@@ -351,17 +356,34 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
   // ── Second audit (r2ah): source inference that is not an F21–F25 finding ─────────────────────────────────────────
   'r2ah/63-python-fstring-executable': (outcome) => expect(ofType(outcome, 'web-service')).toHaveLength(1),
   // Server code inside a raw string runs nothing.
-  'r2ah/65-go-rawstring-server': (outcome) => expect(ofType(outcome, 'web-service')).toHaveLength(0),
+  // Listener text in a string is no server; the program blocks forever, so it is a worker.
+  'r2ah/65-go-rawstring-server': (outcome) => {
+    expect(ofType(outcome, 'web-service')).toHaveLength(0);
+    expect(ofType(outcome, 'worker-service')).toHaveLength(1);
+  },
   'r2ah/67-docker-heredoc-inert-source': (outcome) => expect(packagedEntry(webService(outcome))).toBe('server.js'),
   'r2ah/68-nx-apps-lib': (outcome) => expect(Object.keys(outcome.resources)).toEqual(['api']),
   'r2ah/69-turbo-apps-lib': (outcome) => expect(Object.keys(outcome.resources)).toEqual(['api']),
   'r2ah/70-rush-apps-lib': (outcome) => expect(Object.keys(outcome.resources)).toEqual(['api']),
   'r2ah/71-lerna-apps-lib': (outcome) => expect(Object.keys(outcome.resources)).toEqual(['api']),
   'r2ah/72-python-uv-workspace': (outcome) => expect(ofType(outcome, 'web-service')).toHaveLength(1),
-  'r2ah/73-go-work-two-apps': (outcome) => expect(outcome.resources.api?.type).toBe('web-service'),
+  'r2ah/73-go-work-two-apps': (outcome) => {
+    expect(outcome.resources.api?.type).toBe('web-service');
+    expect(outcome.resources.worker?.type).toBe('worker-service');
+  },
   'r2ah/74-java-maven-multimodule': (outcome) => expect(outcome.resources.api?.type).toBe('web-service'),
   'r2ah/77-remix-vite-custom-build': (outcome) => expect(ofType(outcome, 'remix-web')).toHaveLength(1),
-  'r2ah/78-nuxt-static-output': (outcome) => expect(ofType(outcome, 'nuxt-web')).toHaveLength(1),
+  // `nuxt generate` writes only files, so they are served from storage rather than a Nuxt server.
+  'r2ah/78-nuxt-static-output': (outcome) => {
+    expect(ofType(outcome, 'nuxt-web')).toHaveLength(0);
+    expect(ofType(outcome, 'hosting-bucket')).toHaveLength(1);
+  },
+  // WebSockets need the load balancer; the channel layer's Redis exists, and its fixed address is a gap.
+  'r2ah/81-django-channels-asgi': (outcome) => {
+    expect(webService(outcome).properties.loadBalancing).toEqual({ type: 'application-load-balancer' });
+    expect(ofType(outcome, 'redis')).toHaveLength(1);
+    expectGap(outcome, 'sets CHANNEL_LAYERS to a fixed Redis address');
+  },
   'r2ah/80-rails-sidekiq-with-web': (outcome) => {
     expect(ofType(outcome, 'web-service')).toHaveLength(1);
     expect(ofType(outcome, 'worker-service')).toHaveLength(1);
@@ -530,7 +552,6 @@ const PENDING: Record<string, string> = {
   'r2ah/75-dotnet-solution-two-projects': 'F22 listener port from an expression',
   'r2ah/76-nest-microservice-only': 'F23 TCP-only NestJS microservice',
   'r2ah/79-laravel-queue-worker': 'F24 framework dependency without a listener',
-  'r2ah/81-django-channels-asgi': 'F21 WebSocket ingress',
   'r2ah/90-vite-outdir-string-decoy': 'F25 Vite outDir from strings',
   'r2ah/91-vite-outdir-plugin-option': 'F25 Vite outDir from plugin options'
 };

@@ -110,6 +110,9 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
       'redis',
       'aioredis',
       'django-redis',
+      // Django Channels' Redis channel layer, which every WebSocket consumer of a multi-instance deployment shares.
+      'channels-redis',
+      'channels_redis',
       'predis',
       'ext-redis',
       'go-redis',
@@ -517,6 +520,40 @@ const aspNetListener = async (
 };
 
 /** The repository root's own manifest: its services, dependencies and migrations. */
+/** `project/settings.py`, or a module of a `settings/` package (`settings/production.py`). */
+const DJANGO_SETTINGS_FILE = /(?:^|\/)settings(?:\.py|\/[\w-]+\.py)$/;
+const CHANNEL_LAYERS = /\bCHANNEL_LAYERS\s*=/;
+/** An environment read in Python settings: `os.environ['REDIS_URL']`, `os.getenv("REDIS_URL")`, `env("REDIS_URL")`. */
+const PYTHON_ENVIRONMENT_READ =
+  /\b(?:os\.environ(?:\.get)?|os\.getenv|getenv|env(?:\.\w+)?|config)\s*[([]\s*['"]([A-Z][A-Z0-9_]*)['"]/g;
+
+/**
+ * Where Django Channels' Redis channel layer takes its address: the environment variables `CHANNEL_LAYERS` reads, or the
+ * line that fixes it (`"hosts": [("redis", 6379)]`), which a Redis created on AWS does not answer at.
+ */
+const channelLayerAddress = async (
+  context: ProbeContext
+): Promise<{ variables: string[] } | { fixed: { file: string; line: number; setting: string } } | undefined> => {
+  const settings = context.files.filter((path) => DJANGO_SETTINGS_FILE.test(path)).slice(0, 20);
+  for (const path of settings) {
+    // oxlint-disable-next-line no-await-in-loop -- a handful of settings files, read in a stable order.
+    const raw = await readText(context, path, { fullFile: true });
+    if (raw === undefined) continue;
+    const code = maskSource(raw, 'python', { strings: 'keep' });
+    const start = CHANNEL_LAYERS.exec(code)?.index;
+    if (start === undefined || !/channels_redis/.test(code.slice(start, start + 600))) continue;
+    const hostsAt = code.indexOf('hosts', start);
+    if (hostsAt === -1 || hostsAt > start + 600) return undefined;
+    const hosts = code.slice(hostsAt, hostsAt + 300).split(/\]\s*[,}]/)[0]!;
+    const variables = [...hosts.matchAll(PYTHON_ENVIRONMENT_READ)].map((match) => match[1]!);
+    if (variables.length > 0) return { variables };
+    if (!/['"][^'"]+['"]/.test(hosts)) return undefined;
+    const line = code.slice(0, hostsAt).split('\n').length;
+    return { fixed: { file: path, line, setting: 'CHANNEL_LAYERS' } };
+  }
+  return undefined;
+};
+
 const rootManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -642,6 +679,14 @@ const rootManifestProbe: Probe = {
         });
       }
     }
+    const redis = dependencies.get('redis');
+    if (redis !== undefined && (foundIn.has('channels-redis') || foundIn.has('channels_redis'))) {
+      const layer = await channelLayerAddress(context);
+      if (layer !== undefined && 'fixed' in layer) redis.fixedAddress = layer.fixed;
+      if (layer !== undefined && 'variables' in layer) {
+        redis.addressedBy = [...new Set([...redis.addressedBy, ...layer.variables])];
+      }
+    }
 
     /**
      * What the project calls itself.
@@ -724,11 +769,94 @@ const rootManifestProbe: Probe = {
   }
 };
 
+/** The modules a `go.work` file uses: `use ./worker` and `use ( ./api ./worker )`. */
+const goWorkModules = (raw: string): string[] => {
+  const block = /^\s*use\s*\(([^)]*)\)/m.exec(raw)?.[1];
+  const entries =
+    block === undefined ? [...raw.matchAll(/^\s*use\s+(\S+)/gm)].map((match) => match[1]!) : block.split(/\s+/);
+  return entries
+    .map((entry) => posix.normalize(entry.trim().replace(/^["'`]|["'`]$/g, '')).replace(/\/$/, ''))
+    .filter((entry) => entry !== '' && !entry.startsWith('..') && !entry.startsWith('/') && !entry.startsWith('//'));
+};
+
+/** An HTTP or gRPC listener, or a Lambda handler: another probe owns those programs. */
+const GO_LISTENER_OR_HANDLER =
+  /\b(?:http\.(?:ListenAndServe(?:TLS)?|Serve(?:TLS)?)|net\.Listen|lambda\.Start(?:WithOptions)?)\s*\(|\.(?:ListenAndServe(?:TLS)?|Serve|Run|RunTLS|Start|Listen)\s*\(/;
+/** A program that keeps running: it blocks forever, loops, ticks, or waits for a shutdown signal. */
+const GO_KEEPS_RUNNING =
+  /\bselect\s*\{\s*\}|\bfor\s*\{|\bsignal\.Notify(?:Context)?\s*\(|\btime\.(?:NewTicker|Tick)\s*\(|<-\s*[\w.]*\.?Done\s*\(\s*\)/;
+
+/**
+ * Go programs that run continuously and serve no HTTP: the `main` package of the repository's module, or of a module
+ * its `go.work` uses. A module with no `main` package is a library, and a `main` that runs once and exits is a tool;
+ * neither is a service. A listener in source, not in a string, makes it a server, which the server-entrypoint probe
+ * reads.
+ */
+const goWorkers = async (context: ProbeContext): Promise<ServiceFactInput[]> => {
+  const modules = context.files.includes('go.mod') ? ['.'] : [];
+  if (context.files.includes('go.work')) {
+    const raw = await readText(context, 'go.work', { fullFile: true });
+    for (const module of raw === undefined ? [] : goWorkModules(raw)) {
+      if (!modules.includes(module) && context.files.includes(module === '.' ? 'go.mod' : `${module}/go.mod`)) {
+        modules.push(module);
+      }
+    }
+  }
+  const workers: ServiceFactInput[] = [];
+  for (const module of modules.slice(0, 20)) {
+    const prefix = module === '.' ? '' : `${module}/`;
+    const sources = context.files
+      .filter((path) => path.startsWith(prefix) && /^[^/]+\.go$/.test(path.slice(prefix.length)))
+      .filter((path) => !path.endsWith('_test.go'))
+      .slice(0, 40);
+    // oxlint-disable-next-line no-await-in-loop -- one module's top-level package at a time, bounded above.
+    const [goMod, ...read] = await Promise.all([
+      readText(context, `${prefix}go.mod`, { fullFile: true }).then((raw) => ({ path: `${prefix}go.mod`, raw })),
+      ...sources.map(async (path) => ({ path, raw: await readText(context, path, { fullFile: true }) }))
+    ]);
+    const code = read.flatMap(({ path, raw }) =>
+      raw === undefined ? [] : [{ path, raw, masked: maskSource(raw, 'go', { strings: 'blank' }) }]
+    );
+    const main = code.filter(({ masked }) => /^\s*package\s+main\b/m.test(masked));
+    const entry = main.find(({ masked }) => /\bfunc\s+main\s*\(\s*\)/.test(masked));
+    if (entry === undefined) continue;
+    if (main.some(({ masked }) => GO_LISTENER_OR_HANDLER.test(masked))) continue;
+    const running = main.find(({ masked }) => GO_KEEPS_RUNNING.test(masked));
+    if (running === undefined) continue;
+    const moduleName = goMod?.raw === undefined ? undefined : /^module\s+\S*?([\w.-]+)\s*$/m.exec(goMod.raw)?.[1];
+    const name =
+      moduleName ??
+      (module === '.' ? context.root.split(/[/\\]/).findLast((part) => part !== '') : posix.basename(module));
+    const lines = running.masked.split('\n');
+    const index = lines.findIndex((line) => GO_KEEPS_RUNNING.test(line));
+    workers.push({
+      name: name ?? 'worker',
+      path: module,
+      language: 'go',
+      exposesHttp: false,
+      executionModel: 'long-running',
+      // The buildpack builds the package of this file, as it does for a Go server's.
+      containerEntrypoint: entry.path,
+      environmentVariables: [],
+      evidence: index === -1 ? [] : [citeLine(running.path, running.raw.split('\n'), index, 'executionModel')],
+      source: 'probe'
+    });
+  }
+  return workers;
+};
+
 export const languageManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     const root = await rootManifestProbe.run(context);
     const pathMigrations = await nestedMigrations(context);
-    return pathMigrations.length === 0 ? root : { ...root, pathMigrations };
+    const claimed = new Set((root.services ?? []).map((service) => service.path));
+    const workers = (await goWorkers(context)).filter((worker) => !claimed.has(worker.path));
+    const services = [...(root.services ?? []), ...workers];
+    return {
+      ...root,
+      ...(services.length === 0 ? {} : { services }),
+      ...(pathMigrations.length === 0 ? {} : { pathMigrations })
+    };
   }
 };

@@ -38,7 +38,8 @@ import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
 import { applyStacktapeReferences } from './stacktape-references';
-import { noteFanoutHints } from './topic-fanout';
+import { noteDeadLetterRequirements, noteFanoutHints } from './topic-fanout';
+import { markStaticNuxtOutput } from './static-framework-output';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -97,6 +98,12 @@ const mergeDependency = (existing: DependencyFact, incoming: DependencyFact): De
     : {}),
   ...((existing.mysqlEngine ?? incoming.mysqlEngine) ? { mysqlEngine: 'mariadb' as const } : {}),
   ...((existing.userPoolSelfSignUp ?? incoming.userPoolSelfSignUp) ? { userPoolSelfSignUp: true as const } : {}),
+  ...((existing.userPoolConfiguredBy ?? incoming.userPoolConfiguredBy)
+    ? { userPoolConfiguredBy: 'amplify' as const }
+    : {}),
+  ...((existing.fixedAddress ?? incoming.fixedAddress)
+    ? { fixedAddress: existing.fixedAddress ?? incoming.fixedAddress }
+    : {}),
   evidence: mergeEvidence(existing.evidence, incoming.evidence)
 });
 
@@ -705,7 +712,7 @@ const resolvedByOtherProbes = (
  * followed by the API word. `VITE_STRIPE_API_URL` or `NEXT_PUBLIC_STRAPI_API_URL` address someone else's API.
  */
 const API_ADDRESS_VARIABLE =
-  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
+  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
 
 /**
  * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, or the `API_URL` a Next.js server action reads) at the
@@ -727,17 +734,52 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): Set<Va
   const httpServices = services.filter(
     (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
   );
-  const backends = [...(httpFunctions.length > 0 ? [httpFunctions[0]!] : []), ...httpServices];
-  if (backends.length !== 1) return linked;
-  const [backend] = backends;
+  // Each backend with the services it stands for: every HTTP-triggered function sits behind one API gateway.
+  const backends = [...(httpFunctions.length > 0 ? [httpFunctions] : []), ...httpServices.map((service) => [service])];
   for (const service of services) {
-    if (!isFrontend(service) || service === backend) continue;
-    for (const variable of service.environmentVariables ?? []) {
-      if (variable.targetServiceName !== undefined || !API_ADDRESS_VARIABLE.test(variable.name)) continue;
-      if (variable.role === 'build-time') variable.targetServiceName = backend!.name;
+    if (!isFrontend(service)) continue;
+    const variables = service.environmentVariables ?? [];
+    // A backend the frontend already reaches through another variable that names it (`ME_URL` for the `me` function)
+    // is not what its generic `API_URL` addresses.
+    const named = new Set(
+      variables.flatMap((variable) => {
+        if (API_ADDRESS_VARIABLE.test(variable.name)) return [];
+        if (variable.targetServiceName !== undefined) return [variable.targetServiceName];
+        const words = SERVICE_ADDRESS_VARIABLE.exec(variable.name)?.[1]?.replace(ADDRESS_ROLE_WORD, '');
+        return words === undefined || words === ''
+          ? []
+          : services.filter((target) => serviceWords(target.name) === words).map((target) => target.name);
+      })
+    );
+    const others = backends.filter((group) => !group.includes(service));
+    const candidates = others.filter((group) => !group.some((member) => named.has(member.name)));
+    for (const variable of variables) {
+      if (variable.targetServiceName !== undefined) continue;
+      const word = API_ADDRESS_VARIABLE.exec(variable.name)?.[1];
+      if (word === undefined) continue;
+      // With several backends, the one left must also be called what the variable says (`ledger-api` for `API_URL`):
+      // being the only backend another variable does not name is no evidence on its own.
+      const matching =
+        others.length === 1
+          ? others
+          : candidates.filter((group) =>
+              group.some((member) =>
+                [member.name, posix.basename(member.path)].some((name) =>
+                  new RegExp(`(?:^|_)${word}$`).test(
+                    name
+                      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+                      .toUpperCase()
+                      .replace(/[^A-Z0-9]+/g, '_')
+                  )
+                )
+              )
+            );
+      if (matching.length !== 1) continue;
+      const backend = matching[0]![0]!;
+      if (variable.role === 'build-time') variable.targetServiceName = backend.name;
       if (variable.role === 'runtime-config') {
         variable.role = 'cross-service-reference';
-        variable.targetServiceName = backend!.name;
+        variable.targetServiceName = backend.name;
         linked.add(variable);
       }
     }
@@ -1134,6 +1176,14 @@ export const assembleCandidateFacts = async ({
     });
   }
 
+  await markStaticNuxtOutput({
+    services,
+    files: listing.files,
+    read: async (path) => {
+      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+      return result.kind === 'contents' ? result.contents : undefined;
+    }
+  });
   applyStacktapeReferences({ services, dependencies });
   const frontendAddresses = linkFrontendApiAddresses(services);
   const linkedAddresses = linkServiceAddresses(services);
@@ -1150,15 +1200,13 @@ export const assembleCandidateFacts = async ({
     }
   });
   settleJobQueues(services, dependencies);
-  await noteFanoutHints({
-    services,
-    dependencies,
-    read: async (path) => {
-      if (!listing.files.includes(path)) return undefined;
-      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
-      return result.kind === 'contents' ? result.contents : undefined;
-    }
-  });
+  const readWhole = async (path: string) => {
+    if (!listing.files.includes(path)) return undefined;
+    const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+    return result.kind === 'contents' ? result.contents : undefined;
+  };
+  await noteFanoutHints({ services, dependencies, read: readWhole });
+  await noteDeadLetterRequirements({ services, dependencies, read: readWhole });
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

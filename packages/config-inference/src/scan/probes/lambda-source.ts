@@ -278,6 +278,9 @@ const requestContextDestructuring = (name: string) =>
 const readsRequestContext = (raw: string, name: string): boolean =>
   /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
 
+/** A returned proxy response: `{ statusCode: 200 }`, Python's `{'statusCode': 200}`. */
+const PROXY_RESPONSE = /['"]?\bstatusCode['"]?\s*:/;
+
 /** Fields only an HTTP API (payload 2.0) event has. */
 const HTTP_V2_EVENT: readonly RegExp[] = [
   new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('http')}`),
@@ -343,6 +346,16 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
       new RegExp(field('httpMethod')),
       new RegExp(`requestContext['"\\]]*[^\\n;]{0,16}?${field('resourcePath')}`)
     ])
+  },
+  // An API Gateway handler that reads only the request's path or query parameters and answers with a status code:
+  // `event.pathParameters.id` in, `{ statusCode: 200, body }` out. Either alone is weak, since any object can carry a
+  // `statusCode`; together they are the proxy integration's request and response.
+  {
+    family: { trigger: 'http', payloadFormat: '1.0' },
+    match: (raw) =>
+      PROXY_RESPONSE.test(raw)
+        ? firstMatching([new RegExp(field('pathParameters')), new RegExp(field('queryStringParameters'))])(raw)
+        : undefined
   },
   { family: { trigger: 'topic' }, match: firstMatching([new RegExp(field('Sns')), /['"]aws:sns['"]/]) },
   {

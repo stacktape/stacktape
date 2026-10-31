@@ -558,7 +558,9 @@ const DOGFOOD_CASES: EvalCase[] = [
       },
       serviceEnvironment: [
         { resource: 'ledgerWeb', name: 'AUTH_CLIENT_ID', value: "$ResourceParam('userPool', 'clientId')" },
-        { resource: 'ledgerWeb', name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+        { resource: 'ledgerWeb', name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" },
+        // r2au O09: ME_URL names the me function, and the other backend is the one called an API.
+        { resource: 'ledgerWeb', name: 'API_URL', value: "$ResourceParam('ledgerApi', 'url')" }
       ],
       resourceProperties: [
         // No SignUp call: users are created by an administrator, not by anyone with the client ID.
@@ -572,11 +574,7 @@ const DOGFOOD_CASES: EvalCase[] = [
         // The Lambda image's Dockerfile is no always-running worker.
         { resource: 'ledger', path: 'packaging', value: undefined }
       ],
-      gapsInclude: [
-        'functions/image/Dockerfile builds a container-image Lambda function',
-        // Two backends, the me function and the API: which one API_URL means is the user's call.
-        'reads API_URL, an address nothing in the configuration sets'
-      ]
+      gapsInclude: ['functions/image/Dockerfile builds a container-image Lambda function']
     }
   },
   {
@@ -724,6 +722,251 @@ const DOGFOOD_CASES: EvalCase[] = [
       )
     },
     expect: { gapsInclude: ['reads BILLING_URL, an address nothing in the configuration sets'] }
+  },
+  {
+    name: 'r2au O09: the frontend API_URL binds to the one backend no other variable names',
+    files: {
+      'web/package.json': packageJson({
+        name: 'ledger-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        "export async function load() { await fetch(process.env.ME_URL + '/me'); return fetch(process.env.API_URL + '/experiments'); }"
+      ),
+      'functions/package.json': packageJson({ dependencies: { '@types/aws-lambda': '^8.10.0' } }),
+      'functions/me.ts': lines(
+        "import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';",
+        'export const handler: APIGatewayProxyHandlerV2 = async () => ({ statusCode: 200, body: "{}" });'
+      ),
+      'api/package.json': packageJson({ name: 'ledger-api', scripts: { start: 'node server.mjs' } }),
+      'api/server.mjs': lines(
+        "import http from 'node:http';",
+        "http.createServer((req, res) => res.end('[]')).listen(Number(process.env.PORT || 3000), '0.0.0.0');"
+      )
+    },
+    expect: {
+      serviceEnvironment: [
+        { resource: 'ledgerWeb', name: 'API_URL', value: "$ResourceParam('ledgerApi', 'url')" },
+        { resource: 'ledgerWeb', name: 'ME_URL', value: "$ResourceParam('httpApiGateway', 'url')" }
+      ]
+    }
+  },
+  {
+    name: 'r2au O09 control: API_URL stays a gap when two backends remain',
+    files: {
+      'web/package.json': packageJson({
+        name: 'ledger-web',
+        dependencies: { next: '15.5.7', react: '19.1.0' },
+        scripts: { build: 'next build', start: 'next start' }
+      }),
+      'web/app/actions.js': lines(
+        '"use server";',
+        "export async function load() { return fetch(process.env.API_URL + '/experiments'); }"
+      ),
+      'orders/package.json': packageJson({ name: 'orders', scripts: { start: 'node server.mjs' } }),
+      'orders/server.mjs': "import http from 'node:http';\nhttp.createServer((q, r) => r.end()).listen(3000);\n",
+      'billing/package.json': packageJson({ name: 'billing', scripts: { start: 'node server.mjs' } }),
+      'billing/server.mjs': "import http from 'node:http';\nhttp.createServer((q, r) => r.end()).listen(3001);\n"
+    },
+    expect: { gapsInclude: ['reads API_URL, an address nothing in the configuration sets'] }
+  },
+  {
+    name: 'r2au O11: Amplify sign-in with the pool amplify/auth defines creates that pool and says how to configure it',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        type: undefined,
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', 'aws-amplify': '6.0.0', '@aws-amplify/backend': '1.0.0' }
+      }),
+      'server.js':
+        "const express=require('express');const {signIn}=require('aws-amplify/auth');const app=express();app.use(express.json());app.post('/login',async(req,res)=>res.json(await signIn({username:req.body.username,password:req.body.password})));app.listen(4100);\n",
+      'amplify/auth/resource.ts':
+        "import {defineAuth} from '@aws-amplify/backend';export const auth=defineAuth({loginWith:{email:true}});\n"
+    },
+    expect: {
+      resources: { userPool: 'user-auth-pool', auditApp: 'web-service' },
+      resourceProperties: [
+        { resource: 'userPool', path: 'allowEmailAsUserName', value: true },
+        { resource: 'auditApp', path: 'connectTo', value: ['userPool'] }
+      ],
+      gapsInclude: [
+        "pass $ResourceParam('userPool', 'id') and $ResourceParam('userPool', 'clientId') to Amplify.configure() in auditApp",
+        'stop deploying the pool from amplify/auth/resource.ts'
+      ]
+    }
+  },
+  {
+    name: 'r2au O11 control: Amplify sign-in with no pool in the repository creates none and says so',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5.0.0', 'aws-amplify': '6.0.0' }
+      }),
+      'server.js': lines(
+        "import express from 'express';",
+        "import { signIn } from 'aws-amplify/auth';",
+        'const app = express();',
+        "app.post('/login', async (req, res) => res.json(await signIn({ username: 'a', password: 'b' })));",
+        'app.listen(4100);'
+      )
+    },
+    expect: {
+      resourceProperties: [{ resource: 'userPool', path: 'type', value: undefined }],
+      gapsInclude: ['Nothing in the repository creates that pool, so it is probably an existing one']
+    }
+  },
+  {
+    name: 'r2au O12: a Go program that blocks forever and prints listener text is a worker, not a server or nothing',
+    files: {
+      'go.mod': 'module example.org/audit\ngo 1.24\n',
+      'main.go': 'package main\nimport "fmt"\nfunc main(){fmt.Println(`http.ListenAndServe(":9876", nil)`);select{}}\n'
+    },
+    expect: {
+      resources: { audit: 'worker-service' },
+      resourceProperties: [
+        { resource: 'audit', path: 'packaging', value: { type: 'buildpack', properties: { sourceDirectoryPath: '.' } } }
+      ]
+    }
+  },
+  {
+    name: 'r2au O12: each go.work member gets a resource, the server and its worker sibling',
+    files: {
+      'go.work': 'go 1.24\nuse (\n ./api\n ./worker\n)\n',
+      'api/go.mod': 'module example.org/api\ngo 1.24\n',
+      'api/main.go': 'package main\nimport "net/http"\nfunc main(){http.ListenAndServe(":4321",nil)}\n',
+      'worker/go.mod': 'module example.org/worker\ngo 1.24\n',
+      'worker/main.go': 'package main\nfunc main(){select{}}\n'
+    },
+    expect: {
+      resources: { api: 'web-service', worker: 'worker-service' },
+      servicePorts: [{ resource: 'api', port: 4321 }]
+    }
+  },
+  {
+    name: 'r2au O12 control: a Go program that runs once and a library module are no services',
+    files: {
+      'go.work': 'go 1.24\nuse (\n ./tool\n ./lib\n)\n',
+      'tool/go.mod': 'module example.org/tool\ngo 1.24\n',
+      'tool/main.go': 'package main\nimport "fmt"\nfunc main(){fmt.Println("done")}\n',
+      'lib/go.mod': 'module example.org/lib\ngo 1.24\n',
+      'lib/lib.go': 'package lib\nfunc Loop(){for {}}\n'
+    },
+    expect: {
+      resourceProperties: [
+        { resource: 'tool', path: 'packaging', value: undefined },
+        { resource: 'lib', path: 'packaging', value: undefined }
+      ]
+    }
+  },
+  {
+    name: 'r2au O13: a Nuxt app built with nuxt generate and ssr:false is a single-page static site',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { build: 'nuxt generate', start: 'npx serve .output/public' },
+        dependencies: { nuxt: '3.16.0' }
+      }),
+      'nuxt.config.ts': 'export default defineNuxtConfig({ssr:false});\n',
+      'app.vue': '<template><main>ok</main></template>\n'
+    },
+    expect: {
+      resources: { auditApp: 'hosting-bucket' },
+      resourceProperties: [
+        { resource: 'auditApp', path: 'uploadDirectoryPath', value: '.output/public' },
+        { resource: 'auditApp', path: 'hostingContentType', value: 'single-page-app' },
+        { resource: 'auditApp', path: 'build', value: { command: 'npm run build' } }
+      ]
+    }
+  },
+  {
+    name: 'r2au O13 control: a generated Nuxt app with server routes keeps its server',
+    files: {
+      'package.json': packageJson({
+        name: 'audit-app',
+        scripts: { build: 'nuxt generate' },
+        dependencies: { nuxt: '3.16.0' }
+      }),
+      'nuxt.config.ts': 'export default defineNuxtConfig({});\n',
+      'server/api/hello.ts': "export default defineEventHandler(() => 'hi');\n",
+      'app.vue': '<template><main>ok</main></template>\n'
+    },
+    expect: { resources: { auditApp: 'nuxt-web' } }
+  },
+  {
+    name: 'r2au O14: Django Channels on channels-redis gets a Redis and a gap naming its fixed address',
+    files: {
+      'requirements.txt': 'Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n',
+      'manage.py': 'import os\nos.environ.setdefault("DJANGO_SETTINGS_MODULE","project.settings")\n',
+      Procfile: 'web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n',
+      'project/asgi.py': lines(
+        'from channels.routing import ProtocolTypeRouter, URLRouter',
+        'from django.core.asgi import get_asgi_application',
+        'application=ProtocolTypeRouter({"http":get_asgi_application(),"websocket":URLRouter([])})'
+      ),
+      'project/settings.py': lines(
+        'ASGI_APPLICATION="project.asgi.application"',
+        'CHANNEL_LAYERS={"default":{"BACKEND":"channels_redis.core.RedisChannelLayer","CONFIG":{"hosts":[("redis",6379)]}}}'
+      )
+    },
+    expect: {
+      dependencyKinds: ['redis'],
+      resources: { cache: 'redis' },
+      gapsInclude: ['project/settings.py line 2 sets CHANNEL_LAYERS to a fixed Redis address']
+    }
+  },
+  {
+    name: 'r2au O14 control: a channel layer that reads REDIS_URL needs no address gap',
+    files: {
+      'requirements.txt': 'Django==5.1\nchannels==4.2\nchannels-redis==4.2\ndaphne==4.1\n',
+      'manage.py': 'import os\nos.environ.setdefault("DJANGO_SETTINGS_MODULE","project.settings")\n',
+      Procfile: 'web: daphne -b 0.0.0.0 -p $PORT project.asgi:application\n',
+      'project/asgi.py': lines(
+        'from channels.routing import ProtocolTypeRouter, URLRouter',
+        'from django.core.asgi import get_asgi_application',
+        'application=ProtocolTypeRouter({"http":get_asgi_application(),"websocket":URLRouter([])})'
+      ),
+      'project/settings.py': lines(
+        'import os',
+        'CHANNEL_LAYERS={"default":{"BACKEND":"channels_redis.core.RedisChannelLayer","CONFIG":{"hosts":[os.environ["REDIS_URL"]]}}}'
+      )
+    },
+    expect: {
+      resources: { cache: 'redis' },
+      gapsExclude: ['fixed Redis address', 'does not read a configurable address']
+    }
+  },
+  {
+    name: 'r2au O22: a one-argument handler reading pathParameters and returning statusCode is an HTTP function',
+    files: {
+      'package.json': packageJson({
+        dependencies: { '@aws-sdk/client-dynamodb': '^3.0.0', '@aws-sdk/lib-dynamodb': '^3.0.0' }
+      }),
+      'handler.js': lines(
+        "import {DynamoDBClient} from '@aws-sdk/client-dynamodb';",
+        "import {DynamoDBDocumentClient, GetCommand} from '@aws-sdk/lib-dynamodb';",
+        'const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));',
+        'export async function handler(event){',
+        '  const item=await client.send(new GetCommand({TableName:process.env.TABLE_NAME,Key:{tenant:event.pathParameters.tenant,id:event.pathParameters.id}}));',
+        '  return {statusCode:200,body:JSON.stringify(item.Item)};',
+        '}'
+      )
+    },
+    expect: {
+      resources: { handler: 'function', mainTable: 'dynamo-db-table' },
+      gapsInclude: ['handler reads the path parameters tenant, id, but init could not tell its route']
+    }
+  },
+  {
+    name: 'r2au O22 control: an exported one-argument function that reads no request is not deployed',
+    files: {
+      'package.json': packageJson({}),
+      'handler.js': 'export async function handler(event) { return { statusCode: 200, body: String(event) }; }\n'
+    },
+    expect: { resourceProperties: [{ resource: 'handler', path: 'packaging', value: undefined }] }
   }
 ];
 

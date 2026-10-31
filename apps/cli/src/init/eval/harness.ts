@@ -64,6 +64,8 @@ type EvalExpectation = {
   resourceProperties?: ReadonlyArray<{ resource: string; path: string; value: unknown }>;
   /** Text each of which some "Before you deploy" gap must contain. */
   gapsInclude?: readonly string[];
+  /** Text no gap may contain. */
+  gapsExclude?: readonly string[];
 };
 
 const valueAt = (value: unknown, path: string): unknown =>
@@ -183,6 +185,13 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
         stage: 'composition',
         detail: `Expected a gap mentioning "${text}". Gaps: ${result.composition.gaps.map((gap) => gap.message).join(' | ') || 'none'}`
       });
+    }
+  }
+
+  for (const text of expected.gapsExclude ?? []) {
+    const gap = result.composition.gaps.find((candidate) => candidate.message.includes(text));
+    if (gap !== undefined) {
+      failures.push({ stage: 'composition', detail: `Expected no gap mentioning "${text}". Found: ${gap.message}` });
     }
   }
 
