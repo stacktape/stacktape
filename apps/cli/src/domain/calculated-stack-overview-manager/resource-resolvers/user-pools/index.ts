@@ -1,4 +1,5 @@
 import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
+import { getIsDirective } from '@utils/directives';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -105,7 +106,10 @@ export const resolveUserPools = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'domain',
         nameChain,
-        paramValue: typeof prefix === 'string' ? `${prefix}${domainSuffix}` : join('', [prefix, domainSuffix]),
+        paramValue:
+          typeof prefix === 'string' && !getIsDirective(prefix)
+            ? `${prefix}${domainSuffix}`
+            : join('', [prefix, domainSuffix]),
         showDuringPrint: false
       });
     }

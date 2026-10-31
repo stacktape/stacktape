@@ -1209,6 +1209,15 @@ describe('user auth pool hosted UI domain prefix', () => {
     expect(domains(template)[logicalId]).toBe(originalPrefix);
   });
 
+  test('accepts a hostedUiDomainPrefix that a directive resolves at deploy time', async () => {
+    const hostedUiDomainPrefix = "$CfFormat('review-${AWS::AccountId}')";
+    const template = await synthesizeFamily('user-auth-pool-directive-prefix', pools({ hostedUiDomainPrefix }));
+    expectReferencesResolve(template);
+    expect(domains(template)[cfLogicalNames.userPoolDomain('cognitoPool')]).toEqual({
+      'Fn::Sub': 'review-${AWS::AccountId}'
+    });
+  });
+
   test.each(['my-cognito-login', 'My_Login', 'login-'])(
     'rejects hostedUiDomainPrefix %p before deployment',
     async (hostedUiDomainPrefix) => {
