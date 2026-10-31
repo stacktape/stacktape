@@ -6,6 +6,9 @@ import { devTuiState } from 'src/app/tui-manager/dev/state';
 import { CliError, getErrorHints, withHintLines } from '@utils/errors';
 import { describeStaleRemoteImages, updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
 import type { ConfigChange } from './config-change';
+
+/** A configuration check's answer; `timedOut` when the check did not finish in time. */
+type ConfigCheck = ConfigChange | { changed: true; reason: string; timedOut: true };
 import { clearCredentialExpiryTimer } from './utils';
 
 /**
@@ -78,7 +81,9 @@ export const createWorkloadRebuilder = ({
   getRemoteImageInputs = () => new Map(),
   reloadsCodeItself = () => false,
   getSessionStartedAt = () => 0,
-  retryDelayMs = 3000
+  retryDelayMs = 3000,
+  getConfigFileName = () => 'The configuration file',
+  configCheckTimeoutMs = 60_000
 }: {
   rebuild: (name: string) => Promise<void>;
   detectConfigChange: () => Promise<ConfigChange>;
@@ -95,6 +100,10 @@ export const createWorkloadRebuilder = ({
   getSessionStartedAt?: () => number;
   /** The wait before the second attempt: Lambda refuses a code update while the function is still updating. */
   retryDelayMs?: number;
+  /** The configuration file's name, for the error of a check that does not finish. */
+  getConfigFileName?: () => string;
+  /** How long a rebuild waits for the configuration check before it is refused with `CONFIG_CHECK_TIMEOUT`. */
+  configCheckTimeoutMs?: number;
 }) => {
   const queues = new Map<string, WorkloadQueue>();
   const refused = new Set<string>();
@@ -103,10 +112,54 @@ export const createWorkloadRebuilder = ({
   /** How to fix the last failed build of each workload, when its error says. */
   const errorHints = new Map<string, string[]>();
 
-  const checkConfig = async (): Promise<ConfigChange> => {
-    const change = await detectConfigChange();
-    updateAgentState({ restartRequired: change.changed ? change.reason : undefined });
-    return change;
+  /** Increases with every configuration check that starts; only the newest check's answer counts. */
+  let configGeneration = 0;
+  let newestCheck: { generation: number; answer: Promise<ConfigChange> } = {
+    generation: 0,
+    answer: Promise.resolve({ changed: false })
+  };
+
+  /**
+   * Starts a check of the configuration file as it is now. Checks run side by side, and each reads the file when it
+   * starts. A check that finishes after a newer one started read an older file: its answer is dropped. r2az run 6: a
+   * slow check of an edited file finished after the check of the restored file, and the session waited for a restart
+   * that nothing cleared. A check that never finishes (a TypeScript configuration that hangs) blocks nothing: the next
+   * save starts a newer one.
+   */
+  const startConfigCheck = () => {
+    const generation = ++configGeneration;
+    const answer = detectConfigChange().then((change) => {
+      if (generation === configGeneration) {
+        updateAgentState({ restartRequired: change.changed ? change.reason : undefined });
+      }
+      return change;
+    });
+    newestCheck = { generation, answer };
+  };
+
+  /**
+   * Checks the configuration file and returns the answer of the newest check, which can start while this one waits. It
+   * waits at most `configCheckTimeoutMs`; a configuration that does not load by then cannot be compared, so rebuilds
+   * are refused until a later check answers.
+   */
+  const checkConfig = async (): Promise<ConfigCheck> => {
+    startConfigCheck();
+    const deadline = Date.now() + configCheckTimeoutMs;
+    for (;;) {
+      const { generation, answer } = newestCheck;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const result = await Promise.race([
+        answer,
+        new Promise<'timeout'>((resolve) => {
+          timer = setTimeout(() => resolve('timeout'), Math.max(0, deadline - Date.now()));
+        })
+      ]).finally(() => clearTimeout(timer));
+      if (generation !== configGeneration) continue;
+      if (result !== 'timeout') return result;
+      const reason = `${getConfigFileName()} did not finish loading within ${Math.round(configCheckTimeoutMs / 1000)} s, so dev mode cannot tell whether it still matches the session. Fix what keeps it from loading and save it again.`;
+      updateAgentState({ restartRequired: reason });
+      return { changed: true, reason, timedOut: true };
+    }
   };
 
   /** Builds `name` and reports its status, unless a newer build of it waits and will report instead. */
@@ -192,12 +245,18 @@ export const createWorkloadRebuilder = ({
       const serving = requested.length
         ? ` ${requested.join(', ')} still run${requested.length === 1 ? 's' : ''} the previous build.`
         : '';
-      return { ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED', message: `${configChange.reason}${serving}` };
+      return {
+        ok: false,
+        code: 'timedOut' in configChange ? 'CONFIG_CHECK_TIMEOUT' : 'CONFIG_CHANGED_RESTART_REQUIRED',
+        message: `${configChange.reason}${serving}`
+      };
     }
 
     // Workloads refused earlier still run outdated code; they rebuild with this request.
     const names = [...new Set([...requested, ...refused])];
     refused.clear();
+    // Another request rebuilt the refused workloads already.
+    if (!names.length) return { ok: true, rebuilt: [] };
     for (const name of names) devTuiManager.setWorkloadStatus(name, 'starting');
     devTuiManager.startRebuild(names);
     const errors = await Promise.all(names.map(enqueue));
@@ -258,7 +317,7 @@ export const createWorkloadRebuilder = ({
     if (!change.changed) return undefined;
     return {
       ok: false,
-      code: 'CONFIG_CHANGED_RESTART_REQUIRED',
+      code: 'timedOut' in change ? 'CONFIG_CHECK_TIMEOUT' : 'CONFIG_CHANGED_RESTART_REQUIRED',
       message: `${name} is not part of this dev session. ${change.reason}`
     };
   };

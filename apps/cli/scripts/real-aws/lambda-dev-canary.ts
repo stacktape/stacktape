@@ -626,7 +626,12 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     if (result.FunctionError) throw new Error(`${name} failed: ${JSON.stringify(body)}`);
     return body as Record<string, unknown>;
   };
-  /** Counts the relay's port take-overs on the box since a time, from its journal, through SSM Run Command. */
+  /**
+   * Counts the relay's take-overs on the box since a time, from its journal, through SSM Run Command: ports taken from
+   * another session, ports taken by a new connection of the same session, and presences (a stage's claim without a
+   * port) taken from another session. The relay logs them as `port <n> taken over by <label>`, `port <n> taken over by
+   * a new connection of the same session` and `presence of <label> on <stack> taken over by <label>`.
+   */
   const readRelayTakeOvers = async (sinceEpochSeconds: number) => {
     const journal = `journalctl -u stacktape-relay --since @${sinceEpochSeconds} --no-pager -o cat`;
     const { Command } = await ssm.send(
@@ -635,8 +640,9 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
         DocumentName: 'AWS-RunShellScript',
         Parameters: {
           commands: [
-            `${journal} | grep -c 'taken over by' || true`,
-            `${journal} | grep -c 'taken over by a new connection of the same session' || true`
+            `${journal} | grep -c '^stacktape-relay: port [0-9]* taken over by' || true`,
+            `${journal} | grep -c '^stacktape-relay: port [0-9]* taken over by a new connection of the same session' || true`,
+            `${journal} | grep -c '^stacktape-relay: presence of .* taken over by' || true`
           ]
         }
       })
@@ -652,8 +658,8 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       },
       60_000
     );
-    const [all, sameSession] = output.trim().split(/\s+/).map(Number);
-    return { otherSession: all - sameSession, sameSession };
+    const [ports, sameSession, presences] = output.trim().split(/\s+/).map(Number);
+    return { otherSession: ports - sameSession, sameSession, presences };
   };
   const waitUntil = async <T>(description: string, probe: () => Promise<T>, timeoutMs: number) => {
     const deadline = Date.now() + timeoutMs;
@@ -1161,8 +1167,12 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       await sleep(20_000);
       const relayTakeOvers = await readRelayTakeOvers(takeOverSince);
       report.relayTakeOversAfterTakeOver = relayTakeOvers;
-      // One take-over per relayed database (db and cache); a ping-pong logs hundreds per minute.
-      check(relayTakeOvers.otherSession === 2, `The relay logged ${JSON.stringify(relayTakeOvers)} take-overs.`);
+      // One take-over per relayed database (db and cache) and one of the first session's presence; a ping-pong, or a
+      // stopping session that takes a port back, logs more.
+      check(
+        relayTakeOvers.otherSession === 2 && relayTakeOvers.sameSession === 0 && relayTakeOvers.presences === 1,
+        `The relay logged ${JSON.stringify(relayTakeOvers)} take-overs, not 2 ports and 1 presence.`
+      );
       check(
         (await invoke(state, 'queryX86', { op: 'db' })).value === 'second-machine',
         'The first session took the stage back.'
@@ -1283,6 +1293,7 @@ const agentStatus = async (agent: { port: number; tokenFile: string }) => {
   const status = await callAgent(agent, 'GET', '/status?verbose=true');
   return status.data as {
     ready: boolean;
+    notReadyReasons?: string[];
     restartRequired?: string;
     failedWorkloads: { name: string; error: string }[];
     workloads: { name: string; status: string }[];
@@ -1362,7 +1373,7 @@ const checkTrustworthyResults = async ({
     'the watcher to deploy the fixed file',
     async () => {
       const status = await agentStatus(agent);
-      check(status.ready, `not ready: ${JSON.stringify(status.failedWorkloads)}`);
+      check(status.ready, `not ready: ${JSON.stringify(status.notReadyReasons)}`);
     },
     180_000
   );
@@ -1409,7 +1420,7 @@ const checkTrustworthyResults = async ({
     'the session to be ready after the configuration was restored',
     async () => {
       const status = await agentStatus(agent);
-      check(status.ready && !status.restartRequired, 'still waiting for a restart');
+      check(status.ready && !status.restartRequired, `not ready: ${JSON.stringify(status.notReadyReasons)}`);
     },
     120_000
   );

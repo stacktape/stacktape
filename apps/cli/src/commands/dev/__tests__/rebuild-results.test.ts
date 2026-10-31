@@ -13,7 +13,7 @@ import {
   startAgentServer,
   stopAgentServer
 } from '../agent-server';
-import { createConfigChangeDetector } from '../config-change';
+import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { getReturnableError, type HandledError } from '@utils/errors';
 import { getRunningAgentReadyPayload, reportRunningAgent } from '../index';
 import { createWorkloadRebuilder } from '../workload-rebuild';
@@ -48,7 +48,9 @@ const startSession = async ({
   retryDelayMs = 20,
   sourceFiles,
   frontends = [],
-  remoteImageInputs
+  remoteImageInputs,
+  detectConfigChange,
+  configCheckTimeoutMs
 }: {
   workloads: string[];
   build: (name: string) => Promise<void>;
@@ -59,6 +61,9 @@ const startSession = async ({
   frontends?: string[];
   /** The files each batch job's image was built from at the start, relative to the session directory. */
   remoteImageInputs?: Record<string, string[]>;
+  /** Replaces the check of the JSON configuration file. */
+  detectConfigChange?: () => Promise<ConfigChange>;
+  configCheckTimeoutMs?: number;
 }) => {
   const sessionStartedAt = Date.now();
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-rebuild-results-'));
@@ -76,11 +81,15 @@ const startSession = async ({
     getRemoteImageInputs: () => inSession(remoteImageInputs),
     reloadsCodeItself: (name) => frontends.includes(name),
     getSessionStartedAt: () => sessionStartedAt,
-    detectConfigChange: createConfigChangeDetector({
-      configPath,
-      sessionConfig: config,
-      loadConfig: async () => JSON.parse(await readFile(configPath, 'utf8'))
-    })
+    getConfigFileName: () => 'stacktape.json',
+    configCheckTimeoutMs,
+    detectConfigChange:
+      detectConfigChange ??
+      createConfigChangeDetector({
+        configPath,
+        sessionConfig: config,
+        loadConfig: async () => JSON.parse(await readFile(configPath, 'utf8'))
+      })
   });
   setRebuildFunctions(
     (name) => rebuilder.rebuildWorkload(name, workloads.includes(name)),
@@ -243,6 +252,149 @@ test('a failed rebuild or a changed configuration is reported, and the session i
     databases: [{ name: 'db', type: 'postgres', port: 54321 }],
     failedWorkloads: []
   });
+});
+
+/**
+ * A configuration file whose checks the test finishes by hand. Each check answers for the file as it was when the check
+ * started: `changed` for any version but the one the session started with.
+ */
+const controlledConfig = () => {
+  let version = 0;
+  const pending: { version: number; finish: () => void }[] = [];
+  const answerFor = (checked: number): ConfigChange =>
+    checked === 0 ? { changed: false } : { changed: true, reason: `stacktape.json version ${checked} changed.` };
+  return {
+    save: (next: number) => (version = next),
+    pending,
+    detectConfigChange: () => {
+      const checked = version;
+      return new Promise<ConfigChange>((resolve) =>
+        pending.push({ version: checked, finish: () => resolve(answerFor(checked)) })
+      );
+    }
+  };
+};
+const ticks = async () => {
+  for (let tick = 0; tick < 20; tick++) await new Promise((resolve) => setTimeout(resolve, 1));
+};
+
+// r2az run 6: the configuration was restored, and the session still waited for a restart. Each check of the file wrote
+// its answer when it finished, so a check that read the edited file but finished after the check of the restored file
+// (a TypeScript configuration executes again, which takes a while) left the restart required with nothing to clear it.
+test('a check of an older file that finishes after the check of the restored file does not count', async () => {
+  const config = controlledConfig();
+  const { rebuilder, call } = await startSession({ workloads: ['api'], build: async () => {}, ...config });
+
+  config.save(1);
+  const edit = rebuilder.onConfigFileChange();
+  config.save(0);
+  const restore = rebuilder.onConfigFileChange();
+  await ticks();
+  const [editCheck, restoreCheck] = config.pending.splice(0);
+  restoreCheck.finish();
+  await ticks();
+  editCheck.finish();
+  await Promise.all([edit, restore]);
+
+  const status = (await call('GET', '/status?verbose=true')).data;
+  expect(status.restartRequired).toBeUndefined();
+  expect(status.ready).toBeTrue();
+});
+
+// Review of #428: checks that waited for each other let one that never finishes (a TypeScript configuration that awaits
+// forever) block every later check and rebuild.
+test('a check that never finishes blocks neither the next save nor a rebuild', async () => {
+  const config = controlledConfig();
+  const deployed: string[] = [];
+  const { rebuilder, call } = await startSession({
+    workloads: ['api'],
+    build: async (name) => {
+      deployed.push(name);
+    },
+    ...config
+  });
+
+  config.save(1);
+  void rebuilder.onConfigFileChange();
+  await ticks();
+  config.pending.splice(0);
+  config.save(0);
+  const restore = rebuilder.onConfigFileChange();
+  await ticks();
+  config.pending.splice(0).forEach((check) => check.finish());
+  await restore;
+  const rebuild = call('POST', '/rebuild/api');
+  await ticks();
+  config.pending.splice(0).forEach((check) => check.finish());
+  expect(await rebuild).toMatchObject({ ok: true, data: { rebuilt: ['api'] } });
+  expect(deployed).toEqual(['api']);
+  expect((await call('GET', '/status')).data).toMatchObject({ ready: true });
+});
+
+test('a rebuild that waits too long for the configuration check is refused, and the next save checks again', async () => {
+  const config = controlledConfig();
+  const deployed: string[] = [];
+  const { rebuilder, call } = await startSession({
+    workloads: ['api'],
+    build: async (name) => {
+      deployed.push(name);
+    },
+    configCheckTimeoutMs: 50,
+    ...config
+  });
+
+  const refused = await call('POST', '/rebuild/api');
+  expect(refused).toMatchObject({ ok: false, code: 'CONFIG_CHECK_TIMEOUT' });
+  expect(refused.message).toContain('stacktape.json did not finish loading');
+  expect(refused.message).toContain('api still runs the previous build');
+  const waiting = (await call('GET', '/status?verbose=true')).data;
+  expect(waiting).toMatchObject({ ready: false, failedWorkloads: [] });
+  expect(waiting.restartRequired).toContain('did not finish loading');
+  expect(deployed).toEqual([]);
+
+  // The next save starts a check that answers: the refused workload rebuilds and the session is ready.
+  config.pending.splice(0);
+  const saved = rebuilder.onConfigFileChange();
+  await ticks();
+  config.pending.splice(0).forEach((check) => check.finish());
+  await ticks();
+  config.pending.splice(0).forEach((check) => check.finish());
+  await saved;
+  expect(deployed).toEqual(['api']);
+  expect((await call('GET', '/status')).data).toMatchObject({ ready: true });
+});
+
+test('of many saves in a row, only the check of the newest file decides, in any order the checks finish', async () => {
+  const config = controlledConfig();
+  const { rebuilder, call } = await startSession({ workloads: ['api'], build: async () => {}, ...config });
+  const status = async () => (await call('GET', '/status?verbose=true')).data;
+
+  // 20 saves; the last restores the file. The checks finish newest first, then in the order they started.
+  const saves = Array.from({ length: 20 }, (_, index) => {
+    config.save(index === 19 ? 0 : index + 1);
+    return rebuilder.onConfigFileChange();
+  });
+  await ticks();
+  const checks = config.pending.splice(0);
+  expect(checks.map(({ version }) => version)).toEqual([...Array.from({ length: 19 }, (_, index) => index + 1), 0]);
+  checks.at(-1)!.finish();
+  await ticks();
+  for (const check of checks.slice(0, -1)) check.finish();
+  await Promise.all(saves);
+  expect((await status()).restartRequired).toBeUndefined();
+
+  // 20 more; the last is an edit, and the older checks of the restored file finish after it.
+  const edits = Array.from({ length: 20 }, (_, index) => {
+    config.save(index === 19 ? 21 : 0);
+    return rebuilder.onConfigFileChange();
+  });
+  await ticks();
+  const editChecks = config.pending.splice(0);
+  editChecks.at(-1)!.finish();
+  await ticks();
+  for (const check of editChecks.slice(0, -1)) check.finish();
+  await Promise.all(edits);
+  expect((await status()).restartRequired).toBe('stacktape.json version 21 changed.');
 });
 
 // The review's scenario: lib/db.ts is built into f1 and f2, handler.ts only into f1. An edit to lib/db.ts rebuilds

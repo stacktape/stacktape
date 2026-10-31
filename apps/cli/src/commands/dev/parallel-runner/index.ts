@@ -6,7 +6,7 @@ import type { RelayEndpoint, TunnelInfo } from '../tunnel-manager';
 import type { RebuildStep } from 'src/app/tui-manager/dev/types';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -1742,7 +1742,8 @@ const rebuilder = createWorkloadRebuilder({
   getSourceFiles: getWorkloadSourceFiles,
   getRemoteImageInputs: () => state.remoteImageInputs,
   reloadsCodeItself: (name) => state.workloads.get(name)?.reloadsCodeItself === true,
-  getSessionStartedAt: () => state.sessionStartedAt ?? 0
+  getSessionStartedAt: () => state.sessionStartedAt ?? 0,
+  getConfigFileName: () => basename(globalStateManager.configPath || 'stacktape.yml')
 });
 
 const setupFileWatching = async () => {
