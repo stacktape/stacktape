@@ -15,10 +15,13 @@ const physicalIdsOf = (stackResources: StackResource[], type: string) =>
       resource.ResourceType === type && Boolean(resource.PhysicalResourceId)
   );
 
-/** The function name in a function name, a function ARN or a partial ARN, without a version or alias. */
-const functionNameOf = (value: string) => {
-  const afterFunction = value.includes(':function:') ? value.split(':function:')[1]! : value;
-  return afterFunction.split(':')[0];
+/**
+ * The function and qualifier a `FunctionName` names, in any of its forms: `name`, `name:qualifier`, an ARN or a partial
+ * ARN (`account:function:name`), each with or without a version or alias.
+ */
+const functionReferenceOf = (value: string) => {
+  const [name, qualifier] = (value.includes(':function:') ? value.split(':function:')[1]! : value).split(':');
+  return { name: name!, qualifier };
 };
 
 /** The event bus name in a bus name or ARN; `default` when none is given. */
@@ -57,13 +60,46 @@ const withoutMetadata = (data: unknown) => {
 };
 
 /**
+ * `MaxItems` AWS accepts (1 to 10 000), and the most mappings one page holds: AWS returns at most 100 per page, with a
+ * `NextMarker`, whatever larger `MaxItems` asks for.
+ */
+const MAX_ITEMS_ACCEPTED = 10_000;
+const MAX_LISTED_MAPPINGS = 100;
+
+/**
+ * One page of `items` as `ListEventSourceMappings` pages them: at most `MaxItems` (1 to 10 000) and never more than
+ * 100, from the `Marker` of the previous page. The marker is the UUID of the page's first mapping; one that names no listed mapping
+ * gives an empty page, as AWS gives for a marker it does not know.
+ */
+const pageOf = (
+  items: unknown[],
+  input: Record<string, unknown>
+): { ok: true; items: unknown[]; nextMarker?: string } | Extract<AwsSdkResult, { ok: false }> => {
+  const { MaxItems: maxItems = MAX_LISTED_MAPPINGS, Marker: marker } = input;
+  if (!Number.isInteger(maxItems) || (maxItems as number) < 1 || (maxItems as number) > MAX_ITEMS_ACCEPTED) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      error: `MaxItems must be a whole number from 1 to ${MAX_ITEMS_ACCEPTED}.`
+    };
+  }
+  const uuidOf = (item: unknown) => (item as { UUID?: unknown } | undefined)?.UUID;
+  const start = marker === undefined ? 0 : items.findIndex((item) => uuidOf(item) === marker);
+  if (start < 0) return { ok: true, items: [] };
+  const end = start + Math.min(maxItems as number, MAX_LISTED_MAPPINGS);
+  const next = uuidOf(items[end]);
+  return { ok: true, items: items.slice(start, end), ...(typeof next === 'string' && { nextMarker: next }) };
+};
+
+/**
  * Answers the list reads IAM cannot limit to one stack from the stack's own resources, or returns `undefined` for any
  * other call. `aws call` and the dev agent send it before the call itself.
  *
  * - Lambda `ListEventSourceMappings` takes no resource and no condition key, so the agent roles cannot be allowed it
  *   without listing every mapping of the account. It returns the stack's own mappings instead, each read with
- *   `GetEventSourceMapping` (which the roles allow by the stack-name tag), filtered by `FunctionName` and
- *   `EventSourceArn` as AWS filters them. A mapping's state, last processing result and last transition are there.
+ *   `GetEventSourceMapping` (which the roles allow by the stack-name tag), filtered by `FunctionName` (with its
+ *   qualifier) and `EventSourceArn` and paged by `MaxItems` and `Marker` as AWS does. A mapping's state, last
+ *   processing result and last transition are there.
  * - EventBridge `ListRules` is authorized by the rules of the bus it names (`rule/<bus>/*`). The roles list the stack's
  *   own custom buses; rules on the default bus or on another stack's bus belong to many stacks. For such a bus it
  *   returns the stack's own rules there, each read with `DescribeRule`, filtered by `NamePrefix`.
@@ -89,19 +125,26 @@ export const listStackResources = async ({
     const { found, unreadable } = await readEach(mappings, ({ PhysicalResourceId }) =>
       send('GetEventSourceMapping', { UUID: PhysicalResourceId })
     );
-    const functionName = typeof input.FunctionName === 'string' ? functionNameOf(input.FunctionName) : undefined;
+    // AWS compares the function with the mapping's whole function ARN: a name without a qualifier lists only the
+    // mappings of the unqualified function, never those of its aliases or versions (checked 31 Oct 2026).
+    const wantedFunction = typeof input.FunctionName === 'string' ? functionReferenceOf(input.FunctionName) : undefined;
     const eventSourceArn = typeof input.EventSourceArn === 'string' ? input.EventSourceArn : undefined;
     const matching = found.map(withoutMetadata).filter((mapping) => {
       const { FunctionArn, EventSourceArn } = (mapping ?? {}) as { FunctionArn?: string; EventSourceArn?: string };
+      const mappedFunction = FunctionArn === undefined ? undefined : functionReferenceOf(FunctionArn);
       return (
-        (!functionName || (FunctionArn !== undefined && functionNameOf(FunctionArn) === functionName)) &&
+        (!wantedFunction ||
+          (mappedFunction?.name === wantedFunction.name && mappedFunction.qualifier === wantedFunction.qualifier)) &&
         (!eventSourceArn || EventSourceArn === eventSourceArn)
       );
     });
+    const page = pageOf(matching, input);
+    if (!page.ok) return page;
     return {
       ok: true,
       data: {
-        EventSourceMappings: matching,
+        EventSourceMappings: page.items,
+        ...(page.nextMarker && { NextMarker: page.nextMarker }),
         ...(unreadable.length && { UnreadableEventSourceMappings: unreadable }),
         Note: `This stack's own event source mappings (${mappings.length}), each read with GetEventSourceMapping: IAM cannot limit ListEventSourceMappings to one stack. Read one again with GetEventSourceMapping and its UUID.`
       }

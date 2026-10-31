@@ -2,7 +2,8 @@
  * Deployed Lambda functions → dev box → local databases, through the real `stacktape dev` (source CLI).
  *
  * One run owns an isolated dev network (`STACKTAPE_DEV_NETWORK_SUFFIX`) and one dev stage, and goes through:
- * 1. first creation: `dev --agent` creates the dev network and the dev stack;
+ * 1. first creation, cold and concurrent: `dev --agent` of two stages of the new project at the same moment creates
+ *    the Console project, the dev network and both dev stacks; both sessions become ready and reach their databases;
  * 2. arm64 and x86_64 functions query local PostgreSQL (initial and edited rows), one pings local Redis, and a VPC
  *    function queries PostgreSQL and reaches the internet through the box; with two stages running, `dev network`
  *    names the session that runs each; with `--watch`, a syntax error in the shared entry file fails the rebuild and
@@ -13,7 +14,9 @@
  *    refused while the session runs, and `--takeOver` moves the stage once, without the two sessions taking the
  *    relay ports from each other in turn (the relay's log on the box is read through SSM Run Command);
  * 5. box stop and wake: the box is stopped as its idle stop would, and the next `dev --agent` starts it;
- * 6. deletion: `delete` of the dev stage and `dev network delete`, then AWS is queried for every owned resource.
+ * 6. the box stops while a session starts, and the session starts it again;
+ * 7. warm and concurrent: both stages start again at the same moment, become ready and reach their databases;
+ * 8. deletion: `delete` of the dev stages and `dev network delete`, then AWS is queried for every owned resource.
  *
  * Along the way it checks that the first start reports its progress (agent port, dev network, dev box, dev stack with
  * resource counts, workloads, databases) with no long silence, that a stack trace from a dev function points at the
@@ -22,11 +25,11 @@
  * Timings go to the report file. Recovery state is written before anything is created; `--cleanup-only` resumes it.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { Client } from 'pg';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
@@ -173,7 +176,12 @@ export const validateLambdaDevRecoveryState = (value: unknown, options: Options)
 const STAGE = 'dev';
 /** A second developer's stage, run at the same time on the same box: a second SSM session to it. */
 const SECOND_STAGE = 'dev2';
-const STAGES = [STAGE, SECOND_STAGE];
+/**
+ * The stage that starts at the same moment as the first one, cold (a new project, network and dev stacks) and warm:
+ * two sessions that started together raced on the Console project and on laptop ports (r2an, r2aq).
+ */
+const PAIR_STAGE = 'dev3';
+const STAGES = [STAGE, SECOND_STAGE, PAIR_STAGE];
 const stackName = (state: State, stage = STAGE) => `${state.projectName}-${stage}`;
 const networkName = (state: State) => getDevNetworkStackName(state.networkSuffix);
 const functionName = (state: State, name: string, stage = STAGE) => `${stackName(state, stage)}-${name}`;
@@ -183,6 +191,28 @@ const DATABASE_PASSWORD = 'lambda-dev-canary-db-password';
 const projectDirectory = (state: State) => join(state.directory, 'project');
 /** The same project on the developer's second machine: its own containers, databases and agent registry. */
 const secondMachineDirectory = (state: State) => join(state.directory, 'second-machine');
+/**
+ * The host port of the local PostgreSQL that the session of `stage` in `directory` runs, read from its container name
+ * (`getDevContainerName`: project, stage and a hash of the directory). A port number alone cannot tell the sessions
+ * apart: a database started after another stopped can take the same port.
+ */
+const localDatabasePort = (state: State, stage: string, directory: string) => {
+  const directoryHash = createHash('sha256').update(resolve(directory)).digest('hex').slice(0, 8);
+  const containers = spawnSync('docker', ['ps', '--format', '{{.Names}} {{.Ports}}'], { encoding: 'utf8' }).stdout;
+  const port = Number(
+    containers
+      .split('\n')
+      .find(
+        (entry) => entry.startsWith(`stp-${state.projectName}-${stage}-${directoryHash}-`) && entry.includes('5432/tcp')
+      )
+      ?.match(/127\.0\.0\.1:(\d+)->5432/)?.[1]
+  );
+  check(
+    port,
+    `no database of ${stage} in ${directory} yet; running: ${containers.split('\n').filter(Boolean).join('; ')}`
+  );
+  return port;
+};
 
 /** The fixture: the canary writes it per run, with `pg` imported from this checkout, so it needs no install. */
 const writeFixture = async (state: State, directory = projectDirectory(state)) => {
@@ -520,9 +550,27 @@ const callAgent = async (agent: { port: number; tokenFile: string }, method: 'GE
   return (await response.json()) as AgentResponse;
 };
 
-const stopAgent = async (options: Options, state: State, agentPort: number) => {
-  const run = await runCli(options, state, ['dev:stop', '--agentPort', String(agentPort), '--agent']);
+/**
+ * Stops this run's agent of `stage` in `directory`, never one found by port alone: other dev sessions run on this
+ * machine, and a port the run recorded can belong to one of them after a failed start. `running` asks for exactly one.
+ */
+const stopAgent = async (
+  options: Options,
+  state: State,
+  stage: string,
+  { directory = projectDirectory(state), running = true }: { directory?: string; running?: boolean } = {}
+) => {
+  const run = await runCli(options, state, [
+    'dev:stop',
+    '--currentWorkingDirectory',
+    directory,
+    '--stage',
+    stage,
+    '--agent'
+  ]);
   check(run.exitCode === 0, `dev:stop failed (${run.exitCode}):\n${tail(run.output)}`);
+  const stopped = (run.result?.data?.result as { stopped?: unknown[] } | undefined)?.stopped ?? [];
+  check(!running || stopped.length === 1, `dev:stop stopped ${stopped.length} agents of ${stage}, not 1.`);
 };
 
 /** Processes whose command line contains every fragment (Linux /proc). */
@@ -620,14 +668,55 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     }
     throw new Error(`Timed out waiting for ${description}: ${lastError}`);
   };
+  /**
+   * Starts `STAGE` and `PAIR_STAGE` at the same moment. Both starts must succeed, both sessions must report ready, and
+   * a deployed function of each stage must reach that stage's own local database through the box.
+   */
+  const startPair = async (
+    state: State,
+    { agentPort, pairPort, extraArgs }: { agentPort: number; pairPort: number; extraArgs?: string[] }
+  ) => {
+    const startAt = Date.now();
+    const [first, pair] = await Promise.all([
+      startAgent(options, state, agentPort, STAGE, { extraArgs }),
+      startAgent(options, state, pairPort, PAIR_STAGE)
+    ]);
+    const sessions = { [STAGE]: { ...first, port: agentPort }, [PAIR_STAGE]: { ...pair, port: pairPort } };
+    const readyAfterSeconds: Record<string, number> = {};
+    const databaseReachedAfterSeconds: Record<string, number> = {};
+    for (const [stage, session] of Object.entries(sessions)) {
+      check(session.tokenFile, `dev --agent of ${stage} did not report its token file.`);
+      const status = await agentStatus({ port: session.port, tokenFile: session.tokenFile });
+      check(status.ready, `The ${stage} session is not ready: ${JSON.stringify(status)}`);
+      readyAfterSeconds[stage] = (Date.now() - startAt) / 1000;
+      const ping = await waitUntil(
+        `the ${stage} stage to reach its local database`,
+        () => invoke(state, 'queryArm', { op: 'ping' }, stage),
+        180_000
+      );
+      check(ping.ping === 1, `The ${stage} stage answered ${JSON.stringify(ping)}.`);
+      databaseReachedAfterSeconds[stage] = (Date.now() - startAt) / 1000;
+    }
+    return {
+      first: { ...first, tokenFile: first.tokenFile! },
+      report: {
+        startSeconds: { [STAGE]: first.seconds, [PAIR_STAGE]: pair.seconds },
+        readyAfterSeconds,
+        databaseReachedAfterSeconds
+      }
+    };
+  };
 
   const cleanup = async () => {
     if (!state || state.cleanupVerified || !state.createAttempted) {
       if (state && !state.createAttempted) await rm(state.directory, { recursive: true, force: true });
       return;
     }
-    for (const port of new Set([...agentPorts, ...(state.agentPorts ?? [])])) {
-      await stopAgent(options, state, port).catch(() => {});
+    if (agentPorts.length || state.agentPorts?.length) {
+      for (const directory of [projectDirectory(state), secondMachineDirectory(state)]) {
+        for (const stage of STAGES)
+          await stopAgent(options, state, stage, { directory, running: false }).catch(() => {});
+      }
     }
     for (const child of startedProcesses) child.kill('SIGKILL');
     if (!state.awsAccountName) state.awsAccountName = await resolveAwsAccountName(options, state);
@@ -780,16 +869,21 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     state.createAttempted = true;
     await save();
 
-    // 1. First creation of the dev network and the dev stack. The session watches the sources for step 2b.
+    // 1. First creation of the dev network and the dev stack, cold: a second stage of the new project starts at the
+    // same moment, so both create the Console project, one creates the network while the other waits for it, and both
+    // reserve laptop ports at once. The first session watches the sources for step 2b.
     const agentPort = 7400 + Math.floor(Math.random() * 400);
-    agentPorts.push(agentPort);
-    state.agentPorts = [...new Set([...(state.agentPorts ?? []), agentPort])];
+    const pairPort = agentPort + 3;
+    agentPorts.push(agentPort, pairPort);
+    state.agentPorts = [...new Set([...(state.agentPorts ?? []), agentPort, pairPort])];
     await save();
-    const first = await startAgent(options, state, agentPort, STAGE, { extraArgs: ['--watch'] });
+    const coldPair = await startPair(state, { agentPort, pairPort, extraArgs: ['--watch'] });
+    report.coldPair = coldPair.report;
+    const first = coldPair.first;
     report.firstStartSeconds = first.seconds;
-    check(first.tokenFile, 'dev --agent did not report its token file.');
     const firstAgent = { port: agentPort, tokenFile: first.tokenFile };
     report.firstStartProgress = checkStartupProgress(first.output);
+    await stopAgent(options, state, PAIR_STAGE);
     const network = await cloudFormation.send(new DescribeStacksCommand({ StackName: networkName(state) }));
     const output = (key: string) =>
       network.Stacks?.[0]?.Outputs?.find(({ OutputKey }) => OutputKey === key)?.OutputValue;
@@ -802,14 +896,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
     const password = DATABASE_PASSWORD;
     const databasePort = await waitUntil(
       'the local database port',
-      async () => {
-        const line = spawnSync('docker', ['ps', '--format', '{{.Names}} {{.Ports}}'], { encoding: 'utf8' })
-          .stdout.split('\n')
-          .find((entry) => entry.includes(state!.projectName) && entry.includes('5432/tcp'));
-        const port = Number(line?.match(/127\.0\.0\.1:(\d+)->5432/)?.[1]);
-        check(port, 'not yet');
-        return port;
-      },
+      async () => localDatabasePort(state!, STAGE, projectDirectory(state!)),
       60_000
     );
     const db = new Client({ connectionString: `postgresql://postgres:${password}@127.0.0.1:${databasePort}/postgres` });
@@ -950,14 +1037,14 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
         ])
       ).result?.data?.result as { sessions?: Array<{ stack: string; holder: string; since: string }> } | undefined;
       report.devNetworkSessionsSeconds = (Date.now() - shownAt) / 1000;
-      for (const stage of STAGES) {
+      for (const stage of [STAGE, SECOND_STAGE]) {
         const holder = shownSessions?.sessions?.find(({ stack }) => stack === stackName(state!, stage));
         check(
           holder?.holder.includes(projectDirectory(state)) && Date.now() - Date.parse(holder.since) < 60 * 60_000,
           `dev network did not show who runs ${stage}: ${JSON.stringify(shownSessions?.sessions)}`
         );
       }
-      await stopAgent(options, state, secondPort);
+      await stopAgent(options, state, SECOND_STAGE);
       agentPorts.splice(agentPorts.indexOf(secondPort), 1);
 
       // 2b. Results an agent can trust. A syntax error in the entry file of all three functions: the watcher's
@@ -1025,15 +1112,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       report.takeOverStartSeconds = takeOver.seconds;
       const secondDatabasePort = await waitUntil(
         'the second machine database port',
-        async () => {
-          const port = spawnSync('docker', ['ps', '--format', '{{.Names}} {{.Ports}}'], { encoding: 'utf8' })
-            .stdout.split('\n')
-            .filter((entry) => entry.includes(state!.projectName) && entry.includes('5432/tcp'))
-            .map((entry) => Number(entry.match(/127\.0\.0\.1:(\d+)->5432/)?.[1]))
-            .find((candidate) => candidate && candidate !== databasePort);
-          check(port, 'not yet');
-          return port;
-        },
+        async () => localDatabasePort(state!, STAGE, secondMachine),
         60_000
       );
       const secondDb = new Client({
@@ -1088,7 +1167,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
         (await invoke(state, 'queryX86', { op: 'db' })).value === 'second-machine',
         'The first session took the stage back.'
       );
-      await stopAgent(options, state, secondMachinePort);
+      await stopAgent(options, state, STAGE, { directory: secondMachine });
       agentPorts.splice(agentPorts.indexOf(secondMachinePort), 1);
     } finally {
       await db.end().catch(() => {});
@@ -1133,7 +1212,7 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       180_000
     );
     report.firstQueryAfterWakeSeconds = (Date.now() - queryAt) / 1000;
-    await stopAgent(options, state, agentPort);
+    await stopAgent(options, state, STAGE);
 
     // 6. The box stops while a session starts, as an idle stop that lands during the dev stack update would: once the
     // new session has its SSM session to the box, stop the box. The session must start it again and open its tunnels.
@@ -1168,10 +1247,16 @@ export const runLambdaDevCanary = async (cleanupOnly = false) => {
       480_000
     );
     report.recoveredAfterStopDuringStartupSeconds = (Date.now() - stopping.stoppedAt) / 1000;
-    await stopAgent(options, state, agentPort);
+    await stopAgent(options, state, STAGE);
+
+    // 7. Warm: both stages start again at the same moment on the running box and their existing dev stacks.
+    const warmPair = await startPair(state, { agentPort, pairPort });
+    report.warmPair = warmPair.report;
+    await stopAgent(options, state, STAGE);
+    await stopAgent(options, state, PAIR_STAGE);
     agentPorts.length = 0;
     console.info(
-      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reported startup progress, mapped stack traces to source, recovered a failed first start, reconnected after a killed SSM plugin, refused and then took over a stage from a second machine once, refused a network delete during a session, woke a stopped box, and recovered from a box that stopped during session startup.'
+      'Deployed arm64, x86_64 and VPC functions read local PostgreSQL and Redis through the dev box, reported startup progress, mapped stack traces to source, recovered a failed first start, reconnected after a killed SSM plugin, refused and then took over a stage from a second machine once, refused a network delete during a session, woke a stopped box, and recovered from a box that stopped during session startup; two stages that started at the same moment, cold and warm, both became ready and reached their databases.'
     );
   } catch (error) {
     failure = error;
@@ -1253,7 +1338,12 @@ const checkTrustworthyResults = async ({
   results.failedRebuildMs = Date.now() - rebuildStarted;
   results.failedRebuild = { ok: rebuild.ok, code: rebuild.code, message: rebuild.message };
   check(
-    rebuild.ok === false && rebuild.code === 'REBUILD_FAILED' && /unexpected/i.test(rebuild.message ?? ''),
+    rebuild.ok === false &&
+      rebuild.code === 'REBUILD_FAILED' &&
+      // An error of several lines is in failedWorkloads only; the message names the function (r2w).
+      (rebuild.data?.failedWorkloads as Array<{ name: string; error: string }> | undefined)?.some(
+        ({ name, error }) => name === 'queryArm' && /unexpected/i.test(error)
+      ) === true,
     `A rebuild of a broken file answered ${JSON.stringify(rebuild)}.`
   );
   check(rebuild.data?.logFile === failedStatus.logFile, 'The failed rebuild did not name the log file.');
@@ -1305,9 +1395,11 @@ const checkTrustworthyResults = async ({
     await lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName(state, 'queryArm') }))
   ).Timeout;
   check(timeoutAfter === timeoutBefore, 'The refused rebuild changed the function configuration.');
+  // r2ll: the refused workload keeps serving its previous build, so the answer says so and it is not failed.
   check(
-    (await agentStatus(agent)).failedWorkloads.some(({ name }) => name === 'queryArm'),
-    'The refused workload does not report that it was not rebuilt.'
+    refused.message?.includes('queryArm still runs the previous build') &&
+      !(await agentStatus(agent)).failedWorkloads.some(({ name }) => name === 'queryArm'),
+    `The refused workload is not reported as running its previous build: ${JSON.stringify(refused)}.`
   );
 
   // Reverting the configuration rebuilds the refused workload; the session is ready only after that.

@@ -20,7 +20,16 @@ const mappings: Record<string, Record<string, unknown>> = {
     LastProcessingResult: 'No records processed',
     StateTransitionReason: 'User action'
   },
-  'uuid-queue': { UUID: 'uuid-queue', FunctionArn: `${functionArn('shop-dev-worker')}:live`, EventSourceArn: queue },
+  'uuid-queue-live': {
+    UUID: 'uuid-queue-live',
+    FunctionArn: `${functionArn('shop-dev-worker')}:live`,
+    EventSourceArn: queue
+  },
+  'uuid-queue-version': {
+    UUID: 'uuid-queue-version',
+    FunctionArn: `${functionArn('shop-dev-worker')}:3`,
+    EventSourceArn: queue
+  },
   'uuid-other-stage': { UUID: 'uuid-other-stage', FunctionArn: functionArn('shop-dev-production-consumer') }
 };
 const rules: Record<string, Record<string, unknown>> = {
@@ -38,7 +47,12 @@ const stackResources = [
   {
     LogicalResourceId: 'WorkerEvent0EventSourceMapping',
     ResourceType: 'AWS::Lambda::EventSourceMapping',
-    PhysicalResourceId: 'uuid-queue'
+    PhysicalResourceId: 'uuid-queue-live'
+  },
+  {
+    LogicalResourceId: 'WorkerEvent1EventSourceMapping',
+    ResourceType: 'AWS::Lambda::EventSourceMapping',
+    PhysicalResourceId: 'uuid-queue-version'
   },
   {
     LogicalResourceId: 'GoneEventSourceMapping',
@@ -81,13 +95,14 @@ test("ListEventSourceMappings returns the stack's own mappings with their state,
   const { result, sent } = await list('lambda', 'ListEventSourceMappings');
   expect(sent).toEqual([
     'GetEventSourceMapping {"UUID":"uuid-stream"}',
-    'GetEventSourceMapping {"UUID":"uuid-queue"}',
+    'GetEventSourceMapping {"UUID":"uuid-queue-live"}',
+    'GetEventSourceMapping {"UUID":"uuid-queue-version"}',
     'GetEventSourceMapping {"UUID":"uuid-deleted"}'
   ]);
   expect(result).toMatchObject({
     ok: true,
     data: {
-      EventSourceMappings: [mappings['uuid-stream'], mappings['uuid-queue']],
+      EventSourceMappings: [mappings['uuid-stream'], mappings['uuid-queue-live'], mappings['uuid-queue-version']],
       UnreadableEventSourceMappings: [
         { LogicalResourceId: 'GoneEventSourceMapping', PhysicalResourceId: 'uuid-deleted', code: 'NOT_FOUND' }
       ]
@@ -97,16 +112,65 @@ test("ListEventSourceMappings returns the stack's own mappings with their state,
   expect(JSON.stringify(result)).not.toContain('ResponseMetadata');
 });
 
-test('ListEventSourceMappings filters by function, by name or ARN and across aliases, and by event source', async () => {
+// #418 review: `FunctionName: "worker:missing", MaxItems: 1` returned the mappings of every alias of worker. AWS compares
+// the whole function ARN and pages by MaxItems and Marker (checked against Lambda in ap-southeast-1 on 31 Oct 2026).
+test('ListEventSourceMappings filters by function and qualifier in every form, and by event source', async () => {
   const uuids = async (input: Record<string, unknown>) =>
     ((await list('lambda', 'ListEventSourceMappingsCommand', input)).result as any).data.EventSourceMappings.map(
       ({ UUID }: { UUID: string }) => UUID
     );
   expect(await uuids({ FunctionName: 'shop-dev-consumer' })).toEqual(['uuid-stream']);
-  expect(await uuids({ FunctionName: functionArn('shop-dev-worker') })).toEqual(['uuid-queue']);
-  expect(await uuids({ FunctionName: `${account}:function:shop-dev-worker:live` })).toEqual(['uuid-queue']);
+  expect(await uuids({ FunctionName: functionArn('shop-dev-consumer') })).toEqual(['uuid-stream']);
+  expect(await uuids({ FunctionName: `${account}:function:shop-dev-consumer` })).toEqual(['uuid-stream']);
+  // A name without a qualifier lists only the unqualified function's mappings, not those of an alias or version.
+  expect(await uuids({ FunctionName: 'shop-dev-worker' })).toEqual([]);
+  expect(await uuids({ FunctionName: functionArn('shop-dev-worker') })).toEqual([]);
+  for (const live of [
+    'shop-dev-worker:live',
+    `${functionArn('shop-dev-worker')}:live`,
+    `${account}:function:shop-dev-worker:live`
+  ]) {
+    expect(await uuids({ FunctionName: live })).toEqual(['uuid-queue-live']);
+  }
+  expect(await uuids({ FunctionName: 'shop-dev-worker:3' })).toEqual(['uuid-queue-version']);
+  for (const absent of ['shop-dev-worker:missing', 'shop-dev-worker:$LATEST', 'shop-dev-consumer:live']) {
+    expect(await uuids({ FunctionName: absent })).toEqual([]);
+  }
   expect(await uuids({ FunctionName: 'shop-dev-production-consumer' })).toEqual([]);
-  expect(await uuids({ EventSourceArn: queue })).toEqual(['uuid-queue']);
+  expect(await uuids({ EventSourceArn: queue })).toEqual(['uuid-queue-live', 'uuid-queue-version']);
+  expect(await uuids({ EventSourceArn: queue, FunctionName: 'shop-dev-worker:3' })).toEqual(['uuid-queue-version']);
+  expect(await uuids({ EventSourceArn: queue, FunctionName: 'shop-dev-consumer' })).toEqual([]);
+});
+
+test('ListEventSourceMappings pages by MaxItems and Marker', async () => {
+  const page = async (input: Record<string, unknown>) =>
+    (await list('lambda', 'ListEventSourceMappings', input)).result as any;
+  const seen: string[] = [];
+  let input: Record<string, unknown> = { MaxItems: 1 };
+  for (let pages = 0; pages < 5; pages++) {
+    const { data } = await page(input);
+    expect(data.EventSourceMappings).toHaveLength(1);
+    seen.push(data.EventSourceMappings[0].UUID);
+    if (!data.NextMarker) break;
+    input = { MaxItems: 1, Marker: data.NextMarker };
+  }
+  expect(seen).toEqual(['uuid-stream', 'uuid-queue-live', 'uuid-queue-version']);
+
+  const filtered = await page({ FunctionName: 'shop-dev-worker:missing', MaxItems: 1 });
+  expect(filtered.data.EventSourceMappings).toEqual([]);
+  expect(filtered.data).not.toHaveProperty('NextMarker');
+  const twoOfThree = await page({ MaxItems: 2 });
+  expect(twoOfThree.data.EventSourceMappings.map(({ UUID }: { UUID: string }) => UUID)).toEqual([
+    'uuid-stream',
+    'uuid-queue-live'
+  ]);
+  expect((await page({ Marker: twoOfThree.data.NextMarker })).data.EventSourceMappings).toHaveLength(1);
+  expect((await page({})).data).not.toHaveProperty('NextMarker');
+  // AWS answers a marker it does not know with an empty page.
+  expect((await page({ Marker: 'garbage' })).data.EventSourceMappings).toEqual([]);
+  for (const MaxItems of [0, 10_001, 1.5, '1']) {
+    expect(await page({ MaxItems })).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+  }
 });
 
 test("ListRules is sent to AWS for the stack's own custom bus, and answered from its own rules elsewhere", async () => {
@@ -137,4 +201,34 @@ test('other reads are left to the executor', async () => {
   expect((await list('lambda', 'GetEventSourceMapping', { UUID: 'uuid-stream' })).result).toBeUndefined();
   expect((await list('eventbridge', 'DescribeRule', { Name: 'x' })).result).toBeUndefined();
   expect((await list('sqs', 'ListQueues')).result).toBeUndefined();
+});
+
+// #427 review: AWS returns at most 100 mappings per page, with a NextMarker, whatever larger MaxItems asks for.
+test('ListEventSourceMappings returns at most 100 mappings a page, also for a larger MaxItems', async () => {
+  const many = Array.from({ length: 150 }, (_, index) => ({
+    LogicalResourceId: `Mapping${index}`,
+    ResourceType: 'AWS::Lambda::EventSourceMapping',
+    PhysicalResourceId: `uuid-${index}`
+  }));
+  const page = async (input: Record<string, unknown>) =>
+    (
+      (await listStackResources({
+        service: 'lambda',
+        command: 'ListEventSourceMappings',
+        input,
+        stackResources: many,
+        send: async (_read, readInput) => ({
+          ok: true,
+          data: { UUID: readInput.UUID, FunctionArn: functionArn('shop-dev-consumer') }
+        })
+      })) as any
+    ).data;
+  for (const input of [{}, { MaxItems: 10_000 }]) {
+    const first = await page(input);
+    expect(first.EventSourceMappings).toHaveLength(100);
+    expect(first.NextMarker).toBe('uuid-100');
+    const rest = await page({ ...input, Marker: first.NextMarker });
+    expect(rest.EventSourceMappings).toHaveLength(50);
+    expect(rest).not.toHaveProperty('NextMarker');
+  }
 });

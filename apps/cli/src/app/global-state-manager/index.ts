@@ -48,6 +48,7 @@ import {
 } from '@utils/validator';
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
+import { createProjectOrUseConcurrent } from './project-creation';
 import { loadPersistedState, savePersistedState } from './utils';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
@@ -883,12 +884,21 @@ export class GlobalStateManager {
       }
       validateProjectName(chosenProjectName);
       validateStackName({ projectName: chosenProjectName, stage });
-      const projectInfo = await stacktapeTrpcApiManager.apiClient.createProject({
+      return createProjectOrUseConcurrent({
         name: chosenProjectName,
-        configPath: this.args.configPath,
-        region: this.region
+        organizationId: this.organizationData?.id,
+        create: () =>
+          stacktapeTrpcApiManager.apiClient.createProject({
+            name: chosenProjectName,
+            configPath: this.args.configPath,
+            region: this.region
+          }),
+        readProjects: async () => {
+          const data = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
+          if (data.organization.id === this.organizationData?.id) this.projects = data.projects;
+          return { organizationId: data.organization.id, projects: data.projects };
+        }
       });
-      return projectInfo;
     };
 
     const chooseExistingProject = async () => {

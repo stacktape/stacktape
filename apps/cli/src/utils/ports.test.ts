@@ -1,10 +1,18 @@
 import { afterEach, expect, test } from 'bun:test';
-import { spawn } from 'node:child_process';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isPortInUse, reserveFreeLocalPort, reserveLocalPort } from './ports';
+import {
+  getProcessStart,
+  isPortInUse,
+  isSameProcessStart,
+  parsePsStartTime,
+  reserveFreeLocalPort,
+  reserveLocalPort
+} from './ports';
 
 const listen = (server: Server, port: number, host: string) =>
   new Promise<number>((resolve, reject) => {
@@ -190,4 +198,140 @@ test('an explicit port held by a live process is refused and one whose process e
   expect(reclaimed?.port).toBe(abandoned);
   await reclaimed?.release();
   expect(await readdir(directory)).toEqual([`${held}.json`]);
+});
+
+const reservationFile = (pid: number, extra: Record<string, unknown> = {}) =>
+  JSON.stringify({ pid, hostname: hostname(), token: `token-${pid}-${randomUUID()}`, reservedAt: 0, ...extra });
+
+// #417 review: reading a stale reservation and deleting it were two steps, so a reclaimer that paused between them
+// deleted the reservation another reclaimer had made meanwhile, and both held the port.
+test('of many processes reclaiming one abandoned reservation at once, exactly one gets the port', async () => {
+  const directory = await reservationDirectory();
+  const [port] = await freePorts(1);
+  for (let round = 0; round < 20; round++) {
+    await writeFile(join(directory, `${port}.json`), reservationFile(2 ** 31 - 2));
+    const results = await Promise.all(Array.from({ length: 8 }, () => reserveLocalPort(port!, { directory })));
+    const winners = results.filter(Boolean);
+    expect(winners).toHaveLength(1);
+    // The winner's reservation is the file; no claim is left behind.
+    expect(await readdir(directory)).toEqual([`${port}.json`]);
+    await winners[0]!.release();
+  }
+});
+
+test('separate processes reclaiming one abandoned reservation at once never both hold it', async () => {
+  const directory = await reservationDirectory();
+  const reservations = join(directory, 'reservations');
+  await mkdir(reservations);
+  const [port] = await freePorts(1);
+  await writeFile(join(reservations, `${port}.json`), reservationFile(2 ** 31 - 2));
+  const startAt = Date.now() + 1500;
+  const fallbacks = await freePorts(4);
+  const processes = await Promise.all(
+    fallbacks.map((fallback) =>
+      startReservingProcess({ directory, candidates: [port!, fallback], startAt, holdMs: 500 })
+    )
+  );
+  const reserved = await Promise.all(processes.map(({ port: reservedPort }) => reservedPort));
+  await Promise.all(processes.map(({ exited }) => exited));
+  expect(reserved.filter((reservedPort) => reservedPort === port)).toHaveLength(1);
+}, 30_000);
+
+// #417 review: a live process that took over a crashed owner's id kept its reservation, so an explicit port failed.
+test.skipIf(process.platform === 'win32')(
+  'a reservation whose process id now belongs to a process that started later is reclaimed',
+  async () => {
+    const directory = await reservationDirectory();
+    const [reused, held, legacy] = await freePorts(3);
+    const ownStart = await getProcessStart(process.pid);
+    expect(ownStart).toBeDefined();
+    // This test process is alive with the reservations' process id; only one of them names its start.
+    const earlierStart =
+      process.platform === 'linux'
+        ? `${ownStart!.split(':').slice(0, 2).join(':')}:1`
+        : `epoch:${Date.now() - 86_400_000}`;
+    await writeFile(join(directory, `${reused}.json`), reservationFile(process.pid, { processStart: earlierStart }));
+    await writeFile(join(directory, `${held}.json`), reservationFile(process.pid, { processStart: ownStart }));
+    // A reservation from an older CLI has no start: the id alone keeps it.
+    await writeFile(join(directory, `${legacy}.json`), reservationFile(process.pid));
+    const reclaimed = await reserveLocalPort(reused!, { directory });
+    expect(reclaimed?.port).toBe(reused);
+    expect(await reserveLocalPort(held!, { directory })).toBeUndefined();
+    expect(await reserveLocalPort(legacy!, { directory })).toBeUndefined();
+    await reclaimed?.release();
+  }
+);
+
+test.skipIf(process.platform === 'win32')('a process start reads the same for the process and for others', async () => {
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
+  try {
+    const first = await getProcessStart(child.pid!);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const second = await getProcessStart(child.pid!);
+    expect(first).toBeDefined();
+    // A reading a second later, past a second boundary, names the same start.
+    expect(isSameProcessStart(first!, second!)).toBe(true);
+    expect(await getProcessStart(2 ** 31 - 2)).toBeUndefined();
+  } finally {
+    child.kill();
+  }
+});
+
+// #427 review: `ps` reports a start to the second; readings must match at that resolution, never by milliseconds.
+test('process starts compare at the resolution the system reports', () => {
+  const at = Date.UTC(2026, 9, 31, 14, 5, 9);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at}`)).toBe(true);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at + 1000}`)).toBe(true);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at + 3000}`)).toBe(false);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-a:1200')).toBe(true);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-a:1201')).toBe(false);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-b:1200')).toBe(false);
+  // Readings of different forms cannot tell, so the owner counts as alive.
+  expect(isSameProcessStart('linux:boot-a:1200', `epoch:${at}`)).toBe(true);
+  expect(parsePsStartTime('Sat Oct 31 14:05:09 2026')).toBe(at);
+  expect(parsePsStartTime('Sun Nov  1 02:00:00 2026\n')).toBe(Date.UTC(2026, 10, 1, 2, 0, 0));
+  expect(parsePsStartTime('31 Oct 2026')).toBeUndefined();
+});
+
+test.skipIf(process.platform === 'win32')('ps reports this process start in UTC, to the second', () => {
+  const lstart = spawnSync('ps', ['-o', 'lstart=', '-p', String(process.pid)], {
+    encoding: 'utf8',
+    env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' }
+  }).stdout;
+  const startedAt = parsePsStartTime(lstart);
+  expect(startedAt).toBeDefined();
+  expect(Math.abs(startedAt! - (Date.now() - process.uptime() * 1000))).toBeLessThan(5000);
+});
+
+// #427 review: three crashes between taking a claim and dropping it left the port reserved for good.
+test('claims that crashed reclaimers left expire, so the port is reclaimed and nothing is left behind', async () => {
+  const directory = await reservationDirectory();
+  const [port] = await freePorts(1);
+  const token = `token-crashed-${randomUUID()}`;
+  await writeFile(
+    join(directory, `${port}.json`),
+    JSON.stringify({ pid: 2 ** 31 - 2, hostname: hostname(), token, reservedAt: 0 })
+  );
+  const old = new Date(Date.now() - 60_000);
+  for (let generation = 1; generation <= 5; generation++) {
+    const claim = join(directory, `${port}.json.token-${token}.reclaim${generation}`);
+    await writeFile(claim, '');
+    await utimes(claim, old, old);
+  }
+  const reclaimed = await reserveLocalPort(port!, { directory });
+  expect(reclaimed?.port).toBe(port);
+  expect(await readdir(directory)).toEqual([`${port}.json`]);
+  await reclaimed?.release();
+});
+
+test('a fresh claim of another reclaimer keeps this process from reclaiming at the same time', async () => {
+  const directory = await reservationDirectory();
+  const [port] = await freePorts(1);
+  const token = `token-claimed-${randomUUID()}`;
+  await writeFile(
+    join(directory, `${port}.json`),
+    JSON.stringify({ pid: 2 ** 31 - 2, hostname: hostname(), token, reservedAt: 0 })
+  );
+  await writeFile(join(directory, `${port}.json.token-${token}.reclaim1`), '');
+  expect(await reserveLocalPort(port!, { directory })).toBeUndefined();
 });

@@ -442,9 +442,22 @@ export const runStreamEventCanary = async (cleanupOnly = false) => {
     return { startedAt, tokenFile };
   };
 
-  const stopAgent = async (port: number) => {
-    const run = await runCli(options, ['dev:stop', '--agentPort', String(port), '--agent']);
+  /**
+   * Stops this run's agent by its project directory and stage, never by port alone: other dev sessions run on this
+   * machine, and the port recorded before a start can belong to one of them when the start failed or ended.
+   */
+  const stopAgent = async ({ running = true }: { running?: boolean } = {}) => {
+    const run = await runCli(options, [
+      'dev:stop',
+      '--currentWorkingDirectory',
+      projectDirectory(state!),
+      '--stage',
+      DEV_STAGE,
+      '--agent'
+    ]);
     check(run.exitCode === 0, `dev:stop failed (${run.exitCode}):\n${tail(run.output)}`);
+    const stopped = (run.result?.data?.result as { stopped?: unknown[] } | undefined)?.stopped ?? [];
+    check(!running || stopped.length === 1, `dev:stop stopped ${stopped.length} agents of this run, not 1.`);
   };
 
   const deleteStage = async (stage: string) => {
@@ -461,7 +474,7 @@ export const runStreamEventCanary = async (cleanupOnly = false) => {
       if (state && !state.createAttempted) await rm(state.directory, { recursive: true, force: true });
       return;
     }
-    for (const port of state.agentPorts ?? []) await stopAgent(port).catch(() => {});
+    if (state.agentPorts?.length) await stopAgent({ running: false }).catch(() => {});
     for (const child of startedProcesses) child.kill('SIGKILL');
     if (!state.awsAccountName) state.awsAccountName = await resolveAwsAccountName(options);
     for (const stage of STAGES) await deleteStage(stage);
@@ -535,7 +548,7 @@ export const runStreamEventCanary = async (cleanupOnly = false) => {
       const freshResult = await probeAfterStart(DEV_STAGE, `dev-fresh-${run}`, fresh.startedAt);
       (freshResult as Record<string, unknown>).agentStatus = freshStatus;
       await saveReport();
-      await stopAgent(port);
+      await stopAgent();
       check(
         freshResult.readers.fromTrimHorizon.lost === 0,
         `dev-fresh-${run}: the TRIM_HORIZON reader lost ${freshResult.readers.fromTrimHorizon.lost} probes.`
@@ -556,7 +569,7 @@ export const runStreamEventCanary = async (cleanupOnly = false) => {
       const warmResult = await probeAfterStart(DEV_STAGE, `dev-warm-${run}`, warm.startedAt);
       (warmResult as Record<string, unknown>).agentStatus = warmStatus;
       await saveReport();
-      await stopAgent(warmPort);
+      await stopAgent();
       check(
         warmResult.readers.fromTrimHorizon.lost === 0 && warmResult.readers.fromLatest.lost === 0,
         `dev-warm-${run}: a warm start lost probes.`
