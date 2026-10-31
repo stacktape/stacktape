@@ -15,6 +15,7 @@ links. Private Console links are checked when the submodule is initialized.
 | Packaging, runtime artifacts and layer uploads on MiniStack          | [Packaging acceptance](../apps/cli/scripts/packaging-archives/README.md)                                       |
 | Console API, database, browser and shared dev reservation            | [Console testing](testing/console.md)                                                                          |
 | Live AWS authorization, ownership, cost and cleanup                  | [Live AWS testing](testing/live-aws.md)                                                                        |
+| Running the CLI as a native Windows process from WSL                 | [Windows from WSL](testing/windows-from-wsl.md)                                                                |
 | Feature examples or diagnosing runtime acceptance failures           | [Feature recipes](testing/feature-scenarios.md) and [runtime diagnosis](testing/runtime-acceptance.md)         |
 | Publishing CLI binaries, npm packages and installers                 | [Releasing](releasing.md)                                                                                      |
 | Generated files and their source of truth                            | [Generated files](generated-files.md)                                                                          |

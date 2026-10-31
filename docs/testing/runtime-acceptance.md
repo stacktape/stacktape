@@ -10,7 +10,8 @@ source.
 
 Record the checkout or uncommitted revision, local/deployed API target, and relevant artifact or AMI identity. For
 process/runtime failures, include the host environment and tool versions that affect the result; WSL execution and a
-native Windows process are different environments even when they access the same checkout.
+native Windows process are different environments even when they access the same checkout. To run the source-built CLI
+natively on the Windows host from WSL, follow [Windows from WSL](windows-from-wsl.md).
 
 Recheck executable paths and versions if module resolution suddenly changes during a long session. A global Bun symlink
 changed during provider acceptance and selected an older runtime. Use the repository's supported version in a task-owned

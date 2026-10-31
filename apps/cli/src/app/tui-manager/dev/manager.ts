@@ -242,7 +242,7 @@ class DevTuiManager {
   startRenderer() {
     if (this.renderer) return;
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       this.renderer = new DevTuiNonTtyRenderer();
     } else {
       const ttyRenderer = new DevTuiRenderer();
@@ -265,6 +265,14 @@ class DevTuiManager {
 
   get agentMode(): boolean {
     return this._agentMode;
+  }
+
+  /**
+   * Plain lines instead of the full-screen interface: in agent mode, and whenever stdout is not a terminal (CI,
+   * `| tee`, a coding agent's shell), where the interface would write its terminal queries and redraws into the pipe.
+   */
+  private get plainOutput(): boolean {
+    return this._agentMode || !process.stdout.isTTY;
   }
 
   async stop() {
@@ -305,7 +313,7 @@ class DevTuiManager {
       this.readyHandler();
     }
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       this.printAgentRunningSummary();
     }
   }
@@ -340,7 +348,7 @@ class DevTuiManager {
     this.phase = 'rebuilding';
     agentLog('dev', `Rebuild started: ${workloadNames.join(', ')}`);
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       console.info(`[i] Rebuilding workloads: ${workloadNames.join(', ')}`);
       return;
     }
@@ -352,7 +360,7 @@ class DevTuiManager {
   setRebuildStep(name: string, step: RebuildStep, detail?: string) {
     if (this.phase !== 'rebuilding') return;
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       const detailStr = detail ? ` - ${detail}` : '';
       console.info(`[i] ${name}: ${step}${detailStr}`);
       return;
@@ -363,7 +371,7 @@ class DevTuiManager {
 
   setRebuildSize(name: string, size: string) {
     if (this.phase !== 'rebuilding') return;
-    if (this._agentMode) return;
+    if (this.plainOutput) return;
     devTuiState.setRebuildWorkloadSize(name, size);
   }
 
@@ -371,7 +379,7 @@ class DevTuiManager {
     if (this.phase !== 'rebuilding') return;
     agentLog('dev', `Rebuild finished: ${name}${size ? ` [${size}]` : ''}`);
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       const sizeStr = size ? ` [${size}]` : '';
       console.info(`[+] ${name}: rebuild complete${sizeStr}`);
       return;
@@ -388,7 +396,7 @@ class DevTuiManager {
     if (this.phase !== 'rebuilding') return;
     agentLog('dev', `Rebuild failed: ${name}: ${error}`, 'error');
 
-    if (this._agentMode) {
+    if (this.plainOutput) {
       console.info(`[x] ${name}: rebuild failed - ${error}`);
       return;
     }
@@ -405,7 +413,7 @@ class DevTuiManager {
   async finishRebuild() {
     if (this.phase !== 'rebuilding') return;
 
-    if (!this._agentMode) {
+    if (!this.plainOutput) {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
@@ -534,7 +542,7 @@ class DevTuiManager {
 
   /** `timestamp` is when the line was produced, when that is not now: a deployed function's CloudWatch event time. */
   log(source: string, message: string, level: LogEntry['level'] = 'info', timestamp?: number) {
-    if (this._agentMode) {
+    if (this.plainOutput) {
       agentLog(source, message, level === 'debug' ? 'info' : level, timestamp);
       const time = formatIsoLocalTime(new Date());
       const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
@@ -546,7 +554,7 @@ class DevTuiManager {
   }
 
   systemLog(message: string, level: LogEntry['level'] = 'info') {
-    if (this._agentMode) {
+    if (this.plainOutput) {
       agentLog('system', message, level === 'debug' ? 'info' : level);
       console.info(`${formatIsoLocalTime(new Date())} [system] ${message}`);
       return;

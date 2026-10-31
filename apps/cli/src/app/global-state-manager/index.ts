@@ -937,7 +937,7 @@ export class GlobalStateManager {
 
     // if we got this far and this is not TTY, throw error
     if (process.env.CI || !process.stdout.isTTY) {
-      throw stpErrors.e103(null);
+      throw stpErrors.e103({ missingProjectName: projectName });
     }
 
     // An explicit CLI value may be a typo, so confirm before creating it.

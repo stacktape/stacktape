@@ -1,6 +1,6 @@
 import { shellQuote } from '../../../config/cli/public-names';
 import type { StarterProjectMetadata } from '@scripts/types';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -64,12 +64,11 @@ export const initUsingStarterProject = async () => {
 
   printInitPreflight({ projectName: projectToUse.starterProjectId, mode: 'starter-template' });
 
-  let targetDirectory = globalStateManager.args.projectDirectory;
-  if (!targetDirectory) {
-    targetDirectory = await promptTargetDirectory();
-  }
+  const { initializeProjectTo, projectDirectory, configFormat: configFormatArg } = globalStateManager.args;
+  const targetDirectory = initializeProjectTo || projectDirectory || (await promptTargetDirectory());
 
-  const absoluteProjectPath = join(process.cwd(), targetDirectory);
+  // `resolve`, not `join`: an absolute target (`C:\projects\app` or `/home/me/app`) must not be nested in the cwd.
+  const absoluteProjectPath = resolve(process.cwd(), targetDirectory);
 
   const dirOrFileExists = existsSync(absoluteProjectPath);
   if (dirOrFileExists) {
@@ -102,7 +101,7 @@ export const initUsingStarterProject = async () => {
   // Estimate costs from the YAML config (before potentially deleting it)
   const costEstimation = await fetchCostEstimate(join(absoluteProjectPath, 'stacktape.yml'));
 
-  const configFormat = await promptConfigFormat();
+  const configFormat = configFormatArg ?? (await promptConfigFormat());
   await removeUnusedConfigFile({ absoluteProjectPath, chosenFormat: configFormat });
 
   if (projectToUse.projectType === 'es') {
