@@ -156,7 +156,9 @@ test('a new session removes the containers a killed session of its project and s
           '--label',
           `stacktape.dev.stage=${lockFile === otherStageLock ? 'test' : 'dev'}`
         );
-      const created = invoke(['create', '--name', nameOf(kind), ...labels, 'alpine:3', 'sleep', '600']);
+      // A workload container runs with --rm, so stopping it already removes it; it still counts as removed.
+      const autoRemove = kind === 'killed' ? ['--rm'] : [];
+      const created = invoke(['create', '--name', nameOf(kind), ...autoRemove, ...labels, 'alpine:3', 'sleep', '600']);
       expect(created.status, created.stderr).toBe(0);
       if (started) expect(invoke(['start', nameOf(kind)]).status).toBe(0);
     }

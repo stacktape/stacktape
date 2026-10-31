@@ -166,6 +166,23 @@ const findLiveLockFiles = async (containers: DevContainer[]): Promise<Set<string
   return new Set(live.filter((lockFile): lockFile is string => lockFile !== undefined));
 };
 
+/** Whether a container is gone within a few seconds, such as one Docker removes by itself after it stopped. */
+const isContainerGone = async (name: string): Promise<boolean> => {
+  const { execDocker } = await import('@utils/docker');
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const exists = await execDocker(['container', 'inspect', '--format', '{{.Id}}', name], {
+      skipHandleError: true
+    }).then(
+      () => true,
+      () => false
+    );
+    if (!exists) return true;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return false;
+};
+
 /**
  * Stop and remove the dev containers in scope that no live session owns, and return their names. `sessionIsAlive`
  * replaces the default check, which also counts a session that holds the container's lock file now.
@@ -228,7 +245,8 @@ export const cleanupOrphanedContainers = async ({
           await execDocker(['rm', '-f', name], { skipHandleError: true });
           return name;
         } catch {
-          return undefined;
+          // A workload container runs with `--rm`: stopping it starts its removal, and `rm` fails while that runs.
+          return (await isContainerGone(name)) ? name : undefined;
         }
       })
     );
