@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { isMcpInvocation } from '@application-services/operation-invocation-context';
@@ -113,14 +114,52 @@ const overrideCommandPortArgs = (args: string[], port: number): string[] => {
   return output;
 };
 
+/** A host option on a command line: `--hostname`/`-H` (Next.js), `--host` (Vite and most others), or `HOST=...`. */
+const HOST_OPTION = /(?:^|[\s"'])(?:--hostname|--host|-H)(?=[=\s"']|$)|(?:^|[\s"'])HOST=/;
+
+/** `npm|pnpm|bun run <script>` or `yarn <script>`: the name of the package script a command runs. */
+const getRunScriptName = (commandWithArgs: string[]): string | undefined => {
+  const [cmd, ...rest] = commandWithArgs;
+  if ((cmd === 'bun' || cmd === 'npm' || cmd === 'pnpm') && rest[0] === 'run') return rest[1];
+  if (cmd === 'yarn' && rest[0] && rest[0] !== 'run' && !rest[0].startsWith('-')) return rest[0];
+  return cmd === 'yarn' && rest[0] === 'run' ? rest[1] : undefined;
+};
+
+/**
+ * Whether a dev command, or the package script it runs (following scripts that run other scripts), chooses the address
+ * the server listens on. Dev mode then keeps that address, such as `next dev --hostname 0.0.0.0` for testing on a phone,
+ * and its proxy reaches the server on the loopback address that leads to it.
+ */
+export const commandSetsHost = (command: string, workingDir: string): boolean => {
+  let current = command;
+  for (let depth = 0; depth < 4; depth++) {
+    if (HOST_OPTION.test(current)) return true;
+    const scriptName = getRunScriptName(current.trim().split(/\s+/));
+    if (!scriptName) return false;
+    let scripts: Record<string, string> | undefined;
+    try {
+      scripts = JSON.parse(readFileSync(join(workingDir, 'package.json'), 'utf8')).scripts;
+    } catch {
+      return false;
+    }
+    const script = scripts?.[scriptName];
+    if (typeof script !== 'string') return false;
+    current = script;
+  }
+  return false;
+};
+
 const injectPackageScriptFlags = ({
   commandWithArgs,
   port,
-  framework
+  framework,
+  addHost
 }: {
   commandWithArgs: string[];
   port: number;
   framework: FrameworkType;
+  /** False when the command or its script already chooses the address (`commandSetsHost`). */
+  addHost: boolean;
 }): void => {
   const [cmd, ...rest] = commandWithArgs;
   if (cmd !== 'bun' && cmd !== 'npm' && cmd !== 'pnpm' && cmd !== 'yarn') return;
@@ -135,7 +174,12 @@ const injectPackageScriptFlags = ({
   // Next.js names the option `--hostname`; it ignores `HOST` and otherwise listens on every interface.
   const hostFlag = framework === 'next' ? '--hostname' : '--host';
 
-  commandWithArgs.push(...(cmd === 'yarn' ? [] : ['--']), '--port', String(port), hostFlag, '127.0.0.1');
+  commandWithArgs.push(
+    ...(cmd === 'yarn' ? [] : ['--']),
+    '--port',
+    String(port),
+    ...(addHost ? [hostFlag, '127.0.0.1'] : [])
+  );
   if (needsStrictPort) {
     commandWithArgs.push('--strictPort');
   }
@@ -145,9 +189,8 @@ const injectPackageScriptFlags = ({
  * Keeps a directly started `next dev` on IPv4 loopback. Without `--hostname` it listens on `::` (every interface), and
  * on Windows another program can then take the port's loopback addresses and receive the requests meant for it.
  */
-const injectNextHostname = (commandWithArgs: string[], framework: FrameworkType): void => {
-  if (framework !== 'next') return;
-  if (commandWithArgs.some((arg) => arg === '--hostname' || arg === '-H' || arg.startsWith('--hostname='))) return;
+const injectNextHostname = (commandWithArgs: string[], framework: FrameworkType, addHost: boolean): void => {
+  if (framework !== 'next' || !addHost) return;
   const startsNextDev = commandWithArgs.some(
     (arg, index) => /(?:^|[\\/])next(?:\.cmd|\.exe)?$/i.test(arg) && commandWithArgs[index + 1] === 'dev'
   );
@@ -262,7 +305,9 @@ export const startDevServer = async ({
   }
 
   env.PORT = String(targetPort);
-  env.HOST = '127.0.0.1';
+  // A host the configuration or the command chooses stays; otherwise servers that read `HOST` listen on IPv4 loopback.
+  const userSetsHost = Boolean(config.environment?.HOST) || commandSetsHost(config.command, workingDir);
+  if (!config.environment?.HOST) env.HOST = '127.0.0.1';
 
   /**
    * Errors quoted from the server's output go to the agent's status and MCP results. Output is masked as it arrives,
@@ -341,9 +386,9 @@ export const startDevServer = async ({
 
       const patchedArgs = overrideCommandPortArgs(args, targetPort);
       const commandWithArgs = [command, ...patchedArgs];
-      injectFrameworkFlags(commandWithArgs, targetPort);
-      injectPackageScriptFlags({ commandWithArgs, port: targetPort, framework });
-      injectNextHostname(commandWithArgs, framework);
+      injectFrameworkFlags(commandWithArgs, targetPort, !userSetsHost);
+      injectPackageScriptFlags({ commandWithArgs, port: targetPort, framework, addHost: !userSetsHost });
+      injectNextHostname(commandWithArgs, framework, !userSetsHost);
 
       const [spawnCommandName, ...spawnArgs] = commandWithArgs;
 

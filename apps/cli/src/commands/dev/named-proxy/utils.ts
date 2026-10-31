@@ -46,7 +46,8 @@ const FRAMEWORKS_NEEDING_PORT: Record<string, { strictPort: boolean }> = {
   ng: { strictPort: false }
 };
 
-export const injectFrameworkFlags = (commandArgs: string[], port: number): void => {
+/** `addHost`: false when the command or its package script already chooses the listen address. */
+export const injectFrameworkFlags = (commandArgs: string[], port: number, addHost = true): void => {
   const cmd = commandArgs[0];
   if (!cmd) return;
 
@@ -62,7 +63,7 @@ export const injectFrameworkFlags = (commandArgs: string[], port: number): void 
     }
   }
 
-  if (!commandArgs.includes('--host')) {
+  if (addHost && !commandArgs.some((arg) => arg === '--host' || arg.startsWith('--host='))) {
     commandArgs.push('--host', '127.0.0.1');
   }
 };

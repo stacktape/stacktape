@@ -7,6 +7,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
 import {
+  commandSetsHost,
   describeDevServerExit,
   registerDevServerCleanupHook,
   selectDevServerExitOutput,
@@ -641,3 +642,29 @@ test('a frontend whose every port another program takes fails with PORT_TAKEN_BY
     await rm(directory, { recursive: true, force: true });
   }
 }, 30_000);
+
+// PR #431 review: a host the developer chose, on the command line or in the package script it runs, is kept.
+test.each([
+  ['next dev --hostname 0.0.0.0', true],
+  ['next dev -H 0.0.0.0', true],
+  ['vite --host=0.0.0.0', true],
+  ['HOST=0.0.0.0 react-scripts start', true],
+  ['npm run lan', true],
+  ['pnpm run nested', true],
+  ['yarn lan', true],
+  ['npm run dev', false],
+  ['next dev --port 3000', false],
+  ['npm run missing', false],
+  ['vite --hostile-mode', false]
+])('%s sets its own host: %p', async (command, expected) => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-host-'));
+  try {
+    await writeFile(
+      join(directory, 'package.json'),
+      JSON.stringify({ scripts: { dev: 'next dev', lan: 'next dev -H 0.0.0.0', nested: 'npm run lan' } })
+    );
+    expect(commandSetsHost(command, directory)).toBe(expected);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
