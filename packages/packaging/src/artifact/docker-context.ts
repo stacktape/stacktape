@@ -58,6 +58,21 @@ const hashFileBytes = (
     }
   });
 
+/**
+ * Stacktape's local state in a project, excluded from every Docker build context Stacktape builds, whatever the
+ * project's `.dockerignore` says: `.stacktape` holds the files of local dev databases, dev session records and build
+ * output, and `COPY . .` copied them into images that were then deployed (r2bb). The install lock is a transient file
+ * of dependency installation. The patterns go after the project's own, so a `!` pattern there cannot bring them back.
+ */
+export const STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS = [
+  '**/.stacktape',
+  '**/.stacktape/**',
+  '**/.stacktape-install.lock'
+];
+
+const isStacktapeStateDirectory = (directoryEntry: string) =>
+  directoryEntry.replace(/\/$/, '').split('/').at(-1) === '.stacktape';
+
 const getDockerIgnorePath = async ({
   absoluteBuildContextPath,
   absoluteDockerfilePath
@@ -70,6 +85,22 @@ const getDockerIgnorePath = async ({
 
   const defaultIgnorePath = join(absoluteBuildContextPath, '.dockerignore');
   return (await pathExists(defaultIgnorePath)) ? defaultIgnorePath : undefined;
+};
+
+/**
+ * The exclusions of a Dockerfile build in `.dockerignore` syntax: the Dockerfile-specific ignore file or the context's
+ * `.dockerignore`, as Docker selects them, followed by `STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS`.
+ */
+export const getDockerIgnoreContents = async ({
+  absoluteBuildContextPath,
+  absoluteDockerfilePath
+}: {
+  absoluteBuildContextPath: string;
+  absoluteDockerfilePath: string;
+}): Promise<string> => {
+  const dockerIgnorePath = await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath });
+  const projectPatterns = dockerIgnorePath ? await readFile(dockerIgnorePath, 'utf8') : '';
+  return [projectPatterns.trimEnd(), ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS].filter(Boolean).join('\n') + '\n';
 };
 
 /**
@@ -143,7 +174,9 @@ export const getDockerContextChecksum = async ({
     applyDockerIgnore && ignorePatterns === undefined
       ? await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath })
       : undefined;
-  const exclusions = ignorePatterns?.join('\n') ?? (dockerIgnorePath ? await readFile(dockerIgnorePath, 'utf8') : '');
+  const projectExclusions =
+    ignorePatterns?.join('\n') ?? (dockerIgnorePath ? await readFile(dockerIgnorePath, 'utf8') : '');
+  const exclusions = [projectExclusions, ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS].join('\n');
   const matcher = dockerIgnore();
   matcher.add(exclusions);
   // Docker excludes everything inside an excluded directory unless an exception (`!`) brings something back, so an
@@ -152,7 +185,8 @@ export const getDockerContextChecksum = async ({
   const hasExceptions = exclusions.split(/\r?\n/).some((line) => line.trim().startsWith('!'));
   const contextEntries = await listContextEntries(
     absoluteBuildContextPath,
-    (directoryEntry) => !hasExceptions && matcher.ignores(directoryEntry)
+    // Nothing inside Stacktape's state can come back, so it is never read.
+    (directoryEntry) => isStacktapeStateDirectory(directoryEntry) || (!hasExceptions && matcher.ignores(directoryEntry))
   );
   const includedEntries = matcher
     .filter(contextEntries)

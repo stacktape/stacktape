@@ -208,7 +208,12 @@ console.log('REMOVED ' + JSON.stringify(await removeContainersOfEndedSessions({ 
     ) as string[];
     const removedKinds = ['killed', 'killed-next', 'killed-stopped'];
     expect(removed.toSorted()).toEqual(removedKinds.map(nameOf).toSorted());
-    for (const kind of removedKinds) expect(inspect(nameOf(kind)).status).not.toBe(0);
+    // Docker may still be finishing the removal of a --rm container when `rm -f` returns.
+    for (const kind of removedKinds) {
+      const deadline = Date.now() + 10_000;
+      while (inspect(nameOf(kind)).status === 0 && Date.now() < deadline) await Bun.sleep(200);
+      expect(inspect(nameOf(kind)).status, kind).not.toBe(0);
+    }
     for (const kind of Object.keys(fixtures).filter((kind) => !removedKinds.includes(kind)))
       expect(inspect(nameOf(kind)).stdout.trim(), kind).toBe('running');
   } finally {

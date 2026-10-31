@@ -16,7 +16,7 @@ import type {
   RunRailpackPrepare
 } from '../runtime-contracts';
 import { packagingMessages } from '../runtime-contracts';
-import { getDockerContextChecksum } from '../artifact/docker-context';
+import { getDockerContextChecksum, STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS } from '../artifact/docker-context';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 import { mergeHashes } from '../artifact/hashing';
 import { NON_SOURCE_DIRECTORY_NAMES } from '../artifact/language-build-context';
@@ -226,7 +226,8 @@ const VERSION_FROM_VCS =
  * copies the whole source directory and excludes only what `.dockerignore` lists, so without this an image carried
  * `.git` and `.stacktape`, grew with every build and changed its digest when the source had not. The patterns come
  * first: a `!` pattern in the project's `.dockerignore`, which Railpack puts in the plan after them, still brings a
- * directory back. A Python project that takes its version from version control keeps `.git` and `.hg`.
+ * directory back, except Stacktape's own local state, excluded again at the end. A Python project that takes its version
+ * from version control keeps `.git` and `.hg`.
  */
 export const excludeNonSourceDirectories = (
   plan: RailpackPlan,
@@ -237,7 +238,9 @@ export const excludeNonSourceDirectories = (
     ...NON_SOURCE_DIRECTORY_NAMES.filter((name) => !(keepVersionControl && VERSION_CONTROL_DIRECTORIES.has(name))).map(
       (name) => `**/${name}`
     ),
-    ...(plan.exclude ?? [])
+    ...(plan.exclude ?? []),
+    // Last, so no pattern of the project brings Stacktape's local state back.
+    ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS
   ]
 });
 

@@ -17,10 +17,11 @@ import { afterEach, describe, expect, test as bunTest } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage } from 'node:http';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
+import { getLocalImageName } from '@stacktape/naming/workload-names';
 
 /** Each scenario starts the source CLI as a child process, which takes several seconds. */
 const test = (name: string, fn: () => Promise<void>) => bunTest(name, fn, 120_000);
@@ -221,6 +222,8 @@ const runPackage = async ({
       env: {
         PATH: process.env.PATH ?? '',
         HOME: home,
+        // The isolated HOME must not hide the Docker client configuration: its contexts and CLI plugins (buildx).
+        DOCKER_CONFIG: process.env.DOCKER_CONFIG ?? join(homedir(), '.docker'),
         XDG_CONFIG_HOME: join(home, '.config'),
         XDG_CACHE_HOME: join(home, '.cache'),
         TMPDIR: tmpdir(),
@@ -472,7 +475,11 @@ describe('stacktape package without AWS', () => {
     const aws = await startAwsFake();
     // Unique, so concurrent runs on the shared Docker daemon do not replace each other's image.
     const service = `swap${randomUUID().replaceAll('-', '').slice(0, 10)}`;
-    const image = `stp-pkgnoaws-test-${service}-service-container`;
+    const image = getLocalImageName({
+      projectName: 'pkgnoaws',
+      stage: 'test',
+      jobName: `${service}-service-container`
+    });
     cleanups.push(async () => {
       for (const tag of [image, `${image}-code-swap-base`])
         await Bun.spawn(['docker', 'image', 'rm', '--force', tag], { stdout: 'ignore', stderr: 'ignore' }).exited;

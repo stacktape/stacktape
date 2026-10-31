@@ -557,7 +557,11 @@ const cleanup = async (state: State, owned: Owned) => {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as { Repository: string; Tag: string });
   assert((await images.exited) === 0, 'Could not enumerate owned local image tags.');
-  const localImage = getLocalImageName({ stackName: `${owned.name}-bench`, jobName: 'api-service-container' });
+  const localImage = getLocalImageName({
+    projectName: owned.name,
+    stage: 'bench',
+    jobName: 'api-service-container'
+  });
   for (const image of localImages.filter(
     (image) =>
       image.Repository === `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${owned.repository}` ||

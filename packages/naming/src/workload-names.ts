@@ -1,5 +1,5 @@
 import { snakeCase } from 'change-case';
-import { shortHash } from './short-hash';
+import { createHash } from 'node:crypto';
 
 export const getJobNameForSingleContainerWorkload = (workloadName: string) => {
   return `${workloadName}-default`.toLowerCase();
@@ -17,22 +17,36 @@ export const getLocalInvokeContainerName = (jobName: string) => {
 
 /** Docker allows 255 characters for an image name; this leaves room for a registry host in front of it. */
 const MAX_LOCAL_IMAGE_NAME_LENGTH = 128;
+const LOCAL_IMAGE_HASH_LENGTH = 10;
 
 /**
- * The local Docker image a container build of a stack's job produces (`dev`, `package` and `deploy` all build it).
- * Before, it was the job name alone (`web-service-container`), so two projects or stages with a same-named workload
- * on one machine overwrote each other's image and dev could run the other project's code. The stack name (project and
- * stage) keeps them apart; the name stays the same across builds, so Docker's layer cache keeps working. Characters a
- * Docker image name cannot hold become dashes, and a name too long for it is shortened and gets a hash of the full one.
+ * The local Docker image a container build of a project's job produces on a stage (`dev`, `package` and `deploy` all
+ * build it). Before, it was the job name alone (`web-service-container`), so two projects or stages with a same-named
+ * workload on one machine overwrote each other's image and dev could run the other project's code. The readable part
+ * names the project, stage and job; characters an image name cannot hold become dashes, and a long one is shortened.
+ * Dashes make it ambiguous (project `shop` on stage `dev-api` and project `shop-dev` on stage `api` read the same), so
+ * a hash of the exact project, stage and job ends the name. It stays the same across builds, so Docker's layer cache
+ * keeps working.
  */
-export const getLocalImageName = ({ stackName, jobName }: { stackName: string; jobName: string }) => {
-  const name = `stp-${stackName}-${jobName}`
+export const getLocalImageName = ({
+  projectName,
+  stage,
+  jobName
+}: {
+  projectName: string;
+  stage: string;
+  jobName: string;
+}) => {
+  const hash = createHash('sha256')
+    .update(JSON.stringify([projectName, stage, jobName]))
+    .digest('hex')
+    .slice(0, LOCAL_IMAGE_HASH_LENGTH);
+  const readable = `stp-${projectName}-${stage}-${jobName}`
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-')
+    .slice(0, MAX_LOCAL_IMAGE_NAME_LENGTH - LOCAL_IMAGE_HASH_LENGTH - 1)
     .replace(/-+$/, '');
-  if (name.length <= MAX_LOCAL_IMAGE_NAME_LENGTH) return name;
-  const hash = shortHash(name).padStart(8, '0');
-  return `${name.slice(0, MAX_LOCAL_IMAGE_NAME_LENGTH - hash.length - 1).replace(/-+$/, '')}-${hash}`;
+  return `${readable}-${hash}`;
 };
 
 export const getJobName = ({
