@@ -1,6 +1,6 @@
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { randomBytes } from 'node:crypto';
-import { rename, stat } from 'node:fs/promises';
+import { link, rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -61,25 +61,64 @@ export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, s
 
 /** How long a start waits for another dev session that writes the same env file. */
 const ENV_FILE_LOCK_WAIT_MS = 10_000;
-/** A lock older than this was left by a session that died while it wrote; writing takes milliseconds. */
+/** A lock without a readable owner is stale once this old; writing takes milliseconds. */
 const ENV_FILE_LOCK_STALE_MS = 30_000;
+
+const isProcessRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // Another user's process exists too; only "no such process" means it ended.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/** The lock's content when its owner ended: a process that died while it wrote. `undefined` while it can still write. */
+const readStaleLock = async (lockPath: string): Promise<string | undefined> => {
+  const content = await readFile(lockPath, 'utf8').catch(() => undefined);
+  if (content === undefined) return undefined;
+  const pid = Number(content.split(':')[0]);
+  if (Number.isInteger(pid) && pid > 0) return isProcessRunning(pid) ? undefined : content;
+  const lockedAt = (await stat(lockPath).catch(() => undefined))?.mtimeMs;
+  return lockedAt !== undefined && Date.now() - lockedAt > ENV_FILE_LOCK_STALE_MS ? content : undefined;
+};
+
+/**
+ * Takes a stale lock out of the way. Every waiting process may find it stale, but only one rename of it succeeds; a
+ * process whose rename caught a lock that another one created meanwhile puts that lock back.
+ */
+export const removeStaleLock = async (lockPath: string, staleContent: string) => {
+  const aside = `${lockPath}.${process.pid}-${randomBytes(4).toString('hex')}.stale`;
+  try {
+    await rename(lockPath, aside);
+  } catch {
+    return;
+  }
+  if ((await readFile(aside, 'utf8').catch(() => undefined)) !== staleContent) {
+    await link(aside, lockPath).catch(() => {});
+  }
+  await remove(aside).catch(() => {});
+};
 
 /**
  * Runs `write` while this process holds the env file's lock, so two dev sessions that start together decide who owns
- * the Stacktape block one after the other, each from the file the other left.
+ * the Stacktape block one after the other, each from the file the other left. The lock names its owner's process; it
+ * is stale only once that process has ended.
  */
-const withEnvFileLock = async <T>(envFilePath: string, write: () => Promise<T>): Promise<T> => {
+export const withEnvFileLock = async <T>(envFilePath: string, write: () => Promise<T>): Promise<T> => {
   const lockPath = `${envFilePath}.stacktape-lock`;
+  const owner = `${process.pid}:${randomBytes(8).toString('hex')}`;
   const deadline = Date.now() + ENV_FILE_LOCK_WAIT_MS;
   for (;;) {
     try {
-      await writeFile(lockPath, String(process.pid), { flag: 'wx' });
+      await writeFile(lockPath, owner, { flag: 'wx' });
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      const lockedAt = (await stat(lockPath).catch(() => undefined))?.mtimeMs;
-      if (lockedAt !== undefined && Date.now() - lockedAt > ENV_FILE_LOCK_STALE_MS) {
-        await remove(lockPath).catch(() => {});
+      const stale = await readStaleLock(lockPath);
+      if (stale !== undefined) {
+        await removeStaleLock(lockPath, stale);
         continue;
       }
       if (Date.now() > deadline) {
@@ -93,7 +132,8 @@ const withEnvFileLock = async <T>(envFilePath: string, write: () => Promise<T>):
   try {
     return await write();
   } finally {
-    await remove(lockPath).catch(() => {});
+    // Only this process's own lock is removed.
+    if ((await readFile(lockPath, 'utf8').catch(() => undefined)) === owner) await remove(lockPath).catch(() => {});
   }
 };
 

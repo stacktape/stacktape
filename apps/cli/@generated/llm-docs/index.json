@@ -22779,6 +22779,7 @@
         "page:/using-with-ai/agent-mode-in-dev#one-database",
         "page:/using-with-ai/agent-mode-in-dev#run-the-seed-script-from-the-config",
         "page:/using-with-ai/agent-mode-in-dev#invoke-a-function-with-a-test-event",
+        "page:/using-with-ai/agent-mode-in-dev#sessionid-and-stage-from-status-the-function-s-arn-from-its-deployedresources",
         "page:/using-with-ai/agent-mode-in-dev#aws-sdk-access",
         "page:/using-with-ai/agent-mode-in-dev#typical-ai-agent-workflow",
         "page:/using-with-ai/agent-mode-in-dev#flow",

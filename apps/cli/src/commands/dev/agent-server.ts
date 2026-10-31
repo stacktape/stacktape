@@ -1584,7 +1584,14 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
 });
 
 /** A function of the dev stack as Lambda describes it: what an invocation runs, and the environment it runs with. */
-type DeployedFunction = { functionName: string; functionArn: string; environment: Record<string, string> };
+type DeployedFunction = {
+  functionName: string;
+  functionArn: string;
+  /** Lambda's `Environment.Variables`; absent when Lambda returns none. */
+  environment?: Record<string, string>;
+  /** Lambda's `Environment.Error`: Lambda could not apply or decrypt the environment, and returned no variables. */
+  environmentError?: string;
+};
 
 /** Lambda, for invoking a function of the dev stack; replaced in tests, which reach no AWS. */
 export type DeployedFunctionClient = {
@@ -1604,10 +1611,14 @@ const lambdaDeployedFunctions: DeployedFunctionClient = {
     if (!resourceName) return null;
     const configuration = await awsSdkManager.lambda.getFunction({ lambdaResourceName: resourceName });
     if (!configuration.FunctionArn) return null;
+    const { Variables: variables, Error: environmentError } = configuration.Environment ?? {};
     return {
       functionName: configuration.FunctionName ?? resourceName,
       functionArn: configuration.FunctionArn,
-      environment: configuration.Environment?.Variables ?? {}
+      ...(variables ? { environment: variables } : {}),
+      ...(environmentError
+        ? { environmentError: [environmentError.ErrorCode, environmentError.Message].filter(Boolean).join(': ') }
+        : {})
     };
   },
   invoke: async ({ functionArn, event }) => {
@@ -1635,22 +1646,52 @@ const MAX_INVOKE_PAYLOAD_CHARS = 16 * 1024;
 
 /**
  * The session a client checked before it asked for a change, so a request that reaches another session on the same port
- * (the checked one stopped, and a new one listens there now) changes nothing. Each field is checked when it is sent.
+ * (the checked one stopped, and a new one listens there now) changes nothing.
  */
 const describeSessionMismatch = ({
   expectedSessionId,
   expectedStage
 }: {
-  expectedSessionId?: unknown;
-  expectedStage?: unknown;
+  expectedSessionId: unknown;
+  expectedStage: unknown;
 }): string | undefined => {
-  if (expectedSessionId !== undefined && expectedSessionId !== agentSession?.sessionId) {
+  if (expectedSessionId !== agentSession?.sessionId) {
     return `This agent runs dev session ${agentSession?.sessionId ?? 'unknown'}, not ${String(expectedSessionId)}.`;
   }
-  if (expectedStage !== undefined && expectedStage !== agentSession?.stage) {
+  if (expectedStage !== agentSession?.stage) {
     return `This agent runs stage ${agentSession?.stage ?? 'unknown'}, not ${String(expectedStage)}.`;
   }
   return undefined;
+};
+
+/** Whether the configuration gives the function environment variables; Lambda then has to return them. */
+const declaresEnvironment = (name: string) => {
+  if (!configManager.config?.resources) return true;
+  const environment = configManager.functions.find((fn) => fn.name === name)?.environment;
+  return Array.isArray(environment) ? environment.length > 0 : Boolean(environment);
+};
+
+/**
+ * What a function returned, masked. A JSON payload is masked value by value before it is serialized again: masking
+ * the serialized text misses a secret whose `"` or `\` JSON escaped. The serialized result is masked once more, which
+ * also matches the escaped forms (see `createEnvironmentMasker` for what this masking does and does not protect).
+ */
+const maskPayload = (payload: string, mask: (text: string) => string): string => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return mask(payload);
+  }
+  const walk = (value: unknown): unknown => {
+    if (typeof value === 'string') return mask(value);
+    if (Array.isArray(value)) return value.map(walk);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [mask(key), walk(item)]));
+    }
+    return value;
+  };
+  return mask(JSON.stringify(walk(parsed)));
 };
 
 /**
@@ -1658,7 +1699,8 @@ const describeSessionMismatch = ({
  * topics, streams. It runs the function's deployed code with its own role, so it can change data: it needs `confirm`.
  * Only a function this session runs and deployed is invoked; the aws action stays read-only. What the function returns
  * is masked with its deployed environment and every other environment the session knows, like the logs; without its
- * environment, nothing is invoked.
+ * environment, nothing is invoked. The masking keeps secret values out of an agent's transcript by accident; it is not a
+ * boundary against code the agent wrote, which can return a secret in a form no masking recognizes (base64, split).
  */
 addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
   const name = pathParams.name;
@@ -1669,6 +1711,18 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
     expectedStage,
     expectedFunctionArn
   } = (body ?? {}) as Record<string, unknown> & { event?: unknown };
+  // Required, so a client cannot leave the binding out: one that checked a session names it and the function's ARN.
+  const missing = Object.entries({ expectedSessionId, expectedStage, expectedFunctionArn })
+    .filter(([, value]) => typeof value !== 'string' || !value)
+    .map(([field]) => field);
+  if (missing.length) {
+    return {
+      ok: false,
+      code: 'SESSION_BINDING_REQUIRED',
+      error: `Invoke needs ${missing.join(', ')}: the sessionId and stage that /status reports and the function's ARN from its deployedResources. Nothing was invoked.`,
+      hint: 'Update the Stacktape CLI that runs the MCP server, or send the fields from GET /status?verbose=true.'
+    };
+  }
   const mismatch = describeSessionMismatch({ expectedSessionId, expectedStage });
   if (mismatch) {
     return {
@@ -1739,14 +1793,27 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
       hint: 'Check that the function is deployed, with status and logs, and try again.'
     };
   }
-  if (expectedFunctionArn !== undefined && expectedFunctionArn !== deployed.functionArn) {
+  const unmaskable = deployed.environmentError
+    ? `Lambda returned no environment for ${name} (${deployed.environmentError})`
+    : !deployed.environment && declaresEnvironment(name)
+      ? `Lambda returned no environment for ${name}, although its configuration sets environment variables`
+      : undefined;
+  if (unmaskable) {
+    return {
+      ok: false,
+      code: 'MASKING_UNAVAILABLE',
+      error: `${unmaskable}, so what it returns cannot be masked; nothing was invoked.`,
+      hint: 'Fix the function in AWS (status and logs say why), then try again.'
+    };
+  }
+  if (expectedFunctionArn !== deployed.functionArn) {
     return {
       ok: false,
       code: 'DEV_SESSION_CHANGED',
       error: `${name} is ${deployed.functionArn} now, not ${String(expectedFunctionArn)}; nothing was invoked.`
     };
   }
-  deployedFunctionEnvironments.set(name, deployed.environment);
+  deployedFunctionEnvironments.set(name, deployed.environment ?? {});
   const mask = createSessionMasker();
 
   const startedAt = Date.now();
@@ -1760,7 +1827,7 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
     return { ok: false, code: 'INVOKE_FAILED', error: `Invoking ${name} failed: ${message}` };
   }
   const durationMs = Date.now() - startedAt;
-  const masked = mask(result.payload);
+  const masked = maskPayload(result.payload, mask);
   const payloadFields = {
     payload: masked.length > MAX_INVOKE_PAYLOAD_CHARS ? masked.slice(0, MAX_INVOKE_PAYLOAD_CHARS) : masked,
     ...(masked.length > MAX_INVOKE_PAYLOAD_CHARS ? { payloadTruncatedFrom: masked.length } : {})

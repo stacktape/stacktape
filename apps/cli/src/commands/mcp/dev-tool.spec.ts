@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { localStatePaths } from 'src/config/local-state-paths';
 import { createDevToolHandler, devApiRequest, isProjectDirectoryOf, isWriteQuery } from './dev-tool';
 import { setDeployedFunctionClient, startAgentServer, stopAgentServer, updateAgentState } from '../dev/agent-server';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
 // Each one, like the real agent, answers only requests that carry the session token it stored under its port.
@@ -1184,6 +1185,16 @@ describe('MCP dev tool arguments', () => {
         stage: 'dev',
         region: 'eu-west-1'
       });
+    // The dev stack as status lists it: the function with its ARN, which the invocation names.
+    const originalStackInfoMap = deployedStackOverviewManager.stackInfoMap;
+    deployedStackOverviewManager.stackInfoMap = {
+      resources: {
+        report: {
+          resourceType: 'function',
+          referencableParams: { arn: { value: functionArn }, name: { value: 'shop-dev-report' } }
+        }
+      }
+    } as unknown as typeof deployedStackOverviewManager.stackInfoMap;
     try {
       await startAgent('session-a');
       updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
@@ -1234,7 +1245,26 @@ describe('MCP dev tool arguments', () => {
       const takenOver = (await handler({ action: 'invoke', args: confirmed })).structuredContent;
       expect(takenOver.ok).toBe(false);
       expect(invoked).toHaveLength(1);
+
+      // Without the function's ARN in status, the call cannot be bound to the function and is not sent.
+      deployedStackOverviewManager.stackInfoMap = {
+        resources: {}
+      } as unknown as typeof deployedStackOverviewManager.stackInfoMap;
+      stopAgentServer();
+      await startAgent('session-c');
+      updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+      const unbound = createDevToolHandler({
+        runCli: startedDaemon,
+        createId: () => 'session-c',
+        serverDirectory: () => directory
+      });
+      expect((await unbound({ action: 'start', args: { agentPort: port, cwd: directory } })).structuredContent.ok).toBe(
+        true
+      );
+      expect((await unbound({ action: 'invoke', args: confirmed })).structuredContent.code).toBe('NOT_FOUND');
+      expect(invoked).toHaveLength(1);
     } finally {
+      deployedStackOverviewManager.stackInfoMap = originalStackInfoMap;
       setDeployedFunctionClient(undefined);
       stopAgentServer();
       if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;

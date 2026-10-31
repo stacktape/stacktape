@@ -1,11 +1,18 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'dotenv';
-import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { mergeManagedEnvBlock, prepareFrontendEnvironment, readManagedBlockStage } from './frontend-env';
+import {
+  mergeManagedEnvBlock,
+  prepareFrontendEnvironment,
+  readManagedBlockStage,
+  removeStaleLock,
+  withEnvFileLock
+} from './frontend-env';
 
 const START = '# >>> stacktape dev: managed block, rewritten on every dev start >>>';
 const END = '# <<< stacktape dev <<<';
@@ -104,6 +111,9 @@ test("a second stage's dev session leaves the block of a stage whose session run
   }
 });
 
+/** The PID of a process that has ended. */
+const deadPid = () => spawnSync(process.execPath, ['-e', '0']).pid!;
+
 // Review of #422: two sessions that start together could both find no owner and both write the file, and a reader could
 // meet a half-written file. A start waits for the session that writes it, writes a whole new file, and takes over a
 // lock that a dead session left.
@@ -114,7 +124,8 @@ test('a start writes the env file only while it holds its lock, as a whole new f
     globalStateManager.rawArgs = { stage: 'first', currentWorkingDirectory: directory };
     const envFile = join(directory, '.env.local');
     const lock = `${envFile}.stacktape-lock`;
-    await writeFile(lock, '4242');
+    // Held by a live process: this test's parent.
+    await writeFile(lock, `${process.ppid}:held`);
     const start = prepareFrontendEnvironment({
       name: 'web',
       workingDirectory: directory,
@@ -129,10 +140,8 @@ test('a start writes the env file only while it holds its lock, as a whole new f
     });
     expect(await readdir(directory)).toEqual(['.env.local']);
 
-    // A lock its writer left behind long ago does not block the next start.
-    await writeFile(lock, '4242');
-    const longAgo = new Date(Date.now() - 60_000);
-    await utimes(lock, longAgo, longAgo);
+    // A lock whose writer has ended does not block the next start.
+    await writeFile(lock, `${deadPid()}:left`);
     await prepareFrontendEnvironment({
       name: 'web',
       workingDirectory: directory,
@@ -144,6 +153,43 @@ test('a start writes the env file only while it holds its lock, as a whole new f
     expect(await readdir(directory)).toEqual(['.env.local']);
   } finally {
     globalStateManager.rawArgs = previousArgs;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// Review of #422: two writers that found the same stale lock both removed it and both went in; the second removed the
+// lock the first had just created.
+test("of several writers that find a dead writer's lock, one at a time holds it", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-frontend-env-stale-'));
+  try {
+    const envFile = join(directory, '.env.local');
+    await writeFile(`${envFile}.stacktape-lock`, `${deadPid()}:left`);
+    let inside = 0;
+    let mostInside = 0;
+    await Promise.all(
+      Array.from({ length: 6 }, () =>
+        withEnvFileLock(envFile, async () => {
+          mostInside = Math.max(mostInside, ++inside);
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          inside--;
+        })
+      )
+    );
+    expect(mostInside).toBe(1);
+    expect(await readdir(directory)).toEqual([]);
+
+    // The race itself: a writer saw the dead writer's lock, but another writer took it over and holds a new lock by the
+    // time the first one acts. The new lock stays.
+    const lock = `${envFile}.stacktape-lock`;
+    const stale = `${deadPid()}:left`;
+    await writeFile(lock, `${process.ppid}:fresh`);
+    await removeStaleLock(lock, stale);
+    expect(await readFile(lock, 'utf8')).toBe(`${process.ppid}:fresh`);
+    expect(await readdir(directory)).toEqual(['.env.local.stacktape-lock']);
+    await writeFile(lock, stale);
+    await removeStaleLock(lock, stale);
+    expect(await readdir(directory)).toEqual([]);
+  } finally {
     await rm(directory, { recursive: true, force: true });
   }
 });

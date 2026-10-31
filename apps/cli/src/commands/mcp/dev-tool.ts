@@ -2018,6 +2018,16 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
       const expectedFunctionArn = (Array.isArray(checked.deployedResources) ? checked.deployedResources : []).find(
         (resource: { name?: unknown; type?: unknown }) => resource?.name === workload && resource?.type === 'function'
       )?.arn;
+      const expectedStage = session.stage ?? (typeof checked.stage === 'string' ? checked.stage : undefined);
+      if (typeof expectedFunctionArn !== 'string' || !expectedStage) {
+        return toToolText({
+          ok: false,
+          code: 'NOT_FOUND',
+          message: `Did not invoke ${workload}: the dev session lists no deployed function ${workload} with an ARN.`,
+          data: { session: publicSession(session) },
+          nextActions: ['Call stacktape_dev with action=status: data.status.deployedResources lists the functions.']
+        });
+      }
       const response = await requestDevApi({
         port,
         method: 'POST',
@@ -2027,8 +2037,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           event: toolArgs.event ?? {},
           confirm: toolArgs.confirm === true,
           expectedSessionId,
-          ...(session.stage ? { expectedStage: session.stage } : {}),
-          ...(typeof expectedFunctionArn === 'string' ? { expectedFunctionArn } : {})
+          expectedStage,
+          expectedFunctionArn
         }
       });
       const output = toAgentOutput(response, session, {

@@ -660,12 +660,22 @@ const startInvokeSession = async (config: unknown, sessionId = 'session-a') => {
     { sessionId, projectDirectory: directory, projectName: 'shop', stage: 'dev', region: 'eu-west-1' }
   );
   const token = await readFile(getAgentTokenFile()!, 'utf8');
-  const invoke = async (name: string, body: Record<string, unknown>) =>
+  /** A request as the MCP server sends it: bound to this session, its stage and the function's ARN, unless `bind` is false. */
+  const invoke = async (name: string, body: Record<string, unknown>, { bind = true } = {}) =>
     (await (
       await fetch(`http://127.0.0.1:${port}/functions/${name}/invoke`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          ...(bind
+            ? {
+                expectedSessionId: sessionId,
+                expectedStage: 'dev',
+                expectedFunctionArn: `arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-${name}`
+              }
+            : {}),
+          ...body
+        })
       })
     ).json()) as { ok: boolean; code: string; message: string; data: Record<string, unknown> };
   const close = async () => {
@@ -811,6 +821,89 @@ test('invoke refuses a request that names another session, stage or function tha
         expectedFunctionArn: 'arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-report'
       })
     ).toMatchObject({ ok: true });
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: a secret with `"` or `\` was escaped in the serialized payload, so masking the text missed it, in a
+// successful result and in a function error.
+test('invoke masks a secret that JSON escapes, in a result and in a function error', async () => {
+  const secret = 'demo"secret\\material-42';
+  const { client } = fakeLambda({ report: { WEBHOOK_SIGNING: secret } }, (event, env) => {
+    if (event.fail) throw new Error(`signature check failed with ${env.WEBHOOK_SIGNING}`);
+    return { echo: env.WEBHOOK_SIGNING, nested: [{ again: `x${env.WEBHOOK_SIGNING}y` }] };
+  });
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(
+    functionConfig([{ name: 'WEBHOOK_SIGNING', value: "$Secret('webhook-signing')" }])
+  );
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const escaped = JSON.stringify(secret).slice(1, -1);
+    const result = await session.invoke('report', { event: {}, confirm: true });
+    expect(result).toMatchObject({ ok: true });
+    expect(JSON.parse(String(result.data.payload))).toEqual({
+      echo: '[redacted]',
+      nested: [{ again: 'x[redacted]y' }]
+    });
+    const failed = await session.invoke('report', { event: { fail: true }, confirm: true });
+    expect(failed).toMatchObject({ ok: false, code: 'FUNCTION_ERROR' });
+    for (const response of [result, failed]) {
+      const serialized = JSON.stringify(response);
+      expect(serialized).not.toContain(secret);
+      expect(serialized).not.toContain(escaped);
+      expect(serialized).not.toContain('secret\\\\material');
+    }
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: Lambda's `Environment.Error` became an empty environment, and the function was invoked unmasked.
+test('invoke invokes nothing when Lambda returns an environment error or no environment for a configured one', async () => {
+  const { client, invoked } = fakeLambda({ report: { TOKEN: 'abc' } }, () => ({ ok: true }));
+  const session = await startInvokeSession(functionConfig([{ name: 'PAYMENT_WEBHOOK', value: "$Secret('w')" }]));
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const describe = async (name: string) => (await client.describe(name))!;
+    for (const deployed of [
+      async (name: string) => ({
+        ...(await describe(name)),
+        environment: undefined,
+        environmentError: 'KMSAccessDeniedException: Lambda was unable to decrypt the environment variables'
+      }),
+      async (name: string) => ({ ...(await describe(name)), environment: undefined })
+    ]) {
+      setDeployedFunctionClient({ ...client, describe: deployed });
+      expect(await session.invoke('report', { event: {}, confirm: true })).toMatchObject({
+        ok: false,
+        code: 'MASKING_UNAVAILABLE'
+      });
+    }
+    expect(invoked).toEqual([]);
+  } finally {
+    await session.close();
+  }
+});
+
+// Review of #422: the session binding was optional, so an older or a direct client could leave it out.
+test('invoke refuses a request without the session binding', async () => {
+  const { client, invoked } = fakeLambda({ report: {} }, () => ({ ok: true }));
+  setDeployedFunctionClient(client);
+  const session = await startInvokeSession(functionConfig([]));
+  try {
+    updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+    const unbound = await session.invoke('report', { event: {}, confirm: true }, { bind: false });
+    expect(unbound).toMatchObject({ ok: false, code: 'SESSION_BINDING_REQUIRED' });
+    expect(unbound.message).toContain('expectedSessionId, expectedStage, expectedFunctionArn');
+    const partly = await session.invoke(
+      'report',
+      { event: {}, confirm: true, expectedSessionId: 'session-a', expectedStage: 'dev' },
+      { bind: false }
+    );
+    expect(partly).toMatchObject({ ok: false, code: 'SESSION_BINDING_REQUIRED' });
+    expect(invoked).toEqual([]);
   } finally {
     await session.close();
   }
