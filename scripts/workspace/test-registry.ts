@@ -2879,6 +2879,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/shared-stacks.test.ts',
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
+      'packages/naming/src/user-pool-domain-prefix.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
       'packages/packaging/src/artifact/docker-context.test.ts',
@@ -3852,7 +3853,8 @@ export const slices: readonly Slice[] = [
       'packages/naming/src/resource-names.test.ts',
       'packages/naming/src/shared-stacks.test.ts',
       'packages/naming/src/stack-contracts.test.ts',
-      'packages/naming/src/stack-identity.test.ts'
+      'packages/naming/src/stack-identity.test.ts',
+      'packages/naming/src/user-pool-domain-prefix.test.ts'
     ],
     lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2']
   },

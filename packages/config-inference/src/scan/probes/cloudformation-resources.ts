@@ -357,7 +357,7 @@ const USER_POOL_CLIENT_PROPERTIES: KeyRules = {
   ExplicitAuthFlows: 'carried',
   ReadAttributes: 'carried',
   WriteAttributes: 'carried',
-  // Compared below with what Stacktape's client allows: a declared value stricter than that leaves the pool out.
+  // Carried below in Stacktape's units; a lifetime Stacktape's client cannot hold leaves the pool out.
   AccessTokenValidity: 'carried',
   IdTokenValidity: 'carried',
   RefreshTokenValidity: 'carried',
@@ -391,13 +391,22 @@ const AUTH_FLOWS = new Set([
 /** Seconds per `TokenValidityUnits` unit. Cognito's defaults are hours for access and ID tokens, days for refresh. */
 const UNIT_SECONDS: Readonly<Record<string, number>> = { seconds: 1, minutes: 60, hours: 3600, days: 86_400 };
 
-/**
- * Token lifetimes Stacktape's client issues: one hour for access and ID tokens, 30 days for refresh tokens. A declared
- * lifetime shorter than that would be lengthened, so it leaves the pool out; a longer one is only reported.
- */
-const STACKTAPE_TOKEN_SECONDS = { AccessToken: 3600, IdToken: 3600, RefreshToken: 30 * 86_400 } as const;
+/** The lifetimes Stacktape's client accepts: 5 minutes to 1 day for access and ID tokens, 1 to 3650 days for refresh. */
+const TOKEN_LIFETIMES = {
+  AccessToken: { property: 'accessTokenValiditySeconds', unitSeconds: 1, min: 300, max: 86_400 },
+  IdToken: { property: 'idTokenValiditySeconds', unitSeconds: 1, min: 300, max: 86_400 },
+  RefreshToken: { property: 'refreshTokenValidityDays', unitSeconds: 86_400, min: 1, max: 3650 }
+} as const;
 
-type ClientSettings = Pick<UserPoolSettings, 'allowedAuthFlows' | 'readAttributes' | 'writeAttributes'>;
+type ClientSettings = Pick<
+  UserPoolSettings,
+  | 'allowedAuthFlows'
+  | 'readAttributes'
+  | 'writeAttributes'
+  | 'accessTokenValiditySeconds'
+  | 'idTokenValiditySeconds'
+  | 'refreshTokenValidityDays'
+>;
 
 /** The restrictions a client declares, carried where Stacktape's client can hold them and reviewed otherwise. */
 const clientSettings = (properties: RecordValue, scope: TemplateScope, review: KeyReview): ClientSettings => {
@@ -438,8 +447,14 @@ const clientSettings = (properties: RecordValue, scope: TemplateScope, review: K
       typeof amount === 'number' && typeof unit === 'string' && UNIT_SECONDS[unit] !== undefined
         ? amount * UNIT_SECONDS[unit]
         : undefined;
-    if (seconds === undefined || seconds < STACKTAPE_TOKEN_SECONDS[token]) omitFor(review, key, 'identity');
-    else if (seconds > STACKTAPE_TOKEN_SECONDS[token]) review.notCarried.push(key);
+    const lifetime = TOKEN_LIFETIMES[token];
+    // A refresh lifetime of part of a day is shortened to whole days: users sign in again sooner, never later.
+    const value = seconds === undefined ? undefined : Math.floor(seconds / lifetime.unitSeconds);
+    if (value === undefined || value < lifetime.min || value > lifetime.max) omitFor(review, key, 'identity');
+    else {
+      settings[lifetime.property] = value;
+      if (value * lifetime.unitSeconds !== seconds) review.notCarried.push(key);
+    }
   }
   // Without it, sign-in errors say whether a user exists; turning it off only gives away less.
   const existenceErrors = resolveDeclaredValue(properties.PreventUserExistenceErrors, scope);

@@ -1,3 +1,4 @@
+import { getIsDirective } from '@utils/directives';
 import type {
   NumberAttributeConstraints,
   SchemaAttribute,
@@ -11,7 +12,11 @@ import { domainManager } from '@domain-services/domain-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
+import {
+  getDefaultUserPoolDomainPrefix,
+  getUserPoolDomainPrefix,
+  getUserPoolDomainPrefixProblem
+} from '@stacktape/naming/domain-names';
 import { hasProperties } from '@utils/misc';
 import { CliError, ExpectedError } from '@utils/errors';
 import { tuiManager } from '@application-services/tui-manager';
@@ -380,10 +385,38 @@ export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolNam
   }
   return cfnResource('AWS::Cognito::UserPoolDomain', {
     UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
-    Domain:
-      userPool.hostedUiDomainPrefix ||
-      getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, userPoolName)
+    Domain: getUserPoolHostedUiDomainPrefix(userPool, userPoolName)
   });
+};
+
+/**
+ * The prefix of the pool's `<prefix>.auth.<region>.amazoncognito.com` domain. A set `hostedUiDomainPrefix` must be one
+ * Cognito accepts. Without it, a deployed pool keeps the prefix it has, and a new pool gets a prefix Cognito accepts.
+ */
+export const getUserPoolHostedUiDomainPrefix = (userPool: StpUserAuthPool, userPoolName: string) => {
+  const { hostedUiDomainPrefix } = userPool;
+  if (hostedUiDomainPrefix) {
+    // A directive such as `$CfFormat(...)` resolves only at deploy time, so Cognito checks that value itself.
+    const problem =
+      typeof hostedUiDomainPrefix === 'string' &&
+      !getIsDirective(hostedUiDomainPrefix) &&
+      getUserPoolDomainPrefixProblem(hostedUiDomainPrefix);
+    if (problem) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_USER_AUTH_POOL_DOMAIN_PREFIX_INVALID',
+        message: `\`hostedUiDomainPrefix: ${hostedUiDomainPrefix}\` on user auth pool \`${userPoolName}\` is invalid: ${problem}.`,
+        hints: 'Set `hostedUiDomainPrefix` to a value such as `my-app-auth`.'
+      });
+    }
+    return hostedUiDomainPrefix;
+  }
+  const { stackName } = calculatedStackOverviewManager.context;
+  const originalPrefix = getUserPoolDomainPrefix(stackName, userPoolName);
+  const deployedPrefix = stackManager.existingStackResources.find(
+    ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.userPoolDomain(userPoolName)
+  )?.PhysicalResourceId;
+  return deployedPrefix === originalPrefix ? originalPrefix : getDefaultUserPoolDomainPrefix(stackName, userPoolName);
 };
 
 export const getLambdaPermissionForHookResource = (lambdaArn: string, userPoolName: string) => {

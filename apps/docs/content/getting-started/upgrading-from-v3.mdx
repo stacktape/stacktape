@@ -71,6 +71,16 @@ A multi-container workload has one log group per container. To reference one, us
 
 v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito without a unit, so Cognito read them in hours and accepted only 1 to 24. v4 sends them in seconds. A value from 1 to 24 keeps its meaning in hours, and the CLI warns you to write it in seconds: replace `accessTokenValiditySeconds: 1` with `accessTokenValiditySeconds: 3600`. Unset lifetimes stay at 1 hour, and deploying updates the user pool client in place. See [token lifetimes](/resources/security/user-auth-pool#token-lifetimes).
 
+The CLI does not warn about `overrides`. If you set `AccessTokenValidity` or `IdTokenValidity` on the user pool client through `overrides`, the value is now read in seconds, so a value that meant hours fails to deploy. Set the matching unit in the same override, or replace the override with `accessTokenValiditySeconds` or `idTokenValiditySeconds`. For a pool named `auth`:
+
+```yaml
+overrides:
+  AuthUserPoolClient:
+    AccessTokenValidity: 2
+    TokenValidityUnits:
+      AccessToken: hours
+```
+
 ## Packaging
 
 v4 replaces the v3 packaging types with a smaller set:

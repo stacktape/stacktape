@@ -73837,6 +73837,10 @@ Hosted UI domain prefix
 Sets the first part of your Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`.
 Pick something that matches your project or company name.
 
+Cognito accepts 1 to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit,
+and rejects a prefix that contains `aws`, `amazon` or `cognito`. Without this property, the prefix is
+`<stack name>-<pool name>`. When Cognito would reject that, Stacktape removes the rejected parts and adds a short hash.
+
 ### Example 1 (yaml)
 
 ```yaml

@@ -1,11 +1,11 @@
-import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
+import { getIsDirective } from '@utils/directives';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
 import { domainManager } from '@domain-services/domain-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
 import { getWebACLAssociation } from '../_utils/firewall-helpers';
 import {
   getIdentityProviderResource,
@@ -15,6 +15,7 @@ import {
   getUserPoolCustomDomainDnsRecord,
   getUserPoolDetailsCustomResource,
   getUserPoolDomainResource,
+  getUserPoolHostedUiDomainPrefix,
   getUserPoolResource,
   getUserPoolUiCustomizationAttachmentResource
 } from './utils';
@@ -100,12 +101,15 @@ export const resolveUserPools = async () => {
         showDuringPrint: false
       });
     } else {
+      const prefix = getUserPoolHostedUiDomainPrefix(userPoolDefinition, name);
+      const domainSuffix = `.auth.${calculatedStackOverviewManager.context.region}.amazoncognito.com`;
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'domain',
         nameChain,
-        paramValue: `${getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, name)}.auth.${
-          calculatedStackOverviewManager.context.region
-        }.amazoncognito.com`,
+        paramValue:
+          typeof prefix === 'string' && !getIsDirective(prefix)
+            ? `${prefix}${domainSuffix}`
+            : join('', [prefix, domainSuffix]),
         showDuringPrint: false
       });
     }
