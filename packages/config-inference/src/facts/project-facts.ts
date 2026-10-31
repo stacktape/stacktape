@@ -94,18 +94,14 @@ export const handlerFindingSchema = z.object({
 export type HandlerFinding = z.infer<typeof handlerFindingSchema>;
 
 /**
- * A file that starts a network listener in a package init decided is not a service, so it created nothing for it.
- *
- * - `command-line-tool`: the package declares `bin`, and the listener only runs while the tool does (a login callback).
- * - `tooling-directory`: the package is in a `tools`, `cli` or `sdk` directory, nothing starts it as a server, and the
- *   listener is a sign-in callback, binds only the loopback address, or is a Go program with no server call.
- * - `local-only`: nothing starts the package as a server, and the file listens only on the loopback address.
+ * A listener file init did not deploy: every `.listen(` call in it binds a loopback address, which nothing outside its
+ * own container can reach, and nothing in the repository runs its package (no start script, Procfile, Dockerfile or
+ * deployment file). A CLI's login callback or a library's tunnel looks like this.
  */
 export const nonServiceListenerSchema = z.object({
   path: repositoryPathSchema,
   /** The package directory, `.` for the repository root. */
-  packagePath: repositoryPathSchema,
-  reason: z.enum(['command-line-tool', 'tooling-directory', 'local-only'])
+  packagePath: repositoryPathSchema
 });
 
 export type NonServiceListener = z.infer<typeof nonServiceListenerSchema>;

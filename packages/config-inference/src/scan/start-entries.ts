@@ -246,8 +246,16 @@ const dockerfileExecCommand = (raw: string): string | undefined => {
   }
 };
 
-/** A JavaScript package's manifest and the helpers both readers below need. */
-const readPackage = async (root: string, context: ProbeContext) => {
+/**
+ * The one source file the JavaScript package at `root` starts with, when its start commands say so without ambiguity.
+ *
+ * The commands are the package's `start` and `start:prod` scripts, a Procfile whose only process is `web`, and the
+ * exec-form `CMD` or `ENTRYPOINT` of the Dockerfile's last stage. Each one present must be a single simple process, and
+ * they must all name the same file. A compiled path (`dist/main.js`) is read back to its source through the tsconfig
+ * `outDir`/`rootDir` or a conventional output directory. Anything else, including a path with no source, a directory
+ * or disagreeing commands, gives `undefined`, and the scan keeps its earlier behavior for the package.
+ */
+export const unambiguousStartFile = async (root: string, context: ProbeContext): Promise<string | undefined> => {
   const files = new Set(context.files);
   const read = async (name: string) =>
     files.has(join(root, name)) ? readText(context, join(root, name), { fullFile: true }) : undefined;
@@ -295,20 +303,7 @@ const readPackage = async (root: string, context: ProbeContext) => {
     }
     return undefined;
   };
-  return { files, read, manifest, nestEntry, toSource };
-};
 
-/**
- * The one source file the JavaScript package at `root` starts with, when its start commands say so without ambiguity.
- *
- * The commands are the package's `start` and `start:prod` scripts, a Procfile whose only process is `web`, and the
- * exec-form `CMD` or `ENTRYPOINT` of the Dockerfile's last stage. Each one present must be a single simple process, and
- * they must all name the same file. A compiled path (`dist/main.js`) is read back to its source through the tsconfig
- * `outDir`/`rootDir` or a conventional output directory. Anything else, including a path with no source, a directory
- * or disagreeing commands, gives `undefined`, and the scan keeps its earlier behavior for the package.
- */
-export const unambiguousStartFile = async (root: string, context: ProbeContext): Promise<string | undefined> => {
-  const { read, manifest, nestEntry, toSource } = await readPackage(root, context);
   const commands = ['start', 'start:prod']
     .map((name) => manifest?.scripts[name])
     .filter((command): command is string => command !== undefined);
@@ -334,52 +329,4 @@ export const unambiguousStartFile = async (root: string, context: ProbeContext):
   });
   const [file] = sources;
   return file !== undefined && sources.every((source) => source === file) ? file : undefined;
-};
-
-/** Files beside a package that declare how it runs as a deployed process. */
-const DEPLOYMENT_FILE =
-  /^(?:Procfile|Dockerfile(?:\..+)?|.+\.[Dd]ockerfile|(?:docker-)?compose(?:\.[\w-]+)?\.ya?ml|fly\.toml|render\.ya?ml|app\.json|railway\.(?:json|toml)|nixpacks\.toml|ecosystem\.config\.[cm]?js)$/;
-const SERVER_SCRIPTS = ['start', 'start:prod', 'serve'];
-
-/**
- * How the package at `root` says it runs, for deciding whether it is a command-line tool rather than a service.
- *
- * `deploymentFile`: a Procfile, Dockerfile, Compose, Fly, Render, Heroku, Railway, Nixpacks or PM2 file sits in the
- * package directory. `bin`: the package's `bin` targets, as written and as source files. `serverScripts`: the file each
- * `start`, `start:prod` or `serve` script runs, `undefined` for a script init cannot read as one simple process.
- */
-export const declaredStarts = async (
-  root: string,
-  context: ProbeContext
-): Promise<{ deploymentFile: boolean; bin: string[]; serverScripts: Array<string | undefined> }> => {
-  const prefix = root === '.' ? '' : `${root}/`;
-  const deploymentFile = context.files.some(
-    (path) =>
-      path.startsWith(prefix) &&
-      !path.slice(prefix.length).includes('/') &&
-      DEPLOYMENT_FILE.test(path.slice(prefix.length))
-  );
-  const { manifest, nestEntry, toSource } = await readPackage(root, context);
-  const binField = manifest?.raw.bin;
-  const binTargets = (
-    typeof binField === 'string'
-      ? [binField]
-      : Object.values(recordOf(binField)).filter((value) => typeof value === 'string')
-  ).map((target) => posix.normalize(target).replace(/^\.\//, ''));
-  const bin = [
-    ...new Set(
-      binTargets.flatMap((target) => {
-        const source = toSource(target);
-        return source === undefined ? [join(root, target)] : [join(root, target), source];
-      })
-    )
-  ];
-  const serverScripts = SERVER_SCRIPTS.flatMap((name) => {
-    const script = manifest?.scripts[name];
-    if (script === undefined) return [];
-    const file = simpleCommandFile(script, manifest, nestEntry);
-    if (file === undefined) return [undefined];
-    return [toSource(file) ?? join(root, posix.normalize(file).replace(/^\.\//, ''))];
-  });
-  return { deploymentFile, bin, serverScripts };
 };

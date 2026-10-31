@@ -111,15 +111,8 @@ const importGapMessage = ({ file, object, keys, effect, concern }: ImportGap): s
   return `${file}: init did not carry ${quotedList(keys)} of \`${object}\`${consequence}. Before deploying, set the Stacktape equivalent, or confirm the app works without ${keys.length === 1 ? 'it' : 'them'}.`;
 };
 
-const nonServiceListenerMessage = ({ path, packagePath, reason }: NonServiceListener): string => {
-  const why =
-    reason === 'command-line-tool'
-      ? `${packagePath} is a command-line tool: its package.json declares bin, and its listener only runs while the tool does, for example during a login`
-      : reason === 'tooling-directory'
-        ? `${packagePath} is a tooling directory, and its listener is a sign-in callback, listens only on the loopback address, or is a program that starts no server`
-        : `${path} listens only on the loopback address, which no other machine or container can reach`;
-  return `${why}. No Procfile, Dockerfile or start script runs ${packagePath} as a server, so init created no service for ${path}. If it is a service, add one with the command that starts it.`;
-};
+const nonServiceListenerMessage = ({ path, packagePath }: NonServiceListener): string =>
+  `${path} listens only on the loopback address, which nothing outside its own container can reach, and no start script, Procfile, Dockerfile or deployment file runs ${packagePath}. init took it for a command-line tool or library and created no service for it. If it is a service, make it listen on all interfaces (0.0.0.0) and add it with the command that starts it.`;
 
 /** A setting the code reads with no fallback, which nothing in the configuration sets. */
 export type UnsetSetting = {
@@ -2073,6 +2066,8 @@ export const composeConfig = ({
   }
 
   for (const listener of facts.nonServiceListeners) {
+    // Another probe may still run the file; then it is a service and there is nothing to report.
+    if (facts.services.some((service) => service.containerEntrypoint?.split(':')[0] === listener.path)) continue;
     gaps.push({ subject: listener.path, message: nonServiceListenerMessage(listener) });
   }
 

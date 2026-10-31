@@ -1,60 +1,100 @@
 /**
- * Listeners that belong to a command-line tool or a library rather than to a service.
+ * Listeners that cannot be services: every `.listen(` call in the file binds a literal loopback address.
  *
- * A CLI's OAuth login callback, a library's SSH tunnel and a desktop tool's process runner all look like servers to the
- * listener scan. They are not services: nothing deploys them, and nothing could reach them. A package is only judged
- * here when nothing beside it starts it as a server (no start script that runs anything but the tool, no Procfile,
- * Dockerfile or other deployment file), so a package whose start command runs a server always stays a service.
+ * A CLI's OAuth login callback or a library's SSH tunnel listens on 127.0.0.1, which no other machine or container can
+ * reach, so deploying it as a web service gives a service nobody can call. Such a listener is left out only when
+ * nothing in the repository says how its package runs: no start or serve script, no Nx serve target, no Procfile,
+ * Dockerfile or other deployment file in the package, and no deployment file elsewhere that names the package. In
+ * every other case the scan keeps its earlier behavior. Only the listener is left out, never the package or another
+ * workload found in it.
  */
 
-import type { NonServiceListener } from '../facts/project-facts';
-import type { ProbeContext } from './probe';
+import { posix } from 'node:path';
+import { readText, type ProbeContext } from './probe';
 import { maskFile } from './lexical';
-import { declaredStarts } from './start-entries';
 
-/** A package directory named for tooling: `tools/x`, `cli`, `packages/foo-cli`, `sdk`, `packages/foo-sdk`. */
-const TOOLING_DIRECTORY = /(?:^|\/)(?:tools|cli|sdk)(?:\/|$)|(?:^|\/)[^/]*-(?:cli|sdk)$/;
-/** A file that is part of a sign-in flow: an OAuth callback server, a login helper. */
-const SIGN_IN_FLOW = /(?:^|[/._-])(?:callback|oauth|login|auth|sign-?in)(?:[/._-]|$)/i;
-/** A server the Go probe accepts on its own evidence, rather than on a `.Run(` call any library can have. */
-const GO_SERVER = /ListenAndServe|fiber\.New\s*\(|echo\.New\s*\(|\bgin\.(?:Default|New)\s*\(/;
+/** Files that declare a deployed process by their name alone. */
+const DEPLOYMENT_FILE =
+  /^(?:Procfile|Dockerfile(?:\..+)?|.+\.[Dd]ockerfile|(?:docker-)?compose(?:\.[\w-]+)?\.ya?ml|fly\.toml|render\.ya?ml|app\.json|railway\.(?:json|toml)|nixpacks\.toml|ecosystem\.config\.[cm]?js|Chart\.ya?ml)$/;
+/** Kubernetes workloads and ECS task definitions, which can run a package from anywhere in the repository. */
+const KUBERNETES_WORKLOAD = /^\s*kind:\s*["']?(?:Deployment|StatefulSet|DaemonSet|Job|CronJob|Pod|ReplicaSet)\b/m;
+const ECS_TASK_DEFINITION = /"containerDefinitions"\s*:/;
+const START_SCRIPT = /^(?:start|serve)(?::|$)/;
+const LOOPBACK_LISTEN = /\.listen\s*\(\s*[^,()]*,\s*(["'])(?:127\.0\.0\.1|localhost|::1)\1/g;
 
-/** Every `.listen(` call binds a literal loopback address, so no other machine or container can reach it. */
-const listensOnlyOnLoopback = (path: string, raw: string): boolean => {
+const baseName = (path: string) => path.split('/').at(-1) ?? path;
+
+/** Every `.listen(` call in the file binds a literal loopback address. */
+export const listensOnlyOnLoopback = (path: string, raw: string): boolean => {
   const code = maskFile(path, raw, 'keep');
   const calls = code.match(/\.listen\s*\(/g)?.length ?? 0;
-  const loopback = code.match(/\.listen\s*\(\s*[^,()]*,\s*(["'])(?:127\.0\.0\.1|localhost|::1)\1/g)?.length ?? 0;
-  return calls > 0 && calls === loopback;
+  return calls > 0 && calls === (code.match(LOOPBACK_LISTEN)?.length ?? 0);
 };
 
+const parseObject = (raw: string | undefined): Record<string, unknown> | undefined => {
+  if (raw === undefined) return undefined;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const keysOf = (value: unknown): string[] =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : [];
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * Why the listener in `path` is not a service, or `undefined` when it may be one.
- *
- * - `command-line-tool`: the package declares `bin`. Either it has no start script, or its start script runs the tool
- *   itself and the listener is not the tool's entry but part of a sign-in flow (`dub login`'s callback server).
- * - `tooling-directory`: the package sits in a `tools`, `cli` or `sdk` directory, has no start script, and the listener
- *   is a sign-in callback, binds only the loopback address, or is a Go program with no server call.
- * - `local-only`: the package has no start script and every listener in the file binds the loopback address.
+ * Decides, per listener file, whether it is a loopback-only listener of a package nothing runs. Deployment files are
+ * read once per scan, and only when such a listener exists.
  */
-export const nonServiceReason = async (
-  { root, path, raw, language }: { root: string; path: string; raw: string; language: string },
-  context: ProbeContext
-): Promise<NonServiceListener['reason'] | undefined> => {
-  const declared = await declaredStarts(root, context);
-  if (declared.deploymentFile) return undefined;
-  const runsOnlyTheTool = declared.serverScripts.every((file) => file !== undefined && declared.bin.includes(file));
-  if (!runsOnlyTheTool) return undefined;
-  const hasServerScript = declared.serverScripts.length > 0;
-  const signInFlow = SIGN_IN_FLOW.test(path);
-  if (declared.bin.length > 0) {
-    if (!hasServerScript) return 'command-line-tool';
-    return signInFlow && !declared.bin.includes(path) ? 'command-line-tool' : undefined;
-  }
-  // Without bin, only a package with no start script at all gets here.
-  const loopbackOnly = (language === 'javascript' || language === 'typescript') && listensOnlyOnLoopback(path, raw);
-  if (TOOLING_DIRECTORY.test(root)) {
-    const goWithoutServer = language === 'go' && !GO_SERVER.test(maskFile(path, raw, 'blank'));
-    if (signInFlow || loopbackOnly || goWithoutServer) return 'tooling-directory';
-  }
-  return loopbackOnly ? 'local-only' : undefined;
+export const createLoopbackListenerJudge = (context: ProbeContext) => {
+  const files = new Set(context.files);
+  const readJson = async (path: string) =>
+    files.has(path) ? parseObject(await readText(context, path, { fullFile: true })) : undefined;
+  let deploymentTexts: Promise<Array<{ path: string; text: string }>> | undefined;
+  const readDeploymentTexts = async () => {
+    const found: Array<{ path: string; text: string }> = [];
+    for (const path of context.files) {
+      const name = baseName(path);
+      const byName = DEPLOYMENT_FILE.test(name);
+      if (!byName && !/\.(?:ya?ml|json)$/.test(name)) continue;
+      if (/(?:^|\/)node_modules\//.test(path) || name === 'package.json') continue;
+      // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, one at a time.
+      const text = await readText(context, path, { fullFile: true });
+      if (text === undefined) continue;
+      if (byName || KUBERNETES_WORKLOAD.test(text) || ECS_TASK_DEFINITION.test(text)) found.push({ path, text });
+    }
+    return found;
+  };
+
+  /** Whether something in the repository says how the package at `root` runs. */
+  const runsSomehow = async (root: string): Promise<boolean> => {
+    const prefix = root === '.' ? '' : `${root}/`;
+    const manifest = await readJson(`${prefix}package.json`);
+    if (keysOf(manifest?.scripts).some((name) => START_SCRIPT.test(name))) return true;
+    const nxProject = await readJson(`${prefix}project.json`);
+    if (keysOf(nxProject?.targets).some((name) => START_SCRIPT.test(name))) return true;
+    deploymentTexts ??= readDeploymentTexts();
+    const deployments = await deploymentTexts;
+    // The repository root has no name another file could use: any deployment file may run it.
+    if (root === '.') return deployments.length > 0;
+    if (deployments.some(({ path }) => posix.dirname(path) === root)) return true;
+    const names = [
+      root,
+      baseName(root),
+      typeof manifest?.name === 'string' ? manifest.name : undefined,
+      ...(typeof manifest?.bin === 'string' ? [] : keysOf(manifest?.bin))
+    ]
+      .filter((name): name is string => name !== undefined && name.length > 0)
+      .map((name) => new RegExp(`(?<![\\w-])${escapeRegExp(name)}(?![\\w-])`));
+    return deployments.some(({ text }) => names.some((name) => name.test(text)));
+  };
+
+  return async ({ root, path, raw }: { root: string; path: string; raw: string }): Promise<boolean> =>
+    listensOnlyOnLoopback(path, raw) && !(await runsSomehow(root));
 };

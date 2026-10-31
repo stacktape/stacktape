@@ -7,7 +7,7 @@ import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 import { citeFirstCodeMatch, maskFile } from '../lexical';
 import { unambiguousStartFile } from '../start-entries';
-import { nonServiceReason } from '../non-service-listeners';
+import { createLoopbackListenerJudge } from '../non-service-listeners';
 import type { NonServiceListener } from '../../facts/project-facts';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
@@ -587,30 +587,17 @@ export const serverEntrypointProbe: Probe = {
       detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
       context
     );
-    // A command-line tool's login callback or a library's tunnel is not a service. Workers keep their own rules.
+    // A listener only its own container can reach, in a package nothing runs, is a CLI callback or a library tunnel.
+    // Only that file is left out: workers and other workloads of the package keep their own rules.
     const nonServiceListeners: NonServiceListener[] = [];
+    const loopbackOnlyListener = createLoopbackListenerJudge(context);
     for (const { path, raw, detection, root } of detected) {
       if (detection.processType !== undefined) continue;
-      // oxlint-disable-next-line no-await-in-loop -- one small manifest read per listener file.
-      const reason = await nonServiceReason({ root, path, raw, language: detection.language }, context);
-      if (reason !== undefined) nonServiceListeners.push({ path, packagePath: root, reason });
+      if (detection.language !== 'javascript' && detection.language !== 'typescript') continue;
+      // oxlint-disable-next-line no-await-in-loop -- one package at a time; deployment files are read once.
+      if (await loopbackOnlyListener({ root, path, raw })) nonServiceListeners.push({ path, packagePath: root });
     }
     const leftOut = new Set(nonServiceListeners.map(({ path }) => path));
-    // A command-line tool's package stays out entirely, so its start script (which runs the tool) is no service either,
-    // unless another listener in it is still a service. Not the repository root: functions and manifest processes
-    // there share its path.
-    const toolPackages = [
-      ...new Set(
-        nonServiceListeners.filter(({ reason }) => reason === 'command-line-tool').map(({ packagePath }) => packagePath)
-      )
-    ].filter(
-      (root) =>
-        root !== '.' &&
-        detected.every(
-          (candidate) =>
-            candidate.root !== root || candidate.detection.processType !== undefined || leftOut.has(candidate.path)
-        )
-    );
     for (const { path, raw, code, detection, root } of detected) {
       if (leftOut.has(path)) continue;
       const key = `${root}::${detection.processType ?? 'main'}`;
@@ -693,13 +680,7 @@ export const serverEntrypointProbe: Probe = {
 
     return {
       ...(byRoot.size === 0 ? {} : { services: [...byRoot.values()] }),
-      ...(nonServiceListeners.length === 0
-        ? {}
-        : {
-            nonServiceListeners,
-            omittedEntrypoints: [...leftOut],
-            ...(toolPackages.length === 0 ? {} : { omittedServiceRoots: toolPackages })
-          })
+      ...(nonServiceListeners.length === 0 ? {} : { nonServiceListeners })
     };
   }
 };
