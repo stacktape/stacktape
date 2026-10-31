@@ -13,7 +13,7 @@ import {
   startAgentServer,
   stopAgentServer
 } from '../agent-server';
-import { createConfigChangeDetector } from '../config-change';
+import { createConfigChangeDetector, type ConfigChange } from '../config-change';
 import { getReturnableError, type HandledError } from '@utils/errors';
 import { getRunningAgentReadyPayload, reportRunningAgent } from '../index';
 import { createWorkloadRebuilder } from '../workload-rebuild';
@@ -48,7 +48,8 @@ const startSession = async ({
   retryDelayMs = 20,
   sourceFiles,
   frontends = [],
-  remoteImageInputs
+  remoteImageInputs,
+  detectConfigChange
 }: {
   workloads: string[];
   build: (name: string) => Promise<void>;
@@ -59,6 +60,8 @@ const startSession = async ({
   frontends?: string[];
   /** The files each batch job's image was built from at the start, relative to the session directory. */
   remoteImageInputs?: Record<string, string[]>;
+  /** Replaces the check of the JSON configuration file. */
+  detectConfigChange?: () => Promise<ConfigChange>;
 }) => {
   const sessionStartedAt = Date.now();
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-rebuild-results-'));
@@ -76,11 +79,13 @@ const startSession = async ({
     getRemoteImageInputs: () => inSession(remoteImageInputs),
     reloadsCodeItself: (name) => frontends.includes(name),
     getSessionStartedAt: () => sessionStartedAt,
-    detectConfigChange: createConfigChangeDetector({
-      configPath,
-      sessionConfig: config,
-      loadConfig: async () => JSON.parse(await readFile(configPath, 'utf8'))
-    })
+    detectConfigChange:
+      detectConfigChange ??
+      createConfigChangeDetector({
+        configPath,
+        sessionConfig: config,
+        loadConfig: async () => JSON.parse(await readFile(configPath, 'utf8'))
+      })
   });
   setRebuildFunctions(
     (name) => rebuilder.rebuildWorkload(name, workloads.includes(name)),
@@ -243,6 +248,38 @@ test('a failed rebuild or a changed configuration is reported, and the session i
     databases: [{ name: 'db', type: 'postgres', port: 54321 }],
     failedWorkloads: []
   });
+});
+
+// r2az run 6: the configuration was restored, and the session still waited for a restart. Each check of the file wrote
+// its answer when it finished, so a check that read the edited file but finished after the check of the restored file
+// (a TypeScript configuration executes again, which takes a while) left the restart required with nothing to clear it.
+test('the check of the latest configuration file decides, also when an older check finishes after it', async () => {
+  let file: 'edited' | 'restored' = 'edited';
+  let finishSlowCheck: (() => void) | undefined;
+  const { rebuilder, call } = await startSession({
+    workloads: ['api'],
+    build: async () => {},
+    // A check answers for the file as it was when the check started; the first one is slow.
+    detectConfigChange: () => {
+      const change: ConfigChange =
+        file === 'edited'
+          ? { changed: true, reason: 'stacktape.json changed after dev mode started.' }
+          : { changed: false };
+      if (finishSlowCheck) return Promise.resolve(change);
+      return new Promise((resolve) => (finishSlowCheck = () => resolve(change)));
+    }
+  });
+
+  const edit = rebuilder.onConfigFileChange();
+  file = 'restored';
+  const restore = rebuilder.onConfigFileChange();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  finishSlowCheck!();
+  await Promise.all([edit, restore]);
+
+  const status = (await call('GET', '/status?verbose=true')).data;
+  expect(status.restartRequired).toBeUndefined();
+  expect(status.ready).toBeTrue();
 });
 
 // The review's scenario: lib/db.ts is built into f1 and f2, handler.ts only into f1. An edit to lib/db.ts rebuilds

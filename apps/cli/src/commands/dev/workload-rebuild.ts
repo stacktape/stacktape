@@ -103,10 +103,22 @@ export const createWorkloadRebuilder = ({
   /** How to fix the last failed build of each workload, when its error says. */
   const errorHints = new Map<string, string[]>();
 
-  const checkConfig = async (): Promise<ConfigChange> => {
-    const change = await detectConfigChange();
-    updateAgentState({ restartRequired: change.changed ? change.reason : undefined });
-    return change;
+  /** The configuration check that runs or ran last. */
+  let lastConfigCheck: Promise<unknown> = Promise.resolve();
+  /**
+   * Checks run one at a time, in the order they were asked for. Each reads the file when it starts, so the last one
+   * read the newest file and its answer is the one that stays. Run side by side, a slow check of an edited file (a
+   * TypeScript configuration executes again) finished after the check of the restored file, and the session waited
+   * for a restart that nothing cleared.
+   */
+  const checkConfig = (): Promise<ConfigChange> => {
+    const check = lastConfigCheck.then(async () => {
+      const change = await detectConfigChange();
+      updateAgentState({ restartRequired: change.changed ? change.reason : undefined });
+      return change;
+    });
+    lastConfigCheck = check.catch(() => undefined);
+    return check;
   };
 
   /** Builds `name` and reports its status, unless a newer build of it waits and will report instead. */
