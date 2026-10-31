@@ -51,7 +51,7 @@ const fakeWorld = ({ boxState }: { boxState: string }) => {
   const deps = {
     aws,
     pollMs: 5,
-    findFreePort: async () => 40001,
+    reservePort: async () => ({ port: 40001, release: async () => {} }),
     openSession: async ({ localPort }: { localPort: number }) => {
       expect(localPort).toBe(40001);
       let exit!: () => void;
@@ -368,3 +368,146 @@ test('a relay update that fails is tried again, then the session runs on the old
   });
   await connection.stop();
 }, 30_000);
+
+// r2an: two sessions that started together asked the Session Manager plugin for the same laptop port. One plugin could
+// not listen, and its session retried that port forever. A plugin that does not listen must get another port.
+const portReservations = (ports: number[]) => {
+  const released: number[] = [];
+  const reserved: number[] = [];
+  return {
+    released,
+    reserved,
+    reservePort: async () => {
+      const port = ports[reserved.length];
+      reserved.push(port);
+      return { port, release: async () => void released.push(port) };
+    }
+  };
+};
+
+const pluginCannotListen = () =>
+  Object.assign(new Error('The SSM tunnel from local port 40001 to 127.0.0.1:7835 was not ready within 10 s.'), {
+    code: 'SSM_TUNNEL_START_TIMEOUT'
+  });
+
+test('a plugin that cannot listen on its local port gets a newly reserved port', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  const ports = portReservations([40001, 40002]);
+  const opened: number[] = [];
+  const statuses: string[] = [];
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      reservePort: ports.reservePort,
+      openSession: async (input) => {
+        opened.push(input.localPort);
+        if (input.localPort === 40001) throw pluginCannotListen();
+        return deps.openSession({ localPort: 40001 });
+      }
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  connection.onStatus = (status) => statuses.push(status.phase === 'reconnecting' ? status.reason : status.phase);
+  const relay = await connection.connect();
+  expect(opened).toEqual([40001, 40002]);
+  expect(relay.controlPort).toBe(40002);
+  expect(ports.released).toEqual([40001]);
+  expect(statuses).toContain('The SSM tunnel from local port 40001 to 127.0.0.1:7835 was not ready within 10 s.');
+  await connection.stop();
+  expect(ports.released).toEqual([40001, 40002]);
+});
+
+test('a reconnect keeps its port unless the plugin cannot listen, and the tunnels follow a new port', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  const ports = portReservations([40001, 40002]);
+  const opened: number[] = [];
+  let failNextOpen = false;
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      reservePort: ports.reservePort,
+      openSession: async (input) => {
+        opened.push(input.localPort);
+        if (failNextOpen) {
+          failNextOpen = false;
+          throw pluginCannotListen();
+        }
+        return deps.openSession({ localPort: 40001 });
+      }
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  // The tunnels keep the endpoint the first connect resolved with.
+  const relay = await connection.connect();
+  expect(relay.controlPort).toBe(40001);
+  // A lost session reopens on its reserved port.
+  world.sessions[0].exit();
+  await waitFor('a second session', () => world.sessions.length === 2);
+  expect(opened).toEqual([40001, 40001]);
+  expect(ports.released).toEqual([]);
+  // Another program took the port while the session was lost: the plugin cannot listen on it any more.
+  failNextOpen = true;
+  world.sessions[1].exit();
+  await waitFor('a third session', () => world.sessions.length === 3);
+  expect(opened).toEqual([40001, 40001, 40001, 40002]);
+  expect(ports.released).toEqual([40001]);
+  expect(relay.controlPort).toBe(40002);
+  await connection.stop();
+  expect(ports.released).toEqual([40001, 40002]);
+});
+
+test('a failure that is not about the local port keeps the reserved port', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  const ports = portReservations([40001, 40002]);
+  const opened: number[] = [];
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      reservePort: ports.reservePort,
+      openSession: async (input) => {
+        opened.push(input.localPort);
+        if (opened.length === 1) throw new Error('TargetNotConnected');
+        return deps.openSession({ localPort: 40001 });
+      }
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  const relay = await connection.connect();
+  expect(opened).toEqual([40001, 40001]);
+  expect(relay.controlPort).toBe(40001);
+  expect(ports.reserved).toEqual([40001]);
+  await connection.stop();
+  expect(ports.released).toEqual([40001]);
+});
+
+// The cleanup ran `stop` twice at once: the second call returned at once, the process exited, and the first call never
+// released the port, so every stopped session left its reservation behind.
+test('a second stop waits until the first has released the port', async () => {
+  const { world, deps } = fakeWorld({ boxState: 'running' });
+  world.relayUp = true;
+  let released = false;
+  const connection = new DevBoxConnection({
+    deps: {
+      ...deps,
+      reservePort: async () => ({
+        port: 40001,
+        release: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          released = true;
+        }
+      })
+    },
+    network,
+    owner: { id: 'u', label: 'U', session: 's' }
+  });
+  await connection.connect();
+  void connection.stop();
+  await connection.stop();
+  expect(released).toBe(true);
+});

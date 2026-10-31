@@ -531,7 +531,7 @@ const devBoxConnection = (
         isBoxOnline: async () => true
       } as unknown as DevNetworkAws,
       pollMs: 20,
-      findFreePort: async () => controlPort,
+      reservePort: async () => ({ port: controlPort, release: async () => {} }),
       openSession: async () => {
         let exit!: () => void;
         const exited = new Promise<void>((resolve) => (exit = resolve));
@@ -760,7 +760,7 @@ test('a box that stops itself before the first connection is started again and t
       aws,
       pollMs: 20,
       // The SSM session forwards this port to the relay's control port; here the relay listens on it directly.
-      findFreePort: async () => controlPort,
+      reservePort: async () => ({ port: controlPort, release: async () => {} }),
       openSession: async () => {
         if (box.state !== 'running') throw new Error('TargetNotConnected: the dev box is not connected');
         let exit!: () => void;
