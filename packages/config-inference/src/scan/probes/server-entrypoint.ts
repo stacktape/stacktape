@@ -6,6 +6,7 @@ import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 import { citeFirstCodeMatch, maskFile } from '../lexical';
+import { createModuleResolver, reachableFrom, startEntriesOf, type StartEntry } from '../start-entries';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -491,14 +492,175 @@ const springBootPort = async (
     : { port: SPRING_BOOT_DEFAULT_PORT, citation: { ...entrypoint, field: 'port' } };
 };
 
+/** Browser UI frameworks: a package that depends on one is a frontend unless a file in it starts a server. */
+const BROWSER_FRAMEWORKS = ['react', 'react-dom', 'vue', 'nuxt', 'svelte', '@angular/core', 'solid-js', 'preact'];
+/** Modules a JavaScript server is built on; a `.listen()` in a file that imports none of them is no server's. */
+const SERVER_MODULE =
+  /^(?:node:)?(?:http|https|http2|net)$|^(?:express|fastify|koa|hono|@hono\/node-server|@nestjs\/.+|ws|socket\.io|@hapi\/hapi|restify|polka|h3|micro|next|@remix-run\/.+|@react-router\/.+|@koa\/.+)$/;
+
+const dependsOnBrowserFramework = async (root: string, context: ProbeContext): Promise<boolean> => {
+  const path = root === '.' ? 'package.json' : posix.join(root, 'package.json');
+  if (!context.files.includes(path)) return false;
+  try {
+    const manifest = JSON.parse((await readText(context, path, { fullFile: true })) ?? '{}') as Record<string, unknown>;
+    return ['dependencies', 'devDependencies'].some((field) => {
+      const dependencies = manifest[field];
+      return (
+        typeof dependencies === 'object' &&
+        dependencies !== null &&
+        BROWSER_FRAMEWORKS.some((name) => Object.hasOwn(dependencies, name))
+      );
+    });
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Whether a JavaScript file builds a server: it imports a server module or calls `createServer`, `Bun.serve` or
+ * `Deno.serve`. In a frontend package, `history.listen()`, a Tauri event `listen()` or an API client's
+ * `jobs.listen()` is not one.
+ */
+const startsServer = (path: string, raw: string, code: string): boolean =>
+  /\bcreateServer\s*\(|\bBun\.serve\s*\(|\bDeno\.serve\s*\(/.test(code) ||
+  [...maskFile(path, raw, 'keep').matchAll(/(?:\bfrom\s*|\brequire\s*\(\s*|\bimport\s*\(\s*)['"]([^'"\n]+)['"]/g)].some(
+    (match) => SERVER_MODULE.test(match[1]!)
+  );
+
+/**
+ * Go `main` files that are not how their module starts. A Go file beside a `package.json` with no `go.mod` belongs to
+ * a JavaScript package (a local file server for an extension, say). And Go's project layout keeps a module's own
+ * program in `cmd/<module name>`: when `cmd/fleet/main.go` exists in module `github.com/fleetdm/fleet/v4`, the other
+ * `main` packages of the module (`cmd/apple-apns-mock`, `orbit/cmd/desktop`) are mocks, tools and other programs.
+ */
+const unstartedGoMains = async (detected: readonly Detected[], context: ProbeContext): Promise<ReadonlySet<string>> => {
+  const dropped = new Set<string>();
+  const goMains = detected.filter(({ detection }) => detection.language === 'go');
+  for (const root of new Set(goMains.map((candidate) => candidate.root))) {
+    const inRoot = goMains.filter((candidate) => candidate.root === root);
+    const goMod = root === '.' ? 'go.mod' : posix.join(root, 'go.mod');
+    if (!context.files.includes(goMod)) {
+      for (const { path } of inRoot) dropped.add(path);
+      continue;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- one small manifest per Go module.
+    const module = /^module\s+(\S+)/m.exec((await readText(context, goMod)) ?? '')?.[1];
+    const name = module
+      ?.replace(/\/v\d+$/, '')
+      .split('/')
+      .at(-1);
+    const commands = root === '.' ? 'cmd/' : `${root}/cmd/`;
+    if (name === undefined || !context.files.includes(`${commands}${name}/main.go`)) continue;
+    for (const { path } of inRoot) {
+      if (!path.startsWith(`${commands}${name}/`)) dropped.add(path);
+    }
+  }
+  return dropped;
+};
+
+type Detected = { path: string; raw: string; code: string; root: string; detection: Detection };
+
+/** A background process the package declares: a Procfile process other than `web`, or a worker script. */
+const declaresBackgroundProcess = (entry: StartEntry): boolean =>
+  entry.origin === 'worker-script' || (entry.origin === 'procfile' && entry.processName !== undefined);
+
+/**
+ * Which JavaScript listener files the package's own start commands run. In a package whose start script, Procfile,
+ * Dockerfile or framework convention names a start file, a listener file no start file imports runs in no process (a
+ * React hook's `history.listen()`, a helper, an end-to-end test server), so it is dropped. Of the files a start file
+ * reaches, the one closest to the strongest start file wins its service. A queue worker is its own process when a
+ * declared background process (`worker: node dist/worker.js`, a `worker` script) or a start file that starts no web
+ * server runs it, and that start file is its entry; one only a web process imports runs inside it. A package with no
+ * start file the scan can read keeps its first listener file, as before, unless it is a frontend package and the file
+ * builds no server.
+ */
+const startedListeners = async (
+  detected: readonly Detected[],
+  context: ProbeContext
+): Promise<{
+  dropped: ReadonlySet<string>;
+  winners: ReadonlyMap<string, string>;
+  workers: ReadonlyMap<string, { entrypoint: string; processType: string }>;
+}> => {
+  const resolver = createModuleResolver(context);
+  const importsCache = new Map<string, Promise<string[]>>();
+  const dropped = new Set<string>();
+  const winners = new Map<string, string>();
+  const workers = new Map<string, { entrypoint: string; processType: string }>();
+  for (const root of new Set(detected.map((candidate) => candidate.root))) {
+    // oxlint-disable-next-line no-await-in-loop -- one package at a time keeps the shared import cache warm.
+    const entries = await startEntriesOf(root, context, resolver);
+    if (entries.length === 0) {
+      // Without a start file, a frontend package's `.listen()` that builds no server is a client-side listener.
+      // oxlint-disable-next-line no-await-in-loop -- one manifest per package.
+      if (await dependsOnBrowserFramework(root, context)) {
+        for (const { path, raw, code, detection } of detected.filter((candidate) => candidate.root === root)) {
+          if (detection.processType === undefined && !startsServer(path, raw, code)) dropped.add(path);
+        }
+      }
+      continue;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- see above.
+    const reached = await Promise.all(
+      entries.map((entry) => reachableFrom(entry.file, context, resolver, importsCache))
+    );
+    const best = new Map<string, { path: string; rank: number; order: [number, number] }>();
+    const inRoot = detected.filter((candidate) => candidate.root === root);
+    // A start file that reaches a listener starts a web process; a queue worker it reaches runs inside it.
+    const startsWebProcess = reached.map((files) =>
+      inRoot.some(({ path, detection }) => detection.processType === undefined && files.includes(path))
+    );
+    for (const { path, detection } of inRoot) {
+      const queueWorker = detection.processType !== undefined;
+      const reaches = (index: number) => reached[index]!.includes(path);
+      const entryIndex = !queueWorker
+        ? reached.findIndex((_files, index) => reaches(index))
+        : ([
+            reached.findIndex((_files, index) => reaches(index) && declaresBackgroundProcess(entries[index]!)),
+            // A library's `main` or a CLI's `bin` runs no process of its own.
+            reached.findIndex(
+              (_files, index) =>
+                reaches(index) && !startsWebProcess[index] && !['main', 'bin'].includes(entries[index]!.origin)
+            )
+          ].find((index) => index !== -1) ?? -1);
+      if (entryIndex === -1) {
+        dropped.add(path);
+        continue;
+      }
+      let processType = detection.processType;
+      if (queueWorker) {
+        const entry = entries[entryIndex]!;
+        processType = entry.origin === 'procfile' ? entry.processName! : workerProcessType(entry.file);
+        workers.set(path, { entrypoint: entry.file, processType });
+      }
+      const order: [number, number] = [entryIndex, reached[entryIndex]!.indexOf(path)];
+      const key = `${root}::${processType ?? 'main'}`;
+      const rank = detection.rank ?? 1;
+      const current = best.get(key);
+      if (
+        current === undefined ||
+        rank > current.rank ||
+        (rank === current.rank &&
+          (order[0] < current.order[0] || (order[0] === current.order[0] && order[1] < current.order[1])))
+      ) {
+        best.set(key, { path, rank, order });
+      }
+    }
+    for (const [key, { path }] of best) winners.set(key, path);
+  }
+  return { dropped, winners, workers };
+};
+
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     const candidates = withoutSampleDirectories(context.files).filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
-        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&
-        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
+        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures|e2e|playwright|cypress)(?:\/|$)/i.test(path) &&
+        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path) &&
+        // Test runner setup (`jest.setup.ts`, `setupTests.ts`) starts no deployed process.
+        !/(?:^|\/)(?:(?:jest|vitest)\.setup|setupTests|test-setup)\.[cm]?[jt]sx?$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
     const ranks = new Map<string, number>();
@@ -549,11 +711,24 @@ export const serverEntrypointProbe: Probe = {
       }
       return undefined;
     };
-    for (const { path, raw, code } of sources) {
-      const detection = detectionFor(path, raw, code);
-      if (detection === undefined) continue;
-      const root = rootOf(path);
+    const detected: Array<(typeof sources)[number] & Detected> = [];
+    for (const source of sources) {
+      const detection = detectionFor(source.path, source.raw, source.code);
+      if (detection !== undefined) detected.push({ ...source, detection, root: rootOf(source.path) });
+    }
+    const started = await startedListeners(
+      detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
+      context
+    );
+    const unstartedGo = await unstartedGoMains(detected, context);
+    for (const { path, raw, code, detection: found, root } of detected) {
+      if (unstartedGo.has(path)) continue;
+      if (started.dropped.has(path)) continue;
+      const worker = started.workers.get(path);
+      const detection = worker === undefined ? found : { ...found, ...worker };
       const key = `${root}::${detection.processType ?? 'main'}`;
+      const winner = started.winners.get(key);
+      if (winner !== undefined && winner !== path) continue;
       // A NestJS microservice bootstrap gives way to an HTTP server in the same service, and a WSGI module to the
       // Channels router that also serves WebSockets.
       if (byRoot.has(key) && (detection.rank ?? 1) <= ranks.get(key)!) continue;
@@ -629,6 +804,14 @@ export const serverEntrypointProbe: Probe = {
       });
     }
 
-    return byRoot.size === 0 ? {} : { services: [...byRoot.values()] };
+    // A package's web process comes before its background processes: assembly folds a package-level service into the
+    // only declared process beside it, and a worker listed first would absorb the web server.
+    const roots = [...new Set([...byRoot.values()].map((service) => service.path))];
+    const services = [...byRoot.values()].toSorted(
+      (left, right) =>
+        roots.indexOf(left.path) - roots.indexOf(right.path) ||
+        Number(left.processType !== undefined) - Number(right.processType !== undefined)
+    );
+    return services.length === 0 ? {} : { services };
   }
 };

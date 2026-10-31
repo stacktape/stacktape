@@ -518,8 +518,191 @@ const VITE_CASES: EvalCase[] = [
   }
 ];
 
+const ENTRY = (resource: string, value: string | undefined) => ({
+  resource,
+  path: 'packaging.properties.entryfilePath',
+  value
+});
+
+/**
+ * Which listener file is the service's entry (r2ap): the one the package's own start command reaches. Reduced from
+ * the init corpus, where a React hook, a gateway helper, an end-to-end test server and library queue workers were
+ * chosen because they call `.listen(` or `new Worker(`.
+ */
+const ENTRY_CASES: EvalCase[] = [
+  {
+    name: 'r2ap (Outline): the listener the compiled start file reaches wins over a React hook that calls history.listen()',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node ./build/server/index.js', build: 'node ./build.js' },
+        dependencies: { koa: '2.0.0', react: '18.0.0' }
+      }),
+      'app/hooks/useLastVisitedPath.tsx': lines(
+        "import { useEffect } from 'react';",
+        "import { useHistory } from 'react-router-dom';",
+        'export default function useLastVisitedPath() {',
+        '  const history = useHistory();',
+        '  useEffect(() => history.listen(() => undefined), [history]);',
+        '}'
+      ),
+      'server/index.ts': "void import('./main').then(({ start }) => start());\n",
+      'server/main.ts': lines(
+        "import Koa from 'koa';",
+        'export const start = () => new Koa().listen(process.env.PORT || 3000);'
+      )
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server/main.ts')] }
+  },
+  {
+    name: 'r2ap (Infisical): a tsconfig path alias reaches the server; a helper that listens elsewhere is ignored',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node --enable-source-maps dist/main.mjs', build: 'tsup' },
+        // Email templates in React do not make it a frontend: its start file reaches the server.
+        dependencies: { fastify: '5.0.0', react: '18.0.0' }
+      }),
+      'tsconfig.json': lines(
+        '{',
+        '  // Comments and trailing commas are valid in a tsconfig.',
+        '  "compilerOptions": { "outDir": "dist", "baseUrl": ".", "paths": { "@app/*": ["./src/*"], }, },',
+        '}'
+      ),
+      'src/lib/gateway/gateway.ts': lines(
+        "import net from 'node:net';",
+        'export const openTunnel = (port: number) => net.createServer().listen(port);'
+      ),
+      'src/main.ts': "import { main } from '@app/server/app';\nawait main();\n",
+      'src/server/app.ts': lines(
+        "import Fastify from 'fastify';",
+        'export const main = async () => Fastify().listen({ port: 4000, host: "0.0.0.0" });'
+      )
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      resourceProperties: [ENTRY('auditApp', 'src/server/app.ts')],
+      servicePorts: [{ resource: 'auditApp', port: 4000 }]
+    }
+  },
+  {
+    name: 'r2ap (Novu): a NestJS bootstrap wins over an end-to-end test server',
+    files: {
+      'package.json': nestPackage({ '@nestjs/platform-express': '11.0.0', express: '5.0.0' }),
+      'nest-cli.json': '{ "sourceRoot": "src" }\n',
+      'e2e/test-bridge-server.ts': "import express from 'express';\nexpress().listen(9999);\n",
+      'src/main.ts': lines(
+        "import { NestFactory } from '@nestjs/core';",
+        "import { AppModule } from './app.module';",
+        'const app = await NestFactory.create(AppModule);',
+        'await app.listen(3000);'
+      ),
+      'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/main.ts')] }
+  },
+  {
+    name: 'r2ap: a BullMQ worker the web process starts is no worker service of its own',
+    files: {
+      'package.json': packageJson({
+        scripts: { start: 'node dist/index.js', build: 'tsc' },
+        dependencies: { fastify: '5.0.0', bullmq: '5.0.0' }
+      }),
+      'tsconfig.json': '{ "compilerOptions": { "outDir": "dist", "rootDir": "src" } }\n',
+      'src/index.ts': lines(
+        "import Fastify from 'fastify';",
+        "import { setupQueueProcessor } from './queue';",
+        'await setupQueueProcessor();',
+        'await Fastify().listen({ port: 3000, host: "0.0.0.0" });'
+      ),
+      'src/queue.ts': lines(
+        "import { Worker } from 'bullmq';",
+        "export const setupQueueProcessor = async () => new Worker('mail', async () => undefined);"
+      )
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      resourceProperties: [ENTRY('auditApp', 'src/index.ts'), ENTRY('queue', undefined)]
+    }
+  },
+  {
+    name: 'r2ap (Twenty): a worker script starts its own worker; a library driver with new Worker() is not its entry',
+    files: {
+      'package.json': packageJson({
+        scripts: {
+          build: 'nest build',
+          start: 'nest start',
+          'start:prod': 'node dist/main',
+          'worker:prod': 'node dist/queue-worker/queue-worker'
+        },
+        dependencies: { '@nestjs/core': '11.0.0', '@nestjs/common': '11.0.0', bullmq: '5.0.0', rxjs: '7.0.0' }
+      }),
+      'nest-cli.json': '{ "sourceRoot": "src" }\n',
+      'src/engine/drivers/bullmq.driver.ts': lines(
+        "import { Worker } from 'bullmq';",
+        "export class BullMqDriver { work() { return new Worker('jobs', async () => undefined); } }"
+      ),
+      'src/main.ts': lines(
+        "import { NestFactory } from '@nestjs/core';",
+        "import { AppModule } from './app.module';",
+        'const app = await NestFactory.create(AppModule);',
+        'await app.listen(3000);'
+      ),
+      'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n",
+      'src/queue-worker/queue-worker.ts': lines(
+        "import { BullMqDriver } from '../engine/drivers/bullmq.driver';",
+        'new BullMqDriver().work();'
+      )
+    },
+    expect: {
+      resources: { auditApp: 'web-service', queueWorker: 'worker-service' },
+      resourceProperties: [
+        ENTRY('auditApp', 'src/main.ts'),
+        ENTRY('queueWorker', 'src/queue-worker/queue-worker.ts'),
+        ENTRY('bullmqDriver', undefined)
+      ]
+    }
+  },
+  {
+    name: 'r2ap control: a start script that runs a source file under lib/ keeps it',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node lib/index.js' }, dependencies: { express: '5.0.0' } }),
+      'lib/index.js': "const express = require('express');\nexpress().listen(process.env.PORT || 3000);\n",
+      'tools/mock-server.js': "require('http').createServer(() => undefined).listen(4999);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'lib/index.js')] }
+  },
+  {
+    name: 'r2ap control: without a start file the scan can read, the listener stays the entry',
+    files: {
+      'package.json': packageJson({ scripts: { start: 'node scripts/run.js' }, dependencies: { express: '5.0.0' } }),
+      'app.js': "const express = require('express');\nexpress().listen(process.env.PORT || 3000);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'app.js')] }
+  },
+  {
+    name: 'r2ap (Hoppscotch): a Tauri event listen() in a Vue package is no web service',
+    files: {
+      'package.json': packageJson({ workspaces: ['packages/*'] }),
+      'packages/common/package.json': packageJson({ name: 'common', dependencies: { vue: '3.0.0' } }),
+      'packages/common/src/kernel/io.ts': lines(
+        "import { listen as module } from './tauri';",
+        'export const io = { listen: (event: string, handler: () => void) => module().listen(event, handler) };'
+      ),
+      'packages/common/src/kernel/tauri.ts':
+        'export const listen = () => ({ listen: (_e: string, _h: () => void) => undefined });\n'
+    },
+    expect: { resourceProperties: [{ resource: 'common', path: 'packaging', value: undefined }] }
+  }
+];
+
 describe('listener inference end-to-end corpus', () => {
-  for (const evalCase of [...WEBSOCKET_CASES, ...PORT_CASES, ...ASPNET_CASES, ...PROCESS_CASES, ...VITE_CASES]) {
+  for (const evalCase of [
+    ...WEBSOCKET_CASES,
+    ...PORT_CASES,
+    ...ASPNET_CASES,
+    ...PROCESS_CASES,
+    ...VITE_CASES,
+    ...ENTRY_CASES
+  ]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
       if (!score.passed) {

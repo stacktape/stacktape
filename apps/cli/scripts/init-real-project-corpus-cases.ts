@@ -418,9 +418,11 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-starter',
     exercises: ['railway', 'fastify', 'bullmq', 'redis', 'background-jobs'],
     expect: {
-      resourceTypes: { redis: 1, 'web-service': 1, 'worker-service': 1 },
+      // `src/index.ts`, which `yarn start` runs, calls `setupQueueProcessor()`: the BullMQ worker runs inside the web
+      // process. `src/queue.ts` only exports functions, so a worker service started from it would do nothing.
+      resourceTypes: { redis: 1, 'web-service': 1 },
       dependencyKinds: { redis: 1 },
-      serviceCount: 2,
+      serviceCount: 1,
       httpServiceCount: 1,
       requiredGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true
@@ -853,20 +855,25 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'real-application',
     exercises: ['real-saas', 'nextjs', 'monorepo', 'postgres', 'redis', 'prisma'],
     expect: {
+      // The BullMQ jobs runtime starts from the Next.js instrumentation hook (`apps/web/instrumentation-jobs.ts`), in the
+      // web process. `packages/jobs/src/runtime.ts` only exports `startJobsRuntime`, so it is no worker of its own.
       resourceTypes: {
         bastion: 1,
         bucket: 1,
         'nextjs-web': 1,
         redis: 1,
-        'relational-database': 1,
-        'worker-service': 1
+        'relational-database': 1
       },
       dependencyKinds: { email: 1, 'object-storage': 1, postgres: 1, redis: 1 },
-      serviceCount: 2,
+      serviceCount: 1,
       httpServiceCount: 1,
       existingDeployments: ['kubernetes'],
-      requiredConfig: ['type: nextjs-web', 'type: worker-service'],
-      forbiddenConfig: ['type: hosting-bucket', 'packages/database/src/scripts/wait-for-database.test.ts'],
+      requiredConfig: ['type: nextjs-web'],
+      forbiddenConfig: [
+        'type: hosting-bucket',
+        'type: worker-service',
+        'packages/database/src/scripts/wait-for-database.test.ts'
+      ],
       requiredGapPatterns: ['Kubernetes deployment config'],
       forbidCurrentlyHostedDependencies: true
     }

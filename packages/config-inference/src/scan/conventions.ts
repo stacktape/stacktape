@@ -139,6 +139,8 @@ export const conventionalCommandsFor = (context: ConventionContext): Conventiona
 const hasTextualStartAnswer = (service: ServiceFactInput): boolean =>
   service.startCommand !== undefined ||
   service.dockerfile !== undefined ||
+  // A published image runs its own command.
+  service.containerImage !== undefined ||
   service.containerEntrypoint !== undefined ||
   service.functionEntrypoint !== undefined ||
   service.servesStaticAssets !== undefined ||
