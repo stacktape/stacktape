@@ -103,7 +103,7 @@ Deploys your stack to AWS.
 Options:
   -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
       --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
-  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters. (required)
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters and no fixed maximum. Stacktape shortens an AWS resource name that would be too long and adds a hash. (required)
   -r, --region <value>             The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). (required unless set in the config)
       --project <value>            The name of the Stacktape project for this operation. (default: from the config)
   -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
@@ -211,7 +211,7 @@ Options:
   -p, --profile <value>            The AWS profile to use for the command. You can manage profiles using the aws-profile:* commands and set a default profile with defaults set.
       --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
       --agent                      For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.
-  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters. (required)
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters and no fixed maximum. Stacktape shortens an AWS resource name that would be too long and adds a hash. (required)
   -r, --region <value>             The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). (required unless set in the config)
       --project <value>            The name of the Stacktape project for this operation. (default: from the config)
   -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
@@ -249,7 +249,7 @@ Options:
       --aws-account <value>        The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).
   -c, --config <value>             The path to your Stacktape configuration file, relative to the current working directory.
       --cwd <value>                The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.
-  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. The maximum length is 12 characters.
+  -s, --stage <name>               The stage for the operation (e.g., production, staging, dev-john). You can set a default stage using the defaults set command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters and no fixed maximum. Stacktape shortens an AWS resource name that would be too long and adds a hash.
       --agent-port <number>        Stops the dev agent on this port, wherever it was started.
       --cleanup-containers         Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With --stage, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add --all.
       --all                        With --cleanup-containers, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory.

@@ -395,6 +395,15 @@ export class LambdaCloudwatchLogPrinter {
             const { level, requestId, logType, content } = line;
             if (!logType || !requestId) {
               // A plain line (`print`, `System.out`) or a runtime's own error output, without a request ID.
+              if (!requestId && this.#filterPattern) {
+                // A filter can hide the START and END lines that tell which request a log stream is handling, so the
+                // request this line belongs to is not known. It is not guessed from an earlier START.
+                this.#output(
+                  `${this.#getPrefix()} ${time} ${tuiManager.colorize('gray', '(request ID unknown: the filter can hide its START and END lines)')}\n${content}`,
+                  level
+                );
+                return;
+              }
               const activeRequestId = event.logStreamName ? this.#activeRequestIds[event.logStreamName] : undefined;
               this.#output(`${this.#getPrefix(requestId ?? activeRequestId)} ${time}\n${content}`, level);
               return;

@@ -4,7 +4,7 @@ import type { BunPlugin } from 'bun';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
+import { isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
 import { createPackageAnalysisCache, getProductionDependencies } from '../../es/installed-packages';
 import type { PackageAnalysisCache } from '../../es/installed-packages';
@@ -63,6 +63,7 @@ import {
 } from '../../artifact/archive-entries';
 import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
 import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
+import { displayPath, formatBuildError, formatBuildLogs } from '../../split-bundler/error-format';
 
 /** One entry per name, in the order first seen. A package needed outright wins over the same one as an optional peer. */
 const dedupeDependenciesByName = <T extends ResolvedPackageDependency>(dependencies: T[]): T[] => {
@@ -537,14 +538,8 @@ export const buildEsCode = async ({
         ...(virtualFiles && { files: virtualFiles })
       });
     } catch (err: unknown) {
-      // Bun can throw AggregateError with message "Bundle failed" for severe errors
-      const errorRecord = err && typeof err === 'object' ? (err as Record<string, unknown>) : {};
-      const nestedErrors = Array.isArray(errorRecord.errors) ? errorRecord.errors : [];
-      const errorDetails = nestedErrors.length
-        ? nestedErrors.map((error) => (error instanceof Error ? error.message : String(error))).join('\n')
-        : err instanceof Error
-          ? err.message
-          : String(err);
+      // Bun throws an AggregateError ("Bundle failed") whose diagnostics carry the file, line and column.
+      const errorDetails = formatBuildError(err, { cwd });
       throw createPackagingError({
         type: 'BUILD_CODE',
         message: `Build failed: ${errorDetails}`,
@@ -553,10 +548,7 @@ export const buildEsCode = async ({
     }
 
     if (!buildResult.success) {
-      const errors = buildResult.logs
-        .filter((log) => log.level === 'error')
-        .map((log) => log.message)
-        .join('\n');
+      const errors = formatBuildLogs(buildResult.logs, { cwd });
       throw createPackagingError({
         type: 'PACKAGING',
         message: `Build failed: ${errors}`
@@ -697,14 +689,18 @@ export const buildEsCode = async ({
   };
 
   return runBuild().catch(async (error) => {
-    const printableSrcPath = sourcePath
-      ? transformToUnixPath(getRelativePath(sourcePath))
+    // The entry file relative to the project (not to the CLI's working directory), like the diagnostics below it.
+    const projectPath = sourcePath && displayPath(resolve(cwd, sourcePath), cwd);
+    const printableSrcPath = projectPath
+      ? isAbsolute(projectPath)
+        ? projectPath
+        : `./${projectPath}`
       : rawCode
         ? '<raw code>'
         : '<unknown>';
     throw createPackagingError({
       type: 'BUILD_CODE',
-      message: `Failed to build code at ./${printableSrcPath}\n${error.message || error}`,
+      message: `Failed to build code at ${printableSrcPath}\n${error.message || error}`,
       hint: error?.hint,
       stack: error?.stack
     });

@@ -22,7 +22,7 @@ Hide progress, banners, success messages and hints. Command output, warnings and
 
 export const stage = z.string().describe(`#### Stage
 ---
-The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). You can set a default stage using the \`defaults set\` command. The maximum length is 12 characters.`);
+The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). You can set a default stage using the \`defaults set\` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters and no fixed maximum. Stacktape shortens an AWS resource name that would be too long and adds a hash.`);
 
 export const configPath = z.string().describe(`#### Config File Path
 ---

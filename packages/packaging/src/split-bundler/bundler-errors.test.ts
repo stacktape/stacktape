@@ -68,6 +68,16 @@ describe('split bundle failure translation', () => {
     expect((error as Error).message.match(/Split bundle/g)).toHaveLength(1);
   });
 
+  test('a syntax error names its file, line and column relative to the project', async () => {
+    const { root, entryfilePath } = await createFixture();
+    await writeFile(entryfilePath, 'export default async () => {\n  const x = ;\n  return x;\n};\n');
+    const error = await runBuild({ cwd: root, entryfilePath, createPackagingError: createTestPackagingError }).catch(
+      (caught: unknown) => caught
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain('src/handler.ts:2:13: Unexpected ;\n    const x = ;');
+  });
+
   test('preserves an unexpected Bun failure as the semantic error cause', async () => {
     const { root, entryfilePath } = await createFixture();
     const buildFailure = new Error('Bun could not start the build');

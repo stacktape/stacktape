@@ -290,6 +290,94 @@ test('a line without a request ID gets the prefix of the request its log stream 
   expect(messages.every((message) => prefix(message).includes('>'))).toBe(true);
 });
 
+// r2y review: with `--filter`, CloudWatch returns only matching events, so a START (or an END) can be missing. A line
+// without a request ID must not take the color of a request whose END the filter hid.
+test('with a filter, a line without a request ID says its request is unknown instead of taking an earlier one', async () => {
+  const first = '0f3c1b52-6d1e-4c1f-9a43-5b6f1e2d3c4a';
+  const stream = '2026/10/27/[$LATEST]abc';
+  // What `--filter "?START ?Traceback"` returns: the first request's START, then the second request's
+  // traceback; END lines and the second START do not match.
+  const events: FilteredLogEvent[] = [
+    `START RequestId: ${first} Version: $LATEST`,
+    'Traceback (most recent call last):\n  File "/var/task/handler.py", line 12, in handler'
+  ].map((message, index) => ({ eventId: `e${index}`, timestamp: UNTIL + 1 + index, message, logStreamName: stream }));
+  const requests: { filterPattern?: string }[] = [];
+  const messages: string[] = [];
+  const printer = new LambdaCloudwatchLogPrinter({
+    fetchSince: UNTIL,
+    logGroupAwsResourceName: '/aws/lambda/heartbeat',
+    filterPattern: '?START ?Traceback',
+    fetchPage: async (params) => {
+      requests.push(params);
+      return { events };
+    },
+    onLog: (message) => void messages.push(message)
+  });
+  const styling = [isTextStylingEnabled(), kleur.enabled] as const;
+  setTextStylingEnabled(true);
+  kleur.enabled = true;
+  try {
+    await printer.printLogs();
+  } finally {
+    setTextStylingEnabled(styling[0]);
+    kleur.enabled = styling[1];
+  }
+
+  const prefix = (message: string) => message.split(' ', 1)[0];
+  const traceback = messages.find((message) => message.includes('Traceback'))!;
+  expect(prefix(traceback)).not.toBe(prefix(messages[0]!));
+  expect(traceback).toContain('request ID unknown');
+  expect(traceback).not.toContain(first);
+  // One filtered request, as before: correlation is not bought with extra CloudWatch reads.
+  expect(requests).toHaveLength(1);
+  expect(requests[0]!.filterPattern).toBe('?START ?Traceback');
+});
+
+// r2qq: Node's runtime frame `file:///var/runtime/index.mjs` was shown as the project file `./file:/var/runtime/...`.
+test("a Node error record's file URL frames show their paths, the runtime's greyed out like dependencies", async () => {
+  const request = '0f3c1b52-6d1e-4c1f-9a43-5b6f1e2d3c4a';
+  const record = JSON.stringify({
+    errorType: 'Error',
+    errorMessage: 'quote failed',
+    stack: [
+      'Error: quote failed',
+      '    at Runtime.handler (file:///var/task/index.mjs:7:37)',
+      '    at Runtime.handleOnceNonStreaming (file:///var/runtime/index.mjs:1150:22)'
+    ]
+  });
+  const messages: string[] = [];
+  const printer = new LambdaCloudwatchLogPrinter({
+    fetchSince: UNTIL,
+    logGroupAwsResourceName: '/aws/lambda/quote',
+    fetchPage: async () => ({
+      events: [
+        {
+          eventId: 'e0',
+          timestamp: UNTIL + 1,
+          message: `2026-10-28T14:49:00.257Z\t${request}\tERROR\tInvoke Error \t${record}\n`,
+          logStreamName: 's'
+        }
+      ]
+    }),
+    onLog: (message) => void messages.push(message)
+  });
+  const styling = [isTextStylingEnabled(), kleur.enabled] as const;
+  setTextStylingEnabled(true);
+  kleur.enabled = true;
+  try {
+    await printer.printLogs();
+  } finally {
+    setTextStylingEnabled(styling[0]);
+    kleur.enabled = styling[1];
+  }
+
+  const [output] = messages;
+  expect(output).not.toContain('file:');
+  expect(output).toContain('at Runtime.handler (/var/task/index.mjs:7:37)');
+  expect(output).toContain(kleur.gray('at Runtime.handleOnceNonStreaming (/var/runtime/index.mjs:1150:22)'));
+  expect(output).not.toContain('./var/');
+});
+
 // r2gg: an invocation still running at a restart lost its START line, and one a second before the stop lost every
 // line: neither session read them. The next session reads the end of the previous one again and skips what it showed.
 test('a reader hands the events it showed to the next one, which shows only the rest of that time', async () => {

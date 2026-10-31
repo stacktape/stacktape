@@ -196,6 +196,21 @@ describe('the source maps of a Lambda ZIP', () => {
   });
 });
 
+// r2l/r2qq: a dev rebuild of a function with a syntax error said only "Build failed: Unexpected ;".
+describe('a build error', () => {
+  test('names the file, line and column relative to the project, with the source line', async () => {
+    const cwd = await createProject({
+      'handler.ts': "import { quote } from './src/quote';\nexport default async () => quote();\n",
+      'src/quote.ts': 'export const quote = () => {\n  const total = ;\n  return total;\n};\n'
+    });
+    const error = await bundle(cwd).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe(
+      'Failed to build code at ./handler.ts\nBuild failed: src/quote.ts:2:17: Unexpected ;\n    const total = ;'
+    );
+  });
+});
+
 describe('the handler the Lambda runtime loads', () => {
   test('a CommonJS bundle resolves index.default under import() as well as require()', async () => {
     // The CLI deploys every js-bundle function as `index.default`. Node's own ESM loader, which the Node 24 runtime
