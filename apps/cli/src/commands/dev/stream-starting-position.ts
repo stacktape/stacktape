@@ -7,8 +7,8 @@ export type StartingStreamMapping = { functionName: string; source: 'DynamoDB' |
 /**
  * Stream integrations whose event source mapping this deployment creates or changes.
  *
- * AWS starts polling a new or updated DynamoDB/Kinesis mapping eventually: in r2ar's live runs 60-90 seconds after
- * CloudFormation reported it complete, and AWS documents up to several minutes. Until then no record reaches the
+ * AWS starts polling a new or updated DynamoDB/Kinesis mapping eventually: in r2ar's live runs 20-95 seconds after the
+ * start was ready, and AWS documents up to several minutes. Until then no record reaches the
  * function, and a mapping that starts at `LATEST` skips every record written meanwhile. AWS gives no signal that polling
  * started (the mapping is `Enabled` before it reads), so a start cannot wait for it; it says so instead. A mapping the
  * deployment leaves unchanged keeps reading and delays nothing.
@@ -49,7 +49,7 @@ export const formatStartingStreamMappingsNotice = (mappings: StartingStreamMappi
     .map(({ functionName, source }) => `\`${functionName}\` (${source})`)
     .join(
       ', '
-    )}. AWS starts reading a new mapping a minute or more later, sometimes several minutes, so the first records written now reach the function late. Wait for them before you conclude that one was lost.`;
+    )}. AWS starts reading a new mapping some time after it is created, often a minute or more, so the first records written now can reach the function late. Wait for them before you conclude that one was lost.`;
   if (!latest.length) return created;
   return `${created} ${latest.join(', ')} ${latest.length === 1 ? 'reads' : 'read'} from \`startingPosition: LATEST\`, which skips every record written before the mapping starts. Set \`startingPosition: TRIM_HORIZON\` to receive them; changing it replaces the mapping, which then reads the stream's last 24 hours again.`;
 };

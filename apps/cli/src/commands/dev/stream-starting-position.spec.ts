@@ -59,7 +59,7 @@ describe('stream mappings that a start creates or changes', () => {
       { functionName: 'orderStream', source: 'DynamoDB', fromLatest: false }
     ]);
     expect(trimHorizon).toContain('`orderStream` (DynamoDB)');
-    expect(trimHorizon).toContain('reach the function late');
+    expect(trimHorizon).toContain('can reach the function late');
     expect(trimHorizon).not.toContain('LATEST');
     const latest = formatStartingStreamMappingsNotice([
       { functionName: 'orderStream', source: 'DynamoDB', fromLatest: false },
