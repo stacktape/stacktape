@@ -1,6 +1,6 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { linksMap } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
@@ -45,7 +45,7 @@ export const ensureMissingSsmParamsCreated = async () => {
     throw new ExpectedError(
       'CONFIG',
       `Missing ${missingParams.length} SSM parameter(s): ${missingParams.join(', ')}`,
-      `Create the parameters in the Stacktape Console: ${linksMap.ssmParams}`
+      `Create the parameters in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`
     );
   }
 };

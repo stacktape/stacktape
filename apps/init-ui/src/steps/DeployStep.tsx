@@ -48,6 +48,9 @@ const PUBLIC_TYPES = new Set([
   'application-load-balancer'
 ]);
 
+/** The Console the CLI talks to; production when the session does not name one. */
+const consoleUrlOf = (state: WizardState): string => state.consoleUrl ?? 'https://console.stacktape.com';
+
 const listNames = (names: string[]): string =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 
@@ -235,7 +238,7 @@ export function DeployStep({
               <Row
                 action={
                   <ButtonLink
-                    href={`https://console.stacktape.com/projects/${state.projectName}/${deployment.stage}/overview`}
+                    href={`${consoleUrlOf(state)}/projects/${state.projectName}/${deployment.stage}/overview`}
                     rel="noreferrer"
                     target="_blank"
                     variant="secondary"
@@ -444,7 +447,7 @@ export function DeployStep({
                     Deploying needs access to an AWS account. Either connect one in the{' '}
                     <a
                       className="wizard-link"
-                      href="https://console.stacktape.com/aws-accounts"
+                      href={`${consoleUrlOf(state)}/aws-accounts`}
                       rel="noreferrer"
                       target="_blank"
                     >

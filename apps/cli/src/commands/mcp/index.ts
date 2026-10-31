@@ -9,7 +9,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   type ServerContext
 } from '@modelcontextprotocol/server';
-import { serveStdio, type ServeStdioOptions } from '@modelcontextprotocol/server/stdio';
+import { serveStdio, StdioServerTransport, type ServeStdioOptions } from '@modelcontextprotocol/server/stdio';
 import { getStacktapeVersion } from '@utils/versioning';
 import { buildIndex, search, formatAnswer } from './lexical-index';
 import type { LexicalIndex, DocKind } from './lexical-index';
@@ -32,6 +32,7 @@ import {
   verifyDestructiveConfirmationState
 } from './cli-planning';
 import { DEV_TOOL_ACTIONS, handleDevToolAction } from './dev-tool';
+import { reserveStdoutForProtocol } from './protocol-stdout';
 import { buildIncidentToolOutput, prepareIncidentRun } from './incident-tool';
 import {
   buildCliRunOutput,
@@ -778,7 +779,10 @@ export const commandMcp = async () => {
   // Create and start the MCP server before loading the docs index so CLI/project
   // tools are discoverable immediately, even when another fast AWS MCP server is
   // installed in the same client.
-  const stdioServer = serveStacktapeMcp(() => createMcpServer(getIndex));
+  const stdioServer = serveStacktapeMcp(
+    () => createMcpServer(getIndex),
+    new StdioServerTransport(process.stdin, reserveStdoutForProtocol())
+  );
   void getIndex().catch(() => {
     // Surface docs-index failures through stacktape_docs calls instead of
     // failing MCP startup and hiding the operational tools.

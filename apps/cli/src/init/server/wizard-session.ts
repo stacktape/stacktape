@@ -107,6 +107,7 @@ export const startWizardSession = async ({
   repositoryPath,
   existingConfig,
   awsAccount,
+  consoleUrl,
   agents = [],
   result,
   start,
@@ -135,6 +136,8 @@ export const startWizardSession = async ({
   existingConfig?: string;
   /** The `--awsAccount` this run was started with, so commands the page hands out target the same account. */
   awsAccount?: string;
+  /** The Console the CLI talks to, without a trailing slash, for the page's Console links. */
+  consoleUrl?: string;
   /** Ways of reading the project, best first. Offered before anything runs. */
   agents?: WizardAgentOption[];
   /** A finished mission. Supplied instead of `start` when there is nothing left to run. */
@@ -604,6 +607,7 @@ export const startWizardSession = async ({
     ...(repositoryPath === undefined ? {} : { repositoryPath }),
     ...(existingConfig === undefined ? {} : { existingConfig }),
     ...(awsAccount === undefined ? {} : { awsAccount }),
+    ...(consoleUrl === undefined ? {} : { consoleUrl }),
     ...(agents.length === 0 ? {} : { agents }),
     ...(choice === undefined ? {} : { choice }),
     ...(configFile === undefined ? {} : { configFile }),

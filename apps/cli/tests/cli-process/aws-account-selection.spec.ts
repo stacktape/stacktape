@@ -255,6 +255,17 @@ describe('AWS account selection by local credentials', () => {
     expect(aws.requests.every(({ accessKeyId }) => accessKeyId === consoleKeys.production)).toBe(true);
   });
 
+  test('Console links point at the Console of the configured API, not production', async () => {
+    // The control plane is a loopback API, whose Console is the local one; production links would be wrong here.
+    const controlPlane = await startConsole([]);
+    const aws = await startAwsFake();
+    const run = await runDelete({ controlPlane, awsEndpoint: aws.endpoint });
+
+    expect(run.exitCode, run.stdout + run.stderr).not.toBe(0);
+    expect(run.stdout).toContain('http://localhost:4000/aws-accounts');
+    expect(run.stdout + run.stderr).not.toContain('console.stacktape.com');
+  });
+
   test('without local credentials, the only connected account is used as before', async () => {
     const controlPlane = await startConsole([connected.production]);
     const aws = await startAwsFake();

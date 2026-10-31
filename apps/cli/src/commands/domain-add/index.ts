@@ -1,3 +1,4 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
@@ -36,9 +37,7 @@ export const commandDomainAdd = async () => {
     tuiManager.hint(
       'Register via Route 53: https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration\n'
         .concat(`Prices start at $3/year for ${tuiManager.colorize('gray', '.click')}.\n`)
-        .concat(
-          'After purchase, manage and verify the domain in Stacktape Console: https://console.stacktape.com/domains'
-        )
+        .concat(`After purchase, manage and verify the domain in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`)
     );
     return;
   }
@@ -114,7 +113,7 @@ export const commandDomainAdd = async () => {
     );
     tuiManager.hint(
       [
-        'Open Stacktape Console to verify DNS ownership and continue setup: https://console.stacktape.com/domains',
+        `Open Stacktape Console to verify DNS ownership and continue setup: ${stacktapeConsoleUrl('/domains')}`,
         'If DNS is valid, you can continue with TLS certificate setup.\n'
       ].join('\n')
     );
@@ -168,7 +167,7 @@ export const commandDomainAdd = async () => {
     );
     tuiManager.success('Added DNS validation record(s) to the hosted zone.');
     tuiManager.info('Certificate validation can take a few minutes.');
-    tuiManager.hint('Check certificate status in Stacktape Console: https://console.stacktape.com/domains');
+    tuiManager.hint(`Check certificate status in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`);
     if (domainName === apexDomain) {
       domainStatus.regionalCert = regionalCert;
       domainStatus.usEast1Cert = usEast1Cert;

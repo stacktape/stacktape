@@ -14,7 +14,13 @@
 import type { Citation } from '../facts/citation';
 import { resourceKindNamedBy, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
-import type { ImportConcern, ImportGap, PackageManager, ProjectFacts } from '../facts/project-facts';
+import type {
+  ImportConcern,
+  ImportGap,
+  NonServiceListener,
+  PackageManager,
+  ProjectFacts
+} from '../facts/project-facts';
 import { posix } from 'node:path';
 import {
   DIRECT_INVOCATION_SOURCE,
@@ -104,6 +110,9 @@ const importGapMessage = ({ file, object, keys, effect, concern }: ImportGap): s
   }
   return `${file}: init did not carry ${quotedList(keys)} of \`${object}\`${consequence}. Before deploying, set the Stacktape equivalent, or confirm the app works without ${keys.length === 1 ? 'it' : 'them'}.`;
 };
+
+const nonServiceListenerMessage = ({ path, packagePath }: NonServiceListener): string =>
+  `${path} listens only on the loopback address, which nothing outside its own container can reach, and no start script, Procfile, Dockerfile or deployment file runs ${packagePath}. init took it for a command-line tool or library and created no service for it. If it is a service, make it listen on all interfaces (0.0.0.0) and add it with the command that starts it.`;
 
 /** A setting the code reads with no fallback, which nothing in the configuration sets. */
 export type UnsetSetting = {
@@ -2109,6 +2118,12 @@ export const composeConfig = ({
 
   for (const importGap of facts.importGaps) {
     gaps.push({ subject: `${importGap.file}:${importGap.object}`, message: importGapMessage(importGap) });
+  }
+
+  for (const listener of facts.nonServiceListeners) {
+    // Another probe may still run the file; then it is a service and there is nothing to report.
+    if (facts.services.some((service) => service.containerEntrypoint?.split(':')[0] === listener.path)) continue;
+    gaps.push({ subject: listener.path, message: nonServiceListenerMessage(listener) });
   }
 
   for (const handler of facts.handlerFindings) {

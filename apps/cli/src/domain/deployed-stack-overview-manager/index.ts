@@ -1,3 +1,4 @@
+import { stageConsoleUrl } from 'src/config/params';
 import type { KnownCloudFormationResourceType } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { HelperLambdaName } from '@config';
@@ -662,11 +663,7 @@ class DeployedStackOverviewManager {
       }
     }
     // /projects/posts-api-starter/dev2/overview
-    linesToPrint.push(
-      `\nMore details: ${tuiManager.makeBold(
-        `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`
-      )}\n`
-    );
+    linesToPrint.push(`\nMore details: ${tuiManager.makeBold(stageConsoleUrl(globalStateManager.targetStack))}\n`);
     tuiManager.info(linesToPrint.join('\n'));
   };
 

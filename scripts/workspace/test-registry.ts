@@ -2557,6 +2557,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/eval/import-audit-safety.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/listener-inference-e2e.spec.ts',
+      'apps/cli/src/init/eval/loopback-listener-differential.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/eval/source-inference-e2e.spec.ts',
       'apps/cli/src/init/mcp/session-server.spec.ts',
@@ -3899,6 +3900,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/eval/import-audit-safety.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/listener-inference-e2e.spec.ts',
+      'apps/cli/src/init/eval/loopback-listener-differential.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/eval/source-inference-e2e.spec.ts',
       'apps/cli/src/init/project-name.spec.ts',
@@ -4555,6 +4557,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/project-*/**',
       'apps/cli/src/app/operation-invocation-context.ts',
       'apps/cli/src/config/local-state-paths.ts',
+      'apps/cli/src/config/params.ts',
       'apps/cli/src/utils/aws-config.ts'
     ],
     tests: [
@@ -4574,6 +4577,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
+      'apps/cli/src/config/params.spec.ts',
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
       'packages/console-api/src/api-key.test.ts',
@@ -5099,7 +5103,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/mcp-add/**',
       'apps/cli/src/domain/coding-agent-setup/**',
       'apps/cli/scripts/generate-llm-docs.ts',
-      'apps/cli/scripts/llm-docs/**'
+      'apps/cli/scripts/llm-docs/**',
+      'apps/cli/scripts/mcp-stdout-session.ts'
     ],
     tests: [
       'apps/cli/scripts/e2e-mcp/run-e2e.ts',
@@ -5115,9 +5120,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/mcp/mcp-server-stdio-eras.spec.ts',
       'apps/cli/src/commands/mcp/cli-run-tool.spec.ts',
       'apps/cli/src/domain/coding-agent-setup/config-files.spec.ts',
-      'apps/cli/src/domain/coding-agent-setup/setup.spec.ts'
+      'apps/cli/src/domain/coding-agent-setup/setup.spec.ts',
+      'apps/cli/tests/cli-process/mcp-stdout.spec.ts'
     ],
-    lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs']
+    lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs', 'cli-stack-operations']
   },
   {
     id: 'S36',

@@ -111,6 +111,13 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
     return null;
   }
 
+  // `stacktape mcp` speaks MCP on stdout. Reserve it before anything configures output, so startup and completion
+  // lines go to stderr instead of corrupting the protocol stream.
+  if (opts.commands[0] === 'mcp') {
+    const { reserveStdoutForProtocol } = await import('./commands/mcp/protocol-stdout');
+    reserveStdoutForProtocol();
+  }
+
   let commandResult: any = null;
   try {
     await applicationManager.init();

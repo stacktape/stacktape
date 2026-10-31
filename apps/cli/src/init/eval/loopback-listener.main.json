@@ -1,0 +1,73 @@
+{
+  "review: bin server run by the root Procfile": {
+    "api": "web-service",
+    "myServer": "web-service",
+    "web": "web-service"
+  },
+  "review: bin server run by the root Dockerfile through npx": {
+    "api": "web-service",
+    "demo": "worker-service",
+    "myServer": "web-service"
+  },
+  "review: bin server run by a Kubernetes Deployment through npx": {
+    "api": "web-service",
+    "myServer": "web-service"
+  },
+  "review: auth-server with a start script": {
+    "api": "web-service",
+    "authServer": "web-service"
+  },
+  "review: aliased Gin under tools/": {
+    "admin": "web-service",
+    "api": "web-service"
+  },
+  "review: a loopback callback beside a SAM function keeps the function": {
+    "api": "web-service",
+    "backend": "function",
+    "httpApiGateway": "http-api-gateway"
+  },
+  "review: a loopback callback beside a BullMQ worker file (main runs no worker for it either)": {
+    "api": "web-service",
+    "backend": "web-service",
+    "cache": "redis"
+  },
+  "review: a loopback server with an Nx serve target": {
+    "admin": "web-service",
+    "api": "web-service"
+  },
+  "r2ba (Twenty SDK): a CLI whose only listener is a loopback login callback": {
+    "api": "web-service",
+    "twentySdk": "web-service"
+  },
+  "r2ba (ToolJet): a library that opens SSH tunnels on 127.0.0.1": {
+    "api": "web-service",
+    "mongodb": "web-service"
+  },
+  "control (Dub CLI): a login callback on a fixed port that is not loopback": {
+    "api": "web-service",
+    "dubCli": "web-service"
+  },
+  "control (Fleet): a Go desktop tool under tools/": {
+    "api": "web-service",
+    "hangar": "web-service"
+  },
+  "control: a loopback listener whose package has a start script": {
+    "api": "web-service",
+    "sidecar": "web-service"
+  },
+  "control: a loopback listener whose package has a Dockerfile": {
+    "api": "web-service",
+    "sidecar": "web-service"
+  },
+  "control: a loopback listener whose package a Kubernetes Deployment names": {
+    "api": "web-service",
+    "sidecar": "web-service"
+  },
+  "control: a file with one loopback and one public listener": {
+    "api": "web-service",
+    "sidecar": "web-service"
+  },
+  "control: a loopback listener at the repository root beside a Render blueprint": {
+    "demo": "web-service"
+  }
+}

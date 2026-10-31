@@ -1291,6 +1291,7 @@ export const assembleCandidateFacts = async ({
     migrations,
     localScripts,
     handlerFindings: outputs.flatMap((output) => output.handlerFindings ?? []),
+    nonServiceListeners: outputs.flatMap((output) => output.nonServiceListeners ?? []),
     importGaps: outputs.flatMap((output) => output.importGaps ?? []),
     uncertainties: [...uncertainties.values()],
     notes

@@ -94,6 +94,19 @@ export const handlerFindingSchema = z.object({
 export type HandlerFinding = z.infer<typeof handlerFindingSchema>;
 
 /**
+ * A listener file init did not deploy: every `.listen(` call in it binds a loopback address, which nothing outside its
+ * own container can reach, and nothing in the repository runs its package (no start script, Procfile, Dockerfile or
+ * deployment file). A CLI's login callback or a library's tunnel looks like this.
+ */
+export const nonServiceListenerSchema = z.object({
+  path: repositoryPathSchema,
+  /** The package directory, `.` for the repository root. */
+  packagePath: repositoryPathSchema
+});
+
+export type NonServiceListener = z.infer<typeof nonServiceListenerSchema>;
+
+/**
  * Why leaving a declared setting out changes what the deployment does, beyond losing the setting itself.
  *
  * - `access`: a route or API would accept callers the source refuses.
@@ -175,6 +188,7 @@ export const projectFactsSchema = z.object({
   migrations: z.array(migrationFactSchema).default([]),
   localScripts: z.array(localScriptFactSchema).default([]),
   handlerFindings: z.array(handlerFindingSchema).default([]),
+  nonServiceListeners: z.array(nonServiceListenerSchema).default([]),
   importGaps: z.array(importGapSchema).default([]),
   uncertainties: z.array(uncertaintySchema).default([]),
   /**

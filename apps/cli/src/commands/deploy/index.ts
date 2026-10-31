@@ -1,3 +1,4 @@
+import { stageConsoleUrl } from 'src/config/params';
 import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
@@ -642,7 +643,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   };
 
-  const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
+  const consoleUrl = stageConsoleUrl({ projectName: stackContext.projectName, stage: stackContext.stage });
   const resourceLinks = deployedStackOverview.getResourceLinks();
 
   // Store completion info - setComplete will be called after afterDeploy hooks finish
