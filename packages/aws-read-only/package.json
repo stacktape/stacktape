@@ -7,7 +7,8 @@
   "exports": {
     "./executor": "./src/executor.ts",
     "./fixtures/loopback-aws-endpoint": "./src/__fixtures__/loopback-aws-endpoint.ts",
-    "./operations": "./src/operations.ts"
+    "./operations": "./src/operations.ts",
+    "./template-skeleton": "./src/template-skeleton.ts"
   },
   "scripts": {
     "test": "bun test src/operations.test.ts src/executor.test.ts",

@@ -37,7 +37,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
-| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. The maximum length is 12 characters. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 
 
 ## Examples

@@ -6,6 +6,7 @@ import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 import { citeFirstCodeMatch, maskFile } from '../lexical';
+import { unambiguousStartFile } from '../start-entries';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -491,6 +492,33 @@ const springBootPort = async (
     : { port: SPRING_BOOT_DEFAULT_PORT, citation: { ...entrypoint, field: 'port' } };
 };
 
+/**
+ * The listener file of each JavaScript package whose start command names it: `${root}::main` to the file. A package
+ * changes its first-file choice only when its start commands unambiguously run one file (`unambiguousStartFile`) and
+ * that file itself calls `.listen(`, anywhere in it (a NestJS or Express bootstrap function counts). No import is
+ * followed. Every other package keeps the first listener file.
+ */
+const listenersNamedByStartCommand = async (
+  detected: ReadonlyArray<{ path: string; code: string; root: string; detection: Detection }>,
+  context: ProbeContext
+): Promise<ReadonlyMap<string, string>> => {
+  const winners = new Map<string, string>();
+  for (const root of new Set(detected.map((candidate) => candidate.root))) {
+    const listeners = detected.filter(
+      (candidate) => candidate.root === root && candidate.detection.processType === undefined
+    );
+    // oxlint-disable-next-line no-await-in-loop -- one package at a time.
+    const start = await unambiguousStartFile(root, context);
+    const file = listeners.find((candidate) => candidate.path === start);
+    // A NestJS microservice bootstrap gives way to an HTTP server beside it, as before.
+    const topRank = Math.max(...listeners.map(({ detection }) => detection.rank ?? 1));
+    if (file !== undefined && /\.listen\s*\(/.test(file.code) && (file.detection.rank ?? 1) === topRank) {
+      winners.set(`${root}::main`, file.path);
+    }
+  }
+  return winners;
+};
+
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -549,11 +577,18 @@ export const serverEntrypointProbe: Probe = {
       }
       return undefined;
     };
-    for (const { path, raw, code } of sources) {
-      const detection = detectionFor(path, raw, code);
-      if (detection === undefined) continue;
-      const root = rootOf(path);
+    const detected = sources.flatMap((source) => {
+      const detection = detectionFor(source.path, source.raw, source.code);
+      return detection === undefined ? [] : [{ ...source, detection, root: rootOf(source.path) }];
+    });
+    const startedListeners = await listenersNamedByStartCommand(
+      detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
+      context
+    );
+    for (const { path, raw, code, detection, root } of detected) {
       const key = `${root}::${detection.processType ?? 'main'}`;
+      const started = startedListeners.get(key);
+      if (started !== undefined && started !== path) continue;
       // A NestJS microservice bootstrap gives way to an HTTP server in the same service, and a WSGI module to the
       // Channels router that also serves WebSockets.
       if (byRoot.has(key) && (detection.rank ?? 1) <= ranks.get(key)!) continue;

@@ -1,4 +1,5 @@
 import { isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { IS_DEV } from '@config';
 import { getRelativePath, isFileAccessible } from '@utils/fs-utils';
 // stack-trace 1.0.0 is ESM-only with named exports; the namespace import works for both module
@@ -190,6 +191,45 @@ export const getReturnableError = (error: HandledError): Error => {
   return res;
 };
 
+/**
+ * The path of a `file://` URL. A URL with a drive letter or a host is a Windows path. Any other one, like Lambda's
+ * `file:///var/runtime/index.mjs`, is a POSIX path on every platform: Windows' `fileURLToPath` rejects it.
+ */
+export const filePathFromUrl = (url: string, windows = process.platform === 'win32') => {
+  try {
+    const { host, pathname } = new URL(url);
+    if (host || /^\/[A-Za-z]:/.test(pathname)) return fileURLToPath(url, { windows });
+    return decodeURIComponent(pathname);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The path of a stack frame's file as the reader can find it. A `file://` URL (Node ES modules, Lambda's runtime
+ * `file:///var/runtime/index.mjs`) is read as its path first. A local file is shown relative to the working directory;
+ * an absolute path that is not on this machine (`/var/task`, `/var/runtime` in a Lambda log) stays absolute, so it does
+ * not look like a project file.
+ */
+const getFramePath = (fileName: string) => {
+  let path = fileName;
+  if (path.startsWith('file://')) {
+    const urlPath = filePathFromUrl(path);
+    if (urlPath === undefined) return { path, isLocal: false };
+    path = urlPath;
+  }
+  if (isAbsolute(path)) {
+    return isFileAccessible(path)
+      ? { path: getRelativePath(path).replaceAll('\\', '/'), isLocal: true }
+      : { path: path.replaceAll('\\', '/'), isLocal: false };
+  }
+  return { path: getRelativePath(join(process.cwd(), path)).replaceAll('\\', '/'), isLocal: true };
+};
+
+/** Frames of Node.js, of installed packages and of the Lambda runtime are not the project's code. */
+const isDependencyFrame = (path: string) =>
+  path.includes('node_modules') || path.includes('node:') || /(^|\/)var\/runtime\//.test(path);
+
 const getPrettyStacktrace = (
   error: Error,
   colorizeOwnCode?: (msg: string) => string,
@@ -216,33 +256,16 @@ const getPrettyStacktrace = (
     })
     .map((callsite) => {
       const { fileName, lineNumber, columnNumber, functionName } = callsite;
-      let isUserCode = true;
-      let adjustedFileName: string = fileName;
       let adjustedFunctionName = `${functionName} `;
       if (functionName && functionName.includes('Object.')) {
         adjustedFunctionName = '';
       } else if (!functionName) {
         adjustedFunctionName = '<anonymous> ';
       }
-      if (fileName) {
-        isUserCode =
-          !fileName.includes('node_modules') &&
-          !fileName.includes('node:') &&
-          !fileName.includes('var/runtime/Runtime');
-        if (fileName.includes('webpack:') && !/'webpack\\'|'webpack\/'/.exec(fileName)) {
-          adjustedFileName = fileName
-            .replace(/(.*)webpack:\/stacktape/, '')
-            .replace(/(.*)webpack:\\stacktape/, '')
-            .replace(/\/|\\/, '');
-        }
-      }
-      if (isAbsolute(fileName) && isFileAccessible(fileName)) {
-        adjustedFileName = getRelativePath(fileName).replaceAll('\\', '/');
-      } else {
-        adjustedFileName = getRelativePath(join(process.cwd(), fileName)).replaceAll('\\', '/');
-      }
-      adjustedFileName = adjustedFileName.replace('C:/snapshot/core/', '').replace('/snapshot/core/', '');
-      const position = `(${isUserCode ? './' : ''}${adjustedFileName}:${lineNumber}${
+      const framePath = getFramePath(fileName);
+      const isUserCode = !isDependencyFrame(framePath.path);
+      const adjustedFileName = framePath.path.replace('C:/snapshot/core/', '').replace('/snapshot/core/', '');
+      const position = `(${isUserCode && framePath.isLocal ? './' : ''}${adjustedFileName}:${lineNumber}${
         columnNumber ? `:${columnNumber}` : ''
       })`;
       const res = `at ${adjustedFunctionName}${fileName ? position : ''}`;
@@ -282,8 +305,6 @@ export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => 
     })
     .map((callsite) => {
       const { fileName, lineNumber, columnNumber, functionName } = callsite;
-      let adjustedFileName: string = fileName;
-
       // Format function name
       let adjustedFunctionName = '';
       if (functionName && !functionName.includes('Object.')) {
@@ -292,14 +313,8 @@ export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => 
         adjustedFunctionName = '<anonymous> ';
       }
 
-      // Convert to relative path
-      if (isAbsolute(fileName) && isFileAccessible(fileName)) {
-        adjustedFileName = getRelativePath(fileName).replaceAll('\\', '/');
-      } else {
-        adjustedFileName = getRelativePath(join(process.cwd(), fileName)).replaceAll('\\', '/');
-      }
-
-      const position = `./${adjustedFileName}:${lineNumber}${columnNumber ? `:${columnNumber}` : ''}`;
+      const framePath = getFramePath(fileName);
+      const position = `${framePath.isLocal ? './' : ''}${framePath.path}:${lineNumber}${columnNumber ? `:${columnNumber}` : ''}`;
       const line = `  at ${adjustedFunctionName}(${position})`;
       return colorize ? colorize(line) : line;
     });

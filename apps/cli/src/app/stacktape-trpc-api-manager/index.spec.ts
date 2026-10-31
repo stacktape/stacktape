@@ -1,8 +1,14 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, spyOn, test } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
+import { createEsBundle } from '@stacktape/packaging/bundlers/es';
 import { CliError } from '@utils/errors';
 import { TRPCClientError } from '@trpc/client';
 
-import { translateStacktapeApiError } from './index';
+import { stacktapeTrpcApiManager, translateStacktapeApiError } from './index';
+import { recordStackOperationEnd } from './operation-recording';
 
 const trpcError = (code: 'FORBIDDEN' | 'UNAUTHORIZED', message: string) =>
   TRPCClientError.from({
@@ -90,4 +96,61 @@ describe('Stacktape API error translation', () => {
     expect(translated.message).toBe(source.message);
     expect(translated.cause).toBe(source);
   });
+});
+
+const temporaryDirectories: string[] = [];
+afterEach(async () => {
+  await Promise.all(temporaryDirectories.map((directory) => rm(directory, { force: true, recursive: true })));
+  temporaryDirectories.length = 0;
+});
+
+// PR #419 review: a build error's message is recorded in the Console. It names the file, line and column; Bun's copy of
+// the source line, which can hold a credential that the scrubber does not recognize, stays out.
+test('a recorded build failure names the source position without the source line', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'stacktape-recorded-build-error-'));
+  temporaryDirectories.push(cwd);
+  await writeFile(join(cwd, 'package.json'), JSON.stringify({ name: 'recorded-build-error', private: true }));
+  await writeFile(
+    join(cwd, 'handler.ts'),
+    'export default async () => {\n  const password: string = "REVIEW_CANARY_NOT_A_SECRET"; const broken = ;\n};\n'
+  );
+  const error = await createEsBundle({
+    name: 'handler',
+    cwd,
+    entryfilePath: join(cwd, 'handler.ts'),
+    distFolderPath: join(cwd, '.stacktape', 'dist'),
+    existingDigests: [],
+    invocationId: 'test',
+    progressLogger: { eventContext: {}, startEvent: () => {}, updateEvent: () => {}, finishEvent: () => {} },
+    minify: false,
+    nodeTarget: '24',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'disabled',
+    isLambda: true,
+    lambdaZip: true,
+    packageExternalDependencies: false,
+    nativeDependencyInstallationRootPath: join(cwd, '.stacktape', 'native'),
+    installDependencies: async () => {},
+    runDocker: async () => {
+      throw new Error('Docker should not be needed for this bundle.');
+    },
+    createPackagingError: createCliPackagingError
+  }).catch((caught: unknown) => caught as Error);
+  expect(error).toBeInstanceOf(CliError);
+
+  const record = spyOn(stacktapeTrpcApiManager.apiClient, 'recordStackOperation').mockResolvedValue(undefined as never);
+  // The CLI build defines the version; source tests do not.
+  const definedVersion = 'STACKTAPE_VERSION' in globalThis;
+  if (!definedVersion) Reflect.set(globalThis, 'STACKTAPE_VERSION', '4.0.0-test');
+  try {
+    await recordStackOperationEnd({ success: false, interrupted: false, error: error as Error });
+    const [payload] = record.mock.calls[0]!;
+    expect(payload.description).toContain('handler.ts:2:');
+    expect(payload.description).toContain('Unexpected ;');
+    expect(JSON.stringify(payload)).not.toContain('REVIEW_CANARY_NOT_A_SECRET');
+    expect(JSON.stringify(payload)).not.toContain('const broken');
+  } finally {
+    record.mockRestore();
+    if (!definedVersion) Reflect.deleteProperty(globalThis, 'STACKTAPE_VERSION');
+  }
 });

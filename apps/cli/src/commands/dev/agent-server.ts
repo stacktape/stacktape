@@ -75,6 +75,7 @@ import {
   type BatchJobDetails
 } from './deployed-batch-job';
 import { getLambdaEnvVars } from './deployed-function-environment';
+import { listStackResources } from './stack-listings';
 import { getDevNetworkSession } from './dev-network-session';
 import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
@@ -1919,14 +1920,23 @@ addRoute('POST', '/aws/sdk', async ({ body }) => {
     return { ok: false, code: 'OPERATION_NOT_ALLOWED', error: batchScope.refusal };
   }
 
-  const result = await executeAwsSdkCommand(service, command, batchScope.input, {
+  const sdkContext = {
     region: awsRegion,
     credentials: {
       accessKeyId: credentials.accessKeyId,
       secretAccessKey: credentials.secretAccessKey,
       sessionToken: credentials.sessionToken
     }
+  };
+  // List reads IAM cannot limit to the stack are answered from its own resources.
+  const listed = await listStackResources({
+    service,
+    command,
+    input: batchScope.input,
+    stackResources: stackManager.existingStackResources,
+    send: (read, readInput) => executeAwsSdkCommand(service, read, readInput, sdkContext)
   });
+  const result = listed ?? (await executeAwsSdkCommand(service, command, batchScope.input, sdkContext));
   return result.ok && batchScope.filterResponse ? { ...result, data: batchScope.filterResponse(result.data) } : result;
 });
 

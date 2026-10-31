@@ -12,7 +12,13 @@ import {
   describeAwsCallRefusal,
   resolveAwsServiceName
 } from './operations';
-import { getTemplateSkeleton, parseTemplateBody } from './template-skeleton';
+import {
+  boundTemplateStructure,
+  describeInvalidResourceSelection,
+  getTemplateSkeleton,
+  parseTemplateBody,
+  TEMPLATE_RESOURCE_SELECTOR
+} from './template-skeleton';
 
 export type AwsSdkContext = {
   region: string;
@@ -141,6 +147,20 @@ export const executeAwsSdkCommand = async (
       };
     }
 
+    // `GetTemplate` takes Stacktape's own selector of resources (see `boundTemplateStructure`), which AWS never sees.
+    let templateSelection: string[] | undefined;
+    if (
+      canonicalService === 'cloudformation' &&
+      commandName === 'GetTemplateCommand' &&
+      TEMPLATE_RESOURCE_SELECTOR in input
+    ) {
+      const { [TEMPLATE_RESOURCE_SELECTOR]: selection, ...rest } = input;
+      const invalid = describeInvalidResourceSelection(selection);
+      if (invalid) return { ok: false, code: 'VALIDATION_ERROR', error: invalid };
+      templateSelection = selection as string[];
+      input = rest;
+    }
+
     // Create client and command instances, execute
     const client = new ClientClass({ region: context.region, credentials: context.credentials });
     let result: unknown;
@@ -164,7 +184,7 @@ export const executeAwsSdkCommand = async (
       result && typeof result === 'object' && '$metadata' in result
         ? (({ $metadata: _, ...rest }) => rest)(result as Record<string, unknown>)
         : result;
-    return redactResponse(canonicalService, data);
+    return redactResponse(canonicalService, data, templateSelection);
   } catch (err: unknown) {
     return handleAwsError(err);
   }
@@ -222,10 +242,11 @@ const redactKeys = (node: unknown, redact: (key: string, value: unknown) => unkn
  * Masks what a read returns of credentials and configuration values: environment values (see
  * `redactEnvironmentValues`), a Cognito app client's `ClientSecret` (`DescribeUserPoolClient`) and a canary's
  * `RunConfig.EnvironmentVariables` (`GetCanary`, `DescribeCanaries`). A CloudFormation template (`GetTemplate`) comes
- * back as its structure without any literal value (`getTemplateSkeleton`), as JSON whichever format it was deployed in;
- * a body that parses as neither JSON nor YAML is refused.
+ * back as its structure without any literal value (`getTemplateSkeleton`), as data in place of `TemplateBody` whichever
+ * format it was deployed in, and bounded in size (`boundTemplateStructure`); a body that parses as neither JSON nor YAML
+ * is refused.
  */
-const redactResponse = (service: AwsReadOnlyService, data: unknown): AwsSdkResult => {
+const redactResponse = (service: AwsReadOnlyService, data: unknown, templateSelection?: string[]): AwsSdkResult => {
   if (service === 'lambda' || service === 'ecs' || service === 'batch') {
     return { ok: true, data: redactEnvironmentValues(service, data) };
   }
@@ -255,7 +276,8 @@ const redactResponse = (service: AwsReadOnlyService, data: unknown): AwsSdkResul
         hint: 'Read the stack with DescribeStacks or DescribeStackResources, or the resources it created with their own describe operations.'
       };
     }
-    return { ok: true, data: { ...data, TemplateBody: JSON.stringify(getTemplateSkeleton(template), null, 2) } };
+    const { TemplateBody: _body, ...rest } = data;
+    return { ok: true, data: { ...boundTemplateStructure(getTemplateSkeleton(template), templateSelection), ...rest } };
   }
   return { ok: true, data };
 };

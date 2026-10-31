@@ -28,6 +28,7 @@ import {
 } from '@domain-services/config-manager/built-in-directives';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { assertNoLocalCfSecretReferences, findLocalCfResourceReferences } from './dev-stack-references';
+import { findStartingStreamMappings, type StartingStreamMapping } from './stream-starting-position';
 
 /**
  * Builds the images that AWS pulls for the dev stack (batch jobs, AgentCore runtimes) and returns the resources whose
@@ -129,7 +130,11 @@ const addLocalCfResourceOutputs = () => {
  * 2. Excludes locally run resources (services, frontends); batch jobs and AgentCore runtimes run in AWS
  * 3. Marks the stack as a dev stack in metadata
  */
-export const deployDevStack = async ({ configFingerprint }: { configFingerprint: string }): Promise<void> => {
+export const deployDevStack = async ({
+  configFingerprint
+}: {
+  configFingerprint: string;
+}): Promise<{ startingStreamMappings: StartingStreamMapping[] }> => {
   tuiManager.info('Deploying dev stack...');
 
   operationReporter.setPhase('BUILD_AND_PACKAGE');
@@ -214,8 +219,13 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   if (abort) {
     await applicationManager.handleExitSignal('SIGINT');
-    return;
+    return { startingStreamMappings: [] };
   }
+  const startingStreamMappings = findStartingStreamMappings({
+    functions: configManager.functions,
+    template: templateManager.getTemplate(),
+    deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined
+  });
 
   // Shared email resources are an accepted dependency of this exact dev-stack update. Ensure them only after the
   // user approves the finalized template and before any artifact or project-stack mutation begins.
@@ -264,4 +274,5 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
   });
 
   tuiManager.success('Dev stack deployed successfully');
+  return { startingStreamMappings };
 };

@@ -17,6 +17,9 @@ import { planEarlyDeletes } from '../../src/domain/cloudformation-stack-manager/
 import { planBackgroundDeleteChecks } from '../../src/domain/cloudformation-stack-manager/background-delete';
 import { findDeletionProtectedResources } from '../../src/domain/cloudformation-stack-manager/deletion-protection';
 import { executeDeleteOperation } from '../../src/commands/delete';
+import { AwsEdgeFunctions } from '../../src/aws/edge-functions';
+import { IAMClient } from '@aws-sdk/client-iam';
+import { LambdaClient } from '@aws-sdk/client-lambda';
 import { withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 import * as time from '../../src/utils/time';
 
@@ -1379,22 +1382,34 @@ describe('deletion protection', () => {
   const runDelete = async ({
     resources,
     stackStatus = 'UPDATE_COMPLETE',
-    deleteResult
+    deleteResult,
+    deployedTemplate = { Resources: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } } },
+    edgeFunctions = {
+      functionExists: async () => {
+        throw new Error('No edge function was expected');
+      }
+    }
   }: {
     resources: EnrichedStackResourceInfo[];
     stackStatus?: string;
     deleteResult?: Awaited<ReturnType<Parameters<typeof executeDeleteOperation>[0]['stack']['deleteStack']>>;
+    deployedTemplate?: Record<string, unknown>;
+    edgeFunctions?: Parameters<typeof executeDeleteOperation>[0]['edgeFunctions'];
   }) => {
     const calls: string[] = [];
     const infos: string[] = [];
+    const warnings: string[] = [];
+    let result: unknown;
     const error = await executeDeleteOperation({
+      awsAccountId: '123456789012',
+      edgeFunctions,
       config: { config: {}, hooks: [] } as never,
       deploymentArtifacts: {
         artifactStoreIsStackResource: true,
         deleteAllArtifacts: async () => calls.push('artifacts:delete'),
         deleteArtifactStore: async () => calls.push('artifact-store:delete')
       },
-      deployedTemplate: { Resources: { DatabaseDbInstance: { Type: 'AWS::RDS::DBInstance' } } } as never,
+      deployedTemplate: deployedTemplate as never,
       lifecycle: {
         registerHooks: async () => {
           calls.push('hooks:register');
@@ -1418,13 +1433,17 @@ describe('deletion protection', () => {
       tui: {
         colorize: (_color: string, text: string) => text,
         info: (message: string) => infos.push(message),
+        warn: (message: string) => warnings.push(message),
         setPendingCompletion: () => {}
       } as never
     }).then(
-      () => undefined,
+      (value) => {
+        result = value;
+        return undefined;
+      },
       (err: Error) => err
     );
-    return { calls, error, infos };
+    return { calls, error, infos, warnings, result };
   };
 
   test('delete refuses before anything runs or is deleted, and says how to turn protection off', async () => {
@@ -1463,5 +1482,141 @@ describe('deletion protection', () => {
     expect(infos[0]).toContain('2 resources that cost nothing: ApiService, StpVpc');
     expect(infos[0]).toContain('A deploy of this stage waits');
     expect(infos[0]).toContain('next delete retries');
+  });
+
+  describe('a Lambda@Edge function AWS keeps after the stack is deleted', () => {
+    const functionName = 'docs-prod-stpOReq-ap-southeast-1';
+    const functionArn = `arn:aws:lambda:us-east-1:123456789012:function:${functionName}`;
+    const edgeTemplate = {
+      Resources: {
+        CustomResourceEdgeLambdaOriginRequest: {
+          Type: 'AWS::CloudFormation::CustomResource',
+          Properties: {
+            ServiceToken: 'arn',
+            edgeLambda: { name: 'cdnOriginRequestLambda', resourceName: functionName }
+          }
+        },
+        CustomResourceEdgeFunctions: {
+          Type: 'AWS::CloudFormation::CustomResource',
+          Properties: { ServiceToken: 'arn', edgeFunctions: [{ name: 'rewrite', resourceName: 'docs-prod-rewrite' }] }
+        }
+      }
+    };
+
+    /**
+     * The real Lambda client against a loopback endpoint that answers GetFunctionConfiguration like us-east-1: the
+     * function exists while CloudFront still has its replicas, and is not found once it is deleted.
+     */
+    const withLambdaEndpoint = async <T>(
+      existing: string[],
+      run: (edgeFunctions: AwsEdgeFunctions, requests: string[]) => Promise<T>
+    ) => {
+      const requests: string[] = [];
+      const server = Bun.serve({
+        port: 0,
+        hostname: '127.0.0.1',
+        fetch: (request) => {
+          const name = decodeURIComponent(new URL(request.url).pathname.split('/')[3] ?? '');
+          requests.push(`${request.method} ${name}`);
+          return existing.includes(name)
+            ? Response.json({
+                FunctionName: name,
+                FunctionArn: `arn:aws:lambda:us-east-1:123456789012:function:${name}`
+              })
+            : Response.json(
+                { Type: 'User', Message: `Function not found: ${name}` },
+                { status: 404, headers: { 'x-amzn-errortype': 'ResourceNotFoundException' } }
+              );
+        }
+      });
+      const clientArgs = {
+        region: 'us-east-1',
+        endpoint: `http://127.0.0.1:${server.port}`,
+        credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+        maxAttempts: 1
+      };
+      try {
+        return await run(
+          new AwsEdgeFunctions({
+            createLambdaClient: () => new LambdaClient(clientArgs),
+            createIamClient: () => new IAMClient(clientArgs)
+          }),
+          requests
+        );
+      } finally {
+        server.stop(true);
+      }
+    };
+
+    test('the deletion succeeds and names the function AWS refused to delete, with its region and commands', async () => {
+      const { error, warnings, result, requests } = await withLambdaEndpoint(
+        [functionName],
+        async (edge, requests) => ({
+          ...(await runDelete({ resources: [], deployedTemplate: edgeTemplate, edgeFunctions: edge })),
+          requests
+        })
+      );
+      expect(error).toBeUndefined();
+      expect(requests.toSorted()).toEqual(['GET docs-prod-rewrite', `GET ${functionName}`]);
+      expect(result).toEqual({
+        retainedEdgeFunctions: [
+          {
+            functionArn,
+            region: 'us-east-1',
+            status: 'retained',
+            checkCommand: `aws lambda get-function --region us-east-1 --function-name ${functionArn}`,
+            deleteCommand: `aws lambda delete-function --region us-east-1 --function-name ${functionArn}`
+          }
+        ]
+      });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(`${functionArn} still exists in us-east-1`);
+      expect(warnings[0]).toContain(`\`aws lambda delete-function --region us-east-1 --function-name ${functionArn}\``);
+      expect(warnings[0]).toContain('ResourceNotFoundException');
+    });
+
+    test('says nothing when AWS deleted the functions with the stack', async () => {
+      const { error, warnings, result } = await withLambdaEndpoint([], (edge) =>
+        runDelete({ resources: [], deployedTemplate: edgeTemplate, edgeFunctions: edge })
+      );
+      expect(error).toBeUndefined();
+      expect(warnings).toEqual([]);
+      expect(result).toBeNull();
+    });
+
+    test('a function whose custom resource CloudFormation still deletes in the background is named as unverified', async () => {
+      const { warnings, result } = await runDelete({
+        resources: [],
+        deployedTemplate: edgeTemplate,
+        deleteResult: {
+          deletionContinuesInBackground: [
+            { logicalId: 'CustomResourceEdgeLambdaOriginRequest', resourceType: 'AWS::CloudFormation::CustomResource' }
+          ]
+        },
+        edgeFunctions: { functionExists: async ({ functionName: name }) => name === functionName }
+      });
+      expect(
+        (result as { retainedEdgeFunctions: { functionArn: string; status: string }[] }).retainedEdgeFunctions
+      ).toEqual([expect.objectContaining({ functionArn, status: 'unverified' })]);
+      expect(warnings[0]).toContain('may remain');
+    });
+
+    test('a failed check does not fail the deletion and leaves the function unverified', async () => {
+      const { error, result } = await runDelete({
+        resources: [],
+        deployedTemplate: edgeTemplate,
+        edgeFunctions: {
+          functionExists: async () => {
+            throw Object.assign(new Error('not authorized to perform: lambda:GetFunctionConfiguration'), {
+              name: 'AccessDeniedException'
+            });
+          }
+        }
+      });
+      expect(error).toBeUndefined();
+      expect(
+        (result as { retainedEdgeFunctions: { status: string }[] }).retainedEdgeFunctions.map(({ status }) => status)
+      ).toEqual(['unverified', 'unverified']);
+    });
   });
 });

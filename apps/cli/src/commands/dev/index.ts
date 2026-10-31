@@ -68,6 +68,7 @@ import {
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack, packageDevStackImages } from './dev-stack-deployer';
+import { formatStartingStreamMappingsNotice, type StartingStreamMapping } from './stream-starting-position';
 import { formatFunctionsNotInSessionNotice, loadFunctionsNotInSession } from './functions-not-in-session';
 import {
   describeDevStackUpdateCause,
@@ -1099,6 +1100,7 @@ export const commandDev = async () => {
     });
   }
 
+  let startingStreamMappings: StartingStreamMapping[] = [];
   // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
   // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
   if (
@@ -1129,7 +1131,9 @@ export const commandDev = async () => {
         });
         operationReporter.setSilentMode(false);
         try {
-          await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
+          ({ startingStreamMappings } = await deployDevStack({
+            configFingerprint: desiredDevStackConfigFingerprint
+          }));
           reportDevStartup({ step: 'DEV_STACK', status: 'completed', message: 'Dev stack deployed' });
         } catch (err) {
           reportDevStartup({
@@ -1155,7 +1159,9 @@ export const commandDev = async () => {
         });
         tuiManager.start();
         try {
-          await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
+          ({ startingStreamMappings } = await deployDevStack({
+            configFingerprint: desiredDevStackConfigFingerprint
+          }));
         } finally {
           await tuiManager.stop();
           operationReporter.setSilentMode(true);
@@ -1180,17 +1186,21 @@ export const commandDev = async () => {
   const functionsNotInSession = await loadFunctionsNotInSession(skippedFunctionNames);
   setFunctionsNotInSession(functionsNotInSession);
   const functionsNotInSessionNotice = formatFunctionsNotInSessionNotice(functionsNotInSession);
-  const sessionNotices = [...devStackNotices, ...(functionsNotInSessionNotice ? [functionsNotInSessionNotice] : [])];
-  if (functionsNotInSessionNotice) {
-    setAgentNotices(sessionNotices);
-    if (agentEnabled) {
-      reportDevStartup({
-        step: 'DEV_SESSION',
-        key: 'functions-not-in-session',
-        status: 'completed',
-        message: functionsNotInSessionNotice
-      });
-    } else tuiManager.info(functionsNotInSessionNotice);
+  // A stream mapping this start created reads late, and with LATEST skips the first records (r2an Shop, r2ar).
+  const streamStartNotice = formatStartingStreamMappingsNotice(startingStreamMappings);
+  const sessionNotices = [
+    ...devStackNotices,
+    ...(functionsNotInSessionNotice ? [functionsNotInSessionNotice] : []),
+    ...(streamStartNotice ? [streamStartNotice] : [])
+  ];
+  if (functionsNotInSessionNotice || streamStartNotice) setAgentNotices(sessionNotices);
+  for (const [key, notice] of [
+    ['functions-not-in-session', functionsNotInSessionNotice],
+    ['stream-mapping-start', streamStartNotice]
+  ] as const) {
+    if (!notice) continue;
+    if (agentEnabled) reportDevStartup({ step: 'DEV_SESSION', key, status: 'completed', message: notice });
+    else tuiManager.info(notice);
   }
 
   // Now start the Dev TUI
