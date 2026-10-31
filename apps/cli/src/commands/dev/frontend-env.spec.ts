@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'dotenv';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -98,6 +98,50 @@ test("a second stage's dev session leaves the block of a stage whose session run
       MY_FLAG: '1',
       API_URL: 'https://second.example.test'
     });
+  } finally {
+    globalStateManager.rawArgs = previousArgs;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// Review of #422: two sessions that start together could both find no owner and both write the file, and a reader could
+// meet a half-written file. A start waits for the session that writes it, writes a whole new file, and takes over a
+// lock that a dead session left.
+test('a start writes the env file only while it holds its lock, as a whole new file', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-frontend-env-lock-'));
+  const previousArgs = globalStateManager.rawArgs;
+  try {
+    globalStateManager.rawArgs = { stage: 'first', currentWorkingDirectory: directory };
+    const envFile = join(directory, '.env.local');
+    const lock = `${envFile}.stacktape-lock`;
+    await writeFile(lock, '4242');
+    const start = prepareFrontendEnvironment({
+      name: 'web',
+      workingDirectory: directory,
+      connectedEnvVars: { API_URL: 'https://first.example.test' }
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(await readdir(directory)).toEqual(['.env.local.stacktape-lock']);
+    await rm(lock);
+    await start;
+    expect(parse(await readFile(envFile, 'utf8')) as Record<string, string>).toEqual({
+      API_URL: 'https://first.example.test'
+    });
+    expect(await readdir(directory)).toEqual(['.env.local']);
+
+    // A lock its writer left behind long ago does not block the next start.
+    await writeFile(lock, '4242');
+    const longAgo = new Date(Date.now() - 60_000);
+    await utimes(lock, longAgo, longAgo);
+    await prepareFrontendEnvironment({
+      name: 'web',
+      workingDirectory: directory,
+      connectedEnvVars: { API_URL: 'https://first.example.test/v2' }
+    });
+    expect(parse(await readFile(envFile, 'utf8')) as Record<string, string>).toEqual({
+      API_URL: 'https://first.example.test/v2'
+    });
+    expect(await readdir(directory)).toEqual(['.env.local']);
   } finally {
     globalStateManager.rawArgs = previousArgs;
     await rm(directory, { recursive: true, force: true });

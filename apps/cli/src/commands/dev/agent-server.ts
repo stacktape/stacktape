@@ -746,6 +746,7 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
         };
       }
 
+      deployedFunctionEnvironments.set(workloadName, lambdaEnvVars);
       return {
         ok: true,
         workload: workloadName,
@@ -1582,37 +1583,49 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
   };
 });
 
-/** What invoking a deployed function returned. */
-export type FunctionInvocation = {
-  /** The function's name in AWS. */
-  functionName: string;
-  statusCode?: number;
-  /** Lambda's `FunctionError`: the handler threw, timed out or ran out of memory. */
-  functionError?: string;
-  payload: string;
+/** A function of the dev stack as Lambda describes it: what an invocation runs, and the environment it runs with. */
+type DeployedFunction = { functionName: string; functionArn: string; environment: Record<string, string> };
+
+/** Lambda, for invoking a function of the dev stack; replaced in tests, which reach no AWS. */
+export type DeployedFunctionClient = {
+  /** `null` when the stack has no such function. */
+  describe: (name: string) => Promise<DeployedFunction | null>;
+  invoke: (params: {
+    functionArn: string;
+    event: unknown;
+  }) => Promise<{ statusCode?: number; functionError?: string; payload: string }>;
 };
 
-/** Invokes a function of the dev stack synchronously; replaced in tests, which reach no AWS. */
-type FunctionInvoker = (params: { name: string; event: unknown }) => Promise<FunctionInvocation>;
-
-const invokeDeployedFunction: FunctionInvoker = async ({ name, event }) => {
-  const functionName = configManager.allLambdasEligibleForHotswap.find((lambda) => lambda.name === name)?.resourceName;
-  if (!functionName) throw new Error(`The configuration has no deployed function ${name}.`);
-  const response = await awsSdkManager.lambda.invoke({
-    lambdaResourceName: functionName,
-    payload: event as Record<string, unknown>
-  });
-  return {
-    functionName,
-    statusCode: response.StatusCode,
-    ...(response.FunctionError ? { functionError: response.FunctionError } : {}),
-    payload: response.Payload
-  };
+const lambdaDeployedFunctions: DeployedFunctionClient = {
+  describe: async (name) => {
+    const resourceName = configManager.allLambdasEligibleForHotswap.find(
+      (lambda) => lambda.name === name
+    )?.resourceName;
+    if (!resourceName) return null;
+    const configuration = await awsSdkManager.lambda.getFunction({ lambdaResourceName: resourceName });
+    if (!configuration.FunctionArn) return null;
+    return {
+      functionName: configuration.FunctionName ?? resourceName,
+      functionArn: configuration.FunctionArn,
+      environment: configuration.Environment?.Variables ?? {}
+    };
+  },
+  invoke: async ({ functionArn, event }) => {
+    const response = await awsSdkManager.lambda.invoke({
+      lambdaResourceName: functionArn,
+      payload: event as Record<string, unknown>
+    });
+    return {
+      statusCode: response.StatusCode,
+      ...(response.FunctionError ? { functionError: response.FunctionError } : {}),
+      payload: response.Payload
+    };
+  }
 };
 
-let invokeFunction: FunctionInvoker = invokeDeployedFunction;
-export const setFunctionInvoker = (invoker: FunctionInvoker | undefined) => {
-  invokeFunction = invoker ?? invokeDeployedFunction;
+let deployedFunctions: DeployedFunctionClient = lambdaDeployedFunctions;
+export const setDeployedFunctionClient = (client: DeployedFunctionClient | undefined) => {
+  deployedFunctions = client ?? lambdaDeployedFunctions;
 };
 
 /** A test event is small; this bounds what one call sends (Lambda itself accepts up to 6 MB). */
@@ -1621,13 +1634,49 @@ const MAX_INVOKE_EVENT_BYTES = 256 * 1024;
 const MAX_INVOKE_PAYLOAD_CHARS = 16 * 1024;
 
 /**
+ * The session a client checked before it asked for a change, so a request that reaches another session on the same port
+ * (the checked one stopped, and a new one listens there now) changes nothing. Each field is checked when it is sent.
+ */
+const describeSessionMismatch = ({
+  expectedSessionId,
+  expectedStage
+}: {
+  expectedSessionId?: unknown;
+  expectedStage?: unknown;
+}): string | undefined => {
+  if (expectedSessionId !== undefined && expectedSessionId !== agentSession?.sessionId) {
+    return `This agent runs dev session ${agentSession?.sessionId ?? 'unknown'}, not ${String(expectedSessionId)}.`;
+  }
+  if (expectedStage !== undefined && expectedStage !== agentSession?.stage) {
+    return `This agent runs stage ${agentSession?.stage ?? 'unknown'}, not ${String(expectedStage)}.`;
+  }
+  return undefined;
+};
+
+/**
  * Invokes a function of this session in AWS with a test event, for handlers that no URL reaches: schedules, queues,
  * topics, streams. It runs the function's deployed code with its own role, so it can change data: it needs `confirm`.
- * Only a function this session runs and deployed is invoked; the aws action stays read-only.
+ * Only a function this session runs and deployed is invoked; the aws action stays read-only. What the function returns
+ * is masked with its deployed environment and every other environment the session knows, like the logs; without its
+ * environment, nothing is invoked.
  */
 addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
   const name = pathParams.name;
-  const { event = {}, confirm } = (body ?? {}) as { event?: unknown; confirm?: unknown };
+  const {
+    event = {},
+    confirm,
+    expectedSessionId,
+    expectedStage,
+    expectedFunctionArn
+  } = (body ?? {}) as Record<string, unknown> & { event?: unknown };
+  const mismatch = describeSessionMismatch({ expectedSessionId, expectedStage });
+  if (mismatch) {
+    return {
+      ok: false,
+      code: 'DEV_SESSION_CHANGED',
+      error: `${mismatch} The session that was checked no longer runs on this port; nothing was invoked.`
+    };
+  }
   const workload = agentState.workloads.find((candidate) => candidate.name === name);
   if (!workload || workload.type !== 'function') {
     const notInSession = functionsNotInSession.some((fn) => fn.name === name);
@@ -1674,15 +1723,37 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
     };
   }
 
-  const mask = createEnvironmentMasker(
-    workloadEnvironment.getEnvVars(name) ?? {},
-    workloadEnvironment.getSecretEnvNames(name)
-  );
+  // What the function returns can quote its environment; without that environment it cannot be masked.
+  let deployed: DeployedFunction | null;
+  try {
+    deployed = await deployedFunctions.describe(name);
+  } catch (error) {
+    deployed = null;
+    agentLog('dev', `Reading ${name} in AWS before invoking it failed: ${(error as Error).message}`, 'warn');
+  }
+  if (!deployed) {
+    return {
+      ok: false,
+      code: 'MASKING_UNAVAILABLE',
+      error: `Could not read ${name} and its environment in AWS, which mask what it returns; nothing was invoked.`,
+      hint: 'Check that the function is deployed, with status and logs, and try again.'
+    };
+  }
+  if (expectedFunctionArn !== undefined && expectedFunctionArn !== deployed.functionArn) {
+    return {
+      ok: false,
+      code: 'DEV_SESSION_CHANGED',
+      error: `${name} is ${deployed.functionArn} now, not ${String(expectedFunctionArn)}; nothing was invoked.`
+    };
+  }
+  deployedFunctionEnvironments.set(name, deployed.environment);
+  const mask = createSessionMasker();
+
   const startedAt = Date.now();
   agentLog('dev', `Invoking ${name} with a test event`);
-  let result: FunctionInvocation;
+  let result: Awaited<ReturnType<DeployedFunctionClient['invoke']>>;
   try {
-    result = await invokeFunction({ name, event });
+    result = await deployedFunctions.invoke({ functionArn: deployed.functionArn, event });
   } catch (error) {
     const message = mask(error instanceof Error ? error.message : String(error));
     agentLog('dev', `Invoking ${name} failed: ${message}`, 'error');
@@ -1694,7 +1765,13 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
     payload: masked.length > MAX_INVOKE_PAYLOAD_CHARS ? masked.slice(0, MAX_INVOKE_PAYLOAD_CHARS) : masked,
     ...(masked.length > MAX_INVOKE_PAYLOAD_CHARS ? { payloadTruncatedFrom: masked.length } : {})
   };
-  const invocation = { function: name, functionName: result.functionName, statusCode: result.statusCode, durationMs };
+  const invocation = {
+    function: name,
+    functionName: deployed.functionName,
+    functionArn: deployed.functionArn,
+    statusCode: result.statusCode,
+    durationMs
+  };
   if (result.functionError) {
     agentLog('dev', `${name} failed the test invocation (${result.functionError})`, 'error');
     return {
@@ -2250,27 +2327,56 @@ export const buildStartupMessage = (params: {
  * environment, then the shared scrubber. A workload can print another one's secret (a shared database password), so
  * every environment counts. The masking is rebuilt only when an environment changes.
  */
+/**
+ * The deployed environment of each function the session read from AWS (`/env`, an invocation). A function's
+ * environment is in AWS, not in this process, so the masking of logs and results learns it once it was read.
+ */
+const deployedFunctionEnvironments = new Map<string, Record<string, string>>();
+
+/** Every environment the session knows, by workload: what local workloads got, and what deployed functions have. */
+const getKnownEnvironments = () =>
+  agentState.workloads.map(({ name }) => ({
+    name,
+    environment: workloadEnvironment.getEnvVars(name) ?? deployedFunctionEnvironments.get(name) ?? null
+  }));
+
+/** A masker for every value that `/env` masks in any environment the session knows. */
+/**
+ * Variables of a deployed function whose configured value reads a secret. The local runner knows them only for the
+ * functions it built in this process; the configuration knows them for every function.
+ */
+const getFunctionSecretEnvNames = (name: string): Set<string> => {
+  if (!deployedFunctionEnvironments.has(name) || !configManager.config?.resources) return new Set();
+  return getSecretSourcedEnvNames(configManager.functions.find((fn) => fn.name === name));
+};
+
+const createMaskerOf = (environments: { name: string; environment: Record<string, string> | null }[]) => {
+  const merged: Record<string, string> = {};
+  const secretNames = new Set<string>();
+  for (const { name, environment } of environments) {
+    const secret = new Set([...workloadEnvironment.getSecretEnvNames(name), ...getFunctionSecretEnvNames(name)]);
+    for (const [variable, value] of Object.entries(environment ?? {})) {
+      // Two workloads can set one name to different values; a suffix keeps both and keeps the name's meaning.
+      let key = variable;
+      for (let copy = 2; key in merged && merged[key] !== value; copy++) key = `${variable}_${copy}`;
+      merged[key] = value;
+      if (secret.has(variable)) secretNames.add(key);
+    }
+  }
+  return createEnvironmentMasker(merged, secretNames);
+};
+
+const createSessionMasker = () => createMaskerOf(getKnownEnvironments());
+
 const createSessionLogMasker = (): ((text: string) => string) => {
   let environments: Array<Record<string, string> | null> = [];
   let mask = createEnvironmentMasker({});
   return (text) => {
-    const names = agentState.workloads.map(({ name }) => name);
-    const current = names.map((name) => workloadEnvironment.getEnvVars(name));
+    const known = getKnownEnvironments();
+    const current = known.map(({ environment }) => environment);
     if (current.length !== environments.length || current.some((env, index) => env !== environments[index])) {
       environments = current;
-      const merged: Record<string, string> = {};
-      const secretNames = new Set<string>();
-      names.forEach((name, index) => {
-        const secret = workloadEnvironment.getSecretEnvNames(name);
-        for (const [variable, value] of Object.entries(current[index] ?? {})) {
-          // Two workloads can set one name to different values; a suffix keeps both and keeps the name's meaning.
-          let key = variable;
-          for (let copy = 2; key in merged && merged[key] !== value; copy++) key = `${variable}_${copy}`;
-          merged[key] = value;
-          if (secret.has(variable)) secretNames.add(key);
-        }
-      });
-      mask = createEnvironmentMasker(merged, secretNames);
+      mask = createMaskerOf(known);
     }
     return mask(text);
   };

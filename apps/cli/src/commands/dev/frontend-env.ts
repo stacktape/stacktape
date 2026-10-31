@@ -1,5 +1,8 @@
 import type { EnvironmentVar } from '@stacktape/config/shared';
+import { randomBytes } from 'node:crypto';
+import { rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -56,6 +59,44 @@ export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, s
   return [...before, ...block, ...after].join(newline);
 };
 
+/** How long a start waits for another dev session that writes the same env file. */
+const ENV_FILE_LOCK_WAIT_MS = 10_000;
+/** A lock older than this was left by a session that died while it wrote; writing takes milliseconds. */
+const ENV_FILE_LOCK_STALE_MS = 30_000;
+
+/**
+ * Runs `write` while this process holds the env file's lock, so two dev sessions that start together decide who owns
+ * the Stacktape block one after the other, each from the file the other left.
+ */
+const withEnvFileLock = async <T>(envFilePath: string, write: () => Promise<T>): Promise<T> => {
+  const lockPath = `${envFilePath}.stacktape-lock`;
+  const deadline = Date.now() + ENV_FILE_LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      await writeFile(lockPath, String(process.pid), { flag: 'wx' });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const lockedAt = (await stat(lockPath).catch(() => undefined))?.mtimeMs;
+      if (lockedAt !== undefined && Date.now() - lockedAt > ENV_FILE_LOCK_STALE_MS) {
+        await remove(lockPath).catch(() => {});
+        continue;
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Another dev session has been writing ${envFilePath} for ${ENV_FILE_LOCK_WAIT_MS / 1000} s. If none runs, delete ${lockPath}.`
+        );
+      }
+      await delay(50);
+    }
+  }
+  try {
+    return await write();
+  } finally {
+    await remove(lockPath).catch(() => {});
+  }
+};
+
 /** The stage whose dev session wrote the env file's Stacktape block, when the block names it. */
 export const readManagedBlockStage = (existing: string): string | undefined => {
   const lines = existing.split(/\r?\n/);
@@ -98,27 +139,40 @@ export const prepareFrontendEnvironment = async ({
   frontendEnvironments.set(name, envVars);
 
   const envFilePath = join(workingDirectory, ENV_FILE_NAME);
-  const existing = (await pathExists(envFilePath)) ? await readFile(envFilePath, 'utf8') : '';
-  if (!existing && !Object.keys(envVars).length) return envVars;
   const stage = globalStateManager.targetStack?.stage ?? globalStateManager.stage;
-  // Two stages can run one app directory, each in its own dev session. The block belongs to the session that wrote it
-  // while that session runs the app; this server still gets this stage's values as process environment.
-  const owner = readManagedBlockStage(existing);
-  if (
-    owner &&
-    owner !== stage &&
-    findOtherDevSessions().some((session) => session.stage === owner && session.workloads?.includes(name))
-  ) {
-    tuiManager.warn(
-      `[${name}] ${ENV_FILE_NAME} holds the values of stage ${owner}, whose dev session runs this app, so dev mode left it unchanged. This dev server gets stage ${stage}'s values as process environment, which outranks the file; a build or tool that reads ${ENV_FILE_NAME} gets stage ${owner}'s.`
-    );
-    return envVars;
-  }
-  const merged = mergeManagedEnvBlock(existing, envVars, stage);
-  if (merged !== existing) {
-    if (merged.trim()) await writeFile(envFilePath, merged);
-    else await remove(envFilePath);
-  }
+  const written = await withEnvFileLock(envFilePath, async () => {
+    const existing = (await pathExists(envFilePath)) ? await readFile(envFilePath, 'utf8') : '';
+    if (!existing && !Object.keys(envVars).length) return false;
+    // Two stages can run one app directory, each in its own dev session. The block belongs to the session that wrote
+    // it while that session runs the app; this server still gets this stage's values as process environment.
+    const owner = readManagedBlockStage(existing);
+    if (
+      owner &&
+      owner !== stage &&
+      findOtherDevSessions().some((session) => session.stage === owner && session.workloads?.includes(name))
+    ) {
+      tuiManager.warn(
+        `[${name}] ${ENV_FILE_NAME} holds the values of stage ${owner}, whose dev session runs this app, so dev mode left it unchanged. This dev server gets stage ${stage}'s values as process environment, which outranks the file; a build or tool that reads ${ENV_FILE_NAME} gets stage ${owner}'s.`
+      );
+      return false;
+    }
+    const merged = mergeManagedEnvBlock(existing, envVars, stage);
+    if (merged === existing) return true;
+    if (!merged.trim()) {
+      await remove(envFilePath);
+      return true;
+    }
+    // A dev server or build that reads the file meanwhile sees the old or the new file, never a half-written one.
+    const temporary = `${envFilePath}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`;
+    try {
+      await writeFile(temporary, merged);
+      await rename(temporary, envFilePath);
+    } finally {
+      await remove(temporary).catch(() => {});
+    }
+    return true;
+  });
+  if (!written) return envVars;
   if (Object.keys(envVars).length) {
     tuiManager.info(
       `[${name}] Wrote ${Object.keys(envVars).length} env vars to the Stacktape block of ${ENV_FILE_NAME}`

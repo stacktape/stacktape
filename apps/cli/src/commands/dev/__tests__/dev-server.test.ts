@@ -236,6 +236,55 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
   }
 }, 30_000);
 
+// Review of #422: a frontend whose process stayed alive after it closed its listener still counted as ready.
+test('a frontend that stops accepting connections becomes an error while its process runs, and ready once it serves again', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+const http = require('node:http');
+const listen = (then) => {
+  const server = http.createServer((_q, r) => r.end('ok'));
+  server.listen(port, '127.0.0.1', () => then(server));
+};
+listen((server) => {
+  console.log('  ready in 5 ms');
+  setTimeout(() => server.close(() => setTimeout(() => listen(() => {}), 1500)), 500);
+});
+setInterval(() => {}, 1000);
+`
+    );
+    globalStateManager.rawArgs = { stage: 'listener', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const states: { status: string; error?: string }[] = [];
+    let serving = false;
+    const ready = await startDevServer({
+      name: 'web',
+      config: { command: './vite dev', workingDirectory: directory, framework: 'vite', listenerCheckIntervalMs: 200 },
+      callbacks: {
+        onStateChange: ({ status, error }) => {
+          if (serving) states.push({ status, error });
+        }
+      }
+    });
+    serving = true;
+    expect(ready.status).toBe('ready');
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+    expect(states).toEqual([
+      {
+        status: 'error',
+        error: `The dev server process still runs, but nothing accepts connections on port ${ready.port} anymore. Rebuild the workload to restart it.`
+      },
+      { status: 'ready', error: undefined }
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test('a second next dev in the directory fails with the session that runs the first, not as ready', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
   try {

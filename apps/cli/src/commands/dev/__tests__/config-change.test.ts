@@ -129,3 +129,27 @@ test('a change to scripts alone is no configuration change; any other change sti
   current = { ...session, resources: { ...session.resources, worker: { type: 'function' } } };
   expect(await detect()).toMatchObject({ changed: true, reason: expect.stringContaining('stacktape.json changed') });
 });
+
+// Review of #422: a resource that reads a script through `$This()` changes with it, so the change still counts.
+test.each([
+  ['$This().scripts.seed.properties.executeCommand', true],
+  ['$This()', true],
+  ["$Format('{}', $This( ).scripts.seed.type)", true],
+  ['$This().resources.api.type', false]
+])('a scripts change with a resource reading %s counts: %p', async (reference, counts) => {
+  const scripts = (command: string) => ({ seed: { type: 'local-script', properties: { executeCommand: command } } });
+  const config = (command: string) => ({
+    resources: {
+      api: { type: 'function', properties: { environment: [{ name: 'SEED_COMMAND', value: reference }] } }
+    },
+    scripts: scripts(command)
+  });
+  let current: unknown = config('echo 1');
+  const detect = createConfigChangeDetector({
+    configPath: '/project/stacktape.json',
+    sessionConfig: config('echo 1'),
+    loadConfig: async () => current
+  });
+  current = config('echo 2');
+  expect((await detect()).changed).toBe(counts);
+});

@@ -20,6 +20,7 @@ import {
 } from './log-grouping';
 import { createEnvironmentMasker } from './agent-env-masking';
 import {
+  acceptsTcpConnection,
   extractPortFromCommand,
   findAvailablePort,
   getDefaultPort,
@@ -27,7 +28,8 @@ import {
   waitForTcpPort
 } from './port-utils';
 
-const { serveTimeoutMs: DEV_SERVER_SERVE_TIMEOUT_MS } = DEV_CONFIG.devServer;
+const { serveTimeoutMs: DEV_SERVER_SERVE_TIMEOUT_MS, listenerCheckIntervalMs: LISTENER_CHECK_INTERVAL_MS } =
+  DEV_CONFIG.devServer;
 
 type DevServerConfig = {
   command: string;
@@ -47,6 +49,8 @@ type DevServerConfig = {
    * output mask them, and every other value that the dev agent's `/env` masks, as container crash summaries do.
    */
   secretEnvNames?: ReadonlySet<string>;
+  /** How often the port of a serving server is checked; see `DEV_CONFIG.devServer.listenerCheckIntervalMs`. */
+  listenerCheckIntervalMs?: number;
   /**
    * Variables of this process that the dev server must not inherit: those of local databases and services the
    * frontend does not connect to. Dev mode sets them on its own process for hooks and other workloads.
@@ -414,6 +418,7 @@ export const startDevServer = async ({
 
       proc.on('exit', (code, signal) => {
         exited = true;
+        clearInterval(listenerWatch);
         outputGroupers.stdout.flush();
         outputGroupers.stderr.flush();
         const stoppedByDevMode = stoppingDevServers.has(proc);
@@ -446,6 +451,49 @@ export const startDevServer = async ({
         serving = true;
         setState({ ...currentState, status: 'ready', port: routedTargetPort, url: proxyRoute.url, error: undefined });
         resolveOnce(currentState);
+        watchListener();
+      };
+
+      // A process that runs is not a server that serves: one can close its listener and stay alive. Its port is checked
+      // while it serves; two refused checks in a row make it an error, and an accepted one makes it ready again.
+      let listenerLost = false;
+      let refusedChecks = 0;
+      let checking = false;
+      let listenerWatch: ReturnType<typeof setInterval> | undefined;
+      const watchListener = () => {
+        if (listenerWatch || exited) return;
+        listenerWatch = setInterval(async () => {
+          if (checking) return;
+          if (exited) {
+            clearInterval(listenerWatch);
+            return;
+          }
+          checking = true;
+          try {
+            const port = routedTargetPort;
+            const accepted = (
+              await Promise.all(['127.0.0.1', '::1'].map((host) => acceptsTcpConnection({ port, host })))
+            ).includes(true);
+            if (exited) return;
+            if (accepted) {
+              refusedChecks = 0;
+              if (listenerLost) {
+                listenerLost = false;
+                setState({ ...currentState, status: 'ready', url: proxyRoute.url, error: undefined });
+              }
+            } else if (++refusedChecks >= 2 && !listenerLost) {
+              listenerLost = true;
+              setState({
+                ...currentState,
+                status: 'error',
+                error: `The dev server process still runs, but nothing accepts connections on port ${port} anymore. Rebuild the workload to restart it.`
+              });
+            }
+          } finally {
+            checking = false;
+          }
+        }, config.listenerCheckIntervalMs ?? LISTENER_CHECK_INTERVAL_MS);
+        listenerWatch.unref?.();
       };
       void waitUntilServing(DEV_SERVER_SERVE_TIMEOUT_MS).then((result) => {
         if (result === 'ready') return markServing();

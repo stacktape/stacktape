@@ -65,6 +65,8 @@ type DevApiRequest = (input: {
   body?: Record<string, unknown>;
   /** Ends the request with a `TimeoutError`; a rebuild or a seed may take minutes, a status check must not. */
   timeoutMs?: number;
+  /** The session token to send, read once for a check and the change that follows it; else read from its file now. */
+  token?: string;
 }) => Promise<Record<string, unknown>>;
 
 /** How long a status check waits: one agent that hangs must not block every call that looks for a session. */
@@ -78,6 +80,8 @@ type DevToolDependencies = {
   serverDirectory?: () => string;
   statusCheckTimeoutMs?: number;
   requestDevApi?: DevApiRequest;
+  /** Reads the session token an agent on `port` wrote. */
+  readAgentToken?: (port: number) => Promise<string>;
   /** Running agents of this user; a restarted MCP server finds its sessions again through them. */
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
   createId?: () => string;
@@ -129,8 +133,11 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
 
 // Every agent stores its session token in the user's state directory under its port. The token is read for each
 // request and never returned to the client.
-const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs }) => {
-  const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
+const readAgentToken = async (port: number) =>
+  (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
+
+export const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs, token: givenToken }) => {
+  const token = givenToken ?? (await readAgentToken(port));
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
@@ -1090,6 +1097,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const failedStartTargets = new Map<string, FailedStartTarget>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
   const requestDevApi = dependencies.requestDevApi || devApiRequest;
+  const readToken = dependencies.readAgentToken || readAgentToken;
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
   const createId = dependencies.createId || randomUUID;
   const now = dependencies.now || (() => new Date());
@@ -1986,13 +1994,44 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           message: `Did not invoke ${workload}: the call was cancelled.`
         });
       }
+      // The check and the invocation use one token and name the checked session and function: a session that took the
+      // port over meanwhile has another token and identity, and refuses the request instead of running it.
+      const { session } = sessionResult;
+      const expectedSessionId = session.agentSessionId ?? session.devSessionId;
+      const token = await readToken(port);
+      const checked = await requestDevApi({
+        port,
+        method: 'GET',
+        path: '/status?verbose=true',
+        token,
+        timeoutMs: STATUS_CHECK_TIMEOUT_MS
+      }).catch((error: unknown): Record<string, unknown> => ({ ok: false, message: String(error) }));
+      if (checked.ok === false || checked.sessionId !== expectedSessionId) {
+        return toToolText({
+          ok: false,
+          code: 'DEV_SESSION_CHANGED',
+          message: `Did not invoke ${workload}: port ${port} no longer answers as dev session ${session.devSessionId}.`,
+          data: { session: publicSession(session) },
+          nextActions: ['Call stacktape_dev with action=status to find the running dev sessions.']
+        });
+      }
+      const expectedFunctionArn = (Array.isArray(checked.deployedResources) ? checked.deployedResources : []).find(
+        (resource: { name?: unknown; type?: unknown }) => resource?.name === workload && resource?.type === 'function'
+      )?.arn;
       const response = await requestDevApi({
         port,
         method: 'POST',
         path: `/functions/${encodeURIComponent(workload)}/invoke`,
-        body: { event: toolArgs.event ?? {}, confirm: toolArgs.confirm === true }
+        token,
+        body: {
+          event: toolArgs.event ?? {},
+          confirm: toolArgs.confirm === true,
+          expectedSessionId,
+          ...(session.stage ? { expectedStage: session.stage } : {}),
+          ...(typeof expectedFunctionArn === 'string' ? { expectedFunctionArn } : {})
+        }
       });
-      const output = toAgentOutput(response, sessionResult.session, {
+      const output = toAgentOutput(response, session, {
         ok: `Invoked ${workload}.`,
         failed: `Invoking ${workload} failed.`
       });

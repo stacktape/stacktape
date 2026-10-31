@@ -15,13 +15,20 @@ const canonicalJson = (value: unknown) =>
   );
 
 /**
+ * A `$This()` directive that can read the scripts: `$This().scripts...`, or `$This()` alone, the whole configuration.
+ * `$This().resources...` cannot.
+ */
+const READS_SCRIPTS = /\$This\(\s*\)(?!\s*\.\s*(?!scripts\b)\w)/;
+
+/**
  * The configuration without its `scripts`: scripts run only on request (`seed` reads them from the file each time), so
- * adding or editing one changes nothing that the running session deployed or started.
+ * adding or editing one changes nothing that the running session deployed or started. When another part of the
+ * configuration reads them through `$This()`, they count like the rest.
  */
 const withoutScripts = (config: unknown) => {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return config;
   const { scripts: _scripts, ...rest } = config as Record<string, unknown>;
-  return rest;
+  return READS_SCRIPTS.test(JSON.stringify(rest)) ? config : rest;
 };
 
 /**
