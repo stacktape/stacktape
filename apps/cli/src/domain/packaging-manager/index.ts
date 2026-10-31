@@ -43,7 +43,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
-import { getJobName } from '@stacktape/naming/workload-names';
+import { getJobName, getLocalImageName } from '@stacktape/naming/workload-names';
 import { buildNativeBinaryLayer, planLambdaDependencies } from '@stacktape/packaging/es/native-dependencies';
 import { createPackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
 import type { PackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
@@ -1732,8 +1732,14 @@ export class PackagingManager {
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
+    // Container builds tag their image per stack; see `getLocalImageName`.
+    const localImageName = getLocalImageName({
+      projectName: globalStateManager.targetStack?.projectName ?? 'local',
+      stage: globalStateManager.targetStack?.stage ?? 'local',
+      jobName
+    });
     if (packagingType === 'dockerfile') {
-      const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
+      const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties, localImageName });
       this.#recordPackagedJob(result);
       return result;
     }
@@ -1750,6 +1756,7 @@ export class PackagingManager {
       const result = await buildUsingRailpack({
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
+        localImageName,
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
         imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
@@ -1830,6 +1837,7 @@ export class PackagingManager {
         await buildJsBundleImage({
           ...sharedProps,
           ...bundleProps,
+          localImageName,
           packageAnalysisCache,
           requiresGlibcBinaries: properties.requiresGlibcBinaries,
           debug: globalStateManager.isDebugMode,

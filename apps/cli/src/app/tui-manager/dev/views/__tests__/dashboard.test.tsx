@@ -62,6 +62,31 @@ describe('full-screen DevDashboard', () => {
     expect(testSetup.captureCharFrame()).toContain('Cannot build the worker');
   });
 
+  // r2at: the overview listed workloads only, so a local database and its port were missing from it.
+  test('running phase lists local databases with engine, port and state', async () => {
+    initRunningState();
+    devTuiState.addLocalResource({ name: 'maindb', type: 'postgres' });
+    devTuiState.addLocalResource({ name: 'cache', type: 'redis' });
+    devTuiState.addLocalResource({ name: 'orders', type: 'dynamodb' });
+    devTuiState.setLocalResourceStatus('maindb', 'running', { port: 5433 });
+    devTuiState.setLocalResourceStatus('cache', 'running', { port: 6380 });
+    devTuiState.setLocalResourceStatus('orders', 'error', { error: 'Docker is not running' });
+
+    const frame = await renderDashboard();
+    const row = (name: string) => frame.split('\n').find((line) => line.includes(` ${name} `)) ?? '';
+    expect(row('maindb')).toContain('PostgreSQL');
+    expect(row('maindb')).toContain('localhost:5433');
+    expect(row('cache')).toContain('Redis');
+    expect(row('cache')).toContain('localhost:6380');
+    expect(row('orders')).toContain('DynamoDB Local');
+    expect(row('orders')).toContain('Docker is not running');
+
+    devTuiState.setLocalResourceStatus('maindb', 'stopped', { port: 5433 });
+    await flushAndRender();
+    const stopped = testSetup.captureCharFrame();
+    expect(stopped.split('\n').find((line) => line.includes(' maindb '))).toContain('stopped');
+  });
+
   test('rebuilding phase shows rebuild step per workload', async () => {
     initRunningState();
     devTuiState.startRebuild(['api'], new Map([['api', 'container']]));

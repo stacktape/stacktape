@@ -3,7 +3,7 @@ import { useKeyboard } from '@opentui/solid';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { createDevSignal } from './signals';
 import { devTuiState } from '../state';
-import type { RebuildWorkloadState, Workload, WorkloadColor } from '../types';
+import type { LocalResource, RebuildWorkloadState, Workload, WorkloadColor } from '../types';
 import { getWorkloadColor } from '../utils';
 import { KeyHints, type Hint } from '../../ui/key-hint';
 import { Spinner } from '../../ui/spinner';
@@ -93,6 +93,53 @@ const WorkloadRow = (props: { workload: Workload }) => {
         <text fg={theme.error}>
           {'  '}
           {props.workload.error}
+        </text>
+      </Show>
+    </box>
+  );
+};
+
+const LOCAL_RESOURCE_ENGINE: Record<LocalResource['type'], string> = {
+  postgres: 'PostgreSQL',
+  mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  redis: 'Redis',
+  dynamodb: 'DynamoDB Local',
+  opensearch: 'OpenSearch'
+};
+
+/** A local database: its engine, the port it listens on and, unless it runs, its state. */
+const LocalResourceRow = (props: { resource: LocalResource }) => {
+  const { theme } = useTheme();
+  const nameColor = () => WORKLOAD_COLOR_HEX[getWorkloadColor(props.resource.name)];
+  const stateText = () =>
+    props.resource.status === 'error'
+      ? props.resource.error || 'failed'
+      : props.resource.status === 'running'
+        ? ''
+        : props.resource.status;
+
+  return (
+    <box flexDirection="row" height={1}>
+      <StatusIcon status={workloadStatusIcon(props.resource.status)} />
+      <text flexShrink={0} wrapMode="none" fg={nameColor()}>
+        {' '}
+        <b>{props.resource.name}</b>
+      </text>
+      <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+        {'  '}
+        {LOCAL_RESOURCE_ENGINE[props.resource.type]}
+      </text>
+      <Show when={props.resource.port}>
+        <text flexShrink={0} wrapMode="none" fg={theme.blue}>
+          {'  '}
+          localhost:{props.resource.port}
+        </text>
+      </Show>
+      <Show when={stateText()}>
+        <text fg={props.resource.status === 'error' ? theme.error : theme.muted}>
+          {'  '}
+          {stateText()}
         </text>
       </Show>
     </box>
@@ -222,6 +269,7 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
   const { theme } = useTheme();
   const phase = createDevSignal((s) => s.phase);
   const workloads = createDevSignal((s) => s.workloads);
+  const localResources = createDevSignal((s) => s.localResources);
   const rebuildingWorkloads = createDevSignal((s) => s.rebuildingWorkloads);
   const rebuildPickerActive = createDevSignal((s) => s.rebuildPickerActive);
   const logs = createDevSignal((s) => s.logs);
@@ -345,6 +393,7 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
             </Show>
             <Show when={phase() === 'running'}>
               <For each={workloads()}>{(w) => <WorkloadRow workload={w} />}</For>
+              <For each={localResources()}>{(r) => <LocalResourceRow resource={r} />}</For>
             </Show>
           </scrollbox>
         </Show>

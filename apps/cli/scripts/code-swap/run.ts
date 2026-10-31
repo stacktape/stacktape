@@ -37,6 +37,7 @@ import { fromIni } from '@aws-sdk/credential-providers';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getLocalImageName } from '@stacktape/naming/workload-names';
 import { randomBytes } from 'node:crypto';
 import { openSync, closeSync } from 'node:fs';
 import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
@@ -556,10 +557,15 @@ const cleanup = async (state: State, owned: Owned) => {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as { Repository: string; Tag: string });
   assert((await images.exited) === 0, 'Could not enumerate owned local image tags.');
+  const localImage = getLocalImageName({
+    projectName: owned.name,
+    stage: 'bench',
+    jobName: 'api-service-container'
+  });
   for (const image of localImages.filter(
     (image) =>
       image.Repository === `${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/${owned.repository}` ||
-      image.Repository === `${owned.name}-api-service-container`
+      [localImage, `${localImage}-code-swap-base`].includes(image.Repository)
   ))
     await invoke(
       ['docker', 'image', 'rm', `${image.Repository}:${image.Tag}`],

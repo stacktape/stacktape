@@ -844,12 +844,13 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/local-development/worktree-databases.spec.ts',
       'apps/cli/tests/local-development/agent-databases.spec.ts',
       'apps/cli/tests/local-development/container-network.spec.ts',
-      'apps/cli/tests/local-development/opensearch-query-client.spec.ts'
+      'apps/cli/tests/local-development/opensearch-query-client.spec.ts',
+      'apps/cli/tests/local-development/local-images.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; two dev containers on the bridge network listen on the same fixed port, reach a loopback-only database through the relay as host.docker.internal and each other at published ports; MySQL data that another version wrote is refused before a mismatched server opens it, and the version that wrote it still reads it; the OpenSearch client that `query opensearch` and the dev agent use reads and searches a real OpenSearch with GET only, refuses an index argument that would reach another endpoint (`orders/_doc` once indexed a document), and reports the HTTP status and reason of an OpenSearch error or an IAM denial; network is only for the fixture images.'
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions, and a new session of a project and stage removes what a killed one left except the databases it takes over; two projects with a same-named workload packaged in parallel get separate local images that run their own code, and a `COPY . .` image never contains the project .stacktape directory, also while its local PostgreSQL runs and when .dockerignore brings it back; two checkouts on one stage get separate loopback-only databases with generated passwords, and older data keeps its password; PostgreSQL, MySQL and Redis passwords read from $Secret are replaced by one generated local password that containers, relayed functions and workloads share; through MCP stacktape_dev, an assistant lists, queries, resets and seeds real local PostgreSQL, MySQL, Redis and DynamoDB Local behind confirmation, keeping schema and migration history and never reaching a database the session does not run locally; two dev containers on the bridge network listen on the same fixed port, reach a loopback-only database through the relay as host.docker.internal and each other at published ports; MySQL data that another version wrote is refused before a mismatched server opens it, and the version that wrote it still reads it; the OpenSearch client that `query opensearch` and the dev agent use reads and searches a real OpenSearch with GET only, refuses an index argument that would reach another endpoint (`orders/_doc` once indexed a document), and reports the HTTP status and reason of an OpenSearch error or an IAM denial; network is only for the fixture images.'
   },
   {
     id: 'local-dev-next',
@@ -2894,6 +2895,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
       'packages/naming/src/user-pool-domain-prefix.test.ts',
+      'packages/naming/src/workload-names.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
       'packages/packaging/src/artifact/docker-context.test.ts',
@@ -3868,7 +3870,8 @@ export const slices: readonly Slice[] = [
       'packages/naming/src/shared-stacks.test.ts',
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
-      'packages/naming/src/user-pool-domain-prefix.test.ts'
+      'packages/naming/src/user-pool-domain-prefix.test.ts',
+      'packages/naming/src/workload-names.test.ts'
     ],
     lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2']
   },
@@ -4435,6 +4438,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/local-development/agent-databases.spec.ts',
       'apps/cli/tests/local-development/container-network.spec.ts',
       'apps/cli/tests/local-development/opensearch-query-client.spec.ts',
+      'apps/cli/tests/local-development/local-images.spec.ts',
       'apps/cli/src/commands/dev/container/network.spec.ts',
       'apps/cli/src/commands/dev/container/build-error.spec.ts',
       'apps/cli/src/commands/dev/container/exit-reason.spec.ts',

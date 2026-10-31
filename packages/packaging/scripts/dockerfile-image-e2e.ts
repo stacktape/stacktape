@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { buildUsingDockerfile } from '../src/image/dockerfile';
 import type { BuildDockerImage } from '../src/runtime-contracts';
 import { progressLogger, run, write } from './e2e-helpers';
@@ -34,7 +34,9 @@ const buildDockerImage: BuildDockerImage = async ({
       '--tag',
       imageTag,
       // No `--file` when none is selected: Docker then reads the context's own Dockerfile, as the CLI's runner does.
-      ...(dockerfilePath ? ['--file', join(buildContextPath, dockerfilePath)] : []),
+      ...(dockerfilePath
+        ? ['--file', isAbsolute(dockerfilePath) ? dockerfilePath : join(buildContextPath, dockerfilePath)]
+        : []),
       ...Object.keys(buildArgs).flatMap((name) => ['--build-arg', name]),
       buildContextPath
     ],

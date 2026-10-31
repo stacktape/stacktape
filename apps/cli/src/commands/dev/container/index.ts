@@ -33,7 +33,7 @@ export const prepareImage = async (
   const spinner = externalSpinner || tuiManager.createSpinner({ text: spinnerText });
   const progressLogger = tuiManager.createSpinnerProgressLogger(spinner, jobName);
 
-  const { imageName, sourceFiles, distFolderPath } = (await packagingManager.packageWorkload({
+  const { imageName, imageId, sourceFiles, distFolderPath } = (await packagingManager.packageWorkload({
     packaging,
     target: 'container',
     jobName,
@@ -51,5 +51,12 @@ export const prepareImage = async (
     spinner.success({ details });
   }
 
-  return { imageName, sourceFiles: sourceFiles.map(({ path }) => path), distFolderPath, details };
+  // The run starts the image this build reported, by its ID: a build of another session (a second checkout of the
+  // project, or a deploy of the stage) can move the name to its own image before the container starts.
+  return {
+    imageName: imageId ?? imageName,
+    sourceFiles: sourceFiles.map(({ path }) => path),
+    distFolderPath,
+    details
+  };
 };

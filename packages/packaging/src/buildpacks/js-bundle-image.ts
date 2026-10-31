@@ -30,6 +30,7 @@ export const buildJsBundleImage = async ({
   getDockerImageDetails,
   progressLogger,
   name,
+  localImageName = name,
   additionalDigestInput,
   minify,
   nodeTarget,
@@ -63,6 +64,8 @@ export const buildJsBundleImage = async ({
         nodeBaseDigest?: string;
       }) => Promise<string>;
     };
+    /** The local image tag a production build produces; the job name `name` when not given. Dev builds use a shared base image. */
+    localImageName?: string | undefined;
     requiresGlibcBinaries: boolean;
     nodeTarget: string;
     minify: boolean;
@@ -193,14 +196,14 @@ export const buildJsBundleImage = async ({
     const base = await buildGeneratedDockerImage({
       dockerfileContents: dockerfileContents.replace('COPY . /app\n', ''),
       buildDockerImage,
-      imageTag: `${name}-code-swap-base`,
+      imageTag: `${localImageName}-code-swap-base`,
       buildContextPath,
       dockerBuildOutputArchitecture,
       cacheFromRef,
       cacheToRef
     });
     nodeBaseDigest = base.id;
-    dockerfileContents = `FROM ${name}-code-swap-base\nCOPY . /app\nWORKDIR /app\nENV NODE_ENV=production\nCMD ["node", "index.js"]\n`;
+    dockerfileContents = `FROM ${localImageName}-code-swap-base\nCOPY . /app\nWORKDIR /app\nENV NODE_ENV=production\nCMD ["node", "index.js"]\n`;
   }
   if (imageExtension)
     dockerfileContents = await imageExtension.transform({
@@ -221,7 +224,7 @@ export const buildJsBundleImage = async ({
   const { size, id, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents,
     buildDockerImage,
-    imageTag: name,
+    imageTag: localImageName,
     buildContextPath,
     dockerBuildOutputArchitecture,
     cacheFromRef,
@@ -235,7 +238,7 @@ export const buildJsBundleImage = async ({
 
   return {
     outcome,
-    imageName: name,
+    imageName: localImageName,
     imageId: id,
     size,
     digest,
