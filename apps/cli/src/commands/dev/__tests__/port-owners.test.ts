@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
 import {
   collectProcessTree,
-  decodeProcNetAddress,
   type PortListener,
   parseLsofListeners,
-  parseProcNetListeners,
   parseWindowsInspection,
   resolveLoopbackRoute
 } from '../port-owners';
+import { decodeProcNetAddress, parseProcNetListeners } from '@utils/ports';
 
 const own = new Set([10, 11]);
 const OTHER = 99;
@@ -115,7 +114,9 @@ test('Windows, macOS and Linux listener tables name addresses the same way', () 
 
   const header = '  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode';
   const tcp = `${header}\n   0: 0100007F:0BBB 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 111 1\n   1: 00000000:0BB8 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 222 1\n   2: 0100007F:0BBB 0100007F:9C40 01 00000000:00000000 00:00000000 00000000  1000        0 333 1`;
-  expect(parseProcNetListeners(tcp, 3003)).toEqual([{ address: '127.0.0.1', inode: '111' }]);
+  expect(parseProcNetListeners(tcp).filter(({ port }) => port === 3003)).toEqual([
+    { address: '127.0.0.1', port: 3003, inode: '111' }
+  ]);
   expect(decodeProcNetAddress('00000000000000000000000001000000')).toBe('::1');
   expect(decodeProcNetAddress('00000000000000000000000000000000')).toBe('::');
   expect(decodeProcNetAddress('0000000000000000FFFF00000100007F')).toBe('127.0.0.1');
