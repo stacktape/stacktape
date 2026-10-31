@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { formatCommandHeaderLine } from '@application-services/tui-manager/format/blocks';
@@ -2145,7 +2145,7 @@ export const startAgentServer = async (
   startTime = Date.now();
 
   // The log file is named by the port, so it is opened only once this process owns the port.
-  const logFile = `${logDir}/${port}-logs.txt`;
+  const logFile = join(logDir, `${port}-logs.txt`);
   initAgentLogger(logFile, { ...session, port, pid: process.pid });
   agentState.logFile = logFile;
 

@@ -523,7 +523,14 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         )
     };
   },
-  e103(_arg: null): ReturnedError {
+  e103(arg: { missingProjectName?: string } | null): ReturnedError {
+    if (arg?.missingProjectName) {
+      return {
+        type: 'INPUT',
+        message: `Project "${arg.missingProjectName}" does not exist, and creating it needs confirmation.`,
+        hint: `Add ${prettyOption('autoConfirmOperation')} to create it, or declare projectName in the config.`
+      };
+    }
     return {
       type: 'INPUT',
       message: `Invalid arguments. Please specify ${prettyOption('projectName')} option.`

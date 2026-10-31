@@ -95,6 +95,7 @@ Customers use many languages, packagers and deployment shapes. The
   generated Dockerfile or Railpack plan alone proves nothing.
 - **One real build per distinct adapter** for SSR frameworks. A shared wrapper test cannot qualify upstream output.
 - **Windows is a build host.** Developers package on Windows. Build there and execute the result on Linux.
+  [Windows from WSL](windows-from-wsl.md) runs the source-built CLI on the Windows host.
 - **Choose combinations by the failure they expose**, not every language × version × manager × architecture. Native
   dependencies need the relevant architecture and libc. An emulated arm64 build does not replace native execution before
   a release.

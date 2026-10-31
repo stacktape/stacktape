@@ -41,27 +41,27 @@ const recursivelyChmodPlusX = async (directoryPath: string) => {
   );
 };
 
-/**
- * Builds `platform`'s release archive into `distFolderPath`, which it empties first. `bytecodeDepth` overrides the
- * platform's release bytecode, for `release/qualify-bytecode.ts` only.
- */
-export const buildDistPackage = async ({
-  platform,
-  version,
-  debug,
-  keepUnarchived,
-  distFolderPath = DIST_PACKAGE_FOLDER_PATH,
-  bytecodeDepth,
-  errorTrackingSourceMapDirectory
-}: {
+type DistFolderOptions = {
   platform: SupportedPlatform;
   version: string;
   debug?: boolean;
-  keepUnarchived?: boolean;
   distFolderPath?: string;
   bytecodeDepth?: number | 'off';
   errorTrackingSourceMapDirectory?: string;
-}) => {
+};
+
+/**
+ * Builds the unarchived contents of `platform`'s release into `distFolderPath`, which it empties first, and returns
+ * the platform folder. `windows-host/windows-host.ts` copies this folder to the Windows host.
+ */
+export const buildDistFolder = async ({
+  platform,
+  version,
+  debug,
+  distFolderPath = DIST_PACKAGE_FOLDER_PATH,
+  bytecodeDepth,
+  errorTrackingSourceMapDirectory
+}: DistFolderOptions) => {
   logInfo(`Building binary for platform: ${platform}, version: ${version}`);
 
   await remove(distFolderPath);
@@ -91,6 +91,19 @@ export const buildDistPackage = async ({
   if (!isWindowsPlatform(platform)) {
     await recursivelyChmodPlusX(platformDistFolderPath);
   }
+  return platformDistFolderPath;
+};
+
+/**
+ * Builds `platform`'s release archive into `distFolderPath`, which it empties first. `bytecodeDepth` overrides the
+ * platform's release bytecode, for `release/qualify-bytecode.ts` only.
+ */
+export const buildDistPackage = async ({
+  keepUnarchived,
+  ...options
+}: DistFolderOptions & { keepUnarchived?: boolean }) => {
+  const { platform } = options;
+  const platformDistFolderPath = await buildDistFolder(options);
 
   const archivePath = await archiveItem({
     absoluteSourcePath: platformDistFolderPath,

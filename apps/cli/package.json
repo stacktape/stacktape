@@ -129,7 +129,9 @@
     "test:release-downloads": "bun test scripts/install-scripts/installers.spec.ts src/commands/upgrade/upgrade.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/release/dispatch.spec.ts",
     "test:installers:windows": "bun test scripts/install-scripts/windows.spec.ts",
     "test:release-native": "bun scripts/verify-release-artifact.ts --require-candidate --qualify-tools",
-    "perf:zip-levels": "bun scripts/perf/zip-levels.ts"
+    "perf:zip-levels": "bun scripts/perf/zip-levels.ts",
+    "windows-host": "bun scripts/windows-host/windows-host.ts",
+    "test:windows-host": "bun test scripts/windows-host"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",
