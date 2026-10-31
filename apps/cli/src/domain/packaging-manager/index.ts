@@ -43,7 +43,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
-import { getJobName } from '@stacktape/naming/workload-names';
+import { getJobName, getLocalImageName } from '@stacktape/naming/workload-names';
 import { buildNativeBinaryLayer, planLambdaDependencies } from '@stacktape/packaging/es/native-dependencies';
 import { createPackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
 import type { PackageAnalysisCache } from '@stacktape/packaging/es/installed-packages';
@@ -1650,6 +1650,24 @@ export class PackagingManager {
     packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
+  /** Jobs whose image tags from before `getLocalImageName` this process already removed. */
+  #sharedImageTagsRemoved = new Set<string>();
+
+  /**
+   * Removes the tags that earlier CLI versions gave a job's image: the bare job name (`web-service-container`) and its
+   * code-swap base, which every project with a same-named workload shared. Runs once per job and process, after a build
+   * that produced an image under the new name. `docker image rm` without `--force` only drops the tag when another tag
+   * or a container still uses the image, and it ignores tags that do not exist.
+   */
+  #removeSharedImageTags = async (result: PackagingOutput) => {
+    const { jobName, imageId } = result;
+    if (!imageId || this.#sharedImageTagsRemoved.has(jobName)) return;
+    this.#sharedImageTagsRemoved.add(jobName);
+    await execDocker(['image', 'rm', `${jobName}:latest`, `${jobName}-code-swap-base:latest`], {
+      skipHandleError: true
+    }).catch(() => {});
+  };
+
   packageWorkload = async ({
     commandCanUseCache,
     workloadName,
@@ -1732,9 +1750,15 @@ export class PackagingManager {
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
+    // Container builds tag their image per stack; see `getLocalImageName`.
+    const localImageName = getLocalImageName({
+      stackName: globalStateManager.targetStack?.stackName ?? 'local',
+      jobName
+    });
     if (packagingType === 'dockerfile') {
-      const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
+      const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties, localImageName });
       this.#recordPackagedJob(result);
+      await this.#removeSharedImageTags(result);
       return result;
     }
     if (packagingType === 'custom-artifact') {
@@ -1750,11 +1774,13 @@ export class PackagingManager {
       const result = await buildUsingRailpack({
         ...sharedProps,
         ...(packaging.properties as BuildpackCwImagePackagingProps),
+        localImageName,
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
         imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
       });
       this.#recordPackagedJob(result);
+      await this.#removeSharedImageTags(result);
       return result;
     }
     if (packagingType !== 'js-bundle' && packagingType !== 'buildpack') {
@@ -1826,10 +1852,11 @@ export class PackagingManager {
         });
         return result;
       }
-      return record(
+      const imageResult = record(
         await buildJsBundleImage({
           ...sharedProps,
           ...bundleProps,
+          localImageName,
           packageAnalysisCache,
           requiresGlibcBinaries: properties.requiresGlibcBinaries,
           debug: globalStateManager.isDebugMode,
@@ -1840,6 +1867,8 @@ export class PackagingManager {
           runtimeTools: imageRuntimeTools
         })
       );
+      await this.#removeSharedImageTags(imageResult);
+      return imageResult;
     }
 
     // The Lambda buildpack: the entry file's language, built in Docker on the runtime's build image. Python, Java, Ruby

@@ -42,7 +42,12 @@ import {
 } from '../container/network';
 import { getFrontendEnvironment } from '../frontend-env';
 import { startHostingBucketDevServer } from '../hosting-bucket';
-import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
+import {
+  categorizeConnectToResources,
+  getLocalResourceContainerNames,
+  getLocalResourceEnvVars,
+  startLocalResources
+} from '../local-resources';
 import { startHealthMonitoring } from '../local-resources/health-monitor';
 import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
@@ -51,7 +56,7 @@ import type { SsrWebResourceType } from '@domain-services/calculated-stack-overv
 import { startTunnel } from '../tunnel-manager';
 import { getDevNetworkSession, type DevNetworkSession } from '../dev-network-session';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
-import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
+import { getDevContainerName, getDevContainerOwnerDockerArgs, removeContainersOfEndedSessions } from '../cleanup-utils';
 import { getContainerListenPort, isPortAvailable, reservePorts } from '../port-utils';
 import {
   getBastionTunnelsForResource,
@@ -214,6 +219,15 @@ export const runParallelWorkloads = async (
     selectedLocalResources
   });
 
+  // Containers that a killed session of this project and stage left running go first; its databases are taken over.
+  const removedContainers = await removeContainersOfEndedSessions({
+    keep: getLocalResourceContainerNames(localResourceNames)
+  });
+  if (removedContainers.length) {
+    const message = `Removed ${removedContainers.length} container(s) that an ended dev session of this stage left running: ${removedContainers.join(', ')}`;
+    if (devTuiManager.running) devTuiManager.log('dev', message, 'info');
+    else tuiManager.info(message);
+  }
   state.localResources = await startLocalResources(localResourceNames);
   const localResourceEnvVars = getLocalResourceEnvVars(state.localResources);
 

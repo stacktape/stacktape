@@ -298,7 +298,8 @@ export const buildUsingRailpack = async ({
   buildEnvironment,
   railpackConfig,
   imageExtension,
-  reportSourceFiles
+  reportSourceFiles,
+  localImageName = name
 }: {
   /** Receives the files of the build context before the build runs, so a caller can watch them when it fails. */
   reportSourceFiles?: ((sourceFiles: { path: string }[]) => void) | undefined;
@@ -322,6 +323,8 @@ export const buildUsingRailpack = async ({
       | undefined
     >;
   };
+  /** The local image tag the build produces; the job name `name` when not given. */
+  localImageName?: string | undefined;
   name: string;
   cwd: string;
   progressLogger: PackagingProgressLogger;
@@ -438,7 +441,7 @@ export const buildUsingRailpack = async ({
     finalMessage: detection ? `Detected ${detection}` : undefined
   });
 
-  const baseImage = imageExtension ? `${name}-code-swap-base` : name;
+  const baseImage = imageExtension ? `${localImageName}-code-swap-base` : localImageName;
   let extension = await imageExtension?.prepare({
     packagingDigest: digest,
     sourceDirectoryPath: absoluteSourceDirectoryPath,
@@ -469,7 +472,7 @@ export const buildUsingRailpack = async ({
       dockerfileContents: JSON.stringify(selectedPlan),
       buildFileDirectoryPath: tmpdir(),
       buildDockerImage,
-      imageTag: extension ? baseImage : name,
+      imageTag: extension ? baseImage : localImageName,
       buildContextPath: absoluteSourceDirectoryPath,
       dockerBuildOutputArchitecture,
       cacheFromRef,
@@ -497,7 +500,7 @@ export const buildUsingRailpack = async ({
       // Hub for it and fail.
       baseImages: [],
       buildDockerImage,
-      imageTag: name,
+      imageTag: localImageName,
       dockerBuildOutputArchitecture,
       cacheFromRef,
       cacheToRef
@@ -514,7 +517,7 @@ export const buildUsingRailpack = async ({
     outcome: 'bundled',
     size,
     digest,
-    imageName: name,
+    imageName: localImageName,
     imageId: id,
     sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: {

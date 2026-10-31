@@ -166,10 +166,17 @@ const findLiveLockFiles = async (containers: DevContainer[]): Promise<Set<string
   return new Set(live.filter((lockFile): lockFile is string => lockFile !== undefined));
 };
 
-/** Stop and remove the dev containers in scope that no live session owns, and return their names. */
+/**
+ * Stop and remove the dev containers in scope that no live session owns, and return their names. `sessionIsAlive`
+ * replaces the default check, which also counts a session that holds the container's lock file now.
+ */
 export const cleanupOrphanedContainers = async ({
-  isInScope
-}: { isInScope?: (container: DevContainer) => boolean } = {}): Promise<string[]> => {
+  isInScope,
+  sessionIsAlive
+}: {
+  isInScope?: (container: DevContainer) => boolean;
+  sessionIsAlive?: (owner: { lockFile: string; pid: number }) => boolean;
+} = {}): Promise<string[]> => {
   const { execDocker } = await import('@utils/docker');
 
   try {
@@ -201,32 +208,52 @@ export const cleanupOrphanedContainers = async ({
         };
       });
 
-    const liveLockFiles = await findLiveLockFiles(containers);
-    const orphanedContainers = selectRemovableDevContainers(
-      containers,
-      (owner) => isDevSessionAlive(owner) || liveLockFiles.has(owner.lockFile),
-      isInScope
+    const isAlive =
+      sessionIsAlive ??
+      (await findLiveLockFiles(containers).then(
+        (liveLockFiles) => (owner: { lockFile: string; pid: number }) =>
+          isDevSessionAlive(owner) || liveLockFiles.has(owner.lockFile)
+      ));
+    const orphanedContainers = selectRemovableDevContainers(containers, isAlive, isInScope);
+
+    const removed = await Promise.all(
+      orphanedContainers.map(async (name) => {
+        try {
+          // Stop a running database gracefully, so its data stays consistent.
+          await execDocker(['stop', name], { skipHandleError: true });
+        } catch {
+          // Container might already be stopped
+        }
+        try {
+          await execDocker(['rm', '-f', name], { skipHandleError: true });
+          return name;
+        } catch {
+          return undefined;
+        }
+      })
     );
-
-    const removedContainers: string[] = [];
-    for (const name of orphanedContainers) {
-      try {
-        // Stop a running database gracefully, so its data stays consistent.
-        await execDocker(['stop', name], { skipHandleError: true });
-      } catch {
-        // Container might already be stopped
-      }
-      try {
-        await execDocker(['rm', '-f', name], { skipHandleError: true });
-        removedContainers.push(name);
-      } catch {
-        // Ignore removal errors
-      }
-    }
-
-    return removedContainers;
+    return removed.filter((name): name is string => name !== undefined);
   } catch {
     // Docker might not be running
     return [];
   }
+};
+
+/**
+ * The containers that an earlier session of this project directory and stage left running when it was killed
+ * (`kill -9`, `taskkill /f`, a closed terminal), removed when the next session starts. That session holds the stage's
+ * lock file, so only its own containers would carry it with a live process: a container whose lock-file label names
+ * this file and whose process exited belongs to a session that is gone. Another stage, another project in the same
+ * directory or another checkout has another lock file, and a container without owner labels (an older CLI) stays.
+ * `keep` names the databases this session takes over as they run, which keep their data and port.
+ */
+export const removeContainersOfEndedSessions = async ({ keep }: { keep: ReadonlySet<string> }): Promise<string[]> => {
+  const owner = devSessionOwner;
+  if (!owner) return [];
+  const { isSameDirectory } = await import('./agent-daemon');
+  return cleanupOrphanedContainers({
+    isInScope: ({ name, lockFile, pid }) =>
+      !keep.has(name) && pid !== owner.pid && Boolean(lockFile) && isSameDirectory(lockFile!, owner.lockFile),
+    sessionIsAlive: isDevSessionAlive
+  });
 };

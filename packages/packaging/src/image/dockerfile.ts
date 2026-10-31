@@ -14,6 +14,7 @@ import { getDockerContextChecksum } from '../artifact/docker-context';
 
 export const buildUsingDockerfile = async ({
   name,
+  localImageName = name,
   cwd,
   buildContextPath,
   dockerfilePath,
@@ -28,6 +29,8 @@ export const buildUsingDockerfile = async ({
 }: {
   /** Receives the files of the build context before the build runs, so a caller can watch them when it fails. */
   reportSourceFiles?: ((sourceFiles: { path: string }[]) => void) | undefined;
+  /** The local image tag the build produces; the job name `name` when not given. */
+  localImageName?: string | undefined;
   name: string;
   cwd: string;
   progressLogger: ProgressLogger;
@@ -81,7 +84,7 @@ export const buildUsingDockerfile = async ({
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
   const imageDetails = await buildDockerImage({
-    imageTag: name,
+    imageTag: localImageName,
     buildContextPath: absoluteBuildContextPath,
     dockerfilePath,
     buildArgs: buildArgsObject,
@@ -98,7 +101,7 @@ export const buildUsingDockerfile = async ({
     outcome: 'bundled',
     size: imageDetails.size,
     digest,
-    imageName: name,
+    imageName: localImageName,
     imageId: imageDetails.id,
     sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: { duration: Date.now() - start },

@@ -131,6 +131,22 @@ const getLocalContainerName = ({ name, type }: LocalResourceConfig) =>
   });
 
 /**
+ * The containers the session's local databases run in. A start takes over the one of each that already runs, also one a
+ * killed session left (see `removeContainersOfEndedSessions`).
+ */
+export const getLocalResourceContainerNames = (resourceNames: string[]): Set<string> =>
+  new Set(
+    resourceNames.map((name) =>
+      getDevContainerName({
+        projectName: globalStateManager.targetStack.projectName,
+        stage: globalStateManager.stage,
+        workingDirectory: globalStateManager.workingDir,
+        name: configManager.dynamoDbTables?.some((table) => table.name === name) ? SHARED_DYNAMODB_LOCAL_NAME : name
+      })
+    )
+  );
+
+/**
  * Before containers were named per working directory, a database container was `stp-<project>-<stage>-<resource>`.
  * One left running by an older CLI in this directory still writes to the same data directory, and a second database
  * server on that directory would corrupt it, so it is removed. Containers of other directories are left alone.

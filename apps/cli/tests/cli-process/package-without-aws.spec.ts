@@ -472,9 +472,10 @@ describe('stacktape package without AWS', () => {
     const aws = await startAwsFake();
     // Unique, so concurrent runs on the shared Docker daemon do not replace each other's image.
     const service = `swap${randomUUID().replaceAll('-', '').slice(0, 10)}`;
-    const image = `${service}-service-container`;
+    const image = `stp-pkgnoaws-test-${service}-service-container`;
     cleanups.push(async () => {
-      await Bun.spawn(['docker', 'image', 'rm', '--force', image], { stdout: 'ignore', stderr: 'ignore' }).exited;
+      for (const tag of [image, `${image}-code-swap-base`])
+        await Bun.spawn(['docker', 'image', 'rm', '--force', tag], { stdout: 'ignore', stderr: 'ignore' }).exited;
     });
     const run = await runPackage({
       awsEndpoint: aws.endpoint,
