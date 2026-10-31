@@ -31,11 +31,12 @@ A project named `my-api` deployed to stage `dev` creates a stack called `my-api-
 
 ### Stage name constraints
 
-Stage names are limited to 12 characters and should contain only alphanumeric characters and hyphens. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
+A stage name has at least 2 characters and contains only lowercase letters, numbers and hyphens. The project name, a hyphen and the stage form the CloudFormation stack name, which can have at most 128 characters. Examples of valid stage names: `dev`, `staging`, `production`, `pr-42`, `dev-john`.
 
 
-> **Warning:** Keep stage names short. The combined project name + stage forms the CloudFormation stack name. If the combination is
-  too long, Stacktape will obfuscate some internal resource names, which makes debugging harder.
+> **Warning:** Keep stage names short. The combined project name + stage forms the CloudFormation stack name and the names of AWS
+  resources. When a resource name would be longer than AWS allows, Stacktape shortens it and adds a short hash. The
+  stack works the same, but these names are harder to recognize in the AWS console.
 
 
 ### Deploying a stage
@@ -212,7 +213,7 @@ stacktape delete --stage feat-42 --region eu-west-1
 ```
 
 Feature branch stages are disposable by design. Each one gets its own database, its own API endpoint, and its own
-resources. Keep stage names under 12 characters — abbreviate branch names if needed.
+resources. Keep stage names short — abbreviate branch names if needed.
 
 ### Preview environments for pull requests
 

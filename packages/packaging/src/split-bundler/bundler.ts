@@ -34,7 +34,7 @@ import {
 } from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
-import { formatBuildError } from './error-format';
+import { formatBuildError, formatBuildLogs } from './error-format';
 import {
   createModuleResolver,
   ESM_SOURCE_MAP_BANNER,
@@ -362,7 +362,7 @@ const executeBunBuild = async ({
       result = await runBunBuild({ outdir: sharedOutdir, buildTracker: tracker });
     }
   } catch (error) {
-    const errorDetails = formatBuildError(error);
+    const errorDetails = formatBuildError(error, { cwd });
     throw createPackagingError({
       message: `Split bundle failed: ${errorDetails}`,
       hint: 'Check that all entrypoint files exist and are valid TypeScript/JavaScript.',
@@ -372,10 +372,7 @@ const executeBunBuild = async ({
   const bunBuildFinishedAt = performance.now();
 
   if (!result.success) {
-    const errors = result.logs
-      .filter((log) => log.level === 'error')
-      .map((log) => log.message)
-      .join('\n');
+    const errors = formatBuildLogs(result.logs, { cwd });
     throw createPackagingError({
       message: `Split bundle build failed: ${errors}`
     });

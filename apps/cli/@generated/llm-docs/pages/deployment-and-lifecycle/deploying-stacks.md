@@ -46,7 +46,7 @@ Every Stacktape deployment targets a specific stage and AWS region. The stage na
 stacktape deploy --stage dev --region eu-west-1
 ```
 
-A **stage** is an isolated copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names are limited to 12 characters. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
+A **stage** is an isolated copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names use lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
 
 Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--config` to point to a different file.
 
@@ -58,7 +58,7 @@ Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory
 
 | Flag | Description |
 | --- | --- |
-| `--stage` (`-s`) | **(required)** Stage name — `dev`, `staging`, `production`, etc. Max 12 characters. |
+| `--stage` (`-s`) | **(required)** Stage name — `dev`, `staging`, `production`, etc. Lowercase letters, numbers and hyphens. |
 | `--region` (`-r`) | **(required)** AWS region — `eu-west-1`, `us-east-1`, etc. |
 | `--config` | Path to config file. Defaults to `stacktape.ts` or `stacktape.yml`. |
 | `--full` | Deploy every change through CloudFormation, even when only code changed. |

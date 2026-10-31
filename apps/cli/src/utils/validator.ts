@@ -224,6 +224,23 @@ export const validateProjectName = (projectName: string) => {
   }
 };
 
+/** CloudFormation's limit for a stack name. */
+export const MAX_STACK_NAME_LENGTH = 128;
+
+/** The stack name is the project name, a dash and the stage; CloudFormation rejects one longer than 128 characters. */
+export const validateStackName = ({ projectName, stage }: { projectName: string; stage: string }) => {
+  const stackName = `${projectName}-${stage}`;
+  if (stackName.length > MAX_STACK_NAME_LENGTH) {
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_VALIDATION_STACK_NAME_TOO_LONG',
+      message: `The stack name \`${stackName.slice(0, 40)}...\` (project name, a dash and the stage) has ${stackName.length} characters. CloudFormation allows at most ${MAX_STACK_NAME_LENGTH}.`,
+      hints: `Use a stage name of at most ${Math.max(0, MAX_STACK_NAME_LENGTH - projectName.length - 1)} characters for project \`${projectName}\`, or a shorter project name.`
+    });
+  }
+  return stackName;
+};
+
 const validateStage = (stage: string) => {
   if (stage === undefined || stage === null) {
     throw new CliError({
