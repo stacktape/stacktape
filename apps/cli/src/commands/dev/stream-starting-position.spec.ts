@@ -67,5 +67,62 @@ describe('stream mappings that a start creates or changes', () => {
     ]);
     expect(latest).toContain('`audit` reads from `startingPosition: LATEST`');
     expect(latest).toContain('`startingPosition: TRIM_HORIZON`');
+    // A Kinesis stream can retain records for up to 365 days, not 24 hours.
+    expect(latest).toContain('every record the stream still retains');
+    expect(latest).not.toContain("stream's last 24 hours");
+  });
+
+  // #420 review: a replaced stream gives the mapping a new source while its `Fn::GetAtt` stays the same.
+  test('a mapping whose stream is replaced is reported, and one whose stream only changes is not', () => {
+    const streamFunctions = [
+      { name: 'audit', events: [{ type: 'kinesis-stream', properties: { startingPosition: 'LATEST' } }] },
+      { name: 'fanOut', events: [{ type: 'kinesis-stream', properties: { startingPosition: 'LATEST' } }] },
+      { name: 'orders', events: [{ type: 'dynamo-db-stream', properties: { startingPosition: 'LATEST' } }] }
+    ];
+    const streamTemplate = ({
+      streamName = 'shop-dev-audit',
+      retention = 24,
+      viewType = 'NEW_IMAGE',
+      billing = 'PAY_PER_REQUEST'
+    }: { streamName?: string; retention?: number; viewType?: string; billing?: string } = {}) => ({
+      Resources: {
+        AuditStream: {
+          Type: 'AWS::Kinesis::Stream',
+          Properties: { Name: streamName, RetentionPeriodHours: retention }
+        },
+        AuditConsumer: {
+          Type: 'AWS::Kinesis::StreamConsumer',
+          Properties: { ConsumerName: 'fan-out', StreamARN: { 'Fn::GetAtt': ['AuditStream', 'Arn'] } }
+        },
+        OrdersTable: {
+          Type: 'AWS::DynamoDB::Table',
+          Properties: { TableName: 'orders', BillingMode: billing, StreamSpecification: { StreamViewType: viewType } }
+        },
+        [cfLogicalNames.eventSourceMapping('audit', 0)]: {
+          Type: 'AWS::Lambda::EventSourceMapping',
+          Properties: { EventSourceArn: { 'Fn::GetAtt': ['AuditStream', 'Arn'] }, StartingPosition: 'LATEST' }
+        },
+        [cfLogicalNames.eventSourceMapping('fanOut', 0)]: {
+          Type: 'AWS::Lambda::EventSourceMapping',
+          Properties: { EventSourceArn: { Ref: 'AuditConsumer' }, StartingPosition: 'LATEST' }
+        },
+        [cfLogicalNames.eventSourceMapping('orders', 0)]: {
+          Type: 'AWS::Lambda::EventSourceMapping',
+          Properties: { EventSourceArn: { 'Fn::GetAtt': 'OrdersTable.StreamArn' }, StartingPosition: 'LATEST' }
+        }
+      }
+    });
+    const reported = (deployed: ReturnType<typeof streamTemplate>, next: ReturnType<typeof streamTemplate>) =>
+      findStartingStreamMappings({ functions: streamFunctions, template: next, deployedTemplate: deployed }).map(
+        ({ functionName }) => functionName
+      );
+    const before = streamTemplate();
+    expect(reported(before, streamTemplate())).toEqual([]);
+    // A new name replaces the stream: its mapping and the consumer's both read a new stream.
+    expect(reported(before, streamTemplate({ streamName: 'shop-dev-audit-v2' }))).toEqual(['audit', 'fanOut']);
+    // Longer retention and another billing mode update the stream and the table in place.
+    expect(reported(before, streamTemplate({ retention: 168, billing: 'PROVISIONED' }))).toEqual([]);
+    // Another view type gives the table a new stream.
+    expect(reported(before, streamTemplate({ viewType: 'NEW_AND_OLD_IMAGES' }))).toEqual(['orders']);
   });
 });

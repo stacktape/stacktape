@@ -1,7 +1,7 @@
 // First: the source CLI's paths must not depend on the current directory.
 import { CLI_SOURCE_ROOT } from './support/cli-source-root';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from 'src/config/project-paths';
 import { dynamicRequire } from '@utils/fs-utils';
@@ -81,12 +81,17 @@ const tryAcquireDevBuildLock = async () => {
       throw err;
     }
 
-    try {
-      const lockInfo = JSON.parse(await readFile(`${devBuildLockPath}/owner.json`, 'utf8'));
-      if (Date.now() - Number(lockInfo.createdAt) > devBuildLockStaleAfterMs) {
-        await rm(devBuildLockPath, { recursive: true, force: true });
-      }
-    } catch {
+    // The holder creates the directory and then writes its owner file: a lock without that file is being taken
+    // right now (r2az: removing it then failed the holder of two concurrent starts), unless the directory is stale.
+    const createdAt = await readFile(`${devBuildLockPath}/owner.json`, 'utf8')
+      .then((owner) => Number(JSON.parse(owner).createdAt))
+      .catch(() =>
+        stat(devBuildLockPath).then(
+          ({ mtimeMs }) => mtimeMs,
+          () => undefined
+        )
+      );
+    if (createdAt !== undefined && !(Date.now() - createdAt <= devBuildLockStaleAfterMs)) {
       await rm(devBuildLockPath, { recursive: true, force: true });
     }
     return false;

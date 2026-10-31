@@ -273,3 +273,71 @@ test('a stack over the limit returns its resources by type, and chosen resources
     });
   }
 });
+
+/** A logical ID of the longest length CloudFormation allows, 255 characters, ending in `suffix`. */
+const longId = (suffix: string) => `${'L'.repeat(255 - suffix.length)}${suffix}`;
+
+// #418 review: the budget counted only the selected structure. 100 resources with 254-character IDs answered 31 477
+// characters, and a large output-name index was not bounded at all: both reached MCP as RESPONSE_TOO_LARGE.
+test('long logical IDs and a large outputs section stay within one MCP result', async () => {
+  const resources = Object.fromEntries(
+    Array.from({ length: 100 }, (_, index) => [
+      longId(`R${index}`),
+      {
+        Type: 'AWS::SQS::Queue',
+        Properties: { QueueName: `long_id_literal_${index}`, Tags: [{ Key: 'stage', Value: 'dev' }] }
+      }
+    ])
+  );
+  const outputs = Object.fromEntries(
+    Array.from({ length: 300 }, (_, index) => [longId(`O${index}`), { Value: { Ref: Object.keys(resources)[0] } }])
+  );
+  deployed['long-ids'] = { Resources: resources, Outputs: outputs } as Template;
+  const logicalIds = Object.keys(resources);
+
+  const fitsMcp = (data: unknown) => {
+    expect(JSON.stringify(data).length).toBeLessThanOrEqual(TEMPLATE_STRUCTURE_LIMIT + 200);
+    for (const text of Object.values(mcpTexts(data))) {
+      expect(text.length).toBeLessThanOrEqual(30_000);
+      expect(JSON.parse(text).ok).toBe(true);
+    }
+  };
+
+  const selected = (await getTemplate('long-ids', { LogicalResourceIds: logicalIds.slice(0, 100) })) as {
+    data: { Template: Template; OmittedLogicalResourceIds?: string[]; Note?: string };
+  };
+  fitsMcp(selected.data);
+  const returned = Object.keys(selected.data.Template.Resources);
+  expect(returned.length).toBeGreaterThan(0);
+  expect(selected.data.OmittedLogicalResourceIds?.length).toBeGreaterThan(0);
+  expect([...returned, ...selected.data.OmittedLogicalResourceIds!]).toEqual(logicalIds.slice(0, 100));
+
+  // The IDs the template lacks count too: 50 of them leave less room for the 50 that exist.
+  const halfMissing = [...logicalIds.slice(0, 50), ...Array.from({ length: 50 }, (_, i) => longId(`Missing${i}`))];
+  const withMissing = (await getTemplate('long-ids', { LogicalResourceIds: halfMissing })) as {
+    data: { Template: Template; MissingLogicalResourceIds: string[]; OmittedLogicalResourceIds?: string[] };
+  };
+  fitsMcp(withMissing.data);
+  expect(withMissing.data.MissingLogicalResourceIds).toHaveLength(50);
+  expect(Object.keys(withMissing.data.Template.Resources).length).toBeLessThan(returned.length);
+
+  const index = (await getTemplate('long-ids')) as {
+    data: { TemplateIndex: { Outputs: unknown; ResourcesByType: Record<string, unknown> }; Note: string };
+  };
+  fitsMcp(index.data);
+  // The outputs are counted to make room; the resources still list their IDs.
+  expect(index.data.TemplateIndex.Outputs).toBe(300);
+  expect(index.data.TemplateIndex.ResourcesByType['AWS::SQS::Queue']).toEqual([...logicalIds].sort());
+  expect(index.data.Note).toContain('DescribeStacks');
+  expect(JSON.stringify(index)).not.toContain('long_id_literal_');
+
+  // With more resources than their IDs fit, the index counts them per type.
+  deployed['long-ids-more'] = {
+    Resources: Object.fromEntries(
+      Array.from({ length: 130 }, (_, index) => [longId(`M${index}`), { Type: 'AWS::SQS::Queue' }])
+    )
+  };
+  const counted = (await getTemplate('long-ids-more')) as { data: { TemplateIndex: Record<string, unknown> } };
+  fitsMcp(counted.data);
+  expect(counted.data.TemplateIndex).toMatchObject({ ResourceCount: 130, ResourcesByType: { 'AWS::SQS::Queue': 130 } });
+});
