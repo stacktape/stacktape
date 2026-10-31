@@ -217,11 +217,13 @@ console.log('REMOVED ' + JSON.stringify(await removeContainersOfEndedSessions({ 
     for (const kind of Object.keys(fixtures).filter((kind) => !removedKinds.includes(kind)))
       expect(inspect(nameOf(kind)).stdout.trim(), kind).toBe('running');
   } finally {
+    // Every fixture is removed before anything is asserted, so a failed check cannot leave the others behind.
+    for (const name of names) invoke(['rm', '-f', name]);
+    await rm(directory, { recursive: true, force: true });
     for (const name of names) {
-      const removed = invoke(['rm', '-f', name]);
-      if (removed.status !== 0) expect(removed.stderr).toMatch(/no such (object|container)/i);
+      const deadline = Date.now() + 10_000;
+      while (inspect(name).status === 0 && Date.now() < deadline) await Bun.sleep(200);
       expect(inspect(name).status, `owned container ${name} must be gone`).not.toBe(0);
     }
-    await rm(directory, { recursive: true, force: true });
   }
 }, 120_000);
