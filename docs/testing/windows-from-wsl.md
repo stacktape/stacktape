@@ -43,6 +43,9 @@ bun scripts/windows-host/windows-host.ts exec --task <id> --cwd app -- npm insta
   `cmd.exe`. Both pass `AWS_PROFILE`, `AWS_REGION`, `AWS_DEFAULT_REGION`, every `STACKTAPE_*` variable and each
   `--env NAME` through `WSLENV`, and print the names, never the values. `PATH`, `HOME`, `DOCKER_*` and `STP_DEV_MODE`
   are refused: they describe the WSL side.
+- Windows programs started from WSL inherit the Windows PATH captured when WSL started, so a tool installed later
+  (Docker Desktop on 31 Oct 2026) is missing until `wsl --shutdown`, which stops every agent's session. `run`, `exec`,
+  `console` and `doctor` instead give the program the current Machine and User PATH from the registry.
 - By default the Windows CLI uses the dev Console with the WSL source CLI's dev login (`pnpm dev:cli login`), passed
   only in its environment. The Windows profile's own login belongs to the owner's production Console, where the test
   account is not connected; `--control-plane user` uses it deliberately.

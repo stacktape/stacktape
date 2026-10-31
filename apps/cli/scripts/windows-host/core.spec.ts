@@ -4,6 +4,7 @@ import {
   assertTaskId,
   buildWindowsCommandLine,
   buildWslEnv,
+  mergeWindowsPath,
   quoteWindowsArgument,
   selectPassThroughNames,
   toWindowsPath,
@@ -176,5 +177,19 @@ describe('environment pass-through', () => {
     expect(assertAwsProfile({ AWS_PROFILE: 'stacktape-e2e' }, ['stacktape-e2e'])).toBe('stacktape-e2e');
     expect(() => assertAwsProfile({}, ['stacktape-e2e'])).toThrow(/default profile/);
     expect(() => assertAwsProfile({ AWS_PROFILE: 'default' }, ['stacktape-e2e'])).toThrow(/not allowed/);
+  });
+});
+
+describe('mergeWindowsPath', () => {
+  test('puts the current registry PATH first and keeps entries only the session has', () => {
+    expect(
+      mergeWindowsPath({
+        registry: 'C:\\Windows\\system32;C:\\Users\\u\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;;',
+        session: 'C:\\Program Files\\PowerShell\\7;c:\\windows\\System32\;C:\\Users\\u\\scoop\\shims'
+      })
+    ).toBe(
+      'C:\\Windows\\system32;C:\\Users\\u\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;' +
+        'C:\\Program Files\\PowerShell\\7;C:\\Users\\u\\scoop\\shims'
+    );
   });
 });

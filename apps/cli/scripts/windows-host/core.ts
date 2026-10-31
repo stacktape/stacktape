@@ -106,9 +106,6 @@ export const quoteWindowsArgument = (argument: string): string => {
 export const buildWindowsCommandLine = (program: string, args: readonly string[]): string =>
   [program, ...args].map(quoteWindowsArgument).join(' ');
 
-/** PowerShell single-quoted string literal. */
-export const quotePowerShellString = (value: string): string => `'${value.replace(/'/g, "''")}'`;
-
 // Variables WSL must never hand to a Windows process: Linux paths and WSL's own Docker daemon would point the
 // Windows CLI at the wrong tools, and STP_DEV_MODE makes a compiled CLI look for source-checkout artifacts.
 const BLOCKED_ENVIRONMENT_NAME = /^(PATH|HOME|PWD|SHELL|TMPDIR|DOCKER_.*|STP_DEV_MODE|WSLENV|WSL_.*)$/;
@@ -165,3 +162,21 @@ export const assertAwsProfile = (environment: Record<string, string | undefined>
 
 /** Paths the fixture copy leaves out: Linux-built dependencies and caches that Windows must create itself. */
 export const DEFAULT_STAGE_EXCLUDES = ['node_modules', '.venv', '__pycache__', '.stacktape-stack-info'];
+
+/**
+ * The PATH a Windows program should get: the current Machine and User PATH from the registry, then the entries only
+ * the WSL session's copy has. Windows programs started from WSL inherit the PATH captured when WSL started, so a tool
+ * installed later (Docker Desktop) is missing until `wsl --shutdown`, which would stop every other session.
+ */
+export const mergeWindowsPath = ({ registry, session }: { registry: string; session: string }): string => {
+  const seen = new Set<string>();
+  const entries: string[] = [];
+  for (const entry of [...registry.split(';'), ...session.split(';')]) {
+    const trimmed = entry.trim();
+    const key = trimmed.replace(/\\+$/, '').toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    entries.push(trimmed);
+  }
+  return entries.join(';');
+};

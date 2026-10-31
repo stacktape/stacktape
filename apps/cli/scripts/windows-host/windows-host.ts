@@ -15,6 +15,7 @@ import {
   assertTaskId,
   buildWindowsCommandLine,
   buildWslEnv,
+  mergeWindowsPath,
   selectPassThroughNames,
   toWindowsPath,
   toWslPath,
@@ -223,8 +224,29 @@ const windowsEnvironment = async (options: Options) => {
       : {};
   const merged = { ...process.env, ...added };
   const names = selectPassThroughNames({ environment: merged, extraNames: [...options.env, ...Object.keys(added)] });
-  const environment = { ...merged, WSLENV: buildWslEnv({ names, existing: process.env.WSLENV }) };
+  // PATH is replaced, not passed: the Windows program gets the Windows PATH, current as of now.
+  const environment = {
+    ...merged,
+    PATH: await readWindowsPath(),
+    WSLENV: buildWslEnv({ names: [...names, 'PATH'], existing: process.env.WSLENV })
+  };
   return { names, environment };
+};
+
+/** The Windows PATH for programs started now (`mergeWindowsPath`). */
+const readWindowsPath = async () => {
+  const { code, stdout, stderr } = await capture(PWSH, [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    "[Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path','Machine') + ';' + " +
+      "[Environment]::GetEnvironmentVariable('Path','User')); $env:Path"
+  ]);
+  const [registry, session] = stdout.split('\n');
+  if (code !== 0 || !registry || !session) {
+    throw new Error(`Reading the Windows PATH failed: ${stderr.trim()}`);
+  }
+  return mergeWindowsPath({ registry, session });
 };
 
 const requireCli = (options: Options) => {
@@ -237,8 +259,14 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
   async doctor(options) {
     const taskPaths = paths(options);
     const report: [string, string][] = [];
-    const check = async (label: string, command: string, args: string[]) => {
-      const { code, stdout, stderr } = await capture(command, args).catch((error) => ({
+    // The same PATH that run, exec and console give the Windows CLI.
+    const env = {
+      ...process.env,
+      PATH: await readWindowsPath(),
+      WSLENV: buildWslEnv({ names: ['PATH'], existing: process.env.WSLENV })
+    };
+    const check = async (label: string, command: string, args: string[], linux = false) => {
+      const { code, stdout, stderr } = await capture(command, args, linux ? {} : { env }).catch((error) => ({
         code: 1,
         stdout: '',
         stderr: String(error)
@@ -251,7 +279,7 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     await check('docker (Windows)', CMD, [
       '/d',
       '/c',
-      'docker version --format "client {{.Client.Version}}, server {{.Server.Version}} {{.Server.Os}}"'
+      'docker version --format client={{.Client.Version}},server={{.Server.Version}}/{{.Server.Os}}'
     ]);
     const profile = process.env.AWS_PROFILE;
     if (profile) {
@@ -263,7 +291,7 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     } else {
       report.push(['AWS profile', 'FAILED: AWS_PROFILE is not set']);
     }
-    await check('WSL networking mode', 'wslinfo', ['--networking-mode']);
+    await check('WSL networking mode', 'wslinfo', ['--networking-mode'], true);
     const ancestors = [`${taskPaths.task.split('\\')[0]}\\package.json`, `${options.root}\\package.json`];
     const found = ancestors.filter((path) => existsSync(toWslPath(path)));
     report.push(['parent package.json', found.length ? `FOUND ${found.join(', ')}: it changes module type` : 'none']);
