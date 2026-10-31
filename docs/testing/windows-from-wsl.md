@@ -6,7 +6,8 @@ builds the CLI from your checkout, copies it to the Windows host and runs it the
 Windows process are different environments even when they read the same files; a WSL run proves nothing about Windows.
 
 The helper is `apps/cli/scripts/windows-host/windows-host.ts`. Run it from `apps/cli` with `--task <id>`; everything it
-creates lives in `C:\stacktape-wsl\<id>` (override with `--root`) and `/tmp/stacktape-windows-host/<id>`.
+creates lives in `C:\stacktape-wsl\<id>` and `/tmp/stacktape-windows-host/<id>`. The root is fixed: the helper deletes
+inside it, so it offers no option to point it elsewhere.
 
 ## Before you start
 
@@ -41,11 +42,11 @@ bun scripts/windows-host/windows-host.ts exec --task <id> --cwd app -- npm insta
   Install them with `exec` (`--include-node-modules` and `--exclude` change the list).
 - `run` starts `stacktape.exe` with piped output and returns its exit code. `exec` runs a Windows command through
   `cmd.exe`. Both start the program through `host.ps1` (C# in `host.cs`, compiled once per version and cached in
-  `<task>\tools`), which records its PID and creation time in `<task>\logs\processes.jsonl`. They pass `AWS_PROFILE`,
-  `AWS_REGION`, `AWS_DEFAULT_REGION`, every `STACKTAPE_*` variable and each `--env NAME` through `WSLENV`, and print the
-  names, never the values. `PATH`, `HOME`, `DOCKER_*` and `STP_DEV_MODE` are refused: they describe the WSL side. WSLENV
-  is rebuilt for the forwarded names, so an inherited `WSLENV=AWS_PROFILE/u` cannot keep the profile from Windows, and
-  `host.ps1` refuses to start the program unless the Windows side sees the expected `AWS_PROFILE`.
+  `<task>\tools`), which puts it in the task's job object (see below). They pass `AWS_PROFILE`, `AWS_REGION`,
+  `AWS_DEFAULT_REGION`, every `STACKTAPE_*` variable and each `--env NAME` through `WSLENV`, and print the names, never
+  the values. `PATH`, `HOME`, `DOCKER_*` and `STP_DEV_MODE` are refused: they describe the WSL side. WSLENV is rebuilt
+  for the forwarded names, so an inherited `WSLENV=AWS_PROFILE/u` cannot keep the profile from Windows, and `host.ps1`
+  refuses to start the program unless the Windows side sees the expected `AWS_PROFILE`.
 - Windows programs started from WSL inherit the Windows PATH captured when WSL started, so a tool installed later
   (Docker Desktop on 31 Oct 2026) is missing until `wsl --shutdown`, which stops every agent's session. `run`, `exec`,
   `console` and `doctor` instead give the program the current Machine and User PATH from the registry.
@@ -68,10 +69,12 @@ bun scripts/windows-host/windows-host.ts wait --task <id>           # exits with
 ```
 
 `console` runs the program in a pseudo console (ConPTY) with no window: the CLI sees a terminal (120 x 40), its output
-goes to `<task>\logs\console-output.log`, and `keys` writes input. `screen` reads the pseudo console's screen buffer. It
-records the program's PID and exit code in `<task>\logs\console.json` and refuses a second console for the task while
-the first program runs. Use it for commands that keep running: a program that exits within a few hundred milliseconds
-may finish before its PID is recorded.
+goes to `<task>\logs\console-output.log`, and `keys` writes input through a named pipe that the host owns and only the
+current user can open; no input file is ever read. `--program C:\path\to\program.exe` runs another console program
+instead of `stacktape.exe`. `screen` reads the pseudo console's screen buffer. It records the program's PID and exit
+code in `<task>\logs\console.json` and refuses a second console for the task while the first program runs. Use it for
+commands that keep running: a program that exits within a few hundred milliseconds may finish before its PID is
+recorded.
 
 `ctrl-c` attaches to the program's console and raises Ctrl+C there, exactly as a key press would: every process in that
 console receives it and no other console does. It also works for a `run` process, which has its own hidden console.
@@ -86,21 +89,37 @@ console program, or the only running CLI of the task.
 ### Processes and cleanup
 
 ```sh
-bun scripts/windows-host/windows-host.ts ps --task <id>        # the processes this task started, with descendants
-bun scripts/windows-host/windows-host.ts kill --task <id>      # ends them, children first, and verifies none remain
+bun scripts/windows-host/windows-host.ts ps --task <id>        # the processes in the task's job
+bun scripts/windows-host/windows-host.ts kill --task <id>      # terminates the job and verifies it is empty
 bun scripts/windows-host/windows-host.ts cleanup --task <id>   # kill, delete both folders, verify
 ```
 
-A process belongs to the task when `processes.jsonl` names its PID with the same creation time, when it descends from
-such a process (created after it, and before any process that reused its PID), or when its executable lives in the task
-folder. A command line that merely mentions the task folder does not count, so `kill` never ends an unrelated shell. The
-`dev --agent` daemon outlives the `stacktape.exe` that started it and is still found through that record.
+Every program the helper starts is created suspended and put in a Windows job object for the task
+(`Local\stacktape-wsl-<id>`) before it runs, and the job does not allow breakaway, so everything it starts belongs to
+the job too. `ps` lists the job's processes and `kill` terminates the job. Windows tracks the membership: a reused PID
+cannot be adopted, and a process whose parent has exited, such as the `dev --agent` daemon or a program started with
+`start /b`, stays listed. A process that merely mentions the task folder is never touched. The job does not kill its
+processes when the helper exits, because the `dev --agent` daemon must outlive the command that started it.
 
-Deletion goes through `remove-tree.ps1`, run with `-EncodedCommand` and its paths in environment variables, never
-through `cmd.exe` parsing. It deletes only inside the root, removes junctions and symbolic links as links without
-following them, and refuses a path below a link. The root must be `C:\stacktape-wsl` or a plain folder inside it, so a
-root such as `C:\R&D` is rejected. A task folder that is itself a link is refused by every command except `cleanup`,
-which removes the link and leaves its target alone.
+A job's name disappears with its last handle, even while its processes run. So each start also starts a keeper
+(`keep-job.ps1`, a PowerShell process with a console but no window) inside the job, which holds a handle and exits once
+the job contains nothing but keepers and console hosts. `ps` hides keepers; `kill` ends them with the rest.
+`<task>\logs\processes.jsonl` lists each start for reading only.
+
+Deletion goes through `remove-tree.ps1`, run with `-EncodedCommand` and the path in an environment variable, never
+through `cmd.exe` parsing, so characters such as `&` stay inert. It deletes only inside `C:\stacktape-wsl`, refuses when
+the root or any component between the root and the target is a junction, symbolic link or other reparse point, and
+removes links inside the tree as links without following them. Before the helper writes below a folder (the CLI, staged
+projects, tools, logs, the console's state and output), it checks the same components; the host repeats the check for
+each file it writes. A task folder that is itself a link is refused by every command except `cleanup`, which removes the
+link and leaves its target alone.
+
+The live test `windows-host.e2e.spec.ts` checks these guarantees on the Windows host with junction fixtures inside
+`C:\stacktape-wsl` and deletes them afterwards. It opens no window and does not contact AWS:
+
+```sh
+STACKTAPE_WINDOWS_HOST_E2E=1 AWS_PROFILE=stacktape-e2e pnpm --filter @stacktape/cli run test:windows-host:e2e
+```
 
 A forced kill is a crash: Stacktape cleans up nothing, and AWS keeps the SSM session open until its idle timeout. The
 next `stacktape dev` of the stage replaces it. After a test that ends with `kill`, list the sessions with

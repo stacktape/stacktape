@@ -1,7 +1,8 @@
-# Starts one program for windows-host.ts through host.cs and exits with its exit code. -Mode exec inherits the
-# standard handles (piped output to WSL), pty runs it in a pseudo console with no window, window in a console window on
-# the hidden desktop -DesktopName. Every start is recorded in -RecordFile (PID and creation time).
+# Starts one program for windows-host.ts through host.cs, inside the task's job object, and exits with its exit code.
+# -Mode exec inherits the standard handles (piped output to WSL), pty runs it in a pseudo console with no window, window
+# in a console window on the hidden desktop -DesktopName. Each start is also listed in -RecordFile, for display only.
 param(
+  [Parameter(Mandatory)][ValidatePattern('^[a-z0-9][a-z0-9-]{0,31}$')][string]$Task,
   [Parameter(Mandatory)][ValidateSet('exec', 'pty', 'window')][string]$Mode,
   [Parameter(Mandatory)][string]$CommandLine,
   [Parameter(Mandatory)][string]$Program,
@@ -10,7 +11,6 @@ param(
   [Parameter(Mandatory)][string]$ExpectedProfile,
   [string]$StateFile,
   [string]$OutputFile,
-  [string]$InputDirectory,
   [string]$DesktopName,
   [int]$Columns = 120,
   [int]$Rows = 40
@@ -26,15 +26,16 @@ if ($env:AWS_PROFILE -ne $ExpectedProfile) {
 
 . (Join-Path $PSScriptRoot 'load-host.ps1')
 
+[StacktapeWsl.Host]::KeeperScript = Join-Path $PSScriptRoot 'keep-job.ps1'
 [StacktapeWsl.Host]::IgnoreCtrlC()
 switch ($Mode) {
-  'exec' { exit [StacktapeWsl.Host]::Exec($CommandLine, $WorkingDirectory, $RecordFile, $Program) }
+  'exec' { exit [StacktapeWsl.Host]::Exec($Task, $CommandLine, $WorkingDirectory, $RecordFile, $Program) }
   'pty' {
-    exit [StacktapeWsl.Host]::Pty($CommandLine, $WorkingDirectory, $RecordFile, $StateFile, $OutputFile, $InputDirectory,
+    exit [StacktapeWsl.Host]::Pty($Task, $CommandLine, $WorkingDirectory, $RecordFile, $StateFile, $OutputFile,
       [int16]$Columns, [int16]$Rows, $Program)
   }
   'window' {
-    $conhostPid = [StacktapeWsl.Host]::Window($CommandLine, $WorkingDirectory, $RecordFile, $Program, $DesktopName)
+    $conhostPid = [StacktapeWsl.Host]::Window($Task, $CommandLine, $WorkingDirectory, $RecordFile, $Program, $DesktopName)
     $launched = $null
     $deadline = (Get-Date).AddSeconds(15)
     while (-not $launched -and (Get-Date) -lt $deadline) {
@@ -45,6 +46,7 @@ switch ($Mode) {
       }
       if (-not $launched) { Start-Sleep -Milliseconds 100 }
     }
+    [StacktapeWsl.Host]::AssertNoReparsePoints($StateFile)
     if (-not $launched) {
       @{ mode = 'window'; conhostPid = $conhostPid; error = 'The program did not start or exited immediately.' } |
         ConvertTo-Json -Compress | Set-Content -Encoding utf8 -LiteralPath $StateFile

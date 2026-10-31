@@ -131,7 +131,8 @@
     "test:release-native": "bun scripts/verify-release-artifact.ts --require-candidate --qualify-tools",
     "perf:zip-levels": "bun scripts/perf/zip-levels.ts",
     "windows-host": "bun scripts/windows-host/windows-host.ts",
-    "test:windows-host": "bun test scripts/windows-host"
+    "test:windows-host": "bun test scripts/windows-host/core.spec.ts",
+    "test:windows-host:e2e": "bun test scripts/windows-host/windows-host.e2e.spec.ts"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

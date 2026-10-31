@@ -15,18 +15,6 @@ export const assertTaskId = (taskId: string | undefined): string => {
   return taskId;
 };
 
-// Only C:\stacktape-wsl and plain folders below it: the helper deletes inside the root, so a root such as C:\R&D or
-// C:\Users must be impossible to pass.
-const ROOT_PATTERN = /^C:\\stacktape-wsl(\\[A-Za-z0-9._-]+)*$/i;
-
-export const assertWindowsRoot = (root: string): string => {
-  const normalized = root.replace(/\//g, '\\').replace(/\\+$/, '');
-  if (!ROOT_PATTERN.test(normalized) || normalized.split('\\').some((part) => part === '.' || part === '..')) {
-    throw new Error(`The Windows root must be ${DEFAULT_WINDOWS_ROOT} or a plain folder inside it (got ${root}).`);
-  }
-  return normalized;
-};
-
 export type WindowsTaskPaths = {
   task: string;
   cli: string;
@@ -36,8 +24,9 @@ export type WindowsTaskPaths = {
   tools: string;
 };
 
-export const windowsTaskPaths = ({ root, taskId }: { root: string; taskId: string }): WindowsTaskPaths => {
-  const task = `${assertWindowsRoot(root)}\\${assertTaskId(taskId)}`;
+/** Everything of a task lives in `C:\stacktape-wsl\<task>`; there is deliberately no option to move it. */
+export const windowsTaskPaths = (taskId: string): WindowsTaskPaths => {
+  const task = `${DEFAULT_WINDOWS_ROOT}\\${assertTaskId(taskId)}`;
   return {
     task,
     cli: `${task}\\cli`,
@@ -46,6 +35,26 @@ export const windowsTaskPaths = ({ root, taskId }: { root: string; taskId: strin
     logs: `${task}\\logs`,
     tools: `${task}\\tools`
   };
+};
+
+/**
+ * C:\stacktape-wsl and every folder from it down to `windowsPath`, which must lie inside it. The helper checks each one
+ * for a junction or symbolic link before it writes or deletes below them.
+ */
+export const componentsFromRoot = (windowsPath: string): string[] => {
+  const normalized = windowsPath.replace(/\//g, '\\').replace(/\\+$/, '');
+  const root = DEFAULT_WINDOWS_ROOT.toLowerCase();
+  if (normalized.toLowerCase() !== root && !normalized.toLowerCase().startsWith(`${root}\\`)) {
+    throw new Error(`${windowsPath} is not inside ${DEFAULT_WINDOWS_ROOT}.`);
+  }
+  const parts = normalized.slice(DEFAULT_WINDOWS_ROOT.length).split('\\').filter(Boolean);
+  if (parts.some((part) => part === '.' || part === '..')) {
+    throw new Error(`${windowsPath} must not contain . or .. components.`);
+  }
+  return [
+    DEFAULT_WINDOWS_ROOT,
+    ...parts.map((_, index) => `${DEFAULT_WINDOWS_ROOT}\\${parts.slice(0, index + 1).join('\\')}`)
+  ];
 };
 
 /** `C:\a\b` -> `/mnt/c/a/b`. Only drive paths: UNC paths have no fixed WSL mount. */
@@ -220,63 +229,5 @@ const SHORT_ESCAPE = new RegExp(`${ESC}[ -~]`, 'g');
 export const stripTerminalSequences = (text: string): string =>
   text.replace(STRING_SEQUENCE, '').replace(CSI_SEQUENCE, '').replace(SHORT_ESCAPE, '').replace(/\r\n?/g, '\n');
 
-export type WindowsProcess = { pid: number; parentPid: number; name: string; path: string | null; created: string };
-export type ProcessRecord = { pid: number; created: string };
-
-/** Creation times from different APIs differ by up to a few milliseconds. */
-const sameCreation = (left: string, right: string) => Math.abs(Date.parse(left) - Date.parse(right)) < 1000;
-
-/**
- * The processes a task owns, oldest first: those `records` names with the same creation time (host.cs records every
- * start), their descendants, and those whose executable lives in the task folder. A descendant must be created after
- * its parent. A recorded process that has exited still owns the children it created before another process reused its
- * PID; the `dev --agent` daemon outlives the CLI that started it. A command line that mentions the task folder does not
- * make a process the task's.
- */
-export const selectOwnedProcesses = ({
-  processes,
-  records,
-  taskDirectory
-}: {
-  processes: readonly WindowsProcess[];
-  records: readonly ProcessRecord[];
-  taskDirectory: string;
-}): WindowsProcess[] => {
-  const byPid = new Map(processes.map((process) => [process.pid, process]));
-  const owned = new Map<number, WindowsProcess>();
-  // PID -> the window in which a child with that parent PID was created by the recorded, now exited, process.
-  const exitedRoots = new Map<number, { from: number; until: number }>();
-  for (const record of records) {
-    const holder = byPid.get(record.pid);
-    if (holder && sameCreation(holder.created, record.created)) {
-      owned.set(holder.pid, holder);
-    } else {
-      exitedRoots.set(record.pid, {
-        from: Date.parse(record.created),
-        until: holder ? Date.parse(holder.created) : Number.POSITIVE_INFINITY
-      });
-    }
-  }
-  const prefix = `${taskDirectory.replace(/\\+$/, '')}\\`.toLowerCase();
-  for (const process of processes) {
-    if (process.path?.toLowerCase().startsWith(prefix)) owned.set(process.pid, process);
-  }
-  let added = true;
-  while (added) {
-    added = false;
-    for (const process of processes) {
-      if (owned.has(process.pid)) continue;
-      const created = Date.parse(process.created);
-      const parent = owned.get(process.parentPid);
-      const exited = exitedRoots.get(process.parentPid);
-      const belongs = parent
-        ? created >= Date.parse(parent.created)
-        : exited !== undefined && created >= exited.from && created < exited.until;
-      if (belongs) {
-        owned.set(process.pid, process);
-        added = true;
-      }
-    }
-  }
-  return [...owned.values()].sort((left, right) => Date.parse(left.created) - Date.parse(right.created));
-};
+/** A process in the task's job object, as job.ps1 lists it. */
+export type WindowsProcess = { pid: number; parentPid: number; name: string; path: string | null };

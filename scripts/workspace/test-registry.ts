@@ -6458,6 +6458,7 @@ export const toolingTests: readonly string[] = [
   'apps/cli/scripts/real-aws/static-site-canary.spec.ts',
   'apps/cli/scripts/run-source-tests.spec.ts',
   'apps/cli/scripts/windows-host/core.spec.ts',
+  'apps/cli/scripts/windows-host/windows-host.e2e.spec.ts',
   'apps/cli/scripts/support/mcp-server-invocation.spec.ts',
   'apps/cli/src/aws/sdk-manager/utils.spec.ts',
   'apps/cli/src/utils/cli.spec.ts',
