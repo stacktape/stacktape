@@ -686,8 +686,8 @@ class TuiManager {
     return fmt.prettyDuration(durationInMs);
   }
 
-  getLink(link: Parameters<typeof fmt.namedLink>[0], placeholder: string): string {
-    return fmt.namedLink(link, placeholder);
+  getLink(url: string, placeholder: string): string {
+    return fmt.namedLink(url, placeholder);
   }
 
   prettyCommand(command: string): string {

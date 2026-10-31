@@ -10,6 +10,7 @@
  * of the other, because the missions and the composer sit underneath both.
  */
 
+import { stacktapeConsoleUrl } from 'src/config/params';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { detectAgents, type DetectedAgent } from './agent/detect';
@@ -436,6 +437,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     repositoryPath: repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
     ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
+    consoleUrl: new URL(stacktapeConsoleUrl()).origin,
     agents: agentOptions(available, agent),
     ...(mode === undefined ? {} : { mode }),
     ...(options.preferences === undefined ? {} : { preferences: options.preferences }),

@@ -132,6 +132,8 @@ export type WizardState = {
   existingConfig?: string;
   /** The `--awsAccount` this run was started with; copyable commands name it. */
   awsAccount?: string;
+  /** The Console the CLI talks to, without a trailing slash. Links on the page go there, not always to production. */
+  consoleUrl?: string;
   /** How the project can be read, best first. Offered before anything runs. */
   agents?: WizardAgentOption[];
   /** What the user picked on the first screen. */

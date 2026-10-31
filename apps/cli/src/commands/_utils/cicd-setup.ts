@@ -1,3 +1,4 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -48,8 +49,7 @@ const connectGitProvider = async ({
   owner: string;
   repository: string;
 }): Promise<GitProviderConnection | undefined> => {
-  const consoleUrl = process.env.STACKTAPE_CONSOLE_URL || 'https://console.stacktape.com';
-  const connectionUrl = new URL('/git-integrations', consoleUrl);
+  const connectionUrl = new URL(stacktapeConsoleUrl('/git-integrations'));
   connectionUrl.searchParams.set('org', globalStateManager.organizationData!.id);
   connectionUrl.searchParams.set('connect', provider);
 

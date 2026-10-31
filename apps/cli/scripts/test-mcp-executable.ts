@@ -11,6 +11,7 @@ import { isWindowsPlatform } from '@utils/platform';
 import { withPersistedApiKey } from '../src/app/global-state-manager/api-key-storage';
 import type { PersistedState } from '../src/app/global-state-manager/types';
 import { buildBinaryFile, copyMcpDocs } from './release/build-cli-sources';
+import { runRawMcpSession } from './mcp-stdout-session';
 import packageJson from '../package.json';
 
 type RetrievalFixture = {
@@ -334,6 +335,14 @@ const verify = async () => {
       await legacyClient.close();
       await legacyTransport.close();
     }
+    // Clients parse every stdout line as JSON-RPC: nothing else may reach stdout, including the CLI's shutdown output.
+    const rawSession = await runRawMcpSession({ command: [binary, 'mcp'], cwd: project, env });
+    assert.equal(rawSession.exitCode, 0, rawSession.stderr);
+    assert.deepEqual(rawSession.nonProtocolLines, [], rawSession.stderr);
+    assert.deepEqual(
+      rawSession.frames.map(({ id }) => id),
+      [1, 2]
+    );
     client = new Client(
       { name: 'j12-executable-client', version: '1.0.0' },
       {

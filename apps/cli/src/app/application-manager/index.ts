@@ -1,3 +1,4 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import { pendingOperations } from '../command-lifecycle/pending-operations';
 import type { CleanupHookFunction } from './types';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -33,7 +34,7 @@ export const normalizeCliError = (value: unknown): HandledError => {
   if (error instanceof CliError) {
     // Raw AWS, CloudFormation and container text gets its plain explanation first; the message itself stays as it was.
     const explanations = explainFailure(stripAnsi(error.message))
-      .map((explanation) => failureExplanationText(explanation))
+      .map((explanation) => failureExplanationText(explanation, new URL(stacktapeConsoleUrl()).origin))
       .filter((hint) => !error.hints.includes(hint));
     error.hints.unshift(...explanations);
   }

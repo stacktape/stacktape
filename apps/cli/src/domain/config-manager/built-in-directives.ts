@@ -1,7 +1,8 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { getAtt, importValue, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { Directive } from '@domain-services/config-manager/directive-types';
-import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
+import { IDENTIFIER_FOR_MISSING_OUTPUT } from '@config';
 import type { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { stackManager } from '@domain-services/cloudformation-stack-manager';
 import type { configManager } from '@domain-services/config-manager';
@@ -519,7 +520,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SSM_PARAMETER_UNRESOLVED',
             message: `Cannot resolve container secret \`$SsmParam('${paramName}')\`.\n${String(error)}`,
-            hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${linksMap.ssmParams}`,
+            hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`,
             cause: error
           });
         }
@@ -546,7 +547,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_SSM_PARAMETER_UNRESOLVED',
             message: `Cannot resolve \`$SsmParam('${paramReference}')\`.\n${String(error)}`,
-            hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${linksMap.ssmParams}`,
+            hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`,
             cause: error
           });
         }

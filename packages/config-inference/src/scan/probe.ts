@@ -15,7 +15,13 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { ExistingDeploymentFact } from '../facts/existing-deployment';
-import type { MigrationFact, PackageManager, HandlerFinding, ImportGap } from '../facts/project-facts';
+import type {
+  MigrationFact,
+  PackageManager,
+  HandlerFinding,
+  ImportGap,
+  NonServiceListener
+} from '../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import type { ReadSourceFileOptions, SourceRead } from './read-source';
@@ -79,6 +85,8 @@ export type ProbeOutput = {
   packageManager?: PackageManager;
   workspaceGlobs?: string[];
   handlerFindings?: HandlerFinding[];
+  /** Listener files of command-line tools and libraries, which init left out. */
+  nonServiceListeners?: NonServiceListener[];
   importGaps?: ImportGap[];
   /**
    * What an importer deliberately left out, so another probe that finds the same code does not bring it back: entry

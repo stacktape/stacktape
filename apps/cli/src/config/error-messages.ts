@@ -1,3 +1,4 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import type { GlobalStateConnectedAwsAccount } from '@application-services/global-state-manager/types';
 import { CliError, type ErrorCategory } from '@utils/errors';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
@@ -31,7 +32,6 @@ import type { ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { getApexDomain } from '@utils/domains';
 
-const STACKTAPE_DOMAINS_CONSOLE_URL = 'https://console.stacktape.com/domains';
 const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/other-resources/domains-and-certificates/';
 
 const wrap = (
@@ -219,7 +219,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
           'blue',
           'example.com'
         )} or ${colorize('blue', 'api.internal.example.com')}.`,
-        `Manage and verify your domains in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
+        `Manage and verify your domains in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`
       ]
     };
   },
@@ -236,7 +236,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       type: 'DOMAIN_MANAGEMENT',
       message: `No suitable TLS certificate found for domain ${bold(fullDomainName)} in region ${region}.`,
       hint: [
-        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`,
         `If you manage certificates yourself, use ${prettyConfigProperty(
           'customCertificateArn'
         )} (or ${prettyConfigProperty('customCertificateArns')} on load balancer listeners).`,
@@ -251,7 +251,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         fullDomainName
       )} is not validated yet. Current status: ${certificateStatus}.`,
       hint: [
-        `Open Stacktape Console to check domain and certificate validation status: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `Open Stacktape Console to check domain and certificate validation status: ${stacktapeConsoleUrl('/domains')}`,
         'If you added the domain recently, validation can take a few minutes.'
       ]
     };
@@ -272,7 +272,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         getApexDomain(domainName)
       )} are not delegated to the hosted zone in your AWS account.`,
       hint: [
-        `Manage domain setup in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `Manage domain setup in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`,
         desiredNameServers
           ? `At your registrar, update name servers to:\n${colorize(
               'cyan',
@@ -393,7 +393,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       type: 'AWS_ACCOUNT',
       message: `There is no AWS account connected to your organization ${bold(organizationName)}.`,
       hint: [
-        `You can connect AWS account to your Stacktape organization in ${namedLink('connectedAwsAccounts', 'console')}`
+        `You can connect AWS account to your Stacktape organization in ${namedLink(stacktapeConsoleUrl('/aws-accounts'), 'console')}`
       ]
     };
   },
@@ -419,7 +419,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         getApexDomain(domainName)
       )} are not delegated to your AWS account, or the domain is not configured in Stacktape yet.`,
       hint: [
-        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`,
         `If you manage DNS yourself, set ${prettyConfigProperty(
           'disableDnsRecordCreation'
         )} to ${bold('true')} and specify ${prettyConfigProperty('customCertificateArn')}.`,
@@ -579,7 +579,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       type: 'CONFIG_VALIDATION',
       message: [
         `Error in the config. When using third-party resources from ${bold(providerType)} you must provide credentials for the ${bold(providerType)} provider in one of these ways:`,
-        `  1. Add the provider's credentials on the Third-party providers page of the Stacktape Console ${namedLink('console', 'here')}`,
+        `  1. Add the provider's credentials on the Third-party providers page of the Stacktape Console ${namedLink(stacktapeConsoleUrl('/'), 'here')}`,
         `  2. Specify credentials in the ${prettyConfigProperty('providerConfig')} section in your stacktape config file.`
       ].join('\n')
     };
@@ -644,7 +644,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
     return {
       type: 'API_KEY',
       message: `Operation "${operation}" requires a Stacktape API key configured on your system.`,
-      hint: `You can get your API key in the ${namedLink('apiKeys', 'console')}.`
+      hint: `You can get your API key in the ${namedLink(stacktapeConsoleUrl('/api-keys'), 'console')}.`
     };
   },
   e502({ message, freePlanLimit }: CanDeployResponse): ReturnedError {
@@ -652,7 +652,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       return {
         type: 'SUBSCRIPTION_REQUIRED',
         message: message || 'Your organization cannot deploy on its current plan.',
-        hint: `You can upgrade your subscription plan in the ${namedLink('subscription', 'console')}.`
+        hint: `You can upgrade your subscription plan in the ${namedLink(stacktapeConsoleUrl('/subscription-plans'), 'console')}.`
       };
     }
     const usd = (amount: number) =>
@@ -770,10 +770,7 @@ export const hintMessages = {
       `Are you sure you are using correct Stacktape organization and AWS account? Current organization: ${bold(
         organizationName
       )} and AWS account ${bold(awsAccountName)}.`,
-      `You can check which AWS accounts are connected to your organization in ${namedLink(
-        'connectedAwsAccounts',
-        'console'
-      )}`
+      `You can check which AWS accounts are connected to your organization in ${namedLink(stacktapeConsoleUrl('/aws-accounts'), 'console')}`
     ];
   },
   weakCredentials({ credentials, profile }: { credentials: ValidatedAwsCredentials; profile: string }): string[] {
@@ -789,7 +786,7 @@ export const hintMessages = {
     return [
       `If you do not own a domain, you can register/buy a domain in the AWS console: https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration:
 Prices of domains start at $3/year for ${colorize('gray', '.click')} domains.
-After purchase, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
+After purchase, configure and verify the domain in Stacktape Console: ${stacktapeConsoleUrl('/domains')}`
     ];
   }
 };

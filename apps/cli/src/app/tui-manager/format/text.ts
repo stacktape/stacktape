@@ -1,5 +1,4 @@
 import { publicFlag, publicCommandName } from '../../../config/cli/public-names';
-import { linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@utils/fs-utils';
 import kleur from 'kleur';
 import terminalLink from 'terminal-link';
@@ -37,8 +36,7 @@ const underline = (text: string): string => {
 export const styledLink = (url: string, placeholder: string): string =>
   colorize('blue', terminalLink(placeholder, url));
 
-export const namedLink = (link: keyof typeof linksMap, placeholder: string): string => {
-  const url = linksMap[link];
+export const namedLink = (url: string, placeholder: string): string => {
   return colorize('cyan', terminalLink(placeholder, url.endsWith('/') ? `${url.slice(0, -1)} ` : url));
 };
 

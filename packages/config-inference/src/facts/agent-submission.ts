@@ -450,6 +450,8 @@ export const mergeAgentSubmission = ({
     localScripts: baseline.localScripts,
     // Not on the agent's schema: handler files the scan found and could not map.
     handlerFindings: baseline.handlerFindings,
+    // Not on the agent's schema: listener files the scan judged not to be services.
+    nonServiceListeners: baseline.nonServiceListeners,
     // Not on the agent's schema: declared settings the importers could not carry.
     importGaps: baseline.importGaps,
     uncertainties,

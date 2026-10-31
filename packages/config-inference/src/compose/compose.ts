@@ -14,7 +14,13 @@
 import type { Citation } from '../facts/citation';
 import { resourceKindNamedBy, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
-import type { ImportConcern, ImportGap, PackageManager, ProjectFacts } from '../facts/project-facts';
+import type {
+  ImportConcern,
+  ImportGap,
+  NonServiceListener,
+  PackageManager,
+  ProjectFacts
+} from '../facts/project-facts';
 import { posix } from 'node:path';
 import {
   DIRECT_INVOCATION_SOURCE,
@@ -103,6 +109,16 @@ const importGapMessage = ({ file, object, keys, effect, concern }: ImportGap): s
     return `${file} declares ${quotedList(keys)}, which init did not import from it. Before deploying, check that the configuration has what the app needs from ${keys.length === 1 ? 'it' : 'them'}.`;
   }
   return `${file}: init did not carry ${quotedList(keys)} of \`${object}\`${consequence}. Before deploying, set the Stacktape equivalent, or confirm the app works without ${keys.length === 1 ? 'it' : 'them'}.`;
+};
+
+const nonServiceListenerMessage = ({ path, packagePath, reason }: NonServiceListener): string => {
+  const why =
+    reason === 'command-line-tool'
+      ? `${packagePath} is a command-line tool: its package.json declares bin, and its listener only runs while the tool does, for example during a login`
+      : reason === 'tooling-directory'
+        ? `${packagePath} is a tooling directory, and its listener is a sign-in callback, listens only on the loopback address, or is a program that starts no server`
+        : `${path} listens only on the loopback address, which no other machine or container can reach`;
+  return `${why}. No Procfile, Dockerfile or start script runs ${packagePath} as a server, so init created no service for ${path}. If it is a service, add one with the command that starts it.`;
 };
 
 /** A setting the code reads with no fallback, which nothing in the configuration sets. */
@@ -2054,6 +2070,10 @@ export const composeConfig = ({
 
   for (const importGap of facts.importGaps) {
     gaps.push({ subject: `${importGap.file}:${importGap.object}`, message: importGapMessage(importGap) });
+  }
+
+  for (const listener of facts.nonServiceListeners) {
+    gaps.push({ subject: listener.path, message: nonServiceListenerMessage(listener) });
   }
 
   for (const handler of facts.handlerFindings) {

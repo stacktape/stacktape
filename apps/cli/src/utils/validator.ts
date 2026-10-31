@@ -1,3 +1,4 @@
+import { stacktapeConsoleUrl } from 'src/config/params';
 import type { getAwsCredentialsIdentity } from 'src/aws/identity';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
@@ -387,7 +388,7 @@ export const validateAwsAccountUsability = ({
       message: `AWS account \`${account.name}\` (${account.awsAccountId || 'no account ID'}) in organization \`${organization.name}\` is in state \`${account.state}\` and cannot be used.`,
       hints:
         account.state === 'PENDING'
-          ? 'Finish connecting the account at https://console.stacktape.com/aws-accounts.'
+          ? `Finish connecting the account at ${stacktapeConsoleUrl('/aws-accounts')}.`
           : 'Contact Stacktape support at support@stacktape.com.'
     });
   }

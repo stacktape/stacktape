@@ -1,3 +1,4 @@
+import { stageConsoleUrl } from 'src/config/params';
 import { prepareStageNetwork } from '@domain-services/shared-network';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
@@ -143,7 +144,7 @@ export const deployWithEc2Runner = async () => {
   }
   commandLifecycle.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
 
-  const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
+  const consoleUrl = stageConsoleUrl({ projectName: stackContext.projectName, stage: stackContext.stage });
 
   tuiManager.setPendingCompletion({
     success: true,
