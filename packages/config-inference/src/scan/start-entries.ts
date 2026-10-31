@@ -35,26 +35,8 @@ const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs',
 const MODULE_EXTENSIONS = ['', ...SOURCE_EXTENSIONS, ...SOURCE_EXTENSIONS.map((extension) => `/index${extension}`)];
 /** Directories a build writes compiled JavaScript to. */
 const OUTPUT_DIRECTORIES = new Set(['dist', 'build', 'out', 'lib', 'output', '.output', 'compiled']);
-/** Flags of `node` and its wrappers that take the next word as their value. */
-const VALUE_FLAGS = new Set([
-  '-e',
-  '--eval',
-  '-p',
-  '--print',
-  '-r',
-  '--require',
-  '--import',
-  '--loader',
-  '--experimental-loader',
-  '-i',
-  '--env-file'
-]);
-/** Runners whose first non-flag word is the file they run. */
-const FILE_RUNNER =
-  /^(?:node|nodemon|ts-node|ts-node-dev|tsx|bun|babel-node|esno|esr|node-dev|deno\s+run|pm2-runtime\s+start|pm2\s+start|forever\s+start)(?:\s+(.*))?$/;
 /** `npm run x`, `npm start`, `yarn x`, `pnpm x`, `pnpm run x`, `bun run x`: another script of the same package. */
 const SCRIPT_REFERENCE = /^(?:npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+)?([\w:.-]+)(?:\s|$)/;
-const PACKAGE_MANAGER_COMMANDS = new Set(['install', 'add', 'exec', 'dlx', 'x', 'ci', 'run', 'test', 'build']);
 
 const join = (root: string, path: string): string =>
   posix.normalize(root === '.' ? path : posix.join(root, path)).replace(/^\.\//, '');
@@ -146,6 +128,10 @@ const readTsconfig = async (
   };
 };
 
+/** The `*` position of a tsconfig `paths` pattern; an exact pattern sorts before every wildcard. */
+const prefixLength = (pattern: string): number =>
+  pattern.includes('*') ? pattern.indexOf('*') : Number.POSITIVE_INFINITY;
+
 /**
  * Resolves the modules a file imports to project files: relative specifiers, and the aliases the nearest tsconfig's
  * `paths` and `baseUrl` declare (`@server/*`, `src/...`).
@@ -165,12 +151,15 @@ export const createModuleResolver = (context: ProbeContext) => {
     tsconfigs.set(directory, found);
     return found;
   };
-  const existing = (base: string): string | undefined => {
+  /** The source file a module path names; a directory's `index` only when `directories` allows it. */
+  const existing = (base: string, directories = true): string | undefined => {
     const normalized = posix.normalize(base).replace(/^\.\//, '');
     // A TypeScript source imports `./socket.js` for `./socket.ts`.
     const stem = normalized.replace(/\.[cm]?jsx?$/, '');
     return [normalized, stem]
-      .flatMap((candidate) => MODULE_EXTENSIONS.map((extension) => `${candidate}${extension}`))
+      .flatMap((candidate) =>
+        (directories ? MODULE_EXTENSIONS : ['', ...SOURCE_EXTENSIONS]).map((extension) => `${candidate}${extension}`)
+      )
       .find((candidate) => files.has(candidate) && /\.[cm]?[jt]sx?$/.test(candidate));
   };
   const resolve = async (from: string, specifier: string): Promise<string | undefined> => {
@@ -179,7 +168,11 @@ export const createModuleResolver = (context: ProbeContext) => {
     const tsconfig = await nearestTsconfig(posix.dirname(from));
     if (tsconfig === undefined) return undefined;
     const base = tsconfig.baseUrl ?? tsconfig.directory;
-    for (const [pattern, targets] of Object.entries(tsconfig.paths ?? {})) {
+    // TypeScript tries an exact pattern first, then the wildcard with the longest prefix, whatever the declared order.
+    const patterns = Object.entries(tsconfig.paths ?? {}).toSorted(
+      ([left], [right]) => prefixLength(right) - prefixLength(left)
+    );
+    for (const [pattern, targets] of patterns) {
       const star = pattern.indexOf('*');
       const matched =
         star === -1
@@ -205,43 +198,53 @@ export type ModuleResolver = ReturnType<typeof createModuleResolver>;
 
 /** Every module a file names: `import ... from`, `export ... from`, `import('...')`, `require('...')`. */
 const MODULE_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"\n]+)['"]/g;
+/** A module named at run time (`import(file)`, `require(name)`, a template literal): the graph is incomplete. */
+const COMPUTED_IMPORT = /\b(?:import|require)\s*\(\s*(?!['"\s)])/;
 
 /**
  * The project files reachable from `entry` through imports, in breadth-first order (`entry` first), so the first
- * listener found is the one closest to what the start command runs.
+ * listener found is the one closest to what the start command runs. `complete` is false when a reached file loads a
+ * module whose name is computed at run time: that module may be anything.
  */
 export const reachableFrom = async (
   entry: string,
   context: ProbeContext,
   resolver: ModuleResolver,
-  importsCache: Map<string, Promise<string[]>>
-): Promise<string[]> => {
-  const importsOf = (path: string): Promise<string[]> => {
+  importsCache: Map<string, Promise<{ targets: string[]; computed: boolean }>>
+): Promise<{ order: string[]; complete: boolean }> => {
+  const importsOf = (path: string): Promise<{ targets: string[]; computed: boolean }> => {
     const cached = importsCache.get(path);
     if (cached !== undefined) return cached;
     const found = (async () => {
       const raw = await readText(context, path, { fullFile: true });
-      if (raw === undefined) return [];
+      if (raw === undefined) return { targets: [], computed: false };
+      const keep = maskFile(path, raw, 'keep');
       const targets = await Promise.all(
-        [...maskFile(path, raw, 'keep').matchAll(MODULE_SPECIFIER)].map((match) => resolver.resolve(path, match[1]!))
+        [...keep.matchAll(MODULE_SPECIFIER)].map((match) => resolver.resolve(path, match[1]!))
       );
-      return targets.filter((target): target is string => target !== undefined);
+      return {
+        targets: targets.filter((target): target is string => target !== undefined),
+        computed: COMPUTED_IMPORT.test(keep)
+      };
     })();
     importsCache.set(path, found);
     return found;
   };
   const order = [entry];
   const seen = new Set(order);
+  let complete = true;
   for (let index = 0; index < order.length; index += 1) {
     // oxlint-disable-next-line no-await-in-loop -- breadth-first order decides which listener is closest.
-    for (const target of await importsOf(order[index]!)) {
+    const { targets, computed } = await importsOf(order[index]!);
+    if (computed) complete = false;
+    for (const target of targets) {
       if (!seen.has(target)) {
         seen.add(target);
         order.push(target);
       }
     }
   }
-  return order;
+  return { order, complete };
 };
 
 /** The words of a command after environment assignments and `cross-env`/`dotenv --` wrappers. */
@@ -249,7 +252,7 @@ const commandWords = (segment: string): string[] => {
   const words = segment.trim().split(/\s+/).filter(Boolean);
   while (words.length > 0) {
     const first = words[0]!;
-    if (/^[A-Z_][A-Z0-9_]*=/.test(first) || first === 'cross-env' || first === 'env') words.shift();
+    if (/^[A-Z_][A-Z0-9_]*=/.test(first) || first === 'cross-env' || first === 'env' || first === 'exec') words.shift();
     else if ((first === 'dotenv' || first === 'env-cmd') && words.includes('--'))
       words.splice(0, words.indexOf('--') + 1);
     else break;
@@ -257,55 +260,226 @@ const commandWords = (segment: string): string[] => {
   return words;
 };
 
-/** The file a runner command names (`node --enable-source-maps dist/main.mjs` names `dist/main.mjs`). */
-const runnerFile = (words: readonly string[]): string | undefined => {
-  const match = FILE_RUNNER.exec(words.join(' '));
-  if (match === null) return undefined;
-  const rest = (match[1] ?? '').split(/\s+/).filter(Boolean);
-  for (let index = 0; index < rest.length; index += 1) {
-    const word = rest[index]!;
+/**
+ * Runners whose first operand is the file they run: the flags of each that take the next word as their value
+ * (`--flag=value` needs no entry), the mode words that come before the file (`tsx watch`, `pm2 start`), and whether
+ * `-e`/`-p` runs inline code instead of a file. Flags that load a module first (`-r`, `--import`, `--preload`) name
+ * files that run too.
+ */
+const NODE_FLAGS = [
+  '-r',
+  '--require',
+  '--import',
+  '--loader',
+  '--experimental-loader',
+  '--env-file',
+  '-C',
+  '--conditions',
+  '--title',
+  '--inspect-port',
+  '--stack-size'
+];
+type Runner = { command: RegExp; values: ReadonlySet<string>; modes: ReadonlySet<string>; evaluates: boolean };
+const RUNNERS: readonly Runner[] = [
+  { command: /^node$/, values: new Set(NODE_FLAGS), modes: new Set(), evaluates: true },
+  {
+    command: /^nodemon$/,
+    values: new Set([
+      ...NODE_FLAGS,
+      '-w',
+      '--watch',
+      '-e',
+      '--ext',
+      '-x',
+      '--exec',
+      '-i',
+      '--ignore',
+      '-d',
+      '--delay',
+      '--signal',
+      '--config'
+    ]),
+    modes: new Set(),
+    evaluates: false
+  },
+  {
+    command: /^(?:ts-node|ts-node-dev|tsnd)$/,
+    values: new Set([
+      ...NODE_FLAGS,
+      '-P',
+      '--project',
+      '-O',
+      '--compiler-options',
+      '--compiler',
+      '-I',
+      '--ignore',
+      '--cwd',
+      '--scope-dir',
+      '--respawn-delay',
+      '--watch',
+      '--ignore-watch'
+    ]),
+    modes: new Set(),
+    evaluates: true
+  },
+  {
+    command: /^(?:tsx|esno|esr|babel-node|node-dev)$/,
+    values: new Set([...NODE_FLAGS, '--tsconfig', '--include', '--exclude', '--ignore', '--config-file']),
+    modes: new Set(['watch']),
+    evaluates: true
+  },
+  {
+    command: /^bun$/,
+    values: new Set(['-r', '--preload', '--cwd', '-c', '--config', '--env-file', '--tsconfig-override', '--port']),
+    modes: new Set(['run']),
+    evaluates: true
+  },
+  {
+    command: /^deno$/,
+    values: new Set(['-c', '--config', '--import-map', '--env-file', '--location', '--seed', '--v8-flags', '--lock']),
+    modes: new Set(['run']),
+    evaluates: false
+  },
+  {
+    command: /^(?:pm2|pm2-runtime)$/,
+    values: new Set([
+      '-n',
+      '--name',
+      '-i',
+      '--instances',
+      '--max-memory-restart',
+      '--node-args',
+      '--interpreter',
+      '--interpreter-args',
+      '--env',
+      '-o',
+      '--output',
+      '-e',
+      '--error',
+      '-l',
+      '--log',
+      '--cwd',
+      '--cron',
+      '--restart-delay',
+      '--max-restarts',
+      '--namespace',
+      '--kill-timeout'
+    ]),
+    modes: new Set(['start']),
+    evaluates: false
+  },
+  {
+    command: /^forever$/,
+    values: new Set(['-l', '-o', '-e', '-c', '-p', '-m', '--uid', '--minUptime', '--spinSleepTime', '--sourceDir']),
+    modes: new Set(['start']),
+    evaluates: false
+  }
+];
+const EVAL_FLAGS = new Set(['-e', '--eval', '-p', '--print']);
+const PRELOAD_FLAGS = new Set(['-r', '--require', '--import', '--preload']);
+/** Commands that start a framework's own server, so no project file of the package is its entry. */
+const FRAMEWORK_SERVER =
+  /^(?:next|nuxt|nuxi|remix-serve|react-router-serve|astro|vite|svelte-kit|gatsby|serve|http-server|docusaurus|ng|react-scripts|strapi|sails|meteor|blitz|rw|redwood|medusa|keystone|payload|directus|vinxi)$/;
+
+type RunnerFiles = { files: string[]; resolved: boolean };
+
+const relativeModule = (value: string | undefined): string | undefined =>
+  value !== undefined && /^\.\.?\//.test(value) ? value.replace(/^\.\//, '') : undefined;
+
+/**
+ * The files a runner command runs (`node --enable-source-maps dist/main.mjs` runs `dist/main.mjs`), or `undefined` when
+ * the command is no runner. `.` names the package itself.
+ */
+const runnerFiles = (words: readonly string[]): RunnerFiles | undefined => {
+  const runner = RUNNERS.find(({ command }) => command.test(words[0] ?? ''));
+  if (runner === undefined) return undefined;
+  const files: string[] = [];
+  let modes = true;
+  for (let index = 1; index < words.length; index += 1) {
+    const word = words[index]!;
     if (word.startsWith('-')) {
-      if (VALUE_FLAGS.has(word)) index += 1;
+      const [flag, inline] = word.split('=', 2) as [string, string | undefined];
+      if (runner.evaluates && EVAL_FLAGS.has(flag)) return { files: [], resolved: false };
+      const value = inline ?? (runner.values.has(flag) ? words[index + 1] : undefined);
+      if (inline === undefined && runner.values.has(flag)) index += 1;
+      const preload = PRELOAD_FLAGS.has(flag) ? relativeModule(value) : undefined;
+      if (preload !== undefined) files.push(preload);
       continue;
     }
-    // `tsx watch src/index.ts`, `bun run src/index.ts`.
-    if (word === 'watch' || word === 'run') continue;
-    if (word === '.' || word === './') return '';
-    return /^[\w./@-]+$/.test(word) && !word.includes('node_modules') ? word.replace(/^\.\//, '') : undefined;
+    if (modes && runner.modes.has(word)) {
+      modes = false;
+      continue;
+    }
+    // `bun run start` runs a script, not a file.
+    if (words[0] === 'bun' && !/[./]/.test(word)) return undefined;
+    if (word === '.' || word === './') return { files: [...files, '.'], resolved: true };
+    if (!/^[\w./@-]+$/.test(word) || word.includes('node_modules')) return { files, resolved: false };
+    return { files: [...files, word.replace(/^\.\//, '')], resolved: true };
   }
-  return undefined;
+  return { files, resolved: false };
 };
 
 type Manifest = { scripts: Record<string, string>; raw: Record<string, unknown> };
 
+/** What a command runs: the package-relative files of its long-running process, and whether all of it was read. */
+type CommandFiles = { files: string[]; resolved: boolean };
+
 /**
  * The files one command runs, relative to the package: runner commands, references to the package's other scripts,
- * and `nest start`. Shell chains are split; each part may run a file.
+ * and `nest start`. In `a && b; c` only the last statement is the process that keeps running; the ones before it
+ * finish first (a build, a migration), except `cd`, which moves the rest. `a & b` runs both. Anything else (`sh
+ * start.sh`, a process-manager configuration, inline code) leaves the command unresolved.
  */
 const filesOfCommand = (
   command: string,
   manifest: Manifest | undefined,
   nestEntry: string | undefined,
   depth = 0
-): string[] => {
-  if (depth > 3) return [];
-  return command.split(/&&|\|\||;/).flatMap((segment): string[] => {
-    const words = commandWords(
-      segment.replace(/^\s*exec\s+/, '').replace(/^\s*(?:sh|bash)\s+-c\s+["']?|["']\s*$/g, '')
-    );
-    const file = runnerFile(words);
-    // `node .` runs the package's `main`.
-    if (file === '.' || file === '') return [stringOf(manifest?.raw.main) ?? 'index.js'];
-    if (file !== undefined) return [file];
-    if (words[0] === 'nest' && words[1] === 'start') return nestEntry === undefined ? [] : [nestEntry];
+): CommandFiles => {
+  if (depth > 3) return { files: [], resolved: false };
+  const unwrapped = command.trim().replace(/^(?:\/bin\/)?(?:sh|bash)\s+-c\s+(["']?)([\s\S]*)\1$/, '$2');
+  const statements = unwrapped
+    .split(/&&|;|\n/)
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  let directory = '';
+  for (const statement of statements.slice(0, -1)) {
+    const cd = /^cd\s+(?:\.\/)?([\w./-]+)$/.exec(statement);
+    if (cd !== null) directory = posix.join(directory, cd[1]!);
+  }
+  const last = statements.at(-1);
+  if (last === undefined) return { files: [], resolved: false };
+  const results = last.split(/\|\||(?<![&>])&(?!&)/).map((part): CommandFiles => {
+    const words = commandWords(part);
+    const runner = runnerFiles(words);
+    if (runner !== undefined) {
+      return {
+        // `node .` runs the package's `main`.
+        files: runner.files.map((file) =>
+          file === '.' ? (stringOf(manifest?.raw.main) ?? 'index.js') : posix.join(directory, file)
+        ),
+        resolved: runner.resolved
+      };
+    }
+    if (words[0] === 'nest' && words[1] === 'start') {
+      return nestEntry === undefined ? { files: [], resolved: false } : { files: [nestEntry], resolved: true };
+    }
+    if (FRAMEWORK_SERVER.test(words[0] ?? '')) return { files: [], resolved: true };
     const reference = SCRIPT_REFERENCE.exec(words.join(' '));
     // `npm run --prefix server start` runs another package.
-    if (reference === null || words.some((word) => word.startsWith('--prefix') || word === '--filter')) return [];
+    if (
+      reference === null ||
+      directory !== '' ||
+      words.some((word) => word.startsWith('--prefix') || word === '--filter')
+    ) {
+      return { files: [], resolved: false };
+    }
     const name = reference[1]!;
-    if (PACKAGE_MANAGER_COMMANDS.has(name) && manifest?.scripts[name] === undefined) return [];
     const script = manifest?.scripts[name];
-    return script === undefined ? [] : filesOfCommand(script, manifest, nestEntry, depth + 1);
+    if (script === undefined) return { files: [], resolved: false };
+    return filesOfCommand(script, manifest, nestEntry, depth + 1);
   });
+  return { files: results.flatMap((result) => result.files), resolved: results.every((result) => result.resolved) };
 };
 
 /** The last `CMD`/`ENTRYPOINT` of a Dockerfile as a shell command (exec form joined with spaces). */
@@ -317,7 +491,9 @@ const dockerfileCommand = (raw: string): string | undefined => {
   if (!value.startsWith('[')) return value;
   try {
     const parts: unknown = JSON.parse(value);
-    return Array.isArray(parts) && parts.every((part) => typeof part === 'string') ? parts.join(' ') : undefined;
+    return Array.isArray(parts) && parts.every((part) => typeof part === 'string')
+      ? parts.map((part) => (/\s/.test(part) ? `"${part}"` : part)).join(' ')
+      : undefined;
   } catch {
     return undefined;
   }
@@ -326,15 +502,16 @@ const dockerfileCommand = (raw: string): string | undefined => {
 const WORKER_SCRIPT = /(?:^|:)(?:worker|workers|queue|queue-worker|consumer|jobs?)(?::prod(?:uction)?)?$/i;
 
 /**
- * The start files of the JavaScript package at `root`, strongest first. Compiled paths are read back to their source
- * (`dist/main.js` to `src/main.ts`) through the tsconfig `outDir`/`rootDir`, or a conventional output directory; a path
- * with no source in the repository is left out rather than guessed.
+ * The start files of the JavaScript package at `root`, strongest first, and whether every start command was read
+ * (`resolved`). Compiled paths are read back to their source (`dist/main.js` to `src/main.ts`) through the tsconfig
+ * `outDir`/`rootDir`, or a conventional output directory; a path with no source in the repository is left out rather
+ * than guessed, and leaves the command unresolved.
  */
 export const startEntriesOf = async (
   root: string,
   context: ProbeContext,
   resolver: ModuleResolver
-): Promise<StartEntry[]> => {
+): Promise<{ entries: StartEntry[]; resolved: boolean }> => {
   const files = new Set(context.files);
   const manifestRaw = parseJson(
     files.has(join(root, 'package.json'))
@@ -365,10 +542,15 @@ export const startEntriesOf = async (
       ['tsconfig.build.json', 'tsconfig.json'].map((name) => readTsconfig(context, join(root, name), files))
     )
   ).filter((entry): entry is TsconfigOptions => entry !== undefined);
-  /** The source a package-relative path runs from, when the repository holds it. */
+  const main = manifest === undefined ? undefined : stringOf(manifest.raw.main);
+  /**
+   * The source a package-relative path runs from, when the repository holds it. A directory is no entry, except the
+   * package's own `main`, which Node resolves like a module.
+   */
   const toSource = (file: string): string | undefined => {
     // A process manager's configuration (`pm2-runtime start ecosystem.config.js`) names no application file.
     if (/(?:^|\/)(?:ecosystem|[\w-]+\.config)\.[cm]?js$/.test(file)) return undefined;
+    const directories = main !== undefined && posix.normalize(file) === posix.normalize(main);
     const path = join(root, file);
     const compiled: string[] = [];
     for (const tsconfig of tsconfigs) {
@@ -382,18 +564,33 @@ export const startEntriesOf = async (
     }
     // The source of a compiled path comes first; the path itself only when it is a source (`lib/` often is).
     for (const base of [...compiled, path]) {
-      const found = resolver.existing(base);
+      const found = resolver.existing(base, directories);
       if (found !== undefined) return found;
     }
     return undefined;
   };
 
   const entries: StartEntry[] = [];
-  const add = (origin: StartEntryOrigin, commandFiles: readonly string[], processName?: string) => {
-    for (const file of commandFiles) {
+  let resolved = true;
+  const add = (origin: StartEntryOrigin, command: CommandFiles, processName?: string) => {
+    if (!command.resolved) resolved = false;
+    for (const file of command.files) {
+      const source = toSource(file);
+      if (source === undefined) {
+        resolved = false;
+        continue;
+      }
+      if (!entries.some((entry) => entry.file === source && entry.origin === origin)) {
+        entries.push({ file: source, origin, ...(processName === undefined ? {} : { processName }) });
+      }
+    }
+  };
+  /** A convention file: added when it exists, and no command is left unread when it does not. */
+  const addConvention = (origin: StartEntryOrigin, conventionFiles: readonly string[]) => {
+    for (const file of conventionFiles) {
       const source = toSource(file);
       if (source !== undefined && !entries.some((entry) => entry.file === source && entry.origin === origin)) {
-        entries.push({ file: source, origin, ...(processName === undefined ? {} : { processName }) });
+        entries.push({ file: source, origin });
       }
     }
   };
@@ -421,16 +618,15 @@ export const startEntriesOf = async (
       if (WORKER_SCRIPT.test(name)) add('worker-script', filesOfCommand(script, manifest, nestEntry), name);
     }
     // NestJS builds `sourceRoot/entryFile` and `nest start` runs it.
-    if (nestEntry !== undefined) add('nest-convention', [nestEntry]);
+    if (nestEntry !== undefined) addConvention('nest-convention', [nestEntry]);
     // Without a start script, `npm start` runs `node server.js`.
-    if (scripts.start === undefined) add('npm-default', ['server.js']);
-    const main = stringOf(manifest.raw.main);
-    if (main !== undefined) add('main', [main]);
+    if (scripts.start === undefined) addConvention('npm-default', ['server.js']);
+    if (main !== undefined) addConvention('main', [main]);
     const bin = manifest.raw.bin;
-    add(
+    addConvention(
       'bin',
       typeof bin === 'string' ? [bin] : Object.values(recordOf(bin)).filter((value) => typeof value === 'string')
     );
   }
-  return entries;
+  return { entries, resolved };
 };

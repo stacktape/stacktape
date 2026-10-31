@@ -558,6 +558,135 @@ const unstartedGoMains = async (detected: readonly Detected[], context: ProbeCon
   return dropped;
 };
 
+/** Words before `(...)` that open a block, not a function body. */
+const BLOCK_KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'with']);
+
+/** Whether the `{` at `index` of `code` (strings and comments blanked) opens a function body, and the function's name. */
+const functionAt = (code: string, index: number): { opens: boolean; name?: string } => {
+  const before = code.slice(0, index).trimEnd();
+  if (before.endsWith('=>')) return { opens: true, ...arrowName(code, before.length - 2) };
+  if (!before.endsWith(')')) return { opens: false };
+  let depth = 0;
+  let open = before.length - 1;
+  for (; open >= 0; open -= 1) {
+    if (before[open] === ')') depth += 1;
+    else if (before[open] === '(' && --depth === 0) break;
+  }
+  const word = /([A-Za-z_$][\w$]*)\s*$/.exec(before.slice(0, Math.max(open, 0)))?.[1];
+  if (word !== undefined && BLOCK_KEYWORDS.has(word)) return { opens: false };
+  // `function start(`, a method `listen(`, `start = function (` or `start: function (`.
+  const assigned = /([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s+)?function\s*\*?\s*[\w$]*\s*$/.exec(before.slice(0, open));
+  return {
+    opens: true,
+    ...(word !== undefined && word !== 'function' ? { name: word } : assigned ? { name: assigned[1]! } : {})
+  };
+};
+
+/** The name an arrow function at `index` (its `=>`) is assigned to: `start = () =>`, `exports.start = async (x) =>`. */
+const arrowName = (code: string, index: number): { name?: string } => {
+  const name = /([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:\([^()]*\)|[A-Za-z_$][\w$]*)\s*$/.exec(
+    code.slice(0, index)
+  )?.[1];
+  return name === undefined ? {} : { name };
+};
+
+/**
+ * Whether the code at `index` runs when its module loads, and otherwise the name of the outermost function it is in.
+ * Blocks (`if`, `try`, `for`) run; a function body, or an arrow's expression body, runs only when it is called.
+ * `code` has strings and comments blanked, at the same offsets.
+ */
+const loadPosition = (code: string, index: number): { onLoad: boolean; outer?: string; start: number } => {
+  type Frame = {
+    function?: { name?: string; start: number };
+    parens: number;
+    arrows: Array<{ depth: number; name?: string; start: number }>;
+  };
+  const frames: Frame[] = [{ parens: 0, arrows: [] }];
+  for (let at = 0; at < index; at += 1) {
+    const char = code[at]!;
+    const frame = frames.at(-1)!;
+    if (char === '(') frame.parens += 1;
+    else if (char === ')') {
+      frame.parens -= 1;
+      frame.arrows = frame.arrows.filter((arrow) => arrow.depth <= frame.parens);
+    } else if (char === '=' && code[at + 1] === '>') {
+      // An arrow with an expression body; one with a block body opens a function frame at its `{`.
+      if (!/^\s*\{/.test(code.slice(at + 2, at + 40))) {
+        frame.arrows.push({ depth: frame.parens, ...arrowName(code, at), start: at });
+      }
+      at += 1;
+    } else if (char === ';' || (char === ',' && frame.parens === 0)) {
+      frame.arrows = frame.arrows.filter((arrow) => arrow.depth < frame.parens);
+    } else if (char === '\n') {
+      // A statement ends at a line break unless the expression continues (`.listen(...)` on the next line).
+      const next = /\S/.exec(code.slice(at + 1))?.[0];
+      const previous = /(\S)\s*$/.exec(code.slice(0, at))?.[1];
+      if (
+        next !== undefined &&
+        !'.?:)+-*/&|,'.includes(next) &&
+        previous !== undefined &&
+        !'=>(,+-*/&|?:'.includes(previous)
+      ) {
+        frame.arrows = frame.arrows.filter((arrow) => arrow.depth < frame.parens);
+      }
+    } else if (char === '{') {
+      const opened = functionAt(code, at);
+      frames.push({
+        ...(opened.opens
+          ? { function: { ...(opened.name === undefined ? {} : { name: opened.name }), start: at } }
+          : {}),
+        parens: 0,
+        arrows: []
+      });
+    } else if (char === '}' && frames.length > 1) frames.pop();
+  }
+  for (const frame of frames) {
+    const outer = frame.function ?? frame.arrows[0];
+    if (outer !== undefined)
+      return { onLoad: false, ...(outer.name === undefined ? {} : { outer: outer.name }), start: outer.start };
+  }
+  return { onLoad: true, start: 0 };
+};
+
+/**
+ * Whether a listener runs when the started program loads: its `.listen()` is at module level, or it is in a function
+ * that a reached file calls (`void bootstrap()`, `require('./server').start()`). A function nobody calls (an exported
+ * helper) does not run; `undefined` when the scan cannot tell.
+ */
+const listenerRuns = (
+  path: string,
+  code: string,
+  pattern: RegExp,
+  reached: readonly string[],
+  codeOf: (path: string) => string | undefined
+): boolean | undefined => {
+  const match = new RegExp(pattern.source, pattern.flags.replace('g', '')).exec(code);
+  if (match === null) return undefined;
+  const position = loadPosition(code, match.index);
+  if (position.onLoad) return true;
+  if (position.outer === undefined) return undefined;
+  const call = new RegExp(`(?<![\\w$])${escapeRegExp(position.outer)}\\s*\\(`, 'g');
+  /** A call, not the declaration: `name(...) {` and `name(...) =>` declare. */
+  const calls = (text: string, skip?: readonly [number, number]) =>
+    [...text.matchAll(call)].some((found) => {
+      if (skip !== undefined && found.index >= skip[0] && found.index < skip[1]) return false;
+      const after = text.slice(found.index + found[0].length);
+      const close = /^[^()]*\)\s*(\{|=>)?/.exec(after);
+      return close === null || close[1] === undefined;
+    });
+  // The function's own body does not start it (`listen() { this.app.listen() }`).
+  const own = [position.start, match.index + 1] as const;
+  return calls(code, own) || reached.some((file) => file !== path && calls(codeOf(file) ?? ''));
+};
+
+/** Lexicographic order of two ranking tuples. */
+const earlier = (left: readonly number[], right: readonly number[]): boolean => {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    if ((left[index] ?? 0) !== (right[index] ?? 0)) return (left[index] ?? 0) < (right[index] ?? 0);
+  }
+  return false;
+};
+
 type Detected = { path: string; raw: string; code: string; root: string; detection: Detection };
 
 /** A background process the package declares: a Procfile process other than `web`, or a worker script. */
@@ -565,84 +694,106 @@ const declaresBackgroundProcess = (entry: StartEntry): boolean =>
   entry.origin === 'worker-script' || (entry.origin === 'procfile' && entry.processName !== undefined);
 
 /**
- * Which JavaScript listener files the package's own start commands run. In a package whose start script, Procfile,
- * Dockerfile or framework convention names a start file, a listener file no start file imports runs in no process (a
- * React hook's `history.listen()`, a helper, an end-to-end test server), so it is dropped. Of the files a start file
- * reaches, the one closest to the strongest start file wins its service. A queue worker is its own process when a
- * declared background process (`worker: node dist/worker.js`, a `worker` script) or a start file that starts no web
- * server runs it, and that start file is its entry; one only a web process imports runs inside it. A package with no
- * start file the scan can read keeps its first listener file, as before, unless it is a frontend package and the file
- * builds no server.
+ * Which JavaScript listener files the package's own start commands run.
+ *
+ * In a package whose start script, Procfile, Dockerfile or framework convention names a start file, a listener file that
+ * no start file imports runs in no process (a React hook's `history.listen()`, a helper, an end-to-end test server) and
+ * is dropped, but only when every start command was read and no reached file loads a module by a computed name;
+ * otherwise nothing is dropped. A listener whose `.listen()` runs on load, or in a function a reached file calls, wins
+ * over one the scan cannot tell runs; among those, the one closest to the strongest start file wins. Listeners that may
+ * not run keep the first-file order, as before.
+ *
+ * A queue worker is its own process when a declared background process (`worker: node dist/worker.js`, a `worker`
+ * script) or a start file that starts no web server runs it, and that start file is its entry; one only a web process
+ * imports runs inside it. A package with no start file the scan can read keeps its first listener file, as before,
+ * unless it is a frontend package and the file builds no server.
  */
 const startedListeners = async (
   detected: readonly Detected[],
-  context: ProbeContext
+  context: ProbeContext,
+  codeOf: (path: string) => string | undefined
 ): Promise<{
   dropped: ReadonlySet<string>;
   winners: ReadonlyMap<string, string>;
   workers: ReadonlyMap<string, { entrypoint: string; processType: string }>;
 }> => {
   const resolver = createModuleResolver(context);
-  const importsCache = new Map<string, Promise<string[]>>();
+  const importsCache = new Map<string, Promise<{ targets: string[]; computed: boolean }>>();
   const dropped = new Set<string>();
   const winners = new Map<string, string>();
   const workers = new Map<string, { entrypoint: string; processType: string }>();
   for (const root of new Set(detected.map((candidate) => candidate.root))) {
+    const inRoot = detected.filter((candidate) => candidate.root === root);
     // oxlint-disable-next-line no-await-in-loop -- one package at a time keeps the shared import cache warm.
-    const entries = await startEntriesOf(root, context, resolver);
+    const { entries, resolved } = await startEntriesOf(root, context, resolver);
     if (entries.length === 0) {
       // Without a start file, a frontend package's `.listen()` that builds no server is a client-side listener.
       // oxlint-disable-next-line no-await-in-loop -- one manifest per package.
       if (await dependsOnBrowserFramework(root, context)) {
-        for (const { path, raw, code, detection } of detected.filter((candidate) => candidate.root === root)) {
+        for (const { path, raw, code, detection } of inRoot) {
           if (detection.processType === undefined && !startsServer(path, raw, code)) dropped.add(path);
         }
       }
       continue;
     }
     // oxlint-disable-next-line no-await-in-loop -- see above.
-    const reached = await Promise.all(
+    const graphs = await Promise.all(
       entries.map((entry) => reachableFrom(entry.file, context, resolver, importsCache))
     );
-    const best = new Map<string, { path: string; rank: number; order: [number, number] }>();
-    const inRoot = detected.filter((candidate) => candidate.root === root);
+    const reached = graphs.map((graph) => graph.order);
+    // A command the scan could not read, or a module loaded by a computed name, may start any file.
+    const complete = resolved && graphs.every((graph) => graph.complete);
+    const everything = [...new Set(reached.flat())];
     // A start file that reaches a listener starts a web process; a queue worker it reaches runs inside it.
     const startsWebProcess = reached.map((files) =>
       inRoot.some(({ path, detection }) => detection.processType === undefined && files.includes(path))
     );
-    for (const { path, detection } of inRoot) {
+    const best = new Map<string, { path: string; rank: number; order: readonly number[] }>();
+    for (const [position, { path, code, detection }] of inRoot.entries()) {
       const queueWorker = detection.processType !== undefined;
       const reaches = (index: number) => reached[index]!.includes(path);
-      const entryIndex = !queueWorker
-        ? reached.findIndex((_files, index) => reaches(index))
-        : ([
-            reached.findIndex((_files, index) => reaches(index) && declaresBackgroundProcess(entries[index]!)),
-            // A library's `main` or a CLI's `bin` runs no process of its own.
-            reached.findIndex(
-              (_files, index) =>
-                reaches(index) && !startsWebProcess[index] && !['main', 'bin'].includes(entries[index]!.origin)
-            )
-          ].find((index) => index !== -1) ?? -1);
-      if (entryIndex === -1) {
-        dropped.add(path);
-        continue;
-      }
       let processType = detection.processType;
+      let order: readonly number[];
       if (queueWorker) {
-        const entry = entries[entryIndex]!;
-        processType = entry.origin === 'procfile' ? entry.processName! : workerProcessType(entry.file);
-        workers.set(path, { entrypoint: entry.file, processType });
+        const declared = reached.findIndex(
+          (_files, index) => reaches(index) && declaresBackgroundProcess(entries[index]!)
+        );
+        // A library's `main` or a CLI's `bin` runs no process of its own.
+        const ownProcess = reached.findIndex(
+          (_files, index) =>
+            reaches(index) && !startsWebProcess[index] && !['main', 'bin'].includes(entries[index]!.origin)
+        );
+        const entryIndex = declared !== -1 ? declared : complete ? ownProcess : -1;
+        if (entryIndex !== -1) {
+          const entry = entries[entryIndex]!;
+          processType = entry.origin === 'procfile' ? entry.processName! : workerProcessType(entry.file);
+          workers.set(path, { entrypoint: entry.file, processType });
+          order = [0, entryIndex, reached[entryIndex]!.indexOf(path)];
+        } else if (complete) {
+          dropped.add(path);
+          continue;
+        } else {
+          order = [2, position];
+        }
+      } else {
+        const entryIndex = reached.findIndex((_files, index) => reaches(index));
+        if (entryIndex === -1) {
+          if (complete) {
+            dropped.add(path);
+            continue;
+          }
+          order = [2, position];
+        } else {
+          order =
+            listenerRuns(path, code, detection.pattern, everything, codeOf) === true
+              ? [0, entryIndex, reached[entryIndex]!.indexOf(path)]
+              : [1, position];
+        }
       }
-      const order: [number, number] = [entryIndex, reached[entryIndex]!.indexOf(path)];
       const key = `${root}::${processType ?? 'main'}`;
       const rank = detection.rank ?? 1;
       const current = best.get(key);
-      if (
-        current === undefined ||
-        rank > current.rank ||
-        (rank === current.rank &&
-          (order[0] < current.order[0] || (order[0] === current.order[0] && order[1] < current.order[1])))
-      ) {
+      if (current === undefined || rank > current.rank || (rank === current.rank && earlier(order, current.order))) {
         best.set(key, { path, rank, order });
       }
     }
@@ -718,7 +869,8 @@ export const serverEntrypointProbe: Probe = {
     }
     const started = await startedListeners(
       detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
-      context
+      context,
+      (path) => sourceByPath.get(path)?.code
     );
     const unstartedGo = await unstartedGoMains(detected, context);
     for (const { path, raw, code, detection: found, root } of detected) {

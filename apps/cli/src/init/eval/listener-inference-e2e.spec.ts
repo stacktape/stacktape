@@ -694,6 +694,136 @@ const ENTRY_CASES: EvalCase[] = [
   }
 ];
 
+/** The #416 review: a start command init cannot read, or a listener that does not run, must not decide the entry. */
+const reviewPackage = (scripts: Record<string, string>, extra: Record<string, unknown> = {}) =>
+  packageJson({ scripts, dependencies: { express: '5.0.0', bullmq: '5.0.0' }, ...extra });
+const reviewServer = "require('http').createServer((req, res) => res.end('ok')).listen(4100);\n";
+const reviewWorker = "import { Worker } from 'bullmq';\nnew Worker('mail', async () => undefined);\n";
+const WORKER = { resource: 'worker', path: 'packaging.properties.entryfilePath', value: 'worker.js' };
+
+const REVIEW_CASES: EvalCase[] = [
+  {
+    name: 'r2ap review: a worker script init cannot read (sh worker.sh) keeps its BullMQ worker',
+    files: {
+      'package.json': reviewPackage({ start: 'node server.js', worker: 'sh worker.sh' }),
+      'server.js': reviewServer,
+      'worker.sh': 'node worker.js\n',
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: a worker loaded through a computed import keeps its worker service',
+    files: {
+      'package.json': reviewPackage({ start: 'node server.js', worker: 'node launcher.js' }),
+      'server.js': reviewServer,
+      'launcher.js': "const file = './worker.js';\nimport(file);\n",
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: a web start command init cannot read keeps its listener',
+    files: {
+      'package.json': reviewPackage({ start: 'sh start.sh', worker: 'node worker.js' }),
+      'start.sh': 'node server.js\n',
+      'server.js': reviewServer,
+      'worker.js': reviewWorker
+    },
+    expect: {
+      resources: { auditApp: 'web-service', worker: 'worker-service' },
+      resourceProperties: [ENTRY('auditApp', 'server.js'), WORKER]
+    }
+  },
+  {
+    name: 'r2ap review: an exported helper nobody calls does not beat the server that listens on load',
+    files: {
+      'package.json': reviewPackage({ start: 'node start.js' }),
+      'start.js': "require('./z-helper.js');\nrequire('./a-server.js');\n",
+      'z-helper.js': "exports.start = () => require('http').createServer(() => {}).listen(9200);\n",
+      'a-server.js': reviewServer
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      resourceProperties: [ENTRY('auditApp', 'a-server.js')],
+      servicePorts: [{ resource: 'auditApp', port: 4100 }]
+    }
+  },
+  {
+    name: 'r2ap review control: an exported start function the start file calls is the listener',
+    files: {
+      'package.json': reviewPackage({ start: 'node bootstrap.js' }),
+      'bootstrap.js': "require('./server.js').start();\n",
+      'server.js': "exports.start = () => require('http').createServer((req, res) => res.end('ok')).listen(4100);\n"
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server.js')] }
+  },
+  {
+    name: 'r2ap review: an exact tsconfig path beats a wildcard declared before it',
+    files: {
+      'package.json': reviewPackage({ start: 'bun src/main.ts' }, { devDependencies: { '@types/bun': 'latest' } }),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          outDir: 'dist',
+          rootDir: 'src',
+          baseUrl: '.',
+          paths: { '@app/*': ['src/*'], '@app/server': ['src/real-server.ts'] }
+        }
+      }),
+      'src/main.ts': "import '@app/server';\n",
+      'src/real-server.ts': reviewServer,
+      'src/server.ts': "require('http').createServer(() => {}).listen(9200);\n"
+    },
+    expect: {
+      resources: { auditApp: 'web-service' },
+      resourceProperties: [ENTRY('auditApp', 'src/real-server.ts')],
+      servicePorts: [{ resource: 'auditApp', port: 4100 }]
+    }
+  },
+  {
+    name: 'r2ap review: nodemon --watch src runs src/server.js, not the src directory',
+    files: {
+      'package.json': reviewPackage({ start: 'nodemon --watch src --ext js,json src/server.js' }),
+      'src/index.js': 'exports.data = 42;\n',
+      'src/server.js': reviewServer
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/server.js')] }
+  },
+  {
+    name: 'r2ap review: in "npm run build && node dist/server.js" the build script is not the server',
+    files: {
+      'package.json': reviewPackage({ start: 'npm run build && node dist/server.js', build: 'node scripts/build.js' }),
+      'scripts/build.js': "require('http').createServer(() => {}).listen(9200);\n",
+      'src/server.js': reviewServer
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/server.js')] }
+  },
+  {
+    name: 'r2ap review: "cd api && node index.js" runs api/index.js',
+    files: {
+      'package.json': reviewPackage({ start: 'cd api && node index.js' }),
+      'index.js': 'exports.data = 42;\n',
+      'api/index.js': reviewServer
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'api/index.js')] }
+  },
+  {
+    name: 'r2ap review: a module preloaded with node -r runs too',
+    files: {
+      'package.json': reviewPackage({ start: 'node -r ./server.js index.js' }),
+      'server.js': reviewServer,
+      'index.js': 'setInterval(() => {}, 10000);\n'
+    },
+    expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server.js')] }
+  }
+];
+
 describe('listener inference end-to-end corpus', () => {
   for (const evalCase of [
     ...WEBSOCKET_CASES,
@@ -701,7 +831,8 @@ describe('listener inference end-to-end corpus', () => {
     ...ASPNET_CASES,
     ...PROCESS_CASES,
     ...VITE_CASES,
-    ...ENTRY_CASES
+    ...ENTRY_CASES,
+    ...REVIEW_CASES
   ]) {
     it(evalCase.name, async () => {
       const score = await runEvalCase(evalCase);
