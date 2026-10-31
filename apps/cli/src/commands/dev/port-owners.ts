@@ -6,6 +6,7 @@
 import { execFile } from 'node:child_process';
 import { readdir, readFile, readlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
+import { normalizeAddress, parseProcNetListeners } from '@utils/ports';
 import { acceptsTcpConnection } from './port-utils';
 
 const execFileAsync = promisify(execFile);
@@ -19,17 +20,6 @@ type PortInspection = { listeners: PortListener[]; ownPids: Set<number> };
 /** The loopback addresses a local client reaches a server on; `localhost` resolves to either. */
 export const LOOPBACK_HOSTS = ['127.0.0.1', '::1'] as const;
 export type LoopbackHost = (typeof LOOPBACK_HOSTS)[number];
-
-/** `127.0.0.1`, `0.0.0.0`, `::1` and `::` in one spelling; an IPv4 address mapped into IPv6 is its IPv4 address. */
-export const normalizeAddress = (address: string): string => {
-  const bare = address.replace(/^\[|\]$/g, '').replace(/%.*$/, '');
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(bare);
-  if (mapped) return mapped[1]!;
-  if (bare === '*') return bare;
-  if (/^[0:]+$/.test(bare)) return '::';
-  if (/^[0:]+:0*1$/.test(bare)) return '::1';
-  return bare.toLowerCase();
-};
 
 /**
  * The listener that receives a connection to `host`: one on that exact address wins over a wildcard one, on Linux,
@@ -101,34 +91,10 @@ export const collectProcessTree = (rootPid: number, processes: Iterable<[number,
   return tree;
 };
 
-/** An address of `/proc/net/tcp` or `tcp6`: hexadecimal, each 32-bit word in the machine's byte order (little-endian). */
-export const decodeProcNetAddress = (hex: string): string => {
-  const words = hex.match(/.{8}/g) ?? [];
-  const bytes = words.flatMap((word) => (word.match(/../g) ?? []).reverse().map((byte) => Number.parseInt(byte, 16)));
-  if (bytes.length === 4) return bytes.join('.');
-  // An IPv4 address mapped into IPv6 (`::ffff:127.0.0.1`) is that IPv4 address.
-  if (bytes.slice(0, 10).every((byte) => byte === 0) && bytes[10] === 255 && bytes[11] === 255) {
-    return bytes.slice(12).join('.');
-  }
-  const groups = Array.from({ length: 8 }, (_, index) =>
-    ((bytes[index * 2]! << 8) | bytes[index * 2 + 1]!).toString(16)
-  );
-  return normalizeAddress(groups.join(':'));
-};
-
-/** The listening sockets on `port` in `/proc/net/tcp`-format text, by socket inode. */
-export const parseProcNetListeners = (text: string, port: number): { address: string; inode: string }[] =>
-  text
-    .split('\n')
-    .slice(1)
-    .map((line) => line.trim().split(/\s+/))
-    .filter((fields) => fields[3] === '0A' && Number.parseInt(fields[1]?.split(':')[1] ?? '', 16) === port)
-    .map((fields) => ({ address: decodeProcNetAddress(fields[1]!.split(':')[0]!), inode: fields[9]! }));
-
 const inspectLinux = async (port: number, rootPid: number): Promise<PortInspection> => {
   const sockets = (
     await Promise.all(['/proc/net/tcp', '/proc/net/tcp6'].map((path) => readFile(path, 'utf8').catch(() => '')))
-  ).flatMap((text) => parseProcNetListeners(text, port));
+  ).flatMap((text) => parseProcNetListeners(text).filter((listener) => listener.port === port));
   const pids = (await readdir('/proc')).filter((entry) => /^\d+$/.test(entry)).map(Number);
   const processes: [number, number][] = [];
   const socketOwners = new Map<string, number>();

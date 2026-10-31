@@ -2,14 +2,16 @@ import { afterEach, expect, test } from 'bun:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:net';
+import { createServer, type ListenOptions, Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   getProcessStart,
   isPortInUse,
   isSameProcessStart,
+  parseNetstatListeners,
   parsePsStartTime,
+  readWildcardListenerPorts,
   reserveFreeLocalPort,
   reserveLocalPort
 } from './ports';
@@ -82,6 +84,112 @@ const sameCandidates = (ports: number[]) => {
   let next = 0;
   return async () => ports[next++ % ports.length];
 };
+
+/** The host of every `listen` call any server makes while `run` runs; one without a host listens on every interface. */
+const recordListenHosts = async (run: () => Promise<unknown>) => {
+  const original = Server.prototype.listen;
+  const hosts: string[] = [];
+  Server.prototype.listen = function (this: Server, ...args: unknown[]) {
+    const [first, second] = args;
+    const host =
+      typeof first === 'object' && first !== null
+        ? (first as ListenOptions).host
+        : typeof second === 'string'
+          ? second
+          : undefined;
+    hosts.push(host ?? 'every interface');
+    return original.apply(this, args as Parameters<typeof original>);
+  } as typeof original;
+  try {
+    await run();
+  } finally {
+    Server.prototype.listen = original;
+  }
+  return hosts;
+};
+
+// r2bj: a listener on 0.0.0.0 or :: makes Windows Defender Firewall ask the user, with administrator rights, to let
+// the CLI onto the network, on the first `stacktape dev` and again for every new executable path.
+test('port checks and reservations listen only on loopback addresses', async () => {
+  const directory = await reservationDirectory();
+  const held = createServer();
+  const heldPort = await listen(held, 0, '0.0.0.0');
+  try {
+    const hosts = await recordListenHosts(async () => {
+      expect(await isPortInUse(heldPort)).toBe(true);
+      const reservation = await reserveFreeLocalPort({ directory });
+      expect(await isPortInUse(reservation.port)).toBe(false);
+      await reservation.release();
+    });
+    expect(hosts.length).toBeGreaterThan(0);
+    expect(hosts.filter((host) => host !== '127.0.0.1' && host !== '::1')).toEqual([]);
+  } finally {
+    await close(held);
+  }
+});
+
+// Windows and macOS let a program bind 127.0.0.1 and ::1 over another program's wildcard listener, so only the
+// system's listener table shows it there.
+test('a port the listener table shows on a wildcard address is in use although its loopback binds succeed', async () => {
+  const [port] = await freePorts(1);
+  const listed = async () => new Set([port!]);
+  expect(await isPortInUse(port!, { wildcardListenerPorts: listed })).toBe(true);
+  // A table read earlier in a scan can list a listener that has closed since; a fresh read decides.
+  const stale = async ({ fresh = false } = {}) => new Set(fresh ? [] : [port!]);
+  expect(await isPortInUse(port!, { wildcardListenerPorts: stale })).toBe(false);
+});
+
+test.skipIf(process.platform !== 'linux')('the Linux listener table shows a wildcard listener', async () => {
+  const server = createServer();
+  const port = await listen(server, 0, '0.0.0.0');
+  try {
+    expect((await readWildcardListenerPorts({ fresh: true })).has(port)).toBe(true);
+  } finally {
+    await close(server);
+  }
+  expect((await readWildcardListenerPorts({ fresh: true })).has(port)).toBe(false);
+});
+
+// Windows translates the state column (`ABHÖREN`), so listeners are told by their unset foreign address.
+test('netstat output of Windows and macOS gives the listening sockets', () => {
+  const windows = [
+    '',
+    'Aktive Verbindungen',
+    '',
+    '  Proto  Lokale Adresse         Remoteadresse          Status',
+    '  TCP    0.0.0.0:135            0.0.0.0:0              ABHÖREN',
+    '  TCP    127.0.0.1:3000         0.0.0.0:0              ABHÖREN',
+    '  TCP    127.0.0.1:3000         127.0.0.1:51234        HERGESTELLT',
+    '  TCP    [::]:5173              [::]:0                 ABHÖREN',
+    '  TCP    [::1]:4321             [::]:0                 ABHÖREN',
+    '  TCP    [fe80::1%12]:7680      [::]:0                 ABHÖREN',
+    '  UDP    0.0.0.0:5353           *:*'
+  ].join('\r\n');
+  expect(parseNetstatListeners(windows)).toEqual([
+    { address: '0.0.0.0', port: 135 },
+    { address: '127.0.0.1', port: 3000 },
+    { address: '::', port: 5173 },
+    { address: '::1', port: 4321 },
+    { address: 'fe80::1', port: 7680 }
+  ]);
+  const macos = [
+    'Active Internet connections (including servers)',
+    'Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)',
+    'tcp4       0      0  *.3000                 *.*                    LISTEN',
+    'tcp46      0      0  *.5173                 *.*                    LISTEN',
+    'tcp6       0      0  *.8080                 *.*                    LISTEN',
+    'tcp6       0      0  ::1.4321               *.*                    LISTEN',
+    'tcp4       0      0  127.0.0.1.3001         *.*                    LISTEN',
+    'tcp4       0      0  127.0.0.1.3001         127.0.0.1.50123        ESTABLISHED'
+  ].join('\n');
+  expect(parseNetstatListeners(macos)).toEqual([
+    { address: '0.0.0.0', port: 3000 },
+    { address: '::', port: 5173 },
+    { address: '::', port: 8080 },
+    { address: '::1', port: 4321 },
+    { address: '127.0.0.1', port: 3001 }
+  ]);
+});
 
 /**
  * Runs a separate process that reserves a port from `candidates`, prints it, and holds the reservation for `holdMs`
