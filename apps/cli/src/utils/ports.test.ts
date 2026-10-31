@@ -1,11 +1,18 @@
 import { afterEach, expect, test } from 'bun:test';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:net';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getProcessStart, isPortInUse, reserveFreeLocalPort, reserveLocalPort } from './ports';
+import {
+  getProcessStart,
+  isPortInUse,
+  isSameProcessStart,
+  parsePsStartTime,
+  reserveFreeLocalPort,
+  reserveLocalPort
+} from './ports';
 
 const listen = (server: Server, port: number, host: string) =>
   new Promise<number>((resolve, reject) => {
@@ -258,12 +265,73 @@ test.skipIf(process.platform === 'win32')(
 test.skipIf(process.platform === 'win32')('a process start reads the same for the process and for others', async () => {
   const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' });
   try {
-    const [first, second] = [await getProcessStart(child.pid!), await getProcessStart(child.pid!)];
+    const first = await getProcessStart(child.pid!);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const second = await getProcessStart(child.pid!);
     expect(first).toBeDefined();
-    expect(first).toBe(second);
-    expect(first).not.toBe(await getProcessStart(process.pid));
+    // A reading a second later, past a second boundary, names the same start.
+    expect(isSameProcessStart(first!, second!)).toBe(true);
     expect(await getProcessStart(2 ** 31 - 2)).toBeUndefined();
   } finally {
     child.kill();
   }
+});
+
+// #427 review: `ps` reports a start to the second; readings must match at that resolution, never by milliseconds.
+test('process starts compare at the resolution the system reports', () => {
+  const at = Date.UTC(2026, 9, 31, 14, 5, 9);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at}`)).toBe(true);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at + 1000}`)).toBe(true);
+  expect(isSameProcessStart(`epoch:${at}`, `epoch:${at + 3000}`)).toBe(false);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-a:1200')).toBe(true);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-a:1201')).toBe(false);
+  expect(isSameProcessStart('linux:boot-a:1200', 'linux:boot-b:1200')).toBe(false);
+  // Readings of different forms cannot tell, so the owner counts as alive.
+  expect(isSameProcessStart('linux:boot-a:1200', `epoch:${at}`)).toBe(true);
+  expect(parsePsStartTime('Sat Oct 31 14:05:09 2026')).toBe(at);
+  expect(parsePsStartTime('Sun Nov  1 02:00:00 2026\n')).toBe(Date.UTC(2026, 10, 1, 2, 0, 0));
+  expect(parsePsStartTime('31 Oct 2026')).toBeUndefined();
+});
+
+test.skipIf(process.platform === 'win32')('ps reports this process start in UTC, to the second', () => {
+  const lstart = spawnSync('ps', ['-o', 'lstart=', '-p', String(process.pid)], {
+    encoding: 'utf8',
+    env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' }
+  }).stdout;
+  const startedAt = parsePsStartTime(lstart);
+  expect(startedAt).toBeDefined();
+  expect(Math.abs(startedAt! - (Date.now() - process.uptime() * 1000))).toBeLessThan(5000);
+});
+
+// #427 review: three crashes between taking a claim and dropping it left the port reserved for good.
+test('claims that crashed reclaimers left expire, so the port is reclaimed and nothing is left behind', async () => {
+  const directory = await reservationDirectory();
+  const [port] = await freePorts(1);
+  const token = `token-crashed-${randomUUID()}`;
+  await writeFile(
+    join(directory, `${port}.json`),
+    JSON.stringify({ pid: 2 ** 31 - 2, hostname: hostname(), token, reservedAt: 0 })
+  );
+  const old = new Date(Date.now() - 60_000);
+  for (let generation = 1; generation <= 5; generation++) {
+    const claim = join(directory, `${port}.json.token-${token}.reclaim${generation}`);
+    await writeFile(claim, '');
+    await utimes(claim, old, old);
+  }
+  const reclaimed = await reserveLocalPort(port!, { directory });
+  expect(reclaimed?.port).toBe(port);
+  expect(await readdir(directory)).toEqual([`${port}.json`]);
+  await reclaimed?.release();
+});
+
+test('a fresh claim of another reclaimer keeps this process from reclaiming at the same time', async () => {
+  const directory = await reservationDirectory();
+  const [port] = await freePorts(1);
+  const token = `token-claimed-${randomUUID()}`;
+  await writeFile(
+    join(directory, `${port}.json`),
+    JSON.stringify({ pid: 2 ** 31 - 2, hostname: hostname(), token, reservedAt: 0 })
+  );
+  await writeFile(join(directory, `${port}.json.token-${token}.reclaim1`), '');
+  expect(await reserveLocalPort(port!, { directory })).toBeUndefined();
 });

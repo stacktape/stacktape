@@ -202,3 +202,33 @@ test('other reads are left to the executor', async () => {
   expect((await list('eventbridge', 'DescribeRule', { Name: 'x' })).result).toBeUndefined();
   expect((await list('sqs', 'ListQueues')).result).toBeUndefined();
 });
+
+// #427 review: AWS returns at most 100 mappings per page, with a NextMarker, whatever larger MaxItems asks for.
+test('ListEventSourceMappings returns at most 100 mappings a page, also for a larger MaxItems', async () => {
+  const many = Array.from({ length: 150 }, (_, index) => ({
+    LogicalResourceId: `Mapping${index}`,
+    ResourceType: 'AWS::Lambda::EventSourceMapping',
+    PhysicalResourceId: `uuid-${index}`
+  }));
+  const page = async (input: Record<string, unknown>) =>
+    (
+      (await listStackResources({
+        service: 'lambda',
+        command: 'ListEventSourceMappings',
+        input,
+        stackResources: many,
+        send: async (_read, readInput) => ({
+          ok: true,
+          data: { UUID: readInput.UUID, FunctionArn: functionArn('shop-dev-consumer') }
+        })
+      })) as any
+    ).data;
+  for (const input of [{}, { MaxItems: 10_000 }]) {
+    const first = await page(input);
+    expect(first.EventSourceMappings).toHaveLength(100);
+    expect(first.NextMarker).toBe('uuid-100');
+    const rest = await page({ ...input, Marker: first.NextMarker });
+    expect(rest.EventSourceMappings).toHaveLength(50);
+    expect(rest).not.toHaveProperty('NextMarker');
+  }
+});

@@ -59,31 +59,34 @@ const withoutMetadata = (data: unknown) => {
   return rest;
 };
 
-/** The most mappings one `ListEventSourceMappings` page holds, and how many it holds when `MaxItems` is not given. */
-const MAX_LISTED_MAPPINGS = 10_000;
-const DEFAULT_LISTED_MAPPINGS = 100;
+/**
+ * `MaxItems` AWS accepts (1 to 10 000), and the most mappings one page holds: AWS returns at most 100 per page, with a
+ * `NextMarker`, whatever larger `MaxItems` asks for.
+ */
+const MAX_ITEMS_ACCEPTED = 10_000;
+const MAX_LISTED_MAPPINGS = 100;
 
 /**
- * One page of `items` as `ListEventSourceMappings` pages them: at most `MaxItems` (1 to 10 000, default 100), from the
- * `Marker` of the previous page. The marker is the UUID of the page's first mapping; one that names no listed mapping
+ * One page of `items` as `ListEventSourceMappings` pages them: at most `MaxItems` (1 to 10 000) and never more than
+ * 100, from the `Marker` of the previous page. The marker is the UUID of the page's first mapping; one that names no listed mapping
  * gives an empty page, as AWS gives for a marker it does not know.
  */
 const pageOf = (
   items: unknown[],
   input: Record<string, unknown>
 ): { ok: true; items: unknown[]; nextMarker?: string } | Extract<AwsSdkResult, { ok: false }> => {
-  const { MaxItems: maxItems = DEFAULT_LISTED_MAPPINGS, Marker: marker } = input;
-  if (!Number.isInteger(maxItems) || (maxItems as number) < 1 || (maxItems as number) > MAX_LISTED_MAPPINGS) {
+  const { MaxItems: maxItems = MAX_LISTED_MAPPINGS, Marker: marker } = input;
+  if (!Number.isInteger(maxItems) || (maxItems as number) < 1 || (maxItems as number) > MAX_ITEMS_ACCEPTED) {
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      error: `MaxItems must be a whole number from 1 to ${MAX_LISTED_MAPPINGS}.`
+      error: `MaxItems must be a whole number from 1 to ${MAX_ITEMS_ACCEPTED}.`
     };
   }
   const uuidOf = (item: unknown) => (item as { UUID?: unknown } | undefined)?.UUID;
   const start = marker === undefined ? 0 : items.findIndex((item) => uuidOf(item) === marker);
   if (start < 0) return { ok: true, items: [] };
-  const end = start + (maxItems as number);
+  const end = start + Math.min(maxItems as number, MAX_LISTED_MAPPINGS);
   const next = uuidOf(items[end]);
   return { ok: true, items: items.slice(start, end), ...(typeof next === 'string' && { nextMarker: next }) };
 };

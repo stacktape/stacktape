@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createProjectOrUseConcurrent } from './project-creation';
+import { createProjectOrUseConcurrent, isProjectAlreadyExistsError } from './project-creation';
 
 type Project = { id: string; name: string };
 
@@ -58,18 +58,42 @@ test('a failure stands when no project of that name exists in the same organizat
     readProjects: () => controlPlane.read('org-b')
   });
   await expect(elsewhere).rejects.toThrow('already exists');
+  // A refusal other than "already exists" stands, even when a project of that name exists: it is not this race.
+  let readAfterRefusal = false;
   const refused = createProjectOrUseConcurrent({
-    name: 'billing',
-    organizationId: 'org-a',
-    create: () => Promise.reject(new Error("You don't have permission to create projects.")),
-    readProjects: () => controlPlane.read('org-a')
+    name: 'shop',
+    organizationId: 'org-b',
+    create: () =>
+      Promise.reject(
+        Object.assign(new Error("You don't have permission to create projects."), { data: { code: 'FORBIDDEN' } })
+      ),
+    readProjects: () => {
+      readAfterRefusal = true;
+      return controlPlane.read('org-b');
+    }
   });
   await expect(refused).rejects.toThrow('permission');
+  expect(readAfterRefusal).toBe(false);
   const unreadable = createProjectOrUseConcurrent({
     name: 'billing',
     organizationId: 'org-a',
-    create: () => Promise.reject(new Error('The Console is unavailable.')),
+    create: () => Promise.reject(new Error('Project with name "billing" already exists in your organization.')),
     readProjects: () => Promise.reject(new Error('still unavailable'))
   });
-  await expect(unreadable).rejects.toThrow('The Console is unavailable.');
+  await expect(unreadable).rejects.toThrow('already exists');
+});
+
+test('the refusal is recognized however the client wraps it', () => {
+  const conflict = Object.assign(new Error('Conflict'), { data: { code: 'CONFLICT' } });
+  expect(isProjectAlreadyExistsError(conflict)).toBe(true);
+  expect(isProjectAlreadyExistsError(new Error('Console request failed.', { cause: conflict }))).toBe(true);
+  expect(isProjectAlreadyExistsError({ shape: { data: { code: 'CONFLICT' } } })).toBe(true);
+  expect(
+    isProjectAlreadyExistsError(new Error('Unique constraint failed on the fields: (`name`,`organizationId`)'))
+  ).toBe(true);
+  expect(isProjectAlreadyExistsError(Object.assign(new Error('Forbidden'), { data: { code: 'FORBIDDEN' } }))).toBe(
+    false
+  );
+  expect(isProjectAlreadyExistsError(new Error('fetch failed'))).toBe(false);
+  expect(isProjectAlreadyExistsError(undefined)).toBe(false);
 });

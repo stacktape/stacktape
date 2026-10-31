@@ -62,22 +62,30 @@ type ReservationOwner = {
 /** A writer creates and fills its file in one call; an empty file older than this was left by a crash in between. */
 const UNREADABLE_RESERVATION_STALE_MS = 10_000;
 
-/** `ps` reports a start to the second, so two readings of one process differ by less than this. */
-const START_TIME_TOLERANCE_MS = 2000;
+/** `ps` reports a start to the second: readings of one process that a second boundary separates still match. */
+const START_TIME_TOLERANCE_MS = 1000;
 
 const execFileAsync = promisify(execFile);
 
-/** Seconds of a `ps` elapsed time, `[[dd-]hh:]mm:ss`. */
-const elapsedSeconds = (elapsed: string) => {
-  const [days, clock] = elapsed.includes('-') ? elapsed.split('-') : ['0', elapsed];
-  const parts = clock!.split(':').map(Number).reverse();
-  return Number(days) * 86_400 + (parts[0] ?? 0) + (parts[1] ?? 0) * 60 + (parts[2] ?? 0) * 3600;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Milliseconds since the epoch of a `ps -o lstart` start read in the C locale and UTC (`Sat Oct 31 14:05:09 2026`),
+ * or `undefined` for anything else.
+ */
+export const parsePsStartTime = (lstart: string): number | undefined => {
+  const match = /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/.exec(lstart.trim());
+  const month = match ? MONTHS.indexOf(match[1]!) : -1;
+  if (!match || month < 0) return undefined;
+  const [, , day, hours, minutes, seconds, year] = match.map(Number);
+  return Date.UTC(year!, month, day, hours, minutes, seconds);
 };
 
 /**
  * When process `pid` started, or `undefined` where the system does not say cheaply (Windows) or the process is gone.
  * Linux: the boot and the clock ticks after it (`/proc/<pid>/stat`, field 22), exact and unaffected by clock changes.
- * Elsewhere: milliseconds since the epoch from the `ps` elapsed time, to the second.
+ * Elsewhere: the start `ps` reports, to the second and the same on every reading (the elapsed time would add the
+ * milliseconds of the moment of reading).
  */
 export const getProcessStart = async (pid: number): Promise<string | undefined> => {
   try {
@@ -91,16 +99,22 @@ export const getProcessStart = async (pid: number): Promise<string | undefined> 
       return startTicks && /^\d+$/.test(startTicks) ? `linux:${bootId.trim()}:${startTicks}` : undefined;
     }
     if (process.platform === 'win32') return undefined;
-    const { stdout } = await execFileAsync('ps', ['-o', 'etime=', '-p', String(pid)], { timeout: 5000 });
-    const elapsed = stdout.trim();
-    return /^(\d+-)?(\d+:)?\d+:\d+$/.test(elapsed) ? `epoch:${Date.now() - elapsedSeconds(elapsed) * 1000}` : undefined;
+    const { stdout } = await execFileAsync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+      timeout: 5000,
+      env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' }
+    });
+    const startedAt = parsePsStartTime(stdout);
+    return startedAt === undefined ? undefined : `epoch:${startedAt}`;
   } catch {
     return undefined;
   }
 };
 
-/** Whether two `getProcessStart` readings name one process start; readings of different forms cannot tell. */
-const isSameProcessStart = (left: string, right: string) => {
+/**
+ * Whether two `getProcessStart` readings may name one process start. Readings of different forms cannot tell, so they
+ * match: a process is taken for another only when the system says so.
+ */
+export const isSameProcessStart = (left: string, right: string) => {
   const [leftForm, rightForm] = [left.split(':')[0], right.split(':')[0]];
   if (leftForm !== rightForm) return true;
   if (leftForm === 'epoch') return Math.abs(Number(left.slice(6)) - Number(right.slice(6))) <= START_TIME_TOLERANCE_MS;
@@ -214,29 +228,31 @@ const readReservation = async (path: string) => {
 
 /** A process that crashed between taking a claim and dropping it, which takes milliseconds, left a claim this old. */
 const RECLAIM_CLAIM_ABANDONED_MS = 10_000;
-const RECLAIM_CLAIM_GENERATIONS = 3;
 const reclaimClaimPath = (path: string, identity: string, generation: number) =>
   `${path}.${identity}.reclaim${generation}`;
 
 /**
- * Makes this process the only one that deletes the reservation `identity` names. The claim is a file created
- * exclusively and named by the reservation, never by the port, so a claim cannot outlive its reservation into the next
- * one. A claim that a crashed process left is passed over for the next generation.
+ * Makes this process the only one that deletes the reservation `identity` names, and returns the generation of its
+ * claim, or `undefined` when another process reclaims it. The claim is a file created exclusively and named by the
+ * reservation, never by the port, so a claim cannot outlive its reservation into the next one.
+ *
+ * A claim that a crashed process left expires: the next claimer takes the next generation. Removing the expired claim
+ * instead would let two processes that both found it expired remove each other's new claim; each generation has one
+ * winner, and the generations have no limit, so crashes never leave a port reserved for good.
  */
-const claimReclaim = async (path: string, identity: string) => {
-  for (let generation = 1; generation <= RECLAIM_CLAIM_GENERATIONS; generation++) {
+const claimReclaim = async (path: string, identity: string): Promise<number | undefined> => {
+  for (let generation = 1; ; generation++) {
     const claim = reclaimClaimPath(path, identity, generation);
     try {
       await writeFile(claim, '', { flag: 'wx', mode: 0o600 });
-      return true;
+      return generation;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       const claimed = await stat(claim).catch(() => null);
       // Another process reclaims it now, or did and dropped its claim.
-      if (!claimed || Date.now() - claimed.mtimeMs < RECLAIM_CLAIM_ABANDONED_MS) return false;
+      if (!claimed || Date.now() - claimed.mtimeMs < RECLAIM_CLAIM_ABANDONED_MS) return undefined;
     }
   }
-  return false;
 };
 
 /**
@@ -255,7 +271,8 @@ const removeStaleReservation = async (directory: string, port: number) => {
   } else if (Date.now() - found.writtenAt < UNREADABLE_RESERVATION_STALE_MS) {
     return false;
   }
-  if (!(await claimReclaim(path, found.identity))) return false;
+  const generation = await claimReclaim(path, found.identity);
+  if (generation === undefined) return false;
   try {
     // Nobody else deletes this reservation now, and no other file can take its identity.
     const current = await readReservation(path);
@@ -264,8 +281,8 @@ const removeStaleReservation = async (directory: string, port: number) => {
     return true;
   } finally {
     // The reservation is gone, so its claims, abandoned ones too, guard nothing any more.
-    for (let generation = 1; generation <= RECLAIM_CLAIM_GENERATIONS; generation++) {
-      await unlink(reclaimClaimPath(path, found.identity, generation)).catch(() => {});
+    for (let held = 1; held <= generation; held++) {
+      await unlink(reclaimClaimPath(path, found.identity, held)).catch(() => {});
     }
   }
 };
