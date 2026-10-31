@@ -4,9 +4,12 @@ import {
   assertTaskId,
   buildWindowsCommandLine,
   buildWslEnv,
+  encodeKeys,
   mergeWindowsPath,
   quoteWindowsArgument,
+  selectOwnedProcesses,
   selectPassThroughNames,
+  stripTerminalSequences,
   toWindowsPath,
   toWslPath,
   windowsTaskPaths
@@ -132,8 +135,22 @@ describe('paths', () => {
       logs: 'C:\\stacktape-wsl\\r2at\\logs',
       tools: 'C:\\stacktape-wsl\\r2at\\tools'
     });
-    expect(() => windowsTaskPaths({ root: 'C:\\', taskId: 'r2at' })).toThrow(/below a drive root/);
-    expect(() => windowsTaskPaths({ root: 'stacktape-wsl', taskId: 'r2at' })).toThrow();
+    for (const root of [
+      'C:\\',
+      'C:\\R&D',
+      'C:\\Users',
+      'D:\\stacktape-wsl',
+      'C:\\stacktape-wsl\\..\\Users',
+      'C:\\stacktape-wsl\\a b',
+      'C:\\stacktape-wsl\\x&y',
+      'stacktape-wsl',
+      '\\\\server\\share'
+    ]) {
+      expect(() => windowsTaskPaths({ root, taskId: 'r2at' })).toThrow(/plain folder inside it/);
+    }
+    expect(windowsTaskPaths({ root: 'C:\\stacktape-wsl\\nested', taskId: 'r2at' }).task).toBe(
+      'C:\\stacktape-wsl\\nested\\r2at'
+    );
     for (const taskId of ['', '..', 'a\\b', 'R2AT', 'a b', 'x'.repeat(33)]) {
       expect(() => assertTaskId(taskId)).toThrow();
     }
@@ -166,11 +183,13 @@ describe('environment pass-through', () => {
     expect(() => selectPassThroughNames({ environment, extraNames: ['A=B'] })).toThrow(/Invalid/);
   });
 
-  test('WSLENV keeps existing entries and adds one-way names', () => {
-    expect(buildWslEnv({ names: ['AWS_PROFILE', 'USERPROFILE'], existing: 'USERPROFILE/p:GOPATH/l' })).toBe(
-      'USERPROFILE/p:GOPATH/l:AWS_PROFILE/w'
+  test('WSLENV forwards each name one way and drops inherited entries for the same names', () => {
+    // An inherited AWS_PROFILE/u would keep AWS_PROFILE from reaching Windows.
+    expect(buildWslEnv({ names: ['AWS_PROFILE', 'PATH'], existing: 'AWS_PROFILE/u:GOPATH/l:PATH/l' })).toBe(
+      'GOPATH/l:AWS_PROFILE/w:PATH/w'
     );
     expect(buildWslEnv({ names: ['AWS_PROFILE'] })).toBe('AWS_PROFILE/w');
+    expect(buildWslEnv({ names: ['AWS_PROFILE', 'AWS_PROFILE'], existing: '::' })).toBe('AWS_PROFILE/w');
   });
 
   test('requires an allowed AWS profile', () => {
@@ -191,5 +210,72 @@ describe('mergeWindowsPath', () => {
       'C:\\Windows\\system32;C:\\Users\\u\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;' +
         'C:\\Program Files\\PowerShell\\7;C:\\Users\\u\\scoop\\shims'
     );
+  });
+});
+
+describe('pseudo console input and output', () => {
+  test('encodes keys the way a terminal sends them', () => {
+    expect(encodeKeys(['ctrl+c'])).toBe('\u0003');
+    expect(encodeKeys(['ctrl+R', 'enter', 'tab', 'esc', 'up'])).toBe('\u0012\r\t\u001b\u001b[A');
+    expect(encodeKeys(['hello world', 'enter'])).toBe('hello world\r');
+  });
+
+  test('strips escape sequences and keeps text', () => {
+    const output =
+      '\u001b]0;C:\\stacktape.exe\u0007\u001b[?25l\u001b[2J\u001b[1;1H\u001b[32m✓\u001b[0m query  function\r\n' +
+      '\u001bP+q4d73\u001b\\\u001b7line two\u001b8\r';
+    expect(stripTerminalSequences(output)).toBe('✓ query  function\nline two\n');
+  });
+});
+
+describe('selectOwnedProcesses', () => {
+  const task = 'C:\\stacktape-wsl\\r2at';
+  const at = (seconds: number) => new Date(Date.UTC(2026, 9, 31, 14, 0, seconds)).toISOString();
+  const process = (pid: number, parentPid: number, name: string, created: number, path: string | null = null) => ({
+    pid,
+    parentPid,
+    name,
+    path,
+    created: at(created)
+  });
+  const owned = (processes: ReturnType<typeof process>[], records: { pid: number; created: string }[]) =>
+    selectOwnedProcesses({ processes, records, taskDirectory: task }).map(({ pid }) => pid);
+
+  test('owns recorded processes and their descendants, not a shell that only mentions the task folder', () => {
+    const processes = [
+      process(100, 1, 'pwsh.exe', 0), // the owner's shell, e.g. reading C:\stacktape-wsl\r2at\logs
+      process(101, 100, 'notepad.exe', 1),
+      process(200, 50, 'cmd.exe', 10),
+      process(201, 200, 'PING.EXE', 11)
+    ];
+    expect(owned(processes, [{ pid: 200, created: at(10) }])).toEqual([200, 201]);
+  });
+
+  test('a recorded process that exited still owns the daemon it started', () => {
+    // dev --agent: the CLI (300) starts the daemon (301) and exits; the daemon starts the SSM plugin (302).
+    const processes = [process(301, 300, 'stacktape.exe', 21), process(302, 301, 'smp.exe', 22)];
+    expect(owned(processes, [{ pid: 300, created: at(20) }])).toEqual([301, 302]);
+  });
+
+  test('a reused PID does not make the new holder or its children belong to the task', () => {
+    const processes = [
+      process(300, 1, 'chrome.exe', 40), // PID 300 reused after the recorded CLI exited
+      process(310, 300, 'chrome.exe', 41), // child of the new holder
+      process(301, 300, 'stacktape.exe', 21) // created by the recorded CLI before the reuse
+    ];
+    expect(owned(processes, [{ pid: 300, created: at(20) }])).toEqual([301]);
+  });
+
+  test('a child older than its supposed parent belongs to an earlier holder of that PID', () => {
+    const processes = [process(400, 1, 'cmd.exe', 30), process(401, 400, 'explorer.exe', 5)];
+    expect(owned(processes, [{ pid: 400, created: at(30) }])).toEqual([400]);
+  });
+
+  test('owns processes whose executable lives in the task folder', () => {
+    const processes = [
+      process(500, 1, 'smp.exe', 50, 'C:\\stacktape-wsl\\r2at\\cli\\session-manager-plugin\\smp.exe'),
+      process(501, 1, 'stacktape.exe', 51, 'C:\\stacktape-wsl\\r2at-other\\cli\\stacktape.exe')
+    ];
+    expect(owned(processes, [])).toEqual([500]);
   });
 });

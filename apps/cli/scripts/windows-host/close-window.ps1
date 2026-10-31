@@ -1,7 +1,6 @@
-# Asks the console window of -TargetPid to close, as clicking its X does. Fails when the process has no window,
-# for example one started with piped output.
-param([Parameter(Mandatory)][int]$TargetPid)
+# Closes the console window of -TargetPid on the hidden desktop -DesktopName, as clicking its X does: Windows sends
+# CTRL_CLOSE_EVENT to the program and ends it 5 seconds later.
+param([Parameter(Mandatory)][int]$TargetPid, [Parameter(Mandatory)][string]$DesktopName)
 $ErrorActionPreference = 'Stop'
-$process = Get-Process -Id $TargetPid
-if ($process.MainWindowHandle -eq 0) { Write-Error "Process $TargetPid has no window."; exit 2 }
-if (-not $process.CloseMainWindow()) { exit 3 }
+. (Join-Path $PSScriptRoot 'load-host.ps1')
+if ([StacktapeWsl.Host]::CloseWindows($DesktopName, $TargetPid) -eq 0) { Write-Error "Process $TargetPid has no window on $DesktopName."; exit 2 }

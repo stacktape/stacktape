@@ -3,8 +3,8 @@
 //   bun scripts/windows-host/windows-host.ts <command> --task <id> [options] [-- <stacktape arguments>]
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
-import { copyFile, mkdir, readdir, readFile, rm, rmdir } from 'node:fs/promises';
+import { existsSync, lstatSync, mkdirSync, readdirSync } from 'node:fs';
+import { copyFile, mkdir, readdir, readFile, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -15,8 +15,13 @@ import {
   assertTaskId,
   buildWindowsCommandLine,
   buildWslEnv,
+  encodeKeys,
   mergeWindowsPath,
+  selectOwnedProcesses,
   selectPassThroughNames,
+  stripTerminalSequences,
+  type ProcessRecord,
+  type WindowsProcess,
   toWindowsPath,
   toWslPath,
   windowsTaskPaths
@@ -37,15 +42,18 @@ Commands:
   stage <dir> [--name n]      Copy a project to <task>\\projects\\<name> (no node_modules, symlinks followed).
   run [--cwd p] -- args       Run stacktape.exe with piped output; exits with its exit code.
   exec [--cwd p] -- cmd args  Run a Windows command through cmd.exe (for example npm install).
-  console [--cwd p] [--detach] -- args
-                              Run stacktape.exe in a new visible console window (real TTY).
+  console [--cwd p] [--detach] [--window] -- args
+                              Run stacktape.exe in a terminal: a hidden pseudo console (ConPTY) by default; with
+                              --window, a real console window on a separate desktop that never shows on screen.
   wait [--timeout s]          Wait for the console program to exit; exits with its exit code.
   screen [--pid n] [--lines n]
-                              Print the text of the console window.
+                              Print the text of the program's console.
+  output [--lines n]          Print the end of the pseudo console's output, without escape sequences.
+  keys -- <key>...            Type into the pseudo console: text, enter, tab, esc, ctrl+<letter>.
   ctrl-c [--pid n] [--break]  Press Ctrl+C (or Ctrl+Break) in the program's console.
-  close [--pid n]             Close the program's console window, like clicking its X.
-  ps                          List processes started from the task folder, with descendants.
-  kill                        End those process trees (taskkill /t /f) and verify none remain.
+  close [--pid n]             Close a --window console, like clicking its X.
+  ps                          List the processes this task started, with descendants.
+  kill                        End them and verify none remain.
   cleanup                     kill, then delete the task folder and the Linux build folder, and verify.
 
 Options: --root <C:\\dir> (default ${DEFAULT_WINDOWS_ROOT} or STACKTAPE_WINDOWS_HOST_ROOT), --env NAME (repeatable),
@@ -66,6 +74,7 @@ type Options = {
   bytecode: boolean;
   break: boolean;
   detach: boolean;
+  window: boolean;
   version: string;
   includeNodeModules: boolean;
   controlPlane: 'dev' | 'user';
@@ -105,7 +114,7 @@ const paths = (options: Options) => windowsTaskPaths({ root: options.root, taskI
 const installTools = async (options: Options) => {
   const target = toWslPath(paths(options).tools);
   await mkdir(target, { recursive: true });
-  for (const file of readdirSync(import.meta.dir).filter((entry) => entry.endsWith('.ps1'))) {
+  for (const file of readdirSync(import.meta.dir).filter((entry) => /\.(ps1|cs)$/.test(entry))) {
     await copyFile(join(import.meta.dir, file), join(target, file));
   }
 };
@@ -125,19 +134,38 @@ const runPwsh = async (options: Options, script: string, args: string[]) => {
   return capture(PWSH, pwshArgs(options, script, args));
 };
 
-type WindowsProcess = { pid: number; parentPid: number; name: string; path: string | null };
+/** Every program the helper starts on Windows is appended here by host.cs (PID and creation time). */
+const recordFile = (options: Options) => `${paths(options).logs}\\processes.jsonl`;
 
+const readRecords = async (options: Options): Promise<ProcessRecord[]> => {
+  const file = toWslPath(recordFile(options));
+  if (!existsSync(file)) return [];
+  return (await readFile(file, 'utf8'))
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line) as ProcessRecord);
+};
+
+/** The processes this task started, with descendants (`selectOwnedProcesses`); with `stop`, ends them newest first. */
 const listProcesses = async (options: Options, stop = false): Promise<WindowsProcess[]> => {
-  const { code, stdout, stderr } = await runPwsh(options, 'processes.ps1', [
-    '-TaskDirectory',
-    paths(options).task,
-    ...(stop ? ['-Stop'] : [])
-  ]);
+  const { code, stdout, stderr } = await runPwsh(options, 'processes.ps1', []);
   if (code !== 0) {
     throw new Error(`Listing Windows processes failed: ${stderr.trim()}`);
   }
   const parsed = JSON.parse(stdout.trim() || '[]');
-  return Array.isArray(parsed) ? parsed : [parsed];
+  const owned = selectOwnedProcesses({
+    processes: Array.isArray(parsed) ? parsed : [parsed],
+    records: await readRecords(options),
+    taskDirectory: paths(options).task
+  });
+  if (stop && owned.length) {
+    const targets = owned.toReversed().map(({ pid, created }) => ({ pid, created }));
+    const result = await runPwsh(options, 'processes.ps1', ['-Stop', JSON.stringify(targets)]);
+    if (result.code !== 0) {
+      throw new Error(`Stopping Windows processes failed: ${result.stderr.trim()}`);
+    }
+  }
+  return owned;
 };
 
 /** The CLI processes a user would have started: stacktape.exe whose parent is not another stacktape.exe. */
@@ -149,10 +177,17 @@ const findCliRoots = (processes: WindowsProcess[]) => {
 };
 
 const consoleStateFile = (options: Options) => `${paths(options).logs}\\console.json`;
+const consoleOutputFile = (options: Options) => `${paths(options).logs}\\console-output.log`;
+const consoleInputDirectory = (options: Options) => `${paths(options).logs}\\console-input`;
+
+/** The hidden desktop of --window consoles (host.cs): their windows never appear on the user's screen. */
+const desktopName = (options: Options) => `stacktape-wsl-${options.task}`;
 
 const readConsoleState = async (
   options: Options
-): Promise<{ pid?: number; conhostPid?: number; exitCode?: number; error?: string } | undefined> => {
+): Promise<
+  { mode?: 'pty' | 'window'; pid?: number; conhostPid?: number; exitCode?: number; error?: string } | undefined
+> => {
   const file = toWslPath(consoleStateFile(options));
   if (!existsSync(file)) {
     return undefined;
@@ -189,7 +224,9 @@ const resolveWindowsCwd = (options: Options) => {
       : options.cwd.startsWith('/')
         ? toWindowsPath(options.cwd)
         : `${paths(options).projects}\\${options.cwd}`;
-  if (!existsSync(toWslPath(cwd))) {
+  if (!options.cwd) {
+    mkdirSync(toWslPath(cwd), { recursive: true });
+  } else if (!existsSync(toWslPath(cwd))) {
     fail(`The working directory ${cwd} does not exist. --cwd takes a staged project name or an absolute path.`);
   }
   return cwd;
@@ -218,10 +255,16 @@ const readDevApiKey = async () => {
  */
 const windowsEnvironment = async (options: Options) => {
   assertAwsProfile(process.env, [...ALLOWED_PROFILES, ...options.allowProfile]);
-  const added: Record<string, string> =
-    options.controlPlane === 'dev'
+  const added: Record<string, string> = {
+    // Dev-agent tokens and dev-proxy state stay in the task folder instead of the owner's profile.
+    STACKTAPE_DEV_AGENT_TOKEN_DIR:
+      process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR ?? `${paths(options).task}\\state\\dev-agent-tokens`,
+    STACKTAPE_DEV_PROXY_STATE_DIR:
+      process.env.STACKTAPE_DEV_PROXY_STATE_DIR ?? `${paths(options).task}\\state\\dev-proxy`,
+    ...(options.controlPlane === 'dev'
       ? { STP_CUSTOM_TRPC_API_ENDPOINT: DEV_CONTROL_PLANE, STACKTAPE_API_KEY: await readDevApiKey() }
-      : {};
+      : {})
+  };
   const merged = { ...process.env, ...added };
   const names = selectPassThroughNames({ environment: merged, extraNames: [...options.env, ...Object.keys(added)] });
   // PATH is replaced, not passed: the Windows program gets the Windows PATH, current as of now.
@@ -247,6 +290,67 @@ const readWindowsPath = async () => {
     throw new Error(`Reading the Windows PATH failed: ${stderr.trim()}`);
   }
   return mergeWindowsPath({ registry, session });
+};
+
+/**
+ * Starts a program through host.ps1, which records its PID and creation time for ps and kill, and refuses to start
+ * when the Windows side does not see the expected AWS_PROFILE.
+ */
+const startThroughHost = async (
+  options: Options,
+  {
+    mode,
+    program,
+    commandLine,
+    cwd,
+    environment,
+    detach = false
+  }: {
+    mode: 'exec' | 'pty' | 'window';
+    program: string;
+    commandLine: string;
+    cwd: string;
+    environment: NodeJS.ProcessEnv;
+    detach?: boolean;
+  }
+) => {
+  await mkdir(toWslPath(paths(options).logs), { recursive: true });
+  await installTools(options);
+  const child = spawn(
+    PWSH,
+    pwshArgs(options, 'host.ps1', [
+      '-Mode',
+      mode,
+      '-CommandLine',
+      commandLine,
+      '-Program',
+      program,
+      '-WorkingDirectory',
+      cwd,
+      '-RecordFile',
+      recordFile(options),
+      '-ExpectedProfile',
+      process.env.AWS_PROFILE ?? '',
+      ...(mode === 'exec'
+        ? []
+        : [
+            '-StateFile',
+            consoleStateFile(options),
+            '-OutputFile',
+            consoleOutputFile(options),
+            '-InputDirectory',
+            consoleInputDirectory(options),
+            '-DesktopName',
+            desktopName(options)
+          ])
+    ]),
+    { cwd: WINDOWS_CWD, env: environment, stdio: detach ? 'ignore' : 'inherit', detached: detach }
+  );
+  if (detach) {
+    child.unref();
+    return undefined;
+  }
+  return waitForExit(child);
 };
 
 const requireCli = (options: Options) => {
@@ -321,7 +425,7 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     });
     const built = Date.now();
     const target = toWslPath(taskPaths.cli);
-    await removeWindowsFolder(taskPaths.cli);
+    await removeWindowsFolder(options, taskPaths.cli);
     await mkdir(target, { recursive: true });
     // One tar stream is faster than many small writes over the WSL file share; the dist folder has no symlinks.
     const code = await run('/bin/sh', ['-c', 'tar -C "$1" -cf - . | tar -C "$2" -xf -', 'sh', folder, target], {
@@ -345,7 +449,7 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     }
     const destination = `${paths(options).projects}\\${name}`;
     const started = Date.now();
-    await removeWindowsFolder(destination);
+    await removeWindowsFolder(options, destination);
     await mkdir(toWslPath(destination), { recursive: true });
     const excludes = [...(options.includeNodeModules ? [] : DEFAULT_STAGE_EXCLUDES), ...options.exclude];
     // `-h` copies symlink targets: Windows cannot follow symlinks into the WSL file system.
@@ -373,8 +477,15 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     requireCli(options);
     const { names, environment } = await windowsEnvironment(options);
     const cwd = resolveWindowsCwd(options);
-    log(`${buildWindowsCommandLine(paths(options).exe, rest)} (cwd ${cwd}; env ${names.join(', ')})`);
-    return run(toWslPath(paths(options).exe), rest, { cwd: toWslPath(cwd), env: environment });
+    const commandLine = buildWindowsCommandLine(paths(options).exe, rest);
+    log(`${commandLine} (cwd ${cwd}; env ${names.join(', ')})`);
+    return (await startThroughHost(options, {
+      mode: 'exec',
+      program: 'stacktape.exe',
+      commandLine,
+      cwd,
+      environment
+    })) as number;
   },
 
   async exec(options, rest) {
@@ -384,7 +495,13 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     const { names, environment } = await windowsEnvironment(options);
     const cwd = resolveWindowsCwd(options);
     log(`cmd.exe /d /c ${rest.join(' ')} (cwd ${cwd}; env ${names.join(', ')})`);
-    return run(CMD, ['/d', '/c', ...rest], { cwd: toWslPath(cwd), env: environment });
+    return (await startThroughHost(options, {
+      mode: 'exec',
+      program: rest[0],
+      commandLine: buildWindowsCommandLine('C:\\Windows\\System32\\cmd.exe', ['/d', '/c', ...rest]),
+      cwd,
+      environment
+    })) as number;
   },
 
   async console(options, rest) {
@@ -397,30 +514,27 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
         return fail(`Console program ${previous.pid} still runs; wait for it, ctrl-c it or kill it first.`);
       }
     }
-    await rm(toWslPath(consoleStateFile(options)), { force: true });
-    await mkdir(toWslPath(paths(options).logs), { recursive: true });
-    await installTools(options);
+    await rm(toWslPath(consoleStateFile(options)), { force: true }).catch(() => undefined);
     const cwd = resolveWindowsCwd(options);
     const commandLine = buildWindowsCommandLine(paths(options).exe, rest);
-    log(`console: ${commandLine} (cwd ${cwd}; env ${names.join(', ')})`);
-    const child = spawn(
-      PWSH,
-      pwshArgs(options, 'open-console.ps1', [
-        '-CommandLine',
-        commandLine,
-        '-WorkingDirectory',
-        cwd,
-        '-StateFile',
-        consoleStateFile(options)
-      ]),
-      { cwd: WINDOWS_CWD, env: environment, stdio: options.detach ? 'ignore' : 'inherit', detached: options.detach }
+    const mode = options.window ? 'window' : 'pty';
+    log(
+      `console (${mode === 'pty' ? 'pseudo console, no window' : 'window on a hidden desktop'}): ${commandLine} (cwd ${cwd}; env ${names.join(', ')})`
     );
+    const started = startThroughHost(options, {
+      mode,
+      program: 'stacktape.exe',
+      commandLine,
+      cwd,
+      environment,
+      detach: options.detach
+    });
     if (!options.detach) {
-      const code = await waitForExit(child);
-      log(`console program exited with ${code}`);
+      const code = (await started) as number;
+      log(`console program exited with ${code}; its output is in ${consoleOutputFile(options)} (output command)`);
       return code;
     }
-    child.unref();
+    await started;
     const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {
       const state = await readConsoleState(options).catch(() => undefined);
@@ -464,6 +578,31 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     return code;
   },
 
+  async output(options) {
+    const file = toWslPath(consoleOutputFile(options));
+    if (!existsSync(file)) {
+      return fail('No pseudo console output for this task.');
+    }
+    const lines = stripTerminalSequences(await readFile(file, 'utf8')).split('\n');
+    console.info(lines.slice(-options.lines).join('\n'));
+    return 0;
+  },
+
+  async keys(options, rest) {
+    const state = await readConsoleState(options);
+    if (state?.mode !== 'pty' || state.exitCode !== undefined) {
+      return fail('keys types into a running pseudo console started by the console command.');
+    }
+    const directory = toWslPath(consoleInputDirectory(options));
+    await mkdir(directory, { recursive: true });
+    // host.cs reads *.input files in name order, writes them to the pseudo console and deletes them.
+    const name = `${Date.now().toString().padStart(15, '0')}-${process.pid}`;
+    await writeFile(join(directory, `${name}.tmp`), encodeKeys(rest));
+    await rename(join(directory, `${name}.tmp`), join(directory, `${name}.input`));
+    log(`typed ${rest.join(' ')}`);
+    return 0;
+  },
+
   async 'ctrl-c'(options) {
     const pid = await resolveTargetPid(options);
     const { code, stderr } = await runPwsh(options, 'send-ctrl.ps1', [
@@ -478,8 +617,16 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
   async close(options) {
     // Closing the console window, like clicking its X: Windows sends CTRL_CLOSE_EVENT and ends the program 5 s later.
     // The window belongs to the program, not to conhost.exe, so `taskkill /pid <conhost>` does not close it.
+    if (!options.pid && (await readConsoleState(options))?.mode !== 'window') {
+      return fail('close needs a console started with --window; a pseudo console has no window.');
+    }
     const pid = await resolveTargetPid(options);
-    const { code, stdout, stderr } = await runPwsh(options, 'close-window.ps1', ['-TargetPid', String(pid)]);
+    const { code, stdout, stderr } = await runPwsh(options, 'close-window.ps1', [
+      '-TargetPid',
+      String(pid),
+      '-DesktopName',
+      desktopName(options)
+    ]);
     log(code === 0 ? `asked the console window of ${pid} to close` : (stderr || stdout).trim());
     return code;
   },
@@ -504,7 +651,7 @@ const commands: Record<string, (options: Options, rest: string[]) => Promise<num
     let clean = true;
     if (existsSync(toWslPath(taskPaths.task))) {
       clean = await stopAll(options);
-      await removeWindowsFolder(taskPaths.task);
+      await removeWindowsFolder(options, taskPaths.task);
     }
     if (existsSync(toWslPath(taskPaths.task))) {
       log(`${taskPaths.task} still exists (a file is probably in use).`);
@@ -538,12 +685,33 @@ const stopAll = async (options: Options) => {
   return remaining.length === 0;
 };
 
-/** `rd /s /q` deletes links without following them and is much faster than deleting through the WSL share. */
-const removeWindowsFolder = async (windowsPath: string) => {
+/**
+ * Deletes a folder strictly inside the root, with remove-tree.ps1: the path is a PowerShell parameter, never parsed by
+ * cmd.exe, and junctions and symbolic links are removed as links instead of being followed.
+ */
+const removeWindowsFolder = async (options: Options, windowsPath: string) => {
   if (!existsSync(toWslPath(windowsPath))) {
     return;
   }
-  await capture(CMD, ['/d', '/c', 'rd', '/s', '/q', windowsPath]);
+  const script = await readFile(join(import.meta.dir, 'remove-tree.ps1'), 'utf8');
+  const { code, stderr } = await capture(
+    PWSH,
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    {
+      env: {
+        ...process.env,
+        STACKTAPE_REMOVE_ROOT: options.root,
+        STACKTAPE_REMOVE_PATH: windowsPath,
+        WSLENV: buildWslEnv({
+          names: ['STACKTAPE_REMOVE_ROOT', 'STACKTAPE_REMOVE_PATH'],
+          existing: process.env.WSLENV
+        })
+      }
+    }
+  );
+  if (code !== 0) {
+    throw new Error(`Deleting ${windowsPath} failed: ${stderr.trim()}`);
+  }
 };
 
 const parseOptions = (argv: string[]) => {
@@ -568,6 +736,7 @@ const parseOptions = (argv: string[]) => {
       bytecode: { type: 'boolean' },
       break: { type: 'boolean' },
       detach: { type: 'boolean' },
+      window: { type: 'boolean' },
       version: { type: 'string' },
       'control-plane': { type: 'string' },
       help: { type: 'boolean' }
@@ -592,6 +761,7 @@ const parseOptions = (argv: string[]) => {
     bytecode: Boolean(values.bytecode),
     break: Boolean(values.break),
     detach: Boolean(values.detach),
+    window: Boolean(values.window),
     version: values.version ?? 'dev',
     includeNodeModules: Boolean(values['include-node-modules']),
     controlPlane: values['control-plane'] === 'user' ? 'user' : 'dev'
@@ -603,11 +773,39 @@ const parseOptions = (argv: string[]) => {
   return { command, options, rest: [...rest, ...passthrough] };
 };
 
+/**
+ * A root or task folder that is a junction or symbolic link would make the helper write and delete somewhere else.
+ * WSL shows Windows junctions as symbolic links. Only cleanup proceeds, and it removes the link itself.
+ */
+const isLink = (windowsPath: string) => {
+  try {
+    return lstatSync(toWslPath(windowsPath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
+const guardAgainstLinks = async (command: string, options: Options) => {
+  if (isLink(options.root)) {
+    return fail(`${options.root} is a link; refusing to use it.`);
+  }
+  const { task } = paths(options);
+  if (!isLink(task)) {
+    return undefined;
+  }
+  if (command !== 'cleanup') {
+    return fail(`${task} is a link; refusing to use it. Run cleanup to remove the link.`);
+  }
+  await removeWindowsFolder(options, task);
+  log(`removed the link ${task} without touching its target`);
+  return 0;
+};
+
 if (import.meta.main) {
   Promise.resolve()
-    .then(() => {
+    .then(async () => {
       const { command, options, rest } = parseOptions(process.argv.slice(2));
-      return commands[command](options, rest);
+      return (await guardAgainstLinks(command, options)) ?? commands[command](options, rest);
     })
     .then(
       (code) => process.exit(code),

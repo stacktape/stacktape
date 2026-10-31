@@ -11,8 +11,8 @@ creates lives in `C:\stacktape-wsl\<id>` (override with `--root`) and `/tmp/stac
 ## Before you start
 
 The host needs PowerShell 7 (`pwsh.exe`), and the AWS CLI for the account check. Containers need Docker Desktop on
-Windows; the WSL Docker Engine is a separate daemon that the Windows CLI cannot use. Build the inputs the release build
-copies once per worktree:
+Windows (installed 31 Oct 2026, engine 29.9.2); the WSL Docker Engine is a separate daemon that the Windows CLI cannot
+use, and neither should be reconfigured. Build the inputs the release build copies once per worktree:
 
 ```sh
 pnpm exec turbo run build --filter=@stacktape/init-ui
@@ -40,9 +40,12 @@ bun scripts/windows-host/windows-host.ts exec --task <id> --cwd app -- npm insta
   file system, and leaves out `node_modules`, `.venv` and `__pycache__`: Linux-built dependencies do not run on Windows.
   Install them with `exec` (`--include-node-modules` and `--exclude` change the list).
 - `run` starts `stacktape.exe` with piped output and returns its exit code. `exec` runs a Windows command through
-  `cmd.exe`. Both pass `AWS_PROFILE`, `AWS_REGION`, `AWS_DEFAULT_REGION`, every `STACKTAPE_*` variable and each
-  `--env NAME` through `WSLENV`, and print the names, never the values. `PATH`, `HOME`, `DOCKER_*` and `STP_DEV_MODE`
-  are refused: they describe the WSL side.
+  `cmd.exe`. Both start the program through `host.ps1` (C# in `host.cs`, compiled once per version and cached in
+  `<task>\tools`), which records its PID and creation time in `<task>\logs\processes.jsonl`. They pass `AWS_PROFILE`,
+  `AWS_REGION`, `AWS_DEFAULT_REGION`, every `STACKTAPE_*` variable and each `--env NAME` through `WSLENV`, and print the
+  names, never the values. `PATH`, `HOME`, `DOCKER_*` and `STP_DEV_MODE` are refused: they describe the WSL side. WSLENV
+  is rebuilt for the forwarded names, so an inherited `WSLENV=AWS_PROFILE/u` cannot keep the profile from Windows, and
+  `host.ps1` refuses to start the program unless the Windows side sees the expected `AWS_PROFILE`.
 - Windows programs started from WSL inherit the Windows PATH captured when WSL started, so a tool installed later
   (Docker Desktop on 31 Oct 2026) is missing until `wsl --shutdown`, which stops every agent's session. `run`, `exec`,
   `console` and `doctor` instead give the program the current Machine and User PATH from the registry.
@@ -50,58 +53,88 @@ bun scripts/windows-host/windows-host.ts exec --task <id> --cwd app -- npm insta
   only in its environment. The Windows profile's own login belongs to the owner's production Console, where the test
   account is not connected; `--control-plane user` uses it deliberately.
 
-### A real console
+### A terminal without a window
 
-Piped output is not a terminal, so the TUI, prompts and Ctrl+C handling need a console window:
+Piped output is not a terminal, so the TUI, prompts and keyboard shortcuts need a console. Tests must never put a window
+in front of the owner, who works on this machine at the same time:
 
 ```sh
 bun scripts/windows-host/windows-host.ts console --detach --task <id> --cwd app -- dev --stage <stage> --region eu-north-1 --resources all
-bun scripts/windows-host/windows-host.ts screen --task <id>      # the window's text
-bun scripts/windows-host/windows-host.ts ctrl-c --task <id>      # or: close (the window's X)
-bun scripts/windows-host/windows-host.ts wait --task <id>        # exits with the program's exit code
+bun scripts/windows-host/windows-host.ts screen --task <id>         # the console's current text
+bun scripts/windows-host/windows-host.ts keys --task <id> -- ctrl+r  # type: text, enter, tab, esc, arrows, ctrl+<letter>
+bun scripts/windows-host/windows-host.ts output --task <id>         # the end of the output stream, escape sequences removed
+bun scripts/windows-host/windows-host.ts ctrl-c --task <id>
+bun scripts/windows-host/windows-host.ts wait --task <id>           # exits with the program's exit code
 ```
 
-`console` opens one classic `conhost.exe` window (never a Windows Terminal tab) and records the program's PID and exit
-code in `<task>\logs\console.json`. It refuses to open a second window for the task while the first program runs; the
-owner may be using the machine, so close what you open. Use it for commands that keep running: a program that exits
-within a few hundred milliseconds may finish before its PID is recorded.
+`console` runs the program in a pseudo console (ConPTY) with no window: the CLI sees a terminal (120 x 40), its output
+goes to `<task>\logs\console-output.log`, and `keys` writes input. `screen` reads the pseudo console's screen buffer. It
+records the program's PID and exit code in `<task>\logs\console.json` and refuses a second console for the task while
+the first program runs. Use it for commands that keep running: a program that exits within a few hundred milliseconds
+may finish before its PID is recorded.
 
 `ctrl-c` attaches to the program's console and raises Ctrl+C there, exactly as a key press would: every process in that
 console receives it and no other console does. It also works for a `run` process, which has its own hidden console.
-`close` asks the window to close, which Windows delivers as `CTRL_CLOSE_EVENT` and follows with termination after 5
-seconds. Without `--pid`, both target the recorded console program, or the only running CLI of the task.
+
+Only closing a window with its X needs a real window. `console --window` opens a classic console window on a separate
+desktop created for the task (`stacktape-wsl-<id>`), so it never appears on the owner's screen and cannot take the
+keyboard focus. A window on the owner's desktop took the foreground from their browser even when it was started
+minimized and without activation. `close` posts WM_CLOSE to that window, which Windows delivers as `CTRL_CLOSE_EVENT`
+and follows with termination after 5 seconds. Without `--pid`, `screen`, `ctrl-c` and `close` target the recorded
+console program, or the only running CLI of the task.
 
 ### Processes and cleanup
 
 ```sh
-bun scripts/windows-host/windows-host.ts ps --task <id>        # everything started from the task folder, with descendants
-bun scripts/windows-host/windows-host.ts kill --task <id>      # taskkill /t /f per tree, then verifies none remain
+bun scripts/windows-host/windows-host.ts ps --task <id>        # the processes this task started, with descendants
+bun scripts/windows-host/windows-host.ts kill --task <id>      # ends them, children first, and verifies none remain
 bun scripts/windows-host/windows-host.ts cleanup --task <id>   # kill, delete both folders, verify
 ```
+
+A process belongs to the task when `processes.jsonl` names its PID with the same creation time, when it descends from
+such a process (created after it, and before any process that reused its PID), or when its executable lives in the task
+folder. A command line that merely mentions the task folder does not count, so `kill` never ends an unrelated shell. The
+`dev --agent` daemon outlives the `stacktape.exe` that started it and is still found through that record.
+
+Deletion goes through `remove-tree.ps1`, run with `-EncodedCommand` and its paths in environment variables, never
+through `cmd.exe` parsing. It deletes only inside the root, removes junctions and symbolic links as links without
+following them, and refuses a path below a link. The root must be `C:\stacktape-wsl` or a plain folder inside it, so a
+root such as `C:\R&D` is rejected. A task folder that is itself a link is refused by every command except `cleanup`,
+which removes the link and leaves its target alone.
 
 A forced kill is a crash: Stacktape cleans up nothing, and AWS keeps the SSM session open until its idle timeout. The
 next `stacktape dev` of the stage replaces it. After a test that ends with `kill`, list the sessions with
 `aws ssm describe-sessions --state Active` and terminate the ones your run opened. Delete stacks and the dev network
 with the Windows CLI, then verify them in AWS as [Live AWS testing](live-aws.md) requires.
 
-The Windows CLI keeps its state in the real profile, `C:\Users\<user>\.stacktape`: dev-agent tokens, the AWS identity
-cache and downloaded tools such as Trivy. `cleanup` leaves that folder alone because the owner's own sessions use it.
-List it before your first run and remove only what your run added.
+The helper points dev-agent tokens and dev-proxy state at `<task>\state` (`STACKTAPE_DEV_AGENT_TOKEN_DIR`,
+`STACKTAPE_DEV_PROXY_STATE_DIR`). The rest of the Windows CLI's state stays in the real profile,
+`C:\Users\<user>\.stacktape`: the AWS identity cache and downloaded tools such as Trivy. `cleanup` leaves that folder
+alone because the owner's own sessions use it. List it before your first run and remove only what your run added. The
+same holds for Docker Desktop: `dev stop`, Ctrl+C and closing the window remove the containers, but pulled and built
+images and the build cache stay. Note `docker images` and `docker system df` before the first run and remove what your
+run added.
 
 ## A dev-mode check
 
-The order below covers what Windows changes in dev mode. Without Docker on Windows, a function with
-`joinDefaultVpc: true` still uses the dev network, the dev box and the SSM session; local databases need Docker Desktop.
+The order below covers what Windows changes in dev mode. A function with `joinDefaultVpc: true` uses the dev network,
+the dev box and the SSM session without Docker; local databases and containers need Docker Desktop.
 
 1. `STACKTAPE_DEV_NETWORK_SUFFIX=<id>` isolates the dev network.
    `run ... -- dev --agent --stage <stage> --region eu-north-1 --resources all --watch` returns once the agent is ready
    (about 4 minutes when it creates the network, 7 seconds afterwards).
 2. Invoke the function from WSL with the AWS CLI. Edit the source in the Windows copy (`/mnt/c/...`): the Windows file
    watcher sees edits made from WSL, and the next invocation runs the new code within seconds.
-3. Query status through `stacktape mcp` on Windows: start it with `run --cwd <project> -- mcp` and write JSON-RPC to its
+3. With a local database (`connectTo`), the deployed function queries the container in Docker Desktop through the dev
+   box. Write a row through MCP (`stacktape_dev` `query`), restart dev, and read it again: the data lives in the
+   project's `.stacktape/dev-data/<stage>` on NTFS and survives the restart.
+4. Query status through `stacktape mcp` on Windows: start it with `run --cwd <project> -- mcp` and write JSON-RPC to its
    standard input.
-4. `run ... -- dev stop --stage <stage>`, then `ps` shows no process and `aws ssm describe-sessions --state Active` no
-   session of the run. Repeat in a `console` with `ctrl-c` and with `close`.
+5. A container workload's URL (`http://<name>.<stage>.localhost:<port>`) is on Windows' localhost: request it with
+   `exec -- curl.exe ...`.
+6. `run ... -- dev stop --stage <stage>`, then `ps` shows no process, `exec -- docker ps -a` no container and
+   `aws ssm describe-sessions --state Active` no session of the run. Repeat in a `console` with `ctrl-c`, and with
+   `console --window` and `close`.
 
 ## Pitfalls
 
@@ -117,6 +150,8 @@ The order below covers what Windows changes in dev mode. Without Docker on Windo
 - **Arguments.** WSL quotes the arguments of a directly started `.exe` correctly (spaces, quotes, trailing backslashes,
   `%` and `&` arrive unchanged). `cmd.exe /c` parses its command line again, so `exec` suits ordinary commands, not
   arguments with quotes.
+- **Piped dev.** `run ... -- dev` (or `dev | tee`) prints plain lines instead of the full-screen interface, so its
+  keyboard shortcuts (Ctrl+R rebuild, Ctrl+A rebuild all) are unavailable; use `console` and `keys` for those.
 - **Signals.** `kill -INT` on the WSL side terminates the Windows process without running its handlers; use `ctrl-c`. Do
   not `child.kill()` a Windows child from code under test either: it can raise Ctrl+C for the whole console.
 - **Defender.** Real-time monitoring is off on this host. Even so, never put a download-and-run command

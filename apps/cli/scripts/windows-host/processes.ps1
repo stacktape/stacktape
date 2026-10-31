@@ -1,33 +1,25 @@
-# Lists, as JSON, every process started from -TaskDirectory (by executable path or command line) and all of their
-# descendants. With -Stop, ends each tree with `taskkill /t /f`, which needs no console and reaches grandchildren.
-param([Parameter(Mandatory)][string]$TaskDirectory, [switch]$Stop)
+# Lists every Windows process as JSON (PID, parent, name, executable, creation time in UTC). windows-host.ts decides
+# which belong to the task (selectOwnedProcesses in core.ts). With -Stop, ends the given processes, each only if its
+# PID still has the given creation time, so a PID reused since the listing is never touched.
+param([string]$Stop)
 $ErrorActionPreference = 'Stop'
-$all = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine)
-$prefix = $TaskDirectory.TrimEnd('\') + '\'
-$self = $PID
-$owned = @{}
-foreach ($process in $all) {
-  if ($process.ProcessId -eq $self) { continue }
-  if (($process.ExecutablePath -and $process.ExecutablePath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) -or
-      ($process.CommandLine -and $process.CommandLine.IndexOf($prefix, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
-       $process.CommandLine -notmatch 'processes\.ps1')) {
-    $owned[$process.ProcessId] = $process
-  }
-}
-do {
-  $added = $false
-  foreach ($process in $all) {
-    if (-not $owned.ContainsKey($process.ProcessId) -and $owned.ContainsKey($process.ParentProcessId) -and $process.ProcessId -ne $self) {
-      $owned[$process.ProcessId] = $process; $added = $true
-    }
-  }
-} while ($added)
-$list = @($owned.Values | Sort-Object ProcessId | ForEach-Object {
-  [ordered]@{ pid = $_.ProcessId; parentPid = $_.ParentProcessId; name = $_.Name; path = $_.ExecutablePath }
-})
 if ($Stop) {
-  foreach ($process in $list) {
-    if (-not $owned.ContainsKey($process.parentPid)) { & taskkill.exe /pid $process.pid /t /f *> $null }
+  foreach ($entry in ($Stop | ConvertFrom-Json)) {
+    $process = Get-Process -Id ([int]$entry.pid) -ErrorAction SilentlyContinue
+    if (-not $process) { continue }
+    $created = $process.StartTime.ToUniversalTime()
+    if ([Math]::Abs(($created - ([datetime]$entry.created).ToUniversalTime()).TotalMilliseconds) -gt 1000) { continue }
+    try { $process.Kill() } catch { }
   }
+  exit 0
 }
+$list = @(Get-CimInstance Win32_Process | ForEach-Object {
+  [ordered]@{
+    pid = [int]$_.ProcessId
+    parentPid = [int]$_.ParentProcessId
+    name = $_.Name
+    path = $_.ExecutablePath
+    created = $_.CreationDate.ToUniversalTime().ToString('o')
+  }
+})
 ConvertTo-Json -InputObject $list -Compress -Depth 3

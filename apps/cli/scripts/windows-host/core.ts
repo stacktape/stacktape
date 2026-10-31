@@ -15,14 +15,14 @@ export const assertTaskId = (taskId: string | undefined): string => {
   return taskId;
 };
 
-const DRIVE_ROOT_PATTERN = /^[A-Za-z]:\\$/;
+// Only C:\stacktape-wsl and plain folders below it: the helper deletes inside the root, so a root such as C:\R&D or
+// C:\Users must be impossible to pass.
+const ROOT_PATTERN = /^C:\\stacktape-wsl(\\[A-Za-z0-9._-]+)*$/i;
 
 export const assertWindowsRoot = (root: string): string => {
   const normalized = root.replace(/\//g, '\\').replace(/\\+$/, '');
-  if (!/^[A-Za-z]:\\[^\\]/.test(normalized) || DRIVE_ROOT_PATTERN.test(`${normalized}\\`)) {
-    throw new Error(
-      `The Windows root must be an absolute folder below a drive root, like C:\\stacktape-wsl (got ${root}).`
-    );
+  if (!ROOT_PATTERN.test(normalized) || normalized.split('\\').some((part) => part === '.' || part === '..')) {
+    throw new Error(`The Windows root must be ${DEFAULT_WINDOWS_ROOT} or a plain folder inside it (got ${root}).`);
   }
   return normalized;
 };
@@ -138,11 +138,15 @@ export const selectPassThroughNames = ({
   return [...new Set(candidates)].filter((name) => environment[name] !== undefined).sort();
 };
 
-/** WSLENV entries for `names`, one-way into Windows (`/w`), keeping entries already present. */
+/**
+ * WSLENV for `names`, one-way into Windows (`/w`). Inherited entries for the same names are dropped: an inherited
+ * `AWS_PROFILE/u` would otherwise keep AWS_PROFILE from reaching Windows, and the CLI would use the default
+ * credentials. Entries for other names are kept.
+ */
 export const buildWslEnv = ({ names, existing }: { names: readonly string[]; existing?: string }): string => {
-  const entries = (existing ?? '').split(':').filter(Boolean);
-  const present = new Set(entries.map((entry) => entry.split('/')[0]));
-  return [...entries, ...names.filter((name) => !present.has(name)).map((name) => `${name}/w`)].join(':');
+  const forwarded = new Set(names);
+  const kept = (existing ?? '').split(':').filter((entry) => entry && !forwarded.has(entry.split('/')[0]));
+  return [...kept, ...[...forwarded].map((name) => `${name}/w`)].join(':');
 };
 
 /** Refuses to run without an allowed profile, so the Windows CLI never falls back to the default credentials. */
@@ -179,4 +183,100 @@ export const mergeWindowsPath = ({ registry, session }: { registry: string; sess
     entries.push(trimmed);
   }
   return entries.join(';');
+};
+
+const NAMED_KEYS: Record<string, string> = {
+  enter: '\r',
+  tab: '\t',
+  esc: '\u001b',
+  backspace: '\u007f',
+  up: '\u001b[A',
+  down: '\u001b[B',
+  right: '\u001b[C',
+  left: '\u001b[D'
+};
+
+/** Bytes a terminal sends for `keys`: named keys, `ctrl+<letter>` as its control character, anything else as text. */
+export const encodeKeys = (keys: readonly string[]): string =>
+  keys
+    .map((key) => {
+      const named = NAMED_KEYS[key.toLowerCase()];
+      if (named) return named;
+      const control = /^ctrl\+([a-z])$/i.exec(key);
+      return control ? String.fromCharCode(control[1].toLowerCase().charCodeAt(0) - 96) : key;
+    })
+    .join('');
+
+const ESC = String.fromCharCode(27);
+const BEL = String.fromCharCode(7);
+// OSC (title, hyperlinks), DCS, APC, PM and SOS strings, ended by BEL or ST.
+const STRING_SEQUENCE = new RegExp(`${ESC}[\\]P_^X][\\s\\S]*?(?:${BEL}|${ESC}\\\\)`, 'g');
+// CSI sequences: cursor movement, colors, modes, queries.
+const CSI_SEQUENCE = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g');
+// Remaining two-character escapes, such as ESC 7 and ESC =.
+const SHORT_ESCAPE = new RegExp(`${ESC}[ -~]`, 'g');
+
+/** Pseudo console output as plain text: escape sequences removed, CRLF and lone CR turned into line breaks. */
+export const stripTerminalSequences = (text: string): string =>
+  text.replace(STRING_SEQUENCE, '').replace(CSI_SEQUENCE, '').replace(SHORT_ESCAPE, '').replace(/\r\n?/g, '\n');
+
+export type WindowsProcess = { pid: number; parentPid: number; name: string; path: string | null; created: string };
+export type ProcessRecord = { pid: number; created: string };
+
+/** Creation times from different APIs differ by up to a few milliseconds. */
+const sameCreation = (left: string, right: string) => Math.abs(Date.parse(left) - Date.parse(right)) < 1000;
+
+/**
+ * The processes a task owns, oldest first: those `records` names with the same creation time (host.cs records every
+ * start), their descendants, and those whose executable lives in the task folder. A descendant must be created after
+ * its parent. A recorded process that has exited still owns the children it created before another process reused its
+ * PID; the `dev --agent` daemon outlives the CLI that started it. A command line that mentions the task folder does not
+ * make a process the task's.
+ */
+export const selectOwnedProcesses = ({
+  processes,
+  records,
+  taskDirectory
+}: {
+  processes: readonly WindowsProcess[];
+  records: readonly ProcessRecord[];
+  taskDirectory: string;
+}): WindowsProcess[] => {
+  const byPid = new Map(processes.map((process) => [process.pid, process]));
+  const owned = new Map<number, WindowsProcess>();
+  // PID -> the window in which a child with that parent PID was created by the recorded, now exited, process.
+  const exitedRoots = new Map<number, { from: number; until: number }>();
+  for (const record of records) {
+    const holder = byPid.get(record.pid);
+    if (holder && sameCreation(holder.created, record.created)) {
+      owned.set(holder.pid, holder);
+    } else {
+      exitedRoots.set(record.pid, {
+        from: Date.parse(record.created),
+        until: holder ? Date.parse(holder.created) : Number.POSITIVE_INFINITY
+      });
+    }
+  }
+  const prefix = `${taskDirectory.replace(/\\+$/, '')}\\`.toLowerCase();
+  for (const process of processes) {
+    if (process.path?.toLowerCase().startsWith(prefix)) owned.set(process.pid, process);
+  }
+  let added = true;
+  while (added) {
+    added = false;
+    for (const process of processes) {
+      if (owned.has(process.pid)) continue;
+      const created = Date.parse(process.created);
+      const parent = owned.get(process.parentPid);
+      const exited = exitedRoots.get(process.parentPid);
+      const belongs = parent
+        ? created >= Date.parse(parent.created)
+        : exited !== undefined && created >= exited.from && created < exited.until;
+      if (belongs) {
+        owned.set(process.pid, process);
+        added = true;
+      }
+    }
+  }
+  return [...owned.values()].sort((left, right) => Date.parse(left.created) - Date.parse(right.created));
 };
