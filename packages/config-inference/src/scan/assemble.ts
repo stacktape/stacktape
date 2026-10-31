@@ -98,8 +98,8 @@ const mergeDependency = (existing: DependencyFact, incoming: DependencyFact): De
     : {}),
   ...((existing.mysqlEngine ?? incoming.mysqlEngine) ? { mysqlEngine: 'mariadb' as const } : {}),
   ...((existing.userPoolSelfSignUp ?? incoming.userPoolSelfSignUp) ? { userPoolSelfSignUp: true as const } : {}),
-  ...((existing.userPoolConfiguredBy ?? incoming.userPoolConfiguredBy)
-    ? { userPoolConfiguredBy: 'amplify' as const }
+  ...((existing.amplifyAuth ?? incoming.amplifyAuth)
+    ? { amplifyAuth: existing.amplifyAuth ?? incoming.amplifyAuth }
     : {}),
   ...((existing.fixedAddress ?? incoming.fixedAddress)
     ? { fixedAddress: existing.fixedAddress ?? incoming.fixedAddress }
@@ -734,52 +734,29 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): Set<Va
   const httpServices = services.filter(
     (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
   );
-  // Each backend with the services it stands for: every HTTP-triggered function sits behind one API gateway.
+  // Every HTTP-triggered function sits behind one API gateway, so they count as one backend.
   const backends = [...(httpFunctions.length > 0 ? [httpFunctions] : []), ...httpServices.map((service) => [service])];
+  if (backends.length !== 1) return linked;
+  const backend = backends[0]!;
   for (const service of services) {
-    if (!isFrontend(service)) continue;
+    if (!isFrontend(service) || backend.includes(service)) continue;
     const variables = service.environmentVariables ?? [];
-    // A backend the frontend already reaches through another variable that names it (`ME_URL` for the `me` function)
-    // is not what its generic `API_URL` addresses.
-    const named = new Set(
-      variables.flatMap((variable) => {
-        if (API_ADDRESS_VARIABLE.test(variable.name)) return [];
-        if (variable.targetServiceName !== undefined) return [variable.targetServiceName];
-        const words = SERVICE_ADDRESS_VARIABLE.exec(variable.name)?.[1]?.replace(ADDRESS_ROLE_WORD, '');
-        return words === undefined || words === ''
-          ? []
-          : services.filter((target) => serviceWords(target.name) === words).map((target) => target.name);
-      })
-    );
-    const others = backends.filter((group) => !group.includes(service));
-    const candidates = others.filter((group) => !group.some((member) => named.has(member.name)));
+    // Another variable that already names the backend (`ME_URL` for the `me` function) leaves open what the generic
+    // `API_URL` addresses: the same backend, or something outside the project.
+    const namedElsewhere = variables.some((variable) => {
+      if (API_ADDRESS_VARIABLE.test(variable.name)) return false;
+      if (variable.targetServiceName !== undefined)
+        return backend.some((member) => member.name === variable.targetServiceName);
+      const words = SERVICE_ADDRESS_VARIABLE.exec(variable.name)?.[1]?.replace(ADDRESS_ROLE_WORD, '');
+      return words !== undefined && words !== '' && backend.some((member) => serviceWords(member.name) === words);
+    });
+    if (namedElsewhere) continue;
     for (const variable of variables) {
-      if (variable.targetServiceName !== undefined) continue;
-      const word = API_ADDRESS_VARIABLE.exec(variable.name)?.[1];
-      if (word === undefined) continue;
-      // With several backends, the one left must also be called what the variable says (`ledger-api` for `API_URL`):
-      // being the only backend another variable does not name is no evidence on its own.
-      const matching =
-        others.length === 1
-          ? others
-          : candidates.filter((group) =>
-              group.some((member) =>
-                [member.name, posix.basename(member.path)].some((name) =>
-                  new RegExp(`(?:^|_)${word}$`).test(
-                    name
-                      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-                      .toUpperCase()
-                      .replace(/[^A-Z0-9]+/g, '_')
-                  )
-                )
-              )
-            );
-      if (matching.length !== 1) continue;
-      const backend = matching[0]![0]!;
-      if (variable.role === 'build-time') variable.targetServiceName = backend.name;
+      if (variable.targetServiceName !== undefined || !API_ADDRESS_VARIABLE.test(variable.name)) continue;
+      if (variable.role === 'build-time') variable.targetServiceName = backend[0]!.name;
       if (variable.role === 'runtime-config') {
         variable.role = 'cross-service-reference';
-        variable.targetServiceName = backend.name;
+        variable.targetServiceName = backend[0]!.name;
         linked.add(variable);
       }
     }

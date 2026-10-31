@@ -31,6 +31,7 @@ import { languageOf } from '../language';
 import { withoutSampleDirectories } from '../service-root';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { maskSource } from '../lexical';
+import { sliceBalancedBraces } from '../balanced-slice';
 
 /**
  * Package name to what it proves.
@@ -110,9 +111,6 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
       'redis',
       'aioredis',
       'django-redis',
-      // Django Channels' Redis channel layer, which every WebSocket consumer of a multi-instance deployment shares.
-      'channels-redis',
-      'channels_redis',
       'predis',
       'ext-redis',
       'go-redis',
@@ -533,7 +531,10 @@ const PYTHON_ENVIRONMENT_READ =
  */
 const channelLayerAddress = async (
   context: ProbeContext
-): Promise<{ variables: string[] } | { fixed: { file: string; line: number; setting: string } } | undefined> => {
+): Promise<
+  | ({ citation: Citation } & ({ variables: string[] } | { fixed: { file: string; line: number; setting: string } }))
+  | undefined
+> => {
   const settings = context.files.filter((path) => DJANGO_SETTINGS_FILE.test(path)).slice(0, 20);
   for (const path of settings) {
     // oxlint-disable-next-line no-await-in-loop -- a handful of settings files, read in a stable order.
@@ -541,15 +542,20 @@ const channelLayerAddress = async (
     if (raw === undefined) continue;
     const code = maskSource(raw, 'python', { strings: 'keep' });
     const start = CHANNEL_LAYERS.exec(code)?.index;
-    if (start === undefined || !/channels_redis/.test(code.slice(start, start + 600))) continue;
+    if (start === undefined) continue;
+    const backend = /['"]BACKEND['"]\s*:\s*['"]channels_redis\.[\w.]+['"]/.exec(code.slice(start, start + 600));
+    if (backend === null) return undefined;
+    const lineAt = (offset: number) => code.slice(0, offset).split('\n').length;
+    const citation = citeLine(path, raw.split('\n'), lineAt(start + backend.index) - 1, 'kind');
     const hostsAt = code.indexOf('hosts', start);
-    if (hostsAt === -1 || hostsAt > start + 600) return undefined;
+    // Without `hosts`, the layer connects to its default, localhost:6379.
+    if (hostsAt === -1 || hostsAt > start + 600) {
+      return { citation, fixed: { file: path, line: lineAt(start), setting: 'CHANNEL_LAYERS' } };
+    }
     const hosts = code.slice(hostsAt, hostsAt + 300).split(/\]\s*[,}]/)[0]!;
     const variables = [...hosts.matchAll(PYTHON_ENVIRONMENT_READ)].map((match) => match[1]!);
-    if (variables.length > 0) return { variables };
-    if (!/['"][^'"]+['"]/.test(hosts)) return undefined;
-    const line = code.slice(0, hostsAt).split('\n').length;
-    return { fixed: { file: path, line, setting: 'CHANNEL_LAYERS' } };
+    if (variables.length > 0) return { citation, variables };
+    return { citation, fixed: { file: path, line: lineAt(hostsAt), setting: 'CHANNEL_LAYERS' } };
   }
   return undefined;
 };
@@ -679,12 +685,23 @@ const rootManifestProbe: Probe = {
         });
       }
     }
-    const redis = dependencies.get('redis');
-    if (redis !== undefined && (foundIn.has('channels-redis') || foundIn.has('channels_redis'))) {
+    // Django Channels' Redis layer, which every WebSocket consumer of a multi-instance deployment shares. The package
+    // alone proves nothing: the settings may select the in-memory layer.
+    if (foundIn.has('channels-redis') || foundIn.has('channels_redis')) {
       const layer = await channelLayerAddress(context);
-      if (layer !== undefined && 'fixed' in layer) redis.fixedAddress = layer.fixed;
-      if (layer !== undefined && 'variables' in layer) {
-        redis.addressedBy = [...new Set([...redis.addressedBy, ...layer.variables])];
+      if (layer !== undefined) {
+        const redis = dependencies.get('redis') ?? {
+          name: defaultDependencyName('redis'),
+          kind: 'redis' as const,
+          extensions: [],
+          consumedBy: [],
+          addressedBy: [],
+          evidence: [layer.citation],
+          source: 'probe' as const
+        };
+        dependencies.set('redis', redis);
+        if ('fixed' in layer) redis.fixedAddress = layer.fixed;
+        else redis.addressedBy = [...new Set([...redis.addressedBy, ...layer.variables])];
       }
     }
 
@@ -782,9 +799,33 @@ const goWorkModules = (raw: string): string[] => {
 /** An HTTP or gRPC listener, or a Lambda handler: another probe owns those programs. */
 const GO_LISTENER_OR_HANDLER =
   /\b(?:http\.(?:ListenAndServe(?:TLS)?|Serve(?:TLS)?)|net\.Listen|lambda\.Start(?:WithOptions)?)\s*\(|\.(?:ListenAndServe(?:TLS)?|Serve|Run|RunTLS|Start|Listen)\s*\(/;
-/** A program that keeps running: it blocks forever, loops, ticks, or waits for a shutdown signal. */
-const GO_KEEPS_RUNNING =
-  /\bselect\s*\{\s*\}|\bfor\s*\{|\bsignal\.Notify(?:Context)?\s*\(|\btime\.(?:NewTicker|Tick)\s*\(|<-\s*[\w.]*\.?Done\s*\(\s*\)/;
+/** `select {}`: the goroutine blocks forever. */
+const GO_BLOCKS_FOREVER = /\bselect\s*\{\s*\}/;
+/** A loop that never ends by itself over a ticker: `for range ticker.C {`, `for t := range time.Tick(d) {`. */
+const GO_TICKER_LOOP = /\bfor\s+(?:[\w,\s]+:?=\s*)?range\s+(?:[\w.]+\.C\b|time\.Tick\s*\()[^{\n]*\{/g;
+/** A receive or a consumer's poll: a channel receive, `ReceiveMessage`, `Poll`, `Consume`, `FetchMessage`, `ReadMessage`. */
+const GO_RECEIVE = /<-|\.(?:Receive|ReceiveMessage|Poll|Consume|Fetch|FetchMessage|ReadMessage)\w*\s*\(/;
+
+/**
+ * Where `main` itself keeps the program running: it blocks forever, or loops without end around a receive or a poll.
+ * Signal handling or a context alone only says how the program stops, not that it runs until then. Returns the offset
+ * of that evidence in `masked`.
+ */
+const goKeepsRunning = (masked: string): number | undefined => {
+  const main = /\bfunc\s+main\s*\(\s*\)\s*\{/.exec(masked);
+  if (main === null) return undefined;
+  const bodyStart = main.index + main[0].length;
+  const body = sliceBalancedBraces(masked, bodyStart - 1)?.body;
+  if (body === undefined) return undefined;
+  const blocked = GO_BLOCKS_FOREVER.exec(body);
+  if (blocked !== null) return bodyStart + blocked.index;
+  for (const loop of body.matchAll(/\bfor\s*\{/g)) {
+    const inner = sliceBalancedBraces(body, loop.index + loop[0].length - 1)?.body;
+    if (inner !== undefined && GO_RECEIVE.test(inner)) return bodyStart + loop.index;
+  }
+  const ticker = new RegExp(GO_TICKER_LOOP.source).exec(body);
+  return ticker === null ? undefined : bodyStart + ticker.index;
+};
 
 /**
  * Go programs that run continuously and serve no HTTP: the `main` package of the repository's module, or of a module
@@ -821,14 +862,13 @@ const goWorkers = async (context: ProbeContext): Promise<ServiceFactInput[]> => 
     const entry = main.find(({ masked }) => /\bfunc\s+main\s*\(\s*\)/.test(masked));
     if (entry === undefined) continue;
     if (main.some(({ masked }) => GO_LISTENER_OR_HANDLER.test(masked))) continue;
-    const running = main.find(({ masked }) => GO_KEEPS_RUNNING.test(masked));
-    if (running === undefined) continue;
+    const at = goKeepsRunning(entry.masked);
+    if (at === undefined) continue;
     const moduleName = goMod?.raw === undefined ? undefined : /^module\s+\S*?([\w.-]+)\s*$/m.exec(goMod.raw)?.[1];
     const name =
       moduleName ??
       (module === '.' ? context.root.split(/[/\\]/).findLast((part) => part !== '') : posix.basename(module));
-    const lines = running.masked.split('\n');
-    const index = lines.findIndex((line) => GO_KEEPS_RUNNING.test(line));
+    const index = entry.masked.slice(0, at).split('\n').length - 1;
     workers.push({
       name: name ?? 'worker',
       path: module,
@@ -838,7 +878,7 @@ const goWorkers = async (context: ProbeContext): Promise<ServiceFactInput[]> => 
       // The buildpack builds the package of this file, as it does for a Go server's.
       containerEntrypoint: entry.path,
       environmentVariables: [],
-      evidence: index === -1 ? [] : [citeLine(running.path, running.raw.split('\n'), index, 'executionModel')],
+      evidence: [citeLine(entry.path, entry.raw.split('\n'), index, 'executionModel')],
       source: 'probe'
     });
   }

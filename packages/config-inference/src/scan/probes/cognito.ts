@@ -32,7 +32,7 @@ const AMPLIFY_AUTH_IMPORT =
 const AMPLIFY_AUTH_CALL =
   /\b(?:Auth\s*\.\s*)?(?:signIn|signUp|confirmSignIn|confirmSignUp|fetchAuthSession|getCurrentUser|currentSession)\s*\(/;
 const AMPLIFY_SIGN_UP = /\b(?:Auth\s*\.\s*)?signUp\s*\(/;
-/** Amplify Gen 2's own declaration of the project's user pool: `defineAuth(...)` in `amplify/auth/resource.ts`. */
+/** Amplify Gen 2's declaration of the pool Amplify deploys: `defineAuth(...)` in `amplify/auth/resource.ts`. */
 const AMPLIFY_AUTH_RESOURCE = /(?:^|\/)amplify\/auth\/resource\.[cm]?[jt]s$/;
 const AMPLIFY_AUTH_DEFINITION = /\bdefineAuth\s*\(/;
 
@@ -159,11 +159,11 @@ export const cognitoProbe: Probe = {
     }
     if (clientVariables.size === 0 && amplifySignIn === undefined) return {};
     if (amplifySignIn !== undefined && evidence.length < 3) evidence.push(amplifySignIn);
-    // Amplify Gen 2 declares the project's own pool beside the code that signs in to it.
+    // Amplify Gen 2's `defineAuth` is the pool Amplify deploys, which may already hold users (or serve only sandboxes).
+    // It is recorded for the gap, and proves nothing about a pool Stacktape should create.
     const amplifyDefinition = amplifySignIn === undefined ? undefined : await amplifyAuthDefinition(context);
-    const owned = amplifyDefinition?.citation ?? (await ownershipEvidence(context, sources));
+    const owned = await ownershipEvidence(context, sources);
     if (owned !== undefined) evidence.push(owned);
-    const usernameAttributes = amplifyDefinition?.usernameAttributes ?? [];
     const dependency: DependencyFact = {
       name: defaultDependencyName('user-pool'),
       kind: 'user-pool',
@@ -172,8 +172,18 @@ export const cognitoProbe: Probe = {
       addressedBy: [...clientVariables, ...poolVariables],
       userPoolOwnership: owned === undefined ? 'unproven' : 'project',
       ...(selfSignUp ? { userPoolSelfSignUp: true as const } : {}),
-      ...(amplifySignIn === undefined ? {} : { userPoolConfiguredBy: 'amplify' as const }),
-      ...(usernameAttributes.length === 0 ? {} : { userPoolSettings: { usernameAttributes } }),
+      ...(amplifySignIn === undefined
+        ? {}
+        : {
+            amplifyAuth: {
+              ...(amplifyDefinition === undefined
+                ? {}
+                : { declaration: { file: amplifyDefinition.citation.file, line: amplifyDefinition.citation.line } }),
+              ...(amplifyDefinition === undefined || amplifyDefinition.usernameAttributes.length === 0
+                ? {}
+                : { loginWith: amplifyDefinition.usernameAttributes })
+            }
+          }),
       evidence,
       source: 'probe'
     };

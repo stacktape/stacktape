@@ -458,15 +458,16 @@ describe('init writes a config stacktape dev can run', () => {
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
-  // The r2cc dogfood (27 Oct 2026) needed seven config edits after init. Each one is asserted here.
-  it('r2cc receipts: Procfile migration, state machine, function URL, a Python schedule and the README dead-letter queue', async () => {
+  // The r2cc dogfood (27 Oct 2026) needed seven config edits after init. Each one is asserted here; H5, the dead-letter
+  // queue, stays a hand edit because only the README mentions it, and README prose is no wiring: the gap gives the
+  // exact configuration.
+  it('r2cc receipts: Procfile migration, state machine, function URL and a Python schedule', async () => {
     const result = await initFixture('r2cc-receipts');
     const resources = resourcesOf(result);
 
     expect(typesOf(resources)).toEqual({
       mainDatabase: 'relational-database',
       jobQueue: 'sqs-queue',
-      jobDeadLetterQueue: 'sqs-queue',
       storageBucket: 'bucket',
       approvalWorkflow: 'state-machine',
       receiptsWeb: 'sveltekit-web',
@@ -523,13 +524,14 @@ describe('init writes a config stacktape dev can run', () => {
     ]);
     // H6: the S3 trigger grants no access to the object the handler reads.
     expect(resources.onUpload!.properties.connectTo).toEqual(['storageBucket', 'jobQueue']);
-    // H5: the README bullet for the queue's consumer says messages that fail twice go to a dead-letter queue.
-    expect(resources.jobQueue!.properties.redrivePolicy).toEqual({
-      targetSqsQueueName: 'jobDeadLetterQueue',
-      maxReceiveCount: 2
-    });
-    expect(resources.jobDeadLetterQueue!.properties).toEqual({});
-    expect(result.composition.gaps).toEqual([]);
+    expect(resources.jobQueue!.properties.redrivePolicy).toBeUndefined();
+    expect(result.composition.gaps).toEqual([
+      {
+        subject: 'jobQueue.redrivePolicy',
+        message:
+          'README.md line 11 mentions a dead-letter queue for jobQueue after 2 failed receives. init does not add one from README text. If jobQueue should keep failed messages, add jobDeadLetterQueue as an sqs-queue and set redrivePolicy on jobQueue to { targetSqsQueueName: jobDeadLetterQueue, maxReceiveCount: 2 } before deploying. Without it, a message that keeps failing is retried until it expires and is then lost.'
+      }
+    ]);
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
@@ -612,7 +614,7 @@ describe('init writes a config stacktape dev can run', () => {
   // The r2ll dogfood (28 Oct 2026) needed five logical config edits after init for init gaps, H1-H5; each is asserted
   // here, as a config change or, where the code does not settle it, a gap. Its sixth edit, DynamoDB TTL through an override, has no native property to infer, and the route rename from
   // /ping avoided an API Gateway reserved path rather than an init gap.
-  it('r2ll parcel: one Rails service from its Gemfile directory, its SNS topic fanning out to a queue per consumer, a Go function and an unproven table key', async () => {
+  it('r2ll parcel: one Rails service from its Gemfile directory, its SNS topic, consumers sharing a queue, a Go function and an unproven table key', async () => {
     const result = await initFixture('r2ll-parcel');
     const resources = resourcesOf(result);
 
@@ -620,8 +622,7 @@ describe('init writes a config stacktape dev can run', () => {
     expect(typesOf(resources)).toEqual({
       mainDatabase: 'relational-database',
       mainTable: 'dynamo-db-table',
-      auditQueue: 'sqs-queue',
-      billingQueue: 'sqs-queue',
+      jobQueue: 'sqs-queue',
       notificationsTopic: 'sns-topic',
       httpApiGateway: 'http-api-gateway',
       parcelWeb: 'sveltekit-web',
@@ -639,32 +640,11 @@ describe('init writes a config stacktape dev can run', () => {
       ],
       connectTo: ['mainDatabase', 'notificationsTopic']
     });
-    // H4: the README says the topic fans out to billingQueue and auditQueue, one per consumer, and nothing sends to a
-    // queue directly. Each consumer gets its own queue, subscribed to the topic and open to it alone. The handlers parse
-    // the published message from the record body, so delivery is raw.
-    expect(resources.billing!.properties.events).toEqual([
-      { type: 'sqs', properties: { sqsQueueName: 'billingQueue' } }
-    ]);
-    expect(resources.audit!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'auditQueue' } }]);
-    for (const queue of ['billingQueue', 'auditQueue']) {
-      expect(resources[queue]!.properties.policyStatements).toEqual([
-        {
-          Effect: 'Allow',
-          Principal: { Service: 'sns.amazonaws.com' },
-          Action: ['sqs:SendMessage'],
-          Condition: { ArnEquals: { 'aws:SourceArn': "$ResourceParam('notificationsTopic', 'arn')" } }
-        }
-      ]);
-      expect(result.composition.config.cloudformationResources?.[`${queue}Subscription`]).toEqual({
-        Type: 'AWS::SNS::Subscription',
-        Properties: {
-          Protocol: 'sqs',
-          TopicArn: "$ResourceParam('notificationsTopic', 'arn')",
-          Endpoint: `$ResourceParam('${queue}', 'arn')`,
-          RawMessageDelivery: true
-        }
-      });
-    }
+    // H4: only the README says the topic fans out, and prose is too weak to rearrange queues on. Both consumers keep
+    // the one queue, and the result says each needs its own subscribed queue, naming the README line.
+    expect(resources.billing!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }]);
+    expect(resources.audit!.properties.events).toEqual([{ type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }]);
+    expect('cloudformationResources' in result.composition.config).toBe(false);
     // H2: the Go handler takes an HTTP API v2 request and does not route, so every request reaches it, and the
     // SvelteKit server's PING_URL is that API.
     expect(resources.ping!.properties).toMatchObject({
@@ -688,6 +668,11 @@ describe('init writes a config stacktape dev can run', () => {
         subject: 'mainTable.primaryKey',
         message:
           "Your code writes items with id and expiresAt to mainTable, but no request names the table's key. Its partition key is the placeholder pk, which these items do not have, so DynamoDB rejects every write. Before deploying, set primaryKey.partitionKey to whichever of id or expiresAt identifies an item."
+      },
+      {
+        subject: 'jobQueue.consumers',
+        message:
+          "audit and billing both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying. For audit: add auditQueue as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('notificationsTopic', 'arn') } } }], point audit's sqs event at auditQueue, and add auditQueueSubscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('notificationsTopic', 'arn'), Endpoint: $ResourceParam('auditQueue', 'arn') } }. Do the same for billing. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope. README.md line 2 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose."
       }
     ]);
     expect(result.composition.unsetSettings).toEqual([]);

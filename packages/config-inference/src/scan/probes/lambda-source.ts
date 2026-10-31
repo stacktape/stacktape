@@ -278,6 +278,9 @@ const requestContextDestructuring = (name: string) =>
 const readsRequestContext = (raw: string, name: string): boolean =>
   /requestContext/.test(raw) && (new RegExp(field(name)).test(raw) || requestContextDestructuring(name).test(raw));
 
+/** Fields of every other event source's envelope: SQS, SNS, S3, DynamoDB and Kinesis records, EventBridge, WebSocket. */
+const EVENT_SOURCE_SHAPE =
+  /\bRecords\b|\bSns\b|\breceiptHandle\b|\bdetail-type\b|\bconnectionId\b|\brouteKey\b|\bbatchItemFailures\b|['"]aws:(?:sqs|sns|s3|dynamodb|kinesis)['"]/;
 /** A returned proxy response: `{ statusCode: 200 }`, Python's `{'statusCode': 200}`. */
 const PROXY_RESPONSE = /['"]?\bstatusCode['"]?\s*:/;
 
@@ -349,11 +352,13 @@ const EVENT_SHAPES: ReadonlyArray<{ family: EventFamily; match: (raw: string) =>
   },
   // An API Gateway handler that reads only the request's path or query parameters and answers with a status code:
   // `event.pathParameters.id` in, `{ statusCode: 200, body }` out. Either alone is weak, since any object can carry a
-  // `statusCode`; together they are the proxy integration's request and response.
+  // `statusCode`; together they are the proxy integration's request and response. A file that names any event source's
+  // shape anywhere, even in a string or a test sample, may be that source's handler forwarding a request, so it is left
+  // to the shapes below.
   {
     family: { trigger: 'http', payloadFormat: '1.0' },
     match: (raw) =>
-      PROXY_RESPONSE.test(raw)
+      PROXY_RESPONSE.test(raw) && !EVENT_SOURCE_SHAPE.test(raw)
         ? firstMatching([new RegExp(field('pathParameters')), new RegExp(field('queryStringParameters'))])(raw)
         : undefined
   },

@@ -182,9 +182,15 @@ export const dependencyFactSchema = z.object({
   userPoolSelfSignUp: z.literal(true).optional(),
   /**
    * The code signs users in through AWS Amplify (`signIn` from `aws-amplify/auth`), which takes the pool and app client
-   * from `Amplify.configure()` or `amplify_outputs.json` rather than from environment variables.
+   * from `Amplify.configure()` or `amplify_outputs.json` rather than from environment variables. `declaration` is the
+   * `defineAuth(...)` call Amplify deploys the pool from, and `loginWith` the usernames it accepts.
    */
-  userPoolConfiguredBy: z.literal('amplify').optional(),
+  amplifyAuth: z
+    .object({
+      declaration: z.object({ file: z.string().min(1), line: z.number().int().positive() }).optional(),
+      loginWith: z.array(z.enum(['email', 'phone'])).optional()
+    })
+    .optional(),
   queueSettings: z
     .object({
       fifo: z.literal(true).optional(),
@@ -240,11 +246,6 @@ export const dependencyFactSchema = z.object({
       /** The declaration states who creates accounts (`AdminCreateUserConfig.AllowAdminCreateUserOnly`). */
       allowOnlyAdminsToCreateAccount: z.boolean().optional(),
       generateClientSecret: z.literal(true).optional(),
-      /** Users sign in with their email address or phone number as the username (Amplify's `loginWith`). */
-      usernameAttributes: z
-        .array(z.enum(['email', 'phone']))
-        .min(1)
-        .optional(),
       /** The sign-in flows the app client accepts; without it Stacktape's client accepts every flow. */
       allowedAuthFlows: z
         .array(
@@ -294,15 +295,9 @@ export const dependencyFactSchema = z.object({
     })
     .optional(),
   /**
-   * The topic this queue receives every message of, through its own subscription: a README stating that the topic fans
-   * out to this queue by name, for the one function that consumes it. `rawMessageDelivery` is false when the handler
-   * reads the SNS envelope (`body.Message`) rather than the published message.
-   */
-  topicSubscription: z.object({ dependencyName: z.string().min(1), rawMessageDelivery: z.boolean() }).optional(),
-  /**
-   * A README line requiring a dead-letter queue for this queue, which no deployment file declares (`Messages that fail
-   * twice go to a dead-letter queue`). `maxReceiveCount` is absent when the line states no count, and `ambiguous` is
-   * set when the line does not say which of several queues it means.
+   * A README line about a dead-letter queue, which no deployment file declares (`Messages that fail twice go to a
+   * dead-letter queue`). Prose is no wiring, so composition only reports it. `maxReceiveCount` is the count the line
+   * states, and `ambiguous` is set when the line names neither this queue nor its consumer.
    */
   deadLetterRequirement: z
     .object({

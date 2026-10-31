@@ -334,12 +334,12 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
     }),
   'r2ah/49-cognito-unrelated-admin-script': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   'r2ah/50-cognito-template-string-admin': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
-  // The repository declares the pool for Amplify (`defineAuth` in amplify/auth/resource.ts), as infrastructure code
-  // does, so the pool is the project's. Amplify reads it from Amplify.configure(), which the gap says how to set.
+  // Amplify deploys the pool `defineAuth` declares, possibly with users: init creates none and says what to add.
   'r2ah/51-cognito-amplify-owned': (outcome) => {
-    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(1);
-    expectGap(outcome, 'Amplify.configure()', 'stop deploying the pool from amplify/auth/resource.ts');
+    expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
+    expectGap(outcome, 'declares a pool with defineAuth', 'does not move its users to a new one');
   },
+
   'r2ah/52-cognito-readme-negation': (outcome) => expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0),
   // Two pools stay two pools. Nothing says which client each variable names, so neither is bound to a pool.
   'r2ah/53-cognito-two-owned-pools': (outcome) => {

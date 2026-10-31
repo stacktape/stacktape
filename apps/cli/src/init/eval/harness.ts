@@ -26,6 +26,10 @@ import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from '.
 type EvalExpectation = {
   /** Resource names and their Stacktape type, as the composer should emit them. */
   resources?: Record<string, string>;
+  /** `resources` lists every resource: anything else composed is a failure. */
+  onlyResources?: boolean;
+  /** Top-level configuration keys that must not be emitted (`cloudformationResources`). */
+  configAbsent?: readonly string[];
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -137,6 +141,19 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
       } else if (actual.type !== type) {
         failures.push({ stage: 'composition', detail: `"${name}" is a ${actual.type}; expected a ${type}.` });
       }
+    }
+  }
+
+  if (expected.onlyResources === true && expected.resources !== undefined) {
+    for (const name of Object.keys(result.composition.config.resources)) {
+      if (!(name in expected.resources)) {
+        failures.push({ stage: 'composition', detail: `Composed an unexpected resource "${name}".` });
+      }
+    }
+  }
+  for (const key of expected.configAbsent ?? []) {
+    if (key in result.composition.config) {
+      failures.push({ stage: 'composition', detail: `Emitted a top-level "${key}" section.` });
     }
   }
 

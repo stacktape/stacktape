@@ -56,8 +56,6 @@ export type ComposedResource = {
 export type ComposedConfig = {
   projectName?: string;
   resources: Record<string, ComposedResource>;
-  /** Raw CloudFormation for what no Stacktape resource expresses: a topic's subscription of a queue. */
-  cloudformationResources?: Record<string, { Type: string; Properties: Record<string, unknown> }>;
   /** Deploy-time migration scripts referenced from `hooks`, and the project's own seed and migrate commands. */
   scripts?: Record<string, ComposedResource>;
   hooks?: { afterDeploy: Array<{ scriptName: string }> };
@@ -656,8 +654,6 @@ const userPoolProperties = (dependency: DependencyFact): Record<string, unknown>
   const adminOnly = declared?.allowOnlyAdminsToCreateAccount ?? dependency.userPoolSelfSignUp !== true;
   return {
     ...(adminOnly ? { allowOnlyAdminsToCreateAccount: true } : {}),
-    ...(declared?.usernameAttributes?.includes('email') ? { allowEmailAsUserName: true } : {}),
-    ...(declared?.usernameAttributes?.includes('phone') ? { allowPhoneNumberAsUserName: true } : {}),
     ...(declared?.mfa === undefined
       ? {}
       : {
@@ -883,18 +879,21 @@ const composeDependency = (
     case 'user-pool': {
       const variables = dependency.addressedBy;
       const client = variables.find((name) => /CLIENT_?ID$/.test(name)) ?? 'the client ID variable';
-      if (dependency.userPoolConfiguredBy === 'amplify' && variables.length === 0) {
-        // Amplify reads the pool from `Amplify.configure()`, so the instruction names that call, not a variable. The
-        // created pool's instruction is written once its consumers have resource names.
-        return dependency.userPoolOwnership === 'project'
-          ? {
-              resource: { type: 'user-auth-pool', properties: userPoolProperties(dependency) },
-              reason:
-                'Your code signs users in through Amplify, and the repository defines its own user pool, so this creates the pool and its app client.'
-            }
-          : {
-              unsupported: `Your code signs users in through Amplify (aws-amplify/auth), which takes its user pool from Amplify.configure() or amplify_outputs.json. Nothing in the repository creates that pool, so it is probably an existing one with its users, and init created none. Before deploying, configure Amplify with that pool's ID and app client ID. If this project should own a new, empty pool, add a user-auth-pool resource and pass $ResourceParam('<pool name>', 'id') and $ResourceParam('<pool name>', 'clientId') to Amplify.configure().`
-            };
+      const amplify = dependency.amplifyAuth;
+      if (amplify !== undefined && variables.length === 0) {
+        // Amplify takes the pool from `Amplify.configure()`. The pool `defineAuth` declares is deployed by Amplify and may
+        // hold users, or serve only sandboxes: Stacktape neither reuses it nor creates a replacement on its own.
+        const declared =
+          amplify.declaration === undefined
+            ? 'Nothing in the repository creates that pool, so it is probably an existing one with its users.'
+            : `${amplify.declaration.file} line ${amplify.declaration.line} declares a pool with defineAuth, which Amplify deploys, not Stacktape.`;
+        const usernames = [
+          ...(amplify.loginWith?.includes('email') ? ['allowEmailAsUserName: true'] : []),
+          ...(amplify.loginWith?.includes('phone') ? ['allowPhoneNumberAsUserName: true'] : [])
+        ];
+        return {
+          unsupported: `Your code signs users in through Amplify (aws-amplify/auth), which takes its user pool from Amplify.configure() or amplify_outputs.json. ${declared} init created no pool: Stacktape does not reuse a pool Amplify deployed and does not move its users to a new one. To keep signing in to that pool, leave Amplify configured as it is. To use a new, empty pool instead, add userPool: { type: user-auth-pool${usernames.length === 0 ? '' : `, properties: { ${usernames.join(', ')} }`} } and pass $ResourceParam('userPool', 'id') and $ResourceParam('userPool', 'clientId') to Amplify.configure().`
+        };
       }
       return dependency.userPoolOwnership === 'project'
         ? {
@@ -1049,7 +1048,6 @@ export const composeConfig = ({
 
   const resources: Record<string, ComposedResource> = {};
   const provenance: Record<string, Provenance> = {};
-  const cloudformationResources: NonNullable<ComposedConfig['cloudformationResources']> = {};
   const gaps: CompositionGap[] = [];
   const unsetSettings: UnsetSetting[] = [];
   const taken = new Set<string>();
@@ -1355,72 +1353,24 @@ export const composeConfig = ({
     };
   }
 
-  // A README that requires a dead-letter queue for one queue, and says after how many failed receives, gets it. When it
-  // does not say which queue or how many receives, the requirement is a gap rather than a guessed count.
-  const ambiguousDeadLetterLines = new Set<number>();
+  // A README line about a dead-letter queue is no wiring: it can describe a tutorial or another queue. It becomes a gap
+  // with the exact configuration, and the user decides whether it applies.
+  const reportedDeadLetterLines = new Set<number>();
   for (const dependency of dependencies) {
     const requirement = dependency.deadLetterRequirement;
     const queueName = dependencyResourceNames.get(dependency.name);
     const queue = queueName === undefined ? undefined : resources[queueName];
     if (requirement === undefined || queue === undefined || queue.properties.redrivePolicy !== undefined) continue;
-    if (requirement.ambiguous === true) {
-      if (ambiguousDeadLetterLines.has(requirement.line)) continue;
-      ambiguousDeadLetterLines.add(requirement.line);
-      gaps.push({
-        subject: `${dependency.name}.redrivePolicy`,
-        message: `${requirement.file} line ${requirement.line} asks for a dead-letter queue, but init could not tell which of your queues it means, so it created none. Before deploying, add an sqs-queue for the failed messages and set redrivePolicy on that queue, with maxReceiveCount the number of receives the README means.`
-      });
-      continue;
-    }
-    if (requirement.maxReceiveCount === undefined) {
-      gaps.push({
-        subject: `${dependency.name}.redrivePolicy`,
-        message: `${requirement.file} line ${requirement.line} asks for a dead-letter queue for ${queueName}, but does not say after how many failed receives, so init created none. Before deploying, add an sqs-queue for the failed messages and set ${queueName}'s redrivePolicy to it with that maxReceiveCount.`
-      });
-      continue;
-    }
-    const deadLetterName = uniqueName(`${queueName!.replace(/Queue$/, '')}DeadLetterQueue`, taken);
-    resources[deadLetterName] = { type: 'sqs-queue', properties: {} };
-    provenance[deadLetterName] = {
-      reason: `${requirement.file} says messages that keep failing on ${queueName} go to a dead-letter queue.`,
-      evidence: []
-    };
-    queue.properties.redrivePolicy = {
-      targetSqsQueueName: deadLetterName,
-      maxReceiveCount: requirement.maxReceiveCount
-    };
-  }
-
-  // A queue the README subscribes to the project's topic: the subscription, and the queue policy that lets the topic
-  // send to this queue, and only this topic.
-  for (const dependency of dependencies) {
-    const subscription = dependency.topicSubscription;
-    const queueName = dependencyResourceNames.get(dependency.name);
-    const topicName = subscription === undefined ? undefined : dependencyResourceNames.get(subscription.dependencyName);
-    if (subscription === undefined || queueName === undefined || topicName === undefined) continue;
-    const queue = resources[queueName]!;
-    queue.properties.policyStatements = [
-      {
-        Effect: 'Allow',
-        Principal: { Service: 'sns.amazonaws.com' },
-        Action: ['sqs:SendMessage'],
-        Condition: { ArnEquals: { 'aws:SourceArn': `$ResourceParam('${topicName}', 'arn')` } }
-      }
-    ];
-    cloudformationResources[uniqueName(`${queueName}Subscription`, taken)] = {
-      Type: 'AWS::SNS::Subscription',
-      Properties: {
-        Protocol: 'sqs',
-        TopicArn: `$ResourceParam('${topicName}', 'arn')`,
-        Endpoint: `$ResourceParam('${queueName}', 'arn')`,
-        // The handler parses the published message from the record body, not SNS's envelope around it.
-        ...(subscription.rawMessageDelivery ? { RawMessageDelivery: true } : {})
-      }
-    };
-    provenance[queueName] = {
-      reason: `Your README says ${topicName} fans out to this queue, so it is subscribed to ${topicName} and its consumer gets every message.`,
-      evidence: dependency.evidence.slice(0, 3)
-    };
+    if (reportedDeadLetterLines.has(requirement.line)) continue;
+    reportedDeadLetterLines.add(requirement.line);
+    const ambiguous = requirement.ambiguous === true;
+    const target = ambiguous ? '<queue>' : queueName!;
+    const deadLetterName = ambiguous ? '<queue>DeadLetterQueue' : `${queueName!.replace(/Queue$/, '')}DeadLetterQueue`;
+    const count = requirement.maxReceiveCount;
+    gaps.push({
+      subject: `${dependency.name}.redrivePolicy`,
+      message: `${requirement.file} line ${requirement.line} mentions a dead-letter queue${ambiguous ? '' : ` for ${queueName}`}${count === undefined ? '' : ` after ${count} failed ${count === 1 ? 'receive' : 'receives'}`}. init does not add one from README text${ambiguous ? ', and the line does not say which queue it means' : ''}. If ${ambiguous ? 'one of your queues' : queueName} should keep failed messages, add ${deadLetterName} as an sqs-queue and set redrivePolicy on ${target} to { targetSqsQueueName: ${deadLetterName}, maxReceiveCount: ${count ?? '<failed receives>'} } before deploying. Without it, a message that keeps failing is retried until it expires and is then lost.`
+    });
   }
 
   // A private database still needs an operator path for generated migrations and local database
@@ -1590,9 +1540,12 @@ export const composeConfig = ({
       consumers.length === 2
         ? `${consumers[0]} and ${consumers[1]} both`
         : `${consumers.slice(0, -1).join(', ')} and ${consumers.at(-1)} all`;
+    const [first, ...rest] = [...new Set(consumers)];
+    const topic = topicNames[0];
+    const example = `${first}Queue`;
     const subscription =
       topicNames.length === 1
-        ? `give each its own queue subscribed to ${topicNames[0]} before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it`
+        ? `give each its own queue subscribed to ${topic} before deploying. For ${first}: add ${example} as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('${topic}', 'arn') } } }], point ${first}'s sqs event at ${example}, and add ${example}Subscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('${topic}', 'arn'), Endpoint: $ResourceParam('${example}', 'arn') } }. Do the same for ${rest.join(' and ')}. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope`
         : 'publish to an SNS topic and give each its own queue subscribed to it before deploying';
     const hint = facts.dependencies.find((dependency) => dependency.name === dependencyName)?.fanoutHint;
     const queues =
@@ -1604,20 +1557,6 @@ export const composeConfig = ({
     gaps.push({
       subject: `${queueName}.consumers`,
       message: `${listed} consume ${queueName}, so each message reaches only one of them. If each consumer must receive every message, ${subscription}.${hint === undefined ? '' : ` ${hint.file} line ${hint.line} names ${queues} in a sentence about a topic.`} Leave it as is only if they share the work on purpose.`
-    });
-  }
-
-  // Amplify takes the pool from `Amplify.configure()` or `amplify_outputs.json`, which nothing here writes, and the
-  // `amplify/` backend would deploy a second pool of its own.
-  for (const dependency of facts.dependencies) {
-    const resourceName = dependencyResourceNames.get(dependency.name);
-    if (dependency.userPoolConfiguredBy !== 'amplify' || resourceName === undefined) continue;
-    const consumers = dependency.consumedBy.flatMap((serviceName) => serviceResourceNames.get(serviceName) ?? []);
-    const where = consumers.length === 0 ? 'the code that signs users in' : consumers.join(' and ');
-    const definition = dependency.evidence.find((citation) => /(?:^|\/)amplify\//.test(citation.file))?.file;
-    gaps.push({
-      subject: `${dependency.name}.amplify`,
-      message: `Your code signs users in through Amplify, which takes the user pool from Amplify.configure() or amplify_outputs.json, not from environment variables. init created ${resourceName}${definition === undefined ? '' : ` for the pool ${definition} defines`}. Before deploying, pass $ResourceParam('${resourceName}', 'id') and $ResourceParam('${resourceName}', 'clientId') to Amplify.configure() in ${where}, for example through environment variables you add there${definition === undefined ? '' : `, and stop deploying the pool from ${definition}, so users sign in to one pool`}.`
     });
   }
 
@@ -2234,7 +2173,6 @@ export const composeConfig = ({
     config: {
       ...(projectName === undefined ? {} : { projectName }),
       resources,
-      ...(Object.keys(cloudformationResources).length === 0 ? {} : { cloudformationResources }),
       ...(Object.keys(scripts).length === 0 ? {} : { scripts }),
       ...(migrationHooks.afterDeploy.length === 0 ? {} : { hooks: { afterDeploy: migrationHooks.afterDeploy } })
     },
