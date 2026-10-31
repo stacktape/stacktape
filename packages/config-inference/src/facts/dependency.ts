@@ -180,6 +180,17 @@ export const dependencyFactSchema = z.object({
   mysqlEngine: z.literal('mariadb').optional(),
   /** The code calls `SignUp`: the pool has to let users create their own accounts. */
   userPoolSelfSignUp: z.literal(true).optional(),
+  /**
+   * The code signs users in through AWS Amplify (`signIn` from `aws-amplify/auth`), which takes the pool and app client
+   * from `Amplify.configure()` or `amplify_outputs.json` rather than from environment variables. `declaration` is the
+   * `defineAuth(...)` call Amplify deploys the pool from, and `loginWith` the usernames it accepts.
+   */
+  amplifyAuth: z
+    .object({
+      declaration: z.object({ file: z.string().min(1), line: z.number().int().positive() }).optional(),
+      loginWith: z.array(z.enum(['email', 'phone'])).optional()
+    })
+    .optional(),
   queueSettings: z
     .object({
       fifo: z.literal(true).optional(),
@@ -282,6 +293,26 @@ export const dependencyFactSchema = z.object({
       line: z.number().int().positive(),
       queues: z.array(z.string().regex(/^[A-Za-z0-9_-]+$/)).min(1)
     })
+    .optional(),
+  /**
+   * A README line about a dead-letter queue, which no deployment file declares (`Messages that fail twice go to a
+   * dead-letter queue`). Prose is no wiring, so composition only reports it. `maxReceiveCount` is the count the line
+   * states, and `ambiguous` is set when the line names neither this queue nor its consumer.
+   */
+  deadLetterRequirement: z
+    .object({
+      file: z.string().min(1),
+      line: z.number().int().positive(),
+      maxReceiveCount: z.number().int().min(1).max(1000).optional(),
+      ambiguous: z.literal(true).optional()
+    })
+    .optional(),
+  /**
+   * A setting that fixes this dependency's address in source rather than reading it from the environment: Django
+   * Channels' `CHANNEL_LAYERS` pointing at `("redis", 6379)`. The resource init creates has another address.
+   */
+  fixedAddress: z
+    .object({ file: z.string().min(1), line: z.number().int().positive(), setting: z.string().min(1) })
     .optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema

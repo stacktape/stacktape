@@ -459,7 +459,8 @@ describe('init writes a config stacktape dev can run', () => {
   });
 
   // The r2cc dogfood (27 Oct 2026) needed seven config edits after init. Each one is asserted here; H5, the dead-letter
-  // queue, stays a hand edit because only the README mentions it.
+  // queue, stays a hand edit because only the README mentions it, and README prose is no wiring: the gap gives the
+  // exact configuration.
   it('r2cc receipts: Procfile migration, state machine, function URL and a Python schedule', async () => {
     const result = await initFixture('r2cc-receipts');
     const resources = resourcesOf(result);
@@ -523,7 +524,14 @@ describe('init writes a config stacktape dev can run', () => {
     ]);
     // H6: the S3 trigger grants no access to the object the handler reads.
     expect(resources.onUpload!.properties.connectTo).toEqual(['storageBucket', 'jobQueue']);
-    expect(result.composition.gaps).toEqual([]);
+    expect(resources.jobQueue!.properties.redrivePolicy).toBeUndefined();
+    expect(result.composition.gaps).toEqual([
+      {
+        subject: 'jobQueue.redrivePolicy',
+        message:
+          'README.md line 11 mentions a dead-letter queue for jobQueue after 2 failed receives. init does not add one from README text. If jobQueue should keep failed messages, add jobDeadLetterQueue as an sqs-queue and set redrivePolicy on jobQueue to { targetSqsQueueName: jobDeadLetterQueue, maxReceiveCount: 2 } before deploying. Without it, a message that keeps failing is retried until it expires and is then lost.'
+      }
+    ]);
     expect(result.composition.unsetSettings).toEqual([]);
   });
 
@@ -664,7 +672,7 @@ describe('init writes a config stacktape dev can run', () => {
       {
         subject: 'jobQueue.consumers',
         message:
-          'audit and billing both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying: an sqs-queue and sqs event per consumer, an AWS::SNS::Subscription in cloudformationResources, and a policyStatements entry on the queue that lets sns.amazonaws.com send to it. README.md line 2 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose.'
+          "audit and billing both consume jobQueue, so each message reaches only one of them. If each consumer must receive every message, give each its own queue subscribed to notificationsTopic before deploying. For audit: add auditQueue as an sqs-queue with policyStatements: [{ Effect: Allow, Principal: { Service: sns.amazonaws.com }, Action: [sqs:SendMessage], Condition: { ArnEquals: { aws:SourceArn: $ResourceParam('notificationsTopic', 'arn') } } }], point audit's sqs event at auditQueue, and add auditQueueSubscription to cloudformationResources as { Type: AWS::SNS::Subscription, Properties: { Protocol: sqs, TopicArn: $ResourceParam('notificationsTopic', 'arn'), Endpoint: $ResourceParam('auditQueue', 'arn') } }. Do the same for billing. Add RawMessageDelivery: true to a subscription only if its handler parses the published message from the record body rather than SNS's envelope. README.md line 2 names billingQueue and auditQueue in a sentence about a topic. Leave it as is only if they share the work on purpose."
       }
     ]);
     expect(result.composition.unsetSettings).toEqual([]);

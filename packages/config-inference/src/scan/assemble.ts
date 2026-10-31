@@ -38,7 +38,8 @@ import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
 import { applyStacktapeReferences } from './stacktape-references';
-import { noteFanoutHints } from './topic-fanout';
+import { noteDeadLetterRequirements, noteFanoutHints } from './topic-fanout';
+import { markStaticNuxtOutput } from './static-framework-output';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -97,6 +98,12 @@ const mergeDependency = (existing: DependencyFact, incoming: DependencyFact): De
     : {}),
   ...((existing.mysqlEngine ?? incoming.mysqlEngine) ? { mysqlEngine: 'mariadb' as const } : {}),
   ...((existing.userPoolSelfSignUp ?? incoming.userPoolSelfSignUp) ? { userPoolSelfSignUp: true as const } : {}),
+  ...((existing.amplifyAuth ?? incoming.amplifyAuth)
+    ? { amplifyAuth: existing.amplifyAuth ?? incoming.amplifyAuth }
+    : {}),
+  ...((existing.fixedAddress ?? incoming.fixedAddress)
+    ? { fixedAddress: existing.fixedAddress ?? incoming.fixedAddress }
+    : {}),
   evidence: mergeEvidence(existing.evidence, incoming.evidence)
 });
 
@@ -705,7 +712,7 @@ const resolvedByOtherProbes = (
  * followed by the API word. `VITE_STRIPE_API_URL` or `NEXT_PUBLIC_STRAPI_API_URL` address someone else's API.
  */
 const API_ADDRESS_VARIABLE =
-  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(?:API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
+  /^(?:VITE_|NEXT_PUBLIC_|NUXT_PUBLIC_|PUBLIC_|REACT_APP_|GATSBY_|EXPO_PUBLIC_|VUE_APP_)?(API|BACKEND|SERVER)(?:_BASE)?_(?:URL|URI|ENDPOINT|ORIGIN)$/;
 
 /**
  * Point a frontend's `VITE_API_URL` (or `NEXT_PUBLIC_API_URL`, or the `API_URL` a Next.js server action reads) at the
@@ -727,17 +734,29 @@ const linkFrontendApiAddresses = (services: readonly ServiceFactInput[]): Set<Va
   const httpServices = services.filter(
     (service) => service.exposesHttp && service.functionEntrypoint === undefined && !isFrontend(service)
   );
-  const backends = [...(httpFunctions.length > 0 ? [httpFunctions[0]!] : []), ...httpServices];
+  // Every HTTP-triggered function sits behind one API gateway, so they count as one backend.
+  const backends = [...(httpFunctions.length > 0 ? [httpFunctions] : []), ...httpServices.map((service) => [service])];
   if (backends.length !== 1) return linked;
-  const [backend] = backends;
+  const backend = backends[0]!;
   for (const service of services) {
-    if (!isFrontend(service) || service === backend) continue;
-    for (const variable of service.environmentVariables ?? []) {
+    if (!isFrontend(service) || backend.includes(service)) continue;
+    const variables = service.environmentVariables ?? [];
+    // Another variable that already names the backend (`ME_URL` for the `me` function) leaves open what the generic
+    // `API_URL` addresses: the same backend, or something outside the project.
+    const namedElsewhere = variables.some((variable) => {
+      if (API_ADDRESS_VARIABLE.test(variable.name)) return false;
+      if (variable.targetServiceName !== undefined)
+        return backend.some((member) => member.name === variable.targetServiceName);
+      const words = SERVICE_ADDRESS_VARIABLE.exec(variable.name)?.[1]?.replace(ADDRESS_ROLE_WORD, '');
+      return words !== undefined && words !== '' && backend.some((member) => serviceWords(member.name) === words);
+    });
+    if (namedElsewhere) continue;
+    for (const variable of variables) {
       if (variable.targetServiceName !== undefined || !API_ADDRESS_VARIABLE.test(variable.name)) continue;
-      if (variable.role === 'build-time') variable.targetServiceName = backend!.name;
+      if (variable.role === 'build-time') variable.targetServiceName = backend[0]!.name;
       if (variable.role === 'runtime-config') {
         variable.role = 'cross-service-reference';
-        variable.targetServiceName = backend!.name;
+        variable.targetServiceName = backend[0]!.name;
         linked.add(variable);
       }
     }
@@ -1134,6 +1153,14 @@ export const assembleCandidateFacts = async ({
     });
   }
 
+  await markStaticNuxtOutput({
+    services,
+    files: listing.files,
+    read: async (path) => {
+      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+      return result.kind === 'contents' ? result.contents : undefined;
+    }
+  });
   applyStacktapeReferences({ services, dependencies });
   const frontendAddresses = linkFrontendApiAddresses(services);
   const linkedAddresses = linkServiceAddresses(services);
@@ -1150,15 +1177,13 @@ export const assembleCandidateFacts = async ({
     }
   });
   settleJobQueues(services, dependencies);
-  await noteFanoutHints({
-    services,
-    dependencies,
-    read: async (path) => {
-      if (!listing.files.includes(path)) return undefined;
-      const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
-      return result.kind === 'contents' ? result.contents : undefined;
-    }
-  });
+  const readWhole = async (path: string) => {
+    if (!listing.files.includes(path)) return undefined;
+    const result = await readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+    return result.kind === 'contents' ? result.contents : undefined;
+  };
+  await noteFanoutHints({ services, dependencies, read: readWhole });
+  await noteDeadLetterRequirements({ services, dependencies, read: readWhole });
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

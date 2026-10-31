@@ -26,6 +26,10 @@ import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from '.
 type EvalExpectation = {
   /** Resource names and their Stacktape type, as the composer should emit them. */
   resources?: Record<string, string>;
+  /** `resources` lists every resource: anything else composed is a failure. */
+  onlyResources?: boolean;
+  /** Top-level configuration keys that must not be emitted (`cloudformationResources`). */
+  configAbsent?: readonly string[];
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -64,6 +68,8 @@ type EvalExpectation = {
   resourceProperties?: ReadonlyArray<{ resource: string; path: string; value: unknown }>;
   /** Text each of which some "Before you deploy" gap must contain. */
   gapsInclude?: readonly string[];
+  /** Text no gap may contain. */
+  gapsExclude?: readonly string[];
 };
 
 const valueAt = (value: unknown, path: string): unknown =>
@@ -138,6 +144,19 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
     }
   }
 
+  if (expected.onlyResources === true && expected.resources !== undefined) {
+    for (const name of Object.keys(result.composition.config.resources)) {
+      if (!(name in expected.resources)) {
+        failures.push({ stage: 'composition', detail: `Composed an unexpected resource "${name}".` });
+      }
+    }
+  }
+  for (const key of expected.configAbsent ?? []) {
+    if (key in result.composition.config) {
+      failures.push({ stage: 'composition', detail: `Emitted a top-level "${key}" section.` });
+    }
+  }
+
   for (const scriptName of expected.scriptNames ?? []) {
     if (result.composition.config.scripts?.[scriptName] === undefined) {
       failures.push({ stage: 'composition', detail: `Expected a script named "${scriptName}"; none was emitted.` });
@@ -183,6 +202,13 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
         stage: 'composition',
         detail: `Expected a gap mentioning "${text}". Gaps: ${result.composition.gaps.map((gap) => gap.message).join(' | ') || 'none'}`
       });
+    }
+  }
+
+  for (const text of expected.gapsExclude ?? []) {
+    const gap = result.composition.gaps.find((candidate) => candidate.message.includes(text));
+    if (gap !== undefined) {
+      failures.push({ stage: 'composition', detail: `Expected no gap mentioning "${text}". Found: ${gap.message}` });
     }
   }
 
