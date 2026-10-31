@@ -189,6 +189,26 @@ const toAgentOutput = (
   };
 };
 
+const staleNames = (stale: unknown): string[] =>
+  Array.isArray(stale) ? stale.flatMap((item) => (typeof item?.name === 'string' ? [item.name as string] : [])) : [];
+
+/**
+ * A batch job runs in AWS from the image dev mode built when it started. When that image uses files a rebuild picked up,
+ * only a restart builds and pushes it again; rebuild and rebuild_all never do.
+ */
+const withRemoteImageRestart = (output: ToolOutput, response: Record<string, unknown>): ToolOutput => {
+  const stale = staleNames(response.staleRemoteImages);
+  if (!stale.length) return output;
+  const one = stale.length === 1;
+  return {
+    ...output,
+    nextActions: [
+      ...(output.nextActions ?? []),
+      `${stale.join(', ')} ${one ? 'runs' : 'run'} in AWS from the image built when dev mode started, which uses changed files. Before testing ${one ? 'it' : 'them'}, call stacktape_dev with action=stop and then action=start to build and push the image again; rebuild and rebuild_all do not.`
+    ]
+  };
+};
+
 export const DEV_TOOL_ACTIONS = [
   'plan',
   'start',
@@ -202,6 +222,7 @@ export const DEV_TOOL_ACTIONS = [
   'aws',
   'reset_db',
   'seed',
+  'invoke',
   'stop'
 ] as const;
 export type DevToolAction = (typeof DEV_TOOL_ACTIONS)[number];
@@ -372,6 +393,7 @@ const isMutatingAction = (action: DevToolAction, args: Record<string, unknown>) 
   action === 'rebuild_all' ||
   action === 'reset_db' ||
   action === 'seed' ||
+  action === 'invoke' ||
   action === 'stop' ||
   (action === 'query' && isWriteQuery(args));
 
@@ -1747,15 +1769,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         onProgress
       );
       const output = toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' });
-      const stale = Array.isArray(response.staleWorkloads) ? (response.staleWorkloads as { name: string }[]) : [];
+      const stale = staleNames(response.staleWorkloads);
       if (stale.length) {
-        const names = stale.map(({ name }) => name);
         output.nextActions = [
           ...(output.nextActions ?? []),
-          `${names.join(', ')} still ${names.length === 1 ? 'runs' : 'run'} code older than the changed files; call stacktape_dev with action=rebuild_all, or action=rebuild for ${names.join(' and ')}, before testing ${names.length === 1 ? 'it' : 'them'}.`
+          `${stale.join(', ')} still ${stale.length === 1 ? 'runs' : 'run'} code older than the changed files; call stacktape_dev with action=rebuild_all, or action=rebuild for ${stale.join(' and ')}, before testing ${stale.length === 1 ? 'it' : 'them'}.`
         ];
       }
-      return toToolText(output);
+      return toToolText(withRemoteImageRestart(output, response));
     }
 
     if (action === 'rebuild_all') {
@@ -1764,7 +1785,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         requestDevApi({ port, method: 'POST', path: '/rebuild/all', body: {} }),
         onProgress
       );
-      return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
+      return toToolText(
+        withRemoteImageRestart(
+          toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }),
+          response
+        )
+      );
     }
 
     if (action === 'query' || action === 'tables') {
@@ -1941,6 +1967,44 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           script
         )
       );
+    }
+
+    if (action === 'invoke') {
+      const workload = typeof toolArgs.workload === 'string' ? toolArgs.workload : undefined;
+      if (!workload) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'Missing required args.workload: the function to invoke.'
+        });
+      }
+      // A call the client cancelled before it was sent invokes nothing; one already sent runs to its end in AWS.
+      if (signal?.aborted) {
+        return toToolText({
+          ok: false,
+          code: 'CANCELLED',
+          message: `Did not invoke ${workload}: the call was cancelled.`
+        });
+      }
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: `/functions/${encodeURIComponent(workload)}/invoke`,
+        body: { event: toolArgs.event ?? {}, confirm: toolArgs.confirm === true }
+      });
+      const output = toAgentOutput(response, sessionResult.session, {
+        ok: `Invoked ${workload}.`,
+        failed: `Invoking ${workload} failed.`
+      });
+      return toToolText({
+        ...output,
+        nextActions: [
+          ...(output.nextActions ?? []),
+          output.code === 'CONFIRMATION_REQUIRED'
+            ? `Repeat the call with args.confirm=true to run ${workload} in AWS with this event.`
+            : `Read what ${workload} logged with action=logs and args.workload=${workload}.`
+        ]
+      });
     }
 
     if (action === 'stop') {

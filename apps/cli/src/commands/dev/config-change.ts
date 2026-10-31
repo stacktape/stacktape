@@ -15,8 +15,19 @@ const canonicalJson = (value: unknown) =>
   );
 
 /**
+ * The configuration without its `scripts`: scripts run only on request (`seed` reads them from the file each time), so
+ * adding or editing one changes nothing that the running session deployed or started.
+ */
+const withoutScripts = (config: unknown) => {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return config;
+  const { scripts: _scripts, ...rest } = config as Record<string, unknown>;
+  return rest;
+};
+
+/**
  * Tells whether the configuration file now describes something else than the session started with. A rebuild deploys
  * code only: the dev stack, the functions' settings and the local resources keep the configuration of the start.
+ * Changes to `scripts` alone apply without a restart.
  */
 export const createConfigChangeDetector = ({
   configPath,
@@ -29,11 +40,11 @@ export const createConfigChangeDetector = ({
   /** Loads the configuration file again, executing a TypeScript or JavaScript configuration again. */
   loadConfig: () => Promise<unknown>;
 }): (() => Promise<ConfigChange>) => {
-  const reference = canonicalJson(sessionConfig);
+  const reference = canonicalJson(withoutScripts(sessionConfig));
   const file = basename(configPath);
   return async () => {
     try {
-      if (canonicalJson(await loadConfig()) === reference) return { changed: false };
+      if (canonicalJson(withoutScripts(await loadConfig())) === reference) return { changed: false };
       return {
         changed: true,
         reason: `${file} changed after dev mode started. A rebuild deploys code only; restart dev mode to apply the configuration.`

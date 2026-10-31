@@ -12,7 +12,12 @@ import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/mana
 import { injectFrameworkFlags } from './named-proxy/utils';
 import { findOtherDevSessions } from './agent-daemon';
 import { getAgentLogFilePath, type LogLevel } from './agent-logger';
-import { createLogLineGrouper, isFrontendServerFailure, isSuccessfulRequestLine } from './log-grouping';
+import {
+  createLogLineGrouper,
+  isAccessLogLine,
+  isFrontendServerFailure,
+  isSuccessfulRequestLine
+} from './log-grouping';
 import { createEnvironmentMasker } from './agent-env-masking';
 import {
   extractPortFromCommand,
@@ -55,12 +60,13 @@ export type DevServerState = {
   /** Backend listener behind the named proxy. */
   port?: number;
   lastCompileTime?: string;
+  /** Why the server does not run: it failed to start or exited. */
   error?: string;
   /**
-   * The error is an entry the running server printed at level error (a failed request, a failed compile), already in
-   * the log. The next successful compile, code update or request clears it.
+   * The last error the running server printed (a failed request, a failed compile), already in the log. The server
+   * still serves; the next successful compile, code update or request clears it.
    */
-  errorFromOutput?: boolean;
+  requestError?: string;
 };
 
 type DevServerCallbacks = {
@@ -305,6 +311,9 @@ export const startDevServer = async ({
 
       // A server error printed over many lines (a stack trace, a code frame) is one entry with its level, as for a
       // container; logged line by line at `info`, an agent filtering by level never saw a frontend's server fail.
+      // A request that fails prints its cause first and then the access log line (` POST / 500 in 2536ms`); the line
+      // alone says nothing about the cause, so it joins the cause printed just before it.
+      let requestErrorAt = 0;
       const onEntry = (message: string, level: LogLevel) => {
         callbacks?.onOutput?.(message, level);
         if (!serving) return;
@@ -313,14 +322,21 @@ export const startDevServer = async ({
             .split('\n')
             .filter((line) => line.trim())
             .slice(0, SERVER_ERROR_LINES);
-          setState({ ...currentState, status: 'error', error: maskOutput(lines.join('\n')), errorFromOutput: true });
+          const text = lines.join('\n').trimStart();
+          const joinsCause =
+            isAccessLogLine(text) &&
+            currentState.requestError !== undefined &&
+            !isAccessLogLine(currentState.requestError) &&
+            Date.now() - requestErrorAt < REQUEST_CAUSE_WINDOW_MS;
+          requestErrorAt = Date.now();
+          setState({ ...currentState, requestError: joinsCause ? `${currentState.requestError}\n${text}` : text });
         } else if (isSuccessfulRequestLine(stripAnsi(message))) {
-          clearServerError();
+          clearRequestError();
         }
       };
-      const clearServerError = () => {
-        if (!currentState.errorFromOutput) return;
-        setState({ ...currentState, status: 'ready', url: proxyRoute.url, error: undefined, errorFromOutput: false });
+      const clearRequestError = () => {
+        if (currentState.requestError === undefined) return;
+        setState({ ...currentState, requestError: undefined });
       };
       const outputGroupers = {
         stdout: createLogLineGrouper({ stream: 'stdout', onEntry }),
@@ -344,7 +360,7 @@ export const startDevServer = async ({
         // Use framework-aware parser
         const parsed = parseOutput(line);
         // A compile or code update after a server error: the next request runs the new code.
-        if (serving && (parsed.status === 'ready' || parsed.hmrUpdate)) clearServerError();
+        if (serving && (parsed.status === 'ready' || parsed.hmrUpdate)) clearRequestError();
 
         // Build new state from parsed output
         const newState = { ...currentState };
@@ -454,6 +470,8 @@ export const startDevServer = async ({
 const RECENT_OUTPUT_LINES = 200;
 /** Lines of a server error entry that the workload's error quotes; the whole entry is in the log. */
 const SERVER_ERROR_LINES = 3;
+/** How soon after its cause a failed request's access log line arrives; Next.js printed both within 1 ms. */
+const REQUEST_CAUSE_WINDOW_MS = 2000;
 /** Lines of a dev server's last output that its error quotes. */
 const EXIT_REASON_LINES = 8;
 /** Stack frames quoted below the error line they belong to. */

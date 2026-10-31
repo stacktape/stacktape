@@ -144,18 +144,23 @@ describe('a resolved seed is refused when it contains the address of a deployed 
 });
 
 // r2l: after a seed script was added to the configuration file, seed answered "The config has no script" although the
-// file had one. The session still runs the configuration it started with, so the answer is that dev mode must restart.
-describe('a script added to the configuration after dev mode started', () => {
-  test('answers CONFIG_CHANGED_RESTART_REQUIRED instead of "no script"', async () => {
+// file had one; r2p: adding or editing a script then needed a restart. Scripts run only on request, so seed reads them
+// from the file as it is now, while the session's workloads keep the configuration they started with.
+describe('a script added or edited after dev mode started', () => {
+  test('runs as the file defines it now, without a restart', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'stacktape-seed-config-change-'));
     const configPath = join(directory, 'stacktape.js');
     const previous = {
       config: configManager.config,
       resolver: configManager.configResolver,
-      configPath: globalStateManager.configPath
+      configPath: globalStateManager.configPath,
+      rawArgs: globalStateManager.rawArgs,
+      rawCommands: globalStateManager.rawCommands
     };
+    const writeScripts = (scripts: string) =>
+      writeFile(configPath, `exports.default = () => ({ resources: {}, scripts: { ${scripts} } });\n`);
     try {
-      await writeFile(configPath, 'exports.default = () => ({ resources: {} });\n');
+      await writeScripts('');
       const resolver = new ConfigResolver();
       await resolver.loadRawConfig({
         context: {
@@ -168,21 +173,35 @@ describe('a script added to the configuration after dev mode started', () => {
       configManager.config = resolver.rawConfig;
       configManager.configResolver = resolver;
       globalStateManager.configPath = configPath;
+      globalStateManager.rawArgs = { currentWorkingDirectory: directory } as typeof globalStateManager.rawArgs;
+      globalStateManager.rawCommands = ['dev'];
       expect(await runSeedScript('seed')).toMatchObject({ ok: false, code: 'NOT_FOUND' });
 
-      await writeFile(
-        configPath,
-        "exports.default = () => ({ resources: {}, scripts: { seed: { type: 'local-script', properties: { executeCommand: 'echo seeded' } } } });\n"
-      );
-      const changed = await runSeedScript('seed');
-      expect(changed).toMatchObject({ ok: false, code: 'CONFIG_CHANGED_RESTART_REQUIRED' });
-      expect(changed.ok === false && changed.error).toContain('stacktape.js defines script "seed" now');
-      // A script the file does not define either is still missing.
-      expect(await runSeedScript('migrate')).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+      await writeScripts("seed: { type: 'local-script', properties: { executeCommand: 'echo seeded' } }");
+      expect(await runSeedScript('seed')).toMatchObject({ ok: true, output: ['seeded'] });
+
+      await writeScripts("seed: { type: 'local-script', properties: { executeCommand: 'echo seeded twice' } }");
+      expect(await runSeedScript('seed')).toMatchObject({ ok: true, output: ['seeded twice'] });
+
+      // An added script is checked like any other: one for a deployed resource is still refused.
+      await writeScripts("seed: { type: 'bastion-script', properties: { executeCommand: 'echo no' } }");
+      expect(await runSeedScript('seed')).toMatchObject({ ok: false, code: 'NOT_LOCAL' });
+
+      // A script the file does not define is still missing.
+      expect(await runSeedScript('migrate')).toMatchObject({ ok: false, code: 'NOT_FOUND', available: ['seed'] });
+
+      await writeFile(configPath, 'exports.default = (;');
+      const broken = await runSeedScript('seed');
+      expect(broken).toMatchObject({ ok: false, code: 'CONFIG_INVALID' });
+      expect(broken.ok === false && broken.error).toStartWith('stacktape.js no longer loads');
+      // The session's own configuration is never replaced.
+      expect(configManager.config).toBe(resolver.rawConfig);
     } finally {
       configManager.config = previous.config;
       configManager.configResolver = previous.resolver;
       globalStateManager.configPath = previous.configPath;
+      globalStateManager.rawArgs = previous.rawArgs;
+      globalStateManager.rawCommands = previous.rawCommands;
       await rm(directory, { recursive: true, force: true });
     }
   });

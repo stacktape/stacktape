@@ -1,6 +1,11 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'dotenv';
-import { mergeManagedEnvBlock } from './frontend-env';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { localStatePaths } from 'src/config/local-state-paths';
+import { mergeManagedEnvBlock, prepareFrontendEnvironment, readManagedBlockStage } from './frontend-env';
 
 const START = '# >>> stacktape dev: managed block, rewritten on every dev start >>>';
 const END = '# <<< stacktape dev <<<';
@@ -40,4 +45,61 @@ test('dotenv reads every written value back unchanged', () => {
   };
   const parsed: Record<string, string> = parse(mergeManagedEnvBlock('USER_VALUE=kept\n', values));
   expect(parsed).toEqual({ USER_VALUE: 'kept', ...values });
+});
+
+// r2p: two dev sessions of one worktree (stages r2p and r2p2) rewrote the same web/.env.local. Each dev server kept its
+// own values through process environment, but a build reading the file got the other stage's API URL.
+test("a second stage's dev session leaves the block of a stage whose session runs the app", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-frontend-env-'));
+  const previousArgs = globalStateManager.rawArgs;
+  try {
+    const envFile = join(directory, '.env.local');
+    await writeFile(envFile, 'MY_FLAG=1\n');
+    const start = (stage: string, apiUrl: string) => {
+      globalStateManager.rawArgs = { stage, currentWorkingDirectory: directory };
+      return prepareFrontendEnvironment({
+        name: 'web',
+        workingDirectory: directory,
+        connectedEnvVars: { API_URL: apiUrl }
+      });
+    };
+
+    expect(await start('first', 'https://first.example.test')).toEqual({ API_URL: 'https://first.example.test' });
+    const firstFile = await readFile(envFile, 'utf8');
+    expect(readManagedBlockStage(firstFile)).toBe('first');
+    expect(parse(firstFile) as Record<string, string>).toEqual({ MY_FLAG: '1', API_URL: 'https://first.example.test' });
+
+    // Stage first's session runs the app: a live process (this test's parent) records it.
+    const registry = localStatePaths.devAgentRegistryDirectory({ workingDirectory: directory });
+    await mkdir(registry, { recursive: true });
+    const firstSession = {
+      pid: process.ppid,
+      port: 7399,
+      phase: 'ready',
+      projectName: 'shop',
+      stage: 'first',
+      region: 'eu-west-1',
+      startedAt: '',
+      workloads: ['web'],
+      databases: []
+    };
+    await writeFile(join(registry, 'shop-first.json'), JSON.stringify(firstSession));
+
+    // The second stage's server still gets its own values, as process environment.
+    expect(await start('second', 'https://second.example.test')).toEqual({ API_URL: 'https://second.example.test' });
+    expect(await readFile(envFile, 'utf8')).toBe(firstFile);
+
+    // Once stage first's session no longer runs the app, the block is the next start's.
+    await writeFile(join(registry, 'shop-first.json'), JSON.stringify({ ...firstSession, workloads: ['api'] }));
+    await start('second', 'https://second.example.test');
+    const secondFile = await readFile(envFile, 'utf8');
+    expect(readManagedBlockStage(secondFile)).toBe('second');
+    expect(parse(secondFile) as Record<string, string>).toEqual({
+      MY_FLAG: '1',
+      API_URL: 'https://second.example.test'
+    });
+  } finally {
+    globalStateManager.rawArgs = previousArgs;
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -1154,6 +1154,64 @@ describe('MCP dev tool arguments', () => {
     }
   });
 
+  // r2p: an agent could not test a scheduled or topic-triggered function through MCP: there was no invoke action, and
+  // aws refuses Lambda Invoke because it changes things.
+  test('invoke sends the event to the agent, names the confirming argument and invokes nothing for a cancelled call', async () => {
+    const dev = await daemon();
+    try {
+      const requests: Array<{ path: string; body?: unknown }> = [];
+      const handler = createDevToolHandler({
+        runCli: startedDaemon,
+        // The agent's own answers (agent-server.ts), as `devApiRequest` unwraps them.
+        requestDevApi: async ({ path, body }) => {
+          if (!path.startsWith('/functions/')) return { ok: true, code: 'OK' };
+          requests.push({ path, body });
+          return (body as { confirm?: boolean }).confirm
+            ? { ok: true, code: 'OK', message: 'Invoked report; it answered in 41 ms.', payload: '{"sent":3}' }
+            : {
+                ok: false,
+                code: 'CONFIRMATION_REQUIRED',
+                message: "Invoking runs report's deployed code in AWS (eu-west-1).",
+                hint: 'To proceed, set confirm: true in the request body.'
+              };
+        }
+      });
+      expect((await handler({ action: 'start', args: { agentPort: dev.port } })).structuredContent.ok).toBe(true);
+      const event = { source: 'aws.events', 'detail-type': 'Scheduled Event' };
+
+      const unconfirmed = (await handler({ action: 'invoke', args: { workload: 'report', event } })).structuredContent;
+      expect(unconfirmed).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+      expect(unconfirmed.data?.hint).toBe('To proceed, repeat this call with args.confirm=true.');
+      expect(unconfirmed.nextActions).toEqual([
+        'Repeat the call with args.confirm=true to run report in AWS with this event.'
+      ]);
+
+      const invoked = (await handler({ action: 'invoke', args: { workload: 'report', event, confirm: true } }))
+        .structuredContent;
+      expect(invoked).toMatchObject({ ok: true, data: { payload: '{"sent":3}' } });
+      expect(invoked.nextActions).toEqual(['Read what report logged with action=logs and args.workload=report.']);
+      expect(requests).toEqual([
+        { path: '/functions/report/invoke', body: { event, confirm: false } },
+        { path: '/functions/report/invoke', body: { event, confirm: true } }
+      ]);
+
+      expect((await handler({ action: 'invoke', args: { event } })).structuredContent.code).toBe('VALIDATION_ERROR');
+      const cancelled = new AbortController();
+      cancelled.abort();
+      const notSent = (
+        await handler({
+          action: 'invoke',
+          args: { workload: 'report', event, confirm: true },
+          signal: cancelled.signal
+        })
+      ).structuredContent;
+      expect(notSent.code).toBe('CANCELLED');
+      expect(requests).toHaveLength(2);
+    } finally {
+      await dev.close();
+    }
+  });
+
   test('env and aws go to the agent of the session and name what is missing', async () => {
     const dev = await daemon();
     try {
@@ -1210,6 +1268,7 @@ describe('MCP dev session scope', () => {
     ['rebuild_all', {}],
     ['reset_db', { confirm: true }],
     ['seed', {}],
+    ['invoke', { workload: 'report', confirm: true }],
     ['query', { sql: 'delete from notes where id = 1' }],
     ['stop', {}]
   ] as const;

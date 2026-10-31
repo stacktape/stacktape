@@ -17,6 +17,7 @@ import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -103,6 +104,11 @@ export type WorkloadStatus = {
   error?: string;
   /** How to fix `error`: a packaging failure's hint, for example. */
   hints?: string[];
+  /**
+   * The last error a running frontend printed, such as a request that failed with its cause; the server still serves.
+   * The next successful request, compile or code update clears it.
+   */
+  requestError?: string;
   size?: string;
   /** What a starting or rebuilding workload waits for. */
   statusMessage?: string;
@@ -133,16 +139,24 @@ export type AgentStatus = {
 /** A workload that runs older code of files another workload's rebuild just picked up. */
 export type StaleWorkload = { name: string; changedFiles: string[] };
 
+/** What a rebuild says besides its outcome: workloads it left on older code, and frontends it did not restart. */
+type RebuildNotes = {
+  staleWorkloads?: StaleWorkload[];
+  /** Batch jobs whose image, built when dev mode started, uses changed files: only a restart builds it again. */
+  staleRemoteImages?: StaleWorkload[];
+  /** Frontends rebuild all left running: their dev servers load changed code themselves. */
+  leftRunning?: string[];
+};
+
 export type RebuildResult =
-  | { ok: true; rebuilt: string[]; staleWorkloads?: StaleWorkload[] }
+  | ({ ok: true; rebuilt: string[] } & RebuildNotes)
   | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED'; message: string }
-  | {
+  | ({
       ok: false;
       code: 'REBUILD_FAILED';
       message: string;
       failedWorkloads: FailedWorkload[];
-      staleWorkloads?: StaleWorkload[];
-    };
+    } & RebuildNotes);
 
 // State management for agent mode
 let agentState: AgentStatus = {
@@ -209,6 +223,7 @@ export const mirrorDevTuiState = (state: DevTuiState) => {
       port: workload.port,
       error: workload.error,
       ...(workload.status === 'error' && workload.hints?.length ? { hints: workload.hints } : {}),
+      ...(workload.status === 'running' && workload.requestError ? { requestError: workload.requestError } : {}),
       size: workload.size,
       ...(workload.status === 'starting' && workload.statusMessage ? { statusMessage: workload.statusMessage } : {})
     })),
@@ -240,6 +255,15 @@ const getLocalResourceNames = (): string[] => {
 };
 
 export type FailedWorkload = { name: string; error: string; hints?: string[] };
+
+/**
+ * Frontends that run but printed an error since their last successful request: a request failed in the app's code, or
+ * a compile failed. Their server still serves, so they are not failed workloads, and the session stays ready.
+ */
+export const getRequestErrors = (workloads: WorkloadStatus[] = agentState.workloads) =>
+  workloads.flatMap(({ name, status, requestError }) =>
+    status === 'running' && requestError ? [{ name, error: requestError }] : []
+  );
 
 export const getFailedWorkloads = (workloads: WorkloadStatus[] = agentState.workloads): FailedWorkload[] =>
   workloads
@@ -418,6 +442,7 @@ addRoute('GET', '/status', async ({ query }) => {
   const notReadyReasons = getSessionNotReadyReasons();
   const ready = !notReadyReasons.length;
   const failedWorkloads = getFailedWorkloads();
+  const requestErrors = getRequestErrors();
 
   if (verbose) {
     return {
@@ -425,6 +450,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ready,
       ...(ready ? {} : { notReadyReasons }),
       failedWorkloads,
+      ...(requestErrors.length ? { requestErrors } : {}),
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
@@ -453,6 +479,7 @@ addRoute('GET', '/status', async ({ query }) => {
     ready,
     ...(ready ? {} : { notReadyReasons }),
     failedWorkloads,
+    ...(requestErrors.length ? { requestErrors } : {}),
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
@@ -480,23 +507,32 @@ export const toRebuildResponse = (
   logFile = getAgentLogFilePath(),
   workingDirectory = agentSession?.projectDirectory ?? globalStateManager.workingDir
 ) => {
-  const stale = 'staleWorkloads' in result && result.staleWorkloads?.length ? result.staleWorkloads : undefined;
-  const staleNote = stale && describeStaleWorkloads(stale, workingDirectory);
-  const staleFields = stale ? { staleWorkloads: stale } : {};
-  if ('rebuilt' in result) {
-    return {
-      ok: true,
-      message: `Rebuilt ${result.rebuilt.join(', ')}.${staleNote ? ` ${staleNote}` : ''}`,
-      rebuilt: result.rebuilt,
-      ...staleFields
-    };
-  }
-  if (!('failedWorkloads' in result)) {
+  if (!('failedWorkloads' in result) && !('rebuilt' in result)) {
     return {
       ok: false,
       code: result.code,
       error: result.message,
       hint: 'Stop dev mode and start it again; the start updates the dev stack.'
+    };
+  }
+  const { staleWorkloads, staleRemoteImages, leftRunning } = result;
+  const notes = [
+    leftRunning?.length && describeLeftRunning(leftRunning),
+    staleWorkloads?.length && describeStaleWorkloads(staleWorkloads, workingDirectory),
+    staleRemoteImages?.length && describeStaleRemoteImages(staleRemoteImages, workingDirectory)
+  ].filter(Boolean);
+  const note = notes.length ? ` ${notes.join(' ')}` : '';
+  const noteFields = {
+    ...(staleWorkloads?.length ? { staleWorkloads } : {}),
+    ...(staleRemoteImages?.length ? { staleRemoteImages } : {}),
+    ...(leftRunning?.length ? { leftRunning } : {})
+  };
+  if ('rebuilt' in result) {
+    return {
+      ok: true,
+      message: `${result.rebuilt.length ? `Rebuilt ${result.rebuilt.join(', ')}.` : 'Rebuilt nothing.'}${note}`,
+      rebuilt: result.rebuilt,
+      ...noteFields
     };
   }
   // Each workload's error is in `failedWorkloads`, and the message repeats only one-line errors: a build error of
@@ -508,25 +544,42 @@ export const toRebuildResponse = (
     code: result.code,
     error: `Rebuild failed. ${result.failedWorkloads.map(describe).join('\n')}`,
     failedWorkloads: result.failedWorkloads,
-    ...staleFields,
+    ...noteFields,
     logFile,
-    hint: `The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again.${staleNote ? ` ${staleNote}` : ''}`
+    hint: `The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again.${note}`
   };
 };
 
 /** At most this many changed files are named; `staleWorkloads` has them all. */
 const MAX_NAMED_STALE_FILES = 3;
 
-/** `quote, report also use changed files (packages/shared/src/index.ts); rebuild them or rebuild all.` */
-const describeStaleWorkloads = (stale: StaleWorkload[], workingDirectory: string) => {
+const describeChangedFiles = (stale: StaleWorkload[], workingDirectory: string) => {
   const files = [...new Set(stale.flatMap(({ changedFiles }) => changedFiles))].map((file) =>
     relative(workingDirectory, file).replaceAll('\\', '/')
   );
   const named = files.slice(0, MAX_NAMED_STALE_FILES).join(', ');
   const more = files.length > MAX_NAMED_STALE_FILES ? ` and ${files.length - MAX_NAMED_STALE_FILES} more` : '';
-  const names = stale.map(({ name }) => name).join(', ');
-  return `${names} also ${stale.length === 1 ? 'uses' : 'use'} changed files (${named}${more}) and still ${stale.length === 1 ? 'runs' : 'run'} the previous build; rebuild ${stale.length === 1 ? 'it' : 'them'} or rebuild all.`;
+  return `${named}${more}`;
 };
+
+/** `quote, report also use changed files (packages/shared/src/index.ts); rebuild them or rebuild all.` */
+const describeStaleWorkloads = (stale: StaleWorkload[], workingDirectory: string) => {
+  const names = stale.map(({ name }) => name).join(', ');
+  return `${names} also ${stale.length === 1 ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}) and still ${stale.length === 1 ? 'runs' : 'run'} the previous build; rebuild ${stale.length === 1 ? 'it' : 'them'} or rebuild all.`;
+};
+
+/** Batch jobs run the image the start built; a rebuild, rebuild all or watch mode never builds it again. */
+export const describeStaleRemoteImages = (
+  stale: StaleWorkload[],
+  workingDirectory = agentSession?.projectDirectory ?? globalStateManager.workingDir
+) => {
+  const names = stale.map(({ name }) => name).join(', ');
+  const one = stale.length === 1;
+  return `${names} ${one ? 'runs' : 'run'} in AWS from the image${one ? '' : 's'} built when dev mode started, which also ${one ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}). Restart dev mode to build and push ${one ? 'it' : 'them'} again; rebuilds do not.`;
+};
+
+const describeLeftRunning = (names: string[]) =>
+  `${names.join(', ')} kept running: ${names.length === 1 ? 'its dev server loads' : 'their dev servers load'} changed code itself. Rebuild ${names.length === 1 ? 'it' : 'one'} by name to restart ${names.length === 1 ? 'it' : 'its server'}.`;
 
 addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
@@ -1526,6 +1579,139 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
           hint: 'Reset does not support these resources; restart dev mode with --fresh-db to delete their data.'
         }
       : {})
+  };
+});
+
+/** What invoking a deployed function returned. */
+export type FunctionInvocation = {
+  /** The function's name in AWS. */
+  functionName: string;
+  statusCode?: number;
+  /** Lambda's `FunctionError`: the handler threw, timed out or ran out of memory. */
+  functionError?: string;
+  payload: string;
+};
+
+/** Invokes a function of the dev stack synchronously; replaced in tests, which reach no AWS. */
+type FunctionInvoker = (params: { name: string; event: unknown }) => Promise<FunctionInvocation>;
+
+const invokeDeployedFunction: FunctionInvoker = async ({ name, event }) => {
+  const functionName = configManager.allLambdasEligibleForHotswap.find((lambda) => lambda.name === name)?.resourceName;
+  if (!functionName) throw new Error(`The configuration has no deployed function ${name}.`);
+  const response = await awsSdkManager.lambda.invoke({
+    lambdaResourceName: functionName,
+    payload: event as Record<string, unknown>
+  });
+  return {
+    functionName,
+    statusCode: response.StatusCode,
+    ...(response.FunctionError ? { functionError: response.FunctionError } : {}),
+    payload: response.Payload
+  };
+};
+
+let invokeFunction: FunctionInvoker = invokeDeployedFunction;
+export const setFunctionInvoker = (invoker: FunctionInvoker | undefined) => {
+  invokeFunction = invoker ?? invokeDeployedFunction;
+};
+
+/** A test event is small; this bounds what one call sends (Lambda itself accepts up to 6 MB). */
+const MAX_INVOKE_EVENT_BYTES = 256 * 1024;
+/** The returned payload reaches an agent's conversation; the logs hold everything the function printed. */
+const MAX_INVOKE_PAYLOAD_CHARS = 16 * 1024;
+
+/**
+ * Invokes a function of this session in AWS with a test event, for handlers that no URL reaches: schedules, queues,
+ * topics, streams. It runs the function's deployed code with its own role, so it can change data: it needs `confirm`.
+ * Only a function this session runs and deployed is invoked; the aws action stays read-only.
+ */
+addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
+  const name = pathParams.name;
+  const { event = {}, confirm } = (body ?? {}) as { event?: unknown; confirm?: unknown };
+  const workload = agentState.workloads.find((candidate) => candidate.name === name);
+  if (!workload || workload.type !== 'function') {
+    const notInSession = functionsNotInSession.some((fn) => fn.name === name);
+    return {
+      ok: false,
+      code: notInSession ? 'NOT_IN_SESSION' : 'NOT_FOUND',
+      error: notInSession
+        ? `${name} is not in this dev session: it runs code deployed before, which the session does not manage.`
+        : `${name} is not a function of this dev session${workload ? ` (it is a ${workload.type})` : ''}.`,
+      ...(notInSession
+        ? { hint: 'Start dev mode with this function among its resources to invoke it.' }
+        : {
+            available: agentState.workloads.filter(({ type }) => type === 'function').map((fn) => fn.name)
+          })
+    };
+  }
+  if (workload.status !== 'running') {
+    return {
+      ok: false,
+      code: 'WORKLOAD_NOT_RUNNING',
+      error: `${name} is ${workload.status}${workload.error ? `: ${workload.error}` : ''}.`,
+      hint: 'Fix and rebuild it before invoking it.'
+    };
+  }
+  let eventBytes: number;
+  try {
+    eventBytes = Buffer.byteLength(JSON.stringify(event) ?? '');
+  } catch {
+    return { ok: false, code: 'VALIDATION_ERROR', error: 'event must be a JSON value.' };
+  }
+  if (eventBytes > MAX_INVOKE_EVENT_BYTES) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      error: `The event has ${eventBytes} bytes; at most ${MAX_INVOKE_EVENT_BYTES} are accepted.`
+    };
+  }
+  if (confirm !== true) {
+    return {
+      ok: false,
+      code: 'CONFIRMATION_REQUIRED',
+      error: `Invoking runs ${name}'s deployed code in AWS (${globalStateManager.region}) with this event and its own permissions, so it can change data and call other services.`,
+      hint: 'To proceed, set confirm: true in the request body.'
+    };
+  }
+
+  const mask = createEnvironmentMasker(
+    workloadEnvironment.getEnvVars(name) ?? {},
+    workloadEnvironment.getSecretEnvNames(name)
+  );
+  const startedAt = Date.now();
+  agentLog('dev', `Invoking ${name} with a test event`);
+  let result: FunctionInvocation;
+  try {
+    result = await invokeFunction({ name, event });
+  } catch (error) {
+    const message = mask(error instanceof Error ? error.message : String(error));
+    agentLog('dev', `Invoking ${name} failed: ${message}`, 'error');
+    return { ok: false, code: 'INVOKE_FAILED', error: `Invoking ${name} failed: ${message}` };
+  }
+  const durationMs = Date.now() - startedAt;
+  const masked = mask(result.payload);
+  const payloadFields = {
+    payload: masked.length > MAX_INVOKE_PAYLOAD_CHARS ? masked.slice(0, MAX_INVOKE_PAYLOAD_CHARS) : masked,
+    ...(masked.length > MAX_INVOKE_PAYLOAD_CHARS ? { payloadTruncatedFrom: masked.length } : {})
+  };
+  const invocation = { function: name, functionName: result.functionName, statusCode: result.statusCode, durationMs };
+  if (result.functionError) {
+    agentLog('dev', `${name} failed the test invocation (${result.functionError})`, 'error');
+    return {
+      ok: false,
+      code: 'FUNCTION_ERROR',
+      error: `${name} failed (${result.functionError}) after ${durationMs} ms; payload has its error.`,
+      ...invocation,
+      functionError: result.functionError,
+      ...payloadFields
+    };
+  }
+  agentLog('dev', `${name} answered the test invocation in ${durationMs} ms`);
+  return {
+    ok: true,
+    message: `Invoked ${name}; it answered in ${durationMs} ms.`,
+    ...invocation,
+    ...payloadFields
   };
 });
 

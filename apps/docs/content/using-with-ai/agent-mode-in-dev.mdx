@@ -153,7 +153,7 @@ curl -H "$AUTH" $AGENT/status
 
 `sessionId`, `projectDirectory`, `projectName`, `stage` and `region` identify the session; `dev stop` and the MCP server use them to find the agent of a project.
 
-The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A container workload with a port is `running` once that port accepts connections, after a start and after a rebuild; one that does not within 120 seconds gets the status `error`. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)).
+The `phase` value is one of `starting`, `ready`, `rebuilding`, `stopping`, or `stopped`. Phase becomes `ready` once dev mode has started every selected workload and local resource, and `/stop` moves it to `stopping`. The `ready` field is `true` only when the phase is `ready`, every workload is `running`, and the configuration file still matches the one the session started with. A container workload with a port is `running` once that port accepts connections, after a start and after a rebuild; one that does not within 120 seconds gets the status `error`. A workload that failed, crashed or failed to rebuild makes `ready` false and appears in `failedWorkloads` with its error, so an assistant waiting for `ready` never tests against a workload that is down or runs outdated code. When the configuration file changed, `ready` is false and `restartRequired` explains that dev mode has to restart (see [Rebuild](#rebuild)). A frontend whose running dev server printed an error, such as a request that failed in the app's code with its cause, stays `running` and keeps the session ready, because its server still serves: the error is in `requestErrors` (and the workload's `requestError` in verbose mode) until the next successful request, compile or code update.
 
 If a workload fails while `stacktape dev --agent` is starting, the command stops the session, prints each failed workload with its error and the log file path, and exits with a non-zero code.
 
@@ -293,7 +293,11 @@ The workload then has the status `error` and `/status` reports `ready: false` un
 
 When the rebuilt workload's files are also used by other workloads, such as a shared package in a monorepo, and changed after those workloads were last built, the result names them in `staleWorkloads` with the changed files, and the message says so: `Rebuilt api. quote, report also use changed files (packages/shared/src/index.ts) and still run the previous build; rebuild them or rebuild all.` With `--watch`, a change rebuilds every workload that uses the file.
 
-A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads keep their status and their previous build keeps serving; `ready` stays false and `restartRequired` explains why. If you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
+A batch job runs in AWS from the image dev mode built when it started, and no rebuild builds it again. When that image also uses the changed files, the result names the job in `staleRemoteImages` and the message says to restart dev mode, which builds and pushes the image again. Images built from a Dockerfile or with Railpack report their files; a job whose image reports none is not named.
+
+`/rebuild/all` leaves running frontends (Next.js, other SSR frameworks and static sites with a dev command) alone, because their dev servers load changed code themselves; the result lists them in `leftRunning`. A frontend whose server failed is restarted, and `/rebuild/{name}` restarts a frontend's server.
+
+A rebuild deploys code only. When the Stacktape configuration file changed since dev mode started, the rebuild does nothing and answers with the code `CONFIG_CHANGED_RESTART_REQUIRED`. A change to the `scripts` section alone does not count: scripts run only on request, and the seed endpoint reads them from the file each time. Stop dev mode and start it again: the start updates the dev stack with the new configuration. Formatting and comments do not count as a change. The refused workloads keep their status and their previous build keeps serving; `ready` stays false and `restartRequired` explains why. If you revert the configuration instead, the next rebuild, or with `--watch` the configuration check, rebuilds them.
 
 With `--watch`, dev mode rebuilds a workload when one of its source files changes, through the same path, so a failed build sets the same `error` status and writes the error to the log file. It also watches the configuration file and sets `restartRequired` when it changes. `stacktape dev --agent --watch` reports the session started only after the watcher is running, so an edit made right after the start is rebuilt.
 
@@ -466,7 +470,7 @@ A reset requires `{"confirm": true}` and changes only databases that dev mode ru
 
 Migration history tables stay in every SQL database, so the schema and the migration tool still agree after a reset: `_prisma_migrations`, `__drizzle_migrations`, `knex_migrations`, `kysely_migration`, `pgmigrations`, `migrations`, `mikro_orm_migrations`, `SequelizeMeta`, `schema_migrations`, `flyway_schema_history`, `databasechangelog`, `alembic_version`, `django_migrations`, `goose_db_version`, `__EFMigrationsHistory` and their lock tables. `keepTables` names more tables to keep. A kept table that references a reset table through a foreign key stops the reset with an error instead of being emptied with it.
 
-The seed is a script from the `scripts` section of your config. It runs as a [`beforeDev` hook](/configuration/hooks-and-scripts) would: its `connectTo` resources resolve to the local databases of this session, and the response carries its output. It is stopped after `timeoutSeconds` (default 50, at most 280) and then returns `SCRIPT_TIMEOUT`. Dev mode runs the config it started with: a script added to the config file since then returns `CONFIG_CHANGED_RESTART_REQUIRED` until dev mode restarts.
+The seed is a script from the `scripts` section of your config. It runs as a [`beforeDev` hook](/configuration/hooks-and-scripts) would: its `connectTo` resources resolve to the local databases of this session, and the response carries its output. It is stopped after `timeoutSeconds` (default 50, at most 280) and then returns `SCRIPT_TIMEOUT`. The seed reads the script from the config file as it is now, so a script added or edited after dev mode started runs without a restart; a config file that no longer loads returns `CONFIG_INVALID`.
 
 The seed endpoint refuses scripts that reference a deployed resource it knows about. It checks every string of the script, including directives nested in `$Format` and directives inside commands: `connectTo` and `$ResourceParam` must name databases running locally, and `$CfResourceParam`, `$StackOutput`, `$CfStackOutput` and `$CfFormat` are refused. Bastion scripts and scripts that assume a workload's role are refused. After the directives resolve, a script whose environment or commands contain the host or endpoint of one of the stack's deployed databases is refused before it runs.
 
@@ -488,6 +492,17 @@ scripts: {
   }
 }
 ```
+
+## Invoke a function with a test event
+
+A function that no URL reaches, such as one triggered by a schedule, a queue, a topic or a stream, can be tested by invoking it with an event of that shape. `/functions/{name}/invoke` invokes a function of this session in AWS and returns what it returned.
+
+```bash
+curl -X POST -H "$AUTH" -H "$JSON" $AGENT/functions/nightly-report/invoke \
+  -d '{"event": {"source": "aws.events", "detail-type": "Scheduled Event"}, "confirm": true}'
+```
+
+The function runs its deployed code with its own role, so it can change data and call other services: without `"confirm": true` the endpoint returns `CONFIRMATION_REQUIRED` and invokes nothing. Only a function this session runs is invoked, and only while it is `running`: another name returns `NOT_FOUND` with the session's functions, a function the session leaves out returns `NOT_IN_SESSION`, and a function whose rebuild failed returns `WORKLOAD_NOT_RUNNING`. The response has the function's `statusCode`, its `payload` (at most 16 KB, masked like `/env`) and `durationMs`. A handler that throws returns `FUNCTION_ERROR` with `functionError` and the error payload, and a failed call to Lambda returns `INVOKE_FAILED`. What the function logs arrives in the session's logs. The `/aws/sdk` endpoint below stays read-only and refuses `Invoke`.
 
 ## AWS SDK access
 
@@ -612,7 +627,7 @@ export default defineConfig(() => {
 
 ## MCP server integration
 
-For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp-server-setup) page. If your AI assistant supports the Model Context Protocol (Claude Code, Cursor, Windsurf), the MCP server provides a higher-level integration layer. Agent mode's HTTP API is the lower-level alternative that works with any tool capable of making HTTP requests. The MCP `stacktape_dev` tool calls this API for the assistant, so it never handles the token file: its `status`, `logs`, `rebuild`, `query`, `tables`, `reset_db`, `seed`, `env`, `aws` and `stop` actions map to the endpoints on this page. Without a session ID it acts only on sessions of its own project directories, so an assistant in one worktree cannot rebuild or reset another worktree's session by accident.
+For MCP-based assistant setup, see the [Stacktape MCP server](/using-with-ai/mcp-server-setup) page. If your AI assistant supports the Model Context Protocol (Claude Code, Cursor, Windsurf), the MCP server provides a higher-level integration layer. Agent mode's HTTP API is the lower-level alternative that works with any tool capable of making HTTP requests. The MCP `stacktape_dev` tool calls this API for the assistant, so it never handles the token file: its `status`, `logs`, `rebuild`, `query`, `tables`, `reset_db`, `seed`, `invoke`, `env`, `aws` and `stop` actions map to the endpoints on this page. Without a session ID it acts only on sessions of its own project directories, so an assistant in one worktree cannot rebuild or reset another worktree's session by accident.
 
 ## Security
 

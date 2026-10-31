@@ -11,6 +11,8 @@ import {
   getAgentTokenFile,
   getDeployedResources,
   getNotReadyReasons,
+  setFunctionInvoker,
+  setFunctionsNotInSession,
   startAgentServer,
   stopAgentServer,
   updateAgentState,
@@ -590,3 +592,92 @@ setInterval(() => {}, 1000);
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+// r2p: an agent could not test a scheduled or topic-triggered function: the agent had no way to invoke it, and the aws
+// endpoint refuses Lambda Invoke because it changes things.
+test("invoke runs only a running function of this session, after confirmation, and reports the function's failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-agent-invoke-'));
+  const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+  process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+  const invocations: { name: string; event: unknown }[] = [];
+  setFunctionInvoker(async ({ name, event }) => {
+    invocations.push({ name, event });
+    if ((event as { fail?: boolean }).fail) {
+      return {
+        functionName: `shop-dev-${name}`,
+        statusCode: 200,
+        functionError: 'Unhandled',
+        payload: '{"errorType":"Error","errorMessage":"report bucket missing"}'
+      };
+    }
+    return { functionName: `shop-dev-${name}`, statusCode: 200, payload: `{"sent":3,"echo":"${SECRETS[0]}"}` };
+  });
+  const port = await freePort();
+  await startAgentServer(port, directory, {
+    getEnvVars: (name) => (name === 'report' ? { DB_PASSWORD: SECRETS[0] } : null),
+    getSecretEnvNames: () => new Set(['DB_PASSWORD'])
+  });
+  try {
+    const token = await readFile(getAgentTokenFile()!, 'utf8');
+    const invoke = async (name: string, body: Record<string, unknown>) =>
+      (await (
+        await fetch(`http://127.0.0.1:${port}/functions/${name}/invoke`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        })
+      ).json()) as { ok: boolean; code: string; message: string; data: Record<string, unknown> };
+    updateAgentState({
+      phase: 'ready',
+      workloads: [
+        { name: 'report', type: 'function', status: 'running' },
+        { name: 'web', type: 'nextjs-web', status: 'running', url: 'http://web.localhost' },
+        { name: 'broken', type: 'function', status: 'error', error: 'Build failed: Unexpected ;' }
+      ]
+    });
+    setFunctionsNotInSession([{ name: 'legacy', message: 'runs code deployed on 28 October' }]);
+    const event = { source: 'aws.events', 'detail-type': 'Scheduled Event' };
+
+    expect(await invoke('report', { event })).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+    expect(await invoke('web', { event, confirm: true })).toMatchObject({
+      ok: false,
+      code: 'NOT_FOUND',
+      data: { available: ['report', 'broken'] }
+    });
+    expect(await invoke('orders', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_FOUND' });
+    expect(await invoke('legacy', { event, confirm: true })).toMatchObject({ ok: false, code: 'NOT_IN_SESSION' });
+    expect(await invoke('broken', { event, confirm: true })).toMatchObject({ ok: false, code: 'WORKLOAD_NOT_RUNNING' });
+    expect(invocations).toEqual([]);
+
+    const invoked = await invoke('report', { event, confirm: true });
+    expect(invoked).toMatchObject({
+      ok: true,
+      data: { function: 'report', functionName: 'shop-dev-report', statusCode: 200 }
+    });
+    expect(invoked.data.payload).toStartWith('{"sent":3,');
+    expect(JSON.stringify(invoked)).not.toContain(SECRETS[0]);
+
+    const failed = await invoke('report', { event: { fail: true }, confirm: true });
+    expect(failed).toMatchObject({
+      ok: false,
+      code: 'FUNCTION_ERROR',
+      data: { functionError: 'Unhandled', payload: '{"errorType":"Error","errorMessage":"report bucket missing"}' }
+    });
+
+    setFunctionInvoker(async () => {
+      throw new Error('User is not authorized to perform: lambda:InvokeFunction');
+    });
+    expect(await invoke('report', { event, confirm: true })).toMatchObject({ ok: false, code: 'INVOKE_FAILED' });
+    expect(invocations).toEqual([
+      { name: 'report', event },
+      { name: 'report', event: { fail: true } }
+    ]);
+  } finally {
+    setFunctionInvoker(undefined);
+    setFunctionsNotInSession([]);
+    stopAgentServer();
+    if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+    await rm(directory, { recursive: true, force: true });
+  }
+});

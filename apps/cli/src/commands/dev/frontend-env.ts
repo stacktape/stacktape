@@ -1,13 +1,17 @@
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { join } from 'node:path';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { pathExists, readFile, remove, writeFile } from 'fs-extra';
+import { findOtherDevSessions } from './agent-daemon';
 import { assertEnvironmentResolved } from './unresolved-environment';
 
 export const ENV_FILE_NAME = '.env.local';
 const BLOCK_START = '# >>> stacktape dev: managed block, rewritten on every dev start >>>';
 const BLOCK_END = '# <<< stacktape dev <<<';
+/** The block's second line names the stage whose dev session wrote it. */
+const BLOCK_STAGE = /^# stage: (.+)$/;
 
 /** The environment each frontend's dev server got at its latest start, for the agent's `/env`. */
 const frontendEnvironments = new Map<string, Record<string, string>>();
@@ -28,7 +32,7 @@ const formatEnvValue = (value: string): string => {
  * outside the markers is the developer's and stays as it is. A new block goes to the end, where its values win over
  * earlier lines with the same names.
  */
-export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, string>): string => {
+export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, string>, stage?: string): string => {
   const newline = existing.includes('\r\n') ? '\r\n' : '\n';
   const lines = existing ? existing.split(/\r?\n/) : [];
   const start = lines.indexOf(BLOCK_START);
@@ -37,7 +41,12 @@ export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, s
   const after = start === -1 ? [] : end === -1 ? [] : lines.slice(end + 1);
   const entries = Object.entries(envVars);
   const block = entries.length
-    ? [BLOCK_START, ...entries.map(([name, value]) => `${name}=${formatEnvValue(value)}`), BLOCK_END]
+    ? [
+        BLOCK_START,
+        ...(stage ? [`# stage: ${stage}`] : []),
+        ...entries.map(([name, value]) => `${name}=${formatEnvValue(value)}`),
+        BLOCK_END
+      ]
     : [];
   if (start === -1) {
     if (!block.length) return existing;
@@ -45,6 +54,14 @@ export const mergeManagedEnvBlock = (existing: string, envVars: Record<string, s
     return [...before, ...(before.length ? [''] : []), ...block, ''].join(newline);
   }
   return [...before, ...block, ...after].join(newline);
+};
+
+/** The stage whose dev session wrote the env file's Stacktape block, when the block names it. */
+export const readManagedBlockStage = (existing: string): string | undefined => {
+  const lines = existing.split(/\r?\n/);
+  const start = lines.indexOf(BLOCK_START);
+  if (start === -1) return undefined;
+  return lines[start + 1]?.match(BLOCK_STAGE)?.[1];
 };
 
 /**
@@ -83,7 +100,21 @@ export const prepareFrontendEnvironment = async ({
   const envFilePath = join(workingDirectory, ENV_FILE_NAME);
   const existing = (await pathExists(envFilePath)) ? await readFile(envFilePath, 'utf8') : '';
   if (!existing && !Object.keys(envVars).length) return envVars;
-  const merged = mergeManagedEnvBlock(existing, envVars);
+  const stage = globalStateManager.targetStack?.stage ?? globalStateManager.stage;
+  // Two stages can run one app directory, each in its own dev session. The block belongs to the session that wrote it
+  // while that session runs the app; this server still gets this stage's values as process environment.
+  const owner = readManagedBlockStage(existing);
+  if (
+    owner &&
+    owner !== stage &&
+    findOtherDevSessions().some((session) => session.stage === owner && session.workloads?.includes(name))
+  ) {
+    tuiManager.warn(
+      `[${name}] ${ENV_FILE_NAME} holds the values of stage ${owner}, whose dev session runs this app, so dev mode left it unchanged. This dev server gets stage ${stage}'s values as process environment, which outranks the file; a build or tool that reads ${ENV_FILE_NAME} gets stage ${owner}'s.`
+    );
+    return envVars;
+  }
+  const merged = mergeManagedEnvBlock(existing, envVars, stage);
   if (merged !== existing) {
     if (merged.trim()) await writeFile(envFilePath, merged);
     else await remove(envFilePath);

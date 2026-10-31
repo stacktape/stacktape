@@ -24,6 +24,8 @@ export type Workload = {
   error?: string;
   /** How to fix `error`, kept apart from it: a packaging failure's hint, for example. */
   hints?: string[];
+  /** The last error a running frontend printed (a failed request or compile); its server still serves. */
+  requestError?: string;
   hostingContentType?: string;
   size?: string;
 };
