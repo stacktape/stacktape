@@ -2,8 +2,8 @@ import type { AddressInfo } from 'node:net';
 import { createServer, type Server } from 'node:http';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import {
+  API_STAGE_WAIT_LIMIT_MS,
   NEW_STAGE_SETTLE_MS,
-  WEBSOCKET_HANDSHAKE_TIMEOUT_MS,
   probeWebSocketHandshake,
   waitForApiStage,
   type HandshakeResult
@@ -86,10 +86,11 @@ test('a session waits for a new WebSocket stage to settle and accept several han
   expect(clock.sleeps[0]).toBe(NEW_STAGE_SETTLE_MS - 10_000);
 });
 
-test('an older WebSocket stage needs one accepted handshake and no wait', async () => {
+// Review of #430: a warm start ran the app's $connect and $disconnect handlers for nothing.
+test('an older stage gets no wait and no handshake, and a stage of unknown age gets one handshake', async () => {
   const clock = fakeClock(5_000_000);
   handshakes = 0;
-  const readiness = await waitForApiStage({
+  const warm = await waitForApiStage({
     kind: 'websocket',
     name: 'websocketApi',
     url,
@@ -97,7 +98,17 @@ test('an older WebSocket stage needs one accepted handshake and no wait', async 
     now: clock.now,
     sleep: clock.sleep
   });
-  expect(readiness).toEqual({ ready: true, waitedMs: 0 });
+  expect(warm).toEqual({ ready: true, waitedMs: 0 });
+  expect(handshakes).toBe(0);
+
+  const unknown = await waitForApiStage({
+    kind: 'websocket',
+    name: 'websocketApi',
+    url,
+    now: clock.now,
+    sleep: clock.sleep
+  });
+  expect(unknown).toEqual({ ready: true, waitedMs: 0 });
   expect(handshakes).toBe(1);
   expect(clock.sleeps).toEqual([]);
 });
@@ -123,14 +134,17 @@ test('an HTTP API and an IAM-authorized WebSocket stage only wait for a new stag
   }
 });
 
-test('a stage that keeps refusing handshakes ends the wait with a note instead of blocking the session', async () => {
-  const clock = fakeClock(3_000_000);
+// Review of #430: a $connect authorizer answers the check with 403 on every start; the wait must stay bounded in total
+// and the note must not only blame AWS.
+test('a new stage that keeps refusing handshakes ends the whole wait within the limit, with a note', async () => {
+  const stageCreatedAt = 3_000_000;
+  const clock = fakeClock(stageCreatedAt + 2_000);
   let probes = 0;
   const readiness = await waitForApiStage({
     kind: 'websocket',
     name: 'websocketApi',
     url: 'wss://abc.execute-api.eu-west-3.amazonaws.com/default',
-    stageUpdatedAt: 3_000_000 - NEW_STAGE_SETTLE_MS * 2,
+    stageUpdatedAt: stageCreatedAt,
     now: clock.now,
     sleep: clock.sleep,
     probe: async (): Promise<HandshakeResult> => {
@@ -139,7 +153,12 @@ test('a stage that keeps refusing handshakes ends the wait with a note instead o
     }
   });
   expect(readiness.ready).toBe(false);
-  expect(readiness.waitedMs).toBe(WEBSOCKET_HANDSHAKE_TIMEOUT_MS);
-  expect(probes).toBe(WEBSOCKET_HANDSHAKE_TIMEOUT_MS / 1000 + 1);
-  expect(readiness.note).toContain('WebSocket API websocketApi still answers handshakes with HTTP 403 Forbidden');
+  expect(readiness.waitedMs).toBeLessThanOrEqual(API_STAGE_WAIT_LIMIT_MS);
+  expect(readiness.waitedMs).toBeGreaterThanOrEqual(API_STAGE_WAIT_LIMIT_MS - 1000);
+  // One handshake a second from the settle time to the limit, both ends included.
+  expect(probes).toBe((API_STAGE_WAIT_LIMIT_MS - (NEW_STAGE_SETTLE_MS - 2_000)) / 1000 + 1);
+  expect(readiness.note).toContain(
+    'WebSocket API websocketApi kept answering test connections with HTTP 403 Forbidden'
+  );
+  expect(readiness.note).toContain('A `$connect` authorizer or an auth check in the `$connect` handler');
 });

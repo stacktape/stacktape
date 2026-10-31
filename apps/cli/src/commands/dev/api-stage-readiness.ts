@@ -10,8 +10,8 @@ import { randomBytes } from 'node:crypto';
  * and the first browser connection failed (r2bc Shop).
  */
 export const NEW_STAGE_SETTLE_MS = 45_000;
-/** How long a session waits for a WebSocket stage that still refuses handshakes after it settled. */
-export const WEBSOCKET_HANDSHAKE_TIMEOUT_MS = 60_000;
+/** The longest a session waits for one API, the settle time included. */
+export const API_STAGE_WAIT_LIMIT_MS = 60_000;
 const HANDSHAKE_INTERVAL_MS = 1000;
 /** Consecutive accepted handshakes that prove a stage created in this session serves connections. */
 const FRESH_STAGE_ACCEPTED_HANDSHAKES = 3;
@@ -79,10 +79,11 @@ export type ApiStageReadiness = {
 };
 
 /**
- * Waits until a WebSocket or HTTP API stage serves requests. A stage created at least {@link NEW_STAGE_SETTLE_MS} ago
- * needs no wait. A WebSocket stage is checked with real handshakes too, unless its `$connect` route requires IAM
- * signatures, which the check does not send: one accepted handshake for an older stage, several in a row for a new
- * one. An HTTP API is not called, since every request runs the application's code; it waits for the stage to settle.
+ * Waits until a WebSocket or HTTP API stage serves requests, for at most {@link API_STAGE_WAIT_LIMIT_MS}. A stage created
+ * at least {@link NEW_STAGE_SETTLE_MS} ago needs no wait and no check. A newer stage waits until it is that old; a
+ * WebSocket stage is then checked with real handshakes until several in a row are accepted, unless its `$connect` route
+ * requires IAM signatures, which the check does not send. An HTTP API is never called, since every request runs the
+ * application's code. A stage of unknown age gets one handshake.
  */
 export const waitForApiStage = async ({
   kind,
@@ -107,27 +108,33 @@ export const waitForApiStage = async ({
   probe?: (url: string) => Promise<HandshakeResult>;
 }): Promise<ApiStageReadiness> => {
   const startedAt = now();
-  const settledAt = stageUpdatedAt === undefined ? startedAt : stageUpdatedAt + NEW_STAGE_SETTLE_MS;
-  const isNewStage = settledAt > startedAt;
-  if (isNewStage) await sleep(settledAt - startedAt);
+  const deadline = startedAt + API_STAGE_WAIT_LIMIT_MS;
+  const settledAt = stageUpdatedAt === undefined ? undefined : stageUpdatedAt + NEW_STAGE_SETTLE_MS;
+  if (settledAt !== undefined && settledAt <= startedAt) return { ready: true, waitedMs: 0 };
+  const isNewStage = settledAt !== undefined;
+  if (isNewStage) await sleep(Math.min(settledAt, deadline) - startedAt);
   if (kind === 'http' || !handshake || !url) return { ready: true, waitedMs: now() - startedAt };
 
   const required = isNewStage ? FRESH_STAGE_ACCEPTED_HANDSHAKES : 1;
-  const deadline = now() + WEBSOCKET_HANDSHAKE_TIMEOUT_MS;
   let accepted = 0;
+  let refused = 0;
   let last: HandshakeResult = 'unreachable';
   for (;;) {
     last = await probe(url);
     accepted = last === 'accepted' ? accepted + 1 : 0;
+    if (last === 'not-deployed') refused++;
     if (accepted >= required) return { ready: true, waitedMs: now() - startedAt };
-    if (now() >= deadline) break;
+    if (now() + HANDSHAKE_INTERVAL_MS > deadline) break;
     await sleep(HANDSHAKE_INTERVAL_MS);
   }
-  const answer =
-    last === 'not-deployed' ? 'still answers handshakes with HTTP 403 Forbidden' : 'does not answer handshakes';
+  const waitedMs = now() - startedAt;
+  const waited = `${Math.round(waitedMs / 1000)} s`;
   return {
     ready: false,
-    waitedMs: now() - startedAt,
-    note: `WebSocket API ${name} ${answer} after ${Math.round(WEBSOCKET_HANDSHAKE_TIMEOUT_MS / 1000)} s of checks (${url}). AWS may still be rolling out its stage: connections can fail for a short time. Reconnect if one does.`
+    waitedMs,
+    note:
+      last === 'not-deployed'
+        ? `WebSocket API ${name} kept answering test connections with HTTP 403 Forbidden (${refused} times in ${waited}, ${url}). A \`$connect\` authorizer or an auth check in the \`$connect\` handler refuses connections without credentials, which the check does not send; otherwise AWS may still be rolling out a new stage, and first connections can fail for a short time.`
+        : `WebSocket API ${name} did not answer test connections within ${waited} (${url}). Connections can fail until it does.`
   };
 };

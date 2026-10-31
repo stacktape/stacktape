@@ -968,7 +968,7 @@ export const commandDev = async () => {
     status: 'started',
     message: 'Checking the secrets and SSM parameters the configuration references'
   });
-  await ensureMissingSecretsCreated({ devStackName: stackContext.stackName });
+  await ensureMissingSecretsCreated({ projectName: stackContext.projectName, devStackName: stackContext.stackName });
   await ensureMissingSsmParamsCreated();
   reportDevStartup({
     step: 'DEV_SESSION',
