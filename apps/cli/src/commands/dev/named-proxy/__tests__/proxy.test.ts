@@ -659,3 +659,73 @@ describe('proxy - TLS / HTTPS', () => {
     expect(goodRes).toContain('200');
   });
 });
+
+// r2bd2: on Windows another program listened on 127.0.0.1 and ::1 of a frontend's port, the HTTP upstream `localhost`
+// resolved to ::1 and the generated URL reached that program. HTTP and WebSocket requests go to the one loopback
+// address the route names, whatever listens on the other one.
+describe('proxy - one loopback address per route', () => {
+  const hasIpv6Loopback = () =>
+    new Promise<boolean>((resolve) => {
+      const server = net.createServer();
+      server.once('error', () => resolve(false));
+      server.listen(0, '::1', () => server.close(() => resolve(true)));
+    });
+
+  /** Answers a plain request with its name and a WebSocket upgrade with its name in a header. */
+  const startNamedBackend = (name: string, port: number, host: string) =>
+    new Promise<net.Server>((resolve, reject) => {
+      const server = net.createServer((socket) => {
+        socket.on('error', () => {});
+        socket.once('data', (chunk: Buffer) => {
+          socket.end(
+            /\r\nUpgrade:\s*websocket/i.test(chunk.toString())
+              ? `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nX-Backend: ${name}\r\n\r\n`
+              : `HTTP/1.1 200 OK\r\nContent-Length: ${name.length}\r\nConnection: close\r\n\r\n${name}`
+          );
+        });
+      });
+      server.once('error', reject);
+      server.listen(port, host, () => resolve(server));
+    });
+
+  const upgrade = (proxyPort: number, hostname: string) =>
+    new Promise<string>((resolve) => {
+      let data = '';
+      const socket = net.createConnection({ port: proxyPort, host: '127.0.0.1' }, () => {
+        socket.write(
+          `GET / HTTP/1.1\r\nHost: ${hostname}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n` +
+            `Sec-WebSocket-Key: ${crypto.randomBytes(16).toString('base64')}\r\nSec-WebSocket-Version: 13\r\n\r\n`
+        );
+      });
+      socket.on('data', (chunk: Buffer) => (data += chunk.toString()));
+      socket.on('error', () => resolve(data));
+      socket.on('close', () => resolve(data));
+      setTimeout(() => socket.destroy(), 5000);
+    });
+
+  test.each([
+    ['127.0.0.1', '::1', undefined],
+    ['::1', '127.0.0.1', '::1']
+  ])('an app on %s is reached while another program holds %s of its port', async (appHost, otherHost, routeHost) => {
+    if (!(await hasIpv6Loopback())) return;
+    const probe = net.createServer();
+    await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const port = (probe.address() as net.AddressInfo).port;
+    await closeServer(probe);
+    const app = await startNamedBackend('app', port, appHost);
+    const other = await startNamedBackend('other', port, otherHost);
+    const proxyServer = createProxyServer({
+      getRoutes: () => [{ hostname: 'web.dev.localhost', port, ...(routeHost && { host: routeHost }) }],
+      proxyPort: 0,
+      onError: () => {}
+    });
+    await new Promise<void>((resolve) => proxyServer.listen(0, '127.0.0.1', resolve));
+    const proxyPort = (proxyServer.address() as net.AddressInfo).port;
+    try {
+      expect((await fetchText(proxyPort, 'web.dev.localhost')).body).toBe('app');
+      expect(await upgrade(proxyPort, 'web.dev.localhost')).toContain('X-Backend: app');
+    } finally {
+      await Promise.all([closeServer(proxyServer), closeServer(app), closeServer(other)]);
+    }
+  });
+});

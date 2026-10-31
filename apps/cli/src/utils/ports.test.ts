@@ -40,6 +40,27 @@ test('a listener makes its port busy and the probe leaves a free port bindable',
   await close(server);
 });
 
+const hasIpv6Loopback = () =>
+  new Promise<boolean>((resolve) => {
+    const server = createServer();
+    server.once('error', () => resolve(false));
+    server.listen(0, '::1', () => server.close(() => resolve(true)));
+  });
+
+// r2bd2: on Windows another program listened on 127.0.0.1 and ::1 of the port Stacktape chose for a frontend, and the
+// frontend's URL reached that program. A port held on any one loopback or wildcard address is in use.
+test.each(['127.0.0.1', '::1', '0.0.0.0', '::'])('a port held only on %s is in use', async (host) => {
+  if (host.includes(':') && !(await hasIpv6Loopback())) return;
+  const server = createServer();
+  const port = await listen(server, 0, host);
+  try {
+    expect(await isPortInUse(port)).toBe(true);
+  } finally {
+    await close(server);
+  }
+  expect(await isPortInUse(port)).toBe(false);
+});
+
 const directories: string[] = [];
 const reservationDirectory = async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stp-port-reservations-'));

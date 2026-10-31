@@ -372,7 +372,7 @@ test('a database password read from $Secret is replaced by one local password th
       // Deployed dev functions reach the database through the relay with the same password.
       expect(relayed[instance.name]!.params.connectionString).toContain(`:${password}@10.20.0.5:40001`);
       // Local workloads get it in their STP_* connection strings.
-      expect(envVars[`STP_${instance.name.toUpperCase()}_CONNECTION_STRING`]).toContain(`:${password}@localhost:`);
+      expect(envVars[`STP_${instance.name.toUpperCase()}_CONNECTION_STRING`]).toContain(`:${password}@127.0.0.1:`);
     }
     expect(new Set(instances.map((instance) => instance.credentials!.password)).size).toBe(3);
 

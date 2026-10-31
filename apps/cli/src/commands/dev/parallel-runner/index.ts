@@ -762,7 +762,7 @@ const startContainerWorkload = async (
   const proxyRoute = primaryHostPort
     ? await ensureNamedProxyRoute({ resourceName, targetPort: primaryHostPort })
     : undefined;
-  const workloadUrl = primaryHostPort ? proxyRoute?.url || `http://localhost:${primaryHostPort}` : undefined;
+  const workloadUrl = primaryHostPort ? proxyRoute?.url || `http://127.0.0.1:${primaryHostPort}` : undefined;
 
   const resourceDeployedConnectTo = (resource.connectTo || []).filter((c) => deployedConnectTo.includes(c));
   // Skip AWS credentials for locally-injected resources (not deployed to AWS)

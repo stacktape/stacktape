@@ -6,8 +6,13 @@ import { createServer as createNetServer, connect as netConnect } from 'node:net
 import { createServer as createTlsServer } from 'node:tls';
 import { escapeHtml, formatUrl } from './utils';
 
+const formatHostPort = (host: string, port: number) => (host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`);
+
 const PORTLESS_HEADER = 'X-Portless';
 export const PROXY_IDENTITY_HEADER = 'X-Stacktape-Dev-Proxy';
+
+/** The address an app is reached on when its route names none; dev mode starts apps on IPv4 loopback. */
+const DEFAULT_UPSTREAM_HOST = '127.0.0.1';
 
 const HOP_BY_HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade']);
 
@@ -96,7 +101,7 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
                 ? `<h2>Active apps:</h2><ul>${routes
                     .map(
                       (r) =>
-                        `<li><a href="${escapeHtml(formatUrl(r.hostname, proxyPort))}">${escapeHtml(r.hostname)}</a> - localhost:${escapeHtml(String(r.port))}</li>`
+                        `<li><a href="${escapeHtml(formatUrl(r.hostname, proxyPort))}">${escapeHtml(r.hostname)}</a> - ${escapeHtml(formatHostPort(r.host ?? DEFAULT_UPSTREAM_HOST, r.port))}</li>`
                     )
                     .join('')}</ul>`
                 : '<p><em>No apps running.</em></p>'
@@ -114,7 +119,7 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
 
     const proxyReq = request(
       {
-        hostname: 'localhost',
+        host: route.host ?? DEFAULT_UPSTREAM_HOST,
         port: route.port,
         path: req.url,
         method: req.method,
@@ -165,7 +170,7 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
     }
 
     const modifiedHead = injectHeadersIntoRawHead(rawStr, isTls);
-    const upstream = netConnect({ host: '127.0.0.1', port: route.port }, () => {
+    const upstream = netConnect({ host: route.host ?? DEFAULT_UPSTREAM_HOST, port: route.port }, () => {
       upstream.write(modifiedHead);
       if (remainingData.length > 0) upstream.write(remainingData);
       upstream.pipe(clientSocket);
