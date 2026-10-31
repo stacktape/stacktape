@@ -151,7 +151,7 @@ type RebuildNotes = {
 
 export type RebuildResult =
   | ({ ok: true; rebuilt: string[] } & RebuildNotes)
-  | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED'; message: string }
+  | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED' | 'CONFIG_CHECK_TIMEOUT'; message: string }
   | ({
       ok: false;
       code: 'REBUILD_FAILED';
@@ -513,7 +513,10 @@ export const toRebuildResponse = (
       ok: false,
       code: result.code,
       error: result.message,
-      hint: 'Stop dev mode and start it again; the start updates the dev stack.'
+      hint:
+        result.code === 'CONFIG_CHECK_TIMEOUT'
+          ? 'Fix the configuration so that it loads, and save it: the next save checks it again and rebuilds.'
+          : 'Stop dev mode and start it again; the start updates the dev stack.'
     };
   }
   const { staleWorkloads, staleRemoteImages, leftRunning } = result;
