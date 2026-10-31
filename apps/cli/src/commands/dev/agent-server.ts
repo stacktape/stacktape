@@ -1751,6 +1751,16 @@ addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
           })
     };
   }
+  // r2bc: an invoke sent while watch mode rebuilt the function was told to fix it, though nothing had failed.
+  if (workload.status === 'starting' || workload.status === 'pending') {
+    const rebuilding = agentState.phase === 'ready';
+    return {
+      ok: false,
+      code: rebuilding ? 'WORKLOAD_REBUILDING' : 'WORKLOAD_STARTING',
+      error: `${name} is ${rebuilding ? 'being rebuilt and redeployed' : 'still starting'}; nothing was invoked.`,
+      hint: `Wait until status reports ${name} running, then invoke it again.`
+    };
+  }
   if (workload.status !== 'running') {
     return {
       ok: false,

@@ -4429,6 +4429,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/dev/__tests__/source-watcher.test.ts',
       'apps/cli/src/commands/dev/agent-logger.spec.ts',
       'apps/cli/src/commands/dev/frontend-env.spec.ts',
+      'apps/cli/src/commands/dev/api-stage-readiness.spec.ts',
       'apps/cli/src/domain/config-manager/dev-mode.spec.ts',
       'apps/cli/src/domain/debug-services/db-client.spec.ts',
       'apps/cli/src/domain/debug-services/opensearch-request-bounds.spec.ts',

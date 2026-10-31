@@ -165,19 +165,81 @@ const updateDevSecretOwnership = async ({
       });
       return;
     }
+    if ((secret.Tags ?? []).some(({ Key }) => Key === tagNames.devSecretUser(devStackName))) return;
+    // Only this stage's tag is added: rewriting the other users' tags would bring back one that a stage deletion removes
+    // meanwhile. A secret generated before user tags existed gets the tag of the stage that generated it too.
     const users = getDevSecretUsers(secret, { includeGenerator: !restored });
-    if (
-      users.includes(devStackName) &&
-      (secret.Tags ?? []).some(({ Key }) => Key === tagNames.devSecretUser(devStackName))
-    )
-      return;
-    // A secret generated before user tags existed gets the tag of the stage that generated it too.
+    const hasUserTags = (secret.Tags ?? []).some(({ Key }) => Key?.startsWith(tagNames.devSecretUserPrefix()));
     await awsSdkManager.secrets.tag({
       secretId,
-      tags: [...new Set([...users, devStackName])].map((user) => ({ Key: tagNames.devSecretUser(user), Value: user }))
+      tags: [...new Set([...(hasUserTags ? [] : users), devStackName])].map((user) => ({
+        Key: tagNames.devSecretUser(user),
+        Value: user
+      }))
     });
   } catch (error) {
     if ((error as Error).name !== 'AccessDeniedException' && !isTagLimitError(error)) throw error;
+  }
+};
+
+/**
+ * Whether a value has the shape `buildSecretValue` gives a secret with these JSON keys: a JSON object with a non-empty
+ * string for each key the config reads, or a plain value that is no JSON object or array for a plain reference.
+ */
+const hasGeneratedShape = (value: string | undefined, jsonKeys: Set<string>) => {
+  if (!value) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return !jsonKeys.size;
+  }
+  const isObject = typeof parsed === 'object' && parsed !== null;
+  if (!jsonKeys.size) return !isObject;
+  if (!isObject || Array.isArray(parsed)) return false;
+  return [...jsonKeys].every((key) => {
+    const keyValue = (parsed as Record<string, unknown>)[key];
+    return typeof keyValue === 'string' && keyValue.length > 0;
+  });
+};
+
+/**
+ * Another command created the secret this one was about to generate: two stages that share a database password start at
+ * the same moment (r2bc). The secret that exists wins, so both stages use one value, but only when that command
+ * generated it for this project (`generatedSecretProject`) in the shape this config reads. This command's own random
+ * value is dropped. A secret set by hand or generated for another project stops the command: it decides nothing on its
+ * own about a value it did not generate.
+ */
+const adoptConcurrentlyCreatedSecret = async ({
+  name,
+  jsonKeys,
+  devStackName,
+  projectName
+}: {
+  name: string;
+  jsonKeys: Set<string>;
+  devStackName?: string;
+  projectName: string;
+}) => {
+  const existing = await awsSdkManager.secrets.describe({ secretId: name });
+  const generatedForProject = existing.Tags?.find(({ Key }) => Key === tagNames.generatedSecretProject())?.Value;
+  const isOwnGenerated = !existing.DeletedDate && generatedForProject === projectName;
+  const value = isOwnGenerated
+    ? (await awsSdkManager.secrets.get({ secretId: existing.ARN || name })).SecretString
+    : undefined;
+  if (!isOwnGenerated || !hasGeneratedShape(value, jsonKeys)) {
+    const keysInfo = jsonKeys.size ? `a JSON object with ${[...jsonKeys].join(', ')}` : 'a plain value';
+    throw new ExpectedError(
+      'CONFIG',
+      `Secret ${name} was created while this command was generating it, and Stacktape did not generate it for project ${projectName}${isOwnGenerated ? ` in the shape the config reads (${keysInfo})` : ''}.`,
+      [
+        `If the secret is meant for this project, run the command again: it then uses the existing secret. The config reads ${keysInfo} from it.`,
+        `Otherwise delete it with ${tuiManager.prettyCommand('secret:delete')} and run the command again to generate a new one.`
+      ]
+    );
+  }
+  if (isDevOwnedSecret(existing)) {
+    await updateDevSecretOwnership({ secret: existing, devStackName, restored: false });
   }
 };
 
@@ -193,13 +255,16 @@ const updateDevSecretOwnership = async ({
  *   deployment is aborted with a hint to use `secret:set`.
  */
 export const ensureMissingSecretsCreated = async ({
+  projectName,
   generatedSecretDescription,
   devStackName
 }: {
+  /** Recorded on the secrets this command generates, so a command of another project never takes one over. */
+  projectName: string;
   generatedSecretDescription?: string;
   /** Set by `stacktape dev`: the secrets it generates are tagged with this dev stack (see `releaseDevGeneratedSecrets`). */
   devStackName?: string;
-} = {}) => {
+}) => {
   const secretRefs = configManager.allSecretReferencesUsedInConfig;
   if (!secretRefs.size) {
     return;
@@ -286,26 +351,44 @@ export const ensureMissingSecretsCreated = async ({
     }
 
     const spinner = tuiManager.createSpinner({ text: `Creating ${autoGenerable.length} database secret(s)` });
+    const adopted: string[] = [];
     for (const [secretName, jsonKeys] of autoGenerable) {
       const secretValue = buildSecretValue(jsonKeys);
-      await awsSdkManager.secrets.create({
+      const provenance = { Key: tagNames.generatedSecretProject(), Value: projectName };
+      const created = await awsSdkManager.secrets.createUnlessExists({
         name: secretName,
         value: secretValue,
         ...(devStackName
           ? {
               description: `Generated by stacktape dev for ${devStackName}`,
               tags: [
+                provenance,
                 { Key: tagNames.devGeneratedSecret(), Value: devStackName },
                 { Key: tagNames.devSecretUser(devStackName), Value: devStackName }
               ]
             }
-          : generatedSecretDescription === undefined
-            ? {}
-            : { description: generatedSecretDescription })
+          : {
+              tags: [provenance],
+              ...(generatedSecretDescription === undefined ? {} : { description: generatedSecretDescription })
+            })
       });
+      if (!created) {
+        await adoptConcurrentlyCreatedSecret({ name: secretName, jsonKeys, devStackName, projectName });
+        adopted.push(secretName);
+      }
     }
+    const createdNames = autoGenerable.map(([name]) => name).filter((name) => !adopted.includes(name));
     spinner.success({
-      text: `Created ${autoGenerable.length} secret(s): ${autoGenerable.map(([n]) => tuiManager.makeBold(n)).join(', ')}`
+      text: [
+        createdNames.length
+          ? `Created ${createdNames.length} secret(s): ${createdNames.map((n) => tuiManager.makeBold(n)).join(', ')}`
+          : '',
+        adopted.length
+          ? `Using ${adopted.length} secret(s) another command generated meanwhile: ${adopted.map((n) => tuiManager.makeBold(n)).join(', ')}`
+          : ''
+      ]
+        .filter(Boolean)
+        .join('. ')
     });
   }
 };

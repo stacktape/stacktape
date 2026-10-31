@@ -129,7 +129,7 @@ export const commandDiff = async () => {
   const issueDetectionPolicy = config.issueDetectionPolicy;
   tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
-  await ensureMissingSecretsCreated();
+  await ensureMissingSecretsCreated({ projectName: stackContext.projectName });
   await ensureMissingSsmParamsCreated();
 
   await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });

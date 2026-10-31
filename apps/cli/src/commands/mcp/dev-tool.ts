@@ -2051,7 +2051,9 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           ...(output.nextActions ?? []),
           output.code === 'CONFIRMATION_REQUIRED'
             ? `Repeat the call with args.confirm=true to run ${workload} in AWS with this event.`
-            : `Read what ${workload} logged with action=logs and args.workload=${workload}.`
+            : output.code === 'WORKLOAD_REBUILDING' || output.code === 'WORKLOAD_STARTING'
+              ? `Call action=status until ${workload} is running, then repeat this call.`
+              : `Read what ${workload} logged with action=logs and args.workload=${workload}.`
         ]
       });
     }

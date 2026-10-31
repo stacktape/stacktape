@@ -306,7 +306,7 @@ test('validate and the deploy preflight find a $Secret nested in $CfFormat', asy
       plain: '{{resolve:secretsmanager:app-db:SecretString:::}}'
     });
     // Deploy asks for both before it does any work, and without a terminal it stops and names them.
-    await expect(ensureMissingSecretsCreated()).rejects.toMatchObject({
+    await expect(ensureMissingSecretsCreated({ projectName: 'app' })).rejects.toMatchObject({
       message: 'Missing 2 secret(s): app-token, app-db'
     });
   } finally {

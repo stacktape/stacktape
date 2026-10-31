@@ -40,7 +40,7 @@ export const deployWithEc2Runner = async () => {
   }
 
   configManager.validateGuardrails({ hasConfig: true });
-  await ensureMissingSecretsCreated();
+  await ensureMissingSecretsCreated({ projectName: stackContext.projectName });
   await ensureMissingSsmParamsCreated();
   // The runner decides the placement itself, without asking; this preview reads the shared network only.
   await prepareStageNetwork({ stage: stackContext.stage, mode: 'preview' });
