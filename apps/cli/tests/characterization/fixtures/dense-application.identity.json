@@ -338,18 +338,11 @@
       "physicalNames": {
         "RoleName": "characterization-baseline-debug-agent"
       },
-      "dependencies": []
+      "dependencies": ["ApiGatewayApi", "WebApi"]
     },
     "StpDefaultDomainCertCustomResource": {
       "type": "AWS::CloudFormation::CustomResource",
       "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
-    },
-    "StpDevAgentRole": {
-      "type": "AWS::IAM::Role",
-      "physicalNames": {
-        "RoleName": "characterization-baseline-dev-agent"
-      },
-      "dependencies": ["ApiGatewayApi", "WebApi"]
     },
     "StpDiscoveryService": {
       "type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
@@ -612,9 +605,6 @@
       "dependencies": []
     },
     "DebugAgentRoleArn": {
-      "dependencies": []
-    },
-    "DevAgentRoleArn": {
       "dependencies": []
     }
   }

@@ -1641,7 +1641,11 @@ which AWS charges for by the data it scans. `StopQuery` is not accepted.
 Stacktape enforces the allowlist where the AWS request is sent, so the dev mode agent's
 [`/aws/sdk` endpoint](/using-with-ai/agent-mode-in-dev#aws-sdk-access) applies the same list. It is a read-only guard,
 not an IAM permission boundary. The call runs with the deployed stack's read-only debug role, assumed with the
-caller's selected AWS credentials. If the stack has no debug role or it cannot be assumed, the command fails with
+caller's selected AWS credentials. The role reads only the stack's own resources in the stack's region: it identifies
+them by the stack-name tag CloudFormation puts on every resource, or by their identifiers in the template. CloudWatch
+metric and alarm reads cover the whole region, because metrics belong to no stack. A read of another stack, another
+region, the account-wide `aws/spans` trace log group or a Secrets Manager or SSM Parameter Store value returns
+AccessDenied. If the stack has no debug role or it cannot be assumed, the command fails with
 `CLI_DEBUG_AGENT_ROLE_MISSING` or `CLI_DEBUG_AGENT_ROLE_ASSUME_FAILED` instead of using your own, broader credentials;
 redeploy the stack to create or repair the role. A stack whose first deployment failed before it had outputs has no
 role yet: there, only CloudFormation reads of that stack are accepted, and they run with your selected credentials.
@@ -1661,13 +1665,14 @@ credentials assume the deployed stack's debug role; the AWS request itself runs 
 
 ## Basic usage
 
-List Lambda functions visible to the target stack's debug role:
+Read the configuration of one of the stack's Lambda functions:
 
 ```bash
-stacktape aws call lambda ListFunctions \
+stacktape aws call lambda GetFunctionConfiguration \
   --project my-project \
   --stage production \
-  --region eu-west-1
+  --region eu-west-1 \
+  --input '{"FunctionName":"my-project-production-api"}'
 ```
 
 Pass command input as JSON:
@@ -1745,9 +1750,10 @@ configure defaults that identify that same stack.
 
 ### The call returns AccessDenied
 
-The debug role does not allow the operation for the requested resource. Verify the selected
-AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not grant IAM
-permissions.
+The debug role does not allow the operation for the requested resource. It reads only the target stack's resources in
+the stack's region, and it cannot list resources account-wide, as `ListFunctions` or `ListTables` would. Verify the
+selected AWS account/profile and target stack. The allowlist prevents known state-changing operations; it does not
+grant IAM permissions.
 
 ### Can I use `aws call` without a Stacktape project?
 
@@ -7102,7 +7108,7 @@ The `mapping` operation requires `--index`. The `get` operation requires both `-
 
 ### Do I need a bastion host to query OpenSearch?
 
-No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates with the stack's read-only debug role. When the stack has no such role or it cannot be assumed, the command fails instead of using your configured AWS credentials. Unlike [`query sql`](/cli/query-sql) or [`query redis`](/cli/query-redis), `query opensearch` does not accept a `--bastion-resource` flag.
+No. The command reads the deployed domain endpoint from the stack, connects over HTTPS, and authenticates with the stack's read-only debug role. The role can send only GET and HEAD requests to the stack's own domains, so the command sends searches as GET with the query in the request body. OpenSearch refuses the role any other request, such as indexing, updating or deleting documents. The command also refuses an `--index` that contains `/` or starts with `_`, since that would reach another endpoint rather than an index. When the stack has no such role or it cannot be assumed, the command fails instead of using your configured AWS credentials. Unlike [`query sql`](/cli/query-sql) or [`query redis`](/cli/query-redis), `query opensearch` does not accept a `--bastion-resource` flag.
 
 ### What format does the --query flag expect?
 
@@ -16134,6 +16140,8 @@ The first v4 deployment adds a log subscription filter to every function and con
 On stacks with a CDN, it deletes Stacktape's origin-response Lambda@Edge function unless a bucket sets custom metadata headers, the only case that uses it. It also deletes the origin-request Lambda@Edge function unless a bucket cache behaviour uses URL normalization or SPA routing without a custom origin-request handler. API Gateway, load balancer, Lambda URL and custom HTTP origins do not use that helper. When no edge function remains, its internal artifact bucket is removed too. CloudFormation updates distributions before deleting a helper they previously referenced. AWS may retain detached Lambda@Edge replicas for a few hours; this does not fail the update. After AWS releases the replicas, delete any retained function in `us-east-1` with `aws lambda delete-function --profile <profile> --region us-east-1 --function-name <name>`.
 
 Batch jobs now run on Amazon Linux 2023 instances, because AWS Batch stopped creating compute environments with its Amazon Linux 2 images on 30 June 2026. A compute environment last deployed by v3.0.10 or later keeps Amazon Linux 2: changing the image would make CloudFormation replace the environment and could interrupt jobs running on it. AWS keeps such environments running but no longer patches their image. An older environment, or one that a later change replaces anyway (such as a change to the stack's `tags`), moves to Amazon Linux 2023. CloudFormation then deletes the old environment, which can interrupt jobs still running on it, so deploy such a change when no jobs run; the change plan lists the compute environment as replaced. Amazon Linux 2023 requires IMDSv2 and uses cgroup v2; see [compute resources](/resources/compute/batch-job#compute-resources). The first v4 deployment also gives each batch job an execution role with `AmazonECSTaskExecutionRolePolicy`, which the ECS agent uses to pull the job's image from ECR, write its logs and read its secrets. The job's own role is unchanged.
+
+The first v4 deployment deletes the stack's `<stack name>-dev-agent` IAM role and its `DevAgentRoleArn` output: only `stacktape dev` uses that role, and its dev stacks keep it. The read-only `<stack name>-debug-agent` role, which `aws call`, `query dynamodb` and `query opensearch` use, now reads only the stack's own resources in the stack's region. It no longer reads Secrets Manager or SSM Parameter Store values, other stacks' databases and caches, or the account-wide `aws/spans` trace log group. Automation that assumed either role for anything else needs its own role.
 
 Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
 
@@ -49065,7 +49073,7 @@ Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` 
 
 ```bash
 curl -X POST -H "$AUTH" -H "$JSON" $AGENT/aws/sdk \
-  -d '{"service": "lambda", "command": "ListFunctions", "input": {"MaxItems": 10}}'
+  -d '{"service": "lambda", "command": "GetFunctionConfiguration", "input": {"FunctionName": "my-app-dev-api"}}'
 ```
 
 The request body accepts `service` (required), `command` (required), `input` (optional, defaults to `{}`), and `region` (optional, must equal the session region if supplied; another region is rejected). Use [`stacktape aws call`](/cli/aws-call) with an explicit target for a different region. If `service` or `command` is missing, the agent returns a validation error with a hint showing the expected request shape.
@@ -49187,7 +49195,7 @@ The agent can run SQL against your local databases, rebuild and stop workloads, 
 
 Do not forward the agent port to other machines, and do not paste the token into chats or logs.
 
-The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. This does not make every read stack-scoped: CloudWatch metrics/alarm and API Gateway reads can reach other resources in the account and session region. CloudWatch Logs uses stack-name log-group ARN patterns. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
+The `/aws/sdk` endpoint fails closed when the dev agent role is missing or cannot be assumed; it never falls back to developer credentials. The role reads only this dev stack's resources in the session region; CloudWatch metric and alarm reads cover the whole session region. The endpoint accepts only reviewed read operations and adds resource filtering for Batch. See [AWS SDK access](#aws-sdk-access) for the boundary.
 
 ## FAQ
 
@@ -49532,7 +49540,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 - **`query`** runs `sql` on PostgreSQL or MySQL, a Redis `command` such as `GET session:1`, or a DynamoDB query (`pk`, optional `sk` and `index`) or scan (`filter`). `resource` names the database and can be omitted when only one runs. Only statements the server fully understands run directly: reads that call no function the application defined, `INSERT ... VALUES`, `CREATE TABLE` with column definitions, `CREATE INDEX`, and `UPDATE` or `DELETE` whose own `WHERE` clause refers to a column (`WHERE true` or `WHERE 1 = 1` does not count). Any other SQL, such as `DROP`, `TRUNCATE`, `ALTER`, `INSERT ... SELECT`, `CREATE TABLE ... AS`, a data-modifying `WITH`, `EXPLAIN ANALYZE` or `DO`, and the Redis `FLUSHALL`, returns `DESTRUCTIVE_OPERATION` until it is repeated with `confirm: true`. Comments, quoted text and quoted identifiers never change that decision, and SQL the server cannot read with certainty (an unterminated quote, a backslash inside a quoted string, a MySQL executable comment) also needs confirmation.
 - **`reset_db`** gives the assistant a known database state without restarting dev mode; a reset of a small database takes milliseconds, a `freshDb` restart about 13 seconds. With `confirm: true` it deletes every row of the PostgreSQL and MySQL tables, every Redis key and every DynamoDB item of `resource`, or of every local database when `resource` is omitted. Tables, indexes and migration history tables such as `_prisma_migrations` stay, so the application needs no new migration. PostgreSQL identity columns and MySQL `AUTO_INCREMENT` counters start again at 1. `keepTables` names more tables to keep. OpenSearch is not supported; start dev mode with `freshDb` to delete its data.
 - **`seed`** runs a `local-script` from the config's `scripts` section (`script`, default `seed`) with the local database connections and returns its output. It stops the script after `timeoutSeconds` (default 50, at most 280), with every process the script started, including ones that left its process group; if one survives, the result lists it in `survivingPids`. Output and errors are masked like `env` masks the script's environment. When the output is larger than one result, the result keeps the last lines and names a log file with all of them, and still reports whether the script succeeded. A script added to the config after dev mode started returns `CONFIG_CHANGED_RESTART_REQUIRED`: dev mode runs the config it started with, so it has to restart first. See [Reset and seed local databases](/using-with-ai/agent-mode-in-dev#reset-and-seed-local-databases) for the script.
-- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region` equal to the session region) with the dev agent's role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide in the session region; CloudWatch Logs uses stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the live HTTP endpoint. A missing role or failed AssumeRole fails the live agent call without falling back to developer credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. This separate CLI diagnostic path reads through the stack's read-only debug role and fails instead of falling back to the selected user credentials; a stack whose first deploy failed before it had outputs allows only CloudFormation reads of that stack. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
+- **`env`** returns the environment of a `workload` with secret values masked, or `WORKLOAD_NOT_STARTED` when the workload failed before dev mode prepared its environment. **`aws`** calls a reviewed read-only AWS SDK operation (`service`, `command`, `input`, optional `region` equal to the session region) with the dev agent's role. The role reads only the dev stack's resources in the session region; CloudWatch metric and alarm reads cover the whole session region. Only Batch gets additional resource filtering at the live HTTP endpoint. A missing role or failed AssumeRole fails the live agent call without falling back to developer credentials, as [`/aws/sdk`](/using-with-ai/agent-mode-in-dev#aws-sdk-access) does. For 15 minutes after a start failed, `aws` with that start's `devSessionId` still reads its stack. No dev agent runs, so the call goes through [`stacktape aws call`](/cli/aws-call) with the project, stage and region the start resolved and its AWS profile. This separate CLI diagnostic path reads through the stack's read-only debug role, which is limited to the stack and region the same way, and fails instead of falling back to the selected user credentials; a stack whose first deploy failed before it had outputs allows only CloudFormation reads of that stack. Without a `devSessionId`, it reads a failed start of this project only when one matches `stage`, and otherwise asks for the ID. A start that failed before it resolved its stage returns `DEV_TARGET_UNKNOWN`.
 - **`stop`** terminates the active session.
 
 `query`, `tables` and `reset_db` reach databases that dev mode runs on your machine. The one exception is a DynamoDB table that the dev stack deploys, because it is in `remoteResources` or a deployed function's stream trigger needs it. `query` and `tables` with that table's name in `resource` scan, query or describe the deployed table, read-only, and the result has `deployed: true`, the table name and the region. `reset_db` refuses it with `NOT_LOCAL_RESOURCE`. Any other deployed resource returns `NOT_LOCAL_RESOURCE` or `NOT_FOUND`; read it with the `aws` action. `seed` refuses scripts with a known reference to a deployed resource: a `connectTo` or resource directive anywhere in the script, or a deployed database's host in its resolved environment or commands. It also refuses bastion scripts and scripts that assume a workload's role. A seed script still runs with your AWS credentials and is not a sandbox: it can reach deployed data through `$Secret`, a literal URL, an `.env` file or the AWS SDK.

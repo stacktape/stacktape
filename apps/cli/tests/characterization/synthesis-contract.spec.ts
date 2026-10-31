@@ -43,6 +43,7 @@ import {
   LambdaFunction,
   MultiContainerWorkload,
   MultiContainerWorkloadHttpApiIntegration,
+  OpenSearchDomain,
   RdsEnginePostgres,
   RelationalDatabase,
   SqsIntegration,
@@ -73,7 +74,8 @@ const createDenseConfig = ({
   includeTracing = false,
   includeSyntheticTest = false,
   webConnectsToRecords = false,
-  scopedDatabase = false
+  scopedDatabase = false,
+  includeOpenSearch = false
 }: {
   includeAppsync?: boolean;
   includeDsql?: boolean;
@@ -89,6 +91,7 @@ const createDenseConfig = ({
   includeSyntheticTest?: boolean;
   webConnectsToRecords?: boolean;
   scopedDatabase?: boolean;
+  includeOpenSearch?: boolean;
 } = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
@@ -337,6 +340,7 @@ const createDenseConfig = ({
         ...(includeKafka ? { kafkaCluster } : {}),
         ...(includeUptimeCheck ? { apiUptime, homepageUptime } : {}),
         ...(includeSyntheticTest ? { homepageFlow } : {}),
+        ...(includeOpenSearch ? { search: new OpenSearchDomain({}) } : {}),
         api,
         worker,
         ...(subscribeToWorkerLogs ? { logObserver } : {}),
@@ -388,6 +392,7 @@ export const synthesizeDenseFixture = async ({
   includeSyntheticTest,
   webConnectsToRecords,
   scopedDatabase,
+  includeOpenSearch,
   remoteResources,
   devSkippedFunctions,
   existingStackResources
@@ -409,6 +414,7 @@ export const synthesizeDenseFixture = async ({
   includeSyntheticTest?: boolean;
   webConnectsToRecords?: boolean;
   scopedDatabase?: boolean;
+  includeOpenSearch?: boolean;
   remoteResources?: string[];
   devSkippedFunctions?: string[];
   existingStackResources?: EnrichedStackResourceInfo[];
@@ -428,7 +434,8 @@ export const synthesizeDenseFixture = async ({
       includeTracing,
       includeSyntheticTest,
       webConnectsToRecords,
-      scopedDatabase
+      scopedDatabase,
+      includeOpenSearch
     }),
     workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
     synthesisContext,
@@ -2133,12 +2140,12 @@ describe('full synthesis contract', () => {
     for (const action of ['dynamodb:PutItem', 's3:ListBucket', 'sqs:SendMessage', 'events:PutEvents']) {
       expect(apiActions).toContain(action);
     }
-    // The dev agent only reads queues (see the dev agent role test).
-    const devAgentSqsActions = resources.StpDevAgentRole.Properties.Policies.find(
+    // The debug agent only reads queues (see the agent role tests).
+    const debugAgentSqsActions = resources.StpDebugAgentRole.Properties.Policies.find(
       ({ PolicyName }: { PolicyName: string }) => PolicyName === 'sqs-access'
     ).PolicyDocument.Statement[0].Action;
-    expect(devAgentSqsActions).toContain('sqs:GetQueueAttributes');
-    expect(devAgentSqsActions).not.toContain('sqs:SendMessage');
+    expect(debugAgentSqsActions).toContain('sqs:GetQueueAttributes');
+    expect(debugAgentSqsActions).not.toContain('sqs:SendMessage');
     for (const method of ['GET', 'PUT', 'POST', 'DELETE']) {
       expect(resources.FilesBucket.Properties.CorsConfiguration.CorsRules[0].AllowedMethods).toContain(method);
     }
@@ -2386,21 +2393,19 @@ test('the public codeSwap opt-in adds the protected runtime while ordinary synth
   }
 });
 
-// r2af finding 2: the dev agent role of `shop-dev` granted Lambda, DynamoDB and other actions on `shop-dev-*` in every
-// region, which also names the resources of a stage `dev-production`, and it granted writes the agent never sends.
-test('the dev agent role reads only its own stack, in its own region', async () => {
-  const region = 'eu-west-1';
-  const accountId = '111111111111';
-  const template = await synthesizeDenseFixture({
-    synthesisContext: { stackName: 'shop-dev', projectName: 'shop', stage: 'dev', region, accountId }
-  });
+const region = 'eu-west-1' as const;
+const accountId = '111111111111';
+
+/**
+ * IAM's answers for the Allow statements of an agent role in a template synthesized for stack `shop-dev`: what
+ * CloudFormation substitutes for this test's account and region, where a logical ID becomes the resource's name.
+ */
+const agentRoleAccess = (template: CloudFormationTemplate, roleLogicalId: string) => {
   const resources = template.Resources as Record<string, any>;
-  const statements = resources.StpDevAgentRole.Properties.Policies.flatMap(
+  const statements = resources[roleLogicalId].Properties.Policies.flatMap(
     ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
   ) as { Effect: string; Action: string[]; Resource: unknown; Condition?: Record<string, Record<string, any>> }[];
   const allows = statements.filter(({ Effect }) => Effect === 'Allow');
-
-  // What CloudFormation substitutes, for this test's account and region; a logical ID becomes the resource's name.
   const physicalName = (logicalName: string) => {
     const properties = resources[logicalName]?.Properties ?? {};
     return (
@@ -2408,6 +2413,7 @@ test('the dev agent role reads only its own stack, in its own region', async () 
       properties.DBClusterIdentifier ??
       properties.ReplicationGroupId ??
       properties.DomainName ??
+      properties.Name ??
       `${logicalName}-id`
     );
   };
@@ -2446,18 +2452,64 @@ test('the dev agent role reads only its own stack, in its own region', async () 
             : false
       );
     });
+  /** Every statement names this region, or is limited to it; S3 bucket names have no region. */
+  const expectEveryStatementInRegion = () => {
+    for (const { Resource, Condition } of allows) {
+      for (const pattern of [Resource].flat().map(resolve)) {
+        if (pattern === '*' && Condition?.ArnEquals) {
+          for (const cluster of [Condition.ArnEquals['ecs:cluster']].flat().map(resolve)) {
+            expect(cluster.split(':')[3]).toBe(region);
+          }
+        } else if (pattern === '*') {
+          expect(Condition?.StringEquals?.['aws:RequestedRegion']).toEqual({ Ref: 'AWS::Region' });
+        } else if (!pattern.startsWith('arn:aws:s3:')) expect(pattern.split(':')[3]).toBe(region);
+      }
+    }
+  };
+  /** The allowed actions IAM does not count as reads. */
+  const nonReadActions = () =>
+    allows
+      .flatMap(({ Action }) => Action)
+      .filter(
+        (action) => !/^[a-z0-9-]+:(Admin)?(Get|Describe|List|Query|Scan|BatchGet|Filter|StartQuery|GET)/.test(action)
+      );
+  const firstOfType = (type: string) => Object.keys(resources).find((name) => resources[name].Type === type)!;
+  return { isAllowed, allows, resolve, physicalName, firstOfType, expectEveryStatementInRegion, nonReadActions };
+};
 
-  const own = { tag: 'shop-dev', requestRegion: region };
-  const otherStage = { tag: 'shop-dev-production', requestRegion: region };
-  const lambda = (name: string, inRegion = region) => `arn:aws:lambda:${inRegion}:${accountId}:function:${name}`;
-  const table = (name: string, inRegion = region) => `arn:aws:dynamodb:${inRegion}:${accountId}:table/${name}`;
-  expect(isAllowed('lambda:GetFunctionConfiguration', lambda('shop-dev-api'), own)).toBe(true);
-  expect(isAllowed('lambda:GetFunctionConfiguration', lambda('shop-dev-production-api'), otherStage)).toBe(false);
-  expect(isAllowed('dynamodb:Query', table('shop-dev-records'), own)).toBe(true);
-  expect(isAllowed('dynamodb:Query', table('shop-dev-production-orders'), otherStage)).toBe(false);
+const own = { tag: 'shop-dev', requestRegion: region };
+const otherStage = { tag: 'shop-dev-production', requestRegion: region };
+const lambdaArn = (name: string, inRegion: string = region) =>
+  `arn:aws:lambda:${inRegion}:${accountId}:function:${name}`;
+const tableArn = (name: string, inRegion: string = region) => `arn:aws:dynamodb:${inRegion}:${accountId}:table/${name}`;
+const shopDev = { stackName: 'shop-dev', projectName: 'shop', stage: 'dev', region, accountId };
+
+// r2af finding 2 and its follow-up: the dev and debug agent roles of `shop-dev` granted Lambda, DynamoDB and other
+// actions on `shop-dev-*` in every region, which also names the resources of a stage `dev-production`. The debug role
+// also read Secrets Manager values, SSM parameters, every database and cache of the account and the spans of every
+// project.
+test('the debug agent role reads only its own stack, in its own region', async () => {
+  const template = await synthesizeDenseFixture({
+    synthesisContext: shopDev,
+    includeSyntheticTest: true,
+    includeOpenSearch: true
+  });
+  const resources = template.Resources as Record<string, any>;
+  const { isAllowed, physicalName, firstOfType, expectEveryStatementInRegion, nonReadActions } = agentRoleAccess(
+    template,
+    'StpDebugAgentRole'
+  );
+
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-api'), own)).toBe(true);
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-production-api'), otherStage)).toBe(false);
+  expect(isAllowed('dynamodb:Query', tableArn('shop-dev-records'), own)).toBe(true);
+  expect(isAllowed('dynamodb:Query', tableArn('shop-dev-production-orders'), otherStage)).toBe(false);
   // The same stack name in another region is another stack.
   expect(
-    isAllowed('dynamodb:Scan', table('shop-dev-records', 'eu-west-3'), { tag: 'shop-dev', requestRegion: 'eu-west-3' })
+    isAllowed('dynamodb:Scan', tableArn('shop-dev-records', 'eu-west-3'), {
+      tag: 'shop-dev',
+      requestRegion: 'eu-west-3'
+    })
   ).toBe(false);
   expect(isAllowed('cloudwatch:GetMetricData', '*', { tag: '', requestRegion: 'eu-west-3' })).toBe(false);
   expect(
@@ -2467,10 +2519,26 @@ test('the dev agent role reads only its own stack, in its own region', async () 
       otherStage
     )
   ).toBe(false);
+  expect(
+    isAllowed('logs:FilterLogEvents', `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/shop-dev-api`, own)
+  ).toBe(true);
+  expect(
+    isAllowed(
+      'logs:FilterLogEvents',
+      `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/shop-dev-production-api`,
+      otherStage
+    )
+  ).toBe(false);
+  // X-Ray writes every project's spans to one log group, which carries no stack tag.
+  expect(
+    isAllowed('logs:FilterLogEvents', `arn:aws:logs:${region}:${accountId}:log-group:aws/spans`, {
+      tag: '',
+      requestRegion: region
+    })
+  ).toBe(false);
 
   // ECS lists services and tasks by cluster; a task definition read has no resource, only the region.
-  const cluster = Object.keys(resources).find((name) => resources[name].Type === 'AWS::ECS::Cluster')!;
-  const clusterArn = `arn:aws:ecs:${region}:${accountId}:cluster/${resources[cluster].Properties.ClusterName}`;
+  const clusterArn = `arn:aws:ecs:${region}:${accountId}:cluster/${resources[firstOfType('AWS::ECS::Cluster')].Properties.ClusterName}`;
   expect(isAllowed('ecs:ListServices', '*', { ...own, cluster: clusterArn })).toBe(true);
   expect(
     isAllowed('ecs:ListServices', '*', {
@@ -2482,37 +2550,90 @@ test('the dev agent role reads only its own stack, in its own region', async () 
   expect(isAllowed('ecs:DescribeTaskDefinition', '*', { tag: '', requestRegion: 'eu-west-3' })).toBe(false);
   expect(isAllowed('ecs:DescribeServices', `arn:aws:ecs:${region}:${accountId}:service/x/y`, otherStage)).toBe(false);
 
-  // Databases, caches and APIs by their identifiers in the template; another stage's are not among them.
-  const database = Object.keys(resources).find((name) => resources[name].Type === 'AWS::RDS::DBInstance')!;
-  const databaseArn = `arn:aws:rds:${region}:${accountId}:db:${physicalName(database)}`;
+  // Databases, caches, search domains, canaries and APIs by their identifiers in the template; another stage's are not
+  // among them.
+  const databaseArn = `arn:aws:rds:${region}:${accountId}:db:${physicalName(firstOfType('AWS::RDS::DBInstance'))}`;
   expect(isAllowed('rds:DescribeDBInstances', databaseArn, own)).toBe(true);
   expect(isAllowed('rds:DescribeDBInstances', databaseArn.replace('shop-dev', 'shop-dev-production'), otherStage)).toBe(
     false
   );
-  const api = Object.keys(resources).find((name) => resources[name].Type === 'AWS::ApiGatewayV2::Api')!;
+  expect(isAllowed('rds:DescribeDBSnapshots', '*', own)).toBe(false);
+  const api = firstOfType('AWS::ApiGatewayV2::Api');
   expect(isAllowed('apigateway:GET', `arn:aws:apigateway:${region}::/apis/${physicalName(api)}/routes`, own)).toBe(
     true
   );
   expect(isAllowed('apigateway:GET', `arn:aws:apigateway:${region}::/apis/another-api/routes`, own)).toBe(false);
+  const canary = physicalName(firstOfType('AWS::Synthetics::Canary'));
+  expect(canary).toStartWith('shop-dev-');
+  const canaryArn = `arn:aws:synthetics:${region}:${accountId}:canary:${canary}`;
+  expect(isAllowed('synthetics:GetCanaryRuns', canaryArn, own)).toBe(true);
+  expect(isAllowed('synthetics:GetCanaryRuns', canaryArn.replace('shop-dev', 'shop-dev-production'), own)).toBe(false);
+  const canaryLogGroup = `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/cwsyn-${canary}-0a1b2c3d`;
+  expect(isAllowed('logs:FilterLogEvents', canaryLogGroup, { tag: '', requestRegion: region })).toBe(true);
 
-  // Reads only: the agent's executor sends nothing else, and the role grants nothing else.
-  const actions = allows.flatMap(({ Action }) => Action);
-  expect(
-    actions.filter(
-      (action) => !/^[a-z0-9-]+:(Admin)?(Get|Describe|List|Query|Scan|BatchGet|Filter|StartQuery|GET)/.test(action)
-    )
-  ).toEqual([]);
-  // Every statement names this region, or is limited to it.
-  for (const { Resource, Condition } of allows) {
-    for (const pattern of [Resource].flat().map(resolve)) {
-      const arnRegion = pattern.split(':')[3];
-      if (pattern === '*' && Condition?.ArnEquals) {
-        for (const cluster of [Condition.ArnEquals['ecs:cluster']].flat().map(resolve)) {
-          expect(cluster.split(':')[3]).toBe(region);
-        }
-      } else if (pattern === '*') {
-        expect(Condition?.StringEquals?.['aws:RequestedRegion']).toEqual({ Ref: 'AWS::Region' });
-      } else if (!pattern.startsWith('arn:aws:s3:')) expect(arnRegion).toBe(region);
+  // `query opensearch` reads and searches with GET; the role allows no other method. A POST path pattern would not
+  // hold: `POST /orders/_doc/_search` indexes a document named `_search`.
+  const domainArn = `arn:aws:es:${region}:${accountId}:domain/${physicalName(firstOfType('AWS::OpenSearchService::Domain'))}`;
+  expect(isAllowed('es:ESHttpGet', `${domainArn}/_cat/indices`, own)).toBe(true);
+  expect(isAllowed('es:ESHttpGet', `${domainArn}/orders/_search`, own)).toBe(true);
+  for (const method of ['Post', 'Put', 'Delete', 'Patch']) {
+    for (const path of ['orders/_search', 'orders/_doc/_search', 'orders/_doc', '_bulk', 'orders']) {
+      expect(isAllowed(`es:ESHttp${method}`, `${domainArn}/${path}`, own)).toBe(false);
     }
   }
+  expect(isAllowed('es:ESHttpGet', `${domainArn.replace('shop-dev', 'shop-dev-production')}/_cat/indices`, own)).toBe(
+    false
+  );
+
+  // Secret metadata of this stack only, and no secret values, parameters or writes.
+  const secretArn = `arn:aws:secretsmanager:${region}:${accountId}:secret:shop-dev-api-key-AbCdEf`;
+  expect(isAllowed('secretsmanager:DescribeSecret', secretArn, own)).toBe(true);
+  expect(isAllowed('secretsmanager:ListSecretVersionIds', secretArn, own)).toBe(true);
+  expect(isAllowed('secretsmanager:DescribeSecret', secretArn, otherStage)).toBe(false);
+  expect(isAllowed('secretsmanager:GetSecretValue', secretArn, own)).toBe(false);
+  expect(isAllowed('ssm:GetParameter', `arn:aws:ssm:${region}:${accountId}:parameter/stp/x/shop-dev/y`, own)).toBe(
+    false
+  );
+  expect(nonReadActions()).toEqual(['es:ESHttpGet', 'es:ESHttpHead']);
+  expectEveryStatementInRegion();
+
+  // Only `stacktape dev` uses the dev agent role, so a deployed stage has none.
+  expect(resources.StpDevAgentRole).toBeUndefined();
+  expect(template.Outputs?.DevAgentRoleArn).toBeUndefined();
+});
+
+test('the dev agent role reads only its own stack, in its own region', async () => {
+  const template = await synthesizeDenseFixture({
+    synthesisContext: shopDev,
+    command: 'dev',
+    remoteResources: ['records', 'database']
+  });
+  const resources = template.Resources as Record<string, any>;
+  const { isAllowed, physicalName, firstOfType, expectEveryStatementInRegion, nonReadActions } = agentRoleAccess(
+    template,
+    'StpDevAgentRole'
+  );
+
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-api'), own)).toBe(true);
+  expect(isAllowed('lambda:GetFunctionConfiguration', lambdaArn('shop-dev-production-api'), otherStage)).toBe(false);
+  expect(isAllowed('dynamodb:Query', tableArn('shop-dev-records'), own)).toBe(true);
+  expect(isAllowed('dynamodb:Query', tableArn('shop-dev-production-orders'), otherStage)).toBe(false);
+  expect(
+    isAllowed('dynamodb:Scan', tableArn('shop-dev-records', 'eu-west-3'), {
+      tag: 'shop-dev',
+      requestRegion: 'eu-west-3'
+    })
+  ).toBe(false);
+  const databaseArn = `arn:aws:rds:${region}:${accountId}:db:${physicalName(firstOfType('AWS::RDS::DBInstance'))}`;
+  expect(isAllowed('rds:DescribeDBInstances', databaseArn, own)).toBe(true);
+  expect(isAllowed('rds:DescribeDBInstances', databaseArn.replace('shop-dev', 'shop-dev-production'), otherStage)).toBe(
+    false
+  );
+  // Reads only: the agent's executor sends nothing else, and the role grants nothing else.
+  expect(nonReadActions()).toEqual([]);
+  expectEveryStatementInRegion();
+
+  // A failed start is read through the debug role, so a dev stack keeps it.
+  expect(resources.StpDebugAgentRole).toBeDefined();
+  expect(template.Outputs?.DevAgentRoleArn).toBeDefined();
 });
