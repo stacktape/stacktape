@@ -1163,6 +1163,20 @@
                       "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
                     }
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["lambda:GetEventSourceMapping"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
                 }
               ]
             }
@@ -1588,6 +1602,23 @@
                     "ssm:GetParametersByPath"
                   ],
                   "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "eventbridge-list-rules",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["events:ListRules"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/j2-v3-baseline-j2base-events/*"
+                    }
+                  ]
                 }
               ]
             }

@@ -2388,6 +2388,20 @@
                       "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
                     }
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["lambda:GetEventSourceMapping"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*"
+                    }
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
                 }
               ]
             }
