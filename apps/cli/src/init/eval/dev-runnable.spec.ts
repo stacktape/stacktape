@@ -356,7 +356,7 @@ describe('init writes a config stacktape dev can run', () => {
       events: [
         {
           type: 'dynamo-db-stream',
-          properties: { streamArn: "$ResourceParam('mainTable', 'streamArn')", startingPosition: 'LATEST' }
+          properties: { streamArn: "$ResourceParam('mainTable', 'streamArn')", startingPosition: 'TRIM_HORIZON' }
         }
       ],
       environment: [{ name: 'EVENT_BUS_NAME', value: "$ResourceParam('eventBus', 'arn')" }],

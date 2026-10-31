@@ -973,6 +973,13 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       },
       streamType: 'NEW_IMAGE'
     });
+    // A new mapping starts reading minutes after its deploy; LATEST lost the first write after a start (r2an Shop).
+    expect(resources.stream?.properties.events).toEqual([
+      {
+        type: 'dynamo-db-stream',
+        properties: { streamArn: "$ResourceParam('mainTable', 'streamArn')", startingPosition: 'TRIM_HORIZON' }
+      }
+    ]);
     expect(resources.chat?.properties.events).toEqual([
       { type: 'websocket-api-gateway', properties: { websocketApiGatewayName: 'websocketApi', routeKey: 'send' } }
     ]);

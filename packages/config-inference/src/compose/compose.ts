@@ -2287,10 +2287,15 @@ const buildServiceResource = ({
         continue;
       }
       if (trigger.type === 'dynamodb-stream') {
-        // New records only: an existing table's stream would otherwise replay the last day of changes into the handler.
+        // The table belongs to this stack, so its stream holds only the stack's own changes. A new mapping can take
+        // minutes to start reading, and with LATEST it skips what the table records meanwhile: the first write after a
+        // deploy or `stacktape dev` start never reached the handler. TRIM_HORIZON reads them once the mapping starts.
         events.push({
           type: 'dynamo-db-stream',
-          properties: { streamArn: `$ResourceParam('${dependencyName}', 'streamArn')`, startingPosition: 'LATEST' }
+          properties: {
+            streamArn: `$ResourceParam('${dependencyName}', 'streamArn')`,
+            startingPosition: 'TRIM_HORIZON'
+          }
         });
         continue;
       }
