@@ -65,6 +65,8 @@ type DevApiRequest = (input: {
   body?: Record<string, unknown>;
   /** Ends the request with a `TimeoutError`; a rebuild or a seed may take minutes, a status check must not. */
   timeoutMs?: number;
+  /** The session token to send, read once for a check and the change that follows it; else read from its file now. */
+  token?: string;
 }) => Promise<Record<string, unknown>>;
 
 /** How long a status check waits: one agent that hangs must not block every call that looks for a session. */
@@ -78,6 +80,8 @@ type DevToolDependencies = {
   serverDirectory?: () => string;
   statusCheckTimeoutMs?: number;
   requestDevApi?: DevApiRequest;
+  /** Reads the session token an agent on `port` wrote. */
+  readAgentToken?: (port: number) => Promise<string>;
   /** Running agents of this user; a restarted MCP server finds its sessions again through them. */
   discoverAgents?: () => Promise<DiscoveredDevAgent[]>;
   createId?: () => string;
@@ -129,8 +133,11 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
 
 // Every agent stores its session token in the user's state directory under its port. The token is read for each
 // request and never returned to the client.
-const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs }) => {
-  const token = (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
+const readAgentToken = async (port: number) =>
+  (await readFile(localStatePaths.devAgentTokenFile({ port }), 'utf-8').catch(() => '')).trim();
+
+export const devApiRequest: DevApiRequest = async ({ port, method, path, body, timeoutMs, token: givenToken }) => {
+  const token = givenToken ?? (await readAgentToken(port));
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
@@ -189,6 +196,26 @@ const toAgentOutput = (
   };
 };
 
+const staleNames = (stale: unknown): string[] =>
+  Array.isArray(stale) ? stale.flatMap((item) => (typeof item?.name === 'string' ? [item.name as string] : [])) : [];
+
+/**
+ * A batch job runs in AWS from the image dev mode built when it started. When that image uses files a rebuild picked up,
+ * only a restart builds and pushes it again; rebuild and rebuild_all never do.
+ */
+const withRemoteImageRestart = (output: ToolOutput, response: Record<string, unknown>): ToolOutput => {
+  const stale = staleNames(response.staleRemoteImages);
+  if (!stale.length) return output;
+  const one = stale.length === 1;
+  return {
+    ...output,
+    nextActions: [
+      ...(output.nextActions ?? []),
+      `${stale.join(', ')} ${one ? 'runs' : 'run'} in AWS from the image built when dev mode started, which uses changed files. Before testing ${one ? 'it' : 'them'}, call stacktape_dev with action=stop and then action=start to build and push the image again; rebuild and rebuild_all do not.`
+    ]
+  };
+};
+
 export const DEV_TOOL_ACTIONS = [
   'plan',
   'start',
@@ -202,6 +229,7 @@ export const DEV_TOOL_ACTIONS = [
   'aws',
   'reset_db',
   'seed',
+  'invoke',
   'stop'
 ] as const;
 export type DevToolAction = (typeof DEV_TOOL_ACTIONS)[number];
@@ -372,6 +400,7 @@ const isMutatingAction = (action: DevToolAction, args: Record<string, unknown>) 
   action === 'rebuild_all' ||
   action === 'reset_db' ||
   action === 'seed' ||
+  action === 'invoke' ||
   action === 'stop' ||
   (action === 'query' && isWriteQuery(args));
 
@@ -1068,6 +1097,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
   const failedStartTargets = new Map<string, FailedStartTarget>();
   const runCli = dependencies.runCli || runStacktapeCommandJsonl;
   const requestDevApi = dependencies.requestDevApi || devApiRequest;
+  const readToken = dependencies.readAgentToken || readAgentToken;
   const discoverAgents = dependencies.discoverAgents || discoverDevAgents;
   const createId = dependencies.createId || randomUUID;
   const now = dependencies.now || (() => new Date());
@@ -1747,15 +1777,14 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         onProgress
       );
       const output = toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' });
-      const stale = Array.isArray(response.staleWorkloads) ? (response.staleWorkloads as { name: string }[]) : [];
+      const stale = staleNames(response.staleWorkloads);
       if (stale.length) {
-        const names = stale.map(({ name }) => name);
         output.nextActions = [
           ...(output.nextActions ?? []),
-          `${names.join(', ')} still ${names.length === 1 ? 'runs' : 'run'} code older than the changed files; call stacktape_dev with action=rebuild_all, or action=rebuild for ${names.join(' and ')}, before testing ${names.length === 1 ? 'it' : 'them'}.`
+          `${stale.join(', ')} still ${stale.length === 1 ? 'runs' : 'run'} code older than the changed files; call stacktape_dev with action=rebuild_all, or action=rebuild for ${stale.join(' and ')}, before testing ${stale.length === 1 ? 'it' : 'them'}.`
         ];
       }
-      return toToolText(output);
+      return toToolText(withRemoteImageRestart(output, response));
     }
 
     if (action === 'rebuild_all') {
@@ -1764,7 +1793,12 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         requestDevApi({ port, method: 'POST', path: '/rebuild/all', body: {} }),
         onProgress
       );
-      return toToolText(toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }));
+      return toToolText(
+        withRemoteImageRestart(
+          toAgentOutput(response, sessionResult.session, { ok: 'Rebuilt.', failed: 'Rebuild failed.' }),
+          response
+        )
+      );
     }
 
     if (action === 'query' || action === 'tables') {
@@ -1941,6 +1975,85 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
           script
         )
       );
+    }
+
+    if (action === 'invoke') {
+      const workload = typeof toolArgs.workload === 'string' ? toolArgs.workload : undefined;
+      if (!workload) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'Missing required args.workload: the function to invoke.'
+        });
+      }
+      // A call the client cancelled before it was sent invokes nothing; one already sent runs to its end in AWS.
+      if (signal?.aborted) {
+        return toToolText({
+          ok: false,
+          code: 'CANCELLED',
+          message: `Did not invoke ${workload}: the call was cancelled.`
+        });
+      }
+      // The check and the invocation use one token and name the checked session and function: a session that took the
+      // port over meanwhile has another token and identity, and refuses the request instead of running it.
+      const { session } = sessionResult;
+      const expectedSessionId = session.agentSessionId ?? session.devSessionId;
+      const token = await readToken(port);
+      const checked = await requestDevApi({
+        port,
+        method: 'GET',
+        path: '/status?verbose=true',
+        token,
+        timeoutMs: STATUS_CHECK_TIMEOUT_MS
+      }).catch((error: unknown): Record<string, unknown> => ({ ok: false, message: String(error) }));
+      if (checked.ok === false || checked.sessionId !== expectedSessionId) {
+        return toToolText({
+          ok: false,
+          code: 'DEV_SESSION_CHANGED',
+          message: `Did not invoke ${workload}: port ${port} no longer answers as dev session ${session.devSessionId}.`,
+          data: { session: publicSession(session) },
+          nextActions: ['Call stacktape_dev with action=status to find the running dev sessions.']
+        });
+      }
+      const expectedFunctionArn = (Array.isArray(checked.deployedResources) ? checked.deployedResources : []).find(
+        (resource: { name?: unknown; type?: unknown }) => resource?.name === workload && resource?.type === 'function'
+      )?.arn;
+      const expectedStage = session.stage ?? (typeof checked.stage === 'string' ? checked.stage : undefined);
+      if (typeof expectedFunctionArn !== 'string' || !expectedStage) {
+        return toToolText({
+          ok: false,
+          code: 'NOT_FOUND',
+          message: `Did not invoke ${workload}: the dev session lists no deployed function ${workload} with an ARN.`,
+          data: { session: publicSession(session) },
+          nextActions: ['Call stacktape_dev with action=status: data.status.deployedResources lists the functions.']
+        });
+      }
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: `/functions/${encodeURIComponent(workload)}/invoke`,
+        token,
+        body: {
+          event: toolArgs.event ?? {},
+          confirm: toolArgs.confirm === true,
+          expectedSessionId,
+          expectedStage,
+          expectedFunctionArn
+        }
+      });
+      const output = toAgentOutput(response, session, {
+        ok: `Invoked ${workload}.`,
+        failed: `Invoking ${workload} failed.`
+      });
+      return toToolText({
+        ...output,
+        nextActions: [
+          ...(output.nextActions ?? []),
+          output.code === 'CONFIRMATION_REQUIRED'
+            ? `Repeat the call with args.confirm=true to run ${workload} in AWS with this event.`
+            : `Read what ${workload} logged with action=logs and args.workload=${workload}.`
+        ]
+      });
     }
 
     if (action === 'stop') {

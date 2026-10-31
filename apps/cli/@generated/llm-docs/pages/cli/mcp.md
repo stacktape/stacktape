@@ -30,7 +30,7 @@ The MCP server exposes five focused tools that AI agents use to investigate inci
 | `stacktape_docs`     | Search docs (`action: "search"`) or fetch exact docs (`action: "get"`)                           |
 | `stacktape_project` | Inspect the local workspace for Stacktape config files, package scripts, and inferred defaults |
 | `stacktape_cli`     | List, describe, plan, or run Stacktape CLI commands with validation and safety gates           |
-| `stacktape_dev`     | Plan, start, inspect, rebuild, and stop dev mode sessions; query, reset and seed local databases |
+| `stacktape_dev`     | Plan, start, inspect, rebuild, and stop dev mode sessions; query, reset and seed local databases; invoke functions with a test event |
 
 ## How it works
 

@@ -17,6 +17,7 @@ import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -104,6 +105,11 @@ export type WorkloadStatus = {
   error?: string;
   /** How to fix `error`: a packaging failure's hint, for example. */
   hints?: string[];
+  /**
+   * The last error a running frontend printed, such as a request that failed with its cause; the server still serves.
+   * The next successful request, compile or code update clears it.
+   */
+  requestError?: string;
   size?: string;
   /** What a starting or rebuilding workload waits for. */
   statusMessage?: string;
@@ -134,16 +140,24 @@ export type AgentStatus = {
 /** A workload that runs older code of files another workload's rebuild just picked up. */
 export type StaleWorkload = { name: string; changedFiles: string[] };
 
+/** What a rebuild says besides its outcome: workloads it left on older code, and frontends it did not restart. */
+type RebuildNotes = {
+  staleWorkloads?: StaleWorkload[];
+  /** Batch jobs whose image, built when dev mode started, uses changed files: only a restart builds it again. */
+  staleRemoteImages?: StaleWorkload[];
+  /** Frontends rebuild all left running: their dev servers load changed code themselves. */
+  leftRunning?: string[];
+};
+
 export type RebuildResult =
-  | { ok: true; rebuilt: string[]; staleWorkloads?: StaleWorkload[] }
+  | ({ ok: true; rebuilt: string[] } & RebuildNotes)
   | { ok: false; code: 'CONFIG_CHANGED_RESTART_REQUIRED'; message: string }
-  | {
+  | ({
       ok: false;
       code: 'REBUILD_FAILED';
       message: string;
       failedWorkloads: FailedWorkload[];
-      staleWorkloads?: StaleWorkload[];
-    };
+    } & RebuildNotes);
 
 // State management for agent mode
 let agentState: AgentStatus = {
@@ -210,6 +224,7 @@ export const mirrorDevTuiState = (state: DevTuiState) => {
       port: workload.port,
       error: workload.error,
       ...(workload.status === 'error' && workload.hints?.length ? { hints: workload.hints } : {}),
+      ...(workload.status === 'running' && workload.requestError ? { requestError: workload.requestError } : {}),
       size: workload.size,
       ...(workload.status === 'starting' && workload.statusMessage ? { statusMessage: workload.statusMessage } : {})
     })),
@@ -241,6 +256,15 @@ const getLocalResourceNames = (): string[] => {
 };
 
 export type FailedWorkload = { name: string; error: string; hints?: string[] };
+
+/**
+ * Frontends that run but printed an error since their last successful request: a request failed in the app's code, or
+ * a compile failed. Their server still serves, so they are not failed workloads, and the session stays ready.
+ */
+export const getRequestErrors = (workloads: WorkloadStatus[] = agentState.workloads) =>
+  workloads.flatMap(({ name, status, requestError }) =>
+    status === 'running' && requestError ? [{ name, error: requestError }] : []
+  );
 
 export const getFailedWorkloads = (workloads: WorkloadStatus[] = agentState.workloads): FailedWorkload[] =>
   workloads
@@ -419,6 +443,7 @@ addRoute('GET', '/status', async ({ query }) => {
   const notReadyReasons = getSessionNotReadyReasons();
   const ready = !notReadyReasons.length;
   const failedWorkloads = getFailedWorkloads();
+  const requestErrors = getRequestErrors();
 
   if (verbose) {
     return {
@@ -426,6 +451,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ready,
       ...(ready ? {} : { notReadyReasons }),
       failedWorkloads,
+      ...(requestErrors.length ? { requestErrors } : {}),
       uptime: startTime ? Math.floor((Date.now() - startTime) / 1000) : 0,
       workloads: agentState.workloads,
       localResources: agentState.localResources,
@@ -454,6 +480,7 @@ addRoute('GET', '/status', async ({ query }) => {
     ready,
     ...(ready ? {} : { notReadyReasons }),
     failedWorkloads,
+    ...(requestErrors.length ? { requestErrors } : {}),
     ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
     ...(agentNotices.length ? { notices: agentNotices } : {}),
     workloads: workloadMap,
@@ -481,23 +508,32 @@ export const toRebuildResponse = (
   logFile = getAgentLogFilePath(),
   workingDirectory = agentSession?.projectDirectory ?? globalStateManager.workingDir
 ) => {
-  const stale = 'staleWorkloads' in result && result.staleWorkloads?.length ? result.staleWorkloads : undefined;
-  const staleNote = stale && describeStaleWorkloads(stale, workingDirectory);
-  const staleFields = stale ? { staleWorkloads: stale } : {};
-  if ('rebuilt' in result) {
-    return {
-      ok: true,
-      message: `Rebuilt ${result.rebuilt.join(', ')}.${staleNote ? ` ${staleNote}` : ''}`,
-      rebuilt: result.rebuilt,
-      ...staleFields
-    };
-  }
-  if (!('failedWorkloads' in result)) {
+  if (!('failedWorkloads' in result) && !('rebuilt' in result)) {
     return {
       ok: false,
       code: result.code,
       error: result.message,
       hint: 'Stop dev mode and start it again; the start updates the dev stack.'
+    };
+  }
+  const { staleWorkloads, staleRemoteImages, leftRunning } = result;
+  const notes = [
+    leftRunning?.length && describeLeftRunning(leftRunning),
+    staleWorkloads?.length && describeStaleWorkloads(staleWorkloads, workingDirectory),
+    staleRemoteImages?.length && describeStaleRemoteImages(staleRemoteImages, workingDirectory)
+  ].filter(Boolean);
+  const note = notes.length ? ` ${notes.join(' ')}` : '';
+  const noteFields = {
+    ...(staleWorkloads?.length ? { staleWorkloads } : {}),
+    ...(staleRemoteImages?.length ? { staleRemoteImages } : {}),
+    ...(leftRunning?.length ? { leftRunning } : {})
+  };
+  if ('rebuilt' in result) {
+    return {
+      ok: true,
+      message: `${result.rebuilt.length ? `Rebuilt ${result.rebuilt.join(', ')}.` : 'Rebuilt nothing.'}${note}`,
+      rebuilt: result.rebuilt,
+      ...noteFields
     };
   }
   // Each workload's error is in `failedWorkloads`, and the message repeats only one-line errors: a build error of
@@ -509,25 +545,42 @@ export const toRebuildResponse = (
     code: result.code,
     error: `Rebuild failed. ${result.failedWorkloads.map(describe).join('\n')}`,
     failedWorkloads: result.failedWorkloads,
-    ...staleFields,
+    ...noteFields,
     logFile,
-    hint: `The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again.${staleNote ? ` ${staleNote}` : ''}`
+    hint: `The failed workloads keep the status error. A failed function keeps its deployed code, and a container's error says whether its previous build still serves requests. Fix the error and rebuild again.${note}`
   };
 };
 
 /** At most this many changed files are named; `staleWorkloads` has them all. */
 const MAX_NAMED_STALE_FILES = 3;
 
-/** `quote, report also use changed files (packages/shared/src/index.ts); rebuild them or rebuild all.` */
-const describeStaleWorkloads = (stale: StaleWorkload[], workingDirectory: string) => {
+const describeChangedFiles = (stale: StaleWorkload[], workingDirectory: string) => {
   const files = [...new Set(stale.flatMap(({ changedFiles }) => changedFiles))].map((file) =>
     relative(workingDirectory, file).replaceAll('\\', '/')
   );
   const named = files.slice(0, MAX_NAMED_STALE_FILES).join(', ');
   const more = files.length > MAX_NAMED_STALE_FILES ? ` and ${files.length - MAX_NAMED_STALE_FILES} more` : '';
-  const names = stale.map(({ name }) => name).join(', ');
-  return `${names} also ${stale.length === 1 ? 'uses' : 'use'} changed files (${named}${more}) and still ${stale.length === 1 ? 'runs' : 'run'} the previous build; rebuild ${stale.length === 1 ? 'it' : 'them'} or rebuild all.`;
+  return `${named}${more}`;
 };
+
+/** `quote, report also use changed files (packages/shared/src/index.ts); rebuild them or rebuild all.` */
+const describeStaleWorkloads = (stale: StaleWorkload[], workingDirectory: string) => {
+  const names = stale.map(({ name }) => name).join(', ');
+  return `${names} also ${stale.length === 1 ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}) and still ${stale.length === 1 ? 'runs' : 'run'} the previous build; rebuild ${stale.length === 1 ? 'it' : 'them'} or rebuild all.`;
+};
+
+/** Batch jobs run the image the start built; a rebuild, rebuild all or watch mode never builds it again. */
+export const describeStaleRemoteImages = (
+  stale: StaleWorkload[],
+  workingDirectory = agentSession?.projectDirectory ?? globalStateManager.workingDir
+) => {
+  const names = stale.map(({ name }) => name).join(', ');
+  const one = stale.length === 1;
+  return `${names} ${one ? 'runs' : 'run'} in AWS from the image${one ? '' : 's'} built when dev mode started, which also ${one ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}). Restart dev mode to build and push ${one ? 'it' : 'them'} again; rebuilds do not.`;
+};
+
+const describeLeftRunning = (names: string[]) =>
+  `${names.join(', ')} kept running: ${names.length === 1 ? 'its dev server loads' : 'their dev servers load'} changed code itself. Rebuild ${names.length === 1 ? 'it' : 'one'} by name to restart ${names.length === 1 ? 'it' : 'its server'}.`;
 
 addRoute('POST', '/rebuild/:workload', async ({ pathParams }) => {
   const workloadName = pathParams.workload;
@@ -694,6 +747,7 @@ addRoute('GET', '/env/:workload', async ({ pathParams }) => {
         };
       }
 
+      deployedFunctionEnvironments.set(workloadName, lambdaEnvVars);
       return {
         ok: true,
         workload: workloadName,
@@ -1530,6 +1584,282 @@ addRoute('POST', '/reset/:resource', async ({ pathParams, body }) => {
   };
 });
 
+/** A function of the dev stack as Lambda describes it: what an invocation runs, and the environment it runs with. */
+type DeployedFunction = {
+  functionName: string;
+  functionArn: string;
+  /** Lambda's `Environment.Variables`; absent when Lambda returns none. */
+  environment?: Record<string, string>;
+  /** Lambda's `Environment.Error`: Lambda could not apply or decrypt the environment, and returned no variables. */
+  environmentError?: string;
+};
+
+/** Lambda, for invoking a function of the dev stack; replaced in tests, which reach no AWS. */
+export type DeployedFunctionClient = {
+  /** `null` when the stack has no such function. */
+  describe: (name: string) => Promise<DeployedFunction | null>;
+  invoke: (params: {
+    functionArn: string;
+    event: unknown;
+  }) => Promise<{ statusCode?: number; functionError?: string; payload: string }>;
+};
+
+const lambdaDeployedFunctions: DeployedFunctionClient = {
+  describe: async (name) => {
+    const resourceName = configManager.allLambdasEligibleForHotswap.find(
+      (lambda) => lambda.name === name
+    )?.resourceName;
+    if (!resourceName) return null;
+    const configuration = await awsSdkManager.lambda.getFunction({ lambdaResourceName: resourceName });
+    if (!configuration.FunctionArn) return null;
+    const { Variables: variables, Error: environmentError } = configuration.Environment ?? {};
+    return {
+      functionName: configuration.FunctionName ?? resourceName,
+      functionArn: configuration.FunctionArn,
+      ...(variables ? { environment: variables } : {}),
+      ...(environmentError
+        ? { environmentError: [environmentError.ErrorCode, environmentError.Message].filter(Boolean).join(': ') }
+        : {})
+    };
+  },
+  invoke: async ({ functionArn, event }) => {
+    const response = await awsSdkManager.lambda.invoke({
+      lambdaResourceName: functionArn,
+      payload: event as Record<string, unknown>
+    });
+    return {
+      statusCode: response.StatusCode,
+      ...(response.FunctionError ? { functionError: response.FunctionError } : {}),
+      payload: response.Payload
+    };
+  }
+};
+
+let deployedFunctions: DeployedFunctionClient = lambdaDeployedFunctions;
+export const setDeployedFunctionClient = (client: DeployedFunctionClient | undefined) => {
+  deployedFunctions = client ?? lambdaDeployedFunctions;
+};
+
+/** A test event is small; this bounds what one call sends (Lambda itself accepts up to 6 MB). */
+const MAX_INVOKE_EVENT_BYTES = 256 * 1024;
+/** The returned payload reaches an agent's conversation; the logs hold everything the function printed. */
+const MAX_INVOKE_PAYLOAD_CHARS = 16 * 1024;
+
+/**
+ * The session a client checked before it asked for a change, so a request that reaches another session on the same port
+ * (the checked one stopped, and a new one listens there now) changes nothing.
+ */
+const describeSessionMismatch = ({
+  expectedSessionId,
+  expectedStage
+}: {
+  expectedSessionId: unknown;
+  expectedStage: unknown;
+}): string | undefined => {
+  if (expectedSessionId !== agentSession?.sessionId) {
+    return `This agent runs dev session ${agentSession?.sessionId ?? 'unknown'}, not ${String(expectedSessionId)}.`;
+  }
+  if (expectedStage !== agentSession?.stage) {
+    return `This agent runs stage ${agentSession?.stage ?? 'unknown'}, not ${String(expectedStage)}.`;
+  }
+  return undefined;
+};
+
+/** Whether the configuration gives the function environment variables; Lambda then has to return them. */
+const declaresEnvironment = (name: string) => {
+  if (!configManager.config?.resources) return true;
+  const environment = configManager.functions.find((fn) => fn.name === name)?.environment;
+  return Array.isArray(environment) ? environment.length > 0 : Boolean(environment);
+};
+
+/**
+ * What a function returned, masked. A JSON payload is masked value by value before it is serialized again: masking
+ * the serialized text misses a secret whose `"` or `\` JSON escaped. The serialized result is masked once more, which
+ * also matches the escaped forms (see `createEnvironmentMasker` for what this masking does and does not protect).
+ */
+const maskPayload = (payload: string, mask: (text: string) => string): string => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return mask(payload);
+  }
+  const walk = (value: unknown): unknown => {
+    if (typeof value === 'string') return mask(value);
+    if (Array.isArray(value)) return value.map(walk);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [mask(key), walk(item)]));
+    }
+    return value;
+  };
+  return mask(JSON.stringify(walk(parsed)));
+};
+
+/**
+ * Invokes a function of this session in AWS with a test event, for handlers that no URL reaches: schedules, queues,
+ * topics, streams. It runs the function's deployed code with its own role, so it can change data: it needs `confirm`.
+ * Only a function this session runs and deployed is invoked; the aws action stays read-only. What the function returns
+ * is masked with its deployed environment and every other environment the session knows, like the logs; without its
+ * environment, nothing is invoked. The masking keeps secret values out of an agent's transcript by accident; it is not a
+ * boundary against code the agent wrote, which can return a secret in a form no masking recognizes (base64, split).
+ */
+addRoute('POST', '/functions/:name/invoke', async ({ pathParams, body }) => {
+  const name = pathParams.name;
+  const {
+    event = {},
+    confirm,
+    expectedSessionId,
+    expectedStage,
+    expectedFunctionArn
+  } = (body ?? {}) as Record<string, unknown> & { event?: unknown };
+  // Required, so a client cannot leave the binding out: one that checked a session names it and the function's ARN.
+  const missing = Object.entries({ expectedSessionId, expectedStage, expectedFunctionArn })
+    .filter(([, value]) => typeof value !== 'string' || !value)
+    .map(([field]) => field);
+  if (missing.length) {
+    return {
+      ok: false,
+      code: 'SESSION_BINDING_REQUIRED',
+      error: `Invoke needs ${missing.join(', ')}: the sessionId and stage that /status reports and the function's ARN from its deployedResources. Nothing was invoked.`,
+      hint: 'Update the Stacktape CLI that runs the MCP server, or send the fields from GET /status?verbose=true.'
+    };
+  }
+  const mismatch = describeSessionMismatch({ expectedSessionId, expectedStage });
+  if (mismatch) {
+    return {
+      ok: false,
+      code: 'DEV_SESSION_CHANGED',
+      error: `${mismatch} The session that was checked no longer runs on this port; nothing was invoked.`
+    };
+  }
+  const workload = agentState.workloads.find((candidate) => candidate.name === name);
+  if (!workload || workload.type !== 'function') {
+    const notInSession = functionsNotInSession.some((fn) => fn.name === name);
+    return {
+      ok: false,
+      code: notInSession ? 'NOT_IN_SESSION' : 'NOT_FOUND',
+      error: notInSession
+        ? `${name} is not in this dev session: it runs code deployed before, which the session does not manage.`
+        : `${name} is not a function of this dev session${workload ? ` (it is a ${workload.type})` : ''}.`,
+      ...(notInSession
+        ? { hint: 'Start dev mode with this function among its resources to invoke it.' }
+        : {
+            available: agentState.workloads.filter(({ type }) => type === 'function').map((fn) => fn.name)
+          })
+    };
+  }
+  if (workload.status !== 'running') {
+    return {
+      ok: false,
+      code: 'WORKLOAD_NOT_RUNNING',
+      error: `${name} is ${workload.status}${workload.error ? `: ${workload.error}` : ''}.`,
+      hint: 'Fix and rebuild it before invoking it.'
+    };
+  }
+  let eventBytes: number;
+  try {
+    eventBytes = Buffer.byteLength(JSON.stringify(event) ?? '');
+  } catch {
+    return { ok: false, code: 'VALIDATION_ERROR', error: 'event must be a JSON value.' };
+  }
+  if (eventBytes > MAX_INVOKE_EVENT_BYTES) {
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      error: `The event has ${eventBytes} bytes; at most ${MAX_INVOKE_EVENT_BYTES} are accepted.`
+    };
+  }
+  if (confirm !== true) {
+    return {
+      ok: false,
+      code: 'CONFIRMATION_REQUIRED',
+      error: `Invoking runs ${name}'s deployed code in AWS (${globalStateManager.region}) with this event and its own permissions, so it can change data and call other services.`,
+      hint: 'To proceed, set confirm: true in the request body.'
+    };
+  }
+
+  // What the function returns can quote its environment; without that environment it cannot be masked.
+  let deployed: DeployedFunction | null;
+  try {
+    deployed = await deployedFunctions.describe(name);
+  } catch (error) {
+    deployed = null;
+    agentLog('dev', `Reading ${name} in AWS before invoking it failed: ${(error as Error).message}`, 'warn');
+  }
+  if (!deployed) {
+    return {
+      ok: false,
+      code: 'MASKING_UNAVAILABLE',
+      error: `Could not read ${name} and its environment in AWS, which mask what it returns; nothing was invoked.`,
+      hint: 'Check that the function is deployed, with status and logs, and try again.'
+    };
+  }
+  const unmaskable = deployed.environmentError
+    ? `Lambda returned no environment for ${name} (${deployed.environmentError})`
+    : !deployed.environment && declaresEnvironment(name)
+      ? `Lambda returned no environment for ${name}, although its configuration sets environment variables`
+      : undefined;
+  if (unmaskable) {
+    return {
+      ok: false,
+      code: 'MASKING_UNAVAILABLE',
+      error: `${unmaskable}, so what it returns cannot be masked; nothing was invoked.`,
+      hint: 'Fix the function in AWS (status and logs say why), then try again.'
+    };
+  }
+  if (expectedFunctionArn !== deployed.functionArn) {
+    return {
+      ok: false,
+      code: 'DEV_SESSION_CHANGED',
+      error: `${name} is ${deployed.functionArn} now, not ${String(expectedFunctionArn)}; nothing was invoked.`
+    };
+  }
+  deployedFunctionEnvironments.set(name, deployed.environment ?? {});
+  const mask = createSessionMasker();
+
+  const startedAt = Date.now();
+  agentLog('dev', `Invoking ${name} with a test event`);
+  let result: Awaited<ReturnType<DeployedFunctionClient['invoke']>>;
+  try {
+    result = await deployedFunctions.invoke({ functionArn: deployed.functionArn, event });
+  } catch (error) {
+    const message = mask(error instanceof Error ? error.message : String(error));
+    agentLog('dev', `Invoking ${name} failed: ${message}`, 'error');
+    return { ok: false, code: 'INVOKE_FAILED', error: `Invoking ${name} failed: ${message}` };
+  }
+  const durationMs = Date.now() - startedAt;
+  const masked = maskPayload(result.payload, mask);
+  const payloadFields = {
+    payload: masked.length > MAX_INVOKE_PAYLOAD_CHARS ? masked.slice(0, MAX_INVOKE_PAYLOAD_CHARS) : masked,
+    ...(masked.length > MAX_INVOKE_PAYLOAD_CHARS ? { payloadTruncatedFrom: masked.length } : {})
+  };
+  const invocation = {
+    function: name,
+    functionName: deployed.functionName,
+    functionArn: deployed.functionArn,
+    statusCode: result.statusCode,
+    durationMs
+  };
+  if (result.functionError) {
+    agentLog('dev', `${name} failed the test invocation (${result.functionError})`, 'error');
+    return {
+      ok: false,
+      code: 'FUNCTION_ERROR',
+      error: `${name} failed (${result.functionError}) after ${durationMs} ms; payload has its error.`,
+      ...invocation,
+      functionError: result.functionError,
+      ...payloadFields
+    };
+  }
+  agentLog('dev', `${name} answered the test invocation in ${durationMs} ms`);
+  return {
+    ok: true,
+    message: `Invoked ${name}; it answered in ${durationMs} ms.`,
+    ...invocation,
+    ...payloadFields
+  };
+});
+
 addRoute('POST', '/scripts/:script/run', async ({ pathParams, body }) => {
   const { timeoutSeconds } = (body ?? {}) as { timeoutSeconds?: unknown };
   if (timeoutSeconds !== undefined && typeof timeoutSeconds !== 'number') {
@@ -2074,27 +2404,56 @@ export const buildStartupMessage = (params: {
  * environment, then the shared scrubber. A workload can print another one's secret (a shared database password), so
  * every environment counts. The masking is rebuilt only when an environment changes.
  */
+/**
+ * The deployed environment of each function the session read from AWS (`/env`, an invocation). A function's
+ * environment is in AWS, not in this process, so the masking of logs and results learns it once it was read.
+ */
+const deployedFunctionEnvironments = new Map<string, Record<string, string>>();
+
+/** Every environment the session knows, by workload: what local workloads got, and what deployed functions have. */
+const getKnownEnvironments = () =>
+  agentState.workloads.map(({ name }) => ({
+    name,
+    environment: workloadEnvironment.getEnvVars(name) ?? deployedFunctionEnvironments.get(name) ?? null
+  }));
+
+/** A masker for every value that `/env` masks in any environment the session knows. */
+/**
+ * Variables of a deployed function whose configured value reads a secret. The local runner knows them only for the
+ * functions it built in this process; the configuration knows them for every function.
+ */
+const getFunctionSecretEnvNames = (name: string): Set<string> => {
+  if (!deployedFunctionEnvironments.has(name) || !configManager.config?.resources) return new Set();
+  return getSecretSourcedEnvNames(configManager.functions.find((fn) => fn.name === name));
+};
+
+const createMaskerOf = (environments: { name: string; environment: Record<string, string> | null }[]) => {
+  const merged: Record<string, string> = {};
+  const secretNames = new Set<string>();
+  for (const { name, environment } of environments) {
+    const secret = new Set([...workloadEnvironment.getSecretEnvNames(name), ...getFunctionSecretEnvNames(name)]);
+    for (const [variable, value] of Object.entries(environment ?? {})) {
+      // Two workloads can set one name to different values; a suffix keeps both and keeps the name's meaning.
+      let key = variable;
+      for (let copy = 2; key in merged && merged[key] !== value; copy++) key = `${variable}_${copy}`;
+      merged[key] = value;
+      if (secret.has(variable)) secretNames.add(key);
+    }
+  }
+  return createEnvironmentMasker(merged, secretNames);
+};
+
+const createSessionMasker = () => createMaskerOf(getKnownEnvironments());
+
 const createSessionLogMasker = (): ((text: string) => string) => {
   let environments: Array<Record<string, string> | null> = [];
   let mask = createEnvironmentMasker({});
   return (text) => {
-    const names = agentState.workloads.map(({ name }) => name);
-    const current = names.map((name) => workloadEnvironment.getEnvVars(name));
+    const known = getKnownEnvironments();
+    const current = known.map(({ environment }) => environment);
     if (current.length !== environments.length || current.some((env, index) => env !== environments[index])) {
       environments = current;
-      const merged: Record<string, string> = {};
-      const secretNames = new Set<string>();
-      names.forEach((name, index) => {
-        const secret = workloadEnvironment.getSecretEnvNames(name);
-        for (const [variable, value] of Object.entries(current[index] ?? {})) {
-          // Two workloads can set one name to different values; a suffix keeps both and keeps the name's meaning.
-          let key = variable;
-          for (let copy = 2; key in merged && merged[key] !== value; copy++) key = `${variable}_${copy}`;
-          merged[key] = value;
-          if (secret.has(variable)) secretNames.add(key);
-        }
-      });
-      mask = createEnvironmentMasker(merged, secretNames);
+      mask = createMaskerOf(known);
     }
     return mask(text);
   };

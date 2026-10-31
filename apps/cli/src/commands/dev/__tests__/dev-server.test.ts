@@ -171,7 +171,9 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
 // #367 review: the framework parsers marked a frontend failed on any line with the word "error" (Remix, Nuxt, Next's
 // `⨯ Error`), and it stayed failed. The status follows the level of the server's grouped entries instead, and the next
 // code update or successful request clears it.
-test("a frontend's error status follows its error entries and clears on the next update or successful request", async () => {
+// r2an: a handled SDK timeout in a frontend's server code made the workload an error and the session not ready, although
+// the server kept serving, and the error kept only the access log line ` POST / 500 in 2536ms`, not the timeout.
+test("a frontend's request errors stay apart from its running server, keep their cause and clear on the next update or successful request", async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
   try {
     await writeExecutable(
@@ -184,7 +186,13 @@ const steps = [
   () => console.error(['Error: orders service is down', '    at load (src/routes/+page.server.js:7:19)'].join('\\n')),
   () => console.log('7:08:55 PM [vite] hmr update /src/routes/+page.svelte'),
   () => console.error(['[500] GET /orders', 'TypeError: fetch failed'].join('\\n')),
-  () => console.log(' GET /orders 200 in 12ms')
+  () => console.log(' GET /orders 200 in 12ms'),
+  () => {
+    console.error([" ⨯ [Error [TimeoutError]: ] {", "  code: 'ETIMEDOUT',", "  '$metadata': [Object],", "  digest: '243062729'", '}'].join('\\n'));
+    setTimeout(() => console.log(' POST / 500 in 2536ms'), 60);
+  },
+  () => console.log(' GET / 200 in 17ms'),
+  () => console.log(' POST / 500 in 31ms')
 ];
 require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.1', () => {
   console.log('  ready in 5 ms');
@@ -194,11 +202,68 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
     );
     globalStateManager.rawArgs = { stage: 'status', currentWorkingDirectory: directory };
     registerDevServerCleanupHook();
-    const states: { status: string; error?: string }[] = [];
+    const states: { status: string; requestError?: string }[] = [];
     let serving = false;
     const ready = await startDevServer({
       name: 'web',
       config: { command: './vite dev', workingDirectory: directory, framework: 'vite' },
+      callbacks: {
+        onStateChange: ({ status, requestError }) => {
+          if (serving) states.push({ status, requestError });
+        }
+      }
+    });
+    serving = true;
+    expect(ready.status).toBe('ready');
+    await new Promise((resolve) => setTimeout(resolve, 3200));
+    expect(states).toEqual([
+      { status: 'ready', requestError: 'Error: orders service is down\n    at load (src/routes/+page.server.js:7:19)' },
+      { status: 'ready', requestError: undefined },
+      { status: 'ready', requestError: '[500] GET /orders\nTypeError: fetch failed' },
+      { status: 'ready', requestError: undefined },
+      { status: 'ready', requestError: "⨯ [Error [TimeoutError]: ] {\n  code: 'ETIMEDOUT',\n  '$metadata': [Object]," },
+      {
+        status: 'ready',
+        requestError:
+          "⨯ [Error [TimeoutError]: ] {\n  code: 'ETIMEDOUT',\n  '$metadata': [Object],\nPOST / 500 in 2536ms"
+      },
+      { status: 'ready', requestError: undefined },
+      // Without a cause printed just before it, the access log line is all there is.
+      { status: 'ready', requestError: 'POST / 500 in 31ms' }
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);
+
+// Review of #422: a frontend whose process stayed alive after it closed its listener still counted as ready.
+test('a frontend that stops accepting connections becomes an error while its process runs, and ready once it serves again', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  try {
+    await writeExecutable(
+      join(directory, 'vite'),
+      `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+const http = require('node:http');
+const listen = (then) => {
+  const server = http.createServer((_q, r) => r.end('ok'));
+  server.listen(port, '127.0.0.1', () => then(server));
+};
+listen((server) => {
+  console.log('  ready in 5 ms');
+  setTimeout(() => server.close(() => setTimeout(() => listen(() => {}), 1500)), 500);
+});
+setInterval(() => {}, 1000);
+`
+    );
+    globalStateManager.rawArgs = { stage: 'listener', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const states: { status: string; error?: string }[] = [];
+    let serving = false;
+    const ready = await startDevServer({
+      name: 'web',
+      config: { command: './vite dev', workingDirectory: directory, framework: 'vite', listenerCheckIntervalMs: 200 },
       callbacks: {
         onStateChange: ({ status, error }) => {
           if (serving) states.push({ status, error });
@@ -207,11 +272,12 @@ require('node:http').createServer((_q, r) => r.end('ok')).listen(port, '127.0.0.
     });
     serving = true;
     expect(ready.status).toBe('ready');
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 3500));
     expect(states).toEqual([
-      { status: 'error', error: 'Error: orders service is down\n    at load (src/routes/+page.server.js:7:19)' },
-      { status: 'ready', error: undefined },
-      { status: 'error', error: '[500] GET /orders\nTypeError: fetch failed' },
+      {
+        status: 'error',
+        error: `The dev server process still runs, but nothing accepts connections on port ${ready.port} anymore. Rebuild the workload to restart it.`
+      },
       { status: 'ready', error: undefined }
     ]);
   } finally {

@@ -27,6 +27,8 @@ export const isSuccessfulRequestLine = (text: string) => {
   const status = Number(text.match(ACCESS_LOG_LINE)?.[1]);
   return status > 0 && status < 400;
 };
+/** Whether `text` is a dev server's access log line, such as ` POST / 500 in 2536ms`. */
+export const isAccessLogLine = (text: string) => ACCESS_LOG_LINE.test(text);
 /** SvelteKit's line before a server error: `[500] GET /orders`. */
 const SVELTEKIT_ERROR_HEADER = /^\[(\d{3})\] [A-Z]+ \S+$/;
 /** Bun quotes the failing source above an uncaught error: `87 | const cache = JSON.parse(…)`. */

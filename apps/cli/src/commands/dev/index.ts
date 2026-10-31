@@ -90,7 +90,8 @@ import {
   getDevNetworkDemand,
   refuseStageHeldElsewhere,
   startDevNetworkSession,
-  waitForDevNetwork
+  waitForDevNetwork,
+  type DevNetworkSession
 } from './dev-network-session';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
@@ -368,6 +369,27 @@ type ReportedAgentStatus = {
   failedWorkloads?: FailedWorkload[];
   notReadyReasons?: string[];
   logFile?: string | null;
+};
+
+/** What preparing the dev network did, for the start's progress. */
+export const describeDevNetworkResult = (
+  session: Pick<DevNetworkSession, 'action' | 'network' | 'readyState'> | undefined
+): string => {
+  if (!session) return 'No function or batch job of this session needs the dev network';
+  const { stackName } = session.network;
+  const finishing = session.readyState().settled
+    ? ''
+    : '; CloudFormation finishes the network while the dev stack deploys';
+  switch (session.action) {
+    case 'create':
+      return `Created the dev box of the new dev network ${stackName}${finishing}`;
+    case 'join':
+      return `Joined the creation of the dev network ${stackName} that another dev session started${finishing}`;
+    case 'upgrade':
+      return `Updated the dev network ${stackName} to this Stacktape version${finishing}`;
+    case 'reuse':
+      return `Reused the dev network ${stackName}${finishing}`;
+  }
 };
 
 /**
@@ -961,11 +983,9 @@ export const commandDev = async () => {
   // starts the dev box in the background, and decides where the dev stack's functions run and which relay address
   // their environment carries.
   const devNetworkSpinner = createSpinner('Preparing the dev network', tuiManager.colorize.bind(tuiManager));
-  reportDevStartup({
-    step: 'DEV_NETWORK',
-    status: 'started',
-    message: 'Preparing the dev network (the first time, it creates the dev box in about 1 minute)'
-  });
+  // Neutral until it is known whether this start creates the network: most starts reuse it within seconds, and a
+  // creation reports its own duration.
+  reportDevStartup({ step: 'DEV_NETWORK', status: 'started', message: 'Preparing the dev network' });
   let devNetworkSession: Awaited<ReturnType<typeof startDevNetworkSession>>;
   try {
     devNetworkSession = await startDevNetworkSession({
@@ -978,11 +998,7 @@ export const commandDev = async () => {
     reportDevStartup({
       step: 'DEV_NETWORK',
       status: 'completed',
-      message: !devNetworkSession
-        ? 'No function needs the dev network'
-        : devNetworkSession.readyState().settled
-          ? `Dev network ${devNetworkSession.network.stackName} is ready`
-          : `Dev network ${devNetworkSession.network.stackName}: dev box created; CloudFormation finishes the network while the dev stack deploys`
+      message: describeDevNetworkResult(devNetworkSession)
     });
   } catch (error) {
     devNetworkSpinner.error();

@@ -7,7 +7,9 @@ import type { AddressInfo } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localStatePaths } from 'src/config/local-state-paths';
-import { createDevToolHandler, isProjectDirectoryOf, isWriteQuery } from './dev-tool';
+import { createDevToolHandler, devApiRequest, isProjectDirectoryOf, isWriteQuery } from './dev-tool';
+import { setDeployedFunctionClient, startAgentServer, stopAgentServer, updateAgentState } from '../dev/agent-server';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 
 // Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
 // Each one, like the real agent, answers only requests that carry the session token it stored under its port.
@@ -1154,6 +1156,123 @@ describe('MCP dev tool arguments', () => {
     }
   });
 
+  // r2p: an agent could not test a scheduled or topic-triggered function through MCP: there was no invoke action, and
+  // aws refuses Lambda Invoke because it changes things. Review of #422: after its status check, a session that took the
+  // port over received the invocation, because the token was read again and the request named no session.
+  test('invoke asks for confirmation, reaches only the checked session and invokes nothing for a cancelled call', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-mcp-invoke-'));
+    const originalTokenDirectory = process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+    process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = join(directory, 'tokens');
+    const invoked: { functionArn: string; event: unknown }[] = [];
+    const functionArn = 'arn:aws:lambda:eu-west-1:123456789012:function:shop-dev-report';
+    setDeployedFunctionClient({
+      describe: async (name) =>
+        name === 'report' ? { functionName: 'shop-dev-report', functionArn, environment: {} } : null,
+      invoke: async ({ functionArn: arn, event }) => {
+        invoked.push({ functionArn: arn, event });
+        return { statusCode: 200, payload: '{"sent":3}' };
+      }
+    });
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const port = (probe.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => probe.close(() => resolve()));
+    const startAgent = (sessionId: string) =>
+      startAgentServer(port, directory, undefined, {
+        sessionId,
+        projectDirectory: directory,
+        projectName: 'shop',
+        stage: 'dev',
+        region: 'eu-west-1'
+      });
+    // The dev stack as status lists it: the function with its ARN, which the invocation names.
+    const originalStackInfoMap = deployedStackOverviewManager.stackInfoMap;
+    deployedStackOverviewManager.stackInfoMap = {
+      resources: {
+        report: {
+          resourceType: 'function',
+          referencableParams: { arn: { value: functionArn }, name: { value: 'shop-dev-report' } }
+        }
+      }
+    } as unknown as typeof deployedStackOverviewManager.stackInfoMap;
+    try {
+      await startAgent('session-a');
+      updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+      let takeOverAfterCheck = false;
+      const handler = createDevToolHandler({
+        runCli: startedDaemon,
+        createId: () => 'session-a',
+        serverDirectory: () => directory,
+        requestDevApi: async (input) => {
+          const response = await devApiRequest(input);
+          // Session A stops right after the invocation's own check, and session B starts on its port.
+          if (takeOverAfterCheck && input.token !== undefined && input.path.startsWith('/status')) {
+            takeOverAfterCheck = false;
+            stopAgentServer();
+            await startAgent('session-b');
+            // Session B runs a function of the same name.
+            updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+          }
+          return response;
+        }
+      });
+      expect((await handler({ action: 'start', args: { agentPort: port, cwd: directory } })).structuredContent.ok).toBe(
+        true
+      );
+      const event = { source: 'aws.events', 'detail-type': 'Scheduled Event' };
+
+      const unconfirmed = (await handler({ action: 'invoke', args: { workload: 'report', event } })).structuredContent;
+      expect(unconfirmed).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+      expect(unconfirmed.data?.hint).toBe('To proceed, repeat this call with args.confirm=true.');
+      expect(unconfirmed.nextActions).toEqual([
+        'Repeat the call with args.confirm=true to run report in AWS with this event.'
+      ]);
+
+      const confirmed = { workload: 'report', event, confirm: true };
+      const result = (await handler({ action: 'invoke', args: confirmed })).structuredContent;
+      expect(result).toMatchObject({ ok: true, data: { payload: '{"sent":3}', functionArn } });
+      expect(result.nextActions).toEqual(['Read what report logged with action=logs and args.workload=report.']);
+      expect(invoked).toEqual([{ functionArn, event }]);
+
+      expect((await handler({ action: 'invoke', args: { event } })).structuredContent.code).toBe('VALIDATION_ERROR');
+      const cancelled = new AbortController();
+      cancelled.abort();
+      expect(
+        (await handler({ action: 'invoke', args: confirmed, signal: cancelled.signal })).structuredContent.code
+      ).toBe('CANCELLED');
+
+      takeOverAfterCheck = true;
+      const takenOver = (await handler({ action: 'invoke', args: confirmed })).structuredContent;
+      expect(takenOver.ok).toBe(false);
+      expect(invoked).toHaveLength(1);
+
+      // Without the function's ARN in status, the call cannot be bound to the function and is not sent.
+      deployedStackOverviewManager.stackInfoMap = {
+        resources: {}
+      } as unknown as typeof deployedStackOverviewManager.stackInfoMap;
+      stopAgentServer();
+      await startAgent('session-c');
+      updateAgentState({ phase: 'ready', workloads: [{ name: 'report', type: 'function', status: 'running' }] });
+      const unbound = createDevToolHandler({
+        runCli: startedDaemon,
+        createId: () => 'session-c',
+        serverDirectory: () => directory
+      });
+      expect((await unbound({ action: 'start', args: { agentPort: port, cwd: directory } })).structuredContent.ok).toBe(
+        true
+      );
+      expect((await unbound({ action: 'invoke', args: confirmed })).structuredContent.code).toBe('NOT_FOUND');
+      expect(invoked).toHaveLength(1);
+    } finally {
+      deployedStackOverviewManager.stackInfoMap = originalStackInfoMap;
+      setDeployedFunctionClient(undefined);
+      stopAgentServer();
+      if (originalTokenDirectory === undefined) delete process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR;
+      else process.env.STACKTAPE_DEV_AGENT_TOKEN_DIR = originalTokenDirectory;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   test('env and aws go to the agent of the session and name what is missing', async () => {
     const dev = await daemon();
     try {
@@ -1210,6 +1329,7 @@ describe('MCP dev session scope', () => {
     ['rebuild_all', {}],
     ['reset_db', { confirm: true }],
     ['seed', {}],
+    ['invoke', { workload: 'report', confirm: true }],
     ['query', { sql: 'delete from notes where id = 1' }],
     ['stop', {}]
   ] as const;

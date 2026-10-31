@@ -1,9 +1,10 @@
 import { statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { devTuiState } from 'src/app/tui-manager/dev/state';
 import { CliError, getErrorHints, withHintLines } from '@utils/errors';
-import { updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
+import { describeStaleRemoteImages, updateAgentState, type RebuildResult, type StaleWorkload } from './agent-server';
 import type { ConfigChange } from './config-change';
 import { clearCredentialExpiryTimer } from './utils';
 
@@ -26,26 +27,29 @@ const modifiedAt = (file: string): number | undefined => {
 /**
  * The workloads besides `rebuilt` that use one of the rebuilt workloads' files changed after their own last build. A
  * shared package that one rebuild picked up leaves its other consumers on the old code; watch mode rebuilds them all,
- * a manual rebuild of one workload does not.
+ * a manual rebuild of one workload does not. `candidates` are the workloads to check, by default those of
+ * `sourceFiles`; the images of batch jobs, which run in AWS, are checked the same way.
  */
 export const findStaleWorkloads = ({
   rebuilt,
   sourceFiles,
+  candidates = sourceFiles,
   builtAt,
   getModifiedAt = modifiedAt
 }: {
   rebuilt: string[];
   sourceFiles: Map<string, string[]>;
+  candidates?: Map<string, string[]>;
   /** When the last build of a workload that succeeded started. */
   builtAt: (name: string) => number;
   getModifiedAt?: (file: string) => number | undefined;
 }): StaleWorkload[] => {
-  const rebuiltFiles = new Set(rebuilt.flatMap((name) => sourceFiles.get(name) ?? []));
+  const rebuiltFiles = new Set(rebuilt.flatMap((name) => (sourceFiles.get(name) ?? []).map((file) => resolve(file))));
   if (!rebuiltFiles.size) return [];
-  return [...sourceFiles].flatMap(([name, files]) => {
+  return [...candidates].flatMap(([name, files]) => {
     if (rebuilt.includes(name)) return [];
     const since = builtAt(name);
-    const changedFiles = files.filter((file) => rebuiltFiles.has(file) && (getModifiedAt(file) ?? 0) > since);
+    const changedFiles = files.filter((file) => rebuiltFiles.has(resolve(file)) && (getModifiedAt(file) ?? 0) > since);
     return changedFiles.length ? [{ name, changedFiles }] : [];
   });
 };
@@ -71,6 +75,8 @@ export const createWorkloadRebuilder = ({
   rebuild,
   detectConfigChange,
   getSourceFiles = () => new Map(),
+  getRemoteImageInputs = () => new Map(),
+  reloadsCodeItself = () => false,
   getSessionStartedAt = () => 0,
   retryDelayMs = 3000
 }: {
@@ -78,6 +84,13 @@ export const createWorkloadRebuilder = ({
   detectConfigChange: () => Promise<ConfigChange>;
   /** The files each workload's last build read, to tell which workloads a rebuild left on older code. */
   getSourceFiles?: () => Map<string, string[]>;
+  /**
+   * The files each image that the dev stack runs in AWS (a batch job's) was built from when the session started. No
+   * rebuild builds them again: only a restart does.
+   */
+  getRemoteImageInputs?: () => Map<string, string[]>;
+  /** Whether a workload's dev server loads changed code itself (a frontend's hot reload), so rebuild all skips it. */
+  reloadsCodeItself?: (name: string) => boolean;
   /** When the session's first builds started, the last build of a workload that this rebuilder never built. */
   getSessionStartedAt?: () => number;
   /** The wait before the second attempt: Lambda refuses a code update while the function is still updating. */
@@ -200,7 +213,18 @@ export const createWorkloadRebuilder = ({
       sourceFiles: getSourceFiles(),
       builtAt: (name) => builtAt.get(name) ?? getSessionStartedAt()
     });
-    const stale = staleWorkloads.length ? { staleWorkloads } : {};
+    // A batch job runs the image the start built and pushed; no rebuild changes it.
+    const staleRemoteImages = findStaleWorkloads({
+      rebuilt: names.filter((_, index) => errors[index] === undefined),
+      sourceFiles: getSourceFiles(),
+      candidates: getRemoteImageInputs(),
+      builtAt: getSessionStartedAt
+    });
+    if (staleRemoteImages.length) devTuiManager.systemLog(describeStaleRemoteImages(staleRemoteImages), 'warn');
+    const stale = {
+      ...(staleWorkloads.length ? { staleWorkloads } : {}),
+      ...(staleRemoteImages.length ? { staleRemoteImages } : {})
+    };
     if (!failedWorkloads.length) return { ok: true, rebuilt: names, ...stale };
     return {
       ok: false,
@@ -239,5 +263,23 @@ export const createWorkloadRebuilder = ({
     };
   };
 
-  return { rebuildWorkloads, rebuildWorkload, onConfigFileChange };
+  /**
+   * Rebuilds every workload of the session (`names`) except frontends whose dev server runs and loads changed code
+   * itself: restarting it would only interrupt it. A frontend whose server failed restarts, and rebuilding a frontend by
+   * name still restarts it.
+   */
+  const rebuildAllWorkloads = async (names: string[]): Promise<RebuildResult> => {
+    const running = new Set(
+      devTuiState
+        .getState()
+        .workloads.filter(({ status }) => status === 'running')
+        .map(({ name }) => name)
+    );
+    const leftRunning = names.filter((name) => reloadsCodeItself(name) && running.has(name));
+    const result = await rebuildWorkloads(names.filter((name) => !leftRunning.includes(name)));
+    if (!leftRunning.length || !('rebuilt' in result || 'failedWorkloads' in result)) return result;
+    return { ...result, leftRunning };
+  };
+
+  return { rebuildWorkloads, rebuildAllWorkloads, rebuildWorkload, onConfigFileChange };
 };

@@ -59,6 +59,9 @@ const scrubKeepingPrivateAddresses = (value: string): string => {
   return scrubbed.replace(HELD, (_match, index: string) => held[Number(index)]);
 };
 
+/** Whether a variable's name says its value is secret, whatever the value or how it was configured. */
+const isSensitiveName = (name: string) => SENSITIVE_NAME.test(name) || CAMEL_CASE_KEY.test(name);
+
 /**
  * The environment the dev agent's `/env` route returns. Values under secret names or read from secrets are replaced,
  * and the rest go through the shared scrubber, which masks the password in connection strings and known token formats.
@@ -72,15 +75,14 @@ export const maskAgentEnvironment = (
   Object.fromEntries(
     Object.entries(environment).map(([name, value]) => [
       name,
-      secretNames.has(name) || SENSITIVE_NAME.test(name) || CAMEL_CASE_KEY.test(name)
-        ? REDACTED
-        : scrubKeepingPrivateAddresses(String(value))
+      secretNames.has(name) || isSensitiveName(name) ? REDACTED : scrubKeepingPrivateAddresses(String(value))
     ])
   );
 
 /**
  * Shorter values (ports, flags, counts) also appear in text that holds no secret, such as line numbers. A value read
- * from a secret is masked whatever its length: a short secret is still a secret.
+ * from a secret, or under a name that says it is secret (`DB_PASSWORD`), is masked whatever its length: a short secret
+ * is still a secret.
  */
 const MIN_MASKED_VALUE_LENGTH = 6;
 
@@ -88,6 +90,10 @@ const MIN_MASKED_VALUE_LENGTH = 6;
  * Masks text the way `/env` masks `environment`: every value it masks is replaced by its masked form, then the text goes
  * through the same scrubber. Output the app wrote, such as a crash summary, can quote a secret it read:
  * `raise ENV.inspect`. Mask raw output before a summary trims it or picks lines from it.
+ *
+ * What this protects against: a secret value reaching an agent's transcript or a log by accident, quoted as it is,
+ * trimmed, line by line, or escaped as a JSON string. It is not a boundary against code the agent writes itself, which
+ * can always print a secret in another form (base64, URL-encoded, split up); those forms are deliberately not matched.
  */
 export const createEnvironmentMasker = (
   environment: Record<string, string>,
@@ -98,7 +104,7 @@ export const createEnvironmentMasker = (
   for (const [name, rawValue] of Object.entries(environment)) {
     const value = String(rawValue);
     if (masked[name] === value) continue;
-    const minLength = secretNames.has(name) ? 1 : MIN_MASKED_VALUE_LENGTH;
+    const minLength = secretNames.has(name) || isSensitiveName(name) ? 1 : MIN_MASKED_VALUE_LENGTH;
     // Output quotes a value trimmed, or a multi-line value (a key, a certificate) line by line: a summary keeps some
     // of its lines only. Each line is masked by itself; a line of punctuation only (`}`, `-----`) says nothing.
     const lines = value.includes('\n')
@@ -108,7 +114,11 @@ export const createEnvironmentMasker = (
           .filter((line) => /[\p{L}\p{N}]/u.test(line))
       : [];
     for (const piece of [value, value.trim(), ...lines]) {
-      if (piece.length >= minLength) maskOf.set(piece, masked[name]!);
+      if (piece.length < minLength) continue;
+      maskOf.set(piece, masked[name]!);
+      // Serialized as a JSON string, a value with `"`, `\` or a control character is escaped: `demo\"secret`.
+      const escaped = JSON.stringify(piece).slice(1, -1);
+      if (escaped !== piece) maskOf.set(escaped, masked[name]!);
     }
   }
   if (!maskOf.size) return scrubKeepingPrivateAddresses;

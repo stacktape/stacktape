@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { acquireAgentLockFile, getLockFilePath, writeAgentLockFile, type AgentLockFile } from '../agent-daemon';
 import { startAgentServer, stopAgentServer } from '../agent-server';
-import { acquireSessionLock, refuseStageRunningHere } from '../index';
+import type { DevNetworkSession } from '../dev-network-session';
+import { acquireSessionLock, describeDevNetworkResult, refuseStageRunningHere } from '../index';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 const CLI_DIRECTORY = join(import.meta.dir, '../../../..');
@@ -351,4 +352,29 @@ test('a start ends the SSM session a dead session left open before its lock file
   ]);
   expect(JSON.parse(readFileSync(getLockFilePath('shop', 'relay'), 'utf8')).pid).toBe(process.pid);
   rmSync(getLockFilePath('shop', 'relay'), { force: true });
+});
+
+// r2p/r2qq: every start said "the first time, it creates the dev box in about 1 minute", also when the network existed
+// or no function needed it. The result now says what this start did; only a creation reports its duration, itself.
+test.each([
+  [undefined, true, 'No function or batch job of this session needs the dev network'],
+  ['reuse', true, 'Reused the dev network stp-dev-network-eu-west-1'],
+  ['upgrade', true, 'Updated the dev network stp-dev-network-eu-west-1 to this Stacktape version'],
+  [
+    'create',
+    false,
+    'Created the dev box of the new dev network stp-dev-network-eu-west-1; CloudFormation finishes the network while the dev stack deploys'
+  ],
+  [
+    'join',
+    false,
+    'Joined the creation of the dev network stp-dev-network-eu-west-1 that another dev session started; CloudFormation finishes the network while the dev stack deploys'
+  ]
+] as const)('the dev network step reports what the start did: %s', (action, settled, expected) => {
+  const session = action && {
+    action,
+    network: { stackName: 'stp-dev-network-eu-west-1' } as DevNetworkSession['network'],
+    readyState: () => ({ settled })
+  };
+  expect(describeDevNetworkResult(session || undefined)).toBe(expected);
 });
