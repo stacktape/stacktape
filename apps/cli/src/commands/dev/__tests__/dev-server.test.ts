@@ -512,3 +512,132 @@ require('node:http').createServer((_q, r) => r.end(JSON.stringify({ AWS_REGION, 
     await rm(directory, { recursive: true, force: true });
   }
 }, 30_000);
+
+/**
+ * A program that takes a dev server's port after dev mode chose it, as WSL's port forwarding did on Windows (r2bd2): the
+ * stand-in server asks it to take the port it got, and it listens there on 127.0.0.1 and ::1 for the first `takes`
+ * requests.
+ */
+const startPortThief = async (takes: number) => {
+  const { createServer: createNetServer } = await import('node:net');
+  const { createServer: createHttpServer } = await import('node:http');
+  const held: import('node:http').Server[] = [];
+  let remaining = takes;
+  const listen = (port: number, host: string) =>
+    new Promise<void>((resolve) => {
+      const server = createHttpServer((_request, response) => response.end('other'));
+      server.once('error', () => resolve());
+      server.listen(port, host, () => {
+        held.push(server);
+        resolve();
+      });
+    });
+  const coordinator = createNetServer((socket) =>
+    socket.once('data', async (data) => {
+      const port = Number(data.toString().trim());
+      if (remaining-- > 0) {
+        await listen(port, '127.0.0.1');
+        await listen(port, '::1');
+      }
+      socket.end('ok');
+    })
+  );
+  await new Promise<void>((resolve) => coordinator.listen(0, '127.0.0.1', resolve));
+  return {
+    port: (coordinator.address() as import('node:net').AddressInfo).port,
+    close: async () => {
+      for (const server of held) server.closeAllConnections();
+      await Promise.all(
+        [...held, coordinator].map((server) => new Promise<void>((resolve) => server.close(() => resolve())))
+      );
+    }
+  };
+};
+
+/** Asks the thief to take its port, then listens there; when that fails it exits or, like a server whose listen failed quietly, keeps running. */
+const lateServerScript = (whenTaken: 'exits' | 'keeps running') => `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const port = Number(args[args.indexOf('--port') + 1]);
+const socket = require('node:net').connect(Number(process.env.THIEF_PORT), '127.0.0.1', () => socket.write(String(port)));
+socket.on('end', () => {
+  const server = require('node:http').createServer((_q, r) => r.end('app'));
+  server.once('error', (error) => {
+    console.error('Error: listen ' + error.code + ' 127.0.0.1:' + port);
+    ${whenTaken === 'exits' ? 'process.exit(1);' : 'setInterval(() => {}, 1000);'}
+  });
+  server.listen(port, '127.0.0.1', () => console.log('  ready in 5 ms'));
+});
+socket.resume();
+`;
+
+test.each(['exits', 'keeps running'] as const)(
+  'a frontend whose port another program takes after it was chosen, and which then %s, moves to another port and its URL reaches it',
+  async (whenTaken) => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+    const thief = await startPortThief(1);
+    try {
+      await writeExecutable(join(directory, 'vite'), lateServerScript(whenTaken));
+      globalStateManager.rawArgs = { stage: 'taken', currentWorkingDirectory: directory };
+      registerDevServerCleanupHook();
+      const startingPorts: number[] = [];
+      const warnings: string[] = [];
+      const state = await startDevServer({
+        name: 'web',
+        config: {
+          command: './vite dev',
+          workingDirectory: directory,
+          framework: 'vite',
+          environment: { THIEF_PORT: String(thief.port) }
+        },
+        callbacks: {
+          onStateChange: ({ status, port }) => status === 'starting' && port && startingPorts.push(port),
+          onOutput: (message, level) => level === 'warn' && warnings.push(message)
+        }
+      });
+      expect(state.status).toBe('ready');
+      expect(startingPorts).toHaveLength(2);
+      const [takenPort, movedPort] = startingPorts;
+      expect(state.port).toBe(movedPort);
+      expect(warnings.join('\n')).toContain(`PORT_TAKEN_BY_OTHER_PROCESS: Another program (process ${process.pid})`);
+      expect(warnings.join('\n')).toContain(`port ${takenPort}`);
+      expect(warnings.join('\n')).toContain(`moved web to port ${movedPort}`);
+      const url = new URL(state.url!);
+      const response = await fetch(`http://127.0.0.1:${url.port}`, { headers: { Host: url.hostname } });
+      expect(await response.text()).toBe('app');
+    } finally {
+      await runCleanupHooks();
+      await thief.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  30_000
+);
+
+test('a frontend whose every port another program takes fails with PORT_TAKEN_BY_OTHER_PROCESS naming the ports', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-dev-server-'));
+  const thief = await startPortThief(Number.POSITIVE_INFINITY);
+  try {
+    await writeExecutable(join(directory, 'vite'), lateServerScript('keeps running'));
+    globalStateManager.rawArgs = { stage: 'alltaken', currentWorkingDirectory: directory };
+    registerDevServerCleanupHook();
+    const startingPorts: number[] = [];
+    const state = await startDevServer({
+      name: 'web',
+      config: {
+        command: './vite dev',
+        workingDirectory: directory,
+        framework: 'vite',
+        environment: { THIEF_PORT: String(thief.port) }
+      },
+      callbacks: { onStateChange: ({ status, port }) => status === 'starting' && port && startingPorts.push(port) }
+    });
+    expect(state.status).toBe('error');
+    expect(state.error).toContain('PORT_TAKEN_BY_OTHER_PROCESS');
+    expect(state.error).toContain(`Ports ${startingPorts.join(', ')} were all taken`);
+    expect(startingPorts).toHaveLength(4);
+  } finally {
+    await runCleanupHooks();
+    await thief.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+}, 30_000);

@@ -8,33 +8,41 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { localStatePaths } from 'src/config/local-state-paths';
 
-const checkPortOnHost = (port: number, host: string): Promise<boolean> => {
-  return new Promise((resolve) => {
+/** How a bind probe ended: the port is free there, in use, or the address family does not exist on this machine. */
+type BindProbe = 'free' | 'in-use' | 'unavailable';
+
+/** Errors of an address this machine does not have, such as `::1` where IPv6 is switched off. */
+const ADDRESS_UNAVAILABLE_CODES = new Set(['EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EPROTONOSUPPORT']);
+
+const probeBind = (port: number, host: string): Promise<BindProbe> =>
+  new Promise((resolve) => {
     const server = net.createServer();
-
-    server.listen(port, host, () => {
-      server.close(() => resolve(false)); // Release the probe before checking another host or starting a tunnel.
-    });
-
-    server.on('error', () => {
-      resolve(true); // Port is in use
-    });
+    server.once('error', (error: NodeJS.ErrnoException) =>
+      resolve(error.code && ADDRESS_UNAVAILABLE_CODES.has(error.code) ? 'unavailable' : 'in-use')
+    );
+    // Release the probe before checking another host or starting a tunnel.
+    server.listen(port, host, () => server.close(() => resolve('free')));
   });
-};
 
 /**
- * Check if port is in use. Checks both 0.0.0.0 and 127.0.0.1 to handle
- * Docker containers that bind to 0.0.0.0 (which may not conflict with 127.0.0.1 on some OSes).
+ * The addresses a port must be free on. A program listening on only one loopback address takes the requests that a
+ * client resolving `localhost` to that address sends: on Windows, WSL's port forwarding and other dev servers listen on
+ * `127.0.0.1` and `::1` separately, and a frontend Stacktape started on a port held on `::1` shared it with them
+ * (r2bd2). The wildcard addresses cover a workload that listens on every interface. Windows lets a later program bind a
+ * specific address over a wildcard listener and the reverse, so every address is probed on its own.
+ */
+const PORT_PROBE_HOSTS = ['127.0.0.1', '0.0.0.0', '::1', '::'];
+
+/**
+ * Check if port is in use: whether any program listens on it on an IPv4 or IPv6 loopback or wildcard address. An
+ * address family this machine lacks is skipped. The probes run one after another, because these binds overlap on
+ * Linux and parallel probes can mistake each other for an existing listener.
  */
 export const isPortInUse = async (port: number, host?: string): Promise<boolean> => {
-  // If specific host provided, check only that host
-  if (host) {
-    return checkPortOnHost(port, host);
+  for (const probeHost of host ? [host] : PORT_PROBE_HOSTS) {
+    if ((await probeBind(port, probeHost)) === 'in-use') return true;
   }
-
-  // These binds overlap on Linux. Parallel probes can mistake each other for an existing listener.
-  if (await checkPortOnHost(port, '0.0.0.0')) return true;
-  return checkPortOnHost(port, '127.0.0.1');
+  return false;
 };
 
 /**

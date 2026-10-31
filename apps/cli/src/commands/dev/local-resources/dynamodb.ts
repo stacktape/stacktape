@@ -96,7 +96,7 @@ const createTableIfNotExists = async (
     primaryKey?: { partitionKey: { name: string; type: string }; sortKey?: { name: string; type: string } };
   }
 ): Promise<void> => {
-  const endpoint = `http://localhost:${port}`;
+  const endpoint = `http://127.0.0.1:${port}`;
 
   // Check if table exists
   const listResult = await listTables(endpoint);
@@ -223,7 +223,7 @@ const startDynamoDbLocalContainer = async ({
     timeoutMs: 30000,
     pollIntervalMs: 300,
     checkFn: async () => {
-      const result = await listTables(`http://localhost:${actualPort}`);
+      const result = await listTables(`http://127.0.0.1:${actualPort}`);
       return result.success;
     }
   });

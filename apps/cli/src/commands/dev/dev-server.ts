@@ -19,14 +19,9 @@ import {
   isSuccessfulRequestLine
 } from './log-grouping';
 import { createEnvironmentMasker } from './agent-env-masking';
-import {
-  acceptsTcpConnection,
-  extractPortFromCommand,
-  findAvailablePort,
-  getDefaultPort,
-  isPortAvailable,
-  waitForTcpPort
-} from './port-utils';
+import type { LocalPortReservation } from '@utils/ports';
+import { acceptsTcpConnection, extractPortFromCommand, getDefaultPort, reserveAvailablePort } from './port-utils';
+import { describePortTaken, findOtherListeners, type LoopbackHost, waitForOwnListener } from './port-owners';
 
 const { serveTimeoutMs: DEV_SERVER_SERVE_TIMEOUT_MS, listenerCheckIntervalMs: LISTENER_CHECK_INTERVAL_MS } =
   DEV_CONFIG.devServer;
@@ -80,6 +75,12 @@ type DevServerCallbacks = {
 };
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
+/** The port each server runs on, reserved so no other Stacktape process on this machine picks it meanwhile. */
+const portReservations = new Map<string, LocalPortReservation>();
+/** How many times a server moves to another port when other programs hold the one it got. */
+const MAX_PORT_MOVES = 3;
+/** Ports a server may move up from its preferred one. */
+const PORT_SEARCH_RANGE = 300;
 /** Servers dev mode stops itself (a restart, the end of the session), whose exit is no error. */
 const stoppingDevServers = new WeakSet<ChildProcess>();
 
@@ -131,26 +132,26 @@ const injectPackageScriptFlags = ({
   if (commandWithArgs.includes('--port') || commandWithArgs.some((arg) => arg.startsWith('--port='))) return;
 
   const needsStrictPort = framework === 'vite' || framework === 'sveltekit' || framework === 'turbopack';
-  const addHostFlag = framework !== 'next';
+  // Next.js names the option `--hostname`; it ignores `HOST` and otherwise listens on every interface.
+  const hostFlag = framework === 'next' ? '--hostname' : '--host';
 
-  if (cmd === 'yarn') {
-    commandWithArgs.push('--port', String(port));
-    if (addHostFlag) {
-      commandWithArgs.push('--host', '127.0.0.1');
-    }
-    if (needsStrictPort) {
-      commandWithArgs.push('--strictPort');
-    }
-    return;
-  }
-
-  commandWithArgs.push('--', '--port', String(port));
-  if (addHostFlag) {
-    commandWithArgs.push('--host', '127.0.0.1');
-  }
+  commandWithArgs.push(...(cmd === 'yarn' ? [] : ['--']), '--port', String(port), hostFlag, '127.0.0.1');
   if (needsStrictPort) {
     commandWithArgs.push('--strictPort');
   }
+};
+
+/**
+ * Keeps a directly started `next dev` on IPv4 loopback. Without `--hostname` it listens on `::` (every interface), and
+ * on Windows another program can then take the port's loopback addresses and receive the requests meant for it.
+ */
+const injectNextHostname = (commandWithArgs: string[], framework: FrameworkType): void => {
+  if (framework !== 'next') return;
+  if (commandWithArgs.some((arg) => arg === '--hostname' || arg === '-H' || arg.startsWith('--hostname='))) return;
+  const startsNextDev = commandWithArgs.some(
+    (arg, index) => /(?:^|[\\/])next(?:\.cmd|\.exe)?$/i.test(arg) && commandWithArgs[index + 1] === 'dev'
+  );
+  if (startsNextDev) commandWithArgs.push('--hostname', '127.0.0.1');
 };
 
 /**
@@ -182,11 +183,20 @@ export const formatDevServerStatus = (state: DevServerState): string => {
 /** Stop a dev server and all package-manager/framework descendants. */
 const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
-  if (!proc) return;
-  stoppingDevServers.add(proc);
-  await terminateDevServerProcess(proc);
-  runningDevServers.delete(name);
-  removeNamedProxyRoute(name);
+  if (proc) {
+    stoppingDevServers.add(proc);
+    await terminateDevServerProcess(proc);
+    runningDevServers.delete(name);
+    removeNamedProxyRoute(name);
+  }
+  // A server that exited on its own still holds its port's reservation until it is restarted or the session ends.
+  await releasePortReservation(name);
+};
+
+const releasePortReservation = async (name: string) => {
+  const reservation = portReservations.get(name);
+  portReservations.delete(name);
+  await reservation?.release();
 };
 
 export const startDevServer = async ({
@@ -223,9 +233,18 @@ export const startDevServer = async ({
   // Determine port preference - from config, command, or framework default
   const commandPort = extractPortFromCommand(config.command);
   const preferredPort = config.port || commandPort || getDefaultPort(framework);
-  const targetPort = (await findAvailablePort(preferredPort, 300)) || preferredPort;
-
-  const ensureTargetPortAvailable = async (): Promise<boolean> => isPortAvailable(targetPort);
+  // A port held on any loopback or wildcard address, or reserved by another Stacktape process, is skipped.
+  const reservation = await reserveAvailablePort(preferredPort, { maxAttempts: PORT_SEARCH_RANGE });
+  if (!reservation) {
+    const state: DevServerState = {
+      status: 'error',
+      error: `No free port from ${preferredPort} to ${preferredPort + PORT_SEARCH_RANGE - 1}.`
+    };
+    callbacks?.onStateChange?.(state);
+    return state;
+  }
+  portReservations.set(name, reservation);
+  let targetPort = reservation.port;
 
   // Build environment with PORT for frameworks that support it
   // The dev server runs in the session's region, as the deployed server runs in its stack's region and a dev container
@@ -253,27 +272,66 @@ export const startDevServer = async ({
 
   let currentState: DevServerState = { status: 'starting', port: targetPort };
   callbacks?.onStateChange?.(currentState);
+  const fail = async (error: string) => {
+    await releasePortReservation(name);
+    currentState = { status: 'error', error };
+    callbacks?.onStateChange?.(currentState);
+    return currentState;
+  };
 
   // A second `next dev` in the directory prints "Ready", serves for a second and then exits: refuse it before it starts
   // when another dev session of this project runs the same app.
   if (framework === 'next') {
     const holder = findOtherDevSessions().find(({ workloads }) => workloads?.includes(name));
-    if (holder) {
-      currentState = { status: 'error', error: describeNextDevServerHolder(holder, workingDir) };
-      callbacks?.onStateChange?.(currentState);
-      return currentState;
-    }
-  }
-
-  const portReady = await ensureTargetPortAvailable();
-  if (!portReady) {
-    currentState = { status: 'error', error: `Port ${targetPort} is still in use` };
-    callbacks?.onStateChange?.(currentState);
-    return currentState;
+    if (holder) return fail(describeNextDevServerHolder(holder, workingDir));
   }
 
   let routedTargetPort = targetPort;
+  /** The loopback address the server listens on, which its URL's proxy connects to. */
+  let routedHost: LoopbackHost = '127.0.0.1';
   let proxyRoute = await ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort });
+  const takenPorts: number[] = [];
+  /** One move per server process: its exit and its readiness check can both find the port taken. */
+  const moves = new WeakMap<ChildProcess, Promise<DevServerState>>();
+
+  /**
+   * Another program receives the local connections to the server's port (`PORT_TAKEN_BY_OTHER_PROCESS`): the server
+   * stops and starts again on the next free port, or fails once it moved `MAX_PORT_MOVES` times.
+   */
+  const moveToAnotherPort = (
+    proc: ChildProcess,
+    taken: { port: number; owners: Parameters<typeof describePortTaken>[0]['owners'] }
+  ): Promise<DevServerState> => {
+    const move = moves.get(proc) ?? restartOnAnotherPort(proc, taken);
+    moves.set(proc, move);
+    return move;
+  };
+  const restartOnAnotherPort = async (
+    proc: ChildProcess,
+    taken: { port: number; owners: Parameters<typeof describePortTaken>[0]['owners'] }
+  ): Promise<DevServerState> => {
+    stoppingDevServers.add(proc);
+    await terminateDevServerProcess(proc).catch(() => {});
+    if (runningDevServers.get(name) === proc) runningDevServers.delete(name);
+    takenPorts.push(taken.port);
+    const reason = describePortTaken({ ...taken, workload: name });
+    if (takenPorts.length > MAX_PORT_MOVES) {
+      return fail(`${reason} Ports ${takenPorts.join(', ')} were all taken; stop the program that holds them.`);
+    }
+    await releasePortReservation(name);
+    const next = await reserveAvailablePort(taken.port + 1, { maxAttempts: PORT_SEARCH_RANGE, skip: takenPorts });
+    if (!next) return fail(`${reason} No other free port was found.`);
+    portReservations.set(name, next);
+    targetPort = next.port;
+    routedTargetPort = targetPort;
+    routedHost = '127.0.0.1';
+    env.PORT = String(targetPort);
+    callbacks?.onOutput?.(`${reason} Dev mode moved ${name} to port ${targetPort}.`, 'warn');
+    proxyRoute = await ensureNamedProxyRoute({ resourceName: name, targetPort });
+    currentState = { status: 'starting', port: targetPort };
+    callbacks?.onStateChange?.(currentState);
+    return spawnDevServer();
+  };
 
   const spawnDevServer = (): Promise<DevServerState> => {
     return new Promise((resolve) => {
@@ -285,6 +343,7 @@ export const startDevServer = async ({
       const commandWithArgs = [command, ...patchedArgs];
       injectFrameworkFlags(commandWithArgs, targetPort);
       injectPackageScriptFlags({ commandWithArgs, port: targetPort, framework });
+      injectNextHostname(commandWithArgs, framework);
 
       const [spawnCommandName, ...spawnArgs] = commandWithArgs;
 
@@ -380,7 +439,7 @@ export const startDevServer = async ({
         if (parsed.port) newState.port = parsed.port;
         if (parsed.port && parsed.port !== routedTargetPort) {
           routedTargetPort = parsed.port;
-          ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort })
+          ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort, targetHost: routedHost })
             .then((updatedRoute) => {
               proxyRoute = updatedRoute;
             })
@@ -429,8 +488,11 @@ export const startDevServer = async ({
         const stoppedByDevMode = stoppingDevServers.has(proc);
         if (runningDevServers.get(name) === proc) runningDevServers.delete(name);
         removeNamedProxyRoute(name);
-        // Any exit dev mode did not cause is an error, also after the server was ready: nothing serves its URL then.
-        if (!stoppedByDevMode) {
+        // A server stopped to move to another port resolves with the restarted one.
+        if (stoppedByDevMode) return moves.has(proc) ? undefined : resolveOnce(currentState);
+        // A server that could not listen because another program took its port since it was chosen starts again on
+        // another one; any other exit dev mode did not cause is an error, also after it was ready.
+        const failExit = () => {
           setState({
             status: 'error',
             port: currentState.port,
@@ -446,13 +508,27 @@ export const startDevServer = async ({
               })
             )
           });
-        }
-        resolveOnce(currentState);
+          resolveOnce(currentState);
+        };
+        if (serving || resolved) return failExit();
+        const exitedPort = routedTargetPort;
+        void findOtherListeners(exitedPort).then((owners) =>
+          owners ? moveToAnotherPort(proc, { port: exitedPort, owners }).then(resolveOnce) : failExit()
+        );
       });
 
+      // Ready once the server dev mode started receives the connections to its port, not merely when the port accepts
+      // them: another program can listen on its loopback addresses (r2bd2).
       const waitUntilServing = (timeoutMs: number) =>
-        waitForTcpPort({ port: () => routedTargetPort, timeoutMs, shouldStop: () => exited });
-      const markServing = () => {
+        waitForOwnListener({ port: () => routedTargetPort, rootPid: proc.pid!, timeoutMs, shouldStop: () => exited });
+      const markServing = async (host: LoopbackHost) => {
+        routedHost = host;
+        proxyRoute = await ensureNamedProxyRoute({
+          resourceName: name,
+          targetPort: routedTargetPort,
+          targetHost: host
+        });
+        if (exited) return;
         serving = true;
         setState({ ...currentState, status: 'ready', port: routedTargetPort, url: proxyRoute.url, error: undefined });
         resolveOnce(currentState);
@@ -476,9 +552,7 @@ export const startDevServer = async ({
           checking = true;
           try {
             const port = routedTargetPort;
-            const accepted = (
-              await Promise.all(['127.0.0.1', '::1'].map((host) => acceptsTcpConnection({ port, host })))
-            ).includes(true);
+            const accepted = await acceptsTcpConnection({ port, host: routedHost });
             if (exited) return;
             if (accepted) {
               refusedChecks = 0;
@@ -500,9 +574,10 @@ export const startDevServer = async ({
         }, config.listenerCheckIntervalMs ?? LISTENER_CHECK_INTERVAL_MS);
         listenerWatch.unref?.();
       };
-      void waitUntilServing(DEV_SERVER_SERVE_TIMEOUT_MS).then((result) => {
-        if (result === 'ready') return markServing();
-        if (result !== 'timeout') return;
+      void waitUntilServing(DEV_SERVER_SERVE_TIMEOUT_MS).then((outcome) => {
+        if (outcome.result === 'ready') return markServing(outcome.host);
+        if (outcome.result === 'taken') return moveToAnotherPort(proc, outcome).then(resolveOnce);
+        if (outcome.result !== 'timeout') return;
         setState({
           ...currentState,
           status: 'error',
@@ -511,7 +586,11 @@ export const startDevServer = async ({
           } s. Dev mode keeps checking and marks it running once it serves.`
         });
         resolveOnce(currentState);
-        void waitUntilServing(Number.POSITIVE_INFINITY).then((late) => late === 'ready' && markServing());
+        void waitUntilServing(Number.POSITIVE_INFINITY).then((late) => {
+          if (late.result === 'ready') return markServing(late.host);
+          if (late.result === 'taken')
+            setState({ ...currentState, error: describePortTaken({ ...late, workload: name }) });
+        });
       });
     });
   };
@@ -634,5 +713,6 @@ export const describeDevServerExit = ({
  * Must be called explicitly when dev command starts.
  */
 export const registerDevServerCleanupHook = createCleanupHook('dev-server', async () => {
-  await Promise.all([...runningDevServers.keys()].map((name) => stopDevServer(name)));
+  const names = new Set([...runningDevServers.keys(), ...portReservations.keys()]);
+  await Promise.all([...names].map((name) => stopDevServer(name)));
 });

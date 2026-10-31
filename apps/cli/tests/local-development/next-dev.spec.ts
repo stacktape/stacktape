@@ -12,6 +12,13 @@ import { registerDevServerCleanupHook } from '../../src/commands/dev/dev-server'
 import { stopNamedProxy } from '../../src/commands/dev/named-proxy/manager';
 import { startNextjsWebDevServer } from '../../src/commands/dev/nextjs-web';
 
+const hasIpv6Loopback = () =>
+  new Promise<boolean>((resolve) => {
+    const server = createServer();
+    server.once('error', () => resolve(false));
+    server.listen(0, '::1', () => server.close(() => resolve(true)));
+  });
+
 const listening = (port: number, timeout = 500) =>
   fetch(`http://127.0.0.1:${port}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(timeout) });
 
@@ -81,6 +88,13 @@ test('a real Next dev server uses its connected local parameters, serves edits a
     expect(await (await listening(backendPort, 15_000)).text()).toContain(
       'first-render: <!-- -->local-database-value<!-- --> cache: <!-- -->not-connected'
     );
+    // Next listens on 127.0.0.1 only. On `::` (its default) another program could take the port's loopback addresses
+    // on Windows and receive the requests meant for it (r2bd2).
+    if (await hasIpv6Loopback()) {
+      await expect(
+        fetch(`http://[::1]:${backendPort}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(2000) })
+      ).rejects.toThrow();
+    }
     const url = new URL(state.url!);
     proxyPort = Number(url.port);
     const request = () =>

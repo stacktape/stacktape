@@ -149,3 +149,31 @@ test('with HTTPS, a take-over also waits for the replaced proxy and keeps the po
     rmSync(stateDir, { recursive: true, force: true });
   }
 });
+
+// r2bd2: browsers resolve `<name>.localhost` to ::1 as well as 127.0.0.1. A program that holds only ::1 of the stage's
+// proxy port would receive the browser's requests, so the proxy moves to a port free on both and listens on both.
+test('the proxy skips a port another program holds on ::1 and serves its URLs on both loopback addresses', async () => {
+  const ipv6 = await new Promise<boolean>((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(0, '::1', () => probe.close(() => resolve(true)));
+  });
+  if (!ipv6) return;
+  globalStateManager.rawArgs = { stage: 'ipv6proxy' };
+  const app = await backend('app');
+  const { proxyPort: preferredPort } = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: app.port });
+  await stopNamedProxy();
+  const other = createServer((_request, response) => response.end('other'));
+  await new Promise<void>((resolve) => other.listen(preferredPort, '::1', resolve));
+  try {
+    const route = await ensureNamedProxyRoute({ resourceName: 'web', targetPort: app.port });
+    expect(route.proxyPort).not.toBe(preferredPort);
+    for (const host of ['127.0.0.1', '[::1]']) {
+      const response = await fetch(`http://${host}:${route.proxyPort}`, { headers: { Host: route.hostname } });
+      expect(await response.text()).toBe('app');
+    }
+  } finally {
+    await close(other);
+    await close(app.server);
+  }
+});

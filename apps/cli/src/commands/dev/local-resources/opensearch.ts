@@ -105,7 +105,7 @@ export const startLocalOpenSearch = async (
     checkFn: async () => {
       // For local dev without security, just check if the endpoint responds
       try {
-        const response = await fetch(`http://localhost:${actualPort}`);
+        const response = await fetch(`http://127.0.0.1:${actualPort}`);
         return response.ok;
       } catch {
         return false;

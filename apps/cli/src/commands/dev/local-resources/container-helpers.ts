@@ -9,7 +9,11 @@ import findFreePorts from 'find-free-ports';
 import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 
-export const DEFAULT_LOCAL_HOST = 'localhost';
+/**
+ * The host in local database addresses that dev mode injects. Databases are published on 127.0.0.1 only; `localhost` can
+ * resolve to ::1, where another program may listen on the same port (r2bd2).
+ */
+export const DEFAULT_LOCAL_HOST = '127.0.0.1';
 export const DEFAULT_PORTS = DEV_CONFIG.localResources.ports;
 
 /**

@@ -3,7 +3,8 @@
  * Handles port conflicts, process cleanup, and port allocation.
  */
 import { request as httpRequest } from 'node:http';
-import { connect, createServer } from 'node:net';
+import { connect } from 'node:net';
+import { type LocalPortReservation, isPortInUse, reserveLocalPort } from '@utils/ports';
 import { DEV_CONFIG } from './dev-config';
 
 /** Cache for port availability checks to avoid repeated socket operations */
@@ -67,29 +68,8 @@ export const isPortAvailable = async (port: number): Promise<boolean> => {
   return available;
 };
 
-/**
- * Internal function to actually check port availability via socket.
- */
-const checkPortAvailability = (port: number): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const server = createServer();
-
-    server.once('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-      } else {
-        resolve(false);
-      }
-    });
-
-    server.once('listening', () => {
-      server.close();
-      resolve(true);
-    });
-
-    server.listen(port, '127.0.0.1');
-  });
-};
+/** Free on every loopback and wildcard address (`isPortInUse`), not only on 127.0.0.1. */
+const checkPortAvailability = async (port: number): Promise<boolean> => !(await isPortInUse(port));
 
 /**
  * Whether a program accepts TCP connections on a local port. Docker's port proxy accepts a connection on a published
@@ -182,6 +162,24 @@ export const findAvailablePort = async (startPort: number, maxAttempts = 100): P
     if (await isPortAvailable(port)) {
       return port;
     }
+  }
+  return null;
+};
+
+/**
+ * Reserves the first free port from `startPort` that no container of this session and no other Stacktape process on
+ * this machine has reserved (`reserveLocalPort`), so two dev sessions starting together never pick the same port for
+ * their servers. `skip` lists ports found taken by another program since they were probed.
+ */
+export const reserveAvailablePort = async (
+  startPort: number,
+  { maxAttempts = 100, skip = [] }: { maxAttempts?: number; skip?: Iterable<number> } = {}
+): Promise<LocalPortReservation | null> => {
+  const skipped = new Set(skip);
+  for (let port = startPort; port < startPort + maxAttempts && port < 65536; port++) {
+    if (globalReservedPorts.has(port) || skipped.has(port)) continue;
+    const reservation = await reserveLocalPort(port);
+    if (reservation) return reservation;
   }
   return null;
 };

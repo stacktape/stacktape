@@ -15,11 +15,15 @@ import { localStatePaths } from 'src/config/local-state-paths';
 type RouteMapping = {
   hostname: string;
   port: number;
+  /** The loopback address the app listens on (`RouteInfo.host`). */
+  host?: string;
   pid: number;
 };
 
 const state: {
   server: ProxyServer | null;
+  /** The listener on `::1`, next to `server` on `127.0.0.1`. */
+  ipv6Server: ProxyServer | null;
   proxyPort: number | null;
   tlsEnabled: boolean;
   startupPromise: Promise<{ proxyPort: number; tlsEnabled: boolean }> | null;
@@ -28,6 +32,7 @@ const state: {
   sockets: Set<Socket>;
 } = {
   server: null,
+  ipv6Server: null,
   proxyPort: null,
   tlsEnabled: false,
   startupPromise: null,
@@ -170,6 +175,20 @@ const waitForReplacedSessionProxy = async ({
 
 const REPLACED_PROXY_WAIT_MS = 30_000;
 
+/** Listens on one address: `true` once listening, `false` when the port is taken there, `unavailable` without it. */
+const listenOn = (server: ProxyServer, port: number, host: string) =>
+  new Promise<boolean | 'unavailable'>((resolve) => {
+    const onError = (error: NodeJS.ErrnoException) =>
+      resolve(error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT' ? 'unavailable' : false);
+    server.once('error', onError);
+    server.listen(port, host, () => {
+      server.removeListener('error', onError);
+      resolve(true);
+    });
+  });
+
+const closeServer = (server: ProxyServer) => new Promise<void>((resolve) => server.close(() => resolve()));
+
 const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: boolean }> => {
   if (state.server && state.proxyPort) {
     return { proxyPort: state.proxyPort, tlsEnabled: state.tlsEnabled };
@@ -183,43 +202,60 @@ const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: bo
     const preferredPort = 1355 + getStagePortOffset();
     const identity = getProxyIdentity();
     await waitForReplacedSessionProxy({ port: preferredPort, identity });
-    const proxyPort = await findAvailablePort(preferredPort, 200);
-    if (!proxyPort) {
+    const tlsOptions = await ensureTlsOptions();
+    const createServer = () => {
+      const server = createProxyServer({
+        getRoutes: () =>
+          Array.from(state.routes.values()).map((r) => ({ hostname: r.hostname, port: r.port, host: r.host })),
+        proxyPort,
+        onError: (message) => tuiManager.warn(`[dev-proxy] ${message}`),
+        identity,
+        ...(tlsOptions.enabled
+          ? {
+              tls: {
+                cert: tlsOptions.cert,
+                key: tlsOptions.key,
+                SNICallback: tlsOptions.SNICallback
+              }
+            }
+          : {})
+      });
+      server.on('connection', (socket) => {
+        state.sockets.add(socket);
+        socket.once('close', () => state.sockets.delete(socket));
+      });
+      return server;
+    };
+
+    // Browsers resolve `<name>.localhost` to `::1` as well as `127.0.0.1` and may try `::1` first, so the proxy listens
+    // on both: a program that held only `::1` of the port would receive the browser's requests (r2bd2). The port was
+    // free on both when it was chosen; one taken since then moves the proxy to the next port.
+    let proxyPort = 0;
+    let server: ProxyServer | undefined;
+    let ipv6Server: ProxyServer | null = null;
+    for (let start = preferredPort; start < preferredPort + 200; start = proxyPort + 1) {
+      proxyPort = (await findAvailablePort(start, preferredPort + 200 - start)) ?? 0;
+      if (!proxyPort) break;
+      server = createServer();
+      if ((await listenOn(server, proxyPort, '127.0.0.1')) !== true) {
+        server = undefined;
+        continue;
+      }
+      ipv6Server = createServer();
+      const ipv6 = await listenOn(ipv6Server, proxyPort, '::1');
+      if (ipv6 !== false) {
+        if (ipv6 === 'unavailable') ipv6Server = null;
+        break;
+      }
+      await closeServer(server);
+      server = undefined;
+    }
+    if (!server || !proxyPort) {
       throw new Error(`Failed to find available proxy port (tried ${preferredPort}-${preferredPort + 199})`);
     }
 
-    const tlsOptions = await ensureTlsOptions();
-    const server = createProxyServer({
-      getRoutes: () => Array.from(state.routes.values()).map((r) => ({ hostname: r.hostname, port: r.port })),
-      proxyPort,
-      onError: (message) => tuiManager.warn(`[dev-proxy] ${message}`),
-      identity,
-      ...(tlsOptions.enabled
-        ? {
-            tls: {
-              cert: tlsOptions.cert,
-              key: tlsOptions.key,
-              SNICallback: tlsOptions.SNICallback
-            }
-          }
-        : {})
-    });
-
-    server.on('connection', (socket) => {
-      state.sockets.add(socket);
-      socket.once('close', () => state.sockets.delete(socket));
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const onError = (err: NodeJS.ErrnoException) => reject(err);
-      server.once('error', onError);
-      server.listen(proxyPort, '127.0.0.1', () => {
-        server.removeListener('error', onError);
-        resolve();
-      });
-    });
-
     state.server = server;
+    state.ipv6Server = ipv6Server;
     state.proxyPort = proxyPort;
     state.tlsEnabled = tlsOptions.enabled;
 
@@ -238,15 +274,18 @@ const ensureProxyStarted = async (): Promise<{ proxyPort: number; tlsEnabled: bo
 
 export const ensureNamedProxyRoute = async ({
   resourceName,
-  targetPort
+  targetPort,
+  targetHost
 }: {
   resourceName: string;
   targetPort: number;
+  /** The loopback address the app listens on; `127.0.0.1` when omitted. */
+  targetHost?: string;
 }): Promise<{ hostname: string; url: string; proxyPort: number }> => {
   const { proxyPort, tlsEnabled } = await ensureProxyStarted();
   const hostname = buildHostname(resourceName);
 
-  state.routes.set(hostname, { hostname, port: targetPort, pid: process.pid });
+  state.routes.set(hostname, { hostname, port: targetPort, host: targetHost, pid: process.pid });
   state.resourceToHostname.set(resourceName, hostname);
 
   return { hostname, proxyPort, url: formatUrl(hostname, proxyPort, tlsEnabled) };
@@ -269,12 +308,13 @@ export const stopNamedProxy = async (): Promise<void> => {
     return;
   }
 
-  await new Promise<void>((resolve) => {
-    state.server?.close(() => resolve());
-    for (const socket of state.sockets) socket.destroy();
-    state.sockets.clear();
-  });
+  const servers = [state.server, state.ipv6Server].filter((server) => server !== null);
+  const closed = Promise.all(servers.map(closeServer));
+  for (const socket of state.sockets) socket.destroy();
+  state.sockets.clear();
+  await closed;
   state.server = null;
+  state.ipv6Server = null;
   state.proxyPort = null;
   state.tlsEnabled = false;
 };
