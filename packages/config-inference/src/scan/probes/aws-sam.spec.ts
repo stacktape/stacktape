@@ -24,6 +24,31 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
   return root;
 };
 
+/** A SAM template with one user pool and an app client declaring `client`. */
+const userPoolTemplate = (client: string[]) =>
+  [
+    'Transform: AWS::Serverless-2016-10-31',
+    'Resources:',
+    '  Staff:',
+    '    Type: AWS::Cognito::UserPool',
+    '    Properties:',
+    '      AdminCreateUserConfig:',
+    '        AllowAdminCreateUserOnly: true',
+    '  Client:',
+    '    Type: AWS::Cognito::UserPoolClient',
+    '    Properties:',
+    '      UserPoolId: !Ref Staff',
+    ...client.map((line) => `      ${line}`),
+    '  Login:',
+    '    Type: AWS::Serverless::Function',
+    '    Properties:',
+    '      Runtime: nodejs22.x',
+    '      Handler: handler.handler',
+    '      Environment:',
+    '        Variables:',
+    '          AUTH_CLIENT_ID: !Ref Client'
+  ].join('\n');
+
 describe('the AWS SAM probe', () => {
   it('keeps separate handlers and tables and records their exact HTTP routes', async () => {
     const repositoryRoot = await makeRepo({
@@ -464,5 +489,65 @@ describe('the AWS SAM probe', () => {
     });
 
     expect(facts.services[0]?.functionTriggers).toEqual([{ type: 'schedule', rate: 'rate(5 minute)' }]);
+  });
+  describe("carries an app client's token lifetimes in Stacktape's units", () => {
+    const importPool = async (client: string[]) => {
+      const repositoryRoot = await makeRepo({
+        'handler.js': 'exports.handler = async () => ({ statusCode: 200 });\n',
+        'template.yaml': userPoolTemplate(client)
+      });
+      const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+      const pool = facts.dependencies.find((dependency) => dependency.kind === 'user-pool');
+      const composition = composeConfig({ facts });
+      const resource = Object.values(composition.config.resources).find(
+        (candidate) => (candidate as { type: string }).type === 'user-auth-pool'
+      ) as { properties: Record<string, unknown> } | undefined;
+      return { pool, properties: resource?.properties, gaps: composition.gaps.map((gap) => gap.message) };
+    };
+
+    it.each([
+      [
+        "Cognito's default units: hours for access and ID tokens, days for refresh tokens",
+        ['AccessTokenValidity: 2', 'IdTokenValidity: 24', 'RefreshTokenValidity: 7'],
+        { accessTokenValiditySeconds: 7200, idTokenValiditySeconds: 86_400, refreshTokenValidityDays: 7 }
+      ],
+      [
+        'declared units',
+        [
+          'AccessTokenValidity: 5',
+          'IdTokenValidity: 3600',
+          'RefreshTokenValidity: 72',
+          'TokenValidityUnits:',
+          '  AccessToken: minutes',
+          '  IdToken: seconds',
+          '  RefreshToken: hours'
+        ],
+        { accessTokenValiditySeconds: 300, idTokenValiditySeconds: 3600, refreshTokenValidityDays: 3 }
+      ]
+    ])('%s', async (_, client, lifetimes) => {
+      const { pool, properties } = await importPool(client);
+      expect(pool?.userPoolSettings).toMatchObject(lifetimes);
+      expect(properties).toMatchObject(lifetimes);
+    });
+
+    it('shortens a refresh lifetime of part of a day to whole days and says so', async () => {
+      const { properties, gaps } = await importPool([
+        'RefreshTokenValidity: 36',
+        'TokenValidityUnits:',
+        '  RefreshToken: hours'
+      ]);
+      expect(properties).toMatchObject({ refreshTokenValidityDays: 1 });
+      expect(gaps.some((gap) => gap.includes('`RefreshTokenValidity`'))).toBe(true);
+    });
+
+    it('leaves the pool out when its refresh tokens expire within a day', async () => {
+      const { properties, gaps } = await importPool([
+        'RefreshTokenValidity: 12',
+        'TokenValidityUnits:',
+        '  RefreshToken: hours'
+      ]);
+      expect(properties).toBeUndefined();
+      expect(gaps.some((gap) => gap.includes('`RefreshTokenValidity`'))).toBe(true);
+    });
   });
 });

@@ -21,6 +21,7 @@ import { operationReporter } from '@application-services/operation-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { updateEcsService } from '../../src/commands/_utils/cw-deployment';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getDefaultUserPoolDomainPrefix, getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
 import {
   AgentCoreBrowser,
   AgentCoreCodeInterpreter,
@@ -46,7 +47,7 @@ import {
 import type { RedisProps } from '@stacktape/config/redis';
 import type { UserAuthPoolProps } from '@stacktape/config/user-pools';
 import { validateConfigStructure } from '@domain-services/config-manager/utils/validation';
-import { synthesizeFixture } from '../characterization/synthesis-fixture';
+import { existingResourcesOf, synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const fixturesDir = join(import.meta.dir, 'fixtures');
 const templateOutputDirectory = process.env.STACKTAPE_SYNTHESIS_FAMILY_TEMPLATE_OUTPUT_DIR;
@@ -1142,6 +1143,84 @@ describe('user auth pool family', () => {
       category: 'CONFIG_VALIDATION'
     });
   });
+
+  test('an override that sets a lifetime in hours changes only that unit', async () => {
+    const template = await synthesizeFamily(
+      'user-auth-pool-lifetime-override',
+      defineConfig(() => ({
+        resources: {
+          auth: new UserAuthPool({
+            userVerificationType: 'email-code',
+            overrides: { AuthUserPoolClient: { AccessTokenValidity: 2, TokenValidityUnits: { AccessToken: 'hours' } } }
+          })
+        }
+      }))
+    );
+    expect(onlyResourceOfType(template, 'AWS::Cognito::UserPoolClient').resource.Properties).toMatchObject({
+      AccessTokenValidity: 2,
+      IdTokenValidity: 3600,
+      TokenValidityUnits: { AccessToken: 'hours', IdToken: 'seconds', RefreshToken: 'days' }
+    });
+  });
+});
+
+describe('user auth pool hosted UI domain prefix', () => {
+  const stackName = `${authoringParams.projectName}-${authoringParams.stage}`;
+  const pools = (properties: Partial<UserAuthPoolProps> = {}) =>
+    defineConfig(() => ({
+      resources: {
+        cognitoPool: new UserAuthPool({ userVerificationType: 'email-code', ...properties }),
+        customers: new UserAuthPool({ userVerificationType: 'email-code' })
+      }
+    }));
+  const domains = (template: CloudFormationTemplate) =>
+    Object.fromEntries(
+      resourcesOfType(template, 'AWS::Cognito::UserPoolDomain').map(([logicalId, resource]) => [
+        logicalId,
+        resource.Properties?.Domain
+      ])
+    );
+  const domainParam = (template: CloudFormationTemplate, poolName: string) =>
+    json(template.Outputs).includes(`${getDefaultUserPoolDomainPrefix(stackName, poolName)}.auth.eu-west-1`);
+
+  test('a new pool whose default prefix Cognito rejects gets one it accepts; others keep the original', async () => {
+    const template = await synthesizeFamily('user-auth-pool-domain-prefix', pools());
+    expectReferencesResolve(template);
+    const safePrefix = getDefaultUserPoolDomainPrefix(stackName, 'cognitoPool');
+    expect(safePrefix).toMatch(/^characterization-baseline-pool-[0-9a-f]{8}$/);
+    expect(domains(template)).toEqual({
+      [cfLogicalNames.userPoolDomain('cognitoPool')]: safePrefix,
+      [cfLogicalNames.userPoolDomain('customers')]: 'characterization-baseline-customers'
+    });
+    expect(domainParam(template, 'cognitoPool')).toBe(true);
+  });
+
+  test('a deployed pool keeps the prefix it has', async () => {
+    const originalPrefix = getUserPoolDomainPrefix(stackName, 'cognitoPool');
+    const logicalId = cfLogicalNames.userPoolDomain('cognitoPool');
+    const [deployedDomain] = existingResourcesOf({
+      Resources: { [logicalId]: { Type: 'AWS::Cognito::UserPoolDomain' } }
+    });
+    const template = await synthesizeFixture({
+      compiledConfig: pools()(authoringParams),
+      workingDir: fixturesDir,
+      existingStackResources: [{ ...deployedDomain!, PhysicalResourceId: originalPrefix }]
+    });
+    expect(domains(template)[logicalId]).toBe(originalPrefix);
+  });
+
+  test.each(['my-cognito-login', 'My_Login', 'login-'])(
+    'rejects hostedUiDomainPrefix %p before deployment',
+    async (hostedUiDomainPrefix) => {
+      await expect(
+        synthesizeFamily('user-auth-pool-invalid-prefix', pools({ hostedUiDomainPrefix }))
+      ).rejects.toMatchObject({
+        code: 'CONFIG_USER_AUTH_POOL_DOMAIN_PREFIX_INVALID',
+        category: 'CONFIG_VALIDATION',
+        message: expect.stringContaining(`hostedUiDomainPrefix: ${hostedUiDomainPrefix}`)
+      });
+    }
+  );
 });
 
 describe('Redis family', () => {

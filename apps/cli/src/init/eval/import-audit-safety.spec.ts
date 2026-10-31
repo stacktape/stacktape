@@ -421,10 +421,10 @@ const SAFE: Record<string, (outcome: Outcome) => void> = {
     expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
     expectGap(outcome, '`Policies.PasswordPolicy.MinimumLength`');
   },
-  // Admin-only recovery and five-minute access tokens are stricter than the client Stacktape would create.
+  // Admin-only recovery is stricter than the pool Stacktape would create. The five-minute access token is carried.
   'r2aj-review/cognito-restricted-client': (outcome) => {
     expect(ofType(outcome, 'user-auth-pool')).toHaveLength(0);
-    expectGap(outcome, '`AccountRecoverySetting`', '`AccessTokenValidity`');
+    expectGap(outcome, '`AccountRecoverySetting`');
   },
   'r2aj/cognito-client-restrictions-carried': (outcome) =>
     expect(ofType(outcome, 'user-auth-pool')[0]?.properties).toMatchObject({
