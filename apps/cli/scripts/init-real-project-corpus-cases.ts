@@ -418,11 +418,9 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-starter',
     exercises: ['railway', 'fastify', 'bullmq', 'redis', 'background-jobs'],
     expect: {
-      // `src/index.ts`, which `yarn start` runs, calls `setupQueueProcessor()`: the BullMQ worker runs inside the web
-      // process. `src/queue.ts` only exports functions, so a worker service started from it would do nothing.
-      resourceTypes: { redis: 1, 'web-service': 1 },
+      resourceTypes: { redis: 1, 'web-service': 1, 'worker-service': 1 },
       dependencyKinds: { redis: 1 },
-      serviceCount: 1,
+      serviceCount: 2,
       httpServiceCount: 1,
       requiredGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true

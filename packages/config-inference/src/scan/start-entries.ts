@@ -1,15 +1,12 @@
 /**
- * The source file a JavaScript package's start command runs, when the command says so without ambiguity, and what that
- * file provably runs when it loads.
+ * The source file a JavaScript package's start command runs, when the command says so without ambiguity.
  *
- * A file that calls `.listen(` proves a server only when the process runs it: a React hook (`history.listen()`), a
- * helper or a test server sits in the same package but in no process. Init only changes its first-file choice on
- * evidence it can prove: a single simple start process, and imports and listeners that run unconditionally on load.
+ * A file that calls `.listen(` proves a server only when the process runs it: a dev mock, a helper or a test server sits
+ * in the same package but in no process. Init only changes its first-file choice when the start file is certain.
  */
 
 import { posix } from 'node:path';
 import { readText, type ProbeContext } from './probe';
-import { maskFile } from './lexical';
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.jsx'];
 const MODULE_EXTENSIONS = ['', ...SOURCE_EXTENSIONS, ...SOURCE_EXTENSIONS.map((extension) => `/index${extension}`)];
@@ -61,13 +58,7 @@ const stringOf = (value: unknown): string | undefined => (typeof value === 'stri
 const recordOf = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
-type TsconfigOptions = {
-  directory: string;
-  outDir: string | undefined;
-  rootDir: string | undefined;
-  baseUrl: string | undefined;
-  paths: Record<string, string[]> | undefined;
-};
+type TsconfigOptions = { directory: string; outDir: string | undefined; rootDir: string | undefined };
 
 /**
  * A tsconfig's compiler options with relative `extends` followed, as directories relative to the repository. Package
@@ -95,133 +86,25 @@ const readTsconfig = async (
       : undefined;
   const options = recordOf(parsed.compilerOptions);
   const relative = (value: unknown) => (typeof value === 'string' ? join(directory, value) : undefined);
-  const paths = recordOf(options.paths);
-  const ownPaths = Object.keys(paths).length === 0 ? undefined : (paths as Record<string, string[]>);
   return {
-    directory: ownPaths === undefined && options.baseUrl === undefined ? (base?.directory ?? directory) : directory,
+    directory,
     outDir: relative(options.outDir) ?? base?.outDir,
-    rootDir: relative(options.rootDir) ?? base?.rootDir,
-    baseUrl: relative(options.baseUrl) ?? base?.baseUrl,
-    paths: ownPaths ?? base?.paths
+    rootDir: relative(options.rootDir) ?? base?.rootDir
   };
 };
 
-/** The `*` position of a tsconfig `paths` pattern; an exact pattern sorts before every wildcard. */
-const prefixLength = (pattern: string): number =>
-  pattern.includes('*') ? pattern.indexOf('*') : Number.POSITIVE_INFINITY;
-
 /**
- * Resolves the modules a file imports to project files: relative specifiers, and the aliases the nearest tsconfig's
- * `paths` and `baseUrl` declare (`@server/*`, `src/...`).
+ * The source file a package-relative module path names among `files`, trying TypeScript and JavaScript extensions (a
+ * compiled `server.js` for `server.ts`); a directory's `index` only when `directories` allows it.
  */
-export const createModuleResolver = (context: ProbeContext) => {
-  const files = new Set(context.files);
-  const tsconfigs = new Map<string, Promise<TsconfigOptions | undefined>>();
-  const nearestTsconfig = (directory: string): Promise<TsconfigOptions | undefined> => {
-    const cached = tsconfigs.get(directory);
-    if (cached !== undefined) return cached;
-    const path = join(directory, 'tsconfig.json');
-    const found = files.has(path)
-      ? readTsconfig(context, path, files)
-      : directory === '.'
-        ? Promise.resolve(undefined)
-        : nearestTsconfig(posix.dirname(directory));
-    tsconfigs.set(directory, found);
-    return found;
-  };
-  /** The source file a module path names; a directory's `index` only when `directories` allows it. */
-  const existing = (base: string, directories = true): string | undefined => {
-    const normalized = posix.normalize(base).replace(/^\.\//, '');
-    // A TypeScript source imports `./socket.js` for `./socket.ts`.
-    const stem = normalized.replace(/\.[cm]?jsx?$/, '');
-    return [normalized, stem]
-      .flatMap((candidate) =>
-        (directories ? MODULE_EXTENSIONS : ['', ...SOURCE_EXTENSIONS]).map((extension) => `${candidate}${extension}`)
-      )
-      .find((candidate) => files.has(candidate) && /\.[cm]?[jt]sx?$/.test(candidate));
-  };
-  const resolve = async (from: string, specifier: string): Promise<string | undefined> => {
-    if (specifier.startsWith('.')) return existing(posix.join(posix.dirname(from), specifier));
-    if (specifier.startsWith('/') || specifier.startsWith('node:')) return undefined;
-    const tsconfig = await nearestTsconfig(posix.dirname(from));
-    if (tsconfig === undefined) return undefined;
-    const base = tsconfig.baseUrl ?? tsconfig.directory;
-    // TypeScript tries an exact pattern first, then the wildcard with the longest prefix, whatever the declared order.
-    const patterns = Object.entries(tsconfig.paths ?? {}).toSorted(
-      ([left], [right]) => prefixLength(right) - prefixLength(left)
-    );
-    for (const [pattern, targets] of patterns) {
-      const star = pattern.indexOf('*');
-      const matched =
-        star === -1
-          ? specifier === pattern
-            ? ''
-            : undefined
-          : specifier.startsWith(pattern.slice(0, star)) && specifier.endsWith(pattern.slice(star + 1))
-            ? specifier.slice(star, specifier.length - (pattern.length - star - 1))
-            : undefined;
-      if (matched === undefined || !Array.isArray(targets)) continue;
-      for (const target of targets) {
-        if (typeof target !== 'string') continue;
-        const found = existing(join(base, target.replace('*', matched)));
-        if (found !== undefined) return found;
-      }
-    }
-    return tsconfig.baseUrl === undefined ? undefined : existing(join(tsconfig.baseUrl, specifier));
-  };
-  return { resolve, nearestTsconfig, existing };
-};
-
-export type ModuleResolver = ReturnType<typeof createModuleResolver>;
-
-/** A static import or re-export (`import x from`, `import 'x'`, `export * from`), always evaluated on load. */
-const STATIC_IMPORT = /^\s*(?:import\s+(?:[^'";]*?\s+from\s+)?|export\s+[^'";]*?\s+from\s+)['"]([^'"\n]+)['"]/gm;
-const REQUIRE_CALL = /\brequire\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
-/** Code that makes the rest of a statement conditional or deferred, when it appears at the statement's own level. */
-const DEFERRING_TOKEN = /=>|\?|&&|\|\||\b(?:if|else|while|for|do|switch|case|function|return|catch|class|yield)\b/;
-
-/**
- * Whether the code at `index` of `code` (strings and comments blanked) runs unconditionally when its module loads: it
- * is outside every block, and the statement it is in has no function, arrow, condition or `return` at its own level.
- * `createServer((req, res) => res.end()).listen(4100)` runs; `if (main) app.listen()`, `exports.start = () =>
- * app.listen()` and anything inside braces do not. When unsure, it does not.
- */
-export const runsOnLoad = (code: string, index: number): boolean => {
-  let braces = 0;
-  let statementStart = 0;
-  for (let at = 0; at < index; at += 1) {
-    const char = code[at];
-    if (char === '{') braces += 1;
-    else if (char === '}') {
-      braces -= 1;
-      if (braces === 0) statementStart = at + 1;
-    } else if (char === ';' && braces === 0) statementStart = at + 1;
-  }
-  if (braces !== 0) return false;
-  // Only what is outside parentheses belongs to the statement's own level.
-  let parens = 0;
-  let own = '';
-  for (const char of code.slice(statementStart, index)) {
-    if (char === '(') parens += 1;
-    else if (char === ')') parens -= 1;
-    else if (parens === 0) own += char;
-  }
-  return parens === 0 && !DEFERRING_TOKEN.test(own);
-};
-
-/**
- * The project modules a file loads unconditionally on load: its static imports, and `require('...')` calls that run on
- * load. A dynamic `import()` or a `require` inside a function or condition is left out.
- */
-export const loadedOnLoad = async (path: string, raw: string, resolver: ModuleResolver): Promise<string[]> => {
-  const keep = maskFile(path, raw, 'keep');
-  const blank = maskFile(path, raw, 'blank');
-  const specifiers = [
-    ...[...keep.matchAll(STATIC_IMPORT)].filter((match) => runsOnLoad(blank, match.index)).map((match) => match[1]!),
-    ...[...keep.matchAll(REQUIRE_CALL)].filter((match) => runsOnLoad(blank, match.index)).map((match) => match[1]!)
-  ];
-  const targets = await Promise.all(specifiers.map((specifier) => resolver.resolve(path, specifier)));
-  return [...new Set(targets.filter((target): target is string => target !== undefined))];
+const existingSource = (files: ReadonlySet<string>, base: string, directories: boolean): string | undefined => {
+  const normalized = posix.normalize(base).replace(/^\.\//, '');
+  const stem = normalized.replace(/\.[cm]?jsx?$/, '');
+  return [normalized, stem]
+    .flatMap((candidate) =>
+      (directories ? MODULE_EXTENSIONS : ['', ...SOURCE_EXTENSIONS]).map((extension) => `${candidate}${extension}`)
+    )
+    .find((candidate) => files.has(candidate) && /\.[cm]?[jt]sx?$/.test(candidate));
 };
 
 /**
@@ -366,17 +249,13 @@ const dockerfileExecCommand = (raw: string): string | undefined => {
 /**
  * The one source file the JavaScript package at `root` starts with, when its start commands say so without ambiguity.
  *
- * The commands are the package's `start` script (`start:prod` when there is no `start`), a Procfile with a single
- * process and a Dockerfile's exec-form command. Each one present must be a single simple process, and they must all
- * name the same file. A compiled path (`dist/main.js`) is read back to its source through the tsconfig
+ * The commands are the package's `start` and `start:prod` scripts, a Procfile whose only process is `web`, and the
+ * exec-form `CMD` or `ENTRYPOINT` of the Dockerfile's last stage. Each one present must be a single simple process, and
+ * they must all name the same file. A compiled path (`dist/main.js`) is read back to its source through the tsconfig
  * `outDir`/`rootDir` or a conventional output directory. Anything else, including a path with no source, a directory
  * or disagreeing commands, gives `undefined`, and the scan keeps its earlier behavior for the package.
  */
-export const unambiguousStartFile = async (
-  root: string,
-  context: ProbeContext,
-  resolver: ModuleResolver
-): Promise<string | undefined> => {
+export const unambiguousStartFile = async (root: string, context: ProbeContext): Promise<string | undefined> => {
   const files = new Set(context.files);
   const read = async (name: string) =>
     files.has(join(root, name)) ? readText(context, join(root, name), { fullFile: true }) : undefined;
@@ -419,22 +298,22 @@ export const unambiguousStartFile = async (
     }
     // The source of a compiled path comes first; the path itself only when it is a source (`lib/` often is).
     for (const base of [...compiled, path]) {
-      const found = resolver.existing(base, directories);
+      const found = existingSource(files, base, directories);
       if (found !== undefined) return found;
     }
     return undefined;
   };
 
-  const commands: string[] = [];
-  const start = manifest?.scripts.start ?? manifest?.scripts['start:prod'];
-  if (start !== undefined) commands.push(start);
+  const commands = ['start', 'start:prod']
+    .map((name) => manifest?.scripts[name])
+    .filter((command): command is string => command !== undefined);
   const procfile = await read('Procfile');
   if (procfile !== undefined) {
     const processes = procfile
       .split(/\r?\n/)
       .map((line) => /^([\w-]+)\s*:\s*(.+)$/.exec(line.trim()))
       .filter((match): match is RegExpExecArray => match !== null && match[1] !== 'release');
-    if (processes.length !== 1) return undefined;
+    if (processes.length !== 1 || processes[0]![1] !== 'web') return undefined;
     commands.push(processes[0]![2]!);
   }
   const dockerfile = await read('Dockerfile');

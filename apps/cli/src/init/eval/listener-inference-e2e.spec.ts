@@ -526,40 +526,10 @@ const ENTRY = (resource: string, value: string | undefined) => ({
 
 /**
  * Which listener file is the service's entry (r2ap). Init changes its first-file choice only when the package's start
- * command is one simple process and the listener is that file, or a file it provably loads whose `.listen()` runs on
- * load. Reduced from the init corpus, where an end-to-end test server, a helper and a queue driver were chosen because
- * they sort first.
+ * commands unambiguously run one file and that file listens itself. Reduced from the init corpus, where an end-to-end
+ * test server and a queue driver were chosen because they sort first.
  */
 const ENTRY_CASES: EvalCase[] = [
-  {
-    name: 'r2ap: a tsconfig path alias the start file imports reaches the server that listens on load',
-    files: {
-      'package.json': packageJson({
-        scripts: { start: 'node --enable-source-maps dist/main.mjs', build: 'tsup' },
-        dependencies: { fastify: '5.0.0' }
-      }),
-      'tsconfig.json': lines(
-        '{',
-        '  // Comments and trailing commas are valid in a tsconfig.',
-        '  "compilerOptions": { "outDir": "dist", "baseUrl": ".", "paths": { "@app/*": ["./src/*"], }, },',
-        '}'
-      ),
-      'src/lib/gateway/gateway.ts': lines(
-        "import net from 'node:net';",
-        'export const openTunnel = (port: number) => net.createServer().listen(port);'
-      ),
-      'src/main.ts': "import '@app/server/app';\n",
-      'src/server/app.ts': lines(
-        "import Fastify from 'fastify';",
-        'await Fastify().listen({ port: 4000, host: "0.0.0.0" });'
-      )
-    },
-    expect: {
-      resources: { auditApp: 'web-service' },
-      resourceProperties: [ENTRY('auditApp', 'src/server/app.ts')],
-      servicePorts: [{ resource: 'auditApp', port: 4000 }]
-    }
-  },
   {
     name: 'r2ap (Novu): a NestJS bootstrap wins over an end-to-end test server',
     files: {
@@ -575,30 +545,6 @@ const ENTRY_CASES: EvalCase[] = [
       'src/app.module.ts': "import { Module } from '@nestjs/common';\n@Module({}) export class AppModule {}\n"
     },
     expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'src/main.ts')] }
-  },
-  {
-    name: 'r2ap: a BullMQ worker the web process starts is no worker service of its own',
-    files: {
-      'package.json': packageJson({
-        scripts: { start: 'node dist/index.js', build: 'tsc' },
-        dependencies: { fastify: '5.0.0', bullmq: '5.0.0' }
-      }),
-      'tsconfig.json': '{ "compilerOptions": { "outDir": "dist", "rootDir": "src" } }\n',
-      'src/index.ts': lines(
-        "import Fastify from 'fastify';",
-        "import { setupQueueProcessor } from './queue';",
-        'await setupQueueProcessor();',
-        'await Fastify().listen({ port: 3000, host: "0.0.0.0" });'
-      ),
-      'src/queue.ts': lines(
-        "import { Worker } from 'bullmq';",
-        "export const setupQueueProcessor = async () => new Worker('mail', async () => undefined);"
-      )
-    },
-    expect: {
-      resources: { auditApp: 'web-service' },
-      resourceProperties: [ENTRY('auditApp', 'src/index.ts'), ENTRY('queue', undefined)]
-    }
   },
   {
     name: 'r2ap (Twenty): the NestJS start file is the web service, not a queue driver listed before it',
@@ -719,28 +665,6 @@ const REVIEW_CASES: EvalCase[] = [
       'server.js': "exports.start = () => require('http').createServer((req, res) => res.end('ok')).listen(4100);\n"
     },
     expect: { resources: { auditApp: 'web-service' }, resourceProperties: [ENTRY('auditApp', 'server.js')] }
-  },
-  {
-    name: 'r2ap review: an exact tsconfig path beats a wildcard declared before it',
-    files: {
-      'package.json': reviewPackage({ start: 'bun src/main.ts' }, { devDependencies: { '@types/bun': 'latest' } }),
-      'tsconfig.json': JSON.stringify({
-        compilerOptions: {
-          outDir: 'dist',
-          rootDir: 'src',
-          baseUrl: '.',
-          paths: { '@app/*': ['src/*'], '@app/server': ['src/real-server.ts'] }
-        }
-      }),
-      'src/main.ts': "import '@app/server';\n",
-      'src/real-server.ts': reviewServer,
-      'src/server.ts': "require('http').createServer(() => {}).listen(9200);\n"
-    },
-    expect: {
-      resources: { auditApp: 'web-service' },
-      resourceProperties: [ENTRY('auditApp', 'src/real-server.ts')],
-      servicePorts: [{ resource: 'auditApp', port: 4100 }]
-    }
   },
   {
     name: 'r2ap review: nodemon --watch src runs src/server.js, not the src directory',

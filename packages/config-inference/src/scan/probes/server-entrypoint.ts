@@ -6,7 +6,7 @@ import type { Citation } from '../../facts/citation';
 import { citeFirstMatch, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { directoriesEnteredByRoot, nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 import { citeFirstCodeMatch, maskFile } from '../lexical';
-import { createModuleResolver, loadedOnLoad, runsOnLoad, unambiguousStartFile } from '../start-entries';
+import { unambiguousStartFile } from '../start-entries';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -492,80 +492,31 @@ const springBootPort = async (
     : { port: SPRING_BOOT_DEFAULT_PORT, citation: { ...entrypoint, field: 'port' } };
 };
 
-type Detected = { path: string; raw: string; code: string; root: string; detection: Detection };
-
-/** Whether one of the file's listener calls runs unconditionally when the module loads. */
-const listensOnLoad = ({ code, detection }: Detected): boolean =>
-  [...code.matchAll(new RegExp(detection.pattern.source, `${detection.pattern.flags.replace('g', '')}g`))].some(
-    (match) => runsOnLoad(code, match.index)
-  );
-
-/** Files that can start a process: deployment manifests, process managers and build files. */
-const PROCESS_DECLARATION =
-  /(?:^|\/)(?:Procfile[\w.-]*|[\w.-]*Dockerfile[\w.-]*|[\w.-]*compose[\w.-]*\.ya?ml|render\.ya?ml|fly\.toml|railway\.(?:json|toml)|app\.json|nixpacks\.toml|ecosystem\.config\.[cm]?js|Makefile)$/;
-
 /**
- * Where a package's start command proves a different choice than the first listener file, as the
- * `${root}::main` winner, and queue workers it proves run inside the web process. Only a package whose start command is
- * one simple process with one source file counts (`unambiguousStartFile`). Its listener is that file when it is one,
- * otherwise the first file it loads unconditionally whose `.listen()` runs on load. A queue worker is dropped only when
- * the start file loads it on load and no script or deployment file of the repository names it, so nothing can start it
- * as a process of its own. Every other package keeps the first-file order.
+ * The listener file of each JavaScript package whose start command names it: `${root}::main` to the file. A package
+ * changes its first-file choice only when its start commands unambiguously run one file (`unambiguousStartFile`) and
+ * that file itself calls `.listen(`, anywhere in it (a NestJS or Express bootstrap function counts). No import is
+ * followed. Every other package keeps the first listener file.
  */
-const provenByStartCommand = async (
-  detected: readonly Detected[],
+const listenersNamedByStartCommand = async (
+  detected: ReadonlyArray<{ path: string; code: string; root: string; detection: Detection }>,
   context: ProbeContext
-): Promise<{ winners: ReadonlyMap<string, string>; dropped: ReadonlySet<string>; roots: ReadonlySet<string> }> => {
-  const resolver = createModuleResolver(context);
+): Promise<ReadonlyMap<string, string>> => {
   const winners = new Map<string, string>();
-  const dropped = new Set<string>();
-  const roots = new Set<string>();
-  const declarations = context.files.filter((file) => PROCESS_DECLARATION.test(file));
   for (const root of new Set(detected.map((candidate) => candidate.root))) {
+    const listeners = detected.filter(
+      (candidate) => candidate.root === root && candidate.detection.processType === undefined
+    );
     // oxlint-disable-next-line no-await-in-loop -- one package at a time.
-    const start = await unambiguousStartFile(root, context, resolver);
-    if (start === undefined) continue;
-    const loaded = [start];
-    for (let index = 0; index < loaded.length; index += 1) {
-      // oxlint-disable-next-line no-await-in-loop -- breadth-first order decides which listener is closest.
-      const raw = await readText(context, loaded[index]!, { fullFile: true });
-      // oxlint-disable-next-line no-await-in-loop -- see above.
-      for (const target of raw === undefined ? [] : await loadedOnLoad(loaded[index]!, raw, resolver)) {
-        if (!loaded.includes(target)) loaded.push(target);
-      }
-    }
-    const inRoot = detected.filter((candidate) => candidate.root === root);
-    const listeners = inRoot.filter(({ detection }) => detection.processType === undefined);
+    const start = await unambiguousStartFile(root, context);
+    const file = listeners.find((candidate) => candidate.path === start);
+    // A NestJS microservice bootstrap gives way to an HTTP server beside it, as before.
     const topRank = Math.max(...listeners.map(({ detection }) => detection.rank ?? 1));
-    const winner =
-      listeners.find(({ path, detection }) => path === start && (detection.rank ?? 1) === topRank) ??
-      loaded
-        .map((path) => listeners.find((candidate) => candidate.path === path))
-        .find(
-          (candidate): candidate is Detected =>
-            candidate !== undefined && (candidate.detection.rank ?? 1) === topRank && listensOnLoad(candidate)
-        );
-    if (winner !== undefined) {
-      winners.set(`${root}::main`, winner.path);
-      roots.add(root);
-    }
-    const manifest = root === '.' ? 'package.json' : posix.join(root, 'package.json');
-    // oxlint-disable-next-line no-await-in-loop -- read once per package with a start file.
-    const named = [await readText(context, manifest, { fullFile: true })];
-    for (const declaration of declarations) {
-      // oxlint-disable-next-line no-await-in-loop -- a handful of deployment files per repository.
-      named.push(await readText(context, declaration, { fullFile: true }));
-    }
-    for (const { path, detection } of inRoot) {
-      if (detection.processType === undefined || path === start || !loaded.includes(path)) continue;
-      const stem = posix.basename(path).replace(/\.[^.]+$/, '');
-      const mention = new RegExp(`(?<![\\w-])${escapeRegExp(stem)}(?![\\w-])`);
-      if (named.some((text) => text !== undefined && mention.test(text))) continue;
-      dropped.add(path);
-      roots.add(root);
+    if (file !== undefined && /\.listen\s*\(/.test(file.code) && (file.detection.rank ?? 1) === topRank) {
+      winners.set(`${root}::main`, file.path);
     }
   }
-  return { winners, dropped, roots };
+  return winners;
 };
 
 export const serverEntrypointProbe: Probe = {
@@ -626,20 +577,18 @@ export const serverEntrypointProbe: Probe = {
       }
       return undefined;
     };
-    const detected: Detected[] = [];
-    for (const source of sources) {
+    const detected = sources.flatMap((source) => {
       const detection = detectionFor(source.path, source.raw, source.code);
-      if (detection !== undefined) detected.push({ ...source, detection, root: rootOf(source.path) });
-    }
-    const proven = await provenByStartCommand(
+      return detection === undefined ? [] : [{ ...source, detection, root: rootOf(source.path) }];
+    });
+    const startedListeners = await listenersNamedByStartCommand(
       detected.filter(({ detection }) => detection.language === 'javascript' || detection.language === 'typescript'),
       context
     );
     for (const { path, raw, code, detection, root } of detected) {
-      if (proven.dropped.has(path)) continue;
       const key = `${root}::${detection.processType ?? 'main'}`;
-      const winner = proven.winners.get(key);
-      if (winner !== undefined && winner !== path) continue;
+      const started = startedListeners.get(key);
+      if (started !== undefined && started !== path) continue;
       // A NestJS microservice bootstrap gives way to an HTTP server in the same service, and a WSGI module to the
       // Channels router that also serves WebSockets.
       if (byRoot.has(key) && (detection.rank ?? 1) <= ranks.get(key)!) continue;
@@ -715,19 +664,6 @@ export const serverEntrypointProbe: Probe = {
       });
     }
 
-    // In a package its start command decided, the web process comes before its background processes: assembly folds a
-    // package-level service into the only declared process beside it, and a worker listed first would absorb it.
-    const services: ServiceFactInput[] = [];
-    for (const service of byRoot.values()) {
-      if (services.includes(service)) continue;
-      if (service.processType !== undefined && proven.roots.has(service.path)) {
-        const web = [...byRoot.values()].find(
-          (other) => other.path === service.path && other.processType === undefined
-        );
-        if (web !== undefined && !services.includes(web)) services.push(web);
-      }
-      services.push(service);
-    }
-    return services.length === 0 ? {} : { services };
+    return byRoot.size === 0 ? {} : { services: [...byRoot.values()] };
   }
 };

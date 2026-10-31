@@ -329,8 +329,9 @@ describe('the port a server listens on', () => {
 
 /**
  * The start-command rule never makes init worse than first-file order. Each fixture records what first-file order (the
- * probe before the rule) chose; the probe must choose the same, except the listed improvements, each justified by its
- * start command. The fixtures are the variants two reviews of #416 used to find regressions.
+ * probe before the rule) chose; the probe must choose the same, except the listed improvements, where the start command
+ * unambiguously runs a file that listens itself. The fixtures are the variants three reviews of #416 used to find
+ * regressions.
  */
 /** Per service: process type, entry file, port and whether it serves HTTP. */
 type Choice = Array<[string, string | null, number | null, boolean]>;
@@ -346,7 +347,7 @@ const startFixtures = JSON.parse(
 
 describe('the server entrypoint probe against first-file order', () => {
   for (const fixture of startFixtures) {
-    it(`${fixture.name}: ${fixture.improvement === undefined ? 'keeps the first-file choice' : fixture.improvement.reason}`, async () => {
+    it(`${fixture.name}: ${fixture.improvement === undefined ? 'keeps the first-file choice' : `${fixture.improvement.startCommand}: ${fixture.improvement.reason}`}`, async () => {
       const repositoryRoot = await makeRepo(fixture.files);
       const { services } = await serverEntrypointProbe.run(
         createProbeContext(repositoryRoot, (await listRepositoryFiles(repositoryRoot)).files)

@@ -107,7 +107,7 @@
     "main": [["main", "api folder/index.js", 4100, true]],
     "improvement": {
       "startCommand": "cross-env NODE_ENV=production node api/index.js",
-      "reason": "The start script runs api/index.js; first-file order picked \"api folder/index.js\", which nothing runs.",
+      "reason": "the start file api/index.js listens itself",
       "choice": [["main", "api/index.js", 4100, true]]
     }
   },
@@ -293,7 +293,7 @@
     "main": [["main", "a-server.js", 4100, true]],
     "improvement": {
       "startCommand": "node start.js",
-      "reason": "The start file itself calls app.listen(4100); first-file order picked a-server.js, which start.js never loads.",
+      "reason": "the start file start.js listens itself",
       "choice": [["main", "start.js", 4100, true]]
     }
   },
@@ -638,5 +638,50 @@
       "bootstrap.js": "require('./server.js').start();"
     },
     "main": [["main", "server.js", 4100, true]]
+  },
+  {
+    "name": "start-prod-disagree",
+    "files": {
+      "package.json": "{\n  \"name\": \"audit-app\",\n  \"scripts\": {\n    \"start\": \"node z-dev.js\",\n    \"start:prod\": \"node a-api.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}",
+      "a-api.js": "require('node:http').createServer((req,res)=>res.end('production')).listen(4100);\n",
+      "z-dev.js": "require('node:http').createServer((req,res)=>res.end('mock')).listen(9200);\n"
+    },
+    "main": [["main", "a-api.js", 4100, true]]
+  },
+  {
+    "name": "esm-type-worker",
+    "files": {
+      "package.json": "{\n  \"name\": \"audit-app\",\n  \"scripts\": {\n    \"start\": \"tsx server.ts\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"bullmq\": \"5.0.0\"\n  }\n}",
+      "server.ts": "import type {QueueConfig} from './worker';\nrequire('node:http').createServer((req,res)=>res.end('production')).listen(4100);\n",
+      "worker.ts": "import {Worker} from 'bullmq';\nexport interface QueueConfig { name: string }\nnew Worker('mail', async () => undefined);\n"
+    },
+    "main": [
+      ["main", "server.ts", 4100, true],
+      ["worker", "worker.ts", null, false]
+    ]
+  },
+  {
+    "name": "k8s-worker",
+    "files": {
+      "package.json": "{\n  \"name\": \"audit-app\",\n  \"scripts\": {\n    \"start\": \"bun server.ts\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\",\n    \"bullmq\": \"5.0.0\"\n  },\n  \"type\": \"module\"\n}",
+      "k8s/worker.yaml": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: mail\nspec:\n  template:\n    spec:\n      containers:\n        - name: mail\n          image: audit-app\n          command: [bun, worker.ts]\n",
+      "server.ts": "import {queueName} from './worker';\nconsole.log(queueName);\nimport {createServer} from 'node:http';\ncreateServer((req,res)=>res.end('production')).listen(4100);\n",
+      "worker.ts": "import {Worker} from 'bullmq';\nexport const queueName = 'mail';\nif (import.meta.main) { new Worker(queueName, async () => undefined); }\n"
+    },
+    "main": [
+      ["main", "server.ts", 4100, true],
+      ["worker", "worker.ts", null, false]
+    ]
+  },
+  {
+    "name": "bfs-order",
+    "files": {
+      "package.json": "{\n  \"name\": \"audit-app\",\n  \"scripts\": {\n    \"start\": \"node start.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"5.0.0\"\n  }\n}",
+      "a-real.js": "require('node:http').createServer((req,res)=>res.end('production')).listen(4100);\n",
+      "b-init.js": "require('./a-real.js');\n",
+      "z-metrics.js": "require('node:http').createServer((req,res)=>res.end('mock')).listen(9200);\n",
+      "start.js": "require('./b-init.js');\nrequire('./z-metrics.js');\n"
+    },
+    "main": [["main", "a-real.js", 4100, true]]
   }
 ]
