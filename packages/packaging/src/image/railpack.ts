@@ -21,6 +21,7 @@ import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 import { mergeHashes } from '../artifact/hashing';
 import { NON_SOURCE_DIRECTORY_NAMES } from '../artifact/language-build-context';
 import { usePythonSlimImage } from './railpack-python';
+import { getWorkspaceContextScope, type WorkspaceContextScope } from './workspace-context';
 
 /** The parts of a Railpack build plan Stacktape reads or edits. Everything else is passed through untouched. */
 export type RailpackPlan = {
@@ -242,6 +243,16 @@ export const excludeNonSourceDirectories = (
 });
 
 /**
+ * Removes the workspace packages a root build does not reach from its context; their manifests stay, so the install
+ * sees the same workspace. The patterns come before the project's `.dockerignore` patterns, so a `!` pattern there
+ * still brings a file back.
+ */
+export const excludeUnusedWorkspacePackages = (plan: RailpackPlan, scope: WorkspaceContextScope): RailpackPlan => ({
+  ...plan,
+  exclude: [...scope.exclude, ...(plan.exclude ?? [])]
+});
+
+/**
  * Whether a Python project takes its version from version control, so its build needs `.git`. setuptools-scm and
  * hatch-vcs fail the install without it.
  */
@@ -380,13 +391,19 @@ export const buildUsingRailpack = async ({
       hint: 'Railpack detects the language from the project files in the source directory. Set startCommand, buildCommand or installCommand when detection is incomplete, or use dockerfile packaging for full control.'
     });
   }
+  const policyPlan = applyStacktapePlanPolicy({
+    plan: prepared.plan as RailpackPlan,
+    startCommand,
+    buildCommand,
+    installCommand
+  });
+  // A workspace member built from the repository root needs only the packages its commands reach (r2an 7).
+  const workspaceScope = await getWorkspaceContextScope({
+    sourceDirectoryPath: absoluteSourceDirectoryPath,
+    plan: policyPlan
+  });
   const railpackPlan = excludeNonSourceDirectories(
-    applyStacktapePlanPolicy({
-      plan: prepared.plan as RailpackPlan,
-      startCommand,
-      buildCommand,
-      installCommand
-    }),
+    workspaceScope ? excludeUnusedWorkspacePackages(policyPlan, workspaceScope) : policyPlan,
     { keepVersionControl: await takesVersionFromVersionControl(absoluteSourceDirectoryPath) }
   );
   const python = usePythonSlimImage({
@@ -420,7 +437,8 @@ export const buildUsingRailpack = async ({
   const detection = [
     ...(info.detectedProviders ?? []),
     ...resolvedPackages,
-    ...(python ? [`built on ${python.image.split('/').at(-1)}`] : [])
+    ...(python ? [`built on ${python.image.split('/').at(-1)}`] : []),
+    ...(workspaceScope ? [`without the unused workspace packages ${workspaceScope.reducedPackages.join(', ')}`] : [])
   ].join(', ');
   if ((imageExtension?.existingDigests ?? existingDigests).includes(digest)) {
     await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM', finalMessage: packagingMessages.unchanged });

@@ -3,6 +3,8 @@ import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-net
 import { releaseStackLeases } from '@domain-services/dev-network/leases';
 import { createStageHolderStore, getStageHolderParameterName } from '@domain-services/dev-network/holders';
 import { ExpectedError } from '@utils/errors';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
@@ -63,6 +65,86 @@ const describeDeletionInBackground = (pending: PendingDelete[]) => {
   ].join(' ');
 };
 
+/** Lambda@Edge functions live in us-east-1, whatever the stack's region. */
+const EDGE_FUNCTION_REGION = 'us-east-1';
+
+/**
+ * The edge functions the stack's edge function custom resources own (`edgeLambda`, `edgeFunctions`), by the logical ID
+ * of their custom resource.
+ */
+export const findDeployedEdgeFunctions = (template: Pick<CloudFormationTemplate, 'Resources'> | undefined) =>
+  Object.entries((template?.Resources ?? {}) as Record<string, { Type?: string; Properties?: Record<string, any> }>)
+    .filter(([, { Type }]) => Type === 'AWS::CloudFormation::CustomResource' || Type?.startsWith('Custom::'))
+    .flatMap(([logicalId, { Properties = {} }]) =>
+      [Properties.edgeLambda, ...(Array.isArray(Properties.edgeFunctions) ? Properties.edgeFunctions : [])]
+        .map((props) => props?.resourceName)
+        .filter((functionName): functionName is string => typeof functionName === 'string')
+        .map((functionName) => ({ logicalId, functionName }))
+    );
+
+export type RetainedEdgeFunction = {
+  functionArn: string;
+  region: typeof EDGE_FUNCTION_REGION;
+  /**
+   * `retained`: the function still exists after the stack was deleted. `unverified`: CloudFormation deletes it in the
+   * background, or the check failed.
+   */
+  status: 'retained' | 'unverified';
+  checkCommand: string;
+  deleteCommand: string;
+};
+
+/**
+ * AWS refuses to delete a Lambda@Edge function while CloudFront still holds replicas of it, for up to a few hours after
+ * the distribution is gone. The stack's custom resource then keeps the function so that the stack deletion finishes
+ * (`edge-functions.ts`), and only its log said so (r2an 10). This finds such functions after the deletion, so the
+ * result names each one with the commands that check and delete it.
+ */
+const findRetainedEdgeFunctions = async ({
+  deployedTemplate,
+  deletionContinuesInBackground,
+  edgeFunctions,
+  awsAccountId
+}: {
+  deployedTemplate: Pick<CloudFormationTemplate, 'Resources'> | undefined;
+  deletionContinuesInBackground: PendingDelete[] | undefined;
+  edgeFunctions: { functionExists: (input: { functionName: string }) => Promise<boolean> };
+  awsAccountId: string;
+}): Promise<RetainedEdgeFunction[]> => {
+  const pendingLogicalIds = new Set((deletionContinuesInBackground ?? []).map(({ logicalId }) => logicalId));
+  const results = await Promise.all(
+    findDeployedEdgeFunctions(deployedTemplate).map(async ({ logicalId, functionName }) => {
+      let status: RetainedEdgeFunction['status'] | undefined = 'unverified';
+      if (!pendingLogicalIds.has(logicalId)) {
+        try {
+          status = (await edgeFunctions.functionExists({ functionName })) ? 'retained' : undefined;
+        } catch {
+          // The deletion succeeded; a failed check leaves the function unconfirmed rather than failing it.
+        }
+      }
+      if (!status) return undefined;
+      const functionArn = `arn:aws:lambda:${EDGE_FUNCTION_REGION}:${awsAccountId}:function:${functionName}`;
+      return {
+        functionArn,
+        region: EDGE_FUNCTION_REGION,
+        status,
+        checkCommand: `aws lambda get-function --region ${EDGE_FUNCTION_REGION} --function-name ${functionArn}`,
+        deleteCommand: `aws lambda delete-function --region ${EDGE_FUNCTION_REGION} --function-name ${functionArn}`
+      } satisfies RetainedEdgeFunction;
+    })
+  );
+  return results.filter((result) => result !== undefined);
+};
+
+const describeRetainedEdgeFunction = ({ functionArn, status, checkCommand, deleteCommand }: RetainedEdgeFunction) =>
+  [
+    status === 'retained'
+      ? `The Lambda@Edge function ${functionArn} still exists in ${EDGE_FUNCTION_REGION}: AWS refuses to delete it while CloudFront still has replicas of it, which it removes within a few hours after the distribution is deleted.`
+      : `The Lambda@Edge function ${functionArn} in ${EDGE_FUNCTION_REGION} may remain: AWS refuses to delete it while CloudFront still has replicas of it, for up to a few hours after the distribution is deleted, and the stack deletion then keeps it.`,
+    'It costs nothing unless invoked, and a new deploy of this stage reuses it.',
+    `Delete it later with \`${deleteCommand}\`. While replicas remain, AWS answers "replicated function". Check that it is gone with \`${checkCommand}\`, which then answers ResourceNotFoundException.`
+  ].join(' ');
+
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
   deploymentArtifacts: {
@@ -84,8 +166,11 @@ type DeleteExecutionOperation = {
     existingStackResources: EnrichedStackResourceInfo[];
   };
   stackName: string;
-  tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'prettyCommand' | 'setPendingCompletion'>;
+  tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'prettyCommand' | 'setPendingCompletion' | 'warn'>;
   retainedSharedResources?: RetainedSharedResource[];
+  /** Checks for edge functions the deleted stack had, in us-east-1. */
+  edgeFunctions: { functionExists: (input: { functionName: string }) => Promise<boolean> };
+  awsAccountId: string;
   /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
   finishInBackground: boolean;
 };
@@ -130,9 +215,11 @@ export const commandDelete = async () => {
   const retainedSharedResources =
     typeof retainedMetadata === 'string' ? parseRetainedSharedResources(retainedMetadata) : undefined;
   const result = await executeDeleteOperation({
+    awsAccountId: globalStateManager.targetAwsAccount.awsAccountId,
     config,
     deploymentArtifacts,
     deployedTemplate: template.oldTemplate,
+    edgeFunctions: awsSdkManager.edgeFunctions,
     // A dev stage releases its relay ports and secrets once its stack is gone, so its delete waits for the end.
     finishInBackground: !wasDevStack,
     lifecycle,
@@ -196,9 +283,11 @@ export const commandDelete = async () => {
 };
 
 export const executeDeleteOperation = async ({
+  awsAccountId,
   config,
   deploymentArtifacts,
   deployedTemplate,
+  edgeFunctions,
   finishInBackground,
   lifecycle,
   notification,
@@ -261,6 +350,14 @@ export const executeDeleteOperation = async ({
     tui.info(describeDeletionInBackground(inBackground));
   }
 
+  const retainedEdgeFunctions = await findRetainedEdgeFunctions({
+    deployedTemplate,
+    deletionContinuesInBackground: inBackground,
+    edgeFunctions,
+    awsAccountId
+  });
+  retainedEdgeFunctions.forEach((retained) => tui.warn(describeRetainedEdgeFunction(retained)));
+
   if (retainedSharedResources?.length) {
     tui.info(
       `Retained shared resources (used by other projects or stages):\n${retainedSharedResources
@@ -280,6 +377,6 @@ export const executeDeleteOperation = async ({
     consoleUrl: undefined
   });
 
-  // @todo-return-value
-  return null;
+  // Agents read the functions from the command result; the rest of the result is still to be designed.
+  return retainedEdgeFunctions.length ? { retainedEdgeFunctions } : null;
 };
