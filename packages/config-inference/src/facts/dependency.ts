@@ -250,7 +250,11 @@ export const dependencyFactSchema = z.object({
         .optional(),
       /** The user attributes the app client may read and change; without them it may read and change all. */
       readAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional(),
-      writeAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional()
+      writeAttributes: z.array(z.string().regex(/^[A-Za-z0-9_:.-]+$/)).optional(),
+      /** The app client's token lifetimes, converted from the declaration's `TokenValidityUnits`. */
+      accessTokenValiditySeconds: z.number().int().min(300).max(86_400).optional(),
+      idTokenValiditySeconds: z.number().int().min(300).max(86_400).optional(),
+      refreshTokenValidityDays: z.number().int().min(1).max(3650).optional()
     })
     .optional(),
   /**

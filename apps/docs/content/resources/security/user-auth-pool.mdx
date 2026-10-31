@@ -417,7 +417,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `hostedUiDomainPrefix` sets the first part of the Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`. Choose a prefix that matches your project name. Use `hostedUiCSS` to provide custom CSS for the Hosted UI, applied via Cognito's `AWS::Cognito::UserPoolUICustomizationAttachment` resource.
+The `hostedUiDomainPrefix` sets the first part of the Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`. Choose a prefix that matches your project name. Cognito accepts 1 to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit, and rejects a prefix that contains `aws`, `amazon` or `cognito`; Stacktape checks this before deploying. Without `hostedUiDomainPrefix`, the prefix is `<stack name>-<pool name>`. When Cognito would reject that, for example for a pool named `cognitoPool`, a new pool gets the same name without the rejected parts and with a short hash. A deployed pool keeps the prefix it has. Use `hostedUiCSS` to provide custom CSS for the Hosted UI, applied via Cognito's `AWS::Cognito::UserPoolUICustomizationAttachment` resource.
 
 **When to enable the Hosted UI:** Use it when you want to ship authentication quickly without building custom UI. It is especially useful with social login providers, since the Hosted UI handles the OAuth redirect flow for you. **When to skip it:** If you need full control over the login experience (custom animations, complex form validation, branded flows), build your own UI and use the Cognito SDK directly — you still get the same underlying user pool.
 
@@ -565,6 +565,21 @@ export default defineConfig(() => {
 Shorter access token lifetimes reduce the window for token theft at the cost of more frequent refresh calls. Longer refresh token lifetimes keep users signed in longer but extend the window for session hijacking. The defaults, 1 hour for access and ID tokens and 30 days for refresh tokens, are a common starting point.
 
 Before Stacktape v4, Cognito read `accessTokenValiditySeconds` and `idTokenValiditySeconds` in hours, so only values from 1 to 24 deployed. Such a value still means that many hours, and the CLI warns you to write it in seconds instead: `accessTokenValiditySeconds: 1` becomes `accessTokenValiditySeconds: 3600`.
+
+The client's `TokenValidityUnits` are seconds for access and ID tokens and days for refresh tokens. An `overrides` entry that sets `AccessTokenValidity` or `IdTokenValidity` on the client is read in seconds too, so a value written in hours before v4 fails to deploy. Set the unit you mean in the same override; the other units stay as they are:
+
+```yaml
+resources:
+  auth:
+    type: user-auth-pool
+    properties:
+      userVerificationType: email-code
+    overrides:
+      AuthUserPoolClient:
+        AccessTokenValidity: 2
+        TokenValidityUnits:
+          AccessToken: hours
+```
 
 ## Custom attributes
 

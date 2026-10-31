@@ -666,7 +666,16 @@ const userPoolProperties = (dependency: DependencyFact): Record<string, unknown>
     ...(declared?.generateClientSecret === true ? { generateClientSecret: true } : {}),
     ...(declared?.allowedAuthFlows === undefined ? {} : { allowedAuthFlows: [...declared.allowedAuthFlows] }),
     ...(declared?.readAttributes === undefined ? {} : { readAttributes: [...declared.readAttributes] }),
-    ...(declared?.writeAttributes === undefined ? {} : { writeAttributes: [...declared.writeAttributes] })
+    ...(declared?.writeAttributes === undefined ? {} : { writeAttributes: [...declared.writeAttributes] }),
+    ...(declared?.accessTokenValiditySeconds === undefined
+      ? {}
+      : { accessTokenValiditySeconds: declared.accessTokenValiditySeconds }),
+    ...(declared?.idTokenValiditySeconds === undefined
+      ? {}
+      : { idTokenValiditySeconds: declared.idTokenValiditySeconds }),
+    ...(declared?.refreshTokenValidityDays === undefined
+      ? {}
+      : { refreshTokenValidityDays: declared.refreshTokenValidityDays })
   };
 };
 

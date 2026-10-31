@@ -59822,7 +59822,7 @@
         "name": "hostedUiDomainPrefix",
         "required": false,
         "shortDescription": "<p> Hosted UI domain prefix</p>",
-        "longDescription": "<p>Sets the first part of your Hosted UI URL: <code>https://&lt;prefix&gt;.auth.&lt;region&gt;.amazoncognito.com</code>.\nPick something that matches your project or company name.</p>",
+        "longDescription": "<p>Sets the first part of your Hosted UI URL: <code>https://&lt;prefix&gt;.auth.&lt;region&gt;.amazoncognito.com</code>.\nPick something that matches your project or company name.</p>\n<p>Cognito accepts 1 to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit,\nand rejects a prefix that contains <code>aws</code>, <code>amazon</code> or <code>cognito</code>. Without this property, the prefix is\n<code>&lt;stack name&gt;-&lt;pool name&gt;</code>. When Cognito would reject that, Stacktape removes the rejected parts and adds a short hash.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
