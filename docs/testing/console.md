@@ -46,6 +46,7 @@ pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
 pnpm --filter @stacktape/console-api-app test:db --audit-log
+pnpm --filter @stacktape/console-api-app test:db --sso
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 pnpm --filter @stacktape/console-api-app test:db --isolated-browser
 pnpm --filter @stacktape/console-api-app test:db --ui-capture
@@ -55,6 +56,14 @@ pnpm --filter @stacktape/console-api-app test:db --ui-capture
 SDK sends `LookupEvents` to a loopback stub of CloudTrail's JSON API (`apps/console/api/scripts/cloudtrail-fixture.ts`),
 which pages, filters and fails per account and region. Set `STP_AUDIT_LOG_SCREENSHOT_DIR` to keep screenshots of the
 page.
+
+`--sso` runs organization single sign-on and SCIM through the real Better Auth SSO and SCIM plugins, router and
+disposable PostgreSQL, then the Single sign-on page in the isolated browser. Keycloak (a pinned image, started and
+removed by `apps/console/api/scripts/keycloak-fixture.ts`) is the SAML and OIDC identity provider and signs every
+assertion and ID token; the refused-assertion cases tamper with its real responses. DNS TXT answers come from a loopback
+name server (`dns-fixture.ts`) through the API's real resolver, pointed there by `STP_DNS_SERVERS`. SCIM requests follow
+Okta's and Microsoft Entra ID's documented request shapes. One scenario waits about two minutes for a short-lived
+assertion to pass the API's clock skew. Set `STP_SSO_SCREENSHOT_DIR` to keep screenshots of the page.
 
 `--isolated-browser` runs the [isolated Console application](e2e.md#isolated-console-application): it starts and stops
 the real local UI and API itself, so it needs neither dev credentials nor a shared-dev reservation. `--ui-capture` runs

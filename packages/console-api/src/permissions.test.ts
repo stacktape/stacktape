@@ -24,6 +24,14 @@ test('only owners and admins read the audit log', () => {
   );
 });
 
+test('only owners set up single sign-on and SCIM', () => {
+  assert.deepEqual(
+    ASSIGNABLE_ROLES.filter((role) => roleHasPermission(role, 'sso:manage')),
+    ['OWNER']
+  );
+  assert.equal(roleHasPermission('MEMBER', 'sso:manage'), false);
+});
+
 test('role scope, hierarchy and assignability describe the same role model', () => {
   assert.deepEqual(ASSIGNABLE_ROLES, ['OWNER', 'ADMIN', 'DEVELOPER', 'VIEWER']);
   assert.equal(isAlwaysUnscopedRole('OWNER'), true);

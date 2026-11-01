@@ -1707,6 +1707,18 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-audit-log']
   },
   {
+    id: 'console-database-sso',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--sso'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/sso-database.test.ts', 'apps/console/ui/e2e/isolated-single-sign-on.test.ts'],
+    requires: ['console', 'docker', 'chromium', 'network'],
+    release: 'every-candidate',
+    proves:
+      'SAML and OIDC single sign-on against Keycloak in Docker, domain verification through a loopback DNS server, enforcement, SCIM provisioning with Okta and Entra request shapes, and the Single sign-on page, through the real Better Auth plugins, router, disposable PostgreSQL and browser.',
+    selections: ['console-database-sso']
+  },
+  {
     id: 'console-database-secrets',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--secrets'],
     level: 'api-db',
@@ -5338,7 +5350,12 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/audit/audit-events.ts',
       'apps/console/api/src/audit/audit-registry.ts',
       'apps/console/api/src/audit/audit-denials.ts',
-      'apps/console/api/src/auth/account-security-events.ts'
+      'apps/console/api/src/auth/account-security-events.ts',
+      'apps/console/api/src/sso/**',
+      'apps/console/api/src/auth/auth-database.ts',
+      'apps/console/api/src/auth/auth-request.ts',
+      'apps/console/ui/src/pages/SingleSignOnPage/**',
+      'apps/console/ui/src/components/Misc/SsoRequired.tsx'
     ],
     tests: [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
@@ -5356,7 +5373,11 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/ui/e2e/isolated-members.test.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
-      'apps/console/ui/src/pages/UsersPage/members-data.test.ts'
+      'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
+      'apps/console/api/scripts/sso-database.test.ts',
+      'apps/console/ui/e2e/isolated-single-sign-on.test.ts',
+      'apps/console/api/src/sso/sso-domains.test.ts',
+      'apps/console/api/src/sso/saml-algorithms.test.ts'
     ],
     lanes: [
       'console-access-rules',
@@ -5369,6 +5390,7 @@ export const slices: readonly Slice[] = [
       'console-database-console-access',
       'console-database-sign-up',
       'console-database-audit-log',
+      'console-database-sso',
       'console-browser-project-access',
       'console-browser-isolated',
       'console-ui-test-e2e-project-access'
