@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathExists } from 'fs-extra';
+import json5 from 'json5';
 import objectHash from 'object-hash';
 import type { BuildpackCwImagePackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -264,7 +265,13 @@ const plannerExclusions = (keepVersionControl: boolean) => [
   ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS
 ];
 
-/** The planner configuration: the project's `railpackConfig` with the planner exclusions after its own `exclude`. */
+const isPatternList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((pattern) => typeof pattern === 'string');
+
+/**
+ * The planner configuration: the project's configuration (`railpackConfig`, or else its `railpack.json`) with the planner
+ * exclusions after its own `exclude`.
+ */
 const withPlannerExclusions = ({
   railpackConfig,
   exclusions,
@@ -275,13 +282,39 @@ const withPlannerExclusions = ({
   createPackagingError: CreatePackagingError;
 }): Record<string, unknown> => {
   const projectExclude = railpackConfig?.exclude ?? [];
-  if (!Array.isArray(projectExclude) || projectExclude.some((pattern) => typeof pattern !== 'string')) {
+  if (!isPatternList(projectExclude)) {
     throw createPackagingError({
       type: 'PACKAGING',
       message: 'Buildpack railpackConfig.exclude must be a list of patterns in .dockerignore syntax.'
     });
   }
   return { ...railpackConfig, exclude: [...projectExclude, ...exclusions] };
+};
+
+/**
+ * The configuration Railpack would read on its own: `railpack.json` in the source directory. Passing a configuration
+ * file replaces that file, so its settings are carried into the one Stacktape passes. Railpack reads another file only
+ * when told to through `--config-file` or `RAILPACK_CONFIG_FILE`; Stacktape passes neither for the project, and build
+ * variables cannot use the `RAILPACK_` prefix. `{}` means there is no file. `undefined` means the file is not a
+ * configuration Stacktape can read (not JSON with comments, not an object, or an `exclude` that is not a list):
+ * Railpack then reads the file itself and reports what is wrong with it, as it did before planner exclusions existed.
+ */
+const readProjectRailpackConfig = async (sourceDirectoryPath: string): Promise<Record<string, unknown> | undefined> => {
+  let contents: string;
+  try {
+    contents = await readFile(join(sourceDirectoryPath, 'railpack.json'), 'utf8');
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? {} : undefined;
+  }
+  try {
+    // Railpack reads the file as JSON with comments and trailing commas, which JSON5 covers.
+    const parsed: unknown = json5.parse(contents);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    const config = parsed as Record<string, unknown>;
+    return config.exclude === undefined || isPatternList(config.exclude) ? config : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 /**
@@ -426,10 +459,15 @@ export const buildUsingRailpack = async ({
   });
   const keepVersionControl = await takesVersionFromVersionControl(absoluteSourceDirectoryPath);
   const exclusions = plannerExclusions(keepVersionControl);
+  // An authored `railpackConfig` takes the place of the project's `railpack.json`, as documented.
+  const projectConfig = railpackConfig ?? (await readProjectRailpackConfig(absoluteSourceDirectoryPath));
   const prepared = await runRailpackPrepare({
     sourceDirectoryPath: absoluteSourceDirectoryPath,
     variables: { ...configuration, ...buildVariables },
-    config: withPlannerExclusions({ railpackConfig, exclusions, createPackagingError })
+    config:
+      projectConfig === undefined
+        ? undefined
+        : withPlannerExclusions({ railpackConfig: projectConfig, exclusions, createPackagingError })
   });
   const info = prepared.info as RailpackInfo | undefined;
   if (!info?.success) {

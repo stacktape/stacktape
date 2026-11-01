@@ -315,10 +315,13 @@ const copiedFiles = (plan: RailpackPlan) =>
 describe('planning sees the build context', () => {
   const buildPlan = async ({
     dockerIgnorePatterns = [],
-    railpackConfig
+    railpackConfig,
+    railpackJson
   }: {
     dockerIgnorePatterns?: string[];
     railpackConfig?: Record<string, unknown>;
+    /** The contents of the project's `railpack.json`. */
+    railpackJson?: string;
   }) => {
     const source = await mkdtemp(join(tmpdir(), 'stp-railpack-planner-'));
     const files = [
@@ -334,6 +337,7 @@ describe('planning sees the build context', () => {
     const plans: RailpackPlan[] = [];
     try {
       await writeFile(join(source, 'package.json'), '{}\n');
+      if (railpackJson !== undefined) await writeFile(join(source, 'railpack.json'), railpackJson);
       const output = await buildUsingRailpack({
         name: 'report',
         cwd: source,
@@ -377,6 +381,44 @@ describe('planning sees the build context', () => {
 
   test('a project without exclusions of its own gets the same plan exclusions as before', async () => {
     expect((await buildPlan({})).plan.exclude).toEqual(excludeNonSourceDirectories({}).exclude!);
+  });
+
+  // Review of #437: a configuration file passed to the planner replaces the project's railpack.json, so its start
+  // command, build steps and packages were lost.
+  test("the project's railpack.json reaches the planner, read as Railpack reads it", async () => {
+    const { config, plan } = await buildPlan({
+      railpackJson: [
+        '{',
+        '  // Railpack accepts comments and trailing commas.',
+        '  "deploy": { "startCommand": "node worker.js", "aptPackages": ["jq"] },',
+        '  "steps": { "build": { "commands": ["...", "node build.js"] } },',
+        '  "exclude": ["fixtures"],',
+        '}',
+        ''
+      ].join('\n')
+    });
+    expect(config).toMatchObject({
+      deploy: { startCommand: 'node worker.js', aptPackages: ['jq'] },
+      steps: { build: { commands: ['...', 'node build.js'] } }
+    });
+    expect((config!.exclude as string[]).slice(0, 2)).toEqual(['fixtures', '**/.git']);
+    expect(plan.exclude).toEqual(excludeNonSourceDirectories({ exclude: ['fixtures'] }).exclude!);
+  });
+
+  test('an authored railpackConfig takes the place of railpack.json', async () => {
+    const { config } = await buildPlan({
+      railpackJson: '{ "deploy": { "startCommand": "node worker.js" } }',
+      railpackConfig: { deploy: { startCommand: 'node server.js' } }
+    });
+    expect(config).toMatchObject({ deploy: { startCommand: 'node server.js' } });
+  });
+
+  test.each([
+    ['not JSON with comments', '{ deploy: '],
+    ['not an object', '["node worker.js"]'],
+    ['an exclude that is not a list', '{ "exclude": "fixtures" }']
+  ])('a railpack.json Stacktape cannot read (%s) is left for Railpack to read and report', async (_, railpackJson) => {
+    expect((await buildPlan({ railpackJson })).config).toBeUndefined();
   });
 
   test('an exclude that is not a list of patterns is refused before planning', async () => {
