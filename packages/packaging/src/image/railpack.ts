@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathExists } from 'fs-extra';
+import json5 from 'json5';
 import objectHash from 'object-hash';
 import type { BuildpackCwImagePackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -221,6 +222,12 @@ const VERSION_CONTROL_DIRECTORIES = new Set(['.git', '.hg']);
 const VERSION_FROM_VCS =
   /setuptools[_-]scm|hatch[_-]vcs|\[tool\.hatch\.version\][^[]*source\s*=\s*["']vcs["']|versioningit|poetry[_-]dynamic[_-]versioning/;
 
+/** The non-source directories as exclusion patterns; `.git` and `.hg` stay when the build needs version control. */
+const nonSourceExclusions = (keepVersionControl: boolean) =>
+  NON_SOURCE_DIRECTORY_NAMES.filter((name) => !(keepVersionControl && VERSION_CONTROL_DIRECTORIES.has(name))).map(
+    (name) => `**/${name}`
+  );
+
 /**
  * Keeps version control data, installed dependencies, caches and Stacktape's own output out of the image. Railpack
  * copies the whole source directory and excludes only what `.dockerignore` lists, so without this an image carried
@@ -235,14 +242,92 @@ export const excludeNonSourceDirectories = (
 ): RailpackPlan => ({
   ...plan,
   exclude: [
-    ...NON_SOURCE_DIRECTORY_NAMES.filter((name) => !(keepVersionControl && VERSION_CONTROL_DIRECTORIES.has(name))).map(
-      (name) => `**/${name}`
-    ),
+    ...nonSourceExclusions(keepVersionControl),
     ...(plan.exclude ?? []),
     // Last, so no pattern of the project brings Stacktape's local state back.
     ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS
   ]
 });
+
+/**
+ * The directories `excludeNonSourceDirectories` keeps out of the build context, for the planner. Railpack plans from
+ * the source directory on disk and leaves out only the files its own exclusions name. Without these it planned a
+ * `COPY` of each `package.json` it found in a workspace package's installed `node_modules`, for example the link pnpm
+ * creates for a `workspace:*` dependency, and the build failed because the context does not hold it (r2bm). A project
+ * whose dependencies were installed also got a different plan than a clean checkout.
+ *
+ * The planner applies its configuration's `exclude` after the project's `.dockerignore`, so a `!` pattern there does
+ * not bring one of these directories back for planning; the context still gets it, as `excludeNonSourceDirectories`
+ * orders the patterns.
+ */
+const plannerExclusions = (keepVersionControl: boolean) => [
+  ...nonSourceExclusions(keepVersionControl),
+  ...STACKTAPE_STATE_DOCKER_IGNORE_PATTERNS
+];
+
+const isPatternList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((pattern) => typeof pattern === 'string');
+
+/**
+ * The planner configuration: the project's configuration (`railpackConfig`, or else its `railpack.json`) with the planner
+ * exclusions after its own `exclude`.
+ */
+const withPlannerExclusions = ({
+  railpackConfig,
+  exclusions,
+  createPackagingError
+}: {
+  railpackConfig: Record<string, unknown> | undefined;
+  exclusions: string[];
+  createPackagingError: CreatePackagingError;
+}): Record<string, unknown> => {
+  const projectExclude = railpackConfig?.exclude ?? [];
+  if (!isPatternList(projectExclude)) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: 'Buildpack railpackConfig.exclude must be a list of patterns in .dockerignore syntax.'
+    });
+  }
+  return { ...railpackConfig, exclude: [...projectExclude, ...exclusions] };
+};
+
+/**
+ * The configuration Railpack would read on its own: `railpack.json` in the source directory. Passing a configuration
+ * file replaces that file, so its settings are carried into the one Stacktape passes. Railpack reads another file only
+ * when told to through `--config-file` or `RAILPACK_CONFIG_FILE`; Stacktape passes neither for the project, and build
+ * variables cannot use the `RAILPACK_` prefix. `{}` means there is no file. `undefined` means the file is not a
+ * configuration Stacktape can read (not JSON with comments, not an object, or an `exclude` that is not a list):
+ * Railpack then reads the file itself and reports what is wrong with it, as it did before planner exclusions existed.
+ */
+const readProjectRailpackConfig = async (sourceDirectoryPath: string): Promise<Record<string, unknown> | undefined> => {
+  let contents: string;
+  try {
+    contents = await readFile(join(sourceDirectoryPath, 'railpack.json'), 'utf8');
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? {} : undefined;
+  }
+  try {
+    // Railpack reads the file as JSON with comments and trailing commas, which JSON5 covers.
+    const parsed: unknown = json5.parse(contents);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+    const config = parsed as Record<string, unknown>;
+    return config.exclude === undefined || isPatternList(config.exclude) ? config : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The plan without the planner exclusions Railpack copied to the end of its `exclude`, so the plan, and the digest of
+ * every image built from it, is the one Railpack produces for the project's own exclusions.
+ */
+const withoutPlannerExclusions = (plan: RailpackPlan, exclusions: string[]): RailpackPlan => {
+  const exclude = plan.exclude ?? [];
+  const start = exclude.length - exclusions.length;
+  if (start < 0 || exclusions.some((pattern, index) => exclude[start + index] !== pattern)) return plan;
+  const { exclude: _planned, ...rest } = plan;
+  return start === 0 ? rest : { ...rest, exclude: exclude.slice(0, start) };
+};
 
 /**
  * Whether a Python project takes its version from version control, so its build needs `.git`. setuptools-scm and
@@ -372,10 +457,17 @@ export const buildUsingRailpack = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Detecting the build with Railpack and calculating checksum for caching'
   });
+  const keepVersionControl = await takesVersionFromVersionControl(absoluteSourceDirectoryPath);
+  const exclusions = plannerExclusions(keepVersionControl);
+  // An authored `railpackConfig` takes the place of the project's `railpack.json`, as documented.
+  const projectConfig = railpackConfig ?? (await readProjectRailpackConfig(absoluteSourceDirectoryPath));
   const prepared = await runRailpackPrepare({
     sourceDirectoryPath: absoluteSourceDirectoryPath,
     variables: { ...configuration, ...buildVariables },
-    config: railpackConfig
+    config:
+      projectConfig === undefined
+        ? undefined
+        : withPlannerExclusions({ railpackConfig: projectConfig, exclusions, createPackagingError })
   });
   const info = prepared.info as RailpackInfo | undefined;
   if (!info?.success) {
@@ -388,12 +480,12 @@ export const buildUsingRailpack = async ({
   }
   const railpackPlan = excludeNonSourceDirectories(
     applyStacktapePlanPolicy({
-      plan: prepared.plan as RailpackPlan,
+      plan: withoutPlannerExclusions(prepared.plan as RailpackPlan, exclusions),
       startCommand,
       buildCommand,
       installCommand
     }),
-    { keepVersionControl: await takesVersionFromVersionControl(absoluteSourceDirectoryPath) }
+    { keepVersionControl }
   );
   const python = usePythonSlimImage({
     plan: railpackPlan,

@@ -44,6 +44,34 @@ describe('docker build context checksum', () => {
     expect(includedFilePaths).toEqual([join(root, 'report.ts')]);
   });
 
+  // r2bm: the excluded directories themselves were counted, so installing dependencies changed the checksum of a
+  // context Docker receives unchanged, and an excluded directory was read in full.
+  test.each<[string, { ignorePatterns?: string[] }]>([
+    ['the Railpack exclusions', { ignorePatterns: ['**/.git', '**/.stacktape', '**/node_modules'] }],
+    ['a .dockerignore', {}]
+  ])('an excluded directory is neither counted nor read, with %s', async (_, options) => {
+    const files = {
+      Dockerfile: 'FROM alpine\n',
+      '.dockerignore': '.git\nnode_modules/\n**/node_modules\n',
+      'package.json': '{}',
+      'jobs/report/package.json': '{}'
+    };
+    const clean = await createContext(files);
+    const installed = await createContext(files);
+    await mkdir(join(installed, '.git'), { recursive: true });
+    await writeFile(join(installed, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+    await mkdir(join(installed, 'jobs', 'report', 'node_modules', '@mini'), { recursive: true });
+    await mkdir(join(installed, 'node_modules', '.pnpm'), { recursive: true });
+    await chmod(join(installed, 'node_modules', '.pnpm'), 0o000);
+    const checksum = async (root: string) =>
+      (await getDockerContextChecksum({ absoluteBuildContextPath: root, ...options })).checksum;
+    try {
+      expect(await checksum(installed)).toBe(await checksum(clean));
+    } finally {
+      await chmod(join(installed, 'node_modules', '.pnpm'), 0o755);
+    }
+  });
+
   // Review of #384: a `.dockerignore` line `.` became an exclusion of the whole tree, so a changed `app.txt` kept the
   // digest and a deploy reused the image with the old file. Docker excludes nothing for that line.
   test.each<[string[]]>([

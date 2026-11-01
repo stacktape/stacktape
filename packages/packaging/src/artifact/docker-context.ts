@@ -183,13 +183,17 @@ export const getDockerContextChecksum = async ({
   // excluded directory is read only when the exclusions have an exception. The matcher decides what is excluded, as it
   // does for every entry below.
   const hasExceptions = exclusions.split(/\r?\n/).some((line) => line.trim().startsWith('!'));
+  // The matcher never matches a path with a trailing slash, so a directory is asked about without it. Docker sends no
+  // entry for an excluded directory: counting one made a context with an installed, excluded `node_modules` differ
+  // from a clean checkout, and kept such directories from being pruned (r2bm).
+  const isExcluded = (entry: string) => matcher.ignores(toDockerPath(entry));
   const contextEntries = await listContextEntries(
     absoluteBuildContextPath,
     // Nothing inside Stacktape's state can come back, so it is never read.
-    (directoryEntry) => isStacktapeStateDirectory(directoryEntry) || (!hasExceptions && matcher.ignores(directoryEntry))
+    (directoryEntry) => isStacktapeStateDirectory(directoryEntry) || (!hasExceptions && isExcluded(directoryEntry))
   );
-  const includedEntries = matcher
-    .filter(contextEntries)
+  const includedEntries = contextEntries
+    .filter((entry) => !isExcluded(entry))
     .map(toDockerPath)
     .filter(Boolean)
     .toSorted((left, right) => left.localeCompare(right));
