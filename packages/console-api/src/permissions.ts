@@ -19,6 +19,7 @@ export const PERMISSIONS = [
   'members:assign-projects',
   'members:view',
   'audit-log:view',
+  'sso:manage',
   'projects:create',
   'projects:delete',
   'projects:update-settings',
@@ -54,7 +55,9 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 const ROLE_PERMISSIONS: Record<Exclude<ConsoleRole, 'MEMBER'>, ReadonlySet<Permission>> = {
   OWNER: new Set(PERMISSIONS),
-  ADMIN: new Set(PERMISSIONS.filter((permission) => permission !== 'org:delete')),
+  // Owners alone delete the organization and set up single sign-on: a broken identity provider could lock the
+  // organization out, and only Owners stay exempt from its enforcement.
+  ADMIN: new Set(PERMISSIONS.filter((permission) => permission !== 'org:delete' && permission !== 'sso:manage')),
   DEVELOPER: new Set([
     'projects:update-settings',
     'projects:view',
