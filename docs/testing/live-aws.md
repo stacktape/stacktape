@@ -18,6 +18,10 @@ Every live scenario must enforce these rules in code:
    starting another scenario.
 6. Keep credentials and parameter values out of commands, logs, reports, and Git.
 
+A CLI deploy with a Stacktape API key also creates a Console project for each unique project name. After its stages are
+deleted, remove the project with `stacktape project delete <project> --yes`; the command refuses while a stage is still
+deployed.
+
 Some deletions finish only after AWS releases a resource on its own schedule; a Lambda@Edge function, for example, stays
 for 40 to 60 minutes after its distribution while CloudFront removes the replicas. A scenario may report such a resource
 as deferred cleanup instead of failing: it records it in the state file, passes, and prints the exact `--cleanup-only`

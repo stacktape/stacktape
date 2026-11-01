@@ -5300,6 +5300,67 @@
       }
     ]
   },
+  "project:delete": {
+    "publicName": "project delete",
+    "positionals": [
+      "projectName"
+    ],
+    "args": [
+      {
+        "name": "autoConfirmOperation",
+        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "required": false,
+        "alias": "y",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "yes"
+      },
+      {
+        "name": "help",
+        "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
+        "required": false,
+        "alias": "h",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "help"
+      },
+      {
+        "name": "logLevel",
+        "description": "#### Log Level\n---\nThe level of logs to print to the console.\n- `info`: Basic information about the operation.\n- `error`: Only errors.\n- `debug`: Detailed information for debugging.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "info",
+          "debug",
+          "error"
+        ],
+        "flag": "log-level"
+      },
+      {
+        "name": "projectName",
+        "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.\n\nCommands that target a stack take it from `projectName` in the project's config when the flag is absent.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "project",
+        "positional": 0
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      }
+    ]
+  },
   "project:list": {
     "publicName": "project list",
     "positionals": [],

@@ -58,6 +58,7 @@
 /cli/package
 /cli/param-get
 /cli/project-create
+/cli/project-delete
 /cli/project-list
 /cli/query-dynamodb
 /cli/query-opensearch

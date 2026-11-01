@@ -97,6 +97,7 @@ export const commandPositionals: Readonly<Record<string, readonly string[]>> = {
   'org:create': ['organizationName'],
   'org:delete': ['organizationId'],
   'project:create': ['projectName'],
+  'project:delete': ['projectName'],
   'ai:connect': ['aiProvider'],
   'ai:disconnect': ['aiProvider'],
   'defaults:configure': ['key', 'value']
