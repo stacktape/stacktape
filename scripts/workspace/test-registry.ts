@@ -5376,7 +5376,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/api/scripts/sso-database.test.ts',
       'apps/console/ui/e2e/isolated-single-sign-on.test.ts',
-      'apps/console/api/src/sso/sso-domains.test.ts'
+      'apps/console/api/src/sso/sso-domains.test.ts',
+      'apps/console/api/src/sso/saml-algorithms.test.ts'
     ],
     lanes: [
       'console-access-rules',
