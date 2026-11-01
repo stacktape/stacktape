@@ -118,6 +118,8 @@ To delete a project, open the project settings dropdown (gear icon next to the p
 If a project still has deployed stages when you delete it, the Console warns that it is advised to delete them before continuing and requires explicit confirmation.
 </Warning>
 
+You can also delete a project from the CLI with [`stacktape project delete`](/cli/project-delete), for example to clean up test projects. Unlike the Console, it refuses while the project still has deployed stages and prints the `stacktape delete` commands for them.
+
 Non-deployed stages (created in the Console but never deployed) can be removed directly from the sidebar. This only removes the Console record — no AWS resources are affected because none were created. Failed stage entries can be dismissed from the sidebar; the confirmation says this removes deployment history for that stage.
 
 ## Access control

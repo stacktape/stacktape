@@ -70,6 +70,7 @@ import {
   sharedLayerNumberOf
 } from './shared-layers';
 import type { KeptFunctionCode } from './kept-function-code';
+import type { KeptImage } from './kept-image';
 import { templateManager } from '@domain-services/template-manager';
 import { keepServiceLambdaCodeForRollback } from '@domain-services/template-manager/service-lambda-created-resources';
 import {
@@ -375,6 +376,17 @@ class DeploymentArtifactManager {
 
   getImageUploadInfoForJob = ({ jobName }: { jobName: string }) => {
     const packagingOutput = this.packagingSource.getPackagingOutputForJob(jobName);
+    const kept = packagingOutput ? undefined : this.#keptImages.get(jobName);
+    // The template names the image it already names, so retention keeps it and CloudFormation leaves the job alone.
+    if (kept) {
+      return {
+        tag: kept.tag,
+        jobName,
+        alreadyDeployed: true,
+        imageTagWithUrl: this.getImageUrlForJob({ tag: kept.tag }),
+        copyFromTag: undefined
+      };
+    }
     if (!packagingOutput) {
       return null;
     }
@@ -416,6 +428,15 @@ class DeploymentArtifactManager {
   };
 
   getKeptFunctionCode = (name: string): KeptFunctionCode | undefined => this.#keptFunctionCode.get(name);
+
+  /** Images a dev stack update leaves on what the dev stack runs instead of building them (`decideSkippedImages`). */
+  #keptImages = new Map<string, KeptImage>();
+
+  setKeptImages = (kept: ReadonlyMap<string, KeptImage>) => {
+    this.#keptImages = new Map(kept);
+  };
+
+  getKeptImage = (jobName: string): KeptImage | undefined => this.#keptImages.get(jobName);
 
   #getUserLambdaS3UploadInfo = ({ name }: { name: string }) => {
     const packagingOutput = this.packagingSource.getPackagingOutputForJob(name);

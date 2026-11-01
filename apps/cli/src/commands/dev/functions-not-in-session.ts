@@ -1,6 +1,9 @@
 import { configManager } from '@domain-services/config-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { getRunningArtifactDigest } from '@domain-services/deployment-artifact-manager/kept-function-code';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { findTemplateImageTag } from '@domain-services/deployment-artifact-manager/kept-image';
+import { parseImageTag } from '@domain-services/deployment-artifact-manager/utils';
 import { templateManager } from '@domain-services/template-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
@@ -78,6 +81,79 @@ export const loadFunctionsNotInSession = async (names: ReadonlySet<string>): Pro
           )?.Properties?.Tags
         }),
         lastModified: configuration?.LastModified
+      });
+    })
+  );
+};
+
+/**
+ * A batch job or AgentCore runtime the session leaves out (`configManager.devSkipsRemoteImages`). It keeps running the
+ * image the dev stack ran before, unless the start built it (`decideSkippedImages`), and changes to its source are not
+ * deployed.
+ */
+export type ImageNotInSession = {
+  name: string;
+  /** The image the dev stack names for it; none when the template does not name exactly one. */
+  image?: string;
+  /** The digest of the image's inputs, from its tag. */
+  artifactDigest?: string;
+  /** When the image was pushed to the stack's repository. */
+  imagePushedAt?: string;
+  message: string;
+};
+
+export const describeImageNotInSession = ({
+  name,
+  image,
+  artifactDigest,
+  pushedAt
+}: {
+  name: string;
+  image: string | undefined;
+  artifactDigest: string | undefined;
+  pushedAt: Date | undefined;
+}): ImageNotInSession => {
+  const when = pushedAt ? `pushed at ${formatTime(pushedAt)}` : 'deployed earlier';
+  return {
+    name,
+    ...(image ? { image } : {}),
+    ...(artifactDigest ? { artifactDigest } : {}),
+    ...(pushedAt ? { imagePushedAt: pushedAt.toISOString() } : {}),
+    message: `not in this session, because the session leaves out functions; runs the image ${when}${artifactDigest ? ` (artifact ${artifactDigest.slice(0, 12)})` : ''}, which may differ from your current source`
+  };
+};
+
+export const formatImagesNotInSessionNotice = (images: ImageNotInSession[]) =>
+  images.length
+    ? `Batch jobs and AgentCore runtimes are not in a session that leaves out functions. They keep running their deployed images, and changes to their source are not deployed: ${images
+        .map(
+          ({ name, message }) =>
+            `\`${name}\` ${message.replace(/^not in this session, because the session leaves out functions; /, '')}`
+        )
+        .join('; ')}. Start the session with every function selected to build them from your current source.`
+    : undefined;
+
+/** Reads which image each remote workload the session leaves out runs, and when it was pushed. */
+export const loadImagesNotInSession = async (): Promise<ImageNotInSession[]> => {
+  if (!configManager.devSkipsRemoteImages) return [];
+  const images = [
+    ...configManager.containersToPackage.map(({ jobName, workloadName }) => ({ jobName, workloadName })),
+    ...configManager.agentCoreRuntimesRequiringPackaging.map(({ jobName, name }) => ({ jobName, workloadName: name }))
+  ];
+  const { repositoryUrl, repositoryName } = deploymentArtifactManager;
+  return Promise.all(
+    images.map(async ({ jobName, workloadName }) => {
+      const tag = findTemplateImageTag({ template: templateManager.oldTemplate ?? {}, repositoryUrl, jobName });
+      const pushedAt = tag
+        ? await awsSdkManager.ecr.getImagePushedAt({ repositoryName, imageTag: tag }).catch(() => undefined)
+        : undefined;
+      // A workload of several containers is listed by its job name, which names the container.
+      const name = images.filter((image) => image.workloadName === workloadName).length > 1 ? jobName : workloadName;
+      return describeImageNotInSession({
+        name,
+        image: tag ? `${repositoryUrl}:${tag}` : undefined,
+        artifactDigest: tag ? parseImageTag(tag).digest : undefined,
+        pushedAt
       });
     })
   );

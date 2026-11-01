@@ -200,8 +200,8 @@ const staleNames = (stale: unknown): string[] =>
   Array.isArray(stale) ? stale.flatMap((item) => (typeof item?.name === 'string' ? [item.name as string] : [])) : [];
 
 /**
- * A batch job runs in AWS from the image dev mode built when it started. When that image uses files a rebuild picked up,
- * only a restart builds and pushes it again; rebuild and rebuild_all never do.
+ * A batch job runs in AWS from the image dev mode built or kept when it started. When that image uses files a rebuild
+ * picked up, only a restart that leaves out no function builds and pushes it again; rebuild and rebuild_all never do.
  */
 const withRemoteImageRestart = (output: ToolOutput, response: Record<string, unknown>): ToolOutput => {
   const stale = staleNames(response.staleRemoteImages);
@@ -211,7 +211,7 @@ const withRemoteImageRestart = (output: ToolOutput, response: Record<string, unk
     ...output,
     nextActions: [
       ...(output.nextActions ?? []),
-      `${stale.join(', ')} ${one ? 'runs' : 'run'} in AWS from the image built when dev mode started, which uses changed files. Before testing ${one ? 'it' : 'them'}, call stacktape_dev with action=stop and then action=start to build and push the image again; rebuild and rebuild_all do not.`
+      `${stale.join(', ')} ${one ? 'runs' : 'run'} in AWS from the image dev mode started with, which uses changed files. Before testing ${one ? 'it' : 'them'}, call stacktape_dev with action=stop and then action=start with every function selected to build and push the image again; a start that leaves out functions keeps the deployed image, and rebuild and rebuild_all do not.`
     ]
   };
 };

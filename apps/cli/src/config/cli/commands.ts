@@ -914,6 +914,22 @@ If you omit --project in interactive mode, you'll be prompted for it. In agent m
     requiredArgs: [] as const
   },
 
+  'project:delete': {
+    description: `Deletes a project from the current organization.
+
+The Stacktape Console removes the project with its deploy history, stage settings and runner. It never deletes AWS stacks. While the project still has deployed stages, the command refuses and lists the \`stacktape delete\` commands that delete them. You need the \`projects:delete\` permission (Owner or Admin) on the project.
+
+In a terminal, you confirm by typing the project name. Elsewhere, add --yes; in agent mode, provide --project.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      projectName: projectName.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional()
+    },
+    requiredArgs: [] as const
+  },
+
   'project:list': {
     description: `Lists all projects in your organization with their deployed stages, status, and costs.
 

@@ -76,6 +76,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [package](/cli/package) - source: apps/docs/content/cli/package.mdx
 - [param get](/cli/param-get) - source: apps/docs/content/cli/param-get.mdx
 - [project create](/cli/project-create) - source: apps/docs/content/cli/project-create.mdx
+- [project delete](/cli/project-delete) - source: apps/docs/content/cli/project-delete.mdx
 - [project list](/cli/project-list) - source: apps/docs/content/cli/project-list.mdx
 - [query dynamodb](/cli/query-dynamodb) - source: apps/docs/content/cli/query-dynamodb.mdx
 - [query opensearch](/cli/query-opensearch) - source: apps/docs/content/cli/query-opensearch.mdx

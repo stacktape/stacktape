@@ -16891,6 +16891,27 @@
       ]
     },
     {
+      "id": "page:/cli/project-delete",
+      "title": "project delete",
+      "route": "/cli/project-delete",
+      "sourcePath": "apps/docs/content/cli/project-delete.mdx",
+      "outputPath": "pages/cli/project-delete.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "project-delete"
+      ],
+      "chunks": [
+        "page:/cli/project-delete#project-delete",
+        "page:/cli/project-delete#usage",
+        "page:/cli/project-delete#cli-reference",
+        "page:/cli/project-delete#cli-options-stacktape-project-delete",
+        "page:/cli/project-delete#examples",
+        "page:/cli/project-delete#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/project-list",
       "title": "project list",
       "route": "/cli/project-list",

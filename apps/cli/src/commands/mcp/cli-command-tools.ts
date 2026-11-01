@@ -184,6 +184,7 @@ const commandPolicies: Record<StacktapeCommand, Omit<CliCommandPolicy, 'requires
   'org:delete': { category: 'account', safety: 'destructive' },
 
   'project:create': { category: 'project', safety: 'mutating' },
+  'project:delete': { category: 'project', safety: 'destructive' },
   'project:list': { category: 'project', safety: 'readOnly' },
   init: { category: 'project', safety: 'interactive' },
 

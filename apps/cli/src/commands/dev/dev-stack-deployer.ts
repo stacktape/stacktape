@@ -5,6 +5,11 @@ import {
   findKeptFunctionsWithChangedConfiguration,
   type SkippedFunctionBuildReason
 } from '@domain-services/deployment-artifact-manager/kept-function-code';
+import {
+  decideSkippedImages,
+  findKeptImagesWithChangedConfiguration,
+  type SkippedImageBuildReason
+} from '@domain-services/deployment-artifact-manager/kept-image';
 import { applicationManager } from '@application-services/application-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -30,29 +35,70 @@ import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { assertNoLocalCfSecretReferences, findLocalCfResourceReferences } from './dev-stack-references';
 import { findStartingStreamMappings, type StartingStreamMapping } from './stream-starting-position';
 
+/** The images AWS pulls for the dev stack: batch jobs, AgentCore runtimes and the containers of Convex's workloads. */
+const getRemoteImages = () => [
+  ...configManager.containersToPackage.map(({ jobName, workloadName }) => ({ jobName, workloadName })),
+  ...configManager.agentCoreRuntimesRequiringPackaging.map(({ jobName, name }) => ({ jobName, workloadName: name }))
+];
+
+/** The workloads whose images the dev stack keeps instead of building them (`decideSkippedImages`). */
+const getKeptImageWorkloads = () => [
+  ...new Set(
+    getRemoteImages()
+      .filter(({ jobName }) => deploymentArtifactManager.getKeptImage(jobName))
+      .map(({ workloadName }) => workloadName)
+  )
+];
+
+const SKIPPED_IMAGE_BUILD_CAUSES: Record<SkippedImageBuildReason, string> = {
+  'not-deployed': 'the dev stack runs no image of it yet',
+  'stored-image-missing': 'the image repository no longer holds the image it runs',
+  'configuration-changed': 'its configuration changed, and its old image was never run with the new one'
+};
+
+/** Why the dev stack builds the image of a workload the session leaves out, which otherwise keeps the image it runs. */
+export const describeSkippedImageBuild = (name: string, reason: SkippedImageBuildReason) =>
+  `\`${name}\` runs in AWS and is not in this session, because the session leaves out functions, but ${SKIPPED_IMAGE_BUILD_CAUSES[reason]}, so the dev stack builds its image from your source. Later starts that leave out functions keep that image while its configuration stays the same.`;
+
 /**
  * Builds the images that AWS pulls for the dev stack (batch jobs, AgentCore runtimes) and returns the resources whose
  * image the deployed dev stack does not run yet. A start skips the dev stack update when the configuration is unchanged,
  * so a changed image is what makes it update: the update pushes the image and points the job definition at it.
  * `deployDevStack` reuses these builds.
+ *
+ * A session that leaves out functions leaves these workloads out too (`configManager.devSkipsRemoteImages`): they keep
+ * the image the dev stack runs and are not built, unless the dev stack has no stored image of them.
  */
 export const packageDevStackImages = async (): Promise<string[]> => {
-  const images = [
-    ...configManager.containersToPackage.map(({ jobName, workloadName }) => ({ jobName, workloadName })),
-    ...configManager.agentCoreRuntimesRequiringPackaging.map(({ jobName, name }) => ({ jobName, workloadName: name }))
-  ];
+  const images = getRemoteImages();
   if (!images.length) return [];
   if (stackManager.existingStackDetails) {
     await deploymentArtifactManager.loadPreviousImages(deploymentArtifactManager.repositoryName, 'dev');
   }
-  await packagingManager.packageAllWorkloads({
-    commandCanUseCache: true,
-    onlyWorkloads: images.map(({ workloadName }) => workloadName)
+  const decisions = configManager.devSkipsRemoteImages
+    ? decideSkippedImages({
+        images,
+        deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined,
+        repositoryUrl: deploymentArtifactManager.repositoryUrl,
+        storedImageTags: new Set(deploymentArtifactManager.previousImages.map(({ tag }) => tag).filter(Boolean))
+      })
+    : [];
+  deploymentArtifactManager.setKeptImages(
+    new Map(decisions.flatMap((decision) => ('keep' in decision ? [...decision.keep] : [])))
+  );
+  const keptWorkloads = new Set(getKeptImageWorkloads());
+  const imagesToBuild = images.filter(({ workloadName }) => !keptWorkloads.has(workloadName));
+  if (!imagesToBuild.length) return [];
+  await packageExplainingSkippedBuilds({
+    skippedBuilds: decisions.flatMap((decision) =>
+      'build' in decision ? [describeImageBuild(decision.workloadName, decision.build)] : []
+    ),
+    onlyWorkloads: [...new Set(imagesToBuild.map(({ workloadName }) => workloadName))]
   });
   const deployedTemplate = JSON.stringify(templateManager.oldTemplate ?? {});
   return [
     ...new Set(
-      images
+      imagesToBuild
         .filter(({ jobName }) => {
           const image = deploymentArtifactManager.getImageUploadInfoForJob({ jobName })?.imageTagWithUrl;
           return !image || !deployedTemplate.includes(JSON.stringify(image));
@@ -74,29 +120,41 @@ const SKIPPED_FUNCTION_BUILD_CAUSES: Record<SkippedFunctionBuildReason, string> 
 export const describeSkippedFunctionBuild = (name: string, reason: SkippedFunctionBuildReason) =>
   `\`${name}\` is not in this session, but ${SKIPPED_FUNCTION_BUILD_CAUSES[reason]}, so the dev stack builds it from your source. Later starts without it keep that code while its configuration stays the same.`;
 
+/** A workload the session leaves out that the dev stack builds anyway, and why. */
+type SkippedBuild = { description: string; isBuilt: () => boolean };
+
+const describeFunctionBuild = (name: string, reason: SkippedFunctionBuildReason): SkippedBuild => ({
+  description: describeSkippedFunctionBuild(name, reason),
+  isBuilt: () => Boolean(packagingManager.getPackagingOutputForJob(name))
+});
+
+const describeImageBuild = (workloadName: string, reason: SkippedImageBuildReason): SkippedBuild => ({
+  description: describeSkippedImageBuild(workloadName, reason),
+  isBuilt: () =>
+    getRemoteImages()
+      .filter((image) => image.workloadName === workloadName)
+      .every(({ jobName }) => packagingManager.getPackagingOutputForJob(jobName))
+});
+
 /**
- * Packages workloads; says first why each function the session leaves out is built, and again when its build fails.
+ * Packages workloads; says first why each workload the session leaves out is built, and again when its build fails.
  */
-const packageExplainingSkippedFunctions = async ({
-  builtSkippedFunctions,
+const packageExplainingSkippedBuilds = async ({
+  skippedBuilds,
   excludeWorkloads,
   onlyWorkloads
 }: {
-  builtSkippedFunctions: { name: string; build: SkippedFunctionBuildReason }[];
+  skippedBuilds: SkippedBuild[];
   excludeWorkloads?: string[];
   onlyWorkloads?: string[];
 }) => {
-  builtSkippedFunctions.forEach(({ name, build }) => tuiManager.info(describeSkippedFunctionBuild(name, build)));
+  skippedBuilds.forEach(({ description }) => tuiManager.info(description));
   try {
     await packagingManager.packageAllWorkloads({ commandCanUseCache: true, excludeWorkloads, onlyWorkloads });
   } catch (error) {
-    const failedSkipped = builtSkippedFunctions.filter(({ name }) => !packagingManager.getPackagingOutputForJob(name));
+    const failedSkipped = skippedBuilds.filter(({ isBuilt }) => !isBuilt());
     if (error instanceof CliError && failedSkipped.length) {
-      error.hints.push(
-        ...failedSkipped.map(
-          ({ name, build }) => `${describeSkippedFunctionBuild(name, build)} Fix its build to start.`
-        )
-      );
+      error.hints.push(...failedSkipped.map(({ description }) => `${description} Fix its build to start.`));
     }
     throw error;
   }
@@ -172,11 +230,13 @@ export const deployDevStack = async ({
   );
   deploymentArtifactManager.setKeptFunctionCode(keptFunctionCode);
 
-  // Functions, and the images of what the dev stack deploys that `packageDevStackImages` has not built. Local services
-  // and frontends are built by the session itself.
-  await packageExplainingSkippedFunctions({
-    builtSkippedFunctions: skippedFunctionCode.flatMap((decision) => ('build' in decision ? [decision] : [])),
-    excludeWorkloads: [...keptFunctionCode.keys()]
+  // Functions, and the images of what the dev stack deploys that `packageDevStackImages` has neither built nor kept.
+  // Local services and frontends are built by the session itself.
+  await packageExplainingSkippedBuilds({
+    skippedBuilds: skippedFunctionCode.flatMap((decision) =>
+      'build' in decision ? [describeFunctionBuild(decision.name, decision.build)] : []
+    ),
+    excludeWorkloads: [...keptFunctionCode.keys(), ...getKeptImageWorkloads()]
   });
 
   // Resolve resources (the config-manager should filter based on dev mode)
@@ -192,21 +252,49 @@ export const deployDevStack = async ({
   await calculatedStackOverviewManager.populateStackMetadata();
   await prepareTemplateForDeploy();
 
-  // Old code is kept only where nothing else about the function changes. The others are built and the template is
-  // finalized again, now naming their new code.
+  // Old code and old images are kept only where nothing else about the workload changes. The others are built and the
+  // template is finalized again, now naming their new code and images.
+  const ownedLogicalNames = (name: string) => {
+    try {
+      return Object.keys(calculatedStackOverviewManager.getChildResourceList({ stpResourceName: name }));
+    } catch {
+      return [];
+    }
+  };
   const changedKeptFunctions = findKeptFunctionsWithChangedConfiguration({
     functions: configManager.functions.filter(({ name }) => keptFunctionCode.has(name)),
-    ownedLogicalNames: (name) =>
-      Object.keys(calculatedStackOverviewManager.getChildResourceList({ stpResourceName: name })),
+    ownedLogicalNames,
     template: templateManager.getTemplate(),
     deployedTemplate: templateManager.oldTemplate
   });
-  if (changedKeptFunctions.length) {
+  const changedKeptImages = findKeptImagesWithChangedConfiguration({
+    workloadNames: getKeptImageWorkloads(),
+    ownedLogicalNames,
+    template: templateManager.getTemplate(),
+    deployedTemplate: templateManager.oldTemplate
+  });
+  if (changedKeptFunctions.length || changedKeptImages.length) {
     changedKeptFunctions.forEach((name) => keptFunctionCode.delete(name));
     deploymentArtifactManager.setKeptFunctionCode(keptFunctionCode);
-    await packageExplainingSkippedFunctions({
-      builtSkippedFunctions: changedKeptFunctions.map((name) => ({ name, build: 'configuration-changed' as const })),
-      onlyWorkloads: changedKeptFunctions
+    const changedImageJobs = new Set(
+      getRemoteImages()
+        .filter(({ workloadName }) => changedKeptImages.includes(workloadName))
+        .map(({ jobName }) => jobName)
+    );
+    deploymentArtifactManager.setKeptImages(
+      new Map(
+        getRemoteImages().flatMap(({ jobName }) => {
+          const kept = deploymentArtifactManager.getKeptImage(jobName);
+          return kept && !changedImageJobs.has(jobName) ? [[jobName, kept] as const] : [];
+        })
+      )
+    );
+    await packageExplainingSkippedBuilds({
+      skippedBuilds: [
+        ...changedKeptFunctions.map((name) => describeFunctionBuild(name, 'configuration-changed')),
+        ...changedKeptImages.map((name) => describeImageBuild(name, 'configuration-changed'))
+      ],
+      onlyWorkloads: [...changedKeptFunctions, ...changedKeptImages]
     });
     await prepareTemplateForDeploy();
   }

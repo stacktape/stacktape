@@ -8,6 +8,7 @@ import {
   CompleteLayerUploadCommand,
   CreateRepositoryCommand,
   DeleteRepositoryCommand,
+  DescribeImagesCommand,
   PutLifecyclePolicyCommand,
   RepositoryAlreadyExistsException,
   RepositoryNotFoundException,
@@ -120,6 +121,14 @@ export class AwsEcr {
       pagedImageIds.push(imageIds);
     }
     return pagedImageIds.flat();
+  };
+
+  /** When the image tagged `imageTag` was pushed; undefined when the repository does not hold it. */
+  getImagePushedAt = async ({ repositoryName, imageTag }: { repositoryName: string; imageTag: string }) => {
+    const { imageDetails } = await this.#createClient()
+      .send(new DescribeImagesCommand({ repositoryName, imageIds: [{ imageTag }] }))
+      .catch(this.#getErrorHandler(`Failed to describe image ${imageTag} in ECR repository ${repositoryName}.`));
+    return imageDetails?.[0]?.imagePushedAt;
   };
 
   deleteImages = async (repositoryName: string, imageTags: string[], imageDigests: string[]) => {

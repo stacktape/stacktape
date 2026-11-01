@@ -363,6 +363,14 @@ export class ConfigManager {
   }
 
   /**
+   * Batch jobs and AgentCore runtimes run in AWS and cannot be selected. A session that leaves out functions works on
+   * part of the backend and leaves them out too: the dev stack keeps the images they run (`decideSkippedImages`).
+   */
+  get devSkipsRemoteImages(): boolean {
+    return this.#devSkippedFunctionNames.size > 0;
+  }
+
+  /**
    * Set by `stacktape dev` before it synthesizes the dev stack: the trust in the developer that the roles of locally
    * running containers get, so that AWS accepts it while the stack deploys.
    */

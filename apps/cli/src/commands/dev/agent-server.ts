@@ -81,7 +81,7 @@ import type { DevBoxStatus } from './dev-box';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
 import { runSeedScript } from './seed-script';
-import type { FunctionNotInSession } from './functions-not-in-session';
+import type { FunctionNotInSession, ImageNotInSession } from './functions-not-in-session';
 
 /** What the dev command tells the agent about workload environments; injected to avoid an import cycle. */
 export type AgentWorkloadEnvironment = {
@@ -143,7 +143,10 @@ export type StaleWorkload = { name: string; changedFiles: string[] };
 /** What a rebuild says besides its outcome: workloads it left on older code, and frontends it did not restart. */
 type RebuildNotes = {
   staleWorkloads?: StaleWorkload[];
-  /** Batch jobs whose image, built when dev mode started, uses changed files: only a restart builds it again. */
+  /**
+   * Batch jobs whose image, built when dev mode started, uses changed files: only a restart that leaves out no function
+   * builds it again.
+   */
   staleRemoteImages?: StaleWorkload[];
   /** Frontends rebuild all left running: their dev servers load changed code themselves. */
   leftRunning?: string[];
@@ -187,6 +190,12 @@ export const setAgentNotices = (notices: string[]) => {
 let functionsNotInSession: FunctionNotInSession[] = [];
 export const setFunctionsNotInSession = (functions: FunctionNotInSession[]) => {
   functionsNotInSession = [...functions];
+};
+
+/** Batch jobs and AgentCore runtimes the session leaves out, with the image they run; see `ImageNotInSession`. */
+let imagesNotInSession: ImageNotInSession[] = [];
+export const setImagesNotInSession = (images: ImageNotInSession[]) => {
+  imagesNotInSession = [...images];
 };
 
 let httpServer: Server | null = null;
@@ -461,6 +470,7 @@ addRoute('GET', '/status', async ({ query }) => {
       ...(agentState.restartRequired ? { restartRequired: agentState.restartRequired } : {}),
       ...(agentNotices.length ? { notices: agentNotices } : {}),
       ...(functionsNotInSession.length ? { functionsNotInSession } : {}),
+      ...(imagesNotInSession.length ? { imagesNotInSession } : {}),
       ...getDevBoxStatus(),
       logFile: getAgentLogFilePath(),
       ...agentSession,
@@ -486,6 +496,9 @@ addRoute('GET', '/status', async ({ query }) => {
     workloads: workloadMap,
     ...(functionsNotInSession.length
       ? { functionsNotInSession: Object.fromEntries(functionsNotInSession.map(({ name, message }) => [name, message])) }
+      : {}),
+    ...(imagesNotInSession.length
+      ? { imagesNotInSession: Object.fromEntries(imagesNotInSession.map(({ name, message }) => [name, message])) }
       : {}),
     ...getDevBoxStatus(),
     ...agentSession,
@@ -579,7 +592,11 @@ export const describeStaleRemoteImages = (
 ) => {
   const names = stale.map(({ name }) => name).join(', ');
   const one = stale.length === 1;
-  return `${names} ${one ? 'runs' : 'run'} in AWS from the image${one ? '' : 's'} built when dev mode started, which also ${one ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}). Restart dev mode to build and push ${one ? 'it' : 'them'} again; rebuilds do not.`;
+  return `${names} ${one ? 'runs' : 'run'} in AWS from the image${one ? '' : 's'} built when dev mode started, which also ${one ? 'uses' : 'use'} changed files (${describeChangedFiles(stale, workingDirectory)}). ${
+    configManager.devSkipsRemoteImages
+      ? `This session leaves out functions, so a restart like it keeps ${one ? 'that image' : 'those images'}: restart dev mode with every function selected to build and push ${one ? 'it' : 'them'} again`
+      : `Restart dev mode to build and push ${one ? 'it' : 'them'} again`
+  }; rebuilds do not.`;
 };
 
 const describeLeftRunning = (names: string[]) =>
@@ -1269,7 +1286,9 @@ export const getDeployedBatchJobs = async () => {
         ...(typeof image === 'string' ? { image } : {}),
         // `lastRun.status` is the state machine's; `lastRun.job` is the AWS Batch job it submitted.
         lastRun: lastRun ?? 'not run yet',
-        codeChanges: 'deployed by the next start of dev mode; rebuild and watch do not deploy batch jobs'
+        codeChanges: configManager.devSkipsRemoteImages
+          ? 'not deployed: this session leaves out functions, so the batch job keeps its deployed image (see imagesNotInSession); a start with every function selected deploys them'
+          : 'deployed by the next start of dev mode; rebuild and watch do not deploy batch jobs'
       };
     })
   );
