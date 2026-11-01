@@ -10,13 +10,15 @@
  *   apps are built on the official slim image: pip and uv projects run, a source-only change reuses the installed
  *   dependencies, and a dependency without a wheel is compiled with the fallback build tools. The Node.js
  *   app's build writes a `buildEnvironment` value that the server returns: the value must reach the build, stay out of
- *   the image configuration and history, and a changed value must change the digest. The Railpack scenarios need a
+ *   the image configuration and history, and a changed value must change the digest. A pnpm workspace service that
+ *   depends on a `workspace:*` package builds with the host's `node_modules` installed, and a clean checkout reuses
+ *   its image. The Railpack scenarios need a
  *   railpack binary (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH); the lane fails before building when the binary is unavailable.
  *
  *   bun run scripts/synthetic-docker-smoke.ts
  */
 import { strict as assert } from 'node:assert';
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildDotnetLambda } from '../src/buildpacks/dotnet-lambda-buildpack';
@@ -394,6 +396,8 @@ dependencies = [
 requires-dist = [{ name = "idna", specifier = "==3.10" }]
 `;
 
+const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
 const railpackPackagingError: CreatePackagingError = ({ message, type, cause }) =>
   Object.assign(new Error(message, { cause }), { type });
 
@@ -609,6 +613,92 @@ const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
     ]);
     await assertNoGeneratedDockerfile(nodeRoot);
     record('railpack-node-plan-and-selected-context', planChanged);
+  }
+  if (only !== 'railpack-php') {
+    // r2bm: Railpack planned a `COPY` of each `package.json` in a workspace package's installed `node_modules`, such as
+    // the link pnpm creates for a `workspace:*` dependency, and the build failed because the context excludes it.
+    console.log('Building a pnpm workspace service whose dependencies are installed on the host...');
+    const workspaceRoot = join(projectsRoot, 'railpack-workspace');
+    await write(join(workspaceRoot, 'package.json'), json({ name: 'railpack-workspace', private: true }));
+    await write(join(workspaceRoot, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n  - services/*\n');
+    await write(
+      join(workspaceRoot, 'pnpm-lock.yaml'),
+      [
+        "lockfileVersion: '9.0'",
+        '',
+        'settings:',
+        '  autoInstallPeers: true',
+        '  excludeLinksFromLockfile: false',
+        '',
+        'importers:',
+        '',
+        '  .: {}',
+        '',
+        '  packages/shared: {}',
+        '',
+        '  services/report:',
+        '    dependencies:',
+        "      '@smoke/shared':",
+        '        specifier: workspace:*',
+        '        version: link:../../packages/shared',
+        ''
+      ].join('\n')
+    );
+    await write(
+      join(workspaceRoot, 'packages', 'shared', 'package.json'),
+      json({ name: '@smoke/shared', version: '1.0.0', private: true, main: 'index.js' })
+    );
+    await write(join(workspaceRoot, 'packages', 'shared', 'index.js'), "exports.label = 'from-workspace-package';\n");
+    await write(
+      join(workspaceRoot, 'services', 'report', 'package.json'),
+      json({
+        name: '@smoke/report',
+        version: '1.0.0',
+        private: true,
+        scripts: { start: 'node server.js' },
+        dependencies: { '@smoke/shared': 'workspace:*' }
+      })
+    );
+    await write(
+      join(workspaceRoot, 'services', 'report', 'server.js'),
+      [
+        "const { createServer } = require('node:http');",
+        "const { label } = require('@smoke/shared');",
+        'createServer((request, response) => response.end(`railpack-workspace-ok:${label}`)).listen(process.env.PORT || 3000);',
+        ''
+      ].join('\n')
+    );
+    // What an install on the host leaves: pnpm's link to the workspace package, and a dependency npm or Yarn nests in
+    // the package that needs another version.
+    const installedModules = join(workspaceRoot, 'services', 'report', 'node_modules');
+    await mkdir(join(installedModules, '@smoke'), { recursive: true });
+    await symlink('../../../../packages/shared', join(installedModules, '@smoke', 'shared'));
+    await write(join(installedModules, 'nested', 'package.json'), json({ name: 'nested', version: '2.0.0' }));
+    const workspaceTag = `stacktape-buildpack-smoke-railpack-workspace:${runId}`;
+    const workspaceOutput = await buildUsingRailpack({
+      ...railpack,
+      name: workspaceTag,
+      sourceDirectoryPath: 'railpack-workspace',
+      startCommand: 'pnpm --filter @smoke/report start'
+    });
+    assert.equal(await fetchFromContainer(workspaceTag), 'railpack-workspace-ok:from-workspace-package');
+    record('railpack-pnpm-workspace-installed', workspaceOutput);
+
+    await rm(installedModules, { recursive: true, force: true });
+    const cleanCheckout = await buildUsingRailpack({
+      ...railpack,
+      name: `stacktape-buildpack-smoke-railpack-workspace-clean:${runId}`,
+      existingDigests: [workspaceOutput.digest],
+      sourceDirectoryPath: 'railpack-workspace',
+      startCommand: 'pnpm --filter @smoke/report start'
+    });
+    assert.equal(
+      cleanCheckout.outcome,
+      'skipped',
+      'a clean checkout must reuse the image built with dependencies installed'
+    );
+    assert.equal(cleanCheckout.digest, workspaceOutput.digest);
+    await assertNoGeneratedDockerfile(workspaceRoot);
   }
   if (only !== 'railpack-node') {
     console.log('Building and serving a PHP app with Composer dependencies through the Railpack buildpack...');

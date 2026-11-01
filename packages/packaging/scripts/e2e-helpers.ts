@@ -410,9 +410,12 @@ export const createRailpackPrepare =
   (binary: string): RunRailpackPrepare =>
   async ({ sourceDirectoryPath, variables, config }) => {
     const outputDirectory = await mkdtemp(join(tmpdir(), 'stp-e2e-railpack-'));
+    // Railpack reads `--config-file` relative to the source directory, so the file is there, as the CLI writes it,
+    // only while the planner runs.
+    const configFile = config === undefined ? undefined : `.stacktape-railpack-${basename(outputDirectory)}.json`;
     try {
-      if (config !== undefined) {
-        await writeFile(join(outputDirectory, 'railpack.json'), JSON.stringify(config, null, 2));
+      if (configFile !== undefined) {
+        await writeFile(join(sourceDirectoryPath, configFile), JSON.stringify(config, null, 2));
       }
       const readJson = async (name: string) =>
         JSON.parse(await readFile(join(outputDirectory, name), 'utf8')) as unknown;
@@ -426,7 +429,7 @@ export const createRailpackPrepare =
             join(outputDirectory, 'plan.json'),
             '--info-out',
             join(outputDirectory, 'info.json'),
-            ...(config !== undefined ? ['--config-file', join(outputDirectory, 'railpack.json')] : []),
+            ...(configFile !== undefined ? ['--config-file', configFile] : []),
             ...Object.keys(variables).flatMap((name) => ['--env', name])
           ],
           sourceDirectoryPath,
@@ -439,6 +442,7 @@ export const createRailpackPrepare =
       }
       return { plan: await readJson('plan.json'), info: await readJson('info.json') };
     } finally {
+      if (configFile !== undefined) await rm(join(sourceDirectoryPath, configFile), { force: true });
       await rm(outputDirectory, { recursive: true, force: true });
     }
   };
