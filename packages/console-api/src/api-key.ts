@@ -183,6 +183,10 @@ export const deleteUndeployedStageFromCliInputSchema = z.object({
   stageName: z.string()
 });
 
+export const deleteProjectFromCliInputSchema = z.object({
+  projectName: z.string().trim().min(1)
+});
+
 export const recentStackOperationsInputSchema = z.object({
   projectName: z.string().optional(),
   stage: z.string().optional(),
@@ -339,6 +343,7 @@ export type AwsAccountCredentialsParams = z.input<typeof awsAccountCredentialsIn
 export type DefaultDomainsInfoParams = z.input<typeof defaultDomainsInfoInputSchema>;
 export type CreateProjectParams = z.input<typeof createProjectFromCliInputSchema>;
 export type DeleteUndeployedStageParams = z.input<typeof deleteUndeployedStageFromCliInputSchema>;
+export type DeleteProjectParams = z.input<typeof deleteProjectFromCliInputSchema>;
 export type RecentStackOperationsParams = z.input<typeof recentStackOperationsInputSchema>;
 export type OrganizationActivityParams = z.input<typeof organizationActivityFromCliInputSchema>;
 export type StackDetailsParams = z.input<typeof stackDetailsInputSchema>;
@@ -594,6 +599,14 @@ export type DeleteUndeployedStageResponse = {
   [otherProperties: string]: unknown;
 };
 
+/**
+ * `stacktape project delete`. A project that still has deployed stages in a connected AWS account is kept and the
+ * stages are listed: their stacks are deleted with `stacktape delete`, never by deleting the project.
+ */
+export type DeleteProjectResponse =
+  | { deleted: true; id: string; name: string }
+  | { deleted: false; deployedStages: Array<{ stage: string; region: string; awsAccountName: string }> };
+
 export type InitAwsConnectionForCliResponse = {
   connectionId: string;
   stackName: string;
@@ -763,6 +776,9 @@ export type ApiKeyTrpcClient = {
   };
   deleteUndeployedStageFromCli: {
     mutate: (args: DeleteUndeployedStageParams) => Promise<DeleteUndeployedStageResponse>;
+  };
+  deleteProjectFromCli: {
+    mutate: (args: DeleteProjectParams) => Promise<DeleteProjectResponse>;
   };
   initAwsConnectionForCli: {
     mutate: (args: InitAwsConnectionForCliInput) => Promise<InitAwsConnectionForCliResponse>;

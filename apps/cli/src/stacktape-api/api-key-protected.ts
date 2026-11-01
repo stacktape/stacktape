@@ -18,6 +18,8 @@ import type {
   DefaultDomainsInfoResponse,
   DeleteOrganizationParams,
   DeleteOrganizationResponse,
+  DeleteProjectParams,
+  DeleteProjectResponse,
   DeleteUndeployedStageParams,
   DeleteUndeployedStageResponse,
   Ec2DeployFromCliParams,
@@ -250,6 +252,10 @@ export class ApiKeyProtectedClient {
     return this.#request('deleteOrganizationFromCli', () =>
       this.#ensureInitialized().deleteOrganizationFromCli.mutate(args)
     );
+  };
+
+  deleteProject = async (args: DeleteProjectParams): Promise<DeleteProjectResponse> => {
+    return this.#request('deleteProjectFromCli', () => this.#ensureInitialized().deleteProjectFromCli.mutate(args));
   };
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {

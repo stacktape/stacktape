@@ -485,7 +485,7 @@ const verify = async () => {
     assert.equal((override.data?.args as Record<string, unknown>).awsAccount, 'override');
     assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
     for (const [safety, commands] of [
-      ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete']],
+      ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete', 'project:delete']],
       [
         'mutating',
         [
