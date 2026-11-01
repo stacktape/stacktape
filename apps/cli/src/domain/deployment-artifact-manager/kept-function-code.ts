@@ -159,7 +159,8 @@ const withoutCodeIdentity = (resource: unknown) => {
   };
 };
 
-const same = (left: unknown, right: unknown) =>
+/** Whether two template resources deploy the same thing, apart from which code they run and their deployment order. */
+export const sameDeployment = (left: unknown, right: unknown) =>
   JSON.stringify(canonical(withoutCodeIdentity(left))) === JSON.stringify(canonical(withoutCodeIdentity(right)));
 
 const canonical = (value: unknown): unknown => {
@@ -174,7 +175,7 @@ const canonical = (value: unknown): unknown => {
 };
 
 /** The logical names `Ref`, `Fn::GetAtt` and `Fn::Sub` point at anywhere inside `value`. */
-const referencedLogicalNames = (value: unknown, found = new Set<string>()): Set<string> => {
+export const referencedLogicalNames = (value: unknown, found = new Set<string>()): Set<string> => {
   if (Array.isArray(value)) value.forEach((item) => referencedLogicalNames(item, found));
   else if (value && typeof value === 'object') {
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -227,7 +228,7 @@ export const findKeptFunctionsWithChangedConfiguration = ({
     .filter(({ name, cfLogicalName }) => {
       const next = resource(template, cfLogicalName);
       const deployed = resource(deployedTemplate, cfLogicalName);
-      if (!next || !deployed || !same(next, deployed)) return true;
+      if (!next || !deployed || !sameDeployment(next, deployed)) return true;
       const role = (next.Properties?.Role as { 'Fn::GetAtt'?: unknown[] } | undefined)?.['Fn::GetAtt']?.[0];
       if (typeof role === 'string') {
         const nextRole = resource(template, role);
@@ -237,7 +238,7 @@ export const findKeptFunctionsWithChangedConfiguration = ({
           ...value,
           Properties: { ...value.Properties, Policies: undefined }
         });
-        if (!same(withoutPolicies(nextRole), withoutPolicies(deployedRole))) return true;
+        if (!sameDeployment(withoutPolicies(nextRole), withoutPolicies(deployedRole))) return true;
         const deployedStatements = new Set(policyStatements(deployedRole).map((s) => JSON.stringify(canonical(s))));
         if (policyStatements(nextRole).some((s) => !deployedStatements.has(JSON.stringify(canonical(s))))) return true;
       }
@@ -251,7 +252,7 @@ export const findKeptFunctionsWithChangedConfiguration = ({
       return [...owned, ...referenced].some((logicalName) => {
         const nextOwned = resource(template, logicalName);
         const deployedOwned = resource(deployedTemplate, logicalName);
-        return !deployedOwned || !same(nextOwned, deployedOwned);
+        return !deployedOwned || !sameDeployment(nextOwned, deployedOwned);
       });
     })
     .map(({ name }) => name);

@@ -61,6 +61,7 @@ import {
   registerAgentCleanupHook,
   setAgentNotices,
   setFunctionsNotInSession,
+  setImagesNotInSession,
   setRebuildFunctions,
   startAgentServer,
   type FailedWorkload
@@ -69,7 +70,12 @@ import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack, packageDevStackImages } from './dev-stack-deployer';
 import { formatStartingStreamMappingsNotice, type StartingStreamMapping } from './stream-starting-position';
-import { formatFunctionsNotInSessionNotice, loadFunctionsNotInSession } from './functions-not-in-session';
+import {
+  formatFunctionsNotInSessionNotice,
+  formatImagesNotInSessionNotice,
+  loadFunctionsNotInSession,
+  loadImagesNotInSession
+} from './functions-not-in-session';
 import {
   describeDevStackUpdateCause,
   getDevStackConfigFingerprint,
@@ -1186,16 +1192,22 @@ export const commandDev = async () => {
   const functionsNotInSession = await loadFunctionsNotInSession(skippedFunctionNames);
   setFunctionsNotInSession(functionsNotInSession);
   const functionsNotInSessionNotice = formatFunctionsNotInSessionNotice(functionsNotInSession);
+  // Batch jobs and AgentCore runtimes are left out with them and keep their deployed images.
+  const imagesNotInSession = await loadImagesNotInSession();
+  setImagesNotInSession(imagesNotInSession);
+  const imagesNotInSessionNotice = formatImagesNotInSessionNotice(imagesNotInSession);
   // A stream mapping this start created reads late, and with LATEST skips the first records (r2an Shop, r2ar).
   const streamStartNotice = formatStartingStreamMappingsNotice(startingStreamMappings);
   const sessionNotices = [
     ...devStackNotices,
     ...(functionsNotInSessionNotice ? [functionsNotInSessionNotice] : []),
+    ...(imagesNotInSessionNotice ? [imagesNotInSessionNotice] : []),
     ...(streamStartNotice ? [streamStartNotice] : [])
   ];
-  if (functionsNotInSessionNotice || streamStartNotice) setAgentNotices(sessionNotices);
+  if (functionsNotInSessionNotice || imagesNotInSessionNotice || streamStartNotice) setAgentNotices(sessionNotices);
   for (const [key, notice] of [
     ['functions-not-in-session', functionsNotInSessionNotice],
+    ['images-not-in-session', imagesNotInSessionNotice],
     ['stream-mapping-start', streamStartNotice]
   ] as const) {
     if (!notice) continue;
