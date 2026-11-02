@@ -118,8 +118,7 @@ export const postBeforeDeadline = async ({ url, body, deadline }: { url: string;
         throw new Error(`${url} did not answer before the deadline.`, { cause: error });
       }
       // Not listening yet: try again shortly, within the same deadline.
-      refusedSince =
-        (error as { code?: string }).code === 'ConnectionRefused' ? (refusedSince ?? Date.now()) : undefined;
+      refusedSince = (error as { code?: string }).code === 'ECONNREFUSED' ? (refusedSince ?? Date.now()) : undefined;
       if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000) {
         throw new LostPublishedPort(`${url} refused every connection for 10 s.`, { cause: error });
       }

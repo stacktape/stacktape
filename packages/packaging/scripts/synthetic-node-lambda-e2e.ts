@@ -166,7 +166,7 @@ const invokeLambdaRuntime = async ({
           }
         } catch (error) {
           lastError = error;
-          refused = (error as { code?: string }).code === 'ConnectionRefused';
+          refused = (error as { code?: string }).code === 'ECONNREFUSED';
         }
         refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
         if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && container < 3) continue runtimes;

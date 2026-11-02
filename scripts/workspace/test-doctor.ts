@@ -8,7 +8,7 @@ import { parseStacktapeJsonlResult } from './run-console-dev.ts';
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXPECTED_NODE = '24.15.0';
 const EXPECTED_PNPM = '11.17.0';
-const EXPECTED_BUN = '1.4.1';
+const EXPECTED_BUN = '1.4.4';
 const CONSOLE_DEV_ACCOUNT = '977946299200';
 
 export type DoctorScope = 'workspace' | 'console' | 'aws';

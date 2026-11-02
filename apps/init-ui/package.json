@@ -9,7 +9,7 @@
     "build:watch": "vite build --watch",
     "dev": "vite",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "bun check -p tsconfig.json",
     "test:e2e": "pnpm run typecheck:e2e && turbo run build --filter=@stacktape/init-ui && playwright test",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json"
   },

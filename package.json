@@ -58,7 +58,7 @@
     "test:plan": "node scripts/workspace/test-plan.ts",
     "test:tools": "node scripts/workspace/check-test-registry.ts && node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/child-process.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/test-doctor.test.ts scripts/workspace/test-plan.test.ts scripts/workspace/public-workspace.test.ts scripts/workspace/verify-console-pointer.test.ts scripts/workspace/console-dev-reservation.test.ts scripts/workspace/check-architecture.test.ts scripts/workspace/check-docs.test.ts scripts/workspace/test-registry.test.ts scripts/workspace/test-ci.test.ts scripts/workspace/workspace-build.test.ts",
     "typecheck": "turbo run typecheck",
-    "typecheck:tools": "tsc -p tsconfig.json",
+    "typecheck:tools": "bun check -p tsconfig.json --no-script",
     "audit:deadcode": "knip",
     "check:docs": "node scripts/workspace/check-docs.ts",
     "test:ci": "bun --no-env-file scripts/workspace/test-ci.ts",
@@ -91,7 +91,7 @@
     "*.astro": "dprint fmt --allow-no-files"
   },
   "engines": {
-    "bun": "1.4.1",
+    "bun": "1.4.4",
     "node": ">=24.15.0"
   },
   "packageManager": "pnpm@11.17.0"

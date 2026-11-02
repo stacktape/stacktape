@@ -205,7 +205,7 @@ describe('release publication policy', () => {
     expect(getWorkflowVersions({ workflow: await readCiWorkflow(), key: 'node-version-file' })).toEqual([
       '.node-version'
     ]);
-    expect(workspaceBunVersion).toBe('1.4.1');
+    expect(workspaceBunVersion).toBe('1.4.4');
     expect(getWorkflowVersions({ workflow, key: 'bun-version' })).toEqual(
       getWorkflowVersions({ workflow, key: 'bun-version' }).map(() => workspaceBunVersion)
     );

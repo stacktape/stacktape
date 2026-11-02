@@ -66,7 +66,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - name: Use Docker's containerd image store
         # Railpack builds use BuildKit's merge operation, which Docker offers only with this store. It is the default from
         # Docker Engine 29, but GitHub's runners still use the classic store.
@@ -183,7 +183,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       # The binary serves this from beside itself; the packaging step fails loudly without it.
       - name: Build init wizard interface
@@ -302,7 +302,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Build init wizard interface
         run: pnpm turbo run build --filter=@stacktape/init-ui
@@ -353,7 +353,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Download bytecode candidates
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -396,7 +396,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Download binary archives
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -465,7 +465,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Download the assembled candidate without rebuilding
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -505,7 +505,7 @@ jobs:
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: npm install --global npm@11.16.0
       - run: pnpm install --frozen-lockfile
       - name: Download verified candidate
@@ -653,7 +653,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Verify the original release run
         id: original
@@ -755,7 +755,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.1
+          bun-version: 1.4.4
       - run: pnpm install --frozen-lockfile
       - name: Validate installer publishing target
         env:

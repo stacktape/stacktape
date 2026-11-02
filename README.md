@@ -367,7 +367,7 @@ The public repository contains the CLI, documentation, init wizard, website, VS 
 `apps/console` is an optional private Git submodule. Public contributions can install, test, build and produce release
 artifacts without it.
 
-Use Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0 and Bun 1.4.1:
+Use Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0 and Bun 1.4.4:
 
 ```sh
 pnpm install --frozen-lockfile

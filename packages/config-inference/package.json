@@ -50,7 +50,7 @@
   },
   "scripts": {
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "bun check -p tsconfig.json"
   },
   "dependencies": {
     "smol-toml": "^1.7.0",
