@@ -1980,6 +1980,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/cache-volume.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -5527,6 +5528,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/cache-volume.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -6519,6 +6521,7 @@ export const slices: readonly Slice[] = [
 export const toolingTests: readonly string[] = [
   'apps/cli/scripts/release-workflow.spec.ts',
   'packages/ministack/src/fixture.test.ts',
+  'apps/console/api/scripts/outbound-guard.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
   'apps/cli/scripts/generation/generated-files.spec.ts',
