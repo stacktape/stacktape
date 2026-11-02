@@ -50,6 +50,53 @@ export const isRequireImportKind = (kind: Bun.ImportKind | undefined): boolean =
 export const packageEntryConditions = (kind: Bun.ImportKind | undefined): string[] =>
   isRequireImportKind(kind) ? ['require', 'default', 'import'] : ['import', 'require', 'default'];
 
+const pickConditionalTarget = (value: unknown, conditions: string[]): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const target = pickConditionalTarget(entry, conditions);
+      if (target) return target;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  for (const condition of conditions) {
+    const target = pickConditionalTarget((value as Record<string, unknown>)[condition], conditions);
+    if (target) return target;
+  }
+  return undefined;
+};
+
+/**
+ * The file a package's `exports` field maps an import to, relative to the package directory, or undefined when the
+ * field does not name it. `subpath` is `.` for the package itself or `./node` for `better-call/node`. Conditions are
+ * tried in the given preference order (see packageEntryConditions), at every nesting level; `*` patterns are expanded.
+ */
+export const resolvePackageExportsTarget = (
+  exportsField: unknown,
+  subpath: string,
+  conditions: string[]
+): string | undefined => {
+  if (exportsField === null || exportsField === undefined) return undefined;
+  const isSubpathMap =
+    typeof exportsField === 'object' &&
+    !Array.isArray(exportsField) &&
+    Object.keys(exportsField).some((key) => key.startsWith('.'));
+  if (!isSubpathMap) return subpath === '.' ? pickConditionalTarget(exportsField, conditions) : undefined;
+  const map = exportsField as Record<string, unknown>;
+  if (subpath in map) return pickConditionalTarget(map[subpath], conditions);
+  for (const [key, value] of Object.entries(map)) {
+    const star = key.indexOf('*');
+    if (star === -1) continue;
+    const prefix = key.slice(0, star);
+    const suffix = key.slice(star + 1);
+    if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix) || subpath.length < key.length - 1) continue;
+    const match = subpath.slice(prefix.length, subpath.length - suffix.length);
+    return pickConditionalTarget(value, conditions)?.replaceAll('*', match);
+  }
+  return undefined;
+};
+
 const requireResolverCache = new Map<string, ReturnType<typeof createRequire>>();
 
 /**

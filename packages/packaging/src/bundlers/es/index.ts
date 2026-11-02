@@ -51,6 +51,7 @@ import {
   getTsconfigAliases,
   isRequireImportKind,
   packageEntryConditions,
+  resolvePackageExportsTarget,
   resolveWithRequireCondition
 } from '../../es/bundler-helpers';
 import type { JsBundleOptions, ResolvedPackageDependency } from '../../runtime-contracts';
@@ -397,9 +398,19 @@ export const buildEsCode = async ({
             const pkgJsonPath = join(modulePath, 'package.json');
             const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
 
-            // Handle subpath imports (e.g., 'lodash/merge')
+            // Handle subpath imports (e.g., 'lodash/merge'). A package with an `exports` field decides where a
+            // subpath points (`better-call/node` is `dist/node.mjs`), so that map is read before probing files.
             const subpath = args.path.slice(moduleName.length);
             if (subpath && subpath !== '/') {
+              const exportsTarget = resolvePackageExportsTarget(
+                pkgJson.exports,
+                `.${subpath}`,
+                packageEntryConditions(args.kind)
+              );
+              if (exportsTarget) {
+                const exportsPath = join(modulePath, exportsTarget);
+                if (isFileAccessible(exportsPath)) return { path: transformToUnixPath(resolve(exportsPath)) };
+              }
               const subpathFile = join(modulePath, subpath);
               const extensions = ['.js', '.mjs', '.cjs', '.ts', '.tsx', '.json', ''];
               for (const ext of extensions) {
@@ -413,30 +424,7 @@ export const buildEsCode = async ({
             // Resolve main entry point, preferring the export condition Bun's own resolver would use
             // for this import kind. A `require()` call answered with an ESM entry receives a namespace
             // object instead of `module.exports`; see resolveWithRequireCondition.
-            let entryPoint: string | undefined;
-            if (pkgJson.exports) {
-              const exports = pkgJson.exports;
-              if (typeof exports === 'string') {
-                entryPoint = exports;
-              } else if (exports['.']) {
-                const dotExport = exports['.'];
-                if (typeof dotExport === 'string') {
-                  entryPoint = dotExport;
-                } else {
-                  for (const condition of packageEntryConditions(args.kind)) {
-                    const value = dotExport[condition];
-                    if (typeof value === 'string') {
-                      entryPoint = value;
-                      break;
-                    }
-                    if (value && typeof value === 'object' && typeof value.default === 'string') {
-                      entryPoint = value.default;
-                      break;
-                    }
-                  }
-                }
-              }
-            }
+            let entryPoint = resolvePackageExportsTarget(pkgJson.exports, '.', packageEntryConditions(args.kind));
             // `module` names an ESM entry, so a `require()` call has to reach `main` first.
             if (!entryPoint) {
               entryPoint = isRequireImportKind(args.kind)

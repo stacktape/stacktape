@@ -92,3 +92,61 @@ test('resolves a require() of a dual-entry package to its CommonJS entry point',
   const bundle = (await import(pathToFileURL(distPath).href)) as { handler: () => string };
   expect(bundle.handler()).toBe('derived');
 });
+
+/**
+ * The layout that stopped the Console API from packaging: `better-auth` imports `better-call/node`, and `better-call`
+ * sits in a nested `node_modules`, where the loose resolver takes over. The subpath exists only in the `exports` map
+ * (`./node` → `dist/node.mjs`); probing `node.js` or `node/index.js` finds nothing, and falling back to the package's
+ * main entry fails the build with `No matching export ... for import "toNodeHandler"`.
+ */
+test('resolves a subpath import of a nested package through its exports map', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-exports-subpath-')));
+  temporaryDirectories.push(root);
+  const consumerRoot = join(root, 'node_modules', 'esm-consumer');
+  const subpathRoot = join(consumerRoot, 'node_modules', 'subpath-exports');
+
+  await writeFileAt(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true, type: 'module' }));
+  await writeFileAt(
+    join(consumerRoot, 'package.json'),
+    JSON.stringify({ name: 'esm-consumer', version: '1.0.0', type: 'module', exports: './index.mjs' })
+  );
+  await writeFileAt(
+    join(consumerRoot, 'index.mjs'),
+    "import { toNodeHandler } from 'subpath-exports/node';\nexport const run = () => toNodeHandler();\n"
+  );
+  await writeFileAt(
+    join(subpathRoot, 'package.json'),
+    JSON.stringify({
+      name: 'subpath-exports',
+      version: '1.0.0',
+      type: 'module',
+      exports: {
+        '.': { 'dev-source': './src/index.ts', import: { types: './dist/index.d.mts', default: './dist/index.mjs' } },
+        './node': { 'dev-source': './src/node.ts', import: { types: './dist/node.d.mts', default: './dist/node.mjs' } },
+        './adapters/*': { import: './dist/adapters/*.mjs' }
+      }
+    })
+  );
+  await writeFileAt(join(subpathRoot, 'dist', 'index.mjs'), "export const createRouter = () => 'router';\n");
+  await writeFileAt(join(subpathRoot, 'dist', 'node.mjs'), "export const toNodeHandler = () => 'node handler';\n");
+  await writeFileAt(
+    join(root, 'handler.ts'),
+    "import { run } from 'esm-consumer';\nexport const handler = () => run();\n"
+  );
+
+  const distPath = join(root, 'dist', 'handler.js');
+  await buildEsCode({
+    sourcePath: join(root, 'handler.ts'),
+    distPath,
+    cwd: root,
+    externals: [],
+    minify: false,
+    outputModuleFormat: 'esm',
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'disabled',
+    createPackagingError
+  });
+
+  const bundle = (await import(pathToFileURL(distPath).href)) as { handler: () => string };
+  expect(bundle.handler()).toBe('node handler');
+});
