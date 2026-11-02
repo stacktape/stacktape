@@ -223,7 +223,6 @@
     "**/dist/**",
     "**/generated/**",
     "**/node_modules/**",
-    "apps/cli/starter-projects/**",
-    "apps/console/api/dist/**"
+    "apps/cli/starter-projects/**"
   ]
 }
