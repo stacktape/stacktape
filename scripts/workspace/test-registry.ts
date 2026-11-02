@@ -1682,6 +1682,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
+      'apps/console/api/scripts/error-contract-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
       'apps/console/api/scripts/audit-coverage-database.test.ts',
@@ -1979,6 +1980,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/cache-volume.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -2102,6 +2104,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
+      'apps/console/ui/src/services/request-errors.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
@@ -5306,6 +5309,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
+      'apps/console/api/scripts/error-contract-database.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
@@ -5524,6 +5528,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/cache-volume.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
@@ -6301,6 +6306,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/Router.tsx',
       'apps/console/ui/src/RouteErrorBoundary.tsx',
       'apps/console/ui/src/services/queryClient.ts',
+      'apps/console/ui/src/services/request-errors.ts',
       'packages/ui-react/src/select/**',
       'packages/ui-react/src/tabs/**'
     ],
@@ -6310,9 +6316,11 @@ export const slices: readonly Slice[] = [
       'packages/design-tokens/src/tokens.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
-      'apps/console/ui/e2e/isolated-errors.test.ts'
+      'apps/console/ui/e2e/isolated-errors.test.ts',
+      'apps/console/ui/src/services/request-errors.test.ts'
     ],
     lanes: [
+      'console-ui',
       'design-tokens-test',
       'ui-react-test',
       'console-browser-offline',
@@ -6513,6 +6521,7 @@ export const slices: readonly Slice[] = [
 export const toolingTests: readonly string[] = [
   'apps/cli/scripts/release-workflow.spec.ts',
   'packages/ministack/src/fixture.test.ts',
+  'apps/console/api/scripts/outbound-guard.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
   'apps/cli/scripts/generation/generated-files.spec.ts',
