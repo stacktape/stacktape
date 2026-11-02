@@ -5786,7 +5786,8 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts',
-      'apps/console/api/src/issues/source-maps.test.ts'
+      'apps/console/api/src/issues/source-maps.test.ts',
+      'apps/console/api/src/issues/stored-stack-trace.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
@@ -5833,6 +5834,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-correlation.ts',
       'apps/console/ui/src/pages/IncidentsPage/**',
       'apps/console/api/src/services/incident-history.ts',
+      'apps/console/api/src/services/incident-stored-details.ts',
       'apps/cli/src/commands/incidents-watch/watch-incident.ts',
       'apps/console/api/src/services/incident-paging.ts'
     ],
@@ -5840,6 +5842,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
+      'apps/console/api/src/services/incident-stored-details.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts'
     ],
