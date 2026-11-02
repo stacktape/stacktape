@@ -25,7 +25,7 @@ generator derives it from this model; applications consume the package export ra
 JSDoc under `src` becomes schema descriptions, editor hovers, documentation and published npm declarations. Treat it as
 customer-facing source.
 
-- `src` is excluded from oxfmt because formatting would rewrite published descriptions.
+- `src` is excluded from `bun fmt` because formatting would rewrite published descriptions.
 - Use ordinary comments for internal notes.
 - Keep examples valid in both the schema and generated declarations.
 

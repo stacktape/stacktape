@@ -248,10 +248,15 @@ const writeTemplate = async (caseName: string, producer: 'v3' | 'v4', template: 
 
 /** The committed templates are formatted like every other JSON file in the repository, so `pnpm fmt` never churns them. */
 const formatBaselines = () => {
-  const oxfmt = join(cliRoot, '..', '..', 'node_modules', '.bin', 'oxfmt');
-  const result = Bun.spawnSync([oxfmt, baselinesDirectory], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  // The formatter settings live in the repository root's bunfig.toml, so the formatter runs from there.
+  const result = Bun.spawnSync([process.execPath, 'fmt', '--no-script', baselinesDirectory], {
+    cwd: join(cliRoot, '..', '..'),
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe'
+  });
   if (result.exitCode !== 0) {
-    throw new Error(`oxfmt failed on ${baselinesDirectory}: ${result.stderr.toString().slice(0, 500)}`);
+    throw new Error(`bun fmt failed on ${baselinesDirectory}: ${result.stderr.toString().slice(0, 500)}`);
   }
 };
 

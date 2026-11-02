@@ -68,9 +68,11 @@ const readManifest = async (path: string) => {
   const manifest = qualificationManifestSchema.parse(JSON.parse(await readFile(absolutePath, 'utf8')));
   return {
     path: absolutePath,
-    cases: manifest.cases.map(
-      (entry): SelectedCase => ({ entry, manifestDirectory: dirname(absolutePath), manifestPath: absolutePath })
-    )
+    cases: manifest.cases.map((entry): SelectedCase => ({
+      entry,
+      manifestDirectory: dirname(absolutePath),
+      manifestPath: absolutePath
+    }))
   };
 };
 

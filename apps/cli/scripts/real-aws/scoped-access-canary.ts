@@ -246,9 +246,10 @@ const awaitProbe = async (apiUrl: string, variant: Variant, secretSha256: string
   let last: string[] = [];
   while (Date.now() - startedAt < PROPAGATION_TIMEOUT_MS) {
     attempts += 1;
-    const probe = await requestApi(`${apiUrl}/probe`).catch(
-      (error: unknown): ProbeResponse => ({ status: 0, body: { variant: String(error) } })
-    );
+    const probe = await requestApi(`${apiUrl}/probe`).catch((error: unknown): ProbeResponse => ({
+      status: 0,
+      body: { variant: String(error) }
+    }));
     last = probeMismatches(variant, secretSha256, probe);
     if (last.length === 0) {
       return { attempts, secondsToMatch: Math.round((Date.now() - startedAt) / 1000), body: probe.body };

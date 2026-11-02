@@ -1102,17 +1102,15 @@ export const composeConfig = ({
             (dependency) => dependency.kind === 'sqlite' && dependency.consumedBy.includes(serviceName)
           )
       )
-      .map(
-        (serviceName): DependencyFact => ({
-          name: `${serviceName}Sqlite`,
-          kind: 'sqlite',
-          extensions: [],
-          consumedBy: [serviceName],
-          addressedBy: [],
-          evidence: [],
-          source: 'agent'
-        })
-      )
+      .map((serviceName): DependencyFact => ({
+        name: `${serviceName}Sqlite`,
+        kind: 'sqlite',
+        extensions: [],
+        consumedBy: [serviceName],
+        addressedBy: [],
+        evidence: [],
+        source: 'agent'
+      }))
   ];
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');

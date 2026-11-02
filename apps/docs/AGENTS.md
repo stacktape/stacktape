@@ -5,7 +5,7 @@ This is the static Astro site at `docs.stacktape.com`. It has no runtime depende
 ## Canonical content
 
 `content/**/*.mdx` is product documentation and also feeds the CLI's shipped MCP/LLM corpus. Preserve authored
-formatting: content is excluded from oxfmt because code-example whitespace can be meaningful.
+formatting: content is excluded from `bun fmt` because code-example whitespace can be meaningful.
 
 Change canonical MDX or resource data, then run the CLI generator. Never patch `apps/cli/@generated/llm-docs` directly.
 `aws:call` documentation must match the exact allowlist in `packages/aws-read-only/src/operations.ts`.

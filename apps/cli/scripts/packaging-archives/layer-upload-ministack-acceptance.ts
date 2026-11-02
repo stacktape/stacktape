@@ -43,9 +43,7 @@ const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest(
 const describeTree = async (root: string) =>
   (
     await Promise.all(
-      (
-        await readdir(root, { recursive: true, withFileTypes: true })
-      ).map(async (entry) => {
+      (await readdir(root, { recursive: true, withFileTypes: true })).map(async (entry) => {
         const path = join(entry.parentPath, entry.name);
         const name = relative(root, path);
         if (entry.isSymbolicLink()) return `${name} link ${await readlink(path)}`;

@@ -1049,20 +1049,18 @@ const writePagesAndChunks = async (pages: LlmDocPage[], outputDirectory: string)
       'apps/cli/src/domain/config-manager/resolved-types',
       'apps/cli/@generated/schemas/enhanced-config-schema.json'
     ],
-    pages: pages.map(
-      (page): ManifestEntry => ({
-        id: page.id,
-        title: page.title,
-        route: page.route,
-        sourcePath: page.sourcePath,
-        outputPath: page.outputPath,
-        docKind: page.docKind,
-        resourceType: page.resourceType,
-        definitionNames: page.definitionNames,
-        tags: page.tags,
-        chunks: chunksByPage.get(page.id) || []
-      })
-    )
+    pages: pages.map((page): ManifestEntry => ({
+      id: page.id,
+      title: page.title,
+      route: page.route,
+      sourcePath: page.sourcePath,
+      outputPath: page.outputPath,
+      docKind: page.docKind,
+      resourceType: page.resourceType,
+      definitionNames: page.definitionNames,
+      tags: page.tags,
+      chunks: chunksByPage.get(page.id) || []
+    }))
   };
   await writeFile(join(outputDirectory, 'index.json'), JSON.stringify(manifest, null, 2), 'utf-8');
   return { chunks, manifest };

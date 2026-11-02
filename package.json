@@ -30,9 +30,9 @@
     "dev:website": "turbo run dev --filter=@stacktape/website",
     "dev:vscode-extension": "turbo run dev --filter=vscode-stacktape",
     "dev:wizard-ui": "turbo run build:watch --filter=@stacktape/init-ui",
-    "fmt": "oxfmt . && dprint fmt",
+    "fmt": "bun fmt --no-script && dprint fmt",
     "freshness": "node scripts/workspace/session-freshness.ts",
-    "fmt:check": "oxfmt --check . && dprint check",
+    "fmt:check": "bun fmt --no-script --check && dprint check",
     "generate": "turbo run generate",
     "generate:check": "turbo run generate:check",
     "lint": "oxlint . --deny-warnings --report-unused-disable-directives",
@@ -78,7 +78,6 @@
     "jscpd": "catalog:",
     "knip": "catalog:",
     "lint-staged": "catalog:",
-    "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "publint": "catalog:",
     "sherif": "catalog:",
@@ -87,10 +86,10 @@
   },
   "lint-staged": {
     "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}": [
-      "oxfmt --write --no-error-on-unmatched-pattern",
+      "bun fmt --no-script --no-error-on-unmatched-pattern",
       "oxlint --fix --deny-warnings --report-unused-disable-directives --no-error-on-unmatched-pattern"
     ],
-    "*.{json,jsonc,css,scss,md,mdx,yaml,yml}": "oxfmt --write --no-error-on-unmatched-pattern",
+    "*.{json,jsonc,css,scss,md,mdx,yaml,yml}": "bun fmt --no-script --no-error-on-unmatched-pattern",
     "*.astro": "dprint fmt --allow-no-files"
   },
   "engines": {

@@ -12,7 +12,7 @@ import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { localBuildTsConfigPath } from '@utils/misc';
-import { prettifyFile } from '@scripts/support/prettier';
+import { formatFiles } from '@scripts/support/format-files';
 import { outputFile } from 'fs-extra';
 import * as ts from 'typescript';
 import {
@@ -1154,19 +1154,7 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
     outputFile(outputPaths.index, stripFocusMarkersFromDts(indexDts), { encoding: 'utf8' })
   ]);
 
-  // Format all files (run twice for prettier bug)
-  await Promise.all([
-    prettifyFile({ filePath: outputPaths.plain }),
-    prettifyFile({ filePath: outputPaths.cloudformation }),
-    prettifyFile({ filePath: outputPaths.types }),
-    prettifyFile({ filePath: outputPaths.index })
-  ]);
-  await Promise.all([
-    prettifyFile({ filePath: outputPaths.plain }),
-    prettifyFile({ filePath: outputPaths.cloudformation }),
-    prettifyFile({ filePath: outputPaths.types }),
-    prettifyFile({ filePath: outputPaths.index })
-  ]);
+  formatFiles([outputPaths.plain, outputPaths.cloudformation, outputPaths.types, outputPaths.index]);
 
   logSuccess(
     `TypeScript declarations generated to:\n  - ${outputPaths.index}\n  - ${outputPaths.types}\n  - ${outputPaths.plain}\n  - ${outputPaths.cloudformation}`
