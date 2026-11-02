@@ -1,5 +1,19 @@
 {
   "worktree": {
-    "baseRef": "head"
+    "baseRef": "fresh"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/workspace/session-freshness.ts\" --hook",
+            "timeout": 45,
+            "statusMessage": "Comparing this checkout with origin/main"
+          }
+        ]
+      }
+    ]
   }
 }
