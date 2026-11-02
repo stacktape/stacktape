@@ -9,8 +9,9 @@ Thanks for helping. This page explains what we accept and how to get a change me
 - **Features and larger changes:** start a discussion in
   [Ideas](https://github.com/stacktape/stacktape/discussions/categories/ideas) first. We may already have a plan, or the
   change may not fit the product, and we would rather tell you before you write the code.
-- **Questions:** ask on [Discord](https://discord.gg/stacktape) or in
-  [Q&A](https://github.com/stacktape/stacktape/discussions/categories/q-a).
+- **Questions:** ask in our
+  [Slack community](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg) or
+  in [Q&A](https://github.com/stacktape/stacktape/discussions/categories/q-a).
 - **Security problems:** do not open a public issue. Follow the [security policy](SECURITY.md).
 
 ## Setting up
