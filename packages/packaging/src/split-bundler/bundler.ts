@@ -347,7 +347,12 @@ const executeBunBuild = async ({
         metafile: planMetafile,
         resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
       }).catch(() => undefined));
+    if (process.platform === 'win32') {
+      console.error('STPDBG PLAN', process.cwd(), JSON.stringify(planMetafile));
+      console.error('STPDBG ANCHOR', anchorSource);
+    }
     result = await runBunBuild({ anchorSource, outdir: sharedOutdir, buildTracker: tracker });
+    if (process.platform === 'win32') console.error('STPDBG RESULT', JSON.stringify(result.metafile), JSON.stringify(result.logs));
     // Without the anchor when Bun rejects it, when a chunk still mixes the two (its order was not checked), or when it
     // kept package code that tree shaking removes without it.
     if (
