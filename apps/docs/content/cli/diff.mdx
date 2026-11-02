@@ -32,6 +32,8 @@ Each changed resource is categorized:
 | `!` | replaced | Resource will be destroyed and recreated |
 | `-` | removed | Resource will be deleted |
 
+A stateful resource, such as a database, table, bucket, queue, stream or user pool, is marked replaced when the AWS resource that holds its data is replaced. When only a supporting resource is replaced, such as a security group or a user pool client, the resource stays marked updated and the will-replace line names the supporting resource.
+
 For resources that will be replaced, the output distinguishes between **will replace** (CloudFormation guarantees replacement) and **may replace** (replacement depends on runtime conditions). Replacement means downtime for that resource — watch for these before deploying to a production stage.
 
 <Warning>
