@@ -151,13 +151,15 @@ const listZipLinks = (zipPath: string) =>
  */
 const restoreZipLinks = async (zipPath: string, extracted: string) => {
   if (process.platform !== 'win32') return;
-  for (const link of await listZipLinks(zipPath)) {
-    const linkPath = join(extracted, link);
-    const targetPath = resolve(dirname(linkPath), await readFile(linkPath, 'utf8'));
-    await rm(linkPath);
-    if ((await stat(targetPath)).isDirectory()) await symlink(targetPath, linkPath, 'junction');
-    else await copyFile(targetPath, linkPath);
-  }
+  await Promise.all(
+    (await listZipLinks(zipPath)).map(async (link) => {
+      const linkPath = join(extracted, link);
+      const targetPath = resolve(dirname(linkPath), await readFile(linkPath, 'utf8'));
+      await rm(linkPath);
+      if ((await stat(targetPath)).isDirectory()) await symlink(targetPath, linkPath, 'junction');
+      else await copyFile(targetPath, linkPath);
+    })
+  );
 };
 
 // Extracted outside the fixture project: Node must not resolve a missing package from the fixture's node_modules.
