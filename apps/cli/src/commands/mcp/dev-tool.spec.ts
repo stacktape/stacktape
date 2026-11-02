@@ -998,7 +998,7 @@ describe('MCP dev stop', () => {
 
   test('stop waits for the agent process, which still runs its cleanup after its HTTP server closed', async () => {
     // A process that ends 600 ms from now stands in for the agent; its HTTP stand-in keeps answering.
-    const agentProcess = Bun.spawn(['sleep', '0.6']);
+    const agentProcess = Bun.spawn([process.execPath, '-e', 'setTimeout(() => {}, 600)']);
     const agent = await daemon({ exitAfterStopMs: null, status: { pid: agentProcess.pid } });
     try {
       const handler = createDevToolHandler({ runCli: startedDaemon, stopWaitMs: 5000 });
@@ -1430,15 +1430,16 @@ describe('MCP dev session scope', () => {
     const root = await projectDirectory('linked-home');
     await mkdir(join(root, 'data', 'home', 'u', 'shop'), { recursive: true });
     await symlink(join(root, 'data', 'home'), join(root, 'home'), 'junction');
-    const linux = { platform: 'linux' as const, home: join(root, 'home', 'u') };
+    // Links are resolved only for paths of the host's own platform.
+    const host = { platform: process.platform, home: join(root, 'home', 'u') };
     const cases: Array<[string, string, { platform: NodeJS.Platform; home: string }, boolean]> = [
       // HOME is a link; the server reports the real path.
-      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'data', 'home', 'u'), linux, false],
-      [join(root, 'home', 'u', 'shop'), join(root, 'data', 'home'), linux, false],
-      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'home', 'u', 'shop'), linux, true],
-      [join(root, 'data', 'home', 'u', 'shop', 'api'), join(root, 'home', 'u', 'shop'), linux, true],
-      [join(root, 'data', 'home', 'u'), join(root, 'data', 'home', 'u'), linux, true],
-      ['/srv/app', '/', linux, false],
+      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'data', 'home', 'u'), host, false],
+      [join(root, 'home', 'u', 'shop'), join(root, 'data', 'home'), host, false],
+      [join(root, 'data', 'home', 'u', 'shop'), join(root, 'home', 'u', 'shop'), host, true],
+      [join(root, 'data', 'home', 'u', 'shop', 'api'), join(root, 'home', 'u', 'shop'), host, true],
+      [join(root, 'data', 'home', 'u'), join(root, 'data', 'home', 'u'), host, true],
+      ['/srv/app', '/', { platform: 'linux', home: '/home/u' }, false],
       // A VS Code root on Windows arrives as c:\Users\u; os.homedir() says C:\Users\u.
       ['C:\\Users\\u\\shop', 'c:\\Users\\u', { platform: 'win32', home: 'C:\\Users\\u' }, false],
       ['C:\\Users\\u\\shop', 'c:\\users', { platform: 'win32', home: 'C:\\Users\\u' }, false],
