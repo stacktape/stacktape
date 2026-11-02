@@ -17,24 +17,36 @@ import { basename, extname } from 'node:path';
 import type { BunPlugin } from 'bun';
 import type { BuildMetafile } from './types';
 
-/** The anchor's entry point. No file has this name; the plugin below provides the module. */
-export const OWN_CODE_ANCHOR_ENTRY = 'stacktape-own-code-anchor';
+/** The name of the anchor's entry point. No file has this name; the plugin below provides the module. */
+const OWN_CODE_ANCHOR_ENTRY = 'stacktape-own-code-anchor';
 
 /** The anchor's emitted file or its source map, or its entry point as the metafile names it. */
-export const isOwnCodeAnchorOutput = (path: string) =>
-  basename(path).startsWith(`${OWN_CODE_ANCHOR_ENTRY}.`) || path.startsWith(`${OWN_CODE_ANCHOR_ENTRY}:`);
+export const isOwnCodeAnchorOutput = (path: string) => basename(path).startsWith(`${OWN_CODE_ANCHOR_ENTRY}.`);
 
-/** Serves the anchor entry point with the given source. */
-export const createOwnCodeAnchorPlugin = (source: string): BunPlugin => ({
-  name: 'stp-own-code-anchor',
-  setup(build) {
-    build.onResolve({ filter: new RegExp(`^${OWN_CODE_ANCHOR_ENTRY}$`) }, () => ({
-      path: OWN_CODE_ANCHOR_ENTRY,
-      namespace: OWN_CODE_ANCHOR_ENTRY
-    }));
-    build.onLoad({ filter: /.*/, namespace: OWN_CODE_ANCHOR_ENTRY }, () => ({ contents: source, loader: 'js' }));
-  }
-});
+/**
+ * The anchor's entry point: a file in `directory`, the build's root, that does not exist. Bun names an entry's output
+ * after the entry's directory relative to the root. Outside the root, as in the working directory on another Windows
+ * drive than the project, that name has a drive letter in it and Bun fails to write the output.
+ */
+export const getOwnCodeAnchorEntry = (directory: string) =>
+  `${directory.replaceAll('\\', '/')}/${OWN_CODE_ANCHOR_ENTRY}.js`;
+
+/** Serves the anchor entry point, `getOwnCodeAnchorEntry`'s path, with the given source. */
+export const createOwnCodeAnchorPlugin = ({ entry, source }: { entry: string; source: string }): BunPlugin => {
+  // Bun may pass the path on with either separator on Windows.
+  const pattern = entry
+    .split('/')
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('[\\\\/]');
+  const filter = new RegExp(`^${pattern}$`, process.platform === 'win32' ? 'i' : '');
+  return {
+    name: 'stp-own-code-anchor',
+    setup(build) {
+      build.onResolve({ filter }, () => ({ path: entry }));
+      build.onLoad({ filter }, () => ({ contents: source, loader: 'js' }));
+    }
+  };
+};
 
 /** An installed package's file, by its path in the metafile. */
 export const isInstalledPackagePath = (path: string) => /(?:^|[\\/])node_modules[\\/]/.test(path);
@@ -43,7 +55,8 @@ export const isInstalledPackagePath = (path: string) => /(?:^|[\\/])node_modules
 const isVirtualModule = (path: string) => /^[\w-]+:/.test(path) && !/^[a-z]:[\\/]/i.test(path);
 
 /** A source file of the project, rather than an installed package or a plugin's module. */
-export const isOwnSourcePath = (path: string) => !isInstalledPackagePath(path) && !isVirtualModule(path);
+export const isOwnSourcePath = (path: string) =>
+  !isInstalledPackagePath(path) && !isVirtualModule(path) && !isOwnCodeAnchorOutput(path);
 
 /** A package module that runs where it is placed. Bun wraps CommonJS and runs it when it is first required. */
 const runsInPlace = (metafile: BuildMetafile, path: string) =>

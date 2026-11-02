@@ -25,12 +25,12 @@ import { createPackageAnalysisCache, getProductionDependencies } from '../es/ins
 import {
   createOwnCodeAnchorPlugin,
   createOwnCodeAnchorSource,
+  getOwnCodeAnchorEntry,
   getPackageBytes,
   hasMixedChunk,
   isInstalledPackagePath,
   isOwnCodeAnchorOutput,
-  isOwnSourcePath,
-  OWN_CODE_ANCHOR_ENTRY
+  isOwnSourcePath
 } from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
@@ -269,6 +269,7 @@ const executeBunBuild = async ({
   // Use monorepo root for module resolution if available, otherwise cwd
   const buildRoot = monorepoRoot || cwd;
   const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
+  const anchorEntry = getOwnCodeAnchorEntry(buildRoot);
   const runBunBuild = ({
     anchorSource,
     outdir,
@@ -281,7 +282,7 @@ const executeBunBuild = async ({
     buildTracker: DependencyTracker;
   }) =>
     Bun.build({
-      entrypoints: anchorSource ? [...entryPaths, OWN_CODE_ANCHOR_ENTRY] : entryPaths,
+      entrypoints: anchorSource ? [...entryPaths, anchorEntry] : entryPaths,
       ...(outdir ? { outdir } : {}),
       target: 'node',
       format: 'esm',
@@ -313,7 +314,7 @@ const executeBunBuild = async ({
         createNativeNodeModulesPlugin(),
         createPrismaLambdaClientPlugin(),
         createWindowsPathNormalizationPlugin({ cwd, monorepoRoot }),
-        ...(anchorSource ? [createOwnCodeAnchorPlugin(anchorSource)] : [])
+        ...(anchorSource ? [createOwnCodeAnchorPlugin({ entry: anchorEntry, source: anchorSource })] : [])
       ],
       root: buildRoot,
       ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
@@ -347,13 +348,7 @@ const executeBunBuild = async ({
         metafile: planMetafile,
         resolveInput: (path) => resolveBunOutputPath(process.cwd(), path)
       }).catch(() => undefined));
-    if (process.platform === 'win32') {
-      console.error('STPDBG PLAN', process.cwd(), JSON.stringify(planMetafile));
-      console.error('STPDBG ANCHOR', anchorSource);
-    }
     result = await runBunBuild({ anchorSource, outdir: sharedOutdir, buildTracker: tracker });
-    if (process.platform === 'win32')
-      console.error('STPDBG RESULT', JSON.stringify(result.metafile), JSON.stringify(result.logs));
     // Without the anchor when Bun rejects it, when a chunk still mixes the two (its order was not checked), or when it
     // kept package code that tree shaking removes without it.
     if (
