@@ -638,7 +638,11 @@ const createWindowsPathNormalizationPlugin = ({
       return undefined;
     };
     build.onResolve({ filter: /^[^./]/ }, (args) => {
-      if (isAbsolute(args.path) || args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
+      // An absolute path, such as the own-code anchor's import of a package file, must name the module exactly as a
+      // relative or bare import of the same file does. Bun's own resolution keeps backslashes, so the file would be
+      // bundled twice under two paths.
+      if (isAbsolute(args.path)) return normalize(args.path, args.importer, args.resolveDir, args.kind);
+      if (args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
       if (isNodeBuiltinImport(args.path)) return undefined;
       const moduleName = getModuleName(args.path);
       return (
