@@ -6133,6 +6133,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/**',
       'apps/cli/helper-lambdas/uptimeProber/**',
       'apps/console/api/src/services/uptime-ingestion.ts',
+      'apps/console/api/src/services/uptime-stored-state.ts',
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.ts',
       'apps/console/api/src/services/alarm-event-counts.ts',
@@ -6140,6 +6141,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/api/scripts/uptime-database.test.ts',
+      'apps/console/api/src/services/uptime-stored-state.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
       'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts',
