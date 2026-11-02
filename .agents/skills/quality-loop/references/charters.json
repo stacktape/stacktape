@@ -1,0 +1,119 @@
+{
+  "J1-init": {
+    "priority": 1,
+    "heavy": false,
+    "lens": "journey",
+    "scope": "First successful deployment: one realistic new or existing application through CLI init, config loading, packaging and local execution. Rotate language, framework, workspace and recovery scenarios using prior probes. Customer: a fullstack developer without a DevOps specialist. Trace blockers, wrong assumptions, confusing decisions and failure recovery. Record the exact point reached; local execution is not AWS deployment proof.",
+    "anchors": ["apps/cli/src/init", "packages/config-inference", "docs/testing/overhaul.md"]
+  },
+  "J6-console-ux": {
+    "priority": 1,
+    "heavy": true,
+    "lens": "journey",
+    "scope": "Use the current Console baseline and isolated real UI/API/PostgreSQL fixture. Attempt first-deployment visibility and daily deploy/debug tasks before reading implementation. Include failure/recovery, reload and a narrower viewport. Report blockers, confusion, unnecessary decisions or substantial visual issues, not polish. Preserve synthetic screenshots locally and include portable interaction steps and observations in the report. Do not call seeded deployments real AWS E2E.",
+    "anchors": ["apps/console/ui/src/pages/ProjectsPage", "apps/console/e2e/README.md", "docs/testing/console.md"]
+  },
+  "J2-deploy-loop": {
+    "priority": 1,
+    "heavy": false,
+    "lens": "journey",
+    "scope": "Daily deployment and debugging: normal update, unchanged plan, failed update/recovery, stateful resource changes and correct account/stage context. Drive real config/synthesis/change-plan code and independently assert the outcome. Distinguish offline planning from AWS lifecycle semantics. Avoid new confirmation prompts without an established product requirement.",
+    "anchors": [
+      "apps/cli/src/commands/deploy",
+      "apps/cli/src/domain/deployment-change-plan",
+      "apps/cli/tests/characterization"
+    ]
+  },
+  "J3-packaging": {
+    "priority": 2,
+    "heavy": true,
+    "lens": "capability",
+    "scope": "Build one realistic project's artifact with real CLI packaging, then execute it in the intended runtime. Rotate module formats, dependencies, workspaces and relocation boundaries based on prior coverage. Include a working control. Use owned Docker resources where needed. Read the packaging guide and do not infer Lambda/container success from a host-only process.",
+    "anchors": [
+      "packages/packaging",
+      "apps/cli/src/domain/packaging-manager",
+      "apps/cli/scripts/packaging-archives/README.md"
+    ]
+  },
+  "J5-access": {
+    "priority": 2,
+    "heavy": true,
+    "lens": "capability",
+    "scope": "Identity and access across real HTTP callers, routers and isolated PostgreSQL: stale membership, expiry, project/account boundaries and credential separation. Read current fix history before exploring. Prove the actual denial or unintended access; static suspicion or mocked database behavior is not proof.",
+    "anchors": ["apps/console/api/src/api", "apps/console/api/src/organizations", "packages/console-api"]
+  },
+  "J7-debug": {
+    "priority": 2,
+    "heavy": true,
+    "lens": "journey",
+    "scope": "Daily debugging: one error/incident journey through real ingestion, persisted state, Console presentation and an actionable next step. Explore duplicate/out-of-order signals, missing data and recovery. Prefer isolated fixtures. Use only synthetic customer data and no real notification recipients.",
+    "anchors": ["apps/console/api/src/issues", "apps/console/ui/src/pages/IncidentsPage", "docs/testing/e2e.md"]
+  },
+  "maintenance-init": {
+    "priority": 3,
+    "heavy": false,
+    "lens": "maintenance",
+    "scope": "Review one CLI init/config-inference boundary and real consumers. Look for demonstrated interface drift, duplicated policy with divergent results, proven unused leftovers or a documented architecture violation with a concrete cost. Follow dynamic/script/export consumers before declaring dead code. Require file evidence, a realistic consequence, smallest remedy and regression risk. Reject subjective cleanliness, speculative abstractions, size-only critiques and deliberate debt.",
+    "anchors": ["docs/architecture.md", "apps/cli/src/init", "packages/config-inference", "apps/init-ui"]
+  },
+  "maintenance-structure": {
+    "priority": 3,
+    "heavy": false,
+    "lens": "maintenance",
+    "scope": "Choose one changed application/package boundary outside another active worker's write scope. Inspect actual dependency direction, duplicate policies, interfaces forcing caller workarounds, stale agent documents and obsolete files. Prove real callers/consumers and observable maintenance cost. Existing architecture policy and deliberate debt are the baseline. Prefer an existing check for recurring failures over repeated reports.",
+    "anchors": ["docs/architecture.md", "docs/generated-files.md", "scripts/workspace", "packages"]
+  },
+  "J4-local-dev": {
+    "priority": 2,
+    "heavy": false,
+    "lens": "journey",
+    "scope": "Exercise a realistic local dev start, reload, failure/recovery and stop using real processes. Check occupied ports, repeated starts, cancellation and child cleanup. Follow one former slice outcome from the journey guide; record its ID and a new probe.",
+    "anchors": ["apps/cli/src/commands/dev", "apps/cli/src/commands/dev-stop", "docs/testing/overhaul.md"]
+  },
+  "J8-git-deploy": {
+    "priority": 3,
+    "heavy": true,
+    "lens": "journey",
+    "scope": "Trace one Git-driven deployment from an isolated provider event through persisted operation, runner dispatch and provider status. Explore duplicates, cancellation, wrong repository or revision and reconnect flows. Prefer existing HTTP/PostgreSQL/provider fixtures. No real customer repository writes or shared runner takeover. State which external deliveries were substituted.",
+    "anchors": [
+      "apps/console/api/src/services/remote-deploy",
+      "apps/console/api/src/services/runners",
+      "docs/testing/overhaul.md"
+    ]
+  },
+  "J9-day-two": {
+    "priority": 3,
+    "heavy": false,
+    "lens": "journey",
+    "scope": "Exercise one daily CLI operation through the real process: logs, metrics, queries, tunnels or sessions. Choose a former slice from the journey guide and record it. Include wrong context, failure/recovery, cancellation or machine-readable output as appropriate. Use offline fixtures and owned local processes; do not contact AWS by default.",
+    "anchors": ["apps/cli/src/commands", "apps/cli/src/app/tui-manager", "docs/testing/overhaul.md"]
+  },
+  "J10-insight-ux": {
+    "priority": 3,
+    "heavy": true,
+    "lens": "journey",
+    "scope": "Attempt one real customer task on a current Console insight page: logs/metrics/traces, costs/budgets, security or guardrails. Rotate pages and former slice IDs using prior coverage. Use isolated browser/API fixtures, meaningful no-data/error/recovery states and reload. Report confusing or blocked decisions and substantial visual issues, not minor polish.",
+    "anchors": ["apps/console/ui/src/pages", "apps/console/e2e/README.md", "docs/testing/console.md"]
+  },
+  "J11-billing": {
+    "priority": 3,
+    "heavy": true,
+    "lens": "journey",
+    "scope": "Exercise one billing or subscription change through real router and isolated database with synthetic provider events. Check duplicate and out-of-order delivery, entitlement effects, denied changes and recovery. No real charges, customer billing mutations or provider writes. Distinguish mocked provider transport from database/runtime proof.",
+    "anchors": ["apps/console/api/src/billing", "docs/testing/console.md", "docs/testing/overhaul.md"]
+  },
+  "J12-editor-ai-docs": {
+    "priority": 3,
+    "heavy": true,
+    "lens": "capability",
+    "scope": "Choose one supported user-facing developer-tool path: MCP against a real CLI process, editor integration, documentation search, configuration editor or diagram. Select a former slice ID and record it. Follow the user outcome and correct diagnostics, persistence or output. Use isolated protocol/browser fixtures and existing helpers; do not equate helper tests with editor-host/runtime proof.",
+    "anchors": ["apps/vscode-extension", "apps/cli/src/commands/mcp", "apps/docs", "docs/testing/overhaul.md"]
+  },
+  "J13-distribution": {
+    "priority": 3,
+    "heavy": true,
+    "lens": "capability",
+    "scope": "Choose one installation, release-artifact, external-tool or repository-startup journey from the existing guide. Build and exercise the real artifact in an owned local fixture; check public-clone behavior without the private submodule when relevant. Do not publish packages, releases or production migrations. Follow generated-file ownership and record the actual environment.",
+    "anchors": ["docs/releasing.md", "docs/generated-files.md", "scripts/workspace", "apps/cli/scripts"]
+  }
+}
