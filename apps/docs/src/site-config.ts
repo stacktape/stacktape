@@ -135,8 +135,7 @@ const siteConfig = {
     linkedin: 'https://www.linkedin.com/company/stacktape',
     twitter: 'https://twitter.com/stacktape',
     facebook: 'https://facebook.com/stacktape',
-    slack: 'https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg',
-    discord: 'https://discord.gg/gSvzRWe3YD'
+    slack: 'https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg'
   },
   algolia: {
     appId: 'PFTWPISD3F',

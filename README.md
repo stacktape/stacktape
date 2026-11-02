@@ -9,10 +9,11 @@
 [![npm version](https://img.shields.io/npm/v/stacktape.svg)](https://www.npmjs.com/package/stacktape)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Documentation](https://img.shields.io/badge/docs-stacktape.com-blue)](https://docs.stacktape.com)
-[![Discord](https://img.shields.io/badge/discord-join-7289da.svg)](https://discord.gg/stacktape)
+[![Slack](https://img.shields.io/badge/slack-join-4a154b.svg)](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg)
 
-[Website](https://stacktape.com) • [Documentation](https://docs.stacktape.com) • [Discord](https://discord.gg/stacktape)
-• [Examples](https://docs.stacktape.com/starter-projects/)
+[Website](https://stacktape.com) • [Documentation](https://docs.stacktape.com) •
+[Slack](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg) •
+[Examples](https://docs.stacktape.com/starter-projects/)
 
 </div>
 
