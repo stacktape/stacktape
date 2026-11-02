@@ -239,6 +239,21 @@ describe('package exports targets', () => {
     ],
     ['an array of targets', { '.': [{ worker: './w.js' }, './main.js'] }, '.', importConditions, './main.js'],
     ['an unexported subpath', { '.': './main.js' }, './internal', importConditions, undefined],
+    [
+      'the most specific pattern',
+      { './*': './generic/*.js', './adapters/*': './special/*.js' },
+      './adapters/node',
+      importConditions,
+      './special/node.js'
+    ],
+    [
+      'an array skips a target outside the package',
+      { './node': ['not-relative', './dist/node.mjs'] },
+      './node',
+      importConditions,
+      './dist/node.mjs'
+    ],
+    ['a subpath with $& in it', { './*': './dist/*.mjs' }, './cost$&', importConditions, './dist/cost$&.mjs'],
     ['no exports field', undefined, '.', importConditions, undefined]
   ];
   test.each(cases)('%s', (_name, exportsField, subpath, conditions, expected) => {

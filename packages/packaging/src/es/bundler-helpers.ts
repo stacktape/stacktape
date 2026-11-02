@@ -51,7 +51,8 @@ export const packageEntryConditions = (kind: Bun.ImportKind | undefined): string
   isRequireImportKind(kind) ? ['require', 'default', 'import'] : ['import', 'require', 'default'];
 
 const pickConditionalTarget = (value: unknown, conditions: string[]): string | undefined => {
-  if (typeof value === 'string') return value;
+  // A target is relative to the package (`./…`); an array skips any other entry, as Node does.
+  if (typeof value === 'string') return value.startsWith('./') ? value : undefined;
   if (Array.isArray(value)) {
     for (const entry of value) {
       const target = pickConditionalTarget(entry, conditions);
@@ -85,16 +86,25 @@ export const resolvePackageExportsTarget = (
   if (!isSubpathMap) return subpath === '.' ? pickConditionalTarget(exportsField, conditions) : undefined;
   const map = exportsField as Record<string, unknown>;
   if (subpath in map) return pickConditionalTarget(map[subpath], conditions);
-  for (const [key, value] of Object.entries(map)) {
+  // Like Node, the matching pattern with the longest part before `*` wins, then the longer pattern.
+  let best: { key: string; prefix: string; suffix: string } | undefined;
+  for (const key of Object.keys(map)) {
     const star = key.indexOf('*');
-    if (star === -1) continue;
+    if (star === -1 || key.indexOf('*', star + 1) !== -1) continue;
     const prefix = key.slice(0, star);
     const suffix = key.slice(star + 1);
     if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix) || subpath.length < key.length - 1) continue;
-    const match = subpath.slice(prefix.length, subpath.length - suffix.length);
-    return pickConditionalTarget(value, conditions)?.replaceAll('*', match);
+    if (
+      !best ||
+      prefix.length > best.prefix.length ||
+      (prefix.length === best.prefix.length && key.length > best.key.length)
+    ) {
+      best = { key, prefix, suffix };
+    }
   }
-  return undefined;
+  if (!best) return undefined;
+  const match = subpath.slice(best.prefix.length, subpath.length - best.suffix.length);
+  return pickConditionalTarget(map[best.key], conditions)?.split('*').join(match);
 };
 
 const requireResolverCache = new Map<string, ReturnType<typeof createRequire>>();
