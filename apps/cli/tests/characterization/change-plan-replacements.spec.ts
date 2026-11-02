@@ -9,6 +9,7 @@ import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
 import { Bucket, DynamoDbTable, UserAuthPool, defineConfig } from '@stacktape/config-authoring';
+import type { Change } from '@aws-sdk/client-cloudformation';
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildPreviewResourceChanges, getNormalizedPreviewTemplateDiff } from '../../src/commands/diff/utils';
@@ -40,7 +41,7 @@ const synthesizeStack = async (options: StackOptions) => {
   return { template, stackInfoMap: serialize(calculatedStackOverviewManager.stackInfoMap) };
 };
 
-const planUpdate = async (deployedOptions: StackOptions, nextOptions: StackOptions) => {
+const planUpdate = async (deployedOptions: StackOptions, nextOptions: StackOptions, changes: Change[] = []) => {
   const deployed = await synthesizeStack(deployedOptions);
   const next = await synthesizeStack(nextOptions);
   const cfTemplateDiff = getNormalizedPreviewTemplateDiff({
@@ -69,7 +70,7 @@ const planUpdate = async (deployedOptions: StackOptions, nextOptions: StackOptio
     previousTemplate: deployed.template,
     template: next.template,
     artifacts: [],
-    resourceChanges: buildPreviewResourceChanges({ ...stackInfoMaps, changes: [] }),
+    resourceChanges: buildPreviewResourceChanges({ ...stackInfoMaps, changes }),
     dangerousResources: getCriticalResourcesPotentiallyEndangeredByOperation(stackInfoMaps),
     createdAt: new Date(0)
   });
@@ -117,5 +118,23 @@ describe('change plan replacements', () => {
       }
     ]);
     expect(plan.summary).toEqual({ creates: 0, updates: 1, deletes: 0, replacements: 0, dangerousChanges: 0 });
+  });
+
+  test('a replacement reported only by the AWS change set is still a replacement', async () => {
+    const changes: Change[] = [
+      {
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: cfLogicalNames.dynamoGlobalTable('records'),
+          ResourceType: 'AWS::DynamoDB::GlobalTable',
+          Replacement: 'True'
+        }
+      }
+    ];
+    const { plan } = await planUpdate(baseline, baseline, changes);
+
+    expect(actionsOf(plan)).toEqual({ records: 'replace' });
+    expect(plan.summary.replacements).toBe(1);
   });
 });

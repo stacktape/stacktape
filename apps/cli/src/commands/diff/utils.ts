@@ -272,6 +272,7 @@ const buildAwsRiskIndex = ({
  * an Aurora instance, keeps the Stacktape resource an update.
  */
 const primaryStatefulLogicalIds: Partial<Record<StacktapeResourceType, (resourceName: string) => string[]>> = {
+  'agentcore-memory': (name) => [cfLogicalNames.agentCoreMemory(name)],
   bucket: (name) => [cfLogicalNames.bucket(name)],
   'dsql-database': (name) => [cfLogicalNames.dsqlCluster(name)],
   'dynamo-db-table': (name) => [cfLogicalNames.dynamoGlobalTable(name)],
@@ -332,7 +333,15 @@ export const buildPreviewResourceChanges = ({
     .filter(([resourceName]) => resourceName !== PARENT_IDENTIFIER_CUSTOM_CF)
     .map(([resourceName, resource]) => {
       const { highlights, changedChildLogicalIds } = collectChangedChildren({ resource, cfTemplateDiff });
-      const hasChanges = resource.status !== 'DEPLOYED' || changedChildLogicalIds.length > 0;
+      const awsRisk = awsRiskIndex.get(resourceName) || { willReplace: [], mayReplace: [] };
+      const replacesPrimary = replacesPrimaryStatefulResource({ resourceName, resource, awsReplacedLogicalIds });
+      // The AWS change set can report a replacement the local template diff does not see.
+      const hasChanges =
+        resource.status !== 'DEPLOYED' ||
+        changedChildLogicalIds.length > 0 ||
+        replacesPrimary ||
+        awsRisk.willReplace.length > 0 ||
+        awsRisk.mayReplace.length > 0;
       if (!hasChanges) {
         return null;
       }
@@ -342,12 +351,10 @@ export const buildPreviewResourceChanges = ({
           ? 'create'
           : resource.status === 'TO_BE_DELETED'
             ? 'delete'
-            : resource.status === 'TO_BE_REPLACED' ||
-                replacesPrimaryStatefulResource({ resourceName, resource, awsReplacedLogicalIds })
+            : resource.status === 'TO_BE_REPLACED' || replacesPrimary
               ? 'replace'
               : 'update';
       const resourcePathLabel = resourceName === PARENT_IDENTIFIER_SHARED_GLOBAL ? 'shared-global' : resourceName;
-      const awsRisk = awsRiskIndex.get(resourceName) || { willReplace: [], mayReplace: [] };
 
       return {
         resourceName: resourcePathLabel,
