@@ -979,8 +979,8 @@ export const TRUST_CHIPS = TRUST_LINE.split(' · ');
 export const PRICING = {
   plans: [
     { plan: 'Free', detail: '$0 · up to $100/mo of managed AWS spend' },
-    { plan: 'Flexible', detail: 'a % of managed AWS spend' },
-    { plan: 'Enterprise', detail: 'Single-tenant Console in your AWS account · SSO · SOC 2 · 24×7 support' }
+    { plan: 'Flexible', detail: 'a % of managed AWS spend · SSO and SCIM' },
+    { plan: 'Enterprise', detail: 'Single-tenant Console in your AWS account · SOC 2 · 24×7 support' }
   ],
   more: 'See pricing'
 } as const;
