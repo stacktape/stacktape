@@ -236,9 +236,13 @@ describe('checkCiInstallSample', () => {
       state: 'present',
       invocationDirectories: [],
       entries: [
-        ...[...directories].map(
-          (path): PayloadEntry => ({ path, kind: 'directory', mode: 0o755, bytes: null, sha256: null })
-        ),
+        ...[...directories].map((path): PayloadEntry => ({
+          path,
+          kind: 'directory',
+          mode: 0o755,
+          bytes: null,
+          sha256: null
+        })),
         ...files
       ],
       archives: [archive(zip, canonical, 'zip-bytes'), archive(helper, 'helper-canonical', 'installed-service')],

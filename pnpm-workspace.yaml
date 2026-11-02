@@ -45,7 +45,6 @@ catalog:
   jscpd: 5.0.12
   knip: 6.29.0
   lint-staged: 16.1.2
-  oxfmt: 0.60.0
   oxlint: 1.75.0
   publint: 0.3.22
   react: 19.2.8

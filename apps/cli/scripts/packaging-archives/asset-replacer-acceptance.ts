@@ -533,9 +533,7 @@ const modeOf = async (path: string) => ((await lstat(path)).mode & 0o777).toStri
 const listTree = async (root: string, prefix = ''): Promise<string[]> =>
   (
     await Promise.all(
-      (
-        await readdir(join(root, prefix), { withFileTypes: true })
-      ).map(async (entry) => {
+      (await readdir(join(root, prefix), { withFileTypes: true })).map(async (entry) => {
         const path = prefix ? `${prefix}/${entry.name}` : entry.name;
         return entry.isDirectory() ? [path, ...(await listTree(root, path))] : [path];
       })

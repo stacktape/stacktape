@@ -65,9 +65,7 @@ const parseOptions = async (): Promise<Options | 'help' | 'list'> => {
   // starter metadata generator skips them.
   const all = (
     await Promise.all(
-      (
-        await getAllStarterProjectIds()
-      ).map(async (id) =>
+      (await getAllStarterProjectIds()).map(async (id) =>
         (await access(join(cliDirectory, 'starter-projects', id, '.project', '_metadata.yml')).then(
           () => true,
           () => false

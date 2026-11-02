@@ -535,9 +535,13 @@ describe('checking and evaluating config-only samples', () => {
       state: 'present',
       invocationDirectories: [],
       entries: [
-        ...[...directories].map(
-          (path): PayloadEntry => ({ path, kind: 'directory', mode: 0o755, bytes: null, sha256: null })
-        ),
+        ...[...directories].map((path): PayloadEntry => ({
+          path,
+          kind: 'directory',
+          mode: 0o755,
+          bytes: null,
+          sha256: null
+        })),
         ...files
       ],
       archives: [
