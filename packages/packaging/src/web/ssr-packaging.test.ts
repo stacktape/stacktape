@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test';
-import { chmod, copyFile, mkdtemp, readFile, readdir, realpath, rm, stat, symlink } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import yauzl from 'yauzl';
@@ -146,14 +146,16 @@ const listZipLinks = (zipPath: string) =>
   });
 
 /**
- * Windows `unzip` writes a link as a file holding its target. Lambda extracts it as a link, so the link is restored:
- * as a junction to a directory, or as a copy of a file.
+ * Without the right to create links, Windows `unzip` writes a link as a file holding its target. Lambda extracts it as
+ * a link, so the link is restored: as a junction to a directory, or as a copy of a file.
  */
 const restoreZipLinks = async (zipPath: string, extracted: string) => {
   if (process.platform !== 'win32') return;
   await Promise.all(
     (await listZipLinks(zipPath)).map(async (link) => {
       const linkPath = join(extracted, link);
+      // An `unzip` that can create links, as on GitHub's runners, needs nothing restored.
+      if (!(await lstat(linkPath)).isFile()) return;
       const targetPath = resolve(dirname(linkPath), await readFile(linkPath, 'utf8'));
       await rm(linkPath);
       if ((await stat(targetPath)).isDirectory()) await symlink(targetPath, linkPath, 'junction');
