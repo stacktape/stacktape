@@ -6019,6 +6019,7 @@ export const slices: readonly Slice[] = [
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/console/api/src/services/alert-router.ts',
+      'apps/console/api/src/services/alert-event-details.ts',
       'apps/console/api/src/services/alert-channel-test.ts',
       'apps/console/api/src/services/aws-ses.ts',
       'apps/console/api/src/services/slack-app/**',
@@ -6039,6 +6040,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
       'apps/console/api/src/services/alert-channel-test.test.ts',
+      'apps/console/api/src/services/alert-event-details.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
@@ -6177,6 +6179,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
+      'apps/console/api/src/budgets/stored-event-details.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
