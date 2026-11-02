@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createMcpServer, serveStacktapeMcp } from './index';
 import type { RunStacktapeResult } from './cli-jsonl-runner';
 import { toToolText } from './tool-output';
@@ -142,11 +143,13 @@ describe('stacktape mcp over stdio', () => {
   });
 
   // Dev sessions in the client's workspace folders count as the server's own, so a call without a devSessionId may pick
-  // them. Only a 2025-era client can be asked for its roots.
+  // them. Only a 2025-era client can be asked for its roots. A root URI names an absolute path of the host, such as
+  // `file:///C:/work/shop` on Windows.
+  const rootUris = ['/work/shop', '/work/shop-wt2'].map((path) => pathToFileURL(resolve(path)).href);
   for (const { protocolVersion, expected } of [
     {
       protocolVersion: '2025-06-18',
-      expected: [fileURLToPath('file:///work/shop'), fileURLToPath('file:///work/shop-wt2')]
+      expected: rootUris.map((uri) => fileURLToPath(uri))
     },
     { protocolVersion: '2026-07-28', expected: [] }
   ]) {
@@ -162,7 +165,7 @@ describe('stacktape mcp over stdio', () => {
       });
       if (protocolVersion.startsWith('2025')) {
         client.setRequestHandler('roots/list', async () => ({
-          roots: [{ uri: 'file:///work/shop', name: 'shop' }, { uri: 'file:///work/shop-wt2' }]
+          roots: [{ uri: rootUris[0]!, name: 'shop' }, { uri: rootUris[1]! }]
         }));
       }
       await client.callTool({ name: 'stacktape_dev', arguments: { action: 'status' } });

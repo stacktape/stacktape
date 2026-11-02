@@ -25,12 +25,12 @@ import { createPackageAnalysisCache, getProductionDependencies } from '../es/ins
 import {
   createOwnCodeAnchorPlugin,
   createOwnCodeAnchorSource,
+  getOwnCodeAnchorEntry,
   getPackageBytes,
   hasMixedChunk,
   isInstalledPackagePath,
   isOwnCodeAnchorOutput,
-  isOwnSourcePath,
-  OWN_CODE_ANCHOR_ENTRY
+  isOwnSourcePath
 } from './own-code-anchor';
 import type { PackageAnalysisCache } from '../es/installed-packages';
 import { findProjectRoot } from '../es/project-root';
@@ -269,6 +269,7 @@ const executeBunBuild = async ({
   // Use monorepo root for module resolution if available, otherwise cwd
   const buildRoot = monorepoRoot || cwd;
   const entryPaths = entrypoints.map((ep) => ep.entryfilePath);
+  const anchorEntry = getOwnCodeAnchorEntry(buildRoot);
   const runBunBuild = ({
     anchorSource,
     outdir,
@@ -281,7 +282,7 @@ const executeBunBuild = async ({
     buildTracker: DependencyTracker;
   }) =>
     Bun.build({
-      entrypoints: anchorSource ? [...entryPaths, OWN_CODE_ANCHOR_ENTRY] : entryPaths,
+      entrypoints: anchorSource ? [...entryPaths, anchorEntry] : entryPaths,
       ...(outdir ? { outdir } : {}),
       target: 'node',
       format: 'esm',
@@ -313,7 +314,7 @@ const executeBunBuild = async ({
         createNativeNodeModulesPlugin(),
         createPrismaLambdaClientPlugin(),
         createWindowsPathNormalizationPlugin({ cwd, monorepoRoot }),
-        ...(anchorSource ? [createOwnCodeAnchorPlugin(anchorSource)] : [])
+        ...(anchorSource ? [createOwnCodeAnchorPlugin({ entry: anchorEntry, source: anchorSource })] : [])
       ],
       root: buildRoot,
       ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
@@ -638,7 +639,11 @@ const createWindowsPathNormalizationPlugin = ({
       return undefined;
     };
     build.onResolve({ filter: /^[^./]/ }, (args) => {
-      if (isAbsolute(args.path) || args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
+      // An absolute path, such as the own-code anchor's import of a package file, must name the module exactly as a
+      // relative or bare import of the same file does. Bun's own resolution keeps backslashes, so the file would be
+      // bundled twice under two paths.
+      if (isAbsolute(args.path)) return normalize(args.path, args.importer, args.resolveDir, args.kind);
+      if (args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
       if (isNodeBuiltinImport(args.path)) return undefined;
       const moduleName = getModuleName(args.path);
       return (

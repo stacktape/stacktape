@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { ZipArchive } from 'archiver';
+import { listArchiveEntries } from '../src/artifact/archive-entries';
 import type { ArchiveItem, PackagingProgressLogger, RunDocker, RunRailpackPrepare } from '../src/runtime-contracts';
 import { buildSplitBundle } from '../src/split-bundler/bundler';
 import { assignChunksToLayers } from '../src/split-bundler/layer-assignment';
@@ -285,16 +286,23 @@ export const archiveItem: ArchiveItem = async ({
     archive.on('warning', (error) => {
       if (error.code !== 'ENOENT') rejectArchive(error);
     });
-    archive.directory(absoluteSourcePath, false, (entry) => {
-      entry.mode = entry.stats?.isDirectory()
-        ? 0o755
-        : executablePatterns.some((pattern) => entry.name === pattern || entry.name.endsWith(`/${pattern}`))
-          ? 0o755
-          : 0o644;
-      return entry;
-    });
     archive.pipe(output);
-    void archive.finalize().catch(rejectArchive);
+    // The entries, modes and link targets the production writer archives. Windows junctions, for example, are
+    // stored as relative links with `/` separators, which Lambda's Linux can follow.
+    listArchiveEntries({ sourcePath: absoluteSourcePath, executablePatterns })
+      .then(({ entries }) => {
+        for (const entry of entries) {
+          if (entry.type === 'directory') {
+            archive.append(Buffer.alloc(0), { name: `${entry.path}/`, type: 'directory', mode: entry.mode });
+          } else if (entry.type === 'symlink') {
+            archive.symlink(entry.path, entry.target, entry.mode);
+          } else {
+            archive.file(entry.sourcePath, { name: entry.path, mode: entry.mode });
+          }
+        }
+        return archive.finalize();
+      })
+      .catch(rejectArchive);
   });
 
   return absoluteOutputPath;

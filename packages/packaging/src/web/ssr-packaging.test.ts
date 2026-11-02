@@ -1,7 +1,8 @@
 import { afterAll, expect, test } from 'bun:test';
-import { chmod, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdtemp, readFile, readdir, realpath, rm, stat, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import yauzl from 'yauzl';
 import { archiveItem, createPackagingError, progressLogger, run, write } from '../../scripts/e2e-helpers';
 import { createSsrWebArtifacts, type SsrWebBuildConfig } from './ssr-web-shared';
 import { resolveInstalledNodePackage } from './node-runtime-files';
@@ -128,6 +129,41 @@ const packageApp = (
     executeProcess
   });
 
+/** The paths of a ZIP's symbolic links. */
+const listZipLinks = (zipPath: string) =>
+  new Promise<string[]>((resolveLinks, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (error, zipFile) => {
+      if (error || !zipFile) return reject(error ?? new Error(`Could not open ${zipPath}.`));
+      const links: string[] = [];
+      zipFile.on('error', reject);
+      zipFile.on('entry', (entry: yauzl.Entry) => {
+        if (((entry.externalFileAttributes >>> 16) & 0o170000) === 0o120000) links.push(entry.fileName);
+        zipFile.readEntry();
+      });
+      zipFile.on('end', () => resolveLinks(links));
+      zipFile.readEntry();
+    });
+  });
+
+/**
+ * Without the right to create links, Windows `unzip` writes a link as a file holding its target. Lambda extracts it as
+ * a link, so the link is restored: as a junction to a directory, or as a copy of a file.
+ */
+const restoreZipLinks = async (zipPath: string, extracted: string) => {
+  if (process.platform !== 'win32') return;
+  await Promise.all(
+    (await listZipLinks(zipPath)).map(async (link) => {
+      const linkPath = join(extracted, link);
+      // An `unzip` that can create links, as on GitHub's runners, needs nothing restored.
+      if (!(await lstat(linkPath)).isFile()) return;
+      const targetPath = resolve(dirname(linkPath), await readFile(linkPath, 'utf8'));
+      await rm(linkPath);
+      if ((await stat(targetPath)).isDirectory()) await symlink(targetPath, linkPath, 'junction');
+      else await copyFile(targetPath, linkPath);
+    })
+  );
+};
+
 // Extracted outside the fixture project: Node must not resolve a missing package from the fixture's node_modules.
 const lambdaRoots: string[] = [];
 afterAll(() => Promise.all(lambdaRoots.map((root) => rm(root, { recursive: true, force: true }))));
@@ -135,6 +171,7 @@ const invokeArtifact = async (artifactPath: string) => {
   const extracted = await mkdtemp(join(tmpdir(), 'stacktape-ssr-lambda-'));
   lambdaRoots.push(extracted);
   await run('unzip', ['-q', artifactPath, '-d', extracted]);
+  await restoreZipLinks(artifactPath, extracted);
   const child = Bun.spawn(
     [
       process.execPath,
