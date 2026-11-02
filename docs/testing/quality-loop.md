@@ -181,10 +181,11 @@ ready or bypass the two-model gate.
 
 `pnpm test:quality` uses temporary bare Git repositories and separate worker processes: no GitHub, AWS or model calls.
 It exercises competing claims/dispatch, crash rollback, coordinator reconstruction, stale-token rejection, quota pause
-and resume, report boundaries, validation gating and repository-privacy refusal. It also runs through `test:tools`.
-Passing these tests establishes the queue protocol, not ten-hour machine stability or model judgment quality. Before a
-large allowance run, use a short live coordinator batch, current Console UX, and blind plausible-false/intended-behavior
-validator cases. Keep synthetic calibration results separate from genuine accepted findings.
+and resume, report boundaries, validation gating and repository-privacy refusal. Public CI runs it on Linux, where
+agents run the loop; on Windows its Git subprocesses exceed the two-minute PR lane budget. Passing these tests
+establishes the queue protocol, not ten-hour machine stability or model judgment quality. Before a large allowance run,
+use a short live coordinator batch, current Console UX, and blind plausible-false/intended-behavior validator cases.
+Keep synthetic calibration results separate from genuine accepted findings.
 
 No production migration, Console deployment or v4 cutover is required for this tooling. Queue data is private
 operational state; do not merge its branch into either product branch or add per-run reports to the public

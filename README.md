@@ -361,7 +361,7 @@ If you want to use YAML-based configuration, we recommend installing
 
 ## Contributing
 
-We welcome contributions!
+We welcome contributions! Read the [contributing guide](CONTRIBUTING.md) before opening a pull request.
 
 The public repository contains the CLI, documentation, init wizard, website, VS Code extension and reusable packages.
 `apps/console` is an optional private Git submodule. Public contributions can install, test, build and produce release

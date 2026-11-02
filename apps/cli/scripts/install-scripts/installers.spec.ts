@@ -433,7 +433,8 @@ test.skipIf(process.platform === 'win32')('the installer refuses to run under su
 
 // A new macOS account uses zsh but has no zsh configuration file yet. The installer creates `.zshrc` in zsh's
 // configuration directory (ZDOTDIR when set), so the next terminal finds the CLI. An existing `.zshenv` is used instead.
-test.skipIf(process.platform === 'win32').each([
+// The check opens a real zsh login shell; Public CI installs zsh on Linux so it always runs there.
+test.skipIf(process.platform === 'win32' || !Bun.which('zsh')).each([
   { account: 'an empty HOME', zdotdir: '', existing: '', expected: '.zshrc' },
   { account: 'ZDOTDIR', zdotdir: '.config/zsh', existing: '', expected: '.config/zsh/.zshrc' },
   { account: 'only .zshenv', zdotdir: '', existing: '.zshenv', expected: '.zshenv' }

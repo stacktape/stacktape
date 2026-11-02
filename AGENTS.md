@@ -25,12 +25,14 @@ repository context.
 
 ## Before changing code
 
-1. Read the nearest `AGENTS.md` and package manifest.
-2. Check Git status here and, when initialized, in `apps/console`. Preserve unrelated changes.
-3. Identify generated files, package boundaries, and behavior that the change can affect.
-4. Read [`docs/testing.md`](docs/testing.md) once per session. Run `pnpm test:plan` (or
+1. Run `pnpm freshness` (Claude Code runs it at session start). The local checkout may be weeks behind: compare with
+   `origin/main` before concluding that something is missing, broken, unfixed or untested.
+2. Read the nearest `AGENTS.md` and package manifest.
+3. Check Git status here and, when initialized, in `apps/console`. Preserve unrelated changes.
+4. Identify generated files, package boundaries, and behavior that the change can affect.
+5. Read [`docs/testing.md`](docs/testing.md) once per session. Run `pnpm test:plan` (or
    `pnpm test:plan -- --since=<ref>`) and choose tests for the affected behavior and integrations.
-5. Run focused checks while working and the relevant repository gate before handoff.
+6. Run focused checks while working and the relevant repository gate before handoff.
 
 ## Documentation and v4 launch work
 
@@ -133,8 +135,21 @@ For work spanning both repositories:
 2. Run `pnpm console:pointer:verify` from the public root.
 3. Commit the public changes and updated submodule pointer separately.
 
-Use worktrees provided by Codex or Claude Code. Do not add repository-specific worktree lifecycle scripts. Never treat a
-submodule pointer as generated noise, and do not rewrite shared history without explicit approval.
+Use worktrees provided by Codex, Claude Code or T3 Code. Do not add repository-specific worktree lifecycle scripts.
+Never treat a submodule pointer as generated noise, and do not rewrite shared history without explicit approval.
+
+Keep work on current code:
+
+- Make code changes in a worktree based on `origin/main`. The main checkout stays clean on `main` so it can
+  fast-forward; do not leave uncommitted work there.
+- T3 `delegate_task` worktrees branch from your current `HEAD`. Bring your branch up to date before delegating, and pass
+  `startFromOrigin: true` to `t3_thread_launch`.
+- Start Console work inside `apps/console` from the Console `origin/main`, not from the recorded pointer, which can lag.
+- Rebase on or merge `origin/main` before final testing, reviews and opening or merging a PR.
+
+Pull requests are squash-merged (`gh pr merge --squash`), and their branches are deleted on merge. The PR title becomes
+the commit on `main`, so make it a plain summary of the change. Follow the
+[pull request template](.github/pull_request_template.md).
 
 ## Communication
 

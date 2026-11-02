@@ -204,6 +204,7 @@ export const lanes: readonly Lane[] = [
       'scripts/workspace/test-plan.test.ts',
       'scripts/workspace/public-workspace.test.ts',
       'scripts/workspace/verify-console-pointer.test.ts',
+      'scripts/workspace/session-freshness.test.ts',
       'scripts/workspace/console-dev-reservation.test.ts',
       'scripts/workspace/check-architecture.test.ts',
       'scripts/workspace/check-docs.test.ts',
@@ -6601,7 +6602,8 @@ export const toolingTests: readonly string[] = [
   'scripts/workspace/test-fixture-command.ts',
   'scripts/workspace/test-plan.ts',
   'scripts/workspace/test-registry.test.ts',
-  'scripts/workspace/verify-console-pointer.test.ts'
+  'scripts/workspace/verify-console-pointer.test.ts',
+  'scripts/workspace/session-freshness.test.ts'
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.

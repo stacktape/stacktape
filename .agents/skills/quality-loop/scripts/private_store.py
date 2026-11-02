@@ -40,16 +40,19 @@ class GitStore:
             git_dir = Path(directory) / "queue.git"
 
             def git(*args, data=None, allowed=(0,)):
+                # Bytes, not text mode: on Windows text mode writes "\r\n", which would name the mktree entry
+                # "state.json\r" and store CRLF state.
                 result = subprocess.run(
                     ["git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",
                      "-c", "user.name=Stacktape Quality", "-c", "user.email=quality@localhost",
                      "--git-dir", str(git_dir), *args],
-                    input=data, capture_output=True, text=True, check=False, timeout=60,
-                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                    input=None if data is None else data.encode("utf-8"), capture_output=True, check=False,
+                    timeout=60, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
                 )
                 if result.returncode not in allowed:
                     # Neither provider output nor report content belongs in a public terminal error.
                     raise QueueError(f"Git {args[0]} failed (exit {result.returncode}); queue was not acknowledged.")
+                result.stdout = result.stdout.decode("utf-8")
                 return result
 
             git("init", "--bare", "--quiet")

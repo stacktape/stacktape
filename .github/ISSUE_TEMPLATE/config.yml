@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature idea
+    url: https://github.com/stacktape/stacktape/discussions/categories/ideas
+    about: Suggest a feature or a larger change before anyone builds it.
+  - name: Question
+    url: https://discord.gg/stacktape
+    about: Ask the team and the community on Discord.
+  - name: Security vulnerability
+    url: https://github.com/stacktape/stacktape/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.

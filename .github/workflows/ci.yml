@@ -31,9 +31,16 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.4
+      # The installer tests open a real zsh login shell, as a new macOS account does.
+      - name: Install zsh
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends zsh
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:static
       - run: pnpm test:ci
+      - name: Test the quality loop controller
+        if: runner.os == 'Linux'
+        run: pnpm test:quality
       - name: Set up CloudFormation validation
         if: runner.os == 'Linux'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
