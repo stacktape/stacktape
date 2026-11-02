@@ -129,7 +129,7 @@
     "test": "bun test src",
     "test:e2e": "pnpm run typecheck:e2e && playwright test",
     "typecheck:e2e": "tsc -p e2e/tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.isometric-diagram.json"
+    "typecheck": "bun check -p tsconfig.json && bun check -p tsconfig.isometric-diagram.json"
   },
   "dependencies": {
     "@isoflow/isopacks": "^0.0.10",

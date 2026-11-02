@@ -14,7 +14,7 @@
     "generate": "node scripts/generate.ts",
     "generate:check": "node scripts/generate.ts --check",
     "test": "bun test tests",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tests/tsconfig.json"
+    "typecheck": "bun check -p tsconfig.json && bun check -p tests/tsconfig.json"
   },
   "devDependencies": {
     "@aws-cdk/aws-service-spec": "0.1.220",

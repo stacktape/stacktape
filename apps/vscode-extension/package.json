@@ -31,7 +31,7 @@
     "build:dev": "node scripts/build.ts --dev",
     "dev": "node scripts/build.ts --dev --watch",
     "lint": "oxlint src scripts --deny-warnings --report-unused-disable-directives",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun check",
     "test": "bun test src && pnpm build && node scripts/smoke.ts",
     "test:host": "pnpm build && node scripts/test-extension-host.ts",
     "package": "pnpm build && vsce package --no-dependencies",

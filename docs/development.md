@@ -9,7 +9,7 @@ boundary for a change and record sufficient evidence.
 
 ## Setup and checks
 
-Install Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0, and Bun 1.4.1. Docker is needed for container
+Install Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0, and Bun 1.4.4. Docker is needed for container
 and native-dependency packaging (including Next.js image optimization), packaging tests, isolated Console database
 tests, and local database emulation. The private `apps/console` submodule is optional for public work. Run
 `pnpm test:doctor` to find a missing or mismatched prerequisite before a long check. When the Console doctor reports a
@@ -26,7 +26,8 @@ pnpm typecheck
 pnpm test
 ```
 
-Use package filters during development, for example `pnpm --filter @stacktape/cli run typecheck`. Run
+Use package filters during development, for example `pnpm --filter @stacktape/cli run typecheck`. Type checks run
+`bun check` (TypeScript 7 semantics); editors still use the workspace TypeScript 6 language service. Run
 `pnpm test:packaging-e2e` before a packaging-sensitive release; it needs Docker and downloads pinned build inputs, but
 does not contact AWS.
 

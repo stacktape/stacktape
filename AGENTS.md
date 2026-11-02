@@ -63,6 +63,12 @@ pnpm typecheck
 pnpm test
 ```
 
+Type checks use `bun check`, Bun's TypeScript 7 checker. Checking a package takes one or two seconds, so run
+`pnpm --filter <package> run typecheck` after each edit instead of batching. Above 50 errors, `bun check` groups
+identical ones; `--all` lists each. Do not run bare `bun check` at the repository root: Bun runs the root `check`
+script, the full gate, instead. The Console UI still uses `tsc`, because TypeScript 7 rejects some of its inferred tRPC
+types.
+
 [`docs/development.md`](docs/development.md) covers local apps and the source-built CLI. Real AWS tests are opt-in and
 documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/README.md).
 [`docs/testing.md`](docs/testing.md) is the short canonical testing policy. Read only the linked procedures relevant to

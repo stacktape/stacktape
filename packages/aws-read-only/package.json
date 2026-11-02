@@ -12,7 +12,7 @@
   },
   "scripts": {
     "test": "bun test src/operations.test.ts src/executor.test.ts",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "bun check -p tsconfig.json",
     "test:ministack": "bun test src/executor.ministack.test.ts"
   },
   "dependencies": {

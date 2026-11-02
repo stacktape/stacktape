@@ -15,7 +15,7 @@
   },
   "scripts": {
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "bun check -p tsconfig.json"
   },
   "dependencies": {
     "@stacktape/cloudformation": "workspace:*",

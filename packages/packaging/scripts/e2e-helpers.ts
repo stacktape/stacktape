@@ -105,7 +105,7 @@ export const invokeInLambdaImage = async <Response = unknown>({
           }
         } catch (error) {
           lastError = error;
-          refused = (error as { code?: string }).code === 'ConnectionRefused';
+          refused = (error as { code?: string }).code === 'ECONNREFUSED';
         }
         refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
         if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && attempt < 3) {

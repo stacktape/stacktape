@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test:fixture": "bun test src/fixture.test.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "bun check -p tsconfig.json"
   },
   "devDependencies": {
     "@aws-sdk/client-application-auto-scaling": "3.1121.0",
