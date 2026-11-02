@@ -1,5 +1,7 @@
 # Formatter settings for `bun fmt`. dprint formats `.astro` files (`dprint.json`).
 [fmt]
+# Without an oxfmt config file, bun fmt starts from Prettier's style; keep oxfmt's, which the code is formatted in.
+flavor = "oxfmt"
 printWidth = 120
 singleQuote = true
 trailingComma = "none"
