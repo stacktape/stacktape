@@ -63,7 +63,7 @@
     "audit:deadcode": "knip",
     "check:docs": "node scripts/workspace/check-docs.ts",
     "quality": "python3 .agents/skills/quality-loop/scripts/quality_queue.py",
-    "test:quality": "python3 -m unittest discover -s .agents/skills/quality-loop/scripts -p 'test_*.py'",
+    "test:quality": "python3 -m unittest discover -s .agents/skills/quality-loop/scripts",
     "test:ci": "bun --no-env-file scripts/workspace/test-ci.ts",
     "check:static": "pnpm check:instructions && pnpm check:docs && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:workspace && pnpm check:patterns && pnpm generate:check && turbo run typecheck && pnpm typecheck:tools && pnpm check:architecture && pnpm check:deadcode && pnpm check:duplicates"
   },
