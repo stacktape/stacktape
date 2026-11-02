@@ -5988,10 +5988,14 @@ export const slices: readonly Slice[] = [
     journeys: ['J10'],
     paths: [
       'apps/console/api/src/security/findings.ts',
+      'apps/console/api/src/security/stored-finding-details.ts',
+      'apps/console/api/src/services/stored-guardrail.ts',
       'apps/console/ui/src/pages/SecurityPage/**',
       'apps/console/api/src/security/grader.ts'
     ],
     tests: [
+      'apps/console/api/src/security/stored-finding-details.test.ts',
+      'apps/console/api/src/services/stored-guardrail.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
