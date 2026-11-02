@@ -532,6 +532,7 @@ export const lanes: readonly Lane[] = [
       'bun',
       'test',
       'src/domain/deployment-change-plan/index.spec.ts',
+      'tests/characterization/change-plan-replacements.spec.ts',
       'src/domain/config-manager/utils/cdn.spec.ts',
       'tests/characterization/cdn-edge-lambdas.spec.ts',
       'src/utils/stack-info-map-diff.spec.ts',
@@ -557,6 +558,7 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
+      'apps/cli/tests/characterization/change-plan-replacements.spec.ts',
       'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
@@ -4322,6 +4324,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
       'apps/cli/src/commands/_utils/container-health.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
+      'apps/cli/tests/characterization/change-plan-replacements.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',

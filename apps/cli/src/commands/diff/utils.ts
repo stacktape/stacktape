@@ -9,6 +9,8 @@ import type {
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { Change } from '@aws-sdk/client-cloudformation';
 import { ResourceImpact, diffTemplate } from '@aws-cdk/cloudformation-diff';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { serialize } from '@utils/misc';
@@ -264,6 +266,42 @@ const buildAwsRiskIndex = ({
   return riskIndex;
 };
 
+/**
+ * The CloudFormation resource that holds the data of a stateful Stacktape resource. When it is replaced, the Stacktape
+ * resource is reported as replaced. Replacing any other child, such as a policy, a security group, a user pool client or
+ * an Aurora instance, keeps the Stacktape resource an update.
+ */
+const primaryStatefulLogicalIds: Partial<Record<StacktapeResourceType, (resourceName: string) => string[]>> = {
+  bucket: (name) => [cfLogicalNames.bucket(name)],
+  'dsql-database': (name) => [cfLogicalNames.dsqlCluster(name)],
+  'dynamo-db-table': (name) => [cfLogicalNames.dynamoGlobalTable(name)],
+  'efs-filesystem': (name) => [cfLogicalNames.efsFilesystem(name)],
+  'kafka-cluster': (name) => [cfLogicalNames.kafkaServerlessCluster(name)],
+  'kinesis-stream': (name) => [cfLogicalNames.kinesisStream(name)],
+  'mongo-db-atlas-cluster': (name) => [cfLogicalNames.atlasMongoCluster(name)],
+  'open-search-domain': (name) => [cfLogicalNames.openSearchDomain(name)],
+  redis: (name) => [cfLogicalNames.redisReplicationGroup(name), cfLogicalNames.redisServerlessCache(name)],
+  'relational-database': (name) => [cfLogicalNames.auroraDbCluster(name), cfLogicalNames.dbInstance(name)],
+  'sqs-queue': (name) => [cfLogicalNames.sqsQueue(name)],
+  'upstash-redis': (name) => [cfLogicalNames.upstashRedisDatabase(name)],
+  'user-auth-pool': (name) => [cfLogicalNames.userPool(name)]
+};
+
+const replacesPrimaryStatefulResource = ({
+  resourceName,
+  resource,
+  awsReplacedLogicalIds
+}: {
+  resourceName: string;
+  resource: DetailedStackResourceInfo;
+  awsReplacedLogicalIds: Set<string>;
+}) =>
+  (primaryStatefulLogicalIds[resource.resourceType as StacktapeResourceType]?.(resourceName) ?? []).some(
+    (logicalId) =>
+      resource.cloudformationChildResources?.[logicalId]?.status === ResourceImpact.WILL_REPLACE ||
+      awsReplacedLogicalIds.has(logicalId)
+  );
+
 export const buildPreviewResourceChanges = ({
   calculatedStackInfoMap,
   deployedStackInfoMap,
@@ -283,6 +321,12 @@ export const buildPreviewResourceChanges = ({
   });
   const logicalIdToResourcePath = buildLogicalIdToResourcePathIndex({ calculatedStackInfoMap, deployedStackInfoMap });
   const awsRiskIndex = buildAwsRiskIndex({ changes, logicalIdToResourcePath });
+  const awsReplacedLogicalIds = new Set(
+    changes
+      .filter(({ ResourceChange }) => ResourceChange?.Replacement === 'True')
+      .map(({ ResourceChange }) => ResourceChange?.LogicalResourceId)
+      .filter((logicalId): logicalId is string => !!logicalId)
+  );
 
   return (Object.entries(detailedStackInfoMap.resources) as [string, DetailedStackResourceInfo][])
     .filter(([resourceName]) => resourceName !== PARENT_IDENTIFIER_CUSTOM_CF)
@@ -298,7 +342,8 @@ export const buildPreviewResourceChanges = ({
           ? 'create'
           : resource.status === 'TO_BE_DELETED'
             ? 'delete'
-            : resource.status === 'TO_BE_REPLACED'
+            : resource.status === 'TO_BE_REPLACED' ||
+                replacesPrimaryStatefulResource({ resourceName, resource, awsReplacedLogicalIds })
               ? 'replace'
               : 'update';
       const resourcePathLabel = resourceName === PARENT_IDENTIFIER_SHARED_GLOBAL ? 'shared-global' : resourceName;
