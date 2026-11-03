@@ -50,6 +50,63 @@ export const isRequireImportKind = (kind: Bun.ImportKind | undefined): boolean =
 export const packageEntryConditions = (kind: Bun.ImportKind | undefined): string[] =>
   isRequireImportKind(kind) ? ['require', 'default', 'import'] : ['import', 'require', 'default'];
 
+const pickConditionalTarget = (value: unknown, conditions: string[]): string | undefined => {
+  // A target is relative to the package (`./…`); an array skips any other entry, as Node does.
+  if (typeof value === 'string') return value.startsWith('./') ? value : undefined;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const target = pickConditionalTarget(entry, conditions);
+      if (target) return target;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  for (const condition of conditions) {
+    const target = pickConditionalTarget((value as Record<string, unknown>)[condition], conditions);
+    if (target) return target;
+  }
+  return undefined;
+};
+
+/**
+ * The file a package's `exports` field maps an import to, relative to the package directory, or undefined when the
+ * field does not name it. `subpath` is `.` for the package itself or `./node` for `better-call/node`. Conditions are
+ * tried in the given preference order (see packageEntryConditions), at every nesting level; `*` patterns are expanded.
+ */
+export const resolvePackageExportsTarget = (
+  exportsField: unknown,
+  subpath: string,
+  conditions: string[]
+): string | undefined => {
+  if (exportsField === null || exportsField === undefined) return undefined;
+  const isSubpathMap =
+    typeof exportsField === 'object' &&
+    !Array.isArray(exportsField) &&
+    Object.keys(exportsField).some((key) => key.startsWith('.'));
+  if (!isSubpathMap) return subpath === '.' ? pickConditionalTarget(exportsField, conditions) : undefined;
+  const map = exportsField as Record<string, unknown>;
+  if (subpath in map) return pickConditionalTarget(map[subpath], conditions);
+  // Like Node, the matching pattern with the longest part before `*` wins, then the longer pattern.
+  let best: { key: string; prefix: string; suffix: string } | undefined;
+  for (const key of Object.keys(map)) {
+    const star = key.indexOf('*');
+    if (star === -1 || key.indexOf('*', star + 1) !== -1) continue;
+    const prefix = key.slice(0, star);
+    const suffix = key.slice(star + 1);
+    if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix) || subpath.length < key.length - 1) continue;
+    if (
+      !best ||
+      prefix.length > best.prefix.length ||
+      (prefix.length === best.prefix.length && key.length > best.key.length)
+    ) {
+      best = { key, prefix, suffix };
+    }
+  }
+  if (!best) return undefined;
+  const match = subpath.slice(best.prefix.length, subpath.length - best.suffix.length);
+  return pickConditionalTarget(map[best.key], conditions)?.split('*').join(match);
+};
+
 const requireResolverCache = new Map<string, ReturnType<typeof createRequire>>();
 
 /**

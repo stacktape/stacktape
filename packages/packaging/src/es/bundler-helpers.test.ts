@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { buildEsCode } from '../bundlers/es';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver } from './bundler-helpers';
+import { createModuleResolver, resolvePackageExportsTarget } from './bundler-helpers';
 import { addRuntimeDependencies, type InstalledPackage } from './installed-packages';
 
 const tempDirs: string[] = [];
@@ -207,4 +207,56 @@ test('falls back to the monorepo root for dependencies the importer cannot see',
   expect(findModulePath('consumer', join(applicationDir, 'src', 'index.ts'))).toBe(storeDir('consumer', '1.0.0'));
   // An importer that cannot see the package still falls back to the project.
   expect(findModulePath('consumer', join(store, 'unrelated', 'index.js'))).toBe(storeDir('consumer', '1.0.0'));
+});
+
+describe('package exports targets', () => {
+  const importConditions = ['import', 'require', 'default'];
+  const requireConditions = ['require', 'default', 'import'];
+  const cases: Array<[string, unknown, string, string[], string | undefined]> = [
+    ['string exports for the package', './main.js', '.', importConditions, './main.js'],
+    ['string exports do not name subpaths', './main.js', './node', importConditions, undefined],
+    ['top-level conditions', { import: './esm.mjs', require: './cjs.js' }, '.', requireConditions, './cjs.js'],
+    [
+      'nested conditions skip types',
+      { './node': { import: { types: './node.d.mts', default: './node.mjs' } } },
+      './node',
+      importConditions,
+      './node.mjs'
+    ],
+    [
+      'an ESM-only subpath still resolves for require()',
+      { './x': { import: './x.mjs' } },
+      './x',
+      requireConditions,
+      './x.mjs'
+    ],
+    [
+      'a pattern',
+      { './adapters/*': './dist/adapters/*.mjs' },
+      './adapters/node',
+      importConditions,
+      './dist/adapters/node.mjs'
+    ],
+    ['an array of targets', { '.': [{ worker: './w.js' }, './main.js'] }, '.', importConditions, './main.js'],
+    ['an unexported subpath', { '.': './main.js' }, './internal', importConditions, undefined],
+    [
+      'the most specific pattern',
+      { './*': './generic/*.js', './adapters/*': './special/*.js' },
+      './adapters/node',
+      importConditions,
+      './special/node.js'
+    ],
+    [
+      'an array skips a target outside the package',
+      { './node': ['not-relative', './dist/node.mjs'] },
+      './node',
+      importConditions,
+      './dist/node.mjs'
+    ],
+    ['a subpath with $& in it', { './*': './dist/*.mjs' }, './cost$&', importConditions, './dist/cost$&.mjs'],
+    ['no exports field', undefined, '.', importConditions, undefined]
+  ];
+  test.each(cases)('%s', (_name, exportsField, subpath, conditions, expected) => {
+    expect(resolvePackageExportsTarget(exportsField, subpath, conditions)).toBe(expected);
+  });
 });
