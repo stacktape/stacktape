@@ -314,8 +314,10 @@ export function Select<Value>({
  * styles below do not set falls back to this theme, so it holds palette neutrals instead.
  */
 /** The secondary button's rest and hover shadows (`.stp-ui-button--secondary`), for selects drawn as buttons. */
-const BUTTON_SHADOW_REST = '0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09)';
-const BUTTON_SHADOW_RAISED = '0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
+const BUTTON_SHADOW_REST =
+  'var(--stp-button-secondary-shadow, 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09))';
+const BUTTON_SHADOW_RAISED =
+  'var(--stp-button-secondary-shadow-hover, 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12))';
 
 const neutralTheme = (theme: Theme): Theme => ({
   ...theme,
@@ -404,10 +406,11 @@ function createStyles<Value>({
     dropdownIndicator: (base, state) => ({
       ...base,
       display: hideDropdownIndicator ? 'none' : 'flex',
-      color: state.isDisabled ? 'var(--stp-text-faint)' : 'var(--stp-text-primary)',
+      color: state.isDisabled ? 'var(--stp-text-faint)' : 'var(--stp-select-chevron, var(--stp-text-primary))',
       padding: 6,
+      '& svg': { width: 'var(--stp-select-chevron-size, 20px)', height: 'var(--stp-select-chevron-size, 20px)' },
       // The chevron belongs to the control and has no hover of its own (react-select greys it).
-      ':hover': { color: 'var(--stp-text-primary)' }
+      ':hover': { color: 'var(--stp-select-chevron, var(--stp-text-primary))' }
     }),
     indicatorSeparator: () => ({ display: 'none' }),
     input: (base) => ({ ...base, color: 'var(--stp-text-primary)', margin: 0, paddingLeft: 0 }),

@@ -5,6 +5,7 @@
   --stp-surface-element: rgb(34, 40, 40);
   --stp-surface-modal: rgb(30, 35, 35);
   --stp-surface-input: rgb(20, 26, 26);
+  --stp-text-strong: rgba(255, 255, 255, 0.95);
   --stp-text-primary: rgba(255, 255, 255, 0.87);
   --stp-text-secondary: rgba(10, 187, 181, 1);
   --stp-text-headline: #cecece;
