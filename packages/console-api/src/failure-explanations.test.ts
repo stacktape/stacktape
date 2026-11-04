@@ -14,6 +14,11 @@ const cases: Array<[text: string, ruleIds: string[], phrase?: string]> = [
   [
     'Stack action update failed.\n\n  1. ApiLambda\n     Unzipped size must be smaller than 262144000 bytes',
     ['lambda-package-too-large'],
+    'A function (`ApiLambda` in the log) is larger than 250 MB'
+  ],
+  [
+    'Unzipped size must be smaller than 262144000 bytes',
+    ['lambda-package-too-large'],
     'A function is larger than 250 MB'
   ],
   [
@@ -86,7 +91,7 @@ const cases: Array<[text: string, ruleIds: string[], phrase?: string]> = [
   [
     'Stack action update failed.\n\n1. Role (in worker)\n   Access denied for role\n\n2. LegacyLambda\n   Unzipped size must be smaller than 262144000 bytes',
     ['lambda-package-too-large'],
-    'A function is larger than 250 MB'
+    'A function (`LegacyLambda` in the log) is larger than 250 MB'
   ],
   ['Task failed container health checks', ['container-health-check-failed'], '`internalHealthCheck`'],
   [
