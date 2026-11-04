@@ -13,6 +13,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-surface-element',
       '--stp-surface-modal',
       '--stp-surface-input',
+      '--stp-text-strong',
       '--stp-text-primary',
       '--stp-text-secondary',
       '--stp-text-headline',
