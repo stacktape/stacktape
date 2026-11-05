@@ -40,17 +40,24 @@ const SERVICE_BY_PORT: Record<string, string> = {
   '11211': 'Memcached'
 };
 
+/** The failure item a match belongs to: an earlier item can name a different resource. */
+const failureItemBefore = (text: string, index: number) => {
+  const before = text.slice(0, index);
+  const itemStart = Math.max(0, ...[...before.matchAll(/(?:^|\n)\s*\d+\.\s|Resource \S+/g)].map((item) => item.index));
+  return before.slice(itemStart);
+};
+
 /**
  * The resource a CloudFormation failure line names, as the developer wrote it: the CLI prints `1. ApiLambda (in api)`
  * or `Resource ApiLambda (part of api): reason`. Without the Stacktape name there is only a logical ID, which does not
  * match the config, so nothing is returned.
  */
-const configResourceBefore = (text: string, index: number) => {
-  const before = text.slice(0, index);
-  // Only the failure item the match belongs to: an earlier item can name a different resource.
-  const itemStart = Math.max(0, ...[...before.matchAll(/(?:^|\n)\s*\d+\.\s|Resource \S+/g)].map((item) => item.index));
-  return /\((?:in|part of) ([A-Za-z0-9_.-]+)\)/.exec(before.slice(itemStart))?.[1];
-};
+const configResourceBefore = (text: string, index: number) =>
+  /\((?:in|part of) ([A-Za-z0-9_.-]+)\)/.exec(failureItemBefore(text, index))?.[1];
+
+/** The logical ID of the same failure item. It does not match the config, so it is never presented as the config name. */
+const logicalIdBefore = (text: string, index: number) =>
+  /^\s*(?:\d+\.\s+|Resource )([A-Za-z][A-Za-z0-9]*)/.exec(failureItemBefore(text, index))?.[1];
 
 const connectAction = (port: string) =>
   SERVICE_BY_PORT[port]
@@ -68,8 +75,9 @@ export const FAILURE_RULES: FailureRule[] = [
     match: /Unzipped size must be smaller than \d+ bytes|combined with layers exceeds the maximum allowed size/i,
     explain: (match, text) => {
       const name = configResourceBefore(text, match.index);
+      const logicalId = logicalIdBefore(text, match.index);
       return {
-        cause: `${name ? `Function \`${name}\`` : 'A function'} is larger than 250 MB unzipped (its code and layers together), the most AWS Lambda accepts.`,
+        cause: `${name ? `Function \`${name}\`` : logicalId ? `A function (\`${logicalId}\` in the log)` : 'A function'} is larger than 250 MB unzipped (its code and layers together), the most AWS Lambda accepts.`,
         action:
           'Leave out files and dependencies the function does not need at runtime with `excludeFiles` and `excludeDependencies`. If it still does not fit, run this code as a web service or another container resource; container images can be much larger.',
         link: {
