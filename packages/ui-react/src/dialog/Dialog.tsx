@@ -137,7 +137,7 @@ export function Dialog({
         tabIndex={-1}
       >
         <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
-          <BiX aria-hidden="true" size={28} />
+          <BiX aria-hidden="true" size={22} />
         </button>
         <div className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')} style={bodyStyle}>
           {title ? (
