@@ -58,8 +58,8 @@ export const designTokens = {
   field: {
     /** Hover lifts the hairline a step toward the focus border; focus adds the ring. */
     hoverBorder: 'rgba(110, 116, 116, 0.38)',
-    focusBorder: 'rgba(110, 116, 116, 0.56)',
-    focusRing: 'rgba(110, 116, 116, 0.12)'
+    focusBorder: 'rgba(110, 116, 116, 0.85)',
+    focusRing: 'rgba(110, 116, 116, 0.28)'
   },
   status: {
     error: '#eb6161',
