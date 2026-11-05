@@ -9,9 +9,9 @@
   --stp-text-primary: rgba(255, 255, 255, 0.87);
   --stp-text-secondary: rgba(10, 187, 181, 1);
   --stp-text-headline: #cecece;
-  --stp-text-muted: rgb(172, 172, 172);
-  --stp-text-subtle: rgb(152, 152, 152);
-  --stp-text-faint: #8e8e8e;
+  --stp-text-muted: rgb(160, 160, 160);
+  --stp-text-subtle: rgb(140, 140, 140);
+  --stp-text-faint: #848484;
   --stp-border-strong: rgb(8, 13, 13);
   --stp-border-subtle: rgb(47, 52, 52);
   --stp-interactive-primary: rgb(17, 105, 105);
