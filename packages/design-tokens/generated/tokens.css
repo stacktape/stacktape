@@ -18,8 +18,8 @@
   --stp-interactive-primary-light: rgb(34, 166, 166);
   --stp-interactive-accent: rgb(34, 87, 122);
   --stp-field-hover-border: rgba(110, 116, 116, 0.38);
-  --stp-field-focus-border: rgba(110, 116, 116, 0.56);
-  --stp-field-focus-ring: rgba(110, 116, 116, 0.12);
+  --stp-field-focus-border: rgba(110, 116, 116, 0.85);
+  --stp-field-focus-ring: rgba(110, 116, 116, 0.28);
   --stp-status-error: #eb6161;
   --stp-status-success: rgb(24, 153, 144);
   --stp-aws-category-compute: rgb(237, 113, 0);

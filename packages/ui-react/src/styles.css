@@ -684,6 +684,11 @@
     color: var(--stp-tab-text-hover, var(--stp-text-primary));
   }
 
+  /* The same flat wash as a navigation row or a table row. */
+  .stp-ui-tabs:not(.stp-ui-tabs--underline) .stp-ui-tab:hover:not(:disabled, .stp-ui-tab--active) {
+    background: var(--stp-tab-background-hover, rgba(255, 255, 255, 0.055));
+  }
+
   .stp-ui-tab--active {
     color: var(--stp-tab-text-active, var(--stp-text-primary));
   }
