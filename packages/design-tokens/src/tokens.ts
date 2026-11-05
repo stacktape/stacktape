@@ -38,9 +38,9 @@ export const designTokens = {
     /** Teal accent text: links and secondary emphasis. */
     secondary: 'rgba(10, 187, 181, 1)',
     headline: '#cecece',
-    muted: 'rgb(160, 160, 160)',
-    subtle: 'rgb(140, 140, 140)',
-    faint: '#848484'
+    muted: 'rgb(172, 172, 172)',
+    subtle: 'rgb(152, 152, 152)',
+    faint: '#8e8e8e'
   },
   border: {
     /** The dark separating border used against page and element surfaces. */
