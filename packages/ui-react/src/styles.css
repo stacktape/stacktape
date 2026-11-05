@@ -684,6 +684,11 @@
     color: var(--stp-tab-text-hover, var(--stp-text-primary));
   }
 
+  /* The same flat wash as a navigation row or a table row. */
+  .stp-ui-tabs:not(.stp-ui-tabs--underline) .stp-ui-tab:hover:not(:disabled, .stp-ui-tab--active) {
+    background: var(--stp-tab-background-hover, rgba(255, 255, 255, 0.055));
+  }
+
   .stp-ui-tab--active {
     color: var(--stp-tab-text-active, var(--stp-text-primary));
   }
@@ -1199,6 +1204,11 @@
     text-align: left;
   }
 
+  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
+  .stp-ui-text-field__message-slot:has(.stp-ui-text-field__message--neutral) {
+    padding-bottom: 8px;
+  }
+
   .stp-ui-text-field__message {
     display: block;
     font-size: 12.5px;
@@ -1322,6 +1332,11 @@
     min-height: 20px;
     padding: 3px 0 0 var(--stp-field-inset, 0);
     text-align: left;
+  }
+
+  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
+  .stp-ui-select__message-slot:has(.stp-ui-select__message--neutral) {
+    padding-bottom: 8px;
   }
 
   .stp-ui-select__message {
