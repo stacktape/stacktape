@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, Ref } from 'react';
+import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react';
 import type {
   ActionMeta,
   ControlProps,
@@ -101,9 +101,19 @@ type SelectPresentation = {
 
 const SelectPresentationContext = createContext<SelectPresentation>({ breakOptionWord: false });
 
-const filterSelectOption = createFilter<SelectOption<unknown>>({
+const matchesTerm = createFilter<SelectOption<unknown>>({
   stringify: ({ data, label, value }) => `${data.searchText ?? label} ${value}`
 });
+
+/** Every typed word must appear somewhere in the option, in any order: "checkout prod" finds "api, checkout / production". */
+const filterSelectOption: NonNullable<ComponentProps<typeof ReactSelect<SelectOption<unknown>>>['filterOption']> = (
+  option,
+  input
+) =>
+  input
+    .trim()
+    .split(/\s+/)
+    .every((term) => matchesTerm(option, term));
 
 function SelectControl<Value>(controlProps: ControlProps<SelectOption<Value>, boolean>) {
   const { leading, inlineLabel } = useContext(SelectPresentationContext);
