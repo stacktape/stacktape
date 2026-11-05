@@ -56,6 +56,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-font-size-heading',
       '--stp-font-size-title',
       '--stp-font-size-display',
+      '--stp-font-size-metric',
       '--stp-font-weight-body',
       '--stp-font-weight-label',
       '--stp-font-weight-display',

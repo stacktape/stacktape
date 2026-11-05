@@ -109,7 +109,9 @@ export const designTokens = {
     /** Page and dialog titles. */
     title: '1.15rem',
     /** Headline numbers on tiles. */
-    display: '1.5rem'
+    display: '1.5rem',
+    /** A page's primary total, above supporting tile values. */
+    metric: '2rem'
   },
   fontWeight: {
     body: '500',
@@ -206,7 +208,8 @@ export const tokenVar = {
     body: 'var(--stp-font-size-body)',
     heading: 'var(--stp-font-size-heading)',
     title: 'var(--stp-font-size-title)',
-    display: 'var(--stp-font-size-display)'
+    display: 'var(--stp-font-size-display)',
+    metric: 'var(--stp-font-size-metric)'
   },
   fontWeight: {
     body: 'var(--stp-font-weight-body)',
