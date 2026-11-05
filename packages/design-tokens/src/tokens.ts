@@ -32,13 +32,15 @@ export const designTokens = {
     input: 'rgb(20, 26, 26)'
   },
   text: {
+    /** Page titles and the name that identifies a row, the brightest text on a screen. */
+    strong: 'rgba(255, 255, 255, 0.95)',
     primary: 'rgba(255, 255, 255, 0.87)',
     /** Teal accent text: links and secondary emphasis. */
     secondary: 'rgba(10, 187, 181, 1)',
     headline: '#cecece',
-    muted: 'rgb(160, 160, 160)',
-    subtle: 'rgb(140, 140, 140)',
-    faint: '#848484'
+    muted: 'rgb(172, 172, 172)',
+    subtle: 'rgb(152, 152, 152)',
+    faint: '#8e8e8e'
   },
   border: {
     /** The dark separating border used against page and element surfaces. */
@@ -142,6 +144,7 @@ export const tokenVar = {
     input: 'var(--stp-surface-input)'
   },
   text: {
+    strong: 'var(--stp-text-strong)',
     primary: 'var(--stp-text-primary)',
     secondary: 'var(--stp-text-secondary)',
     headline: 'var(--stp-text-headline)',
