@@ -1199,6 +1199,11 @@
     text-align: left;
   }
 
+  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
+  .stp-ui-text-field__message-slot:has(.stp-ui-text-field__message--neutral) {
+    padding-bottom: 8px;
+  }
+
   .stp-ui-text-field__message {
     display: block;
     font-size: 12.5px;
@@ -1322,6 +1327,11 @@
     min-height: 20px;
     padding: 3px 0 0 var(--stp-field-inset, 0);
     text-align: left;
+  }
+
+  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
+  .stp-ui-select__message-slot:has(.stp-ui-select__message--neutral) {
+    padding-bottom: 8px;
   }
 
   .stp-ui-select__message {
