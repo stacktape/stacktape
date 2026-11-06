@@ -2256,6 +2256,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-setup-states.test.ts',
       'apps/console/ui/e2e/isolated-sign-in.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
+      'apps/console/ui/e2e/isolated-resource-pages.test.ts',
       'apps/console/ui/e2e/isolated-errors.test.ts',
       'apps/console/ui/e2e/isolated-audit-log.test.ts'
     ],
@@ -2828,6 +2829,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-setup-states.test.ts',
       'apps/console/ui/e2e/isolated-sign-in.test.ts',
       'apps/console/ui/e2e/isolated-metric-charts.test.ts',
+      'apps/console/ui/e2e/isolated-resource-pages.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-security-settings.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
@@ -5487,6 +5489,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-first-deploy.test.ts',
       'apps/console/ui/e2e/isolated-projects-volume.test.ts',
+      'apps/console/ui/e2e/isolated-resource-pages.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',

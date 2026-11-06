@@ -2,7 +2,7 @@ import type { StpRedis } from '@domain-services/config-manager/resolved-types/re
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir, remove } from 'fs-extra';

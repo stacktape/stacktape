@@ -1,4 +1,3 @@
-import { snakeCase } from 'change-case';
 import { createHash } from 'node:crypto';
 
 export const getJobNameForSingleContainerWorkload = (workloadName: string) => {
@@ -70,6 +69,3 @@ export const getJobName = ({
 export const portMappingsPortName = (portNum: number) => {
   return `port-${portNum}`;
 };
-
-export const injectedParameterEnvVarName = (stpResourceReference: string, parameterName: string) =>
-  snakeCase(`STP_${stpResourceReference.replaceAll('.', '_')}_${parameterName}`).toUpperCase();

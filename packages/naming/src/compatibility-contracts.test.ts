@@ -12,11 +12,11 @@ import {
 import { helperLambdaAwsResourceNames } from './helper-lambda-resource-names';
 import { stackMetadataNames } from './stack-metadata-names';
 import { getStpNameForResource } from './stacktape-resource-names';
+import { injectedParameterEnvVarName } from './injected-parameter-names';
 import {
   getJobName,
   getLocalInvokeContainerName,
   getSimpleServiceDefaultContainerName,
-  injectedParameterEnvVarName,
   portMappingsPortName
 } from './workload-names';
 
