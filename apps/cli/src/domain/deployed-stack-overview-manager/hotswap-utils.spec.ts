@@ -106,9 +106,7 @@ describe('release commands', () => {
   });
 
   test('a changed `run` alone does not force a full deployment', () => {
-    expect(
-      isOnlyReleaseCommandRunChange(change(command('if-target-changed'), command({ attemptId: 'a' })))
-    ).toBe(true);
+    expect(isOnlyReleaseCommandRunChange(change(command('if-target-changed'), command({ attemptId: 'a' })))).toBe(true);
     expect(isOnlyReleaseCommandRunChange(change(command({ attemptId: 'a' }), command('if-target-changed')))).toBe(true);
   });
 

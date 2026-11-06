@@ -17553,7 +17553,7 @@
         "page:/configuration/hooks-and-scripts#environment-variables-in-scripts",
         "page:/configuration/hooks-and-scripts#deployment-scripts",
         "page:/configuration/hooks-and-scripts#faq",
-        "page:/configuration/hooks-and-scripts#how-do-i-run-a-database-migration-after-deploy",
+        "page:/configuration/hooks-and-scripts#how-do-i-run-a-database-migration-on-deploy",
         "page:/configuration/hooks-and-scripts#can-i-run-multiple-scripts-in-a-single-hook",
         "page:/configuration/hooks-and-scripts#what-happens-if-my-afterdeploy-hook-fails",
         "page:/configuration/hooks-and-scripts#when-should-i-use-hooks-vs-deployment-scripts",
@@ -17942,6 +17942,7 @@
         "page:/deployment-and-lifecycle/deploying-stacks#package-and-prepare-template",
         "page:/deployment-and-lifecycle/deploying-stacks#upload",
         "page:/deployment-and-lifecycle/deploying-stacks#deploy",
+        "page:/deployment-and-lifecycle/deploying-stacks#release-commands",
         "page:/deployment-and-lifecycle/deploying-stacks#post-deploy",
         "page:/deployment-and-lifecycle/deploying-stacks#running-a-deployment",
         "page:/deployment-and-lifecycle/deploying-stacks#key-options",
@@ -18178,6 +18179,31 @@
         "page:/deployment-and-lifecycle/previewing-changes#what-s-the-difference-between-diff-and-terraform-plan",
         "page:/deployment-and-lifecycle/previewing-changes#does-diff-validate-my-configuration",
         "page:/deployment-and-lifecycle/previewing-changes#when-should-i-use-diff-vs-just-deploying"
+      ]
+    },
+    {
+      "id": "page:/deployment-and-lifecycle/release-commands",
+      "title": "Release commands",
+      "route": "/deployment-and-lifecycle/release-commands",
+      "sourcePath": "apps/docs/content/deployment-and-lifecycle/release-commands.mdx",
+      "outputPath": "pages/deployment-and-lifecycle/release-commands.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "deployment-and-lifecycle",
+        "release-commands"
+      ],
+      "chunks": [
+        "page:/deployment-and-lifecycle/release-commands#release-commands",
+        "page:/deployment-and-lifecycle/release-commands#what-your-commands-must-allow",
+        "page:/deployment-and-lifecycle/release-commands#running-it-only-when-something-changed",
+        "page:/deployment-and-lifecycle/release-commands#how-it-affects-deploy-time",
+        "page:/deployment-and-lifecycle/release-commands#options",
+        "page:/deployment-and-lifecycle/release-commands#several-commands",
+        "page:/deployment-and-lifecycle/release-commands#js-bundle-services",
+        "page:/deployment-and-lifecycle/release-commands#skipping-and-interrupting",
+        "page:/deployment-and-lifecycle/release-commands#logs",
+        "page:/deployment-and-lifecycle/release-commands#when-to-use-something-else"
       ]
     },
     {

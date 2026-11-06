@@ -4,13 +4,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
-import {
-  acquireStackLock,
-  STACK_LOCK_S3_KEY,
-  StackLockedError,
-  type HeldStackLock,
-  type StackLockStore
-} from './lock';
+import { acquireStackLock, STACK_LOCK_S3_KEY, StackLockedError, type HeldStackLock, type StackLockStore } from './lock';
 
 const s3Store = (bucketName: string): StackLockStore => ({
   create: async (body) => {

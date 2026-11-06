@@ -233,9 +233,9 @@ export const startReleaseCommandLogs = async () => {
       })
     );
   };
-  let stopped = false;
+  const stopping = new AbortController();
   const loop = (async () => {
-    while (!stopped) {
+    while (!stopping.signal.aborted) {
       await poll();
       await new Promise((done) => setTimeout(done, LOG_POLL_INTERVAL_MS));
     }
@@ -251,7 +251,7 @@ export const startReleaseCommandLogs = async () => {
           await new Promise((done) => setTimeout(done, LOG_QUIET_MS));
         }
       }
-      stopped = true;
+      stopping.abort();
       await loop;
     }
   };
@@ -296,9 +296,11 @@ export const runReleaseCommandsDirectly = async ({
         startedBy
       });
       if (otherTask) {
-        throw new ExpectedError('STACK', `An earlier release command of ${name} is still running (task ${otherTask}).`, [
-          'Wait for it to finish or stop it, then deploy again.'
-        ]);
+        throw new ExpectedError(
+          'STACK',
+          `An earlier release command of ${name} is still running (task ${otherTask}).`,
+          ['Wait for it to finish or stop it, then deploy again.']
+        );
       }
       const taskArn = await startReleaseTask({
         ecs,

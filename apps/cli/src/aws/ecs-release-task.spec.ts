@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { DescribeTasksCommand, ListTasksCommand, RunTaskCommand } from '@aws-sdk/client-ecs';
-import { findReleaseTaskOfAnotherOperation, releaseTaskStartedBy, startReleaseTask, waitForReleaseTask } from './ecs-release-task';
+import {
+  findReleaseTaskOfAnotherOperation,
+  releaseTaskStartedBy,
+  startReleaseTask,
+  waitForReleaseTask
+} from './ecs-release-task';
 
 const describeSequence = (...responses: unknown[]) => {
   let index = 0;
@@ -22,7 +27,9 @@ describe('waitForReleaseTask', () => {
   test('succeeds on exit code 0, before the task reaches STOPPED', async () => {
     const result = await waitForReleaseTask({
       ...waitOptions,
-      ecs: describeSequence(running, { tasks: [{ lastStatus: 'DEACTIVATING', containers: [{ name: 'app', exitCode: 0 }] }] })
+      ecs: describeSequence(running, {
+        tasks: [{ lastStatus: 'DEACTIVATING', containers: [{ name: 'app', exitCode: 0 }] }]
+      })
     });
     expect(result).toEqual({ outcome: 'succeeded' });
   });
@@ -162,6 +169,8 @@ describe('findReleaseTaskOfAnotherOperation', () => {
   });
 
   test('finds nothing when no task runs', async () => {
-    expect(await findReleaseTaskOfAnotherOperation({ ecs: sender([]), cluster: 'c', family: 'f', startedBy })).toBeUndefined();
+    expect(
+      await findReleaseTaskOfAnotherOperation({ ecs: sender([]), cluster: 'c', family: 'f', startedBy })
+    ).toBeUndefined();
   });
 });

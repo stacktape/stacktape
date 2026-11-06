@@ -23,7 +23,10 @@ const props = (overrides: Partial<Props> = {}): Props => ({
 });
 
 const context = (remainingMs = 800_000) => ({ getRemainingTimeInMillis: () => remainingMs }) as never;
-const invocation = (chainState?: Record<string, unknown>) => ({ requestId: 'request', ...(chainState ? { chainState } : {}) });
+const invocation = (chainState?: Record<string, unknown>) => ({
+  requestId: 'request',
+  ...(chainState ? { chainState } : {})
+});
 
 describe('the release command custom resource', () => {
   let stackStatus: string;
@@ -75,7 +78,14 @@ describe('the release command custom resource', () => {
   const started = () => sent.filter((command) => command instanceof RunTaskCommand) as RunTaskCommand[];
 
   test('runs on Create, with the request ID as the idempotency token, and waits for the exit code', async () => {
-    const result = await releaseCommand(props({ run: 'if-target-changed' }), undefined, 'Create', undefined, context(), invocation());
+    const result = await releaseCommand(
+      props({ run: 'if-target-changed' }),
+      undefined,
+      'Create',
+      undefined,
+      context(),
+      invocation()
+    );
     expect(result.chainInvocation).toBeUndefined();
     expect(started()[0]!.input).toMatchObject({ clientToken: 'request', startedBy: 'stp-release:request' });
   });
@@ -87,7 +97,9 @@ describe('the release command custom resource', () => {
 
   test('fails with the exit code and names the physical ID', async () => {
     describedTask = { lastStatus: 'RUNNING', containers: [{ name: 'app', exitCode: 3 }] };
-    const error = await releaseCommand(props(), props(), 'Update', 'existing-id', context(), invocation()).catch((caught) => caught);
+    const error = await releaseCommand(props(), props(), 'Update', 'existing-id', context(), invocation()).catch(
+      (caught) => caught
+    );
     expect(error.message).toContain('exit code 3');
     expect(error.physicalResourceId).toBe('existing-id');
   });
@@ -123,7 +135,9 @@ describe('the release command custom resource', () => {
 
   test('refuses while another operation left a task running', async () => {
     runningTasks = [{ taskArn: 'left-behind', startedBy: 'stp-release:earlier' }];
-    await expect(releaseCommand(props(), props(), 'Update', 'id', context(), invocation())).rejects.toThrow(/still running/);
+    await expect(releaseCommand(props(), props(), 'Update', 'id', context(), invocation())).rejects.toThrow(
+      /still running/
+    );
     expect(started()).toEqual([]);
   });
 
@@ -156,7 +170,14 @@ describe('the release command custom resource', () => {
 
   test('a chained invocation past the deadline stops the task and fails', async () => {
     await expect(
-      releaseCommand(props(), props(), 'Update', 'id', context(), invocation({ taskArn: 'new-task', deadlineMs: Date.now() - 1 }))
+      releaseCommand(
+        props(),
+        props(),
+        'Update',
+        'id',
+        context(),
+        invocation({ taskArn: 'new-task', deadlineMs: Date.now() - 1 })
+      )
     ).rejects.toThrow(/timeout/);
     expect(sent.some((command) => command instanceof StopTaskCommand)).toBe(true);
   });

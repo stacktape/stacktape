@@ -1481,6 +1481,15 @@ describe('pinning the declared runtime version', () => {
   });
 });
 
+const migration = (overrides: Record<string, unknown> = {}) => ({
+  serviceName: 'web',
+  tool: 'prisma',
+  command: 'npx prisma migrate deploy',
+  runsAt: 'ci' as const,
+  evidence: [],
+  ...overrides
+});
+
 describe('composing detected migrations into deploy hooks', () => {
   const database = {
     name: 'mainDatabase',
@@ -1501,15 +1510,6 @@ describe('composing detected migrations into deploy hooks', () => {
         evidence: []
       }
     ]
-  });
-
-  const migration = (overrides: Record<string, unknown> = {}) => ({
-    serviceName: 'web',
-    tool: 'prisma',
-    command: 'npx prisma migrate deploy',
-    runsAt: 'ci' as const,
-    evidence: [],
-    ...overrides
   });
 
   it('runs a container service migration as its release command, with no script or hook', () => {
@@ -1558,7 +1558,7 @@ describe('composing detected migrations into deploy hooks', () => {
       })
     });
 
-    expect((config.resources.web?.properties.packaging as { type: string }).type).toBe('js-bundle');
+    expect(config.resources.web?.properties.packaging).toMatchObject({ type: 'js-bundle' });
     expect(config.resources.web?.properties.releaseCommand).toBe('npx prisma migrate deploy');
     expect(config.scripts).toBeUndefined();
   });
@@ -1768,6 +1768,8 @@ describe('composing detected migrations into deploy hooks', () => {
     // The recommendation stands in for the user until they change it.
     expect(withTiming({}).config.resources.web?.properties.releaseCommand).toBe('npx prisma migrate deploy');
     // A changed mind removes it entirely — the decision is real, not cosmetic.
-    expect(withTiming({ 'migration-timing:web': 'manual' }).config.resources.web?.properties.releaseCommand).toBeUndefined();
+    expect(
+      withTiming({ 'migration-timing:web': 'manual' }).config.resources.web?.properties.releaseCommand
+    ).toBeUndefined();
   });
 });

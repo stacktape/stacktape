@@ -32,7 +32,11 @@ export const resolveReleaseCommand = (workload: StpContainerWorkload): ResolvedR
 
   const timeoutSeconds = config.timeout ?? MAX_RELEASE_COMMAND_TIMEOUT_SECONDS;
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > MAX_RELEASE_COMMAND_TIMEOUT_SECONDS) {
-    throw invalid(name, `has a timeout of ${timeoutSeconds}.`, `Use whole seconds from 1 to ${MAX_RELEASE_COMMAND_TIMEOUT_SECONDS}.`);
+    throw invalid(
+      name,
+      `has a timeout of ${timeoutSeconds}.`,
+      `Use whole seconds from 1 to ${MAX_RELEASE_COMMAND_TIMEOUT_SECONDS}.`
+    );
   }
 
   const containerNames = workload.containers.map((container) => container.name);
@@ -46,7 +50,11 @@ export const resolveReleaseCommand = (workload: StpContainerWorkload): ResolvedR
   const containerName = config.container ?? containerNames[0]!;
   const container = workload.containers.find(({ name: candidate }) => candidate === containerName);
   if (!container) {
-    throw invalid(name, `names a container that does not exist: ${containerName}.`, `Use one of: ${containerNames.join(', ')}.`);
+    throw invalid(
+      name,
+      `names a container that does not exist: ${containerName}.`,
+      `Use one of: ${containerNames.join(', ')}.`
+    );
   }
   if (container.essential === false) {
     throw invalid(

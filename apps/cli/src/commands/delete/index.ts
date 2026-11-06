@@ -175,6 +175,8 @@ type DeleteExecutionOperation = {
   awsAccountId: string;
   /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
   finishInBackground: boolean;
+  /** Takes the stack's lock, so that the delete cannot overlap a deploy or a rollback. */
+  holdLock?: () => Promise<{ release: () => Promise<void> } | undefined>;
 };
 
 export const commandDelete = async () => {
@@ -224,6 +226,11 @@ export const commandDelete = async () => {
     edgeFunctions: awsSdkManager.edgeFunctions,
     // A dev stage releases its relay ports and secrets once its stack is gone, so its delete waits for the end.
     finishInBackground: !wasDevStack,
+    // A stack whose deployment bucket is already gone has no deploy to overlap with: a deploy starts by uploading to it.
+    holdLock: async () =>
+      (await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifactManager.deploymentBucketName }))
+        ? holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'delete' })
+        : undefined,
     lifecycle,
     notification,
     progress,
@@ -291,6 +298,7 @@ export const executeDeleteOperation = async ({
   deployedTemplate,
   edgeFunctions,
   finishInBackground,
+  holdLock,
   lifecycle,
   notification,
   progress,
@@ -335,10 +343,7 @@ export const executeDeleteOperation = async ({
     await lifecycle.registerHooks(config.hooks);
     await lifecycle.processHooks({ captureType: 'START' });
   }
-  // A stack whose deployment bucket is already gone has no deploy to overlap with: a deploy starts by uploading to it.
-  const lock = (await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifactManager.deploymentBucketName }))
-    ? await holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'delete' })
-    : undefined;
+  const lock = await holdLock?.();
   codeSwapBeginMutation();
   // Read before the deletion, which empties the stack's resource list.
   const artifactStoreIsStackResource = deploymentArtifacts.artifactStoreIsStackResource;

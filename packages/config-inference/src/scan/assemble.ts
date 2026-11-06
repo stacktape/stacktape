@@ -1284,10 +1284,11 @@ export const assembleCandidateFacts = async ({
     if (!migrationsByKey.has(key)) migrationsByKey.set(key, { ...migration, serviceName: owners[0]!.name });
   }
   await markMigrationsRunElsewhere(context, migrationsByKey.values(), services);
-  const migrations = [...migrationsByKey.values()].map((migration) => {
+  const migrations = [...migrationsByKey.values()];
+  for (const migration of migrations) {
     const migrationsPath = findMigrationsPath(context.files, migration, services);
-    return migrationsPath === undefined ? migration : { ...migration, migrationsPath };
-  });
+    if (migrationsPath !== undefined) migration.migrationsPath = migrationsPath;
+  }
 
   const workspaceGlobs = [...new Set(outputs.flatMap((output) => output.workspaceGlobs ?? []))];
   const notes = outputs.flatMap((output) => output.notes ?? []).slice(0, 20);

@@ -146,9 +146,11 @@ describe('the Procfile probe', () => {
         runsAt: 'ci'
       })
     ]);
-    expect(Object.values(config.resources).map((resource) => resource.properties.releaseCommand).filter(Boolean)).toEqual([
-      'npm run migration:run'
-    ]);
+    expect(
+      Object.values(config.resources)
+        .map((resource) => resource.properties.releaseCommand)
+        .filter(Boolean)
+    ).toEqual(['npm run migration:run']);
     expect(config.hooks).toBeUndefined();
     expect(JSON.stringify({ facts, config, gaps })).not.toContain("echo '' > .env");
     expect(JSON.stringify({ facts, config, gaps })).not.toContain('seed:run:relational');

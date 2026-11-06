@@ -742,7 +742,9 @@ export const prepareArtifactsForStackDeployment = async ({
 }: Pick<DeployOperation, 'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'> & {
   /** The shared network the stage runs in, created or upgraded while the workloads build. */
   networkReady?: Promise<void>;
-  applyDeployDecisions?: NonNullable<Parameters<DeployOperation['prepareTemplateForDeploy']>[0]>['applyDeployDecisions'];
+  applyDeployDecisions?: NonNullable<
+    Parameters<DeployOperation['prepareTemplateForDeploy']>[0]
+  >['applyDeployDecisions'];
   excludeImageJobs?: string[];
 }): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];

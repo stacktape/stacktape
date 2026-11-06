@@ -188,9 +188,11 @@ describe('orderReleaseCommands', () => {
         Service: resource('AWS::ECS::Service')
       }
     } as never;
-    expect(orderReleaseCommands({ template, releaseCommands: ['Command'], heldBack: ['Service', 'Function'] })).toEqual({
-      notHeldBack: ['Function']
-    });
+    expect(orderReleaseCommands({ template, releaseCommands: ['Command'], heldBack: ['Service', 'Function'] })).toEqual(
+      {
+        notHeldBack: ['Function']
+      }
+    );
     expect((template as { Resources: Record<string, Resource> }).Resources.Function!.DependsOn).toBeUndefined();
   });
 
@@ -212,6 +214,8 @@ describe('orderReleaseCommands', () => {
         Other: resource('AWS::SNS::Topic', { b: { Ref: 'Command' } })
       }
     } as never;
-    expect(() => orderReleaseCommands({ template, releaseCommands: ['Command'], heldBack: [] })).toThrow(/depends on itself/);
+    expect(() => orderReleaseCommands({ template, releaseCommands: ['Command'], heldBack: [] })).toThrow(
+      /depends on itself/
+    );
   });
 });

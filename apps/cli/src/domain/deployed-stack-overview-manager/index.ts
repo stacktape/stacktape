@@ -37,7 +37,8 @@ import {
   getTriggerOfUnchangedDeploymentScript,
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
-  isImageOnlyTaskDefinitionChange, isOnlyReleaseCommandRunChange
+  isImageOnlyTaskDefinitionChange,
+  isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 import { sharedLayerNumberOf } from '@domain-services/deployment-artifact-manager/shared-layers';

@@ -228,7 +228,10 @@ export const executeRollbackOperation = async ({
     text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
   });
 
-  const lock = await holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'rollback' });
+  const lock = await holdStackLock({
+    bucketName: deploymentArtifactManager.deploymentBucketName,
+    operation: 'rollback'
+  });
   try {
     codeSwapBeginMutation();
     await stack.deployStackForRollback(templateUrl);

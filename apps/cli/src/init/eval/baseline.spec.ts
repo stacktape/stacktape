@@ -222,9 +222,10 @@ const CASES: EvalCase[] = [
     },
     expect: {
       dependencyKinds: ['postgres'],
-      // The release phase is the repository saying "run this on deploy", and the emitted script is
-      // the hook that actually does — the first-deploy failure class for Heroku-shaped apps.
-      scriptNames: ['migrateDatabase'],
+      // The release phase is the repository saying "run this on deploy", and the release command
+      // is what actually does — the first-deploy failure class for Heroku-shaped apps.
+      configAbsent: ['scripts', 'hooks'],
+      gapsExclude: ['db:migrate'],
       deployable: true
     }
   },

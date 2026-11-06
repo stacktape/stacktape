@@ -41,7 +41,11 @@ const parseHolder = (body: string): StackLockHolder | undefined => {
   try {
     const parsed = JSON.parse(body) as Partial<StackLockHolder>;
     if (typeof parsed.invocationId === 'string' && typeof parsed.renewedAtMs === 'number') {
-      return { invocationId: parsed.invocationId, operation: String(parsed.operation), renewedAtMs: parsed.renewedAtMs };
+      return {
+        invocationId: parsed.invocationId,
+        operation: String(parsed.operation),
+        renewedAtMs: parsed.renewedAtMs
+      };
     }
   } catch {
     // An unreadable lock is treated as expired below.

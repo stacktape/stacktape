@@ -252,21 +252,19 @@ export const composeMigrationHooks = ({
           entry.composed !== undefined && DATABASE_KINDS.has(entry.composed.kind)
       );
 
-    const service = services.find(({ name }) => name === migration.serviceName);
-    const target = service === undefined ? undefined : releaseCommandTargetOf(service);
+    const owner = services.find((service) => service.name === migration.serviceName);
+    const target = owner === undefined ? undefined : releaseCommandTargetOf(owner);
     const command = target === undefined ? undefined : commandInImage(migration, target);
     if (command !== undefined) {
       const sameMigration = JSON.stringify([
         command,
-        databases.map(({ composed }) => composed.resourceName).sort()
+        databases.map(({ composed }) => composed.resourceName).toSorted()
       ]);
       if (!migratedOnce.has(sameMigration)) {
         migratedOnce.add(sameMigration);
         releaseCommands.set(
           migration.serviceName,
-          migration.migrationsPath === undefined
-            ? command
-            : { command, runWhenChanged: [migration.migrationsPath] }
+          migration.migrationsPath === undefined ? command : { command, runWhenChanged: [migration.migrationsPath] }
         );
       }
       if (!hookedServices.includes(migration.serviceName)) hookedServices.push(migration.serviceName);
@@ -276,7 +274,6 @@ export const composeMigrationHooks = ({
     // The migration tool reads the same variable names the application does, so the script gets
     // the service's own proven database variables, wired identically. Nothing is invented: a name
     // that was never observed is not written.
-    const owner = services.find((service) => service.name === migration.serviceName);
     const environment: Array<{ name: string; value: unknown }> = [];
     for (const variable of owner?.environmentVariables ?? []) {
       if (variable.role !== 'infra-dependency' || variable.dependencyName === undefined) continue;

@@ -466,7 +466,7 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage simultaneously, one fails because the stack is in an `UPDATE_IN_PROGRESS` state. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
 
 ## FAQ
 
@@ -3238,6 +3238,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
 | `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
 
 
 ## Examples
@@ -10462,7 +10463,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-Hooks commonly attach migration scripts to `afterDeploy` so database changes apply automatically after infrastructure updates. Use `connectTo` in the migration script to inject the database connection details — see [connecting resources](/configuration/connecting-resources) for details.
+To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. A failed `afterDeploy` hook does not fail the deploy.
 
 ### Lifecycle events
 
@@ -10471,7 +10472,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 | Hook | When it fires | Common use |
 |------|------|------|
 | `beforeDeploy` | Before deployment starts | Builds, linting, tests, asset preparation |
-| `afterDeploy` | After deployment completes | Migrations, seeding, cache warming, notifications |
+| `afterDeploy` | After deployment completes | Seeding, cache warming, notifications |
 | `beforeDelete` | Before stack deletion | Data exports, backups |
 | `afterDelete` | After stack deletion | External cleanup, notifications |
 | `beforeBucketSync` | Before syncing bucket contents | Pre-processing assets |
@@ -10511,9 +10512,9 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ## FAQ
 
-### How do I run a database migration after deploy?
+### How do I run a database migration on deploy?
 
-Define a `local-script` that runs your migration tool (Prisma, Drizzle, raw SQL) and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
+On a container service, set [`releaseCommand`](/deployment-and-lifecycle/release-commands). In a stack with only functions, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 
@@ -11614,7 +11615,7 @@ Standard RDS engines (Postgres, MySQL, MariaDB) expose core parameters: host, po
 
 ### Can I use $ResourceParam in hooks and scripts?
 
-Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs — the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into an `afterDeploy` migration script.
+Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs — the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into a seeding script. A service's [`releaseCommand`](/deployment-and-lifecycle/release-commands) gets the service's own environment variables.
 
 ---
 
@@ -13456,9 +13457,13 @@ For new stacks, Stacktape creates the CloudFormation stack. For existing stacks,
 
 An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished. The first of them to see an old resource AWS could not delete reports it once, because that resource then stays in your account.
 
+### Release commands
+
+A [release command](/deployment-and-lifecycle/release-commands) runs before any workload gets the new code, on full and on fast deployments. A failed command stops the deploy.
+
 ### Post-deploy
 
-After the stack is stable, Stacktape completes several post-deployment tasks: syncing [hosting buckets](/resources/frontend/static-hosting) with your local build output, invalidating [CDN](/resources/networking/cdn) caches if needed, running any user-defined `afterDeploy` [hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) (commonly used for database migrations), saving stack info to disk if configured, and sending deployment notifications to any configured [alert channels](/observability/alert-channels). On the first deploy of a new stack, the CLI also prompts you to set up [CI/CD](/ci-cd-and-gitops/overview).
+After the stack is stable, Stacktape completes several post-deployment tasks: syncing [hosting buckets](/resources/frontend/static-hosting) with your local build output, invalidating [CDN](/resources/networking/cdn) caches if needed, running any user-defined `afterDeploy` [hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks), saving stack info to disk if configured, and sending deployment notifications to any configured [alert channels](/observability/alert-channels). On the first deploy of a new stack, the CLI also prompts you to set up [CI/CD](/ci-cd-and-gitops/overview).
 
 ## Running a deployment
 
@@ -14204,12 +14209,13 @@ These patterns highlight common automation tasks — build steps and permission 
 
 ### Database migrations — choosing the right approach
 
-Database migrations are the most common automation use case. Stacktape supports two approaches:
+Database migrations are the most common automation use case. Stacktape supports three approaches:
 
+- **Release command (recommended)** — Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service. It runs in your deployed image inside the VPC, before any workload gets the new code. A failure stops the deploy and leaves your containers on the old code. It works on every kind of deploy, including fast deployments.
 - **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
 - **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
-The hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
+Use a release command when the stack has a container service. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
 
 ### Build before deploy
 
@@ -15273,6 +15279,112 @@ Yes. The command runs the same validation and guardrail checks as [`deploy`](/cl
 ### When should I use diff vs just deploying?
 
 Use `diff` for production stages, stages with stateful resources (databases, queues, tables), or any stage where an accidental replacement would cause real damage. For development stages where you're iterating quickly and can tolerate failed deploys, deploying directly is faster and usually safe enough. The preview adds the overhead of packaging and change-set creation, so treat it as a safety measure for high-risk deploys rather than a step in every iteration cycle.
+
+---
+
+# Release commands
+
+Source: `apps/docs/content/deployment-and-lifecycle/release-commands.mdx`
+Route: `/deployment-and-lifecycle/release-commands`
+
+Set `releaseCommand` on a service to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
+
+```yaml configExample="complete"
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database-password')
+      engine:
+        type: postgres
+        properties:
+          version: '17.6'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: vpc
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: buildpack
+        properties:
+          sourceDirectoryPath: .
+          startCommand: npm start
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - database
+      releaseCommand: npx prisma migrate deploy
+```
+
+Stacktape runs the command in a one-off ECS task. The task uses the image you are about to deploy, with the same environment variables, secrets, IAM role and network access as the service, so it reaches a database with no public address without a bastion. The deploy waits for the task and prints its logs. If the command fails, the deploy stops and your running containers keep serving the old code.
+
+## What your commands must allow
+
+- **The old code runs against the new schema until the rollout finishes.** Keep migrations compatible with it. To remove a column, stop using it in one deploy and remove it in a later one.
+- **A retry runs the command again.** A failed deploy, or a deploy that fails after the command succeeded, runs it again on the next attempt. Migration tools handle this already, because they record what they applied.
+- **Nothing reverses the command.** Neither a failed deploy nor [`stacktape rollback`](/deployment-and-lifecycle/rollbacks) changes the database back. A rollback does not run the command either, because an old command must not run against a newer database. The old code has to work with the schema that is there.
+
+## Running it only when something changed
+
+By default, the command runs on each deploy that changes the image. Use `runWhenChanged` to run it only when the listed files or directories changed:
+
+```yaml
+releaseCommand:
+  command: npx prisma migrate deploy
+  runWhenChanged:
+    - prisma/migrations
+```
+
+A deploy that changes none of the listed paths skips the command and takes no extra time. Use this with tools that apply only what is in one folder. Don't use it with a command that reads anything else that can change. Paths are relative to the project root, and each one must exist.
+
+The command also runs when the environment variables or secrets of the service change through a CloudFormation deployment, even if the listed paths stayed the same. A replaced database therefore gets its schema.
+
+## How it affects deploy time
+
+| Deploy | Added time |
+|---|---|
+| The command does not run | None |
+| Fast deployment, the command runs | About 15 to 30 seconds for the task to start, plus the command |
+| Full deployment, the command runs | The same, inside the CloudFormation update |
+
+A code-only deploy stays a [fast deployment](/deployment-and-lifecycle/deploying-stacks), and it runs the command before it updates any service. With [code swap](/deployment-and-lifecycle/code-swap), the command runs from the new image and the swap follows.
+
+## Options
+
+| Option | Default | Description |
+|---|---|---|
+| `command` | | The shell command. It runs through `/bin/sh -c` in place of the image's entry point. If the image needs its entry point, call it in the command. An image without a shell cannot run a release command. |
+| `runWhenChanged` | | Files or directories that decide whether the command runs. |
+| `timeout` | `3300` | Seconds the command can run, up to 3300. After that, the task stops and the deploy fails. |
+| `container` | The main container | The container to run in. Required for a [multi-container workload](/resources/compute/multi-container-workload) with several containers. |
+
+Containers that the chosen container depends on run too, but only the chosen container decides when the task ends. Load balancers, health checks and scaling don't apply to the task.
+
+## Several commands
+
+Each service can have its own release command. They run one at a time, in the order of the resources in your config. Every container service and function waits until all of them finished. If the command refers to a workload, for example through an environment variable, that workload has to exist first and can get new code before the command finishes. The deploy prints a warning that names it.
+
+## `js-bundle` services
+
+A `js-bundle` image contains only the bundled code, not your migration tool or migration files. For these services, Stacktape builds a second image of the whole project, used only by the release command. It builds it only when the command is due, so ordinary code deploys keep the fast bundle. Use `runWhenChanged` with these services: without it, each code change builds the second image and runs the command.
+
+## Skipping and interrupting
+
+Pass `--skipReleaseCommand` to deploy without running the command, for example when you ran it yourself or when you need to deploy a fix for it. The next deploy without the flag runs it.
+
+If you cancel a deploy while the command runs, its task keeps running, because stopping a migration partway can leave the database half migrated. The next deploy refuses to start a second one until the task has finished.
+
+## Logs
+
+The output appears in the deploy output, prefixed with the service name. It is also kept in the `stp-release` log group of the service, even when the service's own logging is disabled. Use the `logs-release-command` link in the stack details to open it.
+
+## When to use something else
+
+Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy. A stack with only functions has no container image to run a release command in, so use a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks) or a hook there.
 
 ---
 

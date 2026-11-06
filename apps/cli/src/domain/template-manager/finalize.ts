@@ -199,7 +199,9 @@ const orderReleaseCommandsInTemplate = () => {
     template: templateManager.template,
     releaseCommands: releases.map(({ workload }) => cfLogicalNames.releaseCommandCustomResource(workload.name)),
     heldBack: [
-      ...configManager.allContainerWorkloads.map(({ name, deployment }) => cfLogicalNames.ecsService(name, !!deployment)),
+      ...configManager.allContainerWorkloads.map(({ name, deployment }) =>
+        cfLogicalNames.ecsService(name, !!deployment)
+      ),
       ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName)
     ]
   });

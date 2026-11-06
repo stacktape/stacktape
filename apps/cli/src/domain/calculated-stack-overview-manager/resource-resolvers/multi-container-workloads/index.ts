@@ -542,7 +542,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     templateManager.addFinalTemplateOverrideFn(fn);
   });
   // A dev stack runs its services on the developer's machine, and the developer runs migrations there.
-  const release = calculatedStackOverviewManager.context.command === 'dev' ? undefined : resolveReleaseCommand(definition);
+  const release =
+    calculatedStackOverviewManager.context.command === 'dev' ? undefined : resolveReleaseCommand(definition);
   if (release) {
     const { stackName } = calculatedStackOverviewManager.context;
     calculatedStackOverviewManager.addCfChildResource({
@@ -606,7 +607,11 @@ export const getTaskDefinitionTemplateOverrideFns = ({
           containerDef.Image = imageUrl;
         }
         // The release command's log configuration names its own log group, whichever way it deploys.
-        if (hotSwapDeploy && containerDef.LogConfiguration && taskDefinitionLogicalName === cfLogicalNames.ecsTaskDefinition(resource.name)) {
+        if (
+          hotSwapDeploy &&
+          containerDef.LogConfiguration &&
+          taskDefinitionLogicalName === cfLogicalNames.ecsTaskDefinition(resource.name)
+        ) {
           // we also substitute log group name with actual name; containers without awslogs
           // (disabled logging) have nothing to substitute
           (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] =

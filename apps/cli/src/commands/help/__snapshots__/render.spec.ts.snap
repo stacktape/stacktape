@@ -117,6 +117,7 @@ Options:
   -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
       --show-secrets               If true, includes sensitive values in the output of commands such as status, deploy, and param get. Be cautious when using this flag, as mishandling sensitive data can create security risks.
       --full                       If true, deploys every change through CloudFormation. By default, when only the code of functions and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.
+      --skip-release-command       If true, this deploy does not run the releaseCommand of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it.
       --runner <value>             Controls where deployment build and packaging work runs.
       --no-layer-optimization      If true, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function.
 

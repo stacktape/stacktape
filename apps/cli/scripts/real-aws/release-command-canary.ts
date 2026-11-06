@@ -290,7 +290,10 @@ class CanaryStack {
   async deployFails(label: string, expectedInOutput: RegExp, extra: string[] = []) {
     const result = await this.deploy(extra);
     assert(result.exitCode !== 0, `${label}: the deploy should have failed.`);
-    assert(expectedInOutput.test(result.output), `${label}: expected ${expectedInOutput}:\n${result.output.slice(-3000)}`);
+    assert(
+      expectedInOutput.test(result.output),
+      `${label}: expected ${expectedInOutput}:\n${result.output.slice(-3000)}`
+    );
     return result;
   }
 
@@ -378,7 +381,9 @@ class CanaryStack {
       )
     ).flat();
     if (!arns.length) return [];
-    const { tasks = [] } = await this.clients.ecs.send(new DescribeTasksCommand({ cluster, tasks: arns.slice(0, 100) }));
+    const { tasks = [] } = await this.clients.ecs.send(
+      new DescribeTasksCommand({ cluster, tasks: arns.slice(0, 100) })
+    );
     return tasks.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
   }
 
@@ -405,15 +410,23 @@ class CanaryStack {
 
 type Scenario = { name: string; seconds?: number; details?: Record<string, unknown> };
 
-const usesCloudFormation = (output: string) => /Deploying through CloudFormation|Deploying infrastructure resources/.test(output);
+const usesCloudFormation = (output: string) =>
+  /Deploying through CloudFormation|Deploying infrastructure resources/.test(output);
 const whyCloudFormation = (output: string) =>
   output.match(/Deploying through CloudFormation[^"\n]*/)?.[0] ?? 'no reason printed';
 
-const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>, long: boolean) => {
+const runDatabaseScenarios = async (
+  stack: CanaryStack,
+  record: (scenario: Scenario) => Promise<void>,
+  long: boolean
+) => {
   // The health check needs the table, so this works only when the command runs before the service.
   const first = await stack.deployOk('first deploy');
   await stack.recordOwnedResources();
-  assert(first.output.includes('release-command-finished'), `first deploy: the output has no command logs:\n${first.output.slice(-2000)}`);
+  assert(
+    first.output.includes('release-command-finished'),
+    `first deploy: the output has no command logs:\n${first.output.slice(-2000)}`
+  );
   await stack.expectApp('first deploy', { release: 'initial', runs: 1, migrations: ['001-items.sql'] });
   const [firstTask] = await stack.releaseTasks('web');
   assert(firstTask?.containers?.[0]?.exitCode === 0, 'first deploy: no release task exited with 0.');
@@ -421,7 +434,10 @@ const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scena
 
   await stack.setRelease('server.mjs', 'r2');
   const codeOnly = await stack.deployOk('code-only deploy');
-  assert(!usesCloudFormation(codeOnly.output), `code-only deploy used CloudFormation: ${whyCloudFormation(codeOnly.output)}`);
+  assert(
+    !usesCloudFormation(codeOnly.output),
+    `code-only deploy used CloudFormation: ${whyCloudFormation(codeOnly.output)}`
+  );
   await stack.expectApp('code-only deploy', { release: 'r2', runs: 1 });
   await record({ name: 'unchanged runWhenChanged skips the command on the fast path', seconds: codeOnly.seconds });
 
@@ -453,7 +469,10 @@ const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scena
   await record({ name: 'fixing the migration folder returns to the last successful key' });
 
   await stack.editConfig((config) =>
-    config.replace('      connectTo:\n        - database\n      environment:\n', '      connectTo:\n        - database\n      environment:\n        - name: FEATURE\n          value: one\n')
+    config.replace(
+      '      connectTo:\n        - database\n      environment:\n',
+      '      connectTo:\n        - database\n      environment:\n        - name: FEATURE\n          value: one\n'
+    )
   );
   await stack.write('migrations/003-bad.sql', 'THIS IS NOT SQL;\n');
   const failedFull = await stack.deployFails('failing command through CloudFormation', /exit code 1/);
@@ -514,10 +533,13 @@ cloudformationResources:
   const [one, two] = await Promise.all([stack.deploy(), stack.deploy()]);
   const failed = [one, two].filter(({ exitCode }) => exitCode !== 0);
   assert(failed.length === 1, `of two concurrent deploys, ${failed.length} failed.`);
-  assert(/Another operation/.test(failed[0]!.output), `the second deploy failed for another reason:\n${failed[0]!.output.slice(-1500)}`);
+  assert(
+    /Another operation/.test(failed[0]!.output),
+    `the second deploy failed for another reason:\n${failed[0]!.output.slice(-1500)}`
+  );
   await record({ name: 'of two concurrent deploys, the second is refused' });
 
-  await stack.write('migrations/004-slow.sql', "SELECT pg_sleep(170);\nALTER TABLE items ADD COLUMN slow text;\n");
+  await stack.write('migrations/004-slow.sql', 'SELECT pg_sleep(170);\nALTER TABLE items ADD COLUMN slow text;\n');
   await stack.setRelease('server.mjs', 'r8');
   const killed = stack.start('deploy');
   let running: Task | undefined;
@@ -539,7 +561,9 @@ cloudformationResources:
   await stack.expectApp('deploy after the killed command finished', { release: 'r8' });
   await record({ name: 'a killed deploy holds the lock for its lease, and its task blocks a second one' });
 
-  await stack.editConfig((config) => config.replace('        command: node migrate.mjs\n', '        command: node migrate.mjs\n        timeout: 20\n'));
+  await stack.editConfig((config) =>
+    config.replace('        command: node migrate.mjs\n', '        command: node migrate.mjs\n        timeout: 20\n')
+  );
   await stack.write('migrations/005-too-slow.sql', 'SELECT pg_sleep(600);\n');
   await stack.deployFails('command past its timeout', /timeout/);
   // The task gets its stop timeout, then ECS deprovisions it. Until then it reports RUNNING with a stopping desired status.
@@ -555,13 +579,19 @@ cloudformationResources:
   await record({ name: 'a command past its timeout is stopped and fails the deploy' });
 
   await stack.editConfig((config) =>
-    config.replace('      releaseCommand:\n        command: node migrate.mjs\n        runWhenChanged:\n          - migrations\n', '')
+    config.replace(
+      '      releaseCommand:\n        command: node migrate.mjs\n        runWhenChanged:\n          - migrations\n',
+      ''
+    )
   );
   const removed = await stack.deployOk('removing the setting');
   const runsBefore = (await stack.app()).runs;
   await record({ name: 'removing the setting works', seconds: removed.seconds });
   await stack.editConfig((config) =>
-    config.replace('      internalHealthCheck:\n', '      logging:\n        disabled: true\n      releaseCommand: node migrate.mjs\n      internalHealthCheck:\n')
+    config.replace(
+      '      internalHealthCheck:\n',
+      '      logging:\n        disabled: true\n      releaseCommand: node migrate.mjs\n      internalHealthCheck:\n'
+    )
   );
   const added = await stack.deployOk('adding the setting back, with logging off');
   assert(added.output.includes('release-command-finished'), 'command logs should stay on when service logging is off.');
@@ -573,7 +603,12 @@ cloudformationResources:
   await record({ name: '--skipReleaseCommand does not run the command' });
 
   if (long) {
-    await stack.editConfig((config) => config.replace('        - name: FEATURE\n          value: one\n', '        - name: FEATURE\n          value: two\n'));
+    await stack.editConfig((config) =>
+      config.replace(
+        '        - name: FEATURE\n          value: one\n',
+        '        - name: FEATURE\n          value: two\n'
+      )
+    );
     await stack.write('migrations/006-very-slow.sql', 'SELECT pg_sleep(1000);\n');
     const chained = await stack.deployOk('a wait past the Lambda limit');
     assert(chained.seconds > 1000, 'the command should have taken over 1000 s.');
@@ -593,12 +628,18 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     [RAN_EC2, RAN_MULTI, RAN_BUNDLE].every((ran) => ran.test(first.output)),
     `some command logs are missing:\n${first.output.slice(-3000)}`
   );
-  await record({ name: 'EC2 from zero capacity, a side container and a js-bundle release image all run', seconds: first.seconds });
+  await record({
+    name: 'EC2 from zero capacity, a side container and a js-bundle release image all run',
+    seconds: first.seconds
+  });
 
   const taskTimes = await Promise.all(
     ['ec2app', 'multi', 'bundle'].map(async (workload) => {
       const [task] = await stack.releaseTasks(workload);
-      assert(task?.containers?.some(({ exitCode }) => exitCode === 0), `${workload}: no release task exited with 0.`);
+      assert(
+        task?.containers?.some(({ exitCode }) => exitCode === 0),
+        `${workload}: no release task exited with 0.`
+      );
       return { workload, startedAt: task!.startedAt?.getTime() ?? 0, stoppedAt: task!.stoppedAt?.getTime() ?? 0 };
     })
   );
@@ -622,7 +663,10 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
   );
   assert(!RAN_BUNDLE.test(bundleCodeOnly.output), 'an unchanged folder should not run the command.');
   assert(bundleCodeOnly.output.includes('Swapped code in bundle'), 'a code change should swap the code.');
-  await record({ name: 'a js-bundle code change keeps the release image and skips the command', seconds: bundleCodeOnly.seconds });
+  await record({
+    name: 'a js-bundle code change keeps the release image and skips the command',
+    seconds: bundleCodeOnly.seconds
+  });
 
   await stack.setRelease('bundle/server.ts', 'r4');
   await stack.write('bundle-migrations/002.txt', 'second\n');
@@ -633,12 +677,18 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
   );
   assert(RAN_BUNDLE.test(bundleMigration.output), 'the changed folder should run the command.');
   assert(bundleMigration.output.includes('Swapped code in bundle'), 'the command should be followed by a swap.');
-  await record({ name: 'a js-bundle migration builds the release image and runs on the fast path', seconds: bundleMigration.seconds });
+  await record({
+    name: 'a js-bundle migration builds the release image and runs on the fast path',
+    seconds: bundleMigration.seconds
+  });
 
   await stack.write('ec2.txt', 'changed\n');
   const ec2Run = await stack.deployOk('EC2 fast run');
   assert(RAN_EC2.test(ec2Run.output), 'the EC2 command should run on the fast path.');
-  assert(!usesCloudFormation(ec2Run.output), `an EC2 command should stay on the fast path: ${whyCloudFormation(ec2Run.output)}`);
+  assert(
+    !usesCloudFormation(ec2Run.output),
+    `an EC2 command should stay on the fast path: ${whyCloudFormation(ec2Run.output)}`
+  );
   await record({ name: 'an EC2 command runs on the fast path', seconds: ec2Run.seconds });
 };
 
@@ -661,7 +711,10 @@ const cleanupStack = async (clients: Clients, options: Options, state: State, st
       { client: clients.cloudFormation, maxWaitTime: 40 * 60, minDelay: 5, maxDelay: 20 },
       { StackName: existing.StackId }
     );
-    assert(waited.state === 'SUCCESS', `CloudFormation did not confirm deletion of ${stack.stackName}: ${waited.state}.`);
+    assert(
+      waited.state === 'SUCCESS',
+      `CloudFormation did not confirm deletion of ${stack.stackName}: ${waited.state}.`
+    );
   }
   assert(!(await describeStack(clients.cloudFormation, stack.stackName)), `${stack.stackName} still exists.`);
   if (stack.deploymentBucket) {
@@ -672,10 +725,12 @@ const cleanupStack = async (clients: Clients, options: Options, state: State, st
     assert(gone, `The deployment bucket ${stack.deploymentBucket} still exists.`);
   }
   if (stack.ecrRepository) {
-    const gone = await clients.ecr.send(new DescribeRepositoriesCommand({ repositoryNames: [stack.ecrRepository] })).then(
-      () => false,
-      (error: unknown) => isMissing(error, ['RepositoryNotFoundException'])
-    );
+    const gone = await clients.ecr
+      .send(new DescribeRepositoriesCommand({ repositoryNames: [stack.ecrRepository] }))
+      .then(
+        () => false,
+        (error: unknown) => isMissing(error, ['RepositoryNotFoundException'])
+      );
     assert(gone, `The image repository ${stack.ecrRepository} still exists.`);
   }
   for (const logGroupName of stack.logGroupNames ?? []) {
@@ -728,14 +783,20 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
   const prepare = async (name: 'database' | 'variants', fixture: string): Promise<StackState> => {
     const projectName = `${options.projectPrefix}-${name.slice(0, 2)}`;
     const stackName = `${projectName}-${STAGE}`;
-    assert(!(await describeStack(clients.cloudFormation, stackName)), `Refusing to mutate existing stack ${stackName}.`);
+    assert(
+      !(await describeStack(clients.cloudFormation, stackName)),
+      `Refusing to mutate existing stack ${stackName}.`
+    );
     const workDirectory = join(tmpdir(), `stacktape-release-canary-${projectName}`);
     await rm(workDirectory, { recursive: true, force: true });
     await mkdir(workDirectory, { recursive: true });
     await cp(join(CLI_DIRECTORY, '_test-stacks', fixture), workDirectory, { recursive: true, force: true });
     const configPath = join(workDirectory, 'stacktape.yml');
     const config = await readFile(configPath, 'utf8');
-    await writeFile(configPath, config.replace(/(name: stacktape-canary-owner\n\s+value: )local/, `$1${options.owner}`));
+    await writeFile(
+      configPath,
+      config.replace(/(name: stacktape-canary-owner\n\s+value: )local/, `$1${options.owner}`)
+    );
     return { stackName, projectName, workDirectory };
   };
   const stacks: StackState[] = [];
