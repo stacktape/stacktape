@@ -81,7 +81,12 @@ resources:
           entryfilePath: ./bundle/server.ts
       resources:
         cpu: 0.25
-        memory: 512
+        memory: 1024
+      scaling:
+        minInstances: 1
+        maxInstances: 1
+      # A deploy that changes the migrations runs the command from the release image, then swaps the code.
+      codeSwap: true
       # `cowsay` is only in devDependencies, and a bundle has neither it nor this folder.
       releaseCommand:
         command: ls bundle-migrations && npx --no-install cowsay variant-bundle

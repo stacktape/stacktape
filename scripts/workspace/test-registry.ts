@@ -995,6 +995,17 @@ export const lanes: readonly Lane[] = [
       'A code-only container deploy behind an ALB and an HTTP API finishes once the new release serves, with no failed request during the rollout, reports a per-phase timeline, and deletion leaves nothing.'
   },
   {
+    id: 'release-command-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=release-command-serving'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/release-command-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, a rollback does not rerun it, and concurrent or killed deploys are refused safely.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -4313,7 +4324,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/_utils/cw-deployment.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
-      'apps/cli/_test-stacks/container-fast-deploy/**'
+      'apps/cli/_test-stacks/container-fast-deploy/**',
+      'apps/cli/src/domain/release-command/**',
+      'apps/cli/src/domain/stack-operation-lock/**',
+      'apps/cli/src/aws/ecs-release-task.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/release-command.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command.ts',
+      'apps/cli/scripts/real-aws/release-command-canary.ts',
+      'apps/cli/_test-stacks/release-command/**',
+      'apps/cli/_test-stacks/release-command-variants/**'
     ],
     tests: [
       'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',
@@ -4343,7 +4362,13 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/kept-image.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
-      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
+      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
+      'apps/cli/scripts/real-aws/release-command-canary.ts',
+      'apps/cli/src/aws/ecs-release-task.spec.ts',
+      'apps/cli/src/domain/release-command/hash-path.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/release-command.spec.ts',
+      'apps/cli/src/domain/stack-operation-lock/lock.spec.ts',
+      'apps/cli/tests/synthesis-families/release-command.spec.ts'
     ],
     lanes: [
       'deployment-rules',
@@ -4356,7 +4381,8 @@ export const slices: readonly Slice[] = [
       'console-database-cli-console',
       'live-aws',
       'cli-test-real-aws-alias-canary',
-      'container-fast-deploy-live'
+      'container-fast-deploy-live',
+      'release-command-live'
     ],
     contributors: ['S03', 'S46']
   },

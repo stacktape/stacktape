@@ -1391,7 +1391,7 @@ export const composeConfig = ({
     };
     provenance[bastionResourceName] = {
       reason:
-        'Your database has no public address, so this small keyless jump box provides encrypted access for migrations and local tools.',
+        'Your database has no public address, so this small keyless jump box provides encrypted access for local database tools.',
       evidence: facts.dependencies
         .filter((dependency) => {
           const resourceName = dependencyResourceNames.get(dependency.name);

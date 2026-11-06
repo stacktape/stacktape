@@ -1,6 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -19,6 +17,7 @@ import { getJobName, RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/work
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { hashReleasePath } from './hash-path';
 import {
   findReleaseTaskOfAnotherOperation,
   releaseTaskStartedBy,
@@ -42,28 +41,6 @@ type PlannedReleaseCommand = {
 let plan: PlannedReleaseCommand[] = [];
 let skipped = false;
 
-const hashPath = async (root: string, path: string, hash: ReturnType<typeof createHash>) => {
-  const absolute = resolve(root, path);
-  const info = await stat(absolute).catch(() => undefined);
-  if (!info) {
-    throw new ExpectedError('CONFIG_VALIDATION', `The \`runWhenChanged\` path \`${path}\` does not exist.`, [
-      'Paths are relative to the project root. Fix the path, or remove `runWhenChanged` to run the command on each image change.'
-    ]);
-  }
-  if (info.isFile()) {
-    hash.update(`${relative(root, absolute)}\0`).update(await readFile(absolute)).update('\0');
-    return;
-  }
-  const entries = await readdir(absolute, { recursive: true, withFileTypes: true });
-  const files = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name))
-    .sort();
-  for (const file of files) {
-    hash.update(`${relative(root, file)}\0`).update(await readFile(file)).update('\0');
-  }
-};
-
 /**
  * What decides whether the command has anything new to do. With `runWhenChanged`, the listed paths (names, contents and
  * deletions); otherwise the image, because any code change could contain a migration.
@@ -72,7 +49,7 @@ const computeKey = async (release: ResolvedReleaseCommand) => {
   const hash = createHash('sha256').update(`${release.command}\0`);
   if (release.runWhenChanged.length) {
     for (const path of [...release.runWhenChanged].sort()) {
-      await hashPath(globalStateManager.workingDir, path, hash);
+      await hashReleasePath({ root: globalStateManager.workingDir, path, hash });
     }
     return hash.digest('hex');
   }
