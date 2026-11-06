@@ -542,11 +542,13 @@ cloudformationResources:
   await stack.editConfig((config) => config.replace('        command: node migrate.mjs\n', '        command: node migrate.mjs\n        timeout: 20\n'));
   await stack.write('migrations/005-too-slow.sql', 'SELECT pg_sleep(600);\n');
   await stack.deployFails('command past its timeout', /timeout/);
-  await sleep(40_000);
-  assert(
-    !(await stack.releaseTasks('web')).some(({ lastStatus }) => lastStatus === 'RUNNING'),
-    'the task should have been stopped at the timeout.'
-  );
+  // The task gets its stop timeout, then ECS deprovisions it. Until then it reports RUNNING with a stopping desired status.
+  let stillRunning = true;
+  for (let attempt = 0; attempt < 36 && stillRunning; attempt += 1) {
+    await sleep(5000);
+    stillRunning = (await stack.releaseTasks('web')).some(({ lastStatus }) => lastStatus !== 'STOPPED');
+  }
+  assert(!stillRunning, 'the task should have been stopped at the timeout.');
   await stack.remove('migrations/005-too-slow.sql');
   await stack.editConfig((config) => config.replace('        timeout: 20\n', ''));
   await stack.deployOk('deploy after a timeout');
@@ -579,11 +581,18 @@ cloudformationResources:
   }
 };
 
+// The command's text is also in the config, so these match only what the command printed.
+const RAN_EC2 = /\[release ec2app\] variant-ec2/;
+const RAN_MULTI = /\[release multi\] variant-multi/;
+const RAN_BUNDLE = /\[release bundle\] < variant-bundle >/;
+
 const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
   const first = await stack.deployOk('variants first deploy');
   await stack.recordOwnedResources();
-  const outputOrder = ['variant-ec2', 'variant-multi', 'variant-bundle'].map((marker) => first.output.indexOf(marker));
-  assert(outputOrder.every((index) => index >= 0), `some command logs are missing:\n${first.output.slice(-3000)}`);
+  assert(
+    [RAN_EC2, RAN_MULTI, RAN_BUNDLE].every((ran) => ran.test(first.output)),
+    `some command logs are missing:\n${first.output.slice(-3000)}`
+  );
   await record({ name: 'EC2 from zero capacity, a side container and a js-bundle release image all run', seconds: first.seconds });
 
   const taskTimes = await Promise.all(
@@ -611,7 +620,7 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     !usesCloudFormation(bundleCodeOnly.output),
     `a js-bundle code change should stay on the fast path: ${whyCloudFormation(bundleCodeOnly.output)}`
   );
-  assert(!bundleCodeOnly.output.includes('variant-bundle'), 'an unchanged folder should not run the command.');
+  assert(!RAN_BUNDLE.test(bundleCodeOnly.output), 'an unchanged folder should not run the command.');
   assert(bundleCodeOnly.output.includes('Swapped code in bundle'), 'a code change should swap the code.');
   await record({ name: 'a js-bundle code change keeps the release image and skips the command', seconds: bundleCodeOnly.seconds });
 
@@ -622,13 +631,14 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     !usesCloudFormation(bundleMigration.output),
     `a js-bundle migration should stay on the fast path: ${whyCloudFormation(bundleMigration.output)}`
   );
-  assert(bundleMigration.output.includes('variant-bundle'), 'the changed folder should run the command.');
+  assert(RAN_BUNDLE.test(bundleMigration.output), 'the changed folder should run the command.');
   assert(bundleMigration.output.includes('Swapped code in bundle'), 'the command should be followed by a swap.');
   await record({ name: 'a js-bundle migration builds the release image and runs on the fast path', seconds: bundleMigration.seconds });
 
   await stack.write('ec2.txt', 'changed\n');
   const ec2Run = await stack.deployOk('EC2 fast run');
-  assert(ec2Run.output.includes('variant-ec2'), 'the EC2 command should run on the fast path.');
+  assert(RAN_EC2.test(ec2Run.output), 'the EC2 command should run on the fast path.');
+  assert(!usesCloudFormation(ec2Run.output), `an EC2 command should stay on the fast path: ${whyCloudFormation(ec2Run.output)}`);
   await record({ name: 'an EC2 command runs on the fast path', seconds: ec2Run.seconds });
 };
 
