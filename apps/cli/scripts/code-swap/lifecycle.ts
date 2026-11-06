@@ -1,4 +1,4 @@
-// Owned live ECS/HTTP API scenario, invoked only by run.ts --phase3.
+// Owned live ECS/HTTP API scenario, invoked only by run.ts --lifecycle-only and --cap-lifecycle.
 import {
   ECSClient,
   DescribeServicesCommand,
@@ -49,7 +49,7 @@ export const qualifyLifecycle = async (
     new GetTemplateCommand({ StackName: `${owned.name}-bench` })
   );
   const templateBody: unknown = parseYaml(template.TemplateBody!);
-  await save(join(owned.directory, 'phase3-template.json'), templateBody);
+  await save(join(owned.directory, 'lifecycle-template.json'), templateBody);
   const serviceState = async () =>
     (await ecs.send(new DescribeServicesCommand({ cluster, services: [service] }))).services![0]!;
   const taskState = async () => {
@@ -88,7 +88,7 @@ export const qualifyLifecycle = async (
   const committed = JSON.parse(release.data!.S!) as { Revision: string };
   const roleId = definition.containerDefinitions
     ?.flatMap((container) => container.environment ?? [])
-    .find((env) => env.name === 'STP_BENCH_ROLE_ID')?.value;
+    .find((env) => env.name === 'STP_SUPERVISOR_ROLE_ID')?.value;
   assert(roleId, 'Missing injected RoleId in initial task definition.');
   const bootstrapEvidence = new Map<string, unknown>();
   const registrations = JSON.stringify(initial.serviceRegistries);
@@ -206,7 +206,7 @@ export const qualifyLifecycle = async (
         new GetItemCommand({ TableName: owned.table, Key: { pk: { S: 'release#node' } }, ConsistentRead: true })
       )
     ).Item!;
-    const record = JSON.parse(release.data!.S!) as Record<string, unknown>;
+    const record = JSON.parse(release.data!.S!) as { Committed: Record<string, unknown> };
     await ddb.send(
       new PutItemCommand({
         TableName: owned.table,
@@ -228,7 +228,13 @@ export const qualifyLifecycle = async (
         TableName: owned.table,
         Item: {
           ...release,
-          data: { S: JSON.stringify({ ...record, Key: 'code-swap/owned-missing-bootstrap-object' }) }
+          // A new task starts from Committed, so the fault belongs there.
+          data: {
+            S: JSON.stringify({
+              ...record,
+              Committed: { ...record.Committed, Key: 'code-swap/owned-missing-bootstrap-object' }
+            })
+          }
         }
       })
     );
@@ -258,9 +264,7 @@ export const qualifyLifecycle = async (
     qualification.failedBundleBootstrap = { failedTasks: failed, staleSuccessfulResponses: 0 };
     phase = 'replacement-after-cli-exit';
     const victim = (await taskState()).find((task) => task.lastStatus === 'RUNNING')!;
-    await ecs.send(
-      new StopTaskCommand({ cluster, task: victim.taskArn!, reason: 'Owned phase-3 replacement qualification' })
-    );
+    await ecs.send(new StopTaskCommand({ cluster, task: victim.taskArn!, reason: 'Owned replacement qualification' }));
     await wait(() => fullyRouted(count, [victim.taskArn!]));
     phase = 'all-unhealthy-recovery';
     const dead = (await taskState()).filter((task) => task.lastStatus === 'RUNNING');
@@ -289,7 +293,7 @@ export const qualifyLifecycle = async (
     controller.abort();
     await traffic;
     await ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount: 1 }));
-    await save(join(owned.directory, 'phase3-lifecycle.json'), {
+    await save(join(owned.directory, 'lifecycle.json'), {
       qualification,
       committedBootstrapBeforeReadiness: [...bootstrapEvidence.values()],
       samples,

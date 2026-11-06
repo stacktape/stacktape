@@ -12,7 +12,7 @@ if (import.meta.main) {
     process.argv.splice(recovery, 2);
   }
   const supervisor = resolve(import.meta.dir, 'stacktape-supervisor');
-  if (existsSync(supervisor)) process.env.STP_CODE_SWAP_BENCH_SUPERVISOR ??= supervisor;
+  if (existsSync(supervisor)) process.env.STP_SUPERVISOR_PATH ??= supervisor;
   trace('entry');
   process.env.STP_DEV_MODE = 'true';
   import('../../src/entrypoints/cli')

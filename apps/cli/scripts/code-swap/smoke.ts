@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
-import { buildSupervisor } from './build-supervisor';
+import { buildSupervisor } from '../build-supervisor';
 import { codeSwapDockerfile } from '../../src/domain/code-swap/image';
 
 const main = async () => {
@@ -50,9 +50,9 @@ const main = async () => {
       '-v',
       `${root}:/control`,
       '-e',
-      'STP_BENCH_LOCAL=/control',
+      'STP_SUPERVISOR_LOCAL=/control',
       '-e',
-      'STP_BENCH_TASK_MIB=512',
+      'STP_SUPERVISOR_TASK_MIB=512',
       name
     ]);
     const port = (await run(['docker', 'port', name, '8080'])).split(':').at(-1);

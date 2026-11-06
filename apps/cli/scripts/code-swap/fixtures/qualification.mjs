@@ -54,12 +54,12 @@ const start = async (baseline = 'old', grace = 2) => {
   supervisor = spawn('/stacktape-supervisor', [], {
     env: {
       ...process.env,
-      STP_BENCH_LOCAL: root,
-      STP_BENCH_BASELINE: `${root}/baseline`,
-      STP_BENCH_ENTRY: 'index.mjs',
-      STP_BENCH_PORT: String(port),
-      STP_BENCH_TASK_MIB: process.env.STP_BENCH_TASK_MIB ?? '512',
-      STP_BENCH_GRACE_S: String(grace)
+      STP_SUPERVISOR_LOCAL: root,
+      STP_SUPERVISOR_BASELINE: `${root}/baseline`,
+      STP_SUPERVISOR_ENTRY: 'index.mjs',
+      STP_SUPERVISOR_PORT: String(port),
+      STP_SUPERVISOR_TASK_MIB: process.env.STP_SUPERVISOR_TASK_MIB ?? '512',
+      STP_SUPERVISOR_GRACE_S: String(grace)
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });

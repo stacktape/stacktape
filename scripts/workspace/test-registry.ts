@@ -158,9 +158,9 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/code-swap/smoke.ts',
-      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
-      'apps/cli/scripts/code-swap/supervisor/longlived_test.go',
-      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+      'apps/cli/supervisor/archive_test.go',
+      'apps/cli/supervisor/longlived_test.go',
+      'apps/cli/supervisor/process_test.go'
     ],
     requires: ['docker'],
     release: 'affected-external-contract',
@@ -3772,13 +3772,15 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/packaging/src/artifact/code-swap.ts',
       'apps/cli/scripts/code-swap/**',
+      'apps/cli/scripts/build-supervisor.ts',
+      'apps/cli/supervisor/**',
       'apps/cli/src/domain/code-swap/**'
     ],
     tests: [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
-      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
-      'apps/cli/scripts/code-swap/supervisor/process_test.go',
+      'apps/cli/supervisor/archive_test.go',
+      'apps/cli/supervisor/process_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
@@ -3786,9 +3788,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
       'apps/cli/scripts/code-swap/lifecycle.spec.ts',
       'apps/cli/src/domain/code-swap/runtime.spec.ts',
-      'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
-      'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
-      'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
+      'apps/cli/supervisor/lifecycle_test.go',
+      'apps/cli/supervisor/supervision_test.go',
+      'apps/cli/supervisor/overhead_test.go'
     ],
     lanes: [
       'code-swap-artifacts',

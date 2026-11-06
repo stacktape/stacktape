@@ -1,6 +1,7 @@
+// Command stacktape-supervisor is the entrypoint of a service container that uses code swap. It runs the application
+// behind a local proxy and replaces the application's code when the service's release record asks for it.
 package main
 
-// Source-only runtime qualification harness. No installed CLI activation or deployment authority.
 import (
 	"bufio"
 	"context"
@@ -119,8 +120,8 @@ func put(key string, value any) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("{\"benchmarkEvent\":\"status\",\"atMs\":%d,\"data\":%s}\n", now(), b)
-	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
+	fmt.Printf("{\"supervisorEvent\":\"status\",\"atMs\":%d,\"data\":%s}\n", now(), b)
+	if dir := os.Getenv("STP_SUPERVISOR_LOCAL"); dir != "" {
 		if err := os.WriteFile(dir+"/"+key+".tmp", b, 0600); err != nil {
 			return err
 		}
@@ -147,7 +148,7 @@ func retryStatusWrite(write func() error, sleep func(time.Duration)) error {
 }
 func read() (record, error) {
 	var r record
-	if dir := os.Getenv("STP_BENCH_LOCAL"); dir != "" {
+	if dir := os.Getenv("STP_SUPERVISOR_LOCAL"); dir != "" {
 		b, err := os.ReadFile(dir + "/release.json")
 		if os.IsNotExist(err) {
 			return r, nil
@@ -165,10 +166,8 @@ func read() (record, error) {
 		if err := json.Unmarshal([]byte(d["S"]), &r); err != nil {
 			return r, err
 		}
-		if os.Getenv("STP_BENCH_PHASE4") == "1" {
-			if r.Seq <= 0 || out.Item["seq"]["N"] != strconv.FormatInt(r.Seq, 10) || r.TaskDefinition == "" {
-				return r, fmt.Errorf("invalid release record sequence or task definition")
-			}
+		if r.Seq <= 0 || out.Item["seq"]["N"] != strconv.FormatInt(r.Seq, 10) || r.TaskDefinition == "" {
+			return r, fmt.Errorf("invalid release record sequence or task definition")
 		}
 		return r, nil
 	}
@@ -235,7 +234,7 @@ func spawn(dir, rev string, t map[string]any, isCandidate bool) (*generation, er
 	if stopping.Load() {
 		return nil, fmt.Errorf("task stopping")
 	}
-	entry := os.Getenv("STP_BENCH_ENTRY")
+	entry := os.Getenv("STP_SUPERVISOR_ENTRY")
 	if entry == "" {
 		entry = "index.mjs"
 	}
@@ -280,7 +279,7 @@ exec "$@"
 		}
 		return nil, err
 	}
-	fmt.Printf("{\"benchmarkEvent\":\"preparing\",\"pid\":%d,\"revision\":%q}\n", u.pid, rev)
+	fmt.Printf("{\"supervisorEvent\":\"preparing\",\"pid\":%d,\"revision\":%q}\n", u.pid, rev)
 	u.useProxy(fmt.Sprintf("http://%s:%d", privateIP, port))
 	for {
 		_, treeErr := u.members()
@@ -315,7 +314,7 @@ func (u *generation) useProxy(address string) {
 	// A client that gives up cancels its upstream request, and a swap's drain deadline bounds an old process.
 	u.proxy.Transport = &http.Transport{MaxIdleConnsPerHost: 32, IdleConnTimeout: time.Second}
 	u.proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		fmt.Printf("{\"benchmarkEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), u.revision)
+		fmt.Printf("{\"supervisorEvent\":\"proxyError\",\"atMs\":%d,\"revision\":%q}\n", now(), u.revision)
 		http.Error(w, "upstream unavailable", 502)
 	}
 	// An event stream becomes long-lived when its response headers arrive. Every other response, including other
@@ -424,7 +423,7 @@ func prepare(r record, t map[string]any) (*generation, error) {
 	t["memoryBefore"] = memory()
 	started := time.Now()
 	var data []byte
-	if os.Getenv("STP_BENCH_LOCAL") != "" {
+	if os.Getenv("STP_SUPERVISOR_LOCAL") != "" {
 		b, err := os.ReadFile(r.Key)
 		if err != nil {
 			return nil, err
@@ -581,7 +580,7 @@ func activate(u *generation, t map[string]any, oom int64) error {
 	if lingers {
 		// An OOM while the old tree lingers must kill it, not the serving tree.
 		if err := old.setScore(expendableScore); err != nil {
-			fmt.Printf("{\"benchmarkEvent\":\"lingerRefused\",\"revision\":%q,\"reason\":%q}\n", old.revision, err.Error())
+			fmt.Printf("{\"supervisorEvent\":\"lingerRefused\",\"revision\":%q,\"reason\":%q}\n", old.revision, err.Error())
 			lingers = false
 		}
 	}
@@ -674,7 +673,7 @@ func linger(old *generation, oom int64) {
 	} else {
 		reason = err.Error()
 	}
-	fmt.Printf("{\"benchmarkEvent\":\"lingerEnded\",\"atMs\":%d,\"revision\":%q,\"outcome\":%q,\"closedConnections\":%d,\"oomKills\":%d,\"reaped\":%t,\"reason\":%q}\n", now(), old.revision, outcome, remaining, oomCount()-oom, err == nil, reason)
+	fmt.Printf("{\"supervisorEvent\":\"lingerEnded\",\"atMs\":%d,\"revision\":%q,\"outcome\":%q,\"closedConnections\":%d,\"oomKills\":%d,\"reaped\":%t,\"reason\":%q}\n", now(), old.revision, outcome, remaining, oomCount()-oom, err == nil, reason)
 }
 
 // stopLingering closes a lingering tree before a new candidate starts, so at most two trees ever run. A newer swap
@@ -713,7 +712,7 @@ func commit(u *generation, t map[string]any, oom int64) error {
 func status(state, rev string, t map[string]any, reason string) error {
 	err := put(statusKey(), map[string]any{"state": state, "revision": rev, "task": taskID, "timings": t, "reason": reason})
 	if err != nil {
-		fmt.Printf("{\"benchmarkEvent\":\"statusWriteFailed\",\"state\":%q,\"revision\":%q,\"reason\":%q}\n", state, rev, err.Error())
+		fmt.Printf("{\"supervisorEvent\":\"statusWriteFailed\",\"state\":%q,\"revision\":%q,\"reason\":%q}\n", state, rev, err.Error())
 	}
 	return err
 }
@@ -785,7 +784,6 @@ func fail(u *generation, t map[string]any, err error) {
 	status("failed", u.revision, t, err.Error())
 }
 func shutdown(server *http.Server) {
-	// Task-stop qualification only. ECS timeout synthesis/readiness remains Phase 3.
 	stopping.Store(true)
 	begin := time.Now()
 	if at := stopAt.Load(); at != nil {
@@ -836,13 +834,13 @@ func shutdown(server *http.Server) {
 	terminateAsync(oldGeneration.Load())
 	for u, done := range terminations {
 		if err := <-done; err != nil {
-			fmt.Printf("{\"benchmarkEvent\":\"cleanupFailed\",\"revision\":%q,\"reason\":%q}\n", u.revision, err.Error())
+			fmt.Printf("{\"supervisorEvent\":\"cleanupFailed\",\"revision\":%q,\"reason\":%q}\n", u.revision, err.Error())
 			continue
 		}
 		u.remove()
 	}
 	if err := <-lingered; err != nil {
-		fmt.Printf("{\"benchmarkEvent\":\"cleanupFailed\",\"revision\":\"lingering\",\"reason\":%q}\n", err.Error())
+		fmt.Printf("{\"supervisorEvent\":\"cleanupFailed\",\"revision\":\"lingering\",\"reason\":%q}\n", err.Error())
 	}
 
 }
@@ -867,20 +865,20 @@ func main() {
 	if errno != 0 {
 		panic(errno)
 	}
-	if n, err := strconv.Atoi(os.Getenv("STP_BENCH_PORT")); err == nil {
+	if n, err := strconv.Atoi(os.Getenv("STP_SUPERVISOR_PORT")); err == nil {
 		proxyPort = n
 	}
 	app = os.Getenv("STP_CODE_SWAP_SERVICE")
 	if app == "" {
 		app = "node"
 	}
-	table = os.Getenv("STP_BENCH_TABLE")
-	bucket = os.Getenv("STP_BENCH_BUCKET")
-	baseline = os.Getenv("STP_BENCH_BASELINE")
+	table = os.Getenv("STP_SUPERVISOR_TABLE")
+	bucket = os.Getenv("STP_SUPERVISOR_BUCKET")
+	baseline = os.Getenv("STP_SUPERVISOR_BASELINE")
 	if baseline == "" {
 		baseline = "/app"
 	}
-	if n, err := strconv.Atoi(os.Getenv("STP_BENCH_GRACE_S")); err == nil {
+	if n, err := strconv.Atoi(os.Getenv("STP_SUPERVISOR_GRACE_S")); err == nil {
 		grace = time.Duration(n) * time.Second
 	}
 	drain = grace
@@ -891,7 +889,7 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
 	go func() { <-signals; at := time.Now(); stopAt.Store(&at); stopping.Store(true); close(stop) }()
-	if os.Getenv("STP_BENCH_LOCAL") != "" {
+	if os.Getenv("STP_SUPERVISOR_LOCAL") != "" {
 		taskID = "local"
 	} else {
 		resp, err := local.Get(os.Getenv("ECS_CONTAINER_METADATA_URI_V4") + "/task")
@@ -912,7 +910,7 @@ func main() {
 		applications := 0
 		reservedMiB := int64(0)
 		for _, c := range meta.Containers {
-			if os.Getenv("STP_BENCH_PHASE3") == "1" && c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
+			if c.Name == "stp-cloudmap-drain" && c.Limits.Memory == 16 {
 				reservedMiB += 16
 				continue
 			}
@@ -921,9 +919,9 @@ func main() {
 		siblings = applications != 1
 		meta.Limits.Memory -= reservedMiB
 		if meta.Limits.Memory > 0 {
-			must(os.Setenv("STP_BENCH_TASK_MIB", strconv.FormatInt(meta.Limits.Memory, 10)))
+			must(os.Setenv("STP_SUPERVISOR_TASK_MIB", strconv.FormatInt(meta.Limits.Memory, 10)))
 		} else {
-			must(os.Unsetenv("STP_BENCH_TASK_MIB"))
+			must(os.Unsetenv("STP_SUPERVISOR_TASK_MIB"))
 		}
 		taskID = meta.TaskARN[strings.LastIndex(meta.TaskARN, "/")+1:]
 		taskDefinition = meta.Family + ":" + meta.Revision
@@ -950,9 +948,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		return
 	}
-	if os.Getenv("STP_BENCH_PHASE4") == "1" {
-		r = bootstrapIdentity(r, taskDefinition)
-	}
+	r = bootstrapIdentity(r, taskDefinition)
 	var u *generation
 	if r.BootstrapDelayS > 0 && r.BootstrapDelayS <= 60 {
 		select {
@@ -975,7 +971,7 @@ func main() {
 	}
 	if err != nil {
 		err = cleanupPrepare(u, t, err)
-		fmt.Printf("{\"benchmarkEvent\":\"bootstrapFailed\",\"reason\":%q}\n", err.Error())
+		fmt.Printf("{\"supervisorEvent\":\"bootstrapFailed\",\"reason\":%q}\n", err.Error())
 		return
 	}
 	must(u.protect())
@@ -1018,16 +1014,14 @@ func main() {
 			}
 			continue
 		}
-		if os.Getenv("STP_BENCH_PHASE4") == "1" {
-			if next.Seq < appliedSeq || next.TaskDefinition[strings.LastIndex(next.TaskDefinition, "/")+1:] != taskDefinition {
-				select {
-				case <-stop:
-				case <-time.After(time.Second):
-				}
-				continue
+		if next.Seq < appliedSeq || next.TaskDefinition[strings.LastIndex(next.TaskDefinition, "/")+1:] != taskDefinition {
+			select {
+			case <-stop:
+			case <-time.After(time.Second):
 			}
-			appliedSeq = next.Seq
+			continue
 		}
+		appliedSeq = next.Seq
 		r = next
 		if prepared != nil {
 			err := transitionCheck(prepared, oom)
@@ -1121,7 +1115,7 @@ func main() {
 func parseHTTPDate(h http.Header, key string) time.Time { t, _ := http.ParseTime(h.Get(key)); return t }
 func memory() map[string]any {
 	base, version := memoryController()
-	taskMiB, _ := strconv.ParseInt(os.Getenv("STP_BENCH_TASK_MIB"), 10, 64)
+	taskMiB, _ := strconv.ParseInt(os.Getenv("STP_SUPERVISOR_TASK_MIB"), 10, 64)
 	return memoryAt(base, version, taskMiB, siblings)
 }
 func memoryAt(base string, version int, taskMiB int64, siblings bool) map[string]any {

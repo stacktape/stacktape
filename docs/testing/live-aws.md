@@ -67,11 +67,12 @@ mutating commands.
 ## Code-swap qualification
 
 The qualification harness lives in `apps/cli/scripts/code-swap`; runtime code is owned by
-`apps/cli/src/domain/code-swap` and customers activate the feature with `web-service.properties.codeSwap`, off by
-default in every stage. The harness's build plugin adds timing transport to the ordinary CLI; ordinary builds contain
-neither the activation hooks nor these diagnostics, and no package is published from them. The registry's `code-swap-*`
-lanes own these scripts; the offline `code-swap-build-boundary` and `code-swap-artifacts` lanes run per PR, the Docker
-lanes run on change, and the live lanes run on a release candidate or when the runtime changes.
+`apps/cli/src/domain/code-swap` and `apps/cli/supervisor` (built by `apps/cli/scripts/build-supervisor.ts`), and
+customers activate the feature with `web-service.properties.codeSwap`, off by default in every stage. The harness's
+build plugin adds timing transport to the ordinary CLI; ordinary builds contain neither the activation hooks nor these
+diagnostics, and no package is published from them. The registry's `code-swap-*` lanes own these scripts; the offline
+`code-swap-build-boundary` and `code-swap-artifacts` lanes run per PR, the Docker lanes run on change, and the live
+lanes run on a release candidate or when the runtime changes.
 
 Every live runner accepts only account `597581086285`, region `eu-west-1`, profile and connected account
 `stacktape-e2e`, and a new owned `v4swap-` project at stage `bench`. Each run keeps raw request samples, command logs
@@ -88,20 +89,21 @@ pnpm --filter @stacktape/cli exec bun scripts/code-swap/build-cli.ts .stacktape/
 STP_CODE_SWAP_BENCH_LIVE=1 pnpm --filter @stacktape/cli exec bun scripts/code-swap/run.ts --regression --configurations 1024-1
 ```
 
-`run.ts` selections, all combinable with `--configurations <memory-tasks,...>` (default `512-1,512-2,1024-1,1024-2`):
+Every `run.ts` selection deploys through the same release record, readiness check and Cloud Map drain as a customer
+service. Selections, all combinable with `--configurations <memory-tasks,...>` (default `512-1,512-2,1024-1,1024-2`):
 
-| Flags                                | What it qualifies                                                                                                                   |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| none                                 | The original four-configuration serving decision: 20 edits and 20 matched image controls per configuration under public traffic.    |
-| `--regression`                       | 20 edits on one configuration against the fixed gate; it cannot replace the matched-image decision.                                 |
-| `--customer-path`                    | A fresh stack through the public `codeSwap` property, two swaps under traffic, an environment-change image fallback, then deletion. |
-| `--customer-path --retention-only`   | One code-only swap, a deploy with `codeSwap` removed, and an empty `code-swap/` prefix afterwards.                                  |
-| `--phase3 --cap-lifecycle`           | Ten-task scale-out with committed bootstrap, missing bundle, replacement after CLI exit, all-unhealthy recovery and the cap reason. |
-| `--phase3 --over-cap-only`           | Only the image deploy a service above the ten-task cap falls back to.                                                               |
-| `--phase3 --lifecycle-only`          | The smaller two-task lifecycle variant.                                                                                             |
-| `--phase3 --speed-only --regression` | Twenty edits on one unchanged task with every request failure retained.                                                             |
-| `--phase3 --image-penalty-only`      | One unchecked/checked image pair measuring the readiness check's cost.                                                              |
-| `--memory-fallback`                  | A working-set increase followed by an edit that must use exactly one image fallback.                                                |
+| Flags                              | What it qualifies                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| none                               | The original four-configuration serving decision: 20 edits and 20 matched image controls per configuration under public traffic.      |
+| `--regression`                     | 20 edits on one configuration against the fixed gate; it cannot replace the matched-image decision.                                   |
+| `--customer-path`                  | A fresh stack through the public `codeSwap` property, two swaps under traffic, an environment-change image fallback, then deletion.   |
+| `--customer-path --retention-only` | One code-only swap, a deploy with `codeSwap` removed, and an empty `code-swap/` prefix afterwards.                                    |
+| `--cap-lifecycle`                  | Ten-task scale-out with committed bootstrap, missing bundle, replacement after CLI exit, all-unhealthy recovery and the cap reason.   |
+| `--over-cap-only`                  | Only the image deploy a service above the ten-task cap falls back to.                                                                 |
+| `--lifecycle-only`                 | The smaller two-task lifecycle variant.                                                                                               |
+| `--recovery-only`                  | Interrupted swaps, concurrent operations, rollback and the task role's permission boundary. Add `--rollback-only` for rollback alone. |
+| `--image-penalty-only`             | One unchecked/checked image pair measuring the readiness check's cost.                                                                |
+| `--memory-fallback`                | A working-set increase followed by an edit that must use exactly one image fallback.                                                  |
 
 The gate for every Node configuration is serving p50 ≤ 5 s, p95 ≤ 15 s, maximum ≤ 25 s, zero memory fallbacks and zero
 swap request failures; the full decision also requires p50 and p95 at most half the matched image control. The runner

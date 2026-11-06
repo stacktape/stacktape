@@ -182,7 +182,6 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
   if (!runs.length) return;
   const enabled = runs.filter((run) => !run.optOut);
   for (const run of runs) {
-    if (!run.phase4) return;
     if (!enabled.length) {
       const { templateManager } = await import('../template-manager');
       if (
@@ -315,11 +314,11 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
     }
 
     app.Environment = (app.Environment ?? []).filter(
-      (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_BENCH_ROLE_ID')
+      (value) => !(value && typeof value === 'object' && 'Name' in value && value.Name === 'STP_SUPERVISOR_ROLE_ID')
     );
     if (imageHasSupervisor !== false)
       app.Environment.push({
-        Name: 'STP_BENCH_ROLE_ID',
+        Name: 'STP_SUPERVISOR_ROLE_ID',
         Value: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(run.service), 'RoleId'] }
       });
     definition.Properties = { ...definition.Properties, ContainerDefinitions: containers };

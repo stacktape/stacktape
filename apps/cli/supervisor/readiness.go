@@ -22,7 +22,7 @@ var checked atomic.Pointer[checkedGeneration]
 var desiredRevision atomic.Pointer[string]
 
 func readinessSocket() string {
-	if path := os.Getenv("STP_BENCH_READINESS_SOCKET"); path != "" {
+	if path := os.Getenv("STP_SUPERVISOR_READINESS_SOCKET"); path != "" {
 		return path
 	}
 	return "/tmp/stacktape-supervisor.sock"

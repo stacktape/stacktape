@@ -120,7 +120,7 @@ func TestDetachRemovesLifetimeTraceAndKeepsForkOwnership(t *testing.T) {
 }
 
 func TestReadinessUsesLiveFreshCheckedGeneration(t *testing.T) {
-	t.Setenv("STP_BENCH_READINESS_SOCKET", t.TempDir()+"/socket")
+	t.Setenv("STP_SUPERVISOR_READINESS_SOCKET", t.TempDir()+"/socket")
 	closeServer, err := serveReadiness()
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestTraceDeniedBootKeepsImageOnly(t *testing.T) {
 		if e != 0 {
 			t.Fatal(e)
 		}
-		// seccomp(SET_MODE_FILTER, TSYNC, program), Linux amd64 qualification only.
+		// seccomp(SET_MODE_FILTER, TSYNC, program), Linux amd64 only.
 		_, _, e = syscall.RawSyscall(317, 1, 1, uintptr(unsafe.Pointer(&program)))
 		if e != 0 {
 			t.Fatal(e)

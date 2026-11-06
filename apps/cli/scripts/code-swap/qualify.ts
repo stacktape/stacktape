@@ -3,7 +3,7 @@ import { resolve, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
 import { SWAP_DRAIN_SECONDS } from '../../src/domain/code-swap/ecs-budget';
-import { buildSupervisor } from './build-supervisor';
+import { buildSupervisor } from '../build-supervisor';
 
 // A scenario that has not finished by then is stuck; stop it so the lane reports the failure instead of hanging.
 const SCENARIO_TIMEOUT_MS = 8 * 60000;
@@ -102,7 +102,7 @@ const main = async () => {
             '--memory-swap=1024m',
             '--shm-size=32m',
             '-e',
-            'STP_BENCH_TASK_MIB=1024',
+            'STP_SUPERVISOR_TASK_MIB=1024',
             '-e',
             `QUAL_SCENARIO=${scenario}`,
             ...(process.env.QUAL_STOP_GRACE ? ['-e', `QUAL_STOP_GRACE=${process.env.QUAL_STOP_GRACE}`] : []),

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { ECSClient, DescribeTaskDefinitionCommand } from '@aws-sdk/client-ecs';
-import type { BenchmarkRun } from '../../src/domain/code-swap/benchmark-run';
+import type { CodeSwapRun } from '../../src/domain/code-swap/code-swap-run';
 import { acquireLock, removeLock, readLock } from '../../src/domain/code-swap/operation-lock';
 import { readReleaseRecord } from '../../src/domain/code-swap/release-record';
 import type { State, Owned } from './run';
@@ -25,10 +25,10 @@ type Harness = Pick<
   | 'samplePublic'
 >;
 
-export const qualifyPhase4 = async (
+export const qualifyReleaseRecovery = async (
   state: State,
   owned: Owned,
-  run: BenchmarkRun,
+  run: CodeSwapRun,
   url: string,
   { clients, guard, invoke, cliArgs, save, configure, primaryTasks, waitForFleet, edit, samplePublic }: Harness
 ) => {
@@ -120,7 +120,7 @@ export const qualifyPhase4 = async (
     await waitForFleet(owned, count);
     assert.equal((await version()).revision, expected);
   };
-  const rollbackOnly = process.argv.includes('--phase4-rollback-only');
+  const rollbackOnly = process.argv.includes('--rollback-only');
   try {
     if (!rollbackOnly) {
       await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = "race-${state.owner}";\n`);
@@ -201,7 +201,7 @@ export const qualifyPhase4 = async (
       await acquireLock(ddb, owned.table, probeHolder);
       let probe: unknown;
       try {
-        const response = await fetch(`${url}/_phase4/security?tasks=${tasks.ids.join(',')}`, {
+        const response = await fetch(`${url}/_security?tasks=${tasks.ids.join(',')}`, {
           signal: AbortSignal.timeout(120000)
         });
         probe = await response.json();
@@ -247,7 +247,12 @@ export const qualifyPhase4 = async (
     await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = ${JSON.stringify(baseline)};\n`);
     phase = 'opt-out';
     await deployImage(`optout-${state.owner}`, 1, true);
-    assert(await absent(() => ddb.send(new DescribeTableCommand({ TableName: owned.table }))));
+    // The CLI returns while CloudFormation still removes the old table in the background.
+    const tableDeadline = Date.now() + 300000;
+    while (!(await absent(() => ddb.send(new DescribeTableCommand({ TableName: owned.table }))))) {
+      assert(Date.now() < tableDeadline, 'The opted-out release table was not removed.');
+      await Bun.sleep(2000);
+    }
     const live = await primaryTasks(owned);
     const definition = (
       await ecs.send(new DescribeTaskDefinitionCommand({ taskDefinition: live.tasks[0]!.taskDefinitionArn! }))
@@ -280,7 +285,7 @@ export const qualifyPhase4 = async (
     await Promise.all([...active].map((child) => child.exited));
     serving = false;
     await poll;
-    await save(join(owned.directory, 'phase4-lifecycle.json'), {
+    await save(join(owned.directory, 'release-recovery.json'), {
       evidence,
       traffic,
       requestFailures: traffic.filter((p) => p.status !== 200 || p.error).length

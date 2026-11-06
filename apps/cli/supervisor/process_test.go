@@ -105,7 +105,7 @@ func TestUnverifiedReapKeepsHealthyTaskAndBlocksFallback(t *testing.T) {
 	oldGrace, oldBaseline := grace, baseline
 	grace, baseline = 0, t.TempDir()
 	defer func() { grace, baseline = oldGrace, oldBaseline; current.Store(nil); candidate.Store(nil) }()
-	t.Setenv("STP_BENCH_LOCAL", t.TempDir())
+	t.Setenv("STP_SUPERVISOR_LOCAL", t.TempDir())
 	for _, path := range []string{"prepare", "candidate failure"} {
 		t.Run(path, func(t *testing.T) {
 			cmd := exec.Command("sleep", "30")
@@ -147,7 +147,7 @@ func TestUnverifiedReapKeepsHealthyTaskAndBlocksFallback(t *testing.T) {
 }
 
 func TestStopDuringFailureLeavesTreesForShutdown(t *testing.T) {
-	t.Setenv("STP_BENCH_LOCAL", t.TempDir())
+	t.Setenv("STP_SUPERVISOR_LOCAL", t.TempDir())
 	stopping.Store(true)
 	defer func() { stopping.Store(false); current.Store(nil); oldGeneration.Store(nil) }()
 	u := &generation{revision: "failed"}

@@ -513,7 +513,8 @@ describe('stacktape package without AWS', () => {
     const bucket = awsResourceNames.deploymentBucket(
       getGloballyUniqueStackHash({ region: 'eu-west-1', stackName: 'pkgnoaws-test', accountId: ROLE_ACCOUNT })
     );
-    expect(config.Env).toContain(`STP_BENCH_BUCKET=${bucket}`);
-    expect(config.Env).toContain('STP_BENCH_TABLE=pkgnoaws-test-code-swap');
+    expect(config.Env).toContain(`STP_SUPERVISOR_BUCKET=${bucket}`);
+    expect(config.Env).toContain('STP_SUPERVISOR_TABLE=pkgnoaws-test-code-swap');
+    expect(config.Env.filter((value: string) => /BENCH|PHASE/.test(value))).toEqual([]);
   });
 });

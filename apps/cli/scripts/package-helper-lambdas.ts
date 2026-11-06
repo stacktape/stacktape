@@ -1,6 +1,6 @@
 import { basename, join } from 'node:path';
 import { HELPER_LAMBDA_NAMES, type HelperLambdaName } from '@config';
-import { buildSupervisor } from './code-swap/build-supervisor';
+import { buildSupervisor } from './build-supervisor';
 import {
   DIST_FOLDER_PATH,
   CLI_BUILD_DIST_FOLDER_PATH,
