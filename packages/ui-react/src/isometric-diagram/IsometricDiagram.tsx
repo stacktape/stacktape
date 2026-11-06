@@ -46,7 +46,11 @@ export function IsometricDiagram({
   ariaLabel,
   className,
   style,
-  initialZoom
+  initialZoom,
+  onNodeClick,
+  clickableNodeIds,
+  markedNodeIds,
+  dimmedNodeIds
 }: IsometricDiagramProps) {
   const scene: IsoScene | null = useMemo(() => buildIsometricScene({ parsedConfig: config }), [config]);
 
@@ -66,6 +70,10 @@ export function IsometricDiagram({
       ariaLabel={ariaLabel}
       className={className}
       initialZoom={initialZoom}
+      onNodeClick={onNodeClick}
+      clickableNodeIds={clickableNodeIds}
+      markedNodeIds={markedNodeIds}
+      dimmedNodeIds={dimmedNodeIds}
       scene={scene}
       style={style}
     />

@@ -168,3 +168,46 @@ describe('getMetricTargets', () => {
     expect(getMetricTargets({ stackInfoMap: null, physicalResources: [] })).toEqual([]);
   });
 });
+
+const target = (resourceType: string, cloudformationResourceType: string, physicalId: string) =>
+  getMetricTargets({
+    stackInfoMap: {
+      resources: {
+        thing: {
+          resourceType,
+          referenceableParams: {},
+          links: {},
+          cloudformationChildResources: { Thing: { cloudformationResourceType } }
+        }
+      }
+    } as unknown as NormalizedStackInfoMap,
+    physicalResources: [{ LogicalResourceId: 'Thing', PhysicalResourceId: physicalId }]
+  })[0]?.targets[0];
+
+describe('queues, topics, state machines and Redis', () => {
+  test('a queue is charted by its name, not its URL', () => {
+    expect(target('sqs-queue', 'AWS::SQS::Queue', 'https://sqs.eu-west-1.amazonaws.com/1/my-queue')).toEqual({
+      type: 'sqs',
+      primaryResourceIdentifier: 'my-queue'
+    });
+  });
+  test('a topic is charted by its name, not its ARN', () => {
+    expect(target('sns-topic', 'AWS::SNS::Topic', 'arn:aws:sns:eu-west-1:1:my-topic')).toEqual({
+      type: 'sns',
+      primaryResourceIdentifier: 'my-topic'
+    });
+  });
+  test('a state machine is charted by its ARN', () => {
+    const arn = 'arn:aws:states:eu-west-1:1:stateMachine:flow';
+    expect(target('state-machine', 'AWS::StepFunctions::StateMachine', arn)).toEqual({
+      type: 'stepfunctions',
+      primaryResourceIdentifier: arn
+    });
+  });
+  test('Redis is charted by its first node', () => {
+    expect(target('redis', 'AWS::ElastiCache::ReplicationGroup', 'cache')).toEqual({
+      type: 'redis',
+      primaryResourceIdentifier: 'cache-001'
+    });
+  });
+});

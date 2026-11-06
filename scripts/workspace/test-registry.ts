@@ -2069,6 +2069,12 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-key-numbers.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-relations.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-settings.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-tabs.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/StageHealth.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/pages/SecretsPage/secret-usage.test.ts',

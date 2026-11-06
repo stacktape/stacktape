@@ -309,9 +309,12 @@ const NodeNameTag = ({ cx, cy, text }: { cx: number; cy: number; text: string })
   );
 };
 
+/** A press that moves less than this is a click on what is under it, not a pan. */
+const CLICK_SLOP_PX = 4;
+
 // ── Node Block ──
 
-const IsoNodeBlock = ({ idPrefix, node }: { idPrefix: string; node: IsoNode }) => {
+const IsoNodeBlock = ({ idPrefix, node, isMarked }: { idPrefix: string; node: IsoNode; isMarked: boolean }) => {
   const c = node.color || '#cbd5e1';
   const o = t2s(node.tile.x, node.tile.y);
   const ped = node.pedestal || 'default';
@@ -393,6 +396,10 @@ const IsoNodeBlock = ({ idPrefix, node }: { idPrefix: string; node: IsoNode }) =
             {`x${replicaCount}`}
           </text>
         </g>
+      )}
+
+      {isMarked && (
+        <circle cx={o.x - 36} cy={o.y - ph - 18} r={6} fill="#e5484d" stroke="rgba(9, 11, 17, 0.78)" strokeWidth={2} />
       )}
 
       {/* Name tag below the front tip */}
@@ -738,6 +745,13 @@ export type DiagramViewProps = {
    * what the reader sees. Clamped to the same range as the zoom controls.
    */
   initialZoom?: number | undefined;
+  /** Called with a node's id when it is clicked, not dragged. Only for ids in `clickableNodeIds`. */
+  onNodeClick?: ((nodeId: string) => void) | undefined;
+  clickableNodeIds?: ReadonlySet<string> | undefined;
+  /** Nodes with a problem, drawn with a red mark. */
+  markedNodeIds?: ReadonlySet<string> | undefined;
+  /** Nodes out of focus, such as those a filter does not match. Drawn faded unless the pointer says otherwise. */
+  dimmedNodeIds?: ReadonlySet<string> | undefined;
 };
 
 export type IsoRendererProps = DiagramViewProps & {
@@ -754,7 +768,11 @@ export function IsoRenderer({
   ariaLabel = 'Architecture diagram',
   className,
   style,
-  initialZoom
+  initialZoom,
+  onNodeClick,
+  clickableNodeIds,
+  markedNodeIds,
+  dimmedNodeIds
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -765,6 +783,7 @@ export function IsoRenderer({
   );
   const [view, setView] = useState<ViewTransform>(home);
   const [isDragging, setIsDragging] = useState(false);
+  const hasDragged = useRef(true);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [hoveredConnectorId, setHoveredConnectorId] = useState<string | null>(null);
@@ -906,6 +925,7 @@ export function IsoRenderer({
       if (e.button !== 0 && e.pointerType === 'mouse') return;
       containerRef.current?.setPointerCapture(e.pointerId);
       setIsDragging(true);
+      hasDragged.current = false;
       dragStart.current = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
     },
     [view.panX, view.panY]
@@ -915,6 +935,7 @@ export function IsoRenderer({
       if (!isDragging) return;
       const dx = e.clientX - dragStart.current.x;
       const dy = e.clientY - dragStart.current.y;
+      if (Math.abs(dx) + Math.abs(dy) > CLICK_SLOP_PX) hasDragged.current = true;
       if (dx !== 0 || dy !== 0) {
         setTooltip(null);
       }
@@ -926,7 +947,12 @@ export function IsoRenderer({
     },
     [isDragging]
   );
-  const onPointerUp = useCallback(() => setIsDragging(false), []);
+  const onPointerUp = useCallback(() => {
+    setIsDragging(false);
+    // The container captures the pointer for panning, so the click reaches it and not the node under the pointer.
+    if (!hasDragged.current && hoveredNodeId && clickableNodeIds?.has(hoveredNodeId)) onNodeClick?.(hoveredNodeId);
+    hasDragged.current = true;
+  }, [hoveredNodeId, clickableNodeIds, onNodeClick]);
 
   // Wheel zoom must preventDefault so the surrounding page doesn't scroll. React attaches
   // wheel listeners passively, so register a non-passive listener manually.
@@ -1038,7 +1064,7 @@ export function IsoRenderer({
     if (hoveredConnector) return nodeId !== hoveredConnector.from && nodeId !== hoveredConnector.to;
     if (hoveredNodeId) return nodeId !== hoveredNodeId && !hoveredNeighbors?.has(nodeId);
     if (hoveredZoneFocus) return !hoveredZoneFocus.related.has(nodeId);
-    return false;
+    return !!dimmedNodeIds?.has(nodeId);
   };
   const isConnectorDimmed = (connector: IsoConnector) => {
     if (hoveredConnectorId) return connector.id !== hoveredConnectorId;
@@ -1180,6 +1206,7 @@ export function IsoRenderer({
             data-iso-id={n.id}
             opacity={isNodeDimmed(n.id) ? 0.35 : 1}
             className="stp-diagram__fade"
+            style={clickableNodeIds?.has(n.id) ? { cursor: 'pointer' } : undefined}
             onPointerEnter={() => {
               if (!isDragging) setHoveredNodeId(n.id);
             }}
@@ -1201,7 +1228,7 @@ export function IsoRenderer({
               });
             }}
           >
-            <IsoNodeBlock idPrefix={idPrefix} node={n} />
+            <IsoNodeBlock idPrefix={idPrefix} node={n} isMarked={!!markedNodeIds?.has(n.id)} />
           </g>
         ))}
         {scene.connectors.map((c) => (
