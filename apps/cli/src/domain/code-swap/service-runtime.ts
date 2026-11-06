@@ -8,7 +8,6 @@ import { join, relative, dirname, isAbsolute, resolve } from 'node:path';
 import {
   DynamoDBClient,
   GetItemCommand,
-  PutItemCommand,
   BatchGetItemCommand,
   ScanCommand,
   BatchWriteItemCommand
@@ -100,7 +99,7 @@ export const tasksAreHealthyTargets = (tasks: Task[], port: number, targets: Tar
       ({ Target, TargetHealth }) => ip && Target?.Id === ip && Target.Port === port && TargetHealth?.State === 'healthy'
     );
   });
-export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun) => {
+export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun) => {
   const releaseRecordAtStart = releaseRecordsAtStart.get(run.recordService);
   let identity: Identity | undefined;
   let runningHead: Identity | undefined;
@@ -121,7 +120,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     const { globalStateManager: global } = await import('../../app/global-state-manager');
     const { awsSdkManager: aws } = await import('../../utils/aws-sdk-manager');
     if (
-      (process.env.STP_CODE_SWAP_BENCH_RUN || process.env.STP_CODE_SWAP_BENCH_SUPERVISOR) &&
+      (process.env.STP_CODE_SWAP_BENCH_RUN || process.env.STP_SUPERVISOR_PATH) &&
       (global.targetAwsAccount.awsAccountId !== '597581086285' ||
         global.region !== 'eu-west-1' ||
         global.targetStack.projectName !== run.name ||
@@ -136,7 +135,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     });
     const config = awsClientConfig(context);
     if (
-      (process.env.STP_CODE_SWAP_BENCH_RUN || process.env.STP_CODE_SWAP_BENCH_SUPERVISOR) &&
+      (process.env.STP_CODE_SWAP_BENCH_RUN || process.env.STP_SUPERVISOR_PATH) &&
       (await new STSClient(config).send(new GetCallerIdentityCommand({}))).Account !== '597581086285'
     )
       throw new Error('Benchmark credentials mismatch.');
@@ -169,7 +168,6 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
   };
   const codeSwapBuildInputs = async () => {
     const { run, stack, global } = await clients();
-    if (!run.phase4) return {};
     const { configManager } = await import('../config-manager');
     const grace =
       configManager.allContainerWorkloads.find((item) => item.name === run.service)?.containers[0]?.stopTimeout ?? 2;
@@ -200,45 +198,36 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
 
   const put = async (data: Record<string, unknown>) => {
     const { ddb, run, stack, global } = await clients();
-    if (run.phase4) {
-      if (!hadCodeSwapTable) return; // Initial opt-in: CFN has not created the table yet, including on an existing stack.
-      if (!recordTaskDefinition) {
-        const service = stack.existingStackResources.find(
-          (r) => r.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
-        )?.PhysicalResourceId;
-        if (!service) return; // A newly added service starts on its image before its first record exists.
-        recordTaskDefinition = (await newServiceState(service)).taskDefinition!;
-      }
-      releaseRecord ??= await readReleaseRecord(ddb, run.table, run.recordService);
-      const bundle = data.Revision
-        ? {
-            Revision: String(data.Revision),
-            Key: String(data.Key),
-            Sha256: String(data.Sha256),
-            Size: Number(data.Size)
-          }
-        : undefined;
-      const phase = z.enum(['prepare', 'commit', 'abort']).parse(data.Phase);
-      const next: SwapRecord = {
-        Seq: (releaseRecord?.Seq ?? 0) + 1,
-        TaskDefinition: recordTaskDefinition,
-        Committed: phase === 'commit' ? bundle! : (releaseRecord?.Committed ?? null),
-        Proposed: phase === 'prepare' ? { ...bundle!, Attempt: global.invocationId } : null,
-        HistoryVersion: releaseRecord?.HistoryVersion ?? null,
-        Attempt: bundle ? global.invocationId : (releaseRecord?.Attempt ?? null),
-        Phase: phase,
-        ...bundle
-      };
-      await writeReleaseRecord(ddb, run.table, releaseRecord, next, run.recordService);
-      releaseRecord = next;
-    } else {
-      await ddb.send(
-        new PutItemCommand({
-          TableName: run.table,
-          Item: { pk: { S: `release#${run.recordService}` }, data: { S: JSON.stringify(data) } }
-        })
-      );
+    if (!hadCodeSwapTable) return; // Initial opt-in: CFN has not created the table yet, including on an existing stack.
+    if (!recordTaskDefinition) {
+      const service = stack.existingStackResources.find(
+        (r) => r.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
+      )?.PhysicalResourceId;
+      if (!service) return; // A newly added service starts on its image before its first record exists.
+      recordTaskDefinition = (await newServiceState(service)).taskDefinition!;
     }
+    releaseRecord ??= await readReleaseRecord(ddb, run.table, run.recordService);
+    const bundle = data.Revision
+      ? {
+          Revision: String(data.Revision),
+          Key: String(data.Key),
+          Sha256: String(data.Sha256),
+          Size: Number(data.Size)
+        }
+      : undefined;
+    const phase = z.enum(['prepare', 'commit', 'abort']).parse(data.Phase);
+    const next: SwapRecord = {
+      Seq: (releaseRecord?.Seq ?? 0) + 1,
+      TaskDefinition: recordTaskDefinition,
+      Committed: phase === 'commit' ? bundle! : (releaseRecord?.Committed ?? null),
+      Proposed: phase === 'prepare' ? { ...bundle!, Attempt: global.invocationId } : null,
+      HistoryVersion: releaseRecord?.HistoryVersion ?? null,
+      Attempt: bundle ? global.invocationId : (releaseRecord?.Attempt ?? null),
+      Phase: phase,
+      ...bundle
+    };
+    await writeReleaseRecord(ddb, run.table, releaseRecord, next, run.recordService);
+    releaseRecord = next;
     trace(`signal:${data.Phase}`);
   };
   const newServiceState = async (service: string) => {
@@ -295,12 +284,10 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       throw new Error('Unexpected fleet membership/revision.');
     const ids = tasks.tasks.map(({ taskArn }) => taskArn!.split('/').at(-1)!).toSorted();
     if (JSON.stringify(ids) !== JSON.stringify(listedIds)) throw new Error('Listed/described fleet mismatch.');
-    if (run.phase3) {
-      if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
-        throw new Error('Supervisor-checked PRIMARY is not healthy.');
-    }
+    if (tasks.tasks.some((task) => task.healthStatus !== 'HEALTHY'))
+      throw new Error('Supervisor-checked PRIMARY is not healthy.');
     const loadBalancers = response.services?.[0]?.loadBalancers ?? [];
-    if (run.phase3 && loadBalancers.length) {
+    if (loadBalancers.length) {
       const { elb } = await clients();
       for (const { targetGroupArn, containerPort } of loadBalancers) {
         if (!targetGroupArn || !containerPort) throw new Error('Load balancer target group identity is missing.');
@@ -310,7 +297,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         if (!tasksAreHealthyTargets(tasks.tasks ?? [], containerPort, TargetHealthDescriptions))
           throw new Error('PRIMARY tasks lost load balancer routability.');
       }
-    } else if (run.phase3) {
+    } else {
       const { discovery } = await clients();
       const registries = response.services?.[0]?.serviceRegistries ?? [];
       if (!registries.length) throw new Error('HTTP API discovery registry is missing.');
@@ -342,12 +329,8 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
   };
   const statuses = async (ids: string[]) => {
     const { ddb, run } = await clients();
-    let rolePrefix = '';
-    if (run.phase3) {
-      if (!checkedStatusRoleId) throw new Error('Status addressing requires a checked fleet preflight.');
-      rolePrefix = `${checkedStatusRoleId}:`;
-    }
-    const keys = ids.map((id) => ({ pk: { S: `status#${run.recordService}#${rolePrefix}${id}` } }));
+    if (!checkedStatusRoleId) throw new Error('Status addressing requires a checked fleet preflight.');
+    const keys = ids.map((id) => ({ pk: { S: `status#${run.recordService}#${checkedStatusRoleId}:${id}` } }));
     const response = await ddb.send(
       new BatchGetItemCommand({ RequestItems: { [run.table]: { Keys: keys, ConsistentRead: true } } })
     );
@@ -431,7 +414,6 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     return (roleLookup ??= (async () => {
       const { run, stack } = await clients();
       if (
-        !run.phase3 ||
         !updatesDeployedStack(stack) ||
         !stack.existingStackResources.some(
           (item) => item.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
@@ -476,7 +458,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       codeSwapIntegration.imageHasSupervisor.set(run.service, false);
       return input.dockerfileContents;
     }
-    if (run.phase4 && updatesDeployedStack(stack)) releaseRecord = releaseRecordAtStart;
+    if (updatesDeployedStack(stack)) releaseRecord = releaseRecordAtStart;
     const recoveryReason = interruptedSwapReason(releaseRecord, recoveredOperation);
     if (recoveryReason && releaseRecord?.Attempt && incompleteHistoryVersions(releaseRecord).length) {
       const interruptedVersion = releaseRecord.Proposed?.Revision ?? releaseRecord.Committed?.Revision;
@@ -648,12 +630,12 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         (input.python
           ? '\nCOPY stacktape-start /stacktape-start\nENV STP_CODE_SWAP_COMMAND=/stacktape-start PYTHONDONTWRITEBYTECODE=1\n'
           : '') +
-        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_BENCH_TABLE=${run.table} STP_BENCH_BUCKET=${bucket} STP_BENCH_TASK_MIB=${run.memory} STP_BENCH_PORT=${port} STP_BENCH_ENTRY=index.js STP_BENCH_GRACE_S=${authoredGrace}${targetCheck}${run.phase4 ? ' STP_BENCH_PHASE4=1' : ''}${run.phase3 ? ' STP_BENCH_PHASE3=1' : ''}${checkedStatusRoleId ? ` STP_BENCH_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
+        `\nENV STP_CODE_SWAP_SERVICE=${run.recordService} STP_SUPERVISOR_TABLE=${run.table} STP_SUPERVISOR_BUCKET=${bucket} STP_SUPERVISOR_TASK_MIB=${run.memory} STP_SUPERVISOR_PORT=${port} STP_SUPERVISOR_ENTRY=index.js STP_SUPERVISOR_GRACE_S=${authoredGrace}${targetCheck}${checkedStatusRoleId ? ` STP_SUPERVISOR_ROLE_ID=${checkedStatusRoleId}` : ''}\nENTRYPOINT ["/stacktape-supervisor"]\n`
       );
     };
     if (
       !updatesDeployedStack(stack) ||
-      (run.phase4 && !hadCodeSwapTable) ||
+      !hadCodeSwapTable ||
       run.mode === 'image' ||
       global.args.fullDeploy ||
       recoveryReason
@@ -668,7 +650,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       await put({ Phase: 'abort' });
       return dockerfile();
     }
-    if (run.phase4 && head.revision !== releaseRecord?.HistoryVersion) {
+    if (head.revision !== releaseRecord?.HistoryVersion) {
       result.fallback = 'interrupted_swap_image_repair';
       await put({ Phase: 'abort' });
       return dockerfile();
@@ -702,21 +684,19 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           trace('bundleUploaded');
         }),
         identityLookup,
-        run.phase4
-          ? s3.send(
-              new PutObjectCommand({
-                Bucket: artifacts.deploymentBucketName,
-                Key: `code-swap/${run.artifactService}/attempts/${revision}-${global.invocationId}.json`,
-                Body: JSON.stringify({
-                  revision,
-                  invocationId: global.invocationId,
-                  outcome: 'incomplete',
-                  baseline: head,
-                  candidate: identity
-                })
-              })
-            )
-          : Promise.resolve()
+        s3.send(
+          new PutObjectCommand({
+            Bucket: artifacts.deploymentBucketName,
+            Key: `code-swap/${run.artifactService}/attempts/${revision}-${global.invocationId}.json`,
+            Body: JSON.stringify({
+              revision,
+              invocationId: global.invocationId,
+              outcome: 'incomplete',
+              baseline: head,
+              candidate: identity
+            })
+          })
+        )
       ]);
       // Finish every prerequisite before any fallback; a failed check never publishes prepare.
       if (fleetCheck.status === 'rejected') throw fleetCheck.reason;
@@ -736,7 +716,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       result.prepared = prepared;
       return { ids: before.ids, statuses: prepared, service, cluster };
     })();
-    if (run.phase4) codeSwapTrackPreparation(prepare);
+    codeSwapTrackPreparation(prepare);
     // Handle rejection immediately, then propagate it at the image gate.
     prepare.catch((error) => {
       preparationError = error;
@@ -829,7 +809,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     definition: Awaited<ReturnType<typeof getECSHotswapInformation>>['newCfTaskDefinition']
   ) => {
     const { run } = await clients();
-    if (!run.phase4 || run.optOut || codeSwapIntegration.imageHasSupervisor.get(run.service) === false) return;
+    if (run.optOut || codeSwapIntegration.imageHasSupervisor.get(run.service) === false) return;
     await codeSwapPrimeIdentity();
     // Over-cap services skip the swap preflight but still need the RoleId for the image fallback.
     resolveStatusRole(definition, checkedStatusRoleId ?? (await lookupTaskRoleId()));
@@ -900,7 +880,6 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
   };
   const codeSwapRollbackComplete = async (newVersion: string, targetVersion: string, tablePresent = true) => {
     const { run, s3, artifacts } = await clients();
-    if (!run.phase4) return;
     if (!tablePresent) {
       if (hadCodeSwapTable) await removeCodeSwapArtifacts(newVersion);
       return;
@@ -953,7 +932,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
     if (!identity) {
       const { run, stack, s3, artifacts } = await clients();
       let cachedImageFinalized = false;
-      if (run.phase4 && !run.optOut && runningHead && !result.mode) {
+      if (!run.optOut && runningHead && !result.mode) {
         const service = stack.existingStackResources.find(
           (item) => item.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
         )?.PhysicalResourceId;
@@ -971,7 +950,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           cachedImageFinalized = true;
         }
       }
-      if (run.phase4 && !run.optOut && result.mode === 'image' && !cachedImageFinalized) {
+      if (!run.optOut && result.mode === 'image' && !cachedImageFinalized) {
         await recordImageBaseline(stack.nextVersion);
         await s3.send(
           new DeleteObjectCommand({
@@ -980,9 +959,9 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
           })
         );
       }
-      if (run.phase4 && run.optOut) {
+      if (run.optOut) {
         if (hadCodeSwapTable) await removeCodeSwapArtifacts(stack.nextVersion);
-      } else if (run.phase4) {
+      } else {
         await pruneArtifacts();
       }
       if (run.result) await writeFile(run.result, JSON.stringify(result, null, 2));
@@ -1049,41 +1028,33 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         result.fullImageHistory = { version: identity.revision, image: app.Image };
       }
     }
-    if (run.phase4) {
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: artifacts.deploymentBucketName,
-          Key: `code-swap/${run.artifactService}/releases/${identity.revision}.json`,
-          Body: JSON.stringify(identity)
-        })
-      );
-    }
-    let finalizeHistory = async () => {};
-    if (run.phase4) {
-      const { ddb } = await clients();
-      const previous = await readReleaseRecord(ddb, run.table, run.recordService);
-      if (result.mode === 'swap' && (previous?.Committed?.Revision !== identity.revision || previous.Proposed))
-        throw new Error('Committed code changed before history finalization.');
-      const service = stack.existingStackResources.find(
-        (r) => r.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
-      )!.PhysicalResourceId;
-      const currentDefinition = (await newServiceState(service)).taskDefinition!;
-      const next: SwapRecord =
-        result.mode === 'swap'
-          ? { ...previous!, Seq: previous!.Seq + 1, HistoryVersion: identity.revision }
-          : {
-              Seq: (previous?.Seq ?? 0) + 1,
-              TaskDefinition: currentDefinition,
-              Committed: null,
-              Proposed: null,
-              HistoryVersion: identity.revision,
-              Attempt: null,
-              Phase: 'abort'
-            };
-      finalizeHistory = async () => {
-        await writeReleaseRecord(ddb, run.table, previous, next, run.recordService);
-      };
-    }
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: artifacts.deploymentBucketName,
+        Key: `code-swap/${run.artifactService}/releases/${identity.revision}.json`,
+        Body: JSON.stringify(identity)
+      })
+    );
+    const { ddb } = await clients();
+    const previous = await readReleaseRecord(ddb, run.table, run.recordService);
+    if (result.mode === 'swap' && (previous?.Committed?.Revision !== identity.revision || previous.Proposed))
+      throw new Error('Committed code changed before history finalization.');
+    const service = stack.existingStackResources.find(
+      (r) => r.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
+    )!.PhysicalResourceId;
+    const currentDefinition = (await newServiceState(service)).taskDefinition!;
+    const next: SwapRecord =
+      result.mode === 'swap'
+        ? { ...previous!, Seq: previous!.Seq + 1, HistoryVersion: identity.revision }
+        : {
+            Seq: (previous?.Seq ?? 0) + 1,
+            TaskDefinition: currentDefinition,
+            Committed: null,
+            Proposed: null,
+            HistoryVersion: identity.revision,
+            Attempt: null,
+            Phase: 'abort'
+          };
     await s3.send(
       new PutObjectCommand({
         Bucket: artifacts.deploymentBucketName,
@@ -1093,9 +1064,6 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       })
     );
     if (result.mode === 'swap') {
-      const service = stack.existingStackResources.find(
-        (resource) => resource.LogicalResourceId === cfLogicalNames.ecsService(run.service, false)
-      )!.PhysicalResourceId;
       const final = await fleet(service, service.split('/')[1]);
       if (JSON.stringify(final.ids) !== JSON.stringify(result.tasks))
         throw new Error('Fleet changed while recording release history.');
@@ -1107,7 +1075,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
         throw new Error('Task failed while recording release history.');
     }
     // Until the final reconciliation passes, recovery must still see an unfinished committed attempt.
-    await finalizeHistory();
+    await writeReleaseRecord(ddb, run.table, previous, next, run.recordService);
     await pruneArtifacts();
     await reportResult();
     if (run.result)
@@ -1319,7 +1287,7 @@ export const createServiceRuntime = (run: import('./benchmark-run').BenchmarkRun
       await waitForRetiredCodeSwapTasks(ecs, service);
     }
     const protectedRevisions = await pruneStoppedStatuses();
-    const record = run.phase4 ? await readReleaseRecord(ddb, run.table, run.recordService) : undefined;
+    const record = await readReleaseRecord(ddb, run.table, run.recordService);
     const bundles = [record?.Committed, record?.Proposed].filter((bundle) => bundle !== null && bundle !== undefined);
     await pruneCodeSwapArtifacts({
       s3,

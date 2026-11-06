@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 export const GO_BUILDER =
   'golang:1.25.3-bookworm@sha256:4f43b271f9673eb7bd0cb3a49cc17b08d8d6ee110277e26dbacc93c43a5a7793';
 export const buildSupervisor = async (outputDirectory: string) => {
-  const source = fileURLToPath(new URL('./supervisor', import.meta.url));
+  const source = fileURLToPath(new URL('../supervisor', import.meta.url));
   const output = resolve(outputDirectory);
   await mkdir(output, { recursive: true });
   const child = Bun.spawn(
@@ -46,8 +46,8 @@ export const buildSupervisor = async (outputDirectory: string) => {
         spdxVersion: 'SPDX-2.3',
         dataLicense: 'CC0-1.0',
         SPDXID: 'SPDXRef-DOCUMENT',
-        name: 'Stacktape code-swap supervisor (linux/amd64)',
-        documentNamespace: `https://stacktape.com/code-swap/sbom/${sha256}`,
+        name: 'Stacktape supervisor (linux/amd64)',
+        documentNamespace: `https://stacktape.com/supervisor/sbom/${sha256}`,
         creationInfo: { creators: ['Tool: Go-1.25.3'], created: new Date().toISOString() },
         packages: [
           {
@@ -103,7 +103,7 @@ export const buildSupervisor = async (outputDirectory: string) => {
   return binary;
 };
 if (import.meta.main)
-  buildSupervisor(process.argv[2] ?? '.stacktape/code-swap/supervisor').catch((error) => {
+  buildSupervisor(process.argv[2] ?? '.stacktape/supervisor').catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

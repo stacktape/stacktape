@@ -8,8 +8,6 @@ export const runSchema = z.object({
   owner: z.string().min(8),
   table: z.string(),
   mode: z.enum(['swap', 'image']),
-  phase3: z.boolean().optional(),
-  phase4: z.boolean().optional(),
   optOut: z.boolean().optional(),
   fault: z.enum(['before-proposal', 'after-commit']).optional(),
   readinessControl: z.boolean().optional(),
@@ -18,4 +16,4 @@ export const runSchema = z.object({
   memory: z.number().int().positive(),
   count: z.number().int().min(1).max(10)
 });
-export type BenchmarkRun = z.infer<typeof runSchema>;
+export type CodeSwapRun = z.infer<typeof runSchema>;

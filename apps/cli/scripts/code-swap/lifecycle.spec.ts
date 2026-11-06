@@ -206,7 +206,7 @@ test('direct ECS image registration resolves RoleId rather than serializing its 
           Name: 'app',
           Image: 'repository:image',
           Environment: [
-            { Name: 'STP_BENCH_ROLE_ID', Value: { 'Fn::GetAtt': ['ApiRole', 'RoleId'] } },
+            { Name: 'STP_SUPERVISOR_ROLE_ID', Value: { 'Fn::GetAtt': ['ApiRole', 'RoleId'] } },
             { Name: 'APP_VALUE', Value: 'preserved' }
           ]
         }
@@ -235,8 +235,6 @@ test('table creation follows task protection, and opt-out retains the Deny while
         owner: 'owned-test',
         table: 'owned-table',
         mode: 'image',
-        phase3: true,
-        phase4: true,
         optOut: true,
         supervisor: 'unused',
         result: 'unused',

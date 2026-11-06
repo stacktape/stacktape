@@ -23,7 +23,7 @@ export async function permissionProbe(
   const taskId = task.TaskARN.split('/').at(-1);
   const sibling = siblings.find((id) => id !== taskId);
   if (!sibling) throw new Error('Probe needs a different live task.');
-  const table = process.env.STP_BENCH_TABLE;
+  const table = process.env.STP_SUPERVISOR_TABLE;
   const arn = `arn:aws:dynamodb:eu-west-1:597581086285:table/${table}`;
   const call = async (operation, input) => {
     const body = JSON.stringify(input);
@@ -83,7 +83,7 @@ export async function permissionProbe(
     },
     false
   );
-  const own = `status#${service}#${process.env.STP_BENCH_ROLE_ID}:${taskId}`;
+  const own = `status#${service}#${process.env.STP_SUPERVISOR_ROLE_ID}:${taskId}`;
   await attempt(
     'write own status',
     'PutItem',
@@ -99,10 +99,10 @@ export async function permissionProbe(
   for (const pk of [
     'lock',
     `release#${service}`,
-    `status#${service}#${process.env.STP_BENCH_ROLE_ID}:${sibling}`,
+    `status#${service}#${process.env.STP_SUPERVISOR_ROLE_ID}:${sibling}`,
     ...siblingServices.flatMap((name) => [
       `release#${name}`,
-      `status#${name}#${process.env.STP_BENCH_ROLE_ID}:${sibling}`
+      `status#${name}#${process.env.STP_SUPERVISOR_ROLE_ID}:${sibling}`
     ])
   ]) {
     const Key = { pk: { S: pk } },

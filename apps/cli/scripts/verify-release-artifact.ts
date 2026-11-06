@@ -166,7 +166,7 @@ export const verifyNativeInstallation = async ({
   await verifyHelperLambdaArtifacts({ helperLambdasDir: join(binDirectory, 'helper-lambdas') });
   const supervisor = await stat(join(binDirectory, 'helper-lambdas', 'stacktape-supervisor'));
   if (process.platform !== 'win32' && !(supervisor.mode & 0o111)) {
-    throw new Error('Native release archive contains a non-executable code-swap supervisor.');
+    throw new Error('Native release archive contains a non-executable supervisor.');
   }
 
   // railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`); only Windows

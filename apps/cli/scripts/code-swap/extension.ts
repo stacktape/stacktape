@@ -197,8 +197,6 @@ const main = async () => {
     bucket: awsResourceNames.deploymentBucket(hash),
     repository: awsResourceNames.deploymentEcrRepo(hash),
     directory: join(directory, 'app'),
-    phase3: true,
-    phase4: true,
     services
   };
   const state: State = {

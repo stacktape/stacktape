@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCodeSwapBundle } from '@stacktape/packaging/artifact/code-swap';
-import { buildSupervisor } from './build-supervisor';
+import { buildSupervisor } from '../build-supervisor';
 import { codeSwapBaseInputs } from '../../src/domain/code-swap/base-inputs';
 
 // Real public-subpath consumer: bundle installed packages, apply with the built Go extractor, execute with Node.

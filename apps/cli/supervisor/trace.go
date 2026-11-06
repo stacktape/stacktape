@@ -117,7 +117,7 @@ func (u *generation) startTraced() error {
 				delete(tracees, pid)
 				if pid == leader {
 					u.exited.Store(true)
-					fmt.Printf("{\"benchmarkEvent\":\"processExit\",\"atMs\":%d,\"pid\":%d,\"failed\":%t}\n", now(), leader, !status.Exited() || status.ExitStatus() != 0)
+					fmt.Printf("{\"supervisorEvent\":\"processExit\",\"atMs\":%d,\"pid\":%d,\"failed\":%t}\n", now(), leader, !status.Exited() || status.ExitStatus() != 0)
 				}
 				continue
 			}

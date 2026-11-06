@@ -47,18 +47,18 @@ test('the benchmark can compare image readiness while swaps always retain the EC
   >[0];
   try {
     process.env.STP_CODE_SWAP_BENCH_RUN = path;
-    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap' }));
+    await writeFile(path, JSON.stringify({ mode: 'swap' }));
     expect(codeSwapContainerPolicy(workload, container).HealthCheck?.Command).toEqual([
       'CMD',
       '/stacktape-supervisor',
       'readiness'
     ]);
-    await writeFile(path, JSON.stringify({ phase3: true, mode: 'image', readinessControl: false }));
+    await writeFile(path, JSON.stringify({ mode: 'image', readinessControl: false }));
     expect(codeSwapContainerPolicy(workload, container).HealthCheck).toBeUndefined();
     expect(codeSwapContainerPolicy(workload, container).StopTimeout).toBe(60);
-    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap', readinessControl: false }));
+    await writeFile(path, JSON.stringify({ mode: 'swap', readinessControl: false }));
     expect(() => codeSwapContainerPolicy(workload, container)).toThrow('image-only');
-    await writeFile(path, JSON.stringify({ phase3: true, mode: 'swap' }));
+    await writeFile(path, JSON.stringify({ mode: 'swap' }));
     expect(
       codeSwapContainerPolicy({ ...workload, scaling: { ...workload.scaling, maxInstances: 6 } }, container)
     ).toEqual({});

@@ -14,27 +14,20 @@ export const resolveStatusRole = (
   for (const container of definition.Properties.ContainerDefinitions as ContainerDefinition[]) {
     if (container.Essential === false) continue;
     const environment = container.Environment as KeyValuePair[] | undefined;
-    const role = environment?.find((entry) => entry.Name === 'STP_BENCH_ROLE_ID');
+    const role = environment?.find((entry) => entry.Name === 'STP_SUPERVISOR_ROLE_ID');
     if (role) role.Value = roleId;
-    else container.Environment = [...(environment ?? []), { Name: 'STP_BENCH_ROLE_ID', Value: roleId }];
+    else container.Environment = [...(environment ?? []), { Name: 'STP_SUPERVISOR_ROLE_ID', Value: roleId }];
   }
 };
 
-const phase3Run = z.object({
-  phase3: z.boolean().optional(),
+const benchmarkRunSchema = z.object({
   optOut: z.boolean().optional(),
   mode: z.enum(['swap', 'image']).optional(),
   readinessControl: z.boolean().optional()
 });
-export const benchmarkHasPhase3 = () => {
+const readBenchmarkRun = () => {
   const path = process.env.STP_CODE_SWAP_BENCH_RUN;
-  if (!path) return false;
-  const run = phase3Run.parse(JSON.parse(readFileSync(path, 'utf8')));
-  return Boolean(run.phase3 && !run.optOut);
-};
-export const benchmarkOmitsDrain = () => {
-  const path = process.env.STP_CODE_SWAP_BENCH_RUN;
-  return Boolean(path && !phase3Run.parse(JSON.parse(readFileSync(path, 'utf8'))).optOut && !benchmarkHasPhase3());
+  return path ? benchmarkRunSchema.parse(JSON.parse(readFileSync(path, 'utf8'))) : undefined;
 };
 export const codeSwapContainerPolicy = (
   workload: StpContainerWorkload,
@@ -43,19 +36,18 @@ export const codeSwapContainerPolicy = (
   scalingOverrides?: unknown,
   serviceCount = 1
 ) => {
-  if (!workload.codeSwap && !benchmarkHasPhase3()) return {};
+  const benchmarkRun = readBenchmarkRun();
+  if (!workload.codeSwap && (!benchmarkRun || benchmarkRun.optOut)) return {};
   if (codeSwapIntegration.imageHasSupervisor.get(workload.name) === false) return {};
   if (workload.codeSwap && unsupportedReason(workload, serviceCount)) return {};
   if (workload.containers.length !== 1 || container.internalHealthCheck || container.essential === false)
-    throw new Error('Phase 3 qualifies one essential application without authored checks.');
+    throw new Error('Code swap needs one essential application container without its own health check.');
   if (workload.resources.instanceTypes || !['js-bundle', 'buildpack'].includes(container.packaging?.type ?? ''))
-    throw new Error('Phase 3 qualifies Node Fargate js-bundle only.');
-  // The owned harness has one service. Reject other composition rather than
-  // pretending a per-service calculation enforces a stack-wide total.
+    throw new Error('Code swap needs Fargate with js-bundle or buildpack packaging.');
+  // The benchmark deploys one service without opting in. Reject any other composition rather than pretending a
+  // per-service calculation enforces a stack-wide total.
   if (!workload.codeSwap && workload.name !== 'api') throw new Error('Benchmark supports only its owned api service.');
-  const run = process.env.STP_CODE_SWAP_BENCH_RUN
-    ? phase3Run.parse(JSON.parse(readFileSync(process.env.STP_CODE_SWAP_BENCH_RUN, 'utf8')))
-    : { mode: 'swap', readinessControl: true };
+  const run = benchmarkRun ?? { mode: 'swap', readinessControl: true };
   const capacity = capacityWithOverrides(
     {
       name: workload.name,

@@ -1,6 +1,6 @@
 package main
 
-// Unsigned/unfenced benchmark transport only. Never linked into the installed CLI.
+// A small signed AWS client for the release table and code bundles, so the supervisor needs only the standard library.
 
 import (
 	"bytes"
@@ -257,7 +257,7 @@ func truncate(s string, n int) string {
 
 func statusKey() string {
 	identity := taskID
-	if role := os.Getenv("STP_BENCH_ROLE_ID"); role != "" {
+	if role := os.Getenv("STP_SUPERVISOR_ROLE_ID"); role != "" {
 		identity = role + ":" + taskID
 	}
 	return "status#" + app + "#" + identity

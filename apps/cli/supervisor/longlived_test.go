@@ -124,7 +124,7 @@ func waitFor(t *testing.T, timeout time.Duration, ready func() bool) {
 // swapTask serves the supervisor proxy on a local port and writes status files to a temporary directory.
 func swapTask(t *testing.T, drain time.Duration) func() map[string]any {
 	dir := t.TempDir()
-	t.Setenv("STP_BENCH_LOCAL", dir)
+	t.Setenv("STP_SUPERVISOR_LOCAL", dir)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

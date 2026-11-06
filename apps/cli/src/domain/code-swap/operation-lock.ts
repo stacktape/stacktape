@@ -1,4 +1,4 @@
-// Benchmark-only exclusion. Replace this with the general release guard when that work lands.
+// Lets one deploy, rollback or delete at a time change a code-swap service.
 import { DeleteItemCommand, GetItemCommand, PutItemCommand, type DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { z } from 'zod';
 import { CliError } from '../../utils/errors';

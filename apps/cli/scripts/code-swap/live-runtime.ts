@@ -112,7 +112,7 @@ const main = async () => {
   await writeFile(
     join(owned.directory, 'Dockerfile'),
     (await readFile(join(owned.directory, 'Dockerfile'), 'utf8')) +
-      `\nENV QUAL_SERVE=1 STP_BENCH_TASK_MIB=1024 QUAL_SCENARIO=${process.env.QUAL_MAIN_SCENARIO ?? 'normal'}\n`
+      `\nENV QUAL_SERVE=1 STP_SUPERVISOR_TASK_MIB=1024 QUAL_SCENARIO=${process.env.QUAL_MAIN_SCENARIO ?? 'normal'}\n`
   );
   const config = {
     projectName: name,
@@ -139,21 +139,10 @@ const main = async () => {
     }
   };
   await save(join(owned.directory, 'stacktape.json'), config);
-  const runFile = join(directory, 'run.json');
-  await save(runFile, {
-    name,
-    owner,
-    table: owned.table,
-    mode: 'image',
-    supervisor: join(owned.directory, 'stacktape-supervisor'),
-    result: join(directory, 'setup-result.json'),
-    memory: 1024,
-    count: 1
-  });
   try {
     owned.stackAttempted = true;
     await persist(state);
-    await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'setup.log'), { STP_CODE_SWAP_BENCH_RUN: runFile });
+    await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'setup.log'));
     owned.stackId = (await getStack(owned))!.StackId;
     await persist(state);
     const fleet = await waitForFleet(owned, 1);
