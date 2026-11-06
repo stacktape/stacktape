@@ -95,6 +95,7 @@
     "test:real-aws-canary": "bun scripts/real-aws/packaging-canary.ts",
     "test:real-aws-alias-canary": "bun scripts/real-aws/alias-publication-canary.ts",
     "test:real-aws-container-canary": "bun scripts/real-aws/container-fast-deploy-canary.ts",
+    "test:real-aws-release-command-canary": "bun scripts/real-aws/release-command-canary.ts",
     "test:real-aws-nat-canary": "bun scripts/real-aws/nat-instance-canary.ts",
     "test:real-aws-nat-switch-canary": "bun scripts/real-aws/nat-instance-canary.ts --scenario=switch",
     "test:real-aws-dev-canary": "bun scripts/real-aws/dev-mode-canary.ts",

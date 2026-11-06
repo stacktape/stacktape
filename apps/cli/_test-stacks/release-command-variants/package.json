@@ -1,0 +1,8 @@
+{
+  "name": "release-command-variants-canary-app",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "cowsay": "1.6.0"
+  }
+}
