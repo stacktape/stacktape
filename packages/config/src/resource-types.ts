@@ -75,6 +75,7 @@ export const getPrettyResourceName = (resourceName: string) => {
     .replace('Agentcore', 'AgentCore')
     .replace('Appsync', 'AppSync')
     .replace('Websocket', 'WebSocket')
+    .replace('DynamoDb Table', 'DynamoDB table')
     .replace('Dsql Database', 'DSQL database')
     .replace('Email Sender', 'Email sender')
     .replace('Kafka Cluster', 'Kafka cluster')
