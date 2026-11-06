@@ -263,7 +263,7 @@ class CanaryStack {
       this.options.profile,
       '--awsAccount',
       this.awsAccountName,
-      '--autoConfirmOperation',
+      ...(command === 'rollback' ? [] : ['--autoConfirmOperation']),
       ...extra
     ];
   }
@@ -406,6 +406,8 @@ class CanaryStack {
 type Scenario = { name: string; seconds?: number; details?: Record<string, unknown> };
 
 const usesCloudFormation = (output: string) => /Deploying through CloudFormation|Deploying infrastructure resources/.test(output);
+const whyCloudFormation = (output: string) =>
+  output.match(/Deploying through CloudFormation[^"\n]*/)?.[0] ?? 'no reason printed';
 
 const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>, long: boolean) => {
   // The health check needs the table, so this works only when the command runs before the service.
@@ -419,14 +421,17 @@ const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scena
 
   await stack.setRelease('server.mjs', 'r2');
   const codeOnly = await stack.deployOk('code-only deploy');
-  assert(!usesCloudFormation(codeOnly.output), `code-only deploy used CloudFormation:\n${codeOnly.output.slice(-1500)}`);
+  assert(!usesCloudFormation(codeOnly.output), `code-only deploy used CloudFormation: ${whyCloudFormation(codeOnly.output)}`);
   await stack.expectApp('code-only deploy', { release: 'r2', runs: 1 });
   await record({ name: 'unchanged runWhenChanged skips the command on the fast path', seconds: codeOnly.seconds });
 
   await stack.setRelease('server.mjs', 'r3');
   await stack.write('migrations/002-more.sql', 'ALTER TABLE items ADD COLUMN note text;\n');
   const withMigration = await stack.deployOk('deploy with a migration');
-  assert(!usesCloudFormation(withMigration.output), 'a deploy with a migration should stay on the fast path.');
+  assert(
+    !usesCloudFormation(withMigration.output),
+    `a deploy with a migration should stay on the fast path: ${whyCloudFormation(withMigration.output)}`
+  );
   assert(withMigration.output.includes('applying 002-more.sql'), 'the output has no command logs.');
   await stack.expectApp('deploy with a migration', {
     release: 'r3',
@@ -496,7 +501,7 @@ cloudformationResources:
 
   await stack.setRelease('server.mjs', 'r6');
   await stack.deployOk('deploy before a rollback');
-  const rollback = await stack.start('rollback', ['--toVersion', 'previous']).finished;
+  const rollback = await stack.start('rollback', ['--rollbackSteps', '1']).finished;
   if (rollback.exitCode === 0) {
     await stack.expectApp('stacktape rollback', { runs: 7 });
     await record({ name: 'stacktape rollback does not run the command', seconds: rollback.seconds });
@@ -598,13 +603,19 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
 
   await stack.setRelease('bundle/server.ts', 'r2');
   const bundleCodeOnly = await stack.deployOk('js-bundle code-only deploy');
-  assert(!usesCloudFormation(bundleCodeOnly.output), 'a js-bundle code change should stay on the fast path.');
+  assert(
+    !usesCloudFormation(bundleCodeOnly.output),
+    `a js-bundle code change should stay on the fast path: ${whyCloudFormation(bundleCodeOnly.output)}`
+  );
   assert(!bundleCodeOnly.output.includes('variant-bundle'), 'an unchanged folder should not run the command.');
   await record({ name: 'a js-bundle code change keeps the release image and skips the command', seconds: bundleCodeOnly.seconds });
 
   await stack.write('bundle-migrations/002.txt', 'second\n');
   const bundleMigration = await stack.deployOk('js-bundle migration');
-  assert(!usesCloudFormation(bundleMigration.output), 'a js-bundle migration should stay on the fast path.');
+  assert(
+    !usesCloudFormation(bundleMigration.output),
+    `a js-bundle migration should stay on the fast path: ${whyCloudFormation(bundleMigration.output)}`
+  );
   assert(bundleMigration.output.includes('variant-bundle'), 'the changed folder should run the command.');
   await record({ name: 'a js-bundle migration builds the release image and runs on the fast path', seconds: bundleMigration.seconds });
 
