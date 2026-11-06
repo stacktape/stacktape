@@ -293,7 +293,8 @@ export const runReleaseCommandsDirectly = async ({
         ecs,
         cluster,
         family: awsResourceNames.ecsReleaseTaskDefinitionFamily(workload.name, stackName),
-        startedBy
+        startedBy,
+        containerName
       });
       if (otherTask) {
         throw new ExpectedError(

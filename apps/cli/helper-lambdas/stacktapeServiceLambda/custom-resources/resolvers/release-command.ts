@@ -111,7 +111,13 @@ export const releaseCommand: ServiceLambdaResolver<StpServiceCustomResourceRelea
     const requestId = invocation?.requestId ?? physicalResourceId;
     const startedBy = releaseTaskStartedBy(requestId);
     const family = taskDefinition.split('/').pop()!.split(':')[0]!;
-    const otherTask = await findReleaseTaskOfAnotherOperation({ ecs: ecsClient, cluster, family, startedBy });
+    const otherTask = await findReleaseTaskOfAnotherOperation({
+      ecs: ecsClient,
+      cluster,
+      family,
+      startedBy,
+      containerName: props.containerName
+    });
     if (otherTask) {
       throw failure(
         `An earlier release command is still running (task ${otherTask}). Wait for it to finish or stop it, then deploy again.`,

@@ -539,6 +539,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await runReleaseCommandsDirectly({ registerTaskDefinition: registerReleaseTaskDefinition });
   }
   const releaseCommandLogs = fastDeployPlan ? undefined : await startReleaseCommandLogs();
+  // A long command, or a paused machine, can outlast the lock. An operation that lost it must not overwrite the newer one.
+  await lock.confirm();
   codeSwapBeginMutation();
   try {
     if (fastDeployPlan) {

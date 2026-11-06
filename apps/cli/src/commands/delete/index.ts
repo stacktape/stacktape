@@ -176,7 +176,7 @@ type DeleteExecutionOperation = {
   /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
   finishInBackground: boolean;
   /** Takes the stack's lock, so that the delete cannot overlap a deploy or a rollback. */
-  holdLock?: () => Promise<{ release: () => Promise<void> } | undefined>;
+  holdLock?: () => Promise<{ detach: () => void } | undefined>;
 };
 
 export const commandDelete = async () => {
@@ -350,10 +350,9 @@ export const executeDeleteOperation = async ({
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
   const deleteResult = await stack.deleteStack({
-    // CloudFormation takes over from here: a deploy that starts now finds the stack being deleted. Emptying the bucket
-    // removes the lock anyway.
+    // The lock stays until emptying the bucket removes it, and from then on a deploy finds nothing it could reuse.
     beforeDelete: async () => {
-      await lock?.release();
+      lock?.detach();
       await deploymentArtifacts.deleteAllArtifacts();
     },
     finishInBackground

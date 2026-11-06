@@ -22,25 +22,40 @@ export const RELEASE_TASK_POLL_INTERVAL_MS = 2000;
 const MISSING_TASK_POLLS_ALLOWED = 15;
 
 /**
- * A task of this family that another operation started and that has not stopped. CloudFormation allows one update at a
- * time, and the stack lock covers fast deployments, but a cancelled operation leaves its task running. Running a second
- * migration next to it could corrupt the database.
+ * A task of this family that another operation started and whose command has not ended. CloudFormation allows one update
+ * at a time, and the stack lock covers fast deployments, but a cancelled operation leaves its task running. Running a
+ * second migration next to it could corrupt the database.
+ *
+ * A stopped task's desired status is STOPPED while its container still runs through its stop timeout, so both lists count.
+ * A task whose command ended is no reason to wait: ECS takes about 20 more seconds to report it as stopped.
  */
 export const findReleaseTaskOfAnotherOperation = async ({
   ecs,
   cluster,
   family,
-  startedBy
+  startedBy,
+  containerName
 }: {
   ecs: EcsSender;
   cluster: string;
   family: string;
   startedBy: string;
+  containerName: string;
 }): Promise<string | undefined> => {
-  const { taskArns } = await ecs.send(new ListTasksCommand({ cluster, family, desiredStatus: 'RUNNING' }));
-  if (!taskArns?.length) return undefined;
+  const lists = await Promise.all(
+    (['RUNNING', 'STOPPED'] as const).map((desiredStatus) =>
+      ecs.send(new ListTasksCommand({ cluster, family, desiredStatus }))
+    )
+  );
+  const taskArns = lists.flatMap((list) => list.taskArns ?? []).slice(0, 100);
+  if (!taskArns.length) return undefined;
   const { tasks } = await ecs.send(new DescribeTasksCommand({ cluster, tasks: taskArns }));
-  return tasks?.find((task) => task.startedBy !== startedBy)?.taskArn;
+  return tasks?.find(
+    (task) =>
+      task.startedBy !== startedBy &&
+      task.lastStatus !== 'STOPPED' &&
+      task.containers?.find(({ name }) => name === containerName)?.exitCode === undefined
+  )?.taskArn;
 };
 
 export const startReleaseTask = async ({

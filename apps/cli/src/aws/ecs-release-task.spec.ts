@@ -148,29 +148,70 @@ describe('startReleaseTask', () => {
 });
 
 describe('findReleaseTaskOfAnotherOperation', () => {
-  const sender = (tasks: { taskArn: string; startedBy: string }[]) =>
+  type FakeTask = {
+    taskArn: string;
+    startedBy: string;
+    desiredStatus?: 'RUNNING' | 'STOPPED';
+    lastStatus?: string;
+    containers?: { name: string; exitCode?: number }[];
+  };
+  const sender = (tasks: FakeTask[]) =>
     ({
-      send: async (command: unknown) => {
-        if (command instanceof ListTasksCommand) return { taskArns: tasks.map(({ taskArn }) => taskArn) };
+      send: async (command: { input: { desiredStatus?: string } }) => {
+        if (command instanceof ListTasksCommand) {
+          return {
+            taskArns: tasks
+              .filter(({ desiredStatus = 'RUNNING' }) => desiredStatus === command.input.desiredStatus)
+              .map(({ taskArn }) => taskArn)
+          };
+        }
         if (command instanceof DescribeTasksCommand) return { tasks };
         throw new Error('unexpected');
       }
     }) as never;
   const startedBy = releaseTaskStartedBy('mine');
+  const other = releaseTaskStartedBy('other');
+  const find = (tasks: FakeTask[]) =>
+    findReleaseTaskOfAnotherOperation({
+      ecs: sender(tasks),
+      cluster: 'c',
+      family: 'f',
+      startedBy,
+      containerName: 'app'
+    });
 
   test('ignores the task of a repeated delivery of the same request', async () => {
-    const ecs = sender([{ taskArn: 'a', startedBy }]);
-    expect(await findReleaseTaskOfAnotherOperation({ ecs, cluster: 'c', family: 'f', startedBy })).toBeUndefined();
+    expect(await find([{ taskArn: 'a', startedBy, lastStatus: 'RUNNING' }])).toBeUndefined();
   });
 
   test('finds a task another operation left running', async () => {
-    const ecs = sender([{ taskArn: 'a', startedBy: releaseTaskStartedBy('other') }]);
-    expect(await findReleaseTaskOfAnotherOperation({ ecs, cluster: 'c', family: 'f', startedBy })).toBe('a');
+    expect(await find([{ taskArn: 'a', startedBy: other, lastStatus: 'RUNNING' }])).toBe('a');
   });
 
-  test('finds nothing when no task runs', async () => {
+  test('finds a task being stopped, whose command still runs through its stop timeout', async () => {
+    expect(await find([{ taskArn: 'a', startedBy: other, desiredStatus: 'STOPPED', lastStatus: 'DEACTIVATING' }])).toBe(
+      'a'
+    );
+  });
+
+  test('does not wait for a task whose command ended and that ECS has not reported as stopped yet', async () => {
     expect(
-      await findReleaseTaskOfAnotherOperation({ ecs: sender([]), cluster: 'c', family: 'f', startedBy })
+      await find([
+        {
+          taskArn: 'a',
+          startedBy: other,
+          desiredStatus: 'STOPPED',
+          lastStatus: 'DEPROVISIONING',
+          containers: [{ name: 'app', exitCode: 1 }]
+        }
+      ])
+    ).toBeUndefined();
+  });
+
+  test('finds nothing when no task runs or all have stopped', async () => {
+    expect(await find([])).toBeUndefined();
+    expect(
+      await find([{ taskArn: 'a', startedBy: other, desiredStatus: 'STOPPED', lastStatus: 'STOPPED' }])
     ).toBeUndefined();
   });
 });
