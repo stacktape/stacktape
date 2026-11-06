@@ -63,6 +63,7 @@ import {
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 
+import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
 import { codeSwapIntegration } from '../code-swap/integration';
 import { buildJsBundleImage } from '@stacktape/packaging/buildpacks/js-bundle-image';
 import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
@@ -1764,7 +1765,11 @@ export class PackagingManager {
         ...(packaging.properties as BuildpackCwImagePackagingProps),
         localImageName,
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
-        imageExtension: devMode ? undefined : await codeSwapIntegration.pythonExtension(workloadName),
+        // A release image has nothing to swap, and code swap would otherwise take it for the service's own image.
+        imageExtension:
+          devMode || jobName.endsWith(`-${RELEASE_IMAGE_CONTAINER_NAME}`)
+            ? undefined
+            : await codeSwapIntegration.pythonExtension(workloadName),
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
       });
       this.#recordPackagedJob(result);

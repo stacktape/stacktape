@@ -601,15 +601,21 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
   }
   await record({ name: 'several commands run in config order', details: { taskTimes } });
 
+  // A new stack has no code-swap table on its first deploy, so the second one installs the supervisor.
   await stack.setRelease('bundle/server.ts', 'r2');
+  await stack.deployOk('js-bundle deploy that installs code swap');
+
+  await stack.setRelease('bundle/server.ts', 'r3');
   const bundleCodeOnly = await stack.deployOk('js-bundle code-only deploy');
   assert(
     !usesCloudFormation(bundleCodeOnly.output),
     `a js-bundle code change should stay on the fast path: ${whyCloudFormation(bundleCodeOnly.output)}`
   );
   assert(!bundleCodeOnly.output.includes('variant-bundle'), 'an unchanged folder should not run the command.');
+  assert(bundleCodeOnly.output.includes('Swapped code in bundle'), 'a code change should swap the code.');
   await record({ name: 'a js-bundle code change keeps the release image and skips the command', seconds: bundleCodeOnly.seconds });
 
+  await stack.setRelease('bundle/server.ts', 'r4');
   await stack.write('bundle-migrations/002.txt', 'second\n');
   const bundleMigration = await stack.deployOk('js-bundle migration');
   assert(
@@ -617,6 +623,7 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     `a js-bundle migration should stay on the fast path: ${whyCloudFormation(bundleMigration.output)}`
   );
   assert(bundleMigration.output.includes('variant-bundle'), 'the changed folder should run the command.');
+  assert(bundleMigration.output.includes('Swapped code in bundle'), 'the command should be followed by a swap.');
   await record({ name: 'a js-bundle migration builds the release image and runs on the fast path', seconds: bundleMigration.seconds });
 
   await stack.write('ec2.txt', 'changed\n');
