@@ -6,14 +6,14 @@ import type { MetricTargetType } from './metric-targets';
  * resource type below is part of the contract: `metrics[0]` is the first query listed here.
  */
 
-/**
- * What the charts can draw. The shared selector vocabulary plus `redis`, whose charts exist but
- * whose per-node identifier the stack does not expose yet.
- */
-export type MetricResourceType = MetricTargetType | 'redis';
+/** What the charts can draw. */
+export type MetricResourceType = MetricTargetType;
 
 type MetricQueryInput = {
-  /** API id, function name, cluster name, DB identifier, user pool id, bucket, table, cluster id or distribution id. */
+  /**
+   * API id, function name, cluster name, DB identifier, user pool id, bucket, table, cluster id, distribution id, queue
+   * or topic name, or state machine ARN.
+   */
   primaryResourceIdentifier: string;
   /** ECS service name and Cognito user pool client id; unused for the other resource types. */
   secondaryResourceIdentifier?: string;
@@ -94,7 +94,8 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
     return [
       metric('invocations', 'Invocations', 'Sum'),
       metric('duration', 'Duration', 'Average'),
-      metric('errors', 'Errors', 'Sum')
+      metric('errors', 'Errors', 'Sum'),
+      metric('throttles', 'Throttles', 'Sum')
     ];
   },
 
@@ -185,6 +186,47 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('networkRxBytes', 'NetworkBytesIn', 'Average'),
       metric('networkTxBytes', 'NetworkBytesOut', 'Average'),
       metric('currConnections', 'CurrConnections', 'Average')
+    ];
+  },
+
+  sqs: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/SQS',
+      dimensions: [{ Name: 'QueueName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('messagesWaiting', 'ApproximateNumberOfMessagesVisible', 'Maximum'),
+      metric('oldestMessageAge', 'ApproximateAgeOfOldestMessage', 'Maximum'),
+      metric('messagesSent', 'NumberOfMessagesSent', 'Sum'),
+      metric('messagesDeleted', 'NumberOfMessagesDeleted', 'Sum')
+    ];
+  },
+
+  sns: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/SNS',
+      dimensions: [{ Name: 'TopicName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('messagesPublished', 'NumberOfMessagesPublished', 'Sum'),
+      metric('notificationsDelivered', 'NumberOfNotificationsDelivered', 'Sum'),
+      metric('notificationsFailed', 'NumberOfNotificationsFailed', 'Sum')
+    ];
+  },
+
+  stepfunctions: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/States',
+      dimensions: [{ Name: 'StateMachineArn', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('executionsStarted', 'ExecutionsStarted', 'Sum'),
+      metric('executionsFailed', 'ExecutionsFailed', 'Sum'),
+      metric('executionsTimedOut', 'ExecutionsTimedOut', 'Sum'),
+      metric('executionTime', 'ExecutionTime', 'Average')
     ];
   },
 

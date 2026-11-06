@@ -15,7 +15,11 @@ export type MetricTargetType =
   | 's3'
   | 'dynamodb'
   | 'cloudfront'
-  | 'alb';
+  | 'alb'
+  | 'sqs'
+  | 'sns'
+  | 'stepfunctions'
+  | 'redis';
 
 /**
  * The subset of CloudFormation's `StackResourceSummary` this module reads. Keys keep the SDK's
@@ -30,7 +34,10 @@ export type StackPhysicalResource = {
 
 export type MetricTarget = {
   type: MetricTargetType;
-  /** API id, function name, cluster name, DB identifier, ALB dimension, bucket, table or distribution id. */
+  /**
+   * API id, function name, cluster name, DB identifier, ALB dimension, bucket, table, distribution id, queue or topic
+   * name, state machine ARN or Redis node.
+   */
   primaryResourceIdentifier: string;
   /** ECS service name and Cognito user pool client id; unused for the other target types. */
   secondaryResourceIdentifier?: string;
@@ -140,6 +147,22 @@ export const getMetricTargets = ({
         // Cognito metrics are reported per user-pool client; without both dimensions there is no series.
         const userPoolClient = physicalIdOf('AWS::Cognito::UserPoolClient');
         if (userPoolClient) addTarget('cognito', physicalIdOf('AWS::Cognito::UserPool'), userPoolClient);
+        break;
+      }
+      case 'sqs-queue':
+        // The physical id of a queue is its URL.
+        addTarget('sqs', physicalIdOf('AWS::SQS::Queue')?.split('/').pop());
+        break;
+      case 'sns-topic':
+        addTarget('sns', physicalIdOf('AWS::SNS::Topic')?.split(':').pop());
+        break;
+      case 'state-machine':
+        addTarget('stepfunctions', physicalIdOf('AWS::StepFunctions::StateMachine'));
+        break;
+      case 'redis': {
+        // ElastiCache reports per node, and the first node of a replication group is `<group>-001`.
+        const replicationGroup = physicalIdOf('AWS::ElastiCache::ReplicationGroup');
+        if (replicationGroup) addTarget('redis', `${replicationGroup}-001`);
         break;
       }
       default:
