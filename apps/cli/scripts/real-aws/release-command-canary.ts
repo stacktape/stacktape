@@ -454,8 +454,15 @@ const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scena
   const failedFull = await stack.deployFails('failing command through CloudFormation', /exit code 1/);
   assert(usesCloudFormation(failedFull.output), 'an environment change should use CloudFormation.');
   await stack.expectApp('failing command through CloudFormation', { release: 'r5', runs: 4 });
-  const status = await stack.stackStatus();
+  // The CLI reports the failure as soon as it happens, while CloudFormation still rolls back.
+  let status = await stack.stackStatus();
+  for (let attempt = 0; attempt < 120 && status?.includes('IN_PROGRESS'); attempt += 1) {
+    await sleep(5000);
+    status = await stack.stackStatus();
+  }
   assert(status === 'UPDATE_ROLLBACK_COMPLETE', `the stack should have rolled back, it is ${status}.`);
+  // The app's count is read after the rollback, which must not run the command again.
+  await stack.expectApp('rollback of a failing command', { release: 'r5', runs: 4 });
   await record({
     name: 'a failing command through CloudFormation rolls back without running again',
     seconds: failedFull.seconds
