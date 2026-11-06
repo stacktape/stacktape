@@ -17,7 +17,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '17.11'
+          version: '17.6'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:

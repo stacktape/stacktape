@@ -1192,13 +1192,16 @@ export class PackagingManager {
   packageAllWorkloads = async ({
     commandCanUseCache,
     onlyWorkloads,
-    excludeWorkloads = []
+    excludeWorkloads = [],
+    excludeImageJobs = []
   }: {
     commandCanUseCache: boolean;
     /** If provided, only package workloads whose names are in this list */
     onlyWorkloads?: string[];
     /** Workloads not to package: a dev stack keeps the deployed code of functions its session leaves out. */
     excludeWorkloads?: string[];
+    /** Images not to build, because the deployment keeps using the ones it has. */
+    excludeImageJobs?: string[];
   }): Promise<PackageWorkloadOutput[]> => {
     await operationReporter.startEvent({
       eventType: 'PACKAGE_ARTIFACTS',
@@ -1281,7 +1284,10 @@ export class PackagingManager {
 
     // Container packaging jobs (in dev mode only the deployed ones, filter by onlyWorkloads)
     const containerPackagingJobs = configManager.containersToPackage
-      .filter(({ workloadName, jobName }) => shouldPackageWorkload(workloadName) && isNotPackagedYet(jobName))
+      .filter(
+        ({ workloadName, jobName }) =>
+          shouldPackageWorkload(workloadName) && isNotPackagedYet(jobName) && !excludeImageJobs.includes(jobName)
+      )
       .map((container) => {
         const { jobName, packaging, workloadName, resources } = container;
         return () => {

@@ -19,7 +19,8 @@ import type { TaskDefinition, UpdateServiceCommandInput } from '@aws-sdk/client-
 import type { ResolvedReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
 import {
   RELEASE_COMMAND_LOG_NAME,
-  getEcsReleaseTaskDefinition
+  getEcsReleaseTaskDefinition,
+  getReleaseImageContainerName
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -144,6 +145,7 @@ export const registerReleaseTaskDefinition = async (release: ResolvedReleaseComm
     taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(workload.name),
     logGroupContainerName: (containerName) =>
       containerName === release.containerName ? RELEASE_COMMAND_LOG_NAME : containerName,
+    imageContainerNameOf: (containerName) => getReleaseImageContainerName({ release, containerName }),
     currentTaskDefinition: ecsServiceTaskDefinition
   });
   const { taskDefinitionArn } = await awsSdkManager.ecs.registerTaskDefinition({
@@ -162,6 +164,7 @@ const resolveTaskDefinitionLocally = async ({
   calculatedTaskDefinition: initialTaskDefinition,
   taskDefinitionLogicalName,
   logGroupContainerName = (containerName) => containerName,
+  imageContainerNameOf = (containerName) => containerName,
   currentTaskDefinition
 }: {
   workload: StpContainerWorkload;
@@ -169,6 +172,8 @@ const resolveTaskDefinitionLocally = async ({
   taskDefinitionLogicalName: string;
   /** The container whose log group a container writes to, when it's not its own. */
   logGroupContainerName?: (containerName: string) => string;
+  /** The container whose image a container runs, when it's not its own. */
+  imageContainerNameOf?: (containerName: string) => string;
   currentTaskDefinition: TaskDefinition;
 }) => {
   let calculatedTaskDefinition = initialTaskDefinition;
@@ -180,7 +185,7 @@ const resolveTaskDefinitionLocally = async ({
         jobName: getJobName({
           workloadName: workload.name,
           workloadType: workload.configParentResourceType,
-          containerName: containerDef.Name as string
+          containerName: imageContainerNameOf(containerDef.Name as string)
         })
       }).imageTagWithUrl;
     }
@@ -205,7 +210,8 @@ const resolveTaskDefinitionLocally = async ({
   for (const fn of getTaskDefinitionTemplateOverrideFns({
     resource: workload,
     hotSwapDeploy: true,
-    taskDefinitionLogicalName
+    taskDefinitionLogicalName,
+    imageContainerNameOf
   })) {
     await fn(temporaryTemplate);
   }

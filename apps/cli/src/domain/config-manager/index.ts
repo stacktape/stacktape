@@ -76,6 +76,7 @@ import { cdnNeedsOriginRequestLambda } from './utils/cdn';
 import { buildConvexNestedResources, getConvexSecretName } from './utils/convex';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import { resolveReleaseCommand } from './utils/release-commands';
+import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
 import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
@@ -1860,8 +1861,9 @@ export class ConfigManager {
 
   get allContainerWorkloadContainers(): EnrichedCwContainerProps[] {
     return this.allContainerWorkloads
-      .map(({ name, configParentResourceType, containers, resources }) => {
-        return containers.map((container) => {
+      .map((workload) => {
+        const { name, configParentResourceType, containers, resources } = workload;
+        return [...containers, ...this.#releaseImageContainersOf(workload)].map((container) => {
           return {
             ...container,
             workloadType: configParentResourceType,
@@ -1877,6 +1879,21 @@ export class ConfigManager {
       })
       .flat();
   }
+
+  /** The whole project, built only for the release command of a `js-bundle` service. See `RELEASE_IMAGE_CONTAINER_NAME`. */
+  #releaseImageContainersOf = (workload: StpContainerWorkload): StpContainerWorkload['containers'] => {
+    if (this.deploymentContext.command === 'dev') return [];
+    const release = resolveReleaseCommand(workload);
+    const target = workload.containers.find(({ name }) => name === release?.containerName);
+    if (target?.packaging.type !== 'js-bundle') return [];
+    return [
+      {
+        name: RELEASE_IMAGE_CONTAINER_NAME,
+        // The command replaces the start command. The buildpack still needs one to accept the project.
+        packaging: { type: 'buildpack', properties: { sourceDirectoryPath: '.', startCommand: 'node --version' } }
+      }
+    ];
+  };
 
   get allBatchJobContainers(): EnrichedBjContainerProps[] {
     return this.batchJobs.map(({ name, container, type, resources }) => {

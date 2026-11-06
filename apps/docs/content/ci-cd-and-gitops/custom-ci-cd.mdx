@@ -365,7 +365,7 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage simultaneously, one fails because the stack is in an `UPDATE_IN_PROGRESS` state. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
 
 ## FAQ
 

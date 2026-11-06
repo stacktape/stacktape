@@ -551,12 +551,13 @@ These patterns highlight common automation tasks — build steps and permission 
 
 ### Database migrations — choosing the right approach
 
-Database migrations are the most common automation use case. Stacktape supports two approaches:
+Database migrations are the most common automation use case. Stacktape supports three approaches:
 
+- **Release command (recommended)** — Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service. It runs in your deployed image inside the VPC, before any workload gets the new code. A failure stops the deploy and leaves your containers on the old code. It works on every kind of deploy, including fast deployments.
 - **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
 - **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
-The hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
+Use a release command when the stack has a container service. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
 
 ### Build before deploy
 

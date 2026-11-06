@@ -4,6 +4,7 @@ import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
   applyReleaseCommandPlan,
+  decideReleaseImages,
   planReleaseCommands,
   recordCompletedReleaseCommands,
   runReleaseCommandsDirectly,
@@ -337,8 +338,13 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (config.allContainersRequiringPackaging.length || config.agentCoreRuntimesRequiringPackaging.length) {
     deploymentArtifacts.loginToEcr().catch(() => {});
   }
+  const { jobsToSkip: releaseImagesToSkip } = await decideReleaseImages({
+    stackExists: !createsStack,
+    bucketName: deploymentArtifacts.deploymentBucketName
+  });
   const [{ packagedWorkloads, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
+      excludeImageJobs: releaseImagesToSkip,
       calculatedStackOverview,
       packaging,
       prepareTemplateForDeploy,
@@ -731,16 +737,18 @@ export const prepareArtifactsForStackDeployment = async ({
   template,
   tui,
   networkReady,
-  applyDeployDecisions
+  applyDeployDecisions,
+  excludeImageJobs
 }: Pick<DeployOperation, 'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'> & {
   /** The shared network the stage runs in, created or upgraded while the workloads build. */
   networkReady?: Promise<void>;
-  applyDeployDecisions?: Parameters<DeployOperation['prepareTemplateForDeploy']>[0]['applyDeployDecisions'];
+  applyDeployDecisions?: NonNullable<Parameters<DeployOperation['prepareTemplateForDeploy']>[0]>['applyDeployDecisions'];
+  excludeImageJobs?: string[];
 }): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
 }> => {
-  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true, excludeImageJobs });
   await networkReady;
   await resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {

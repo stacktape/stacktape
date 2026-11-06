@@ -72,7 +72,8 @@ import {
   RELEASE_COMMAND_LOG_NAME,
   getEcsReleaseTaskDefinition,
   getReleaseCommandCustomResource,
-  getReleaseCommandLogGroupName
+  getReleaseCommandLogGroupName,
+  getReleaseImageContainerName
 } from './release-command';
 
 /**
@@ -566,7 +567,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     });
     getTaskDefinitionTemplateOverrideFns({
       resource: definition,
-      taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name)
+      taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
+      imageContainerNameOf: (containerName) => getReleaseImageContainerName({ release, containerName })
     }).forEach((fn) => templateManager.addFinalTemplateOverrideFn(fn));
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.releaseCommandCustomResource(definition.name),
@@ -579,11 +581,14 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
 export const getTaskDefinitionTemplateOverrideFns = ({
   resource,
   hotSwapDeploy,
-  taskDefinitionLogicalName = cfLogicalNames.ecsTaskDefinition(resource.name)
+  taskDefinitionLogicalName = cfLogicalNames.ecsTaskDefinition(resource.name),
+  imageContainerNameOf = (containerName) => containerName
 }: {
   resource: StpContainerWorkload;
   hotSwapDeploy?: boolean;
   taskDefinitionLogicalName?: string;
+  /** The container whose image a container runs, when it's not its own. */
+  imageContainerNameOf?: (containerName: string) => string;
 }): TemplateManager['templateOverrideFunctions'][number][] => {
   return [
     async (template) => {
@@ -594,7 +599,7 @@ export const getTaskDefinitionTemplateOverrideFns = ({
           jobName: getJobName({
             workloadName: resource.name,
             workloadType: resource.configParentResourceType,
-            containerName: containerDef.Name as string
+            containerName: imageContainerNameOf(containerDef.Name as string)
           })
         })?.imageTagWithUrl;
         if (imageUrl) {

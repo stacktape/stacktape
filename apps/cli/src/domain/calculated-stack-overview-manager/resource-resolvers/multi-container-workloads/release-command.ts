@@ -10,6 +10,7 @@ import type { ResolvedReleaseCommand } from '@domain-services/config-manager/uti
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
 import { CliError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getEcsServiceNetworkConfiguration, getEcsTaskDefinition } from './utils';
@@ -23,6 +24,20 @@ export const getReleaseCommandLogGroupName = (workloadName: string, stackName: s
     stpResourceName: workloadName,
     containerName: RELEASE_COMMAND_LOG_NAME
   });
+
+/** A `js-bundle` image can't run the command, so the target runs the image built for it. */
+export const getReleaseImageContainerName = ({
+  release,
+  containerName
+}: {
+  release: ResolvedReleaseCommand;
+  containerName: string;
+}) => {
+  const target = release.workload.containers.find(({ name }) => name === release.containerName);
+  return containerName === release.containerName && target?.packaging.type === 'js-bundle'
+    ? RELEASE_IMAGE_CONTAINER_NAME
+    : containerName;
+};
 
 const containersTheTargetNeeds = (containers: ContainerDefinition[], targetName: string) => {
   const names = new Set([targetName]);

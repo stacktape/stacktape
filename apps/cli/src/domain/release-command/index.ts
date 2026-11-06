@@ -7,11 +7,15 @@ import { tuiManager } from '@application-services/tui-manager';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { configManager } from '@domain-services/config-manager';
 import type { ResolvedReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
-import { getReleaseCommandLogGroupName } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command';
+import {
+  getReleaseCommandLogGroupName,
+  getReleaseImageContainerName
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { getJobName } from '@stacktape/naming/workload-names';
+import { getJobName, RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -90,14 +94,67 @@ const computeKey = async (release: ResolvedReleaseCommand) => {
 
 const stateKeyOf = (workloadName: string) => `${STATE_KEY_PREFIX}/${workloadName}.json`;
 
-const readLastKey = async (bucketName: string, workloadName: string) => {
-  const state = await awsSdkManager.s3.getObjectIfExists({ bucketName, s3Key: stateKeyOf(workloadName) }).catch(() => undefined);
-  if (!state) return undefined;
+type ReleaseCommandState = {
+  key?: string;
+  /** The release image that ran the command on a `js-bundle` service. */
+  releaseImage?: { tag: string; digest: string };
+};
+
+const readState = async (bucketName: string, workloadName: string): Promise<ReleaseCommandState> => {
+  const state = await awsSdkManager.s3
+    .getObjectIfExists({ bucketName, s3Key: stateKeyOf(workloadName) })
+    .catch(() => undefined);
+  if (!state) return {};
   try {
-    return (JSON.parse(state.body) as { key?: string }).key;
+    return JSON.parse(state.body) as ReleaseCommandState;
   } catch {
-    return undefined;
+    return {};
   }
+};
+
+const releaseImageJobOf = ({ workload }: ResolvedReleaseCommand) =>
+  getJobName({
+    workloadName: workload.name,
+    workloadType: workload.configParentResourceType,
+    containerName: RELEASE_IMAGE_CONTAINER_NAME
+  });
+
+const usesReleaseImage = (release: ResolvedReleaseCommand) =>
+  getReleaseImageContainerName({ release, containerName: release.containerName }) === RELEASE_IMAGE_CONTAINER_NAME;
+
+const builtReleaseImageOf = (release: ResolvedReleaseCommand) => {
+  const jobName = releaseImageJobOf(release);
+  const tag = deploymentArtifactManager.getImageUploadInfoForJob({ jobName })?.tag;
+  const digest = packagingManager.getPackagingOutputForJob(jobName)?.digest;
+  return tag && digest ? { tag, digest } : undefined;
+};
+
+/**
+ * A deploy builds a `js-bundle` service's release image only when the command is due. A skipped command keeps the image
+ * the last run used. That needs the key before anything is packaged, which `runWhenChanged` allows. Without it, the key
+ * depends on the bundle, so the image is built on each deploy, and the user is told.
+ */
+export const decideReleaseImages = async ({
+  stackExists,
+  bucketName
+}: {
+  stackExists: boolean;
+  bucketName: string;
+}): Promise<{ jobsToSkip: string[] }> => {
+  const kept = new Map<string, { tag: string; digest: string }>();
+  for (const release of configManager.releaseCommands.filter(usesReleaseImage)) {
+    if (!release.runWhenChanged.length) {
+      tuiManager.warn(
+        `${release.workload.nameChain[0]} uses js-bundle packaging, so each code change builds a second image for its release command and runs the command. Set \`runWhenChanged\` to do that only when your migrations change.`
+      );
+      continue;
+    }
+    if (!stackExists) continue;
+    const { key, releaseImage } = await readState(bucketName, release.workload.name);
+    if (releaseImage && key === (await computeKey(release))) kept.set(releaseImageJobOf(release), releaseImage);
+  }
+  deploymentArtifactManager.setKeptImages(kept);
+  return { jobsToSkip: [...kept.keys()] };
 };
 
 /** Decides which commands this deploy runs. A command that can't be proven unchanged runs: it has to be idempotent. */
@@ -114,7 +171,7 @@ export const planReleaseCommands = async ({
   plan = await Promise.all(
     configManager.releaseCommands.map(async (release) => {
       const key = await computeKey(release);
-      const lastKey = stackExists ? await readLastKey(bucketName, release.workload.name) : undefined;
+      const lastKey = stackExists ? (await readState(bucketName, release.workload.name)).key : undefined;
       return { release, key, due: !skip && lastKey !== key };
     })
   );
@@ -147,7 +204,10 @@ export const recordCompletedReleaseCommands = async ({ bucketName }: { bucketNam
         .putObject({
           bucketName,
           s3Key: stateKeyOf(release.workload.name),
-          body: JSON.stringify({ key, version: globalStateManager.invocationId }),
+          body: JSON.stringify({
+            key,
+            ...(usesReleaseImage(release) ? { releaseImage: builtReleaseImageOf(release) } : {})
+          } satisfies ReleaseCommandState),
           contentType: 'application/json'
         })
         .catch((error: unknown) =>
