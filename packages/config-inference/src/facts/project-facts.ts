@@ -54,6 +54,13 @@ export const migrationFactSchema = z.object({
    * access from inside the network, which is real infrastructure.
    */
   runsAt: z.enum(['service-startup', 'ci', 'manual', 'unknown']),
+  /**
+   * The folder this tool reads its migrations from, when an unchanged folder means there is nothing to apply. A deploy
+   * that changes nothing in it can skip the command and stay fast.
+   */
+  migrationsPath: repositoryPathSchema.optional(),
+  /** The tool is only in `devDependencies`, so an image built without them cannot run the command. */
+  toolIsDevDependency: z.boolean().optional(),
   evidence: z.array(citationSchema).default([])
 });
 

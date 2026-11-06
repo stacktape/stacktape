@@ -4,11 +4,14 @@
  * Three probes find the tool and the command, the assembler forwards the attribution through
  * service renames, and the wizard shows a "runs as a deploy hook" decision — so the composer has
  * to actually emit the hook, or the decision card describes machinery that does not exist and a
- * Rails or Django first deploy ships a schema-less database. The emission is the documented
- * canonical pattern: a `local-script` with `connectTo`, referenced from `hooks.afterDeploy`.
- * A public database uses `local-script`. A VPC-only database uses
- * `local-script-with-bastion-tunneling`, keeping the same reviewed command and environment while
- * the CLI substitutes its remote database endpoints with local SSM tunnel endpoints.
+ * Rails or Django first deploy ships a schema-less database.
+ *
+ * A container service gets a `releaseCommand`: the migration runs inside the VPC in the deployed image with the service's
+ * own environment, before anything switches to the new code, and a failure stops the deploy. Everything else keeps the
+ * `local-script` pattern with `connectTo`, referenced from `hooks.afterDeploy`: a function has no container image to run
+ * it in, and a project's own Dockerfile may leave out a tool that is only in `devDependencies`. A public database uses
+ * `local-script`. A VPC-only database uses `local-script-with-bastion-tunneling`, keeping the same reviewed command and
+ * environment while the CLI substitutes its remote database endpoints with local SSM tunnel endpoints.
  *
  * Two guards, both about running commands on the user's machine:
  *
@@ -22,6 +25,7 @@
  *   decision resolved to `deploy-hook` — a `manual` or `service-startup` answer means no hook.
  */
 
+import { posix } from 'node:path';
 import type { DependencyFact } from '../facts/dependency';
 import type { MigrationFact } from '../facts/project-facts';
 import type { ServiceFact } from '../facts/service';
@@ -87,7 +91,20 @@ type ComposedScript = {
   properties: Record<string, unknown>;
 };
 
+/** What decides whether a migration can run in a service's image. Absent for anything that is not a container service. */
+export type ReleaseCommandTarget = {
+  packagingType: string;
+  /** The directory the image is built from. */
+  buildRoot: string;
+  /** Where the service's code is, and so where its migration tool runs unless the migration says otherwise. */
+  servicePath: string;
+};
+
+export type ComposedReleaseCommand = string | { command: string; runWhenChanged: string[] };
+
 export type ComposedMigrationHooks = {
+  /** By service name. */
+  releaseCommands: Map<string, ComposedReleaseCommand>;
   scripts: Record<string, ComposedScript>;
   afterDeploy: Array<{ scriptName: string }>;
   /**
@@ -97,6 +114,23 @@ export type ComposedMigrationHooks = {
    */
   hookedServices: string[];
   gaps: Array<{ subject: string; message: string }>;
+};
+
+/**
+ * The command as it runs in the service's image, or undefined when it can't run there. A Stacktape-built image holds the
+ * tool whatever kind of dependency it is; a `js-bundle` service gets a full-project image for the command. A project's
+ * own Dockerfile decides for itself what it installs and where it puts files, so it only qualifies when the command needs
+ * no assumption about either.
+ */
+const commandInImage = (migration: MigrationFact, target: ReleaseCommandTarget): string | undefined => {
+  if (target.packagingType === 'prebuilt-image') return undefined;
+  const root = target.packagingType === 'js-bundle' ? '.' : target.buildRoot;
+  const directory = posix.relative(root, migration.directory ?? target.servicePath);
+  if (directory.startsWith('..')) return undefined;
+  if (target.packagingType === 'dockerfile' && (directory !== '' || migration.toolIsDevDependency === true)) {
+    return undefined;
+  }
+  return directory === '' ? migration.command : `cd ${directory} && ${migration.command}`;
 };
 
 const shouldRunOnDeploy = (migration: MigrationFact, assumptions: readonly Assumption[]): boolean => {
@@ -157,7 +191,8 @@ export const composeMigrationHooks = ({
   projectName,
   privateDatabaseResourceNames = new Set<string>(),
   bastionResourceName,
-  serviceResourceNames
+  serviceResourceNames,
+  releaseCommandTargetOf = () => undefined
 }: {
   migrations: readonly MigrationFact[];
   services: readonly ServiceFact[];
@@ -169,7 +204,11 @@ export const composeMigrationHooks = ({
   bastionResourceName?: string;
   /** The config's name for each service, which is what an item tells the user to edit. */
   serviceResourceNames?: ReadonlyMap<string, string>;
+  releaseCommandTargetOf?: (service: ServiceFact) => ReleaseCommandTarget | undefined;
 }): ComposedMigrationHooks => {
+  const releaseCommands = new Map<string, ComposedReleaseCommand>();
+  /** A web service and a worker that share one database and one tool migrate it once. */
+  const migratedOnce = new Set<string>();
   const scripts: Record<string, ComposedScript> = {};
   const afterDeploy: Array<{ scriptName: string }> = [];
   const hookedServices: string[] = [];
@@ -188,7 +227,7 @@ export const composeMigrationHooks = ({
       if (deployed && !usesSqlite && runsNowhere(migration, assumptions, services)) {
         gaps.push({
           subject: `${migration.serviceName}.migrations`,
-          message: `${resourceName} depends on ${toolLabel(migration.tool)}, but nothing we found runs "${migration.command}". Run it before the server starts (at the start of ${resourceName}'s start command), or add it as a script and an afterDeploy hook.`
+          message: `${resourceName} depends on ${toolLabel(migration.tool)}, but nothing we found runs "${migration.command}". Set it as ${resourceName}'s releaseCommand, or run it at the start of ${resourceName}'s start command.`
         });
       }
       continue;
@@ -197,7 +236,7 @@ export const composeMigrationHooks = ({
     if (!isRunnableMigrationCommand(migration.command)) {
       gaps.push({
         subject: `${migration.serviceName}.migrations`,
-        message: `We found ${migration.tool} migrations for ${migration.serviceName} but did not wire the command "${migration.command}" automatically. Add it as a script and an afterDeploy hook once you have reviewed it.`
+        message: `We found ${migration.tool} migrations for ${migration.serviceName} but did not wire the command "${migration.command}" automatically. Set it as the service's releaseCommand once you have reviewed it.`
       });
       continue;
     }
@@ -212,6 +251,27 @@ export const composeMigrationHooks = ({
         ): entry is { dependency: DependencyFact; composed: { kind: DependencyFact['kind']; resourceName: string } } =>
           entry.composed !== undefined && DATABASE_KINDS.has(entry.composed.kind)
       );
+
+    const service = services.find(({ name }) => name === migration.serviceName);
+    const target = service === undefined ? undefined : releaseCommandTargetOf(service);
+    const command = target === undefined ? undefined : commandInImage(migration, target);
+    if (command !== undefined) {
+      const sameMigration = JSON.stringify([
+        command,
+        databases.map(({ composed }) => composed.resourceName).sort()
+      ]);
+      if (!migratedOnce.has(sameMigration)) {
+        migratedOnce.add(sameMigration);
+        releaseCommands.set(
+          migration.serviceName,
+          migration.migrationsPath === undefined
+            ? command
+            : { command, runWhenChanged: [migration.migrationsPath] }
+        );
+      }
+      if (!hookedServices.includes(migration.serviceName)) hookedServices.push(migration.serviceName);
+      continue;
+    }
 
     // The migration tool reads the same variable names the application does, so the script gets
     // the service's own proven database variables, wired identically. Nothing is invented: a name
@@ -268,5 +328,5 @@ export const composeMigrationHooks = ({
     if (!hookedServices.includes(migration.serviceName)) hookedServices.push(migration.serviceName);
   }
 
-  return { scripts, afterDeploy, hookedServices, gaps };
+  return { releaseCommands, scripts, afterDeploy, hookedServices, gaps };
 };
