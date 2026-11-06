@@ -95,7 +95,10 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('invocations', 'Invocations', 'Sum'),
       metric('duration', 'Duration', 'Average'),
       metric('errors', 'Errors', 'Sum'),
-      metric('throttles', 'Throttles', 'Sum')
+      metric('throttles', 'Throttles', 'Sum'),
+      metric('durationP50', 'Duration', 'p50'),
+      metric('durationP95', 'Duration', 'p95'),
+      metric('durationP99', 'Duration', 'p99')
     ];
   },
 
