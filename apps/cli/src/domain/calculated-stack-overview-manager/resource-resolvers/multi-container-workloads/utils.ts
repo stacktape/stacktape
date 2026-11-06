@@ -996,6 +996,20 @@ export const getAutoScalingPolicy = (
     }
   });
 
+/** EC2-backed workloads have none: bridge networking is used, and the security group belongs to the instance. */
+export const getEcsServiceNetworkConfiguration = (workload: StpContainerWorkload) =>
+  workload.resources.instanceTypes
+    ? undefined
+    : {
+        AwsvpcConfiguration: {
+          AssignPublicIp: (workload.usePrivateSubnetsWithNAT ? 'DISABLED' : 'ENABLED') as 'DISABLED' | 'ENABLED',
+          Subnets: workload.usePrivateSubnetsWithNAT
+            ? vpcManager.getPrivateSubnetIds()
+            : vpcManager.getPublicSubnetIds(),
+          SecurityGroups: vpcManager.withStageSecurityGroup([ref(cfLogicalNames.workloadSecurityGroup(workload.name))])
+        }
+      };
+
 export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerWorkload; blueGreen?: boolean }) => {
   const serviceRegistries: ServiceRegistry[] = uniqWith(
     workload.containers
@@ -1073,20 +1087,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
       ? [{ Weight: 1, CapacityProvider: ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name)) }]
       : undefined,
     LoadBalancers: getFormattedLoadBalancers({ workload }),
-    // if we use instances, bridge networking is used and security group is associated directly with instance
-    NetworkConfiguration: workload.resources.instanceTypes
-      ? undefined
-      : {
-          AwsvpcConfiguration: {
-            AssignPublicIp: workload.usePrivateSubnetsWithNAT ? 'DISABLED' : 'ENABLED',
-            Subnets: workload.usePrivateSubnetsWithNAT
-              ? vpcManager.getPrivateSubnetIds()
-              : vpcManager.getPublicSubnetIds(),
-            SecurityGroups: vpcManager.withStageSecurityGroup([
-              ref(cfLogicalNames.workloadSecurityGroup(workload.name))
-            ])
-          }
-        },
+    NetworkConfiguration: getEcsServiceNetworkConfiguration(workload),
     TaskDefinition: ref(cfLogicalNames.ecsTaskDefinition(workload.name)),
     PlatformVersion: workload.resources.instanceTypes ? undefined : 'LATEST',
     ServiceRegistries: serviceRegistries.length ? serviceRegistries : undefined,

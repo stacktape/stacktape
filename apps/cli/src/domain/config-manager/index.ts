@@ -75,12 +75,14 @@ import { normalizeCustomDomains } from './utils/custom-domains';
 import { cdnNeedsOriginRequestLambda } from './utils/cdn';
 import { buildConvexNestedResources, getConvexSecretName } from './utils/convex';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
+import { resolveReleaseCommand } from './utils/release-commands';
 import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
   getLambdaHandler,
   getLambdaRuntime,
   getStacktapeServiceLambdaAlarmNotificationInducedStatements,
+  getStacktapeServiceLambdaReleaseCommandStatements,
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
   getStacktapeServiceLambdaNatFailoverStatements,
@@ -1163,6 +1165,7 @@ export class ConfigManager {
         name: _,
         packaging,
         codeSwap,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1203,6 +1206,7 @@ export class ConfigManager {
           [containerWorkloadIdentifier]: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
             codeSwap,
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1383,6 +1387,7 @@ export class ConfigManager {
       const {
         name,
         packaging,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1415,6 +1420,7 @@ export class ConfigManager {
         _nestedResources: {
           containerWorkload: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1515,6 +1521,7 @@ export class ConfigManager {
         name: _n,
         nameChain,
         packaging,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1542,6 +1549,7 @@ export class ConfigManager {
         _nestedResources: {
           containerWorkload: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1768,6 +1776,17 @@ export class ConfigManager {
       });
     });
     return Array.from(credentialSecretArns) as string[];
+  }
+
+  /** In the order they run: the order of the resources in the config. */
+  get releaseCommands() {
+    const resourceOrder = Object.keys(this.config.resources ?? {});
+    return this.allContainerWorkloads
+      .map(resolveReleaseCommand)
+      .filter((release) => release !== undefined)
+      .sort(
+        (a, b) => resourceOrder.indexOf(a.workload.nameChain[0]!) - resourceOrder.indexOf(b.workload.nameChain[0]!)
+      );
   }
 
   get allContainerWorkloads() {
@@ -2529,6 +2548,7 @@ export class ConfigManager {
         activeConfig: this,
         stackContext: this.stackContext
       }),
+      ...getStacktapeServiceLambdaReleaseCommandStatements({ activeConfig: this, stackContext: this.stackContext }),
       ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
       ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
         activeConfig: this,

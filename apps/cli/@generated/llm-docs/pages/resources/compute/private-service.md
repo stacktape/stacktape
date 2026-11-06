@@ -480,6 +480,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
 | `port` | no | `number` | `3000` |
 | `protocol` | no | `string: "grpc" \| "http" \| "http2"` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |

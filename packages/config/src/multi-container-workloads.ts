@@ -1,4 +1,4 @@
-import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides, SecretEnvironmentVar } from './shared';
+import type { EnvironmentVar, ReleaseCommand, ResourceAccessProps, ResourceOverrides, SecretEnvironmentVar } from './shared';
 import type { ContainerWorkloadContainerPackaging } from './deployment-artifacts';
 import type { ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration } from './events';
 import type { LogForwardingBase } from './log-forwarding';
@@ -293,6 +293,20 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * ```
    */
   enableRemoteSessions?: boolean;
+  /**
+   * #### Run a command once on each deploy, in the deployed image, before any workload gets the new code.
+   *
+   * ---
+   *
+   * Use it for database migrations. Stacktape runs the command in a one-off ECS task with the same image, environment
+   * variables, secrets, IAM role and network access as the chosen container. The deploy waits for the task, prints its
+   * logs, and stops if the command fails, so the running version keeps serving.
+   *
+   * The old code keeps running against the new schema until the rollout finishes, so migrations must stay compatible
+   * with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+   * reverses what the command changed.
+   */
+  releaseCommand?: string | ReleaseCommand;
   /**
    * #### Run the workload in the private subnets, without a public IP, with outbound traffic through the stack's NAT.
    *

@@ -1,4 +1,6 @@
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { holdStackLock } from '@domain-services/stack-operation-lock';
 import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-network';
 import { releaseStackLeases } from '@domain-services/dev-network/leases';
 import { createStageHolderStore, getStageHolderParameterName } from '@domain-services/dev-network/holders';
@@ -333,13 +335,22 @@ export const executeDeleteOperation = async ({
     await lifecycle.registerHooks(config.hooks);
     await lifecycle.processHooks({ captureType: 'START' });
   }
+  // A stack whose deployment bucket is already gone has no deploy to overlap with: a deploy starts by uploading to it.
+  const lock = (await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifactManager.deploymentBucketName }))
+    ? await holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'delete' })
+    : undefined;
   codeSwapBeginMutation();
   // Read before the deletion, which empties the stack's resource list.
   const artifactStoreIsStackResource = deploymentArtifacts.artifactStoreIsStackResource;
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
   const deleteResult = await stack.deleteStack({
-    beforeDelete: deploymentArtifacts.deleteAllArtifacts,
+    // CloudFormation takes over from here: a deploy that starts now finds the stack being deleted. Emptying the bucket
+    // removes the lock anyway.
+    beforeDelete: async () => {
+      await lock?.release();
+      await deploymentArtifacts.deleteAllArtifacts();
+    },
     finishInBackground
   });
   // The deployment bucket and image repository of a stack `deploy` created are not stack resources.

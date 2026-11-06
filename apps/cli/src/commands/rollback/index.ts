@@ -1,5 +1,7 @@
 import { codeSwapRollbackComplete } from '@domain-services/code-swap/runtime';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { holdStackLock } from '@domain-services/stack-operation-lock';
 import { stpErrors } from '@errors';
 import { configManager } from '@domain-services/config-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -209,6 +211,11 @@ export const executeRollbackOperation = async ({
   for (const warning of warnings) {
     tui.warn(warning);
   }
+  if (configManager.config && configManager.releaseCommands.length) {
+    tui.warn(
+      'A rollback does not run or reverse release commands. The database schema stays as it is, so the old code must work with it.'
+    );
+  }
 
   // Prepare rollback template: download old template, patch version output, re-upload
   progress.setPhase('DEPLOY');
@@ -221,6 +228,7 @@ export const executeRollbackOperation = async ({
     text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
   });
 
+  const lock = await holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'rollback' });
   try {
     codeSwapBeginMutation();
     await stack.deployStackForRollback(templateUrl);
@@ -234,6 +242,7 @@ export const executeRollbackOperation = async ({
   } finally {
     // Records what the rollback switched, also when it failed partway. It never throws.
     await recordSourceMapActivation(sourceMapManifest);
+    await lock.release();
   }
 
   await codeSwapRollbackComplete(newVersion, targetVersion, Boolean(template.Resources.StacktapeCodeSwapTable));

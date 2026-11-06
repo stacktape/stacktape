@@ -15,7 +15,12 @@ import type {
   StpContainerWorkload
 } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
-import type { UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
+import type { TaskDefinition, UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
+import type { ResolvedReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
+import {
+  RELEASE_COMMAND_LOG_NAME,
+  getEcsReleaseTaskDefinition
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTaskDefinitionTemplateOverrideFns } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads';
@@ -124,16 +129,49 @@ const normalizeAndValidateServiceRegistriesForEcsApi = (input: UpdateServiceComm
   (input as any).serviceRegistries = sanitized;
 };
 
-export const getECSHotswapInformation = async ({ workload }: { workload: StpContainerWorkload }) => {
-  const {
-    PhysicalResourceId: ecsServiceArn,
-    ecsService: currentEcsService,
-    ecsServiceTaskDefinition: currentTaskDefinition
-  } = stackManager.existingStackResources.find(
+/**
+ * Prepares the task definition of a release command for `RegisterTaskDefinition`, with this deploy's image, when the
+ * deploy doesn't go through CloudFormation. It returns where the service's tasks run, which is where the command runs.
+ */
+export const registerReleaseTaskDefinition = async (release: ResolvedReleaseCommand) => {
+  const { workload } = release;
+  const { ecsService, ecsServiceTaskDefinition } = stackManager.existingStackResources.find(
     ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.ecsService(workload.name, !!workload.deployment)
   );
+  const resolved = await resolveTaskDefinitionLocally({
+    workload,
+    calculatedTaskDefinition: getEcsReleaseTaskDefinition({ workload, release }),
+    taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(workload.name),
+    logGroupContainerName: (containerName) =>
+      containerName === release.containerName ? RELEASE_COMMAND_LOG_NAME : containerName,
+    currentTaskDefinition: ecsServiceTaskDefinition
+  });
+  const { taskDefinitionArn } = await awsSdkManager.ecs.registerTaskDefinition({
+    cloudformationEcsTaskDefinition: resolved
+  });
+  return {
+    taskDefinitionArn,
+    cluster: ecsService.clusterArn,
+    awsvpcConfiguration: ecsService.networkConfiguration?.awsvpcConfiguration,
+    capacityProviderStrategy: ecsService.capacityProviderStrategy
+  };
+};
 
-  let calculatedTaskDefinition = getEcsTaskDefinition(workload);
+const resolveTaskDefinitionLocally = async ({
+  workload,
+  calculatedTaskDefinition: initialTaskDefinition,
+  taskDefinitionLogicalName,
+  logGroupContainerName = (containerName) => containerName,
+  currentTaskDefinition
+}: {
+  workload: StpContainerWorkload;
+  calculatedTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
+  taskDefinitionLogicalName: string;
+  /** The container whose log group a container writes to, when it's not its own. */
+  logGroupContainerName?: (containerName: string) => string;
+  currentTaskDefinition: TaskDefinition;
+}) => {
+  let calculatedTaskDefinition = initialTaskDefinition;
 
   // substitute images
   (calculatedTaskDefinition.Properties.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
@@ -153,23 +191,27 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
         {
           stackName: globalStateManager.targetStack.stackName,
           stpResourceName: workload.name,
-          containerName: containerDef.Name as string
+          containerName: logGroupContainerName(containerDef.Name as string)
         }
       );
     }
   });
 
   const temporaryTemplate: CloudFormationTemplate = {
-    Resources: { [cfLogicalNames.ecsTaskDefinition(workload.name)]: calculatedTaskDefinition }
+    Resources: { [taskDefinitionLogicalName]: calculatedTaskDefinition }
   };
 
   // applying template overrides
-  for (const fn of getTaskDefinitionTemplateOverrideFns({ resource: workload, hotSwapDeploy: true })) {
+  for (const fn of getTaskDefinitionTemplateOverrideFns({
+    resource: workload,
+    hotSwapDeploy: true,
+    taskDefinitionLogicalName
+  })) {
     await fn(temporaryTemplate);
   }
 
   calculatedTaskDefinition = temporaryTemplate.Resources[
-    cfLogicalNames.ecsTaskDefinition(workload.name)
+    taskDefinitionLogicalName
   ] as KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
 
   // applying task definition overrides
@@ -178,7 +220,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     .resource as StpResource & { overrides?: ResourceOverrides };
   if (overrides) {
     Object.entries(overrides).forEach(([cfLogicalName, resourceOverrides]) => {
-      if (cfLogicalName === cfLogicalNames.ecsTaskDefinition(workload.name)) {
+      if (cfLogicalName === taskDefinitionLogicalName) {
         Object.entries(resourceOverrides).forEach(([pathToProp, value]) =>
           set(calculatedTaskDefinition.Properties, pathToProp, value)
         );
@@ -211,6 +253,24 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     TaskRoleArn: currentTaskDefinition.taskRoleArn,
     Tags: stackManager.getTags()
   };
+  return calculatedTaskDefinition;
+};
+
+export const getECSHotswapInformation = async ({ workload }: { workload: StpContainerWorkload }) => {
+  const {
+    PhysicalResourceId: ecsServiceArn,
+    ecsService: currentEcsService,
+    ecsServiceTaskDefinition: currentTaskDefinition
+  } = stackManager.existingStackResources.find(
+    ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.ecsService(workload.name, !!workload.deployment)
+  );
+
+  const calculatedTaskDefinition = await resolveTaskDefinitionLocally({
+    workload,
+    calculatedTaskDefinition: getEcsTaskDefinition(workload),
+    taskDefinitionLogicalName: cfLogicalNames.ecsTaskDefinition(workload.name),
+    currentTaskDefinition
+  });
 
   await codeSwapResolveRole(calculatedTaskDefinition, workload.name);
   const comparison = structuredClone(calculatedTaskDefinition);

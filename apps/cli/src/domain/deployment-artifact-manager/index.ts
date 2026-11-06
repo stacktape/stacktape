@@ -1495,6 +1495,9 @@ class DeploymentArtifactManager {
     this.#restoredFunctionTags = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {
       const properties = (resource.Properties ?? {}) as Record<string, any>;
+      // An old command must never run against a newer database. For a sync-style command, applying older project
+      // config can delete fields and their content.
+      if (properties.releaseCommand) properties.releaseCommand.run = 'never';
       if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
         const identityKeys = [tagNames.codeDigest(), tagNames.artifactDigest(), tagNames.sharedLayers()];
         const tags = ((properties.Tags ?? []) as { Key: string; Value: string }[])

@@ -1,5 +1,5 @@
 import type { ResourceLookup } from './resource-lookup';
-import { ref, sub } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
@@ -543,6 +543,56 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
       Action: ['ses:SendEmail']
     }
   ].filter(Boolean);
+};
+
+/** Separate statements, because ECS authorizes each of these actions against a different resource type. */
+export const getStacktapeServiceLambdaReleaseCommandStatements = ({
+  activeConfig,
+  stackContext
+}: {
+  activeConfig: ConfigManager;
+  stackContext: StackContext;
+}): StpIamRoleStatement[] => {
+  if (stackContext.command === 'dev') return [];
+  const workloads = activeConfig.allContainerWorkloads.filter(({ releaseCommand }) => releaseCommand !== undefined);
+  if (!workloads.length) return [];
+  const { accountId, stackName, region } = stackContext;
+  const ecsArn = (resource: string) =>
+    sub(`arn:\${AWS::Partition}:ecs:\${AWS::Region}:\${AWS::AccountId}:${resource}`) as unknown as string;
+  const clusters = workloads.map(({ name }) => awsResourceNames.ecsCluster(name, stackName));
+  return [
+    {
+      Resource: workloads.map(({ name }) =>
+        ecsArn(`task-definition/${awsResourceNames.ecsReleaseTaskDefinitionFamily(name, stackName)}:*`)
+      ),
+      Action: ['ecs:RunTask'],
+      Condition: { ArnEquals: { 'ecs:cluster': clusters.map((cluster) => ecsArn(`cluster/${cluster}`)) } }
+    },
+    {
+      Resource: clusters.map((cluster) => ecsArn(`task/${cluster}/*`)),
+      Action: ['ecs:DescribeTasks', 'ecs:StopTask', 'ecs:TagResource']
+    },
+    {
+      Resource: ['*'],
+      Action: ['ecs:ListTasks'],
+      Condition: { ArnEquals: { 'ecs:cluster': clusters.map((cluster) => ecsArn(`cluster/${cluster}`)) } }
+    },
+    { Resource: ['*'], Action: ['ecs:DescribeTaskDefinition'] },
+    {
+      // Names and not references: a task role's policy can refer to a queue that this Lambda creates.
+      Resource: [
+        getAtt(cfLogicalNames.ecsExecutionRole(), 'Arn') as unknown as string,
+        ...workloads.map(({ name }) =>
+          arns.iamRole({
+            accountId,
+            roleAwsName: awsResourceNames.containerWorkloadRole(stackName, region, name)
+          })
+        )
+      ],
+      Action: ['iam:PassRole'],
+      Condition: { StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' } }
+    }
+  ];
 };
 
 export const getStacktapeServiceLambdaEcsRedeployInducedStatements = ({

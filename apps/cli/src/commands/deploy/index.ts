@@ -3,6 +3,15 @@ import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
+  applyReleaseCommandPlan,
+  planReleaseCommands,
+  recordCompletedReleaseCommands,
+  runReleaseCommandsDirectly,
+  startReleaseCommandLogs
+} from '@domain-services/release-command';
+import { holdStackLock } from '@domain-services/stack-operation-lock';
+import { registerReleaseTaskDefinition } from '../_utils/cw-deployment';
+import {
   recordSecurityReport,
   deleteUndeployedStage
 } from '@application-services/stacktape-trpc-api-manager/operation-recording';
@@ -335,7 +344,15 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       prepareTemplateForDeploy,
       template,
       tui,
-      networkReady: stageNetwork.ready
+      networkReady: stageNetwork.ready,
+      applyDeployDecisions: async (finalTemplate) => {
+        await planReleaseCommands({
+          skip: !!(args as { skipReleaseCommand?: boolean }).skipReleaseCommand,
+          stackExists: !createsStack,
+          bucketName: deploymentArtifacts.deploymentBucketName
+        });
+        applyReleaseCommandPlan(finalTemplate);
+      }
     }),
     // @note this can take a long time, so we do it in parallel with other stack activities
     cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
@@ -510,6 +527,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
+  const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
+  // Before anything changes: a failed command leaves every workload on its current code.
+  if (fastDeployPlan) {
+    await runReleaseCommandsDirectly({ registerTaskDefinition: registerReleaseTaskDefinition });
+  }
+  const releaseCommandLogs = fastDeployPlan ? undefined : await startReleaseCommandLogs();
   codeSwapBeginMutation();
   try {
     if (fastDeployPlan) {
@@ -530,6 +553,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   } finally {
     // The stage stack now imports the shared stacks it uses, which keeps them.
     stopMarkingSharedNetworkUsed();
+    await releaseCommandLogs?.stop();
+    await lock.release();
   }
   // Recorded while the post-deploy steps run; nothing below depends on it. It never throws. A failing post-deploy step
   // still lets it finish before the command exits.
@@ -602,6 +627,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
   await obsoleteArtifactDeletion;
+  await recordCompletedReleaseCommands({ bucketName: deploymentArtifacts.deploymentBucketName });
 
   // Sent while the remaining reporting runs; the command waits for it before it returns.
   notification.queueDeploymentNotification({
@@ -704,10 +730,12 @@ export const prepareArtifactsForStackDeployment = async ({
   prepareTemplateForDeploy,
   template,
   tui,
-  networkReady
+  networkReady,
+  applyDeployDecisions
 }: Pick<DeployOperation, 'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'> & {
   /** The shared network the stage runs in, created or upgraded while the workloads build. */
   networkReady?: Promise<void>;
+  applyDeployDecisions?: Parameters<DeployOperation['prepareTemplateForDeploy']>[0]['applyDeployDecisions'];
 }): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
@@ -722,7 +750,7 @@ export const prepareArtifactsForStackDeployment = async ({
   }
 
   await calculatedStackOverview.populateStackMetadata();
-  await prepareTemplateForDeploy();
+  await prepareTemplateForDeploy({ applyDeployDecisions });
 
   const cfTemplateDiff = template.getOldTemplateDiff();
   return { packagedWorkloads, cfTemplateDiff };
