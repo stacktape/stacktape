@@ -12,6 +12,8 @@ export type Tab<Value extends TabValue = TabValue> = {
   disabled?: boolean;
   title?: string;
   panelId?: string;
+  /** The address this tab opens. It makes the tab a real link, so it can open in a new tab; a plain click still selects. */
+  href?: string;
 };
 
 export type TabsProps<Value extends TabValue> = {
@@ -153,7 +155,7 @@ export function Tabs<const Value extends TabValue>({
 }: TabsProps<Value>) {
   const generatedId = useId();
   const tabsId = id ?? `stacktape-tabs-${generatedId}`;
-  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const buttonRefs = useRef<Array<HTMLElement | null>>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeIndex = tabs.findIndex((tab) => tab.value === value);
   const hasSlidingIndicator = appearance !== 'underline' && activeIndex >= 0;
@@ -176,7 +178,7 @@ export function Tabs<const Value extends TabValue>({
     }
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
     const previousKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
     const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
 
@@ -218,24 +220,22 @@ export function Tabs<const Value extends TabValue>({
           const isActive = tab.value === value;
           const tabId = `${tabsId}-tab-${String(tab.value)}`;
 
-          return (
-            <button
-              aria-controls={tab.panelId}
-              aria-selected={isActive}
-              className={classes('stp-ui-tab', isActive && 'stp-ui-tab--active')}
-              disabled={disabled || tab.disabled}
-              id={tabId}
-              key={tab.value}
-              onClick={() => onValueChange?.(tab.value)}
-              onKeyDown={(event) => handleKeyDown(event, index)}
-              ref={(element) => {
-                buttonRefs.current[index] = element;
-              }}
-              role="tab"
-              tabIndex={isActive || (activeIndex < 0 && index === 0) ? 0 : -1}
-              title={tab.title}
-              type="button"
-            >
+          const isDisabled = disabled || tab.disabled;
+          const shared = {
+            'aria-controls': tab.panelId,
+            'aria-selected': isActive,
+            className: classes('stp-ui-tab', isActive && 'stp-ui-tab--active'),
+            id: tabId,
+            onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleKeyDown(event, index),
+            ref: (element: HTMLElement | null) => {
+              buttonRefs.current[index] = element;
+            },
+            role: 'tab',
+            tabIndex: isActive || (activeIndex < 0 && index === 0) ? 0 : -1,
+            title: tab.title
+          };
+          const content = (
+            <>
               {tab.icon && (
                 <span aria-hidden="true" className="stp-ui-tab__icon">
                   {tab.icon}
@@ -248,6 +248,33 @@ export function Tabs<const Value extends TabValue>({
                 <span className="stp-ui-tab__label stp-ui-tab__label--compact">{tab.compactLabel}</span>
               )}
               {tab.suffix}
+            </>
+          );
+
+          return tab.href && !isDisabled ? (
+            <a
+              {...shared}
+              key={tab.value}
+              href={tab.href}
+              draggable={false}
+              onClick={(event) => {
+                // A modified click belongs to the browser: Ctrl or middle click opens a new tab.
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                event.preventDefault();
+                onValueChange?.(tab.value);
+              }}
+            >
+              {content}
+            </a>
+          ) : (
+            <button
+              {...shared}
+              key={tab.value}
+              disabled={isDisabled}
+              onClick={() => onValueChange?.(tab.value)}
+              type="button"
+            >
+              {content}
             </button>
           );
         })}

@@ -37,3 +37,13 @@ test('uses the underline itself instead of a sliding surface for underline tabs'
 
   expect(markup).not.toContain('stp-ui-tabs__indicator');
 });
+
+test('a tab with an address is a real link and keeps its tab role', () => {
+  const markup = renderToStaticMarkup(
+    <Tabs ariaLabel="Sections" tabs={[{ value: 'logs', label: 'Logs', href: '/logs' }]} value="logs" />
+  );
+
+  expect(markup).toContain('<a ');
+  expect(markup).toContain('href="/logs"');
+  expect(markup).toContain('role="tab"');
+});

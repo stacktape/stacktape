@@ -631,7 +631,9 @@
     border-radius: var(--stp-tab-radius, 9px);
     background: transparent;
     color: var(--stp-tab-text, var(--stp-text-muted));
+    text-decoration: none;
     font: inherit;
+    letter-spacing: normal;
     font-size: var(--stp-tab-font-size, 0.84rem);
     font-weight: var(--stp-tab-font-weight, 600);
     line-height: 1;
