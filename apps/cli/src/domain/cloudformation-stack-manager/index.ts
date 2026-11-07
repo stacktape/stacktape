@@ -1134,8 +1134,6 @@ class StackManager {
       throw beforeDeleteResult.reason;
     }
 
-    await beforeDeleteRequest?.();
-
     const stackId = this.existingStackDetails.StackId;
     // DeleteStack returns no operation ID. This delete's events are newer than every event the stack has now, such as
     // those of an earlier attempt that failed seconds ago.
@@ -1158,6 +1156,7 @@ class StackManager {
       );
     }
     try {
+      await beforeDeleteRequest?.();
       await awsSdkManager.cloudFormation.delete(this.#stackName, { roleArn, express: deleteMode === 'EXPRESS' });
     } catch (err) {
       deleteRequested = false;
