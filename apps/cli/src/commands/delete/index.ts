@@ -163,6 +163,7 @@ type DeleteExecutionOperation = {
   stack: {
     deleteStack: (options: {
       beforeDelete: () => Promise<unknown>;
+      beforeDeleteRequest: () => Promise<unknown>;
       onDeleteRequested: () => Promise<unknown>;
       finishInBackground: boolean;
     }) => Promise<{ deletionContinuesInBackground?: PendingDelete[] } | undefined>;
@@ -357,6 +358,10 @@ export const executeDeleteOperation = async ({
     beforeDelete: async () => {
       await lock?.confirm();
       await deploymentArtifacts.deleteAllArtifacts();
+    },
+    // Emptying can take long, and a paused machine could have lost the lock to an operation that now uses the stack.
+    beforeDeleteRequest: async () => {
+      await lock?.confirm();
     },
     onDeleteRequested: async () => {
       lock?.detach();

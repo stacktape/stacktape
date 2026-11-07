@@ -329,6 +329,19 @@ describe('stack delete', () => {
     });
   });
 
+  test('a failure right before the delete request stops the delete', async () => {
+    await withDeleteFixture([resource('AWS::S3::Bucket', 'delete-test-bucket')], async ({ calls }) => {
+      await expect(
+        stackManager.deleteStack({
+          beforeDeleteRequest: async () => {
+            throw new Error('another operation took over');
+          }
+        })
+      ).rejects.toThrow('another operation took over');
+      expect(calls).toEqual([]);
+    });
+  });
+
   test('a stack with an ElastiCache user group uses the standard delete', async () => {
     await withDeleteFixture(
       [resource('AWS::ElastiCache::UserGroup', 'cache-users'), resource('AWS::ElastiCache::User', 'cache-default')],
@@ -1440,8 +1453,9 @@ describe('deletion protection', () => {
       notification: { sendDeploymentNotification: async () => calls.push('notify') } as never,
       progress: { setPhase: () => {} } as never,
       stack: {
-        deleteStack: async ({ beforeDelete, onDeleteRequested, finishInBackground }) => {
+        deleteStack: async ({ beforeDelete, beforeDeleteRequest, onDeleteRequested, finishInBackground }) => {
           await beforeDelete();
+          await beforeDeleteRequest();
           calls.push(`stack:delete${finishInBackground ? ' (may finish in background)' : ''}`);
           await onDeleteRequested();
           return deleteResult;
@@ -1506,11 +1520,34 @@ describe('deletion protection', () => {
     const order = [
       'lock:confirm',
       'artifacts:delete',
+      'lock:confirm',
       'stack:delete (may finish in background)',
       'lock:detach',
       'objects:delete'
     ];
     expect(calls.filter((call) => order.includes(call))).toEqual(order);
+  });
+
+  test('a delete that lost the stack lock while it emptied the buckets does not delete the stack', async () => {
+    const calls: string[] = [];
+    let confirmations = 0;
+    const { error } = await runDelete({
+      resources: [],
+      calls,
+      holdLock: async () => ({
+        confirm: async () => {
+          confirmations += 1;
+          if (confirmations === 2) throw new Error('another operation took over');
+        },
+        detach: () => {
+          calls.push('lock:detach');
+        }
+      })
+    });
+    expect(error?.message).toContain('another operation took over');
+    expect(calls).toContain('artifacts:delete');
+    expect(calls.some((call) => call.startsWith('stack:delete'))).toBe(false);
+    expect(calls).not.toContain('lock:detach');
   });
 
   test('a delete that lost the stack lock empties nothing', async () => {

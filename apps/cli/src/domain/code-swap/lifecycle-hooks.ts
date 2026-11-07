@@ -127,6 +127,18 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
 
 export const codeSwapInterrupted = () => interrupted;
 
+let repairCompleted = false;
+export const codeSwapRepairCompleted = () => {
+  repairCompleted = true;
+};
+
+/**
+ * The lock left behind is the only record that a repair is still needed. An operation that took it over and stopped
+ * before finishing leaves it to expire too, so the next one repairs instead of finding a released lock.
+ */
+export const leavesStackLockToExpire = (state: { recovering: boolean; repairCompleted: boolean }) =>
+  state.recovering && !state.repairCompleted;
+
 // Commands call this right before they change CloudFormation stacks or running services. An interruption before
 // that point aborts any prepared swap and releases the lock; after it, the lock stays until its lease ends, and the next
 // operation repairs the service.
@@ -148,7 +160,8 @@ export const codeSwapFinish = async () => {
   await Promise.allSettled(pendingPreparations);
   pendingPreparations.length = 0;
   await codeSwapIntegration.abortPreparation();
-  await held?.lock.release();
+  if (leavesStackLockToExpire({ recovering: recoveredOperation, repairCompleted })) held?.lock.detach();
+  else await held?.lock.release();
   held = undefined;
 };
 

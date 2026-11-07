@@ -13,6 +13,7 @@ import {
   codeSwapTemplate,
   codeSwapTrackPreparation,
   codeSwapFinish,
+  leavesStackLockToExpire,
   protectTaskRole
 } from '../../src/domain/code-swap/lifecycle-hooks';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -180,6 +181,12 @@ test('direct ECS image registration resolves RoleId rather than serializing its 
   expect(wire).toContain('"Value":"AROAOWNEDROLE"');
   expect(wire).not.toContain('Fn::GetAtt');
   expect(wire).toContain('"Value":"preserved"');
+});
+
+test('an operation that took the lock over keeps the repair pending until it has finished', () => {
+  expect(leavesStackLockToExpire({ recovering: true, repairCompleted: false })).toBe(true);
+  expect(leavesStackLockToExpire({ recovering: true, repairCompleted: true })).toBe(false);
+  expect(leavesStackLockToExpire({ recovering: false, repairCompleted: false })).toBe(false);
 });
 
 test('a blue/green service next to a code-swap service gets the table protection on its role', () => {

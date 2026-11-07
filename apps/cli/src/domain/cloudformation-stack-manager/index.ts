@@ -1066,16 +1066,19 @@ class StackManager {
   /**
    * Deletes the stack. `beforeDelete` is work that must finish before CloudFormation starts, such as emptying the
    * buckets and the image repository. It runs alongside the steps below, which start slow AWS-side work early.
-   * `onDeleteRequested` runs once CloudFormation has accepted the delete; a failure there doesn't stop the delete.
+   * `beforeDeleteRequest` runs last before the request, and its failure stops the delete. `onDeleteRequested` runs once
+   * CloudFormation has accepted the delete; a failure there doesn't stop the delete.
    * With `finishInBackground`, it returns once only resources that cost nothing remain (see `background-delete.ts`);
    * the result then lists them in `deletionContinuesInBackground`.
    */
   deleteStack = async ({
     beforeDelete,
+    beforeDeleteRequest,
     onDeleteRequested,
     finishInBackground = false
   }: {
     beforeDelete?: () => Promise<unknown>;
+    beforeDeleteRequest?: () => Promise<unknown>;
     onDeleteRequested?: () => Promise<unknown>;
     finishInBackground?: boolean;
   } = {}) => {
@@ -1130,6 +1133,8 @@ class StackManager {
     if (beforeDeleteResult.status === 'rejected') {
       throw beforeDeleteResult.reason;
     }
+
+    await beforeDeleteRequest?.();
 
     const stackId = this.existingStackDetails.StackId;
     // DeleteStack returns no operation ID. This delete's events are newer than every event the stack has now, such as

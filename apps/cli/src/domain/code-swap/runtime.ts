@@ -1,7 +1,7 @@
 import { compareEcsTaskDefinitions } from '../deployed-stack-overview-manager/hotswap-utils';
 import { createServiceRuntime } from './service-runtime';
 import { getCodeSwapRuns } from './configuration';
-import { retainCodeSwapLock } from './lifecycle-hooks';
+import { codeSwapRepairCompleted, retainCodeSwapLock } from './lifecycle-hooks';
 type ServiceRuntime = ReturnType<typeof createServiceRuntime>;
 const runtimes = new Map<string, ServiceRuntime>();
 let runtimeInitialization: Promise<void> | undefined;
@@ -54,11 +54,13 @@ export const codeSwapReleaseIdentity = () => {
 export const codeSwapRollbackComplete = async (...args: Parameters<ServiceRuntime['codeSwapRollbackComplete']>) => {
   await initializeRuntimes();
   for (const runtime of runtimes.values()) await runtime.codeSwapRollbackComplete(...args);
+  codeSwapRepairCompleted();
 };
 export const codeSwapComplete = async (createsRelease: boolean) => {
   try {
     for (const runtime of runtimes.values()) await runtime.codeSwapComplete(createsRelease);
     if (createsRelease) await Promise.all([...runtimes.values()].map((runtime) => runtime.verify()));
+    codeSwapRepairCompleted();
   } catch (error) {
     retainCodeSwapLock();
     throw error;
