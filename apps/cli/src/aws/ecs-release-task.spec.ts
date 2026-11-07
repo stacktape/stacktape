@@ -208,6 +208,32 @@ describe('findReleaseTaskOfAnotherOperation', () => {
     ).toBeUndefined();
   });
 
+  test('finds a stopping task behind a full page of stopped ones', async () => {
+    const stopped = Array.from({ length: 100 }, (_, index) => `done-${index}`);
+    const described: string[][] = [];
+    const ecs = {
+      send: async (command: { input: { desiredStatus?: string; nextToken?: string; tasks?: string[] } }) => {
+        if (command instanceof ListTasksCommand) {
+          if (command.input.desiredStatus === 'RUNNING') return { taskArns: [] };
+          return command.input.nextToken ? { taskArns: ['stopping'] } : { taskArns: stopped, nextToken: 'second-page' };
+        }
+        described.push(command.input.tasks!);
+        return {
+          tasks: command.input.tasks!.map((taskArn) => ({
+            taskArn,
+            startedBy: other,
+            lastStatus: taskArn === 'stopping' ? 'DEACTIVATING' : 'STOPPED'
+          }))
+        };
+      }
+    } as never;
+
+    expect(
+      await findReleaseTaskOfAnotherOperation({ ecs, cluster: 'c', family: 'f', startedBy, containerName: 'app' })
+    ).toBe('stopping');
+    expect(described.map((tasks) => tasks.length)).toEqual([100, 1]);
+  });
+
   test('finds nothing when no task runs or all have stopped', async () => {
     expect(await find([])).toBeUndefined();
     expect(
