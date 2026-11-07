@@ -75,12 +75,15 @@ import { normalizeCustomDomains } from './utils/custom-domains';
 import { cdnNeedsOriginRequestLambda } from './utils/cdn';
 import { buildConvexNestedResources, getConvexSecretName } from './utils/convex';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
+import { resolveReleaseCommand } from './utils/release-commands';
+import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
 import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
   getLambdaHandler,
   getLambdaRuntime,
   getStacktapeServiceLambdaAlarmNotificationInducedStatements,
+  getStacktapeServiceLambdaReleaseCommandStatements,
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
   getStacktapeServiceLambdaNatFailoverStatements,
@@ -1163,6 +1166,7 @@ export class ConfigManager {
         name: _,
         packaging,
         codeSwap,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1203,6 +1207,7 @@ export class ConfigManager {
           [containerWorkloadIdentifier]: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
             codeSwap,
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1383,6 +1388,7 @@ export class ConfigManager {
       const {
         name,
         packaging,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1415,6 +1421,7 @@ export class ConfigManager {
         _nestedResources: {
           containerWorkload: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1515,6 +1522,7 @@ export class ConfigManager {
         name: _n,
         nameChain,
         packaging,
+        releaseCommand,
         resources,
         type,
         connectTo,
@@ -1542,6 +1550,7 @@ export class ConfigManager {
         _nestedResources: {
           containerWorkload: {
             nameChain: [...nameChain, containerWorkloadIdentifier],
+            releaseCommand,
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
             tracing,
@@ -1770,6 +1779,17 @@ export class ConfigManager {
     return Array.from(credentialSecretArns) as string[];
   }
 
+  /** In the order they run: the order of the resources in the config. */
+  get releaseCommands() {
+    const resourceOrder = Object.keys(this.config.resources ?? {});
+    return this.allContainerWorkloads
+      .map(resolveReleaseCommand)
+      .filter((release) => release !== undefined)
+      .sort(
+        (a, b) => resourceOrder.indexOf(a.workload.nameChain[0]!) - resourceOrder.indexOf(b.workload.nameChain[0]!)
+      );
+  }
+
   get allContainerWorkloads() {
     return [
       ...this.containerWorkloads,
@@ -1841,8 +1861,9 @@ export class ConfigManager {
 
   get allContainerWorkloadContainers(): EnrichedCwContainerProps[] {
     return this.allContainerWorkloads
-      .map(({ name, configParentResourceType, containers, resources }) => {
-        return containers.map((container) => {
+      .map((workload) => {
+        const { name, configParentResourceType, containers, resources } = workload;
+        return [...containers, ...this.#releaseImageContainersOf(workload)].map((container) => {
           return {
             ...container,
             workloadType: configParentResourceType,
@@ -1858,6 +1879,21 @@ export class ConfigManager {
       })
       .flat();
   }
+
+  /** The whole project, built only for the release command of a `js-bundle` service. See `RELEASE_IMAGE_CONTAINER_NAME`. */
+  #releaseImageContainersOf = (workload: StpContainerWorkload): StpContainerWorkload['containers'] => {
+    if (this.deploymentContext.command === 'dev') return [];
+    const release = resolveReleaseCommand(workload);
+    const target = workload.containers.find(({ name }) => name === release?.containerName);
+    if (target?.packaging.type !== 'js-bundle') return [];
+    return [
+      {
+        name: RELEASE_IMAGE_CONTAINER_NAME,
+        // The command replaces the start command. The buildpack still needs one to accept the project.
+        packaging: { type: 'buildpack', properties: { sourceDirectoryPath: '.', startCommand: 'node --version' } }
+      }
+    ];
+  };
 
   get allBatchJobContainers(): EnrichedBjContainerProps[] {
     return this.batchJobs.map(({ name, container, type, resources }) => {
@@ -2529,6 +2565,7 @@ export class ConfigManager {
         activeConfig: this,
         stackContext: this.stackContext
       }),
+      ...getStacktapeServiceLambdaReleaseCommandStatements({ activeConfig: this, stackContext: this.stackContext }),
       ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
       ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
         activeConfig: this,

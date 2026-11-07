@@ -5,7 +5,7 @@ Resource type: `worker-service`
 ## TypeScript definition
 
 ```typescript
-import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';
+import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, ReleaseCommand, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';
 
 type WorkerServiceProps = {
   /** Configures the container image for the service. */
@@ -24,6 +24,8 @@ type WorkerServiceProps = {
   internalHealthCheck?: ContainerHealthCheck;
   /** Logging configuration. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Run a command once on each deploy, in the deployed image, before any workload gets the new code. */
+  releaseCommand?: WorkerServiceReleaseCommand;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
   /** Sensitive environment variables fetched by the container runtime.
@@ -66,6 +68,10 @@ type WorkerServicePackaging =
   | PrebuiltCwImagePackaging
   | DockerfileCwImagePackaging
   | BuildpackCwImagePackaging;
+
+type WorkerServiceReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 
 type WorkerServiceTracing =
   | TracingOptions
@@ -521,6 +527,40 @@ export default defineConfig(() => {
 
   return { resources: { api } };
 });
+```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, in the deployed image, before any workload gets the new code.
+
+Use it for database migrations. Stacktape runs the command in a one-off ECS task with the same image, environment
+variables, secrets, IAM role and network access as this service. The deploy waits for the task, prints its logs, and
+stops if the command fails, so the running version keeps serving.
+
+The old code keeps running against the new schema until the rollout finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+releaseCommand: npx prisma migrate deploy
+```
+
+### Example 2 (typescript)
+
+```typescript
+releaseCommand: {
+  command: 'npx prisma migrate deploy',
+  runWhenChanged: ['prisma/migrations']
+}
 ```
 
 ## Property: `scaling`

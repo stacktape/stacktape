@@ -84,6 +84,14 @@ export const getTriggerOfUnchangedDeploymentScript = (change: ResourceDifference
   return after.scriptFunction.triggerType;
 };
 
+/** A release command's custom resource says in `run` what one operation does with it. Nothing else about it changed. */
+export const isOnlyReleaseCommandRunChange = (change: ResourceDifference) =>
+  !!propertiesOf(change).after.releaseCommand &&
+  differsOnlyIn(change, ({ releaseCommand, ...properties }) => {
+    const { run: _run, ...rest } = (releaseCommand ?? {}) as Properties;
+    return { ...properties, releaseCommand: rest };
+  });
+
 const pickComparedContainerProperties = (container: ContainerDefinition): ContainerDefinition => {
   const {
     name,

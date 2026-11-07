@@ -34,6 +34,7 @@ import {
   follow,
   headersPreset,
   fullDeploy,
+  skipReleaseCommand,
   recoverOperation,
   headless,
   noBrowser,
@@ -133,6 +134,7 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       autoConfirmOperation: autoConfirmOperation.optional(),
       showSensitiveValues: showSensitiveValues.optional(),
       fullDeploy: fullDeploy.optional(),
+      skipReleaseCommand: skipReleaseCommand.optional(),
       runner: deployRunner.optional(),
       disableLayerOptimization: disableLayerOptimization.optional()
     },

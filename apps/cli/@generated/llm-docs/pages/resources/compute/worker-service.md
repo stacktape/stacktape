@@ -480,6 +480,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `internalHealthCheck` | no | `ContainerHealthCheck` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |

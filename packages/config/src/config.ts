@@ -237,7 +237,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Each hook references a script defined in the `scripts` section.
-   * Common uses: run database migrations after deploy, build frontend before deploy,
+   * Common uses: seed a database after deploy, build frontend before deploy,
    * clean up resources after delete.
    *
    * **Example (YAML):**

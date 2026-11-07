@@ -731,6 +731,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `deployment` | no | `ContainerWorkloadDeploymentConfig` | - |
 | `enableRemoteSessions` | no | `boolean` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |

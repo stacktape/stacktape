@@ -24,8 +24,15 @@ export type ServiceLambdaResolver<T> = (
   previousProps: T | undefined,
   operationType: 'Create' | 'Update' | 'Delete',
   physicalResourceId?: string,
-  lambdaContext?: import('aws-lambda').Context
+  lambdaContext?: import('aws-lambda').Context,
+  invocation?: ServiceLambdaResolverInvocation
 ) => Promise<ServiceLambdaResolverReturnValue>;
+
+/** The request CloudFormation sent and, in a chained invocation, what the previous invocation asked to keep. */
+export type ServiceLambdaResolverInvocation = {
+  requestId: string;
+  chainState?: Record<string, unknown>;
+};
 
 type ServiceLambdaResolverReturnValue = {
   data: { [dataKey: string]: string };
@@ -37,6 +44,8 @@ type ServiceLambdaResolverReturnValue = {
   // repeated attempts are limited to 4 - it is expected that you are polling as long as possible within lambda (~15 min) - after fourth attempt you must return anyways since (see below)
   // note that there is 1 hour timeout during which Cloudformation expects the response from CustomResource
   chainInvocation?: boolean;
+  /** Passed to the next invocation of a chain. */
+  chainState?: Record<string, unknown>;
 };
 
 export type StpServiceCustomResourceEventProps<Event> = {
@@ -187,7 +196,29 @@ export type StpServiceCustomResourceEventsRuleProps = { [property: string]: unkn
  */
 export type StpServiceCustomResourceSqsQueuePolicyProps = { PolicyDocument: unknown; Queues: unknown[] };
 
+/**
+ * A command run once in a one-off ECS task. `run` says whether this operation runs it: `attemptId` always (it differs
+ * on each attempt, because the deployment version does not change on a retry), `if-target-changed` when the task
+ * definition's environment variables or secrets changed, so a replaced database gets its schema, and `never` otherwise.
+ * CloudFormation passes every scalar to a custom resource as a string.
+ */
+export type StpServiceCustomResourceReleaseCommandProps = {
+  cluster: string | Intrinsic;
+  taskDefinition: string | Intrinsic;
+  containerName: string;
+  timeoutSeconds: number | string;
+  logGroupName: string;
+  capacityProviderStrategy?: { capacityProvider: string | Intrinsic; weight: number | string }[];
+  awsvpcConfiguration?: {
+    subnets: unknown;
+    securityGroups: unknown;
+    assignPublicIp: 'ENABLED' | 'DISABLED';
+  };
+  run: { attemptId: string } | 'if-target-changed' | 'never';
+};
+
 export type StpServiceCustomResourceProperties = {
+  releaseCommand?: StpServiceCustomResourceReleaseCommandProps;
   sqsQueue?: StpServiceCustomResourceSqsQueueProps;
   sqsQueuePolicy?: StpServiceCustomResourceSqsQueuePolicyProps;
   eventsRule?: StpServiceCustomResourceEventsRuleProps;

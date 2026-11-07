@@ -26,6 +26,7 @@ export type AwsQualificationScenario = {
     | 'nat-switch'
     | 'dev-mode'
     | 'container-fast-deploy'
+    | 'release-command'
     | 'scoped-access'
     | 'static-site'
     | 'batch-job';
@@ -81,6 +82,15 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['container', 'web-service', 'load-balancer', 'http-api-gateway', 'fast-deploy', 'timing', 'cleanup'],
     reason:
       'A code-only container deploy must finish once the new release serves through the load balancer and API Gateway, without failed requests, and report how long each phase took.'
+  },
+  {
+    id: 'release-command-serving',
+    runner: 'release-command',
+    policy: 'periodic',
+    costClass: 'medium',
+    coverage: ['container', 'web-service', 'worker-service', 'relational-database', 'fast-deploy', 'cleanup'],
+    reason:
+      'A release command must run once in the deployed image inside the VPC before workloads get the new code, stop the deploy when it fails with the old code serving, and not rerun on a rollback.'
   },
   {
     id: 'dev-mode-local-loop',

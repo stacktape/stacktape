@@ -1,6 +1,7 @@
 import type { Convex } from '@stacktape/config/convex';
 import type { ContainerWorkload, ContainerWorkloadScaling } from '@stacktape/config/multi-container-workloads';
 import type { PrivateService } from '@stacktape/config/private-services';
+import type { ReleaseCommand } from '@stacktape/config/shared';
 import type { WebService } from '@stacktape/config/web-services';
 import type { WorkerService } from '@stacktape/config/worker-services';
 
@@ -18,6 +19,7 @@ export type StpContainerWorkload = ContainerWorkload['properties'] & {
   scaling: ContainerWorkloadScaling & { minInstances: number; maxInstances: number };
   /** Internal propagation of the web-service opt-in. */
   codeSwap?: boolean;
+  releaseCommand?: string | ReleaseCommand;
   name: string;
   type: ContainerWorkload['type'];
   configParentResourceType:

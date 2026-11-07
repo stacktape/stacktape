@@ -34,9 +34,13 @@ For new stacks, Stacktape creates the CloudFormation stack. For existing stacks,
 
 An update is finished once the new resources are in place. Resources the update removed or replaced, such as a CDN distribution or a database you took out of the config, are then deleted by CloudFormation in the background, which can take several minutes. The CLI says when this happens. The next deploy, delete or rollback of the stage waits until the deletion has finished. The first of them to see an old resource AWS could not delete reports it once, because that resource then stays in your account.
 
+### Release commands
+
+A [release command](/deployment-and-lifecycle/release-commands) runs before any workload gets the new code, on full and on fast deployments. A failed command stops the deploy.
+
 ### Post-deploy
 
-After the stack is stable, Stacktape completes several post-deployment tasks: syncing [hosting buckets](/resources/frontend/static-hosting) with your local build output, invalidating [CDN](/resources/networking/cdn) caches if needed, running any user-defined `afterDeploy` [hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) (commonly used for database migrations), saving stack info to disk if configured, and sending deployment notifications to any configured [alert channels](/observability/alert-channels). On the first deploy of a new stack, the CLI also prompts you to set up [CI/CD](/ci-cd-and-gitops/overview).
+After the stack is stable, Stacktape completes several post-deployment tasks: syncing [hosting buckets](/resources/frontend/static-hosting) with your local build output, invalidating [CDN](/resources/networking/cdn) caches if needed, running any user-defined `afterDeploy` [hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks), saving stack info to disk if configured, and sending deployment notifications to any configured [alert channels](/observability/alert-channels). On the first deploy of a new stack, the CLI also prompts you to set up [CI/CD](/ci-cd-and-gitops/overview).
 
 ## Running a deployment
 

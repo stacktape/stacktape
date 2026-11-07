@@ -1,11 +1,13 @@
 import {
   CloudFormationClient,
   DeleteStackCommand,
+  DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ListStackResourcesCommand,
   waitUntilStackDeleteComplete,
   type Stack
 } from '@aws-sdk/client-cloudformation';
+import { ModifyDBClusterCommand, ModifyDBInstanceCommand, RDSClient } from '@aws-sdk/client-rds';
 import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { BatchDeleteImageCommand, ECRClient, ListImagesCommand } from '@aws-sdk/client-ecr';
 import {
@@ -117,6 +119,7 @@ export type InitCanaryState = {
 };
 
 type AwsClients = {
+  rds: RDSClient;
   cloudFormation: CloudFormationClient;
   ecr: ECRClient;
   logs: CloudWatchLogsClient;
@@ -267,6 +270,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
   const config = { credentials, maxAttempts: 6, region: options.region };
   return {
     cloudFormation: new CloudFormationClient(config),
+    rds: new RDSClient(config),
     ecr: new ECRClient(config),
     logs: new CloudWatchLogsClient(config),
     s3: new S3Client(config),
@@ -850,6 +854,37 @@ const verifyHealth = async ({
   throw new Error(`The deployed ${resourceName} URL did not become healthy.`, { cause: lastError });
 };
 
+/**
+ * Init turns on deletion protection for a database, and `stacktape delete` rightly refuses such a stack. This run owns the
+ * stack, which the caller has checked, and has to leave nothing behind.
+ */
+const turnOffDatabaseDeletionProtection = async (clients: AwsClients, stackId: string) => {
+  const { StackResources: resources = [] } = await clients.cloudFormation.send(
+    new DescribeStackResourcesCommand({ StackName: stackId })
+  );
+  for (const { ResourceType, PhysicalResourceId, ResourceStatus } of resources) {
+    if (!PhysicalResourceId || ResourceStatus === 'DELETE_COMPLETE') continue;
+    if (ResourceType === 'AWS::RDS::DBInstance') {
+      await clients.rds.send(
+        new ModifyDBInstanceCommand({
+          DBInstanceIdentifier: PhysicalResourceId,
+          DeletionProtection: false,
+          ApplyImmediately: true
+        })
+      );
+    }
+    if (ResourceType === 'AWS::RDS::DBCluster') {
+      await clients.rds.send(
+        new ModifyDBClusterCommand({
+          DBClusterIdentifier: PhysicalResourceId,
+          DeletionProtection: false,
+          ApplyImmediately: true
+        })
+      );
+    }
+  }
+};
+
 const waitForStackAbsence = async (
   client: CloudFormationClient,
   stackId: string,
@@ -1106,6 +1141,7 @@ const cleanup = async (
           assertStackBelongsToState(remaining, state);
           await emptyStackBuckets(clients, state, stackId);
           await emptyStackRepositories(clients, stackId);
+          await turnOffDatabaseDeletionProtection(clients, stackId);
           await clients.cloudFormation.send(new DeleteStackCommand({ StackName: stackId }));
           await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
         } catch (fallbackError) {
@@ -1207,6 +1243,12 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     temporaryRoot = await mkdtemp(join(tmpdir(), 'stacktape-init-canary-'));
     const workspace = join(temporaryRoot, options.projectName);
     await cp(fixture.sourceDirectory, workspace, { recursive: true, errorOnExist: true });
+    // The wizard names the project, and so its generated secrets, after the manifest. This run owns only its own name.
+    const manifestPath = join(workspace, 'package.json');
+    const manifest = await readFile(manifestPath, 'utf8').catch(() => undefined);
+    if (manifest !== undefined) {
+      await writeFile(manifestPath, JSON.stringify({ ...JSON.parse(manifest), name: options.projectName }, null, 2));
+    }
 
     const wizardEnv = await buildSignedInWizardEnvironment({ env, options, home: join(temporaryRoot, 'home') });
     wizard = await startWizard({ options, workspace, wizardEnv, signal: operationAbort.signal });

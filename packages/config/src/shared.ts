@@ -3994,6 +3994,44 @@ export interface ResourceAccessProps {
 }
 
 
+/**
+ * #### A command that runs once on each deploy, before any workload gets the new code.
+ */
+export interface ReleaseCommand {
+  /**
+   * #### The shell command to run, for example `npx prisma migrate deploy`.
+   *
+   * ---
+   *
+   * It runs through `/bin/sh -c` in place of the image's entry point. If the image needs its entry point, call it in the
+   * command. An image without a shell cannot run a release command.
+   */
+  command: string;
+  /**
+   * #### Run the command only when these files or directories changed.
+   *
+   * ---
+   *
+   * Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can
+   * stay on the fast path. Without this option, the command runs on each deploy that changes the image.
+   */
+  runWhenChanged?: string[];
+  /**
+   * #### How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.
+   *
+   * @default 3300
+   */
+  timeout?: number;
+  /**
+   * #### The container to run the command in.
+   *
+   * ---
+   *
+   * Required for a `multi-container-workload` with several containers. On other services, it runs in the main container.
+   */
+  container?: string;
+}
+
 export interface SimpleServiceContainer extends ResourceAccessProps {
   /**
    * #### Configures the container image for the service.
@@ -4437,6 +4475,35 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * @default false
    */
   enableRemoteSessions?: boolean;
+  /**
+   * #### Run a command once on each deploy, in the deployed image, before any workload gets the new code.
+   *
+   * ---
+   *
+   * Use it for database migrations. Stacktape runs the command in a one-off ECS task with the same image, environment
+   * variables, secrets, IAM role and network access as this service. The deploy waits for the task, prints its logs, and
+   * stops if the command fails, so the running version keeps serving.
+   *
+   * The old code keeps running against the new schema until the rollout finishes, so migrations must stay compatible
+   * with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+   * reverses what the command changed.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * releaseCommand: npx prisma migrate deploy
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * releaseCommand: {
+   *   command: 'npx prisma migrate deploy',
+   *   runWhenChanged: ['prisma/migrations']
+   * }
+   * ```
+   */
+  releaseCommand?: string | ReleaseCommand;
   /**
    * #### Persistent EFS volumes shared across containers and restarts.
    *

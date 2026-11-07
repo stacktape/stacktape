@@ -1108,6 +1108,20 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  ecsReleaseTaskDefinition(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Release' },
+      suffix: { cloudformationResourceType: 'AWS::ECS::TaskDefinition' }
+    });
+  },
+  releaseCommandCustomResource(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'ReleaseCommand' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
   ecsDeregisterTargetsCustomResource(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

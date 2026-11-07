@@ -5,7 +5,7 @@ Resource type: `web-service`
 ## TypeScript definition
 
 ```typescript
-import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';
+import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, ReleaseCommand, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';
 
 type WebServiceProps = {
   /** Configures the container image for the service. */
@@ -54,6 +54,8 @@ See [https://docs.stacktape.com/deployment-and-lifecycle/code-swap/](https://doc
   logging?: ContainerWorkloadContainerLogging;
   /** Port your application listens on. Injected as the `PORT` env var, and traffic is routed to it. */
   port?: number;
+  /** Run a command once on each deploy, in the deployed image, before any workload gets the new code. */
+  releaseCommand?: WebServiceReleaseCommand;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
   /** Sensitive environment variables fetched by the container runtime.
@@ -107,6 +109,10 @@ type WebServiceLoadBalancing =
   | WebServiceHttpApiGatewayLoadBalancing
   | WebServiceAlbLoadBalancing
   | WebServiceNlbLoadBalancing;
+
+type WebServiceReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 
 type WebServiceTracing =
   | TracingOptions
@@ -1044,6 +1050,40 @@ export default defineConfig(() => {
 
   return { resources: { apiService } };
 });
+```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, in the deployed image, before any workload gets the new code.
+
+Use it for database migrations. Stacktape runs the command in a one-off ECS task with the same image, environment
+variables, secrets, IAM role and network access as this service. The deploy waits for the task, prints its logs, and
+stops if the command fails, so the running version keeps serving.
+
+The old code keeps running against the new schema until the rollout finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+releaseCommand: npx prisma migrate deploy
+```
+
+### Example 2 (typescript)
+
+```typescript
+releaseCommand: {
+  command: 'npx prisma migrate deploy',
+  runWhenChanged: ['prisma/migrations']
+}
 ```
 
 ## Property: `scaling`

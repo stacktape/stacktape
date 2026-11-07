@@ -24,6 +24,7 @@ import {
   hasNonHttpListener,
   invokingDependencyName,
   type EnvironmentVariableUse,
+  type ServiceFact,
   type ServiceFactInput
 } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
@@ -952,6 +953,25 @@ export const createProbeContext = (root: string, files: readonly string[]): Prob
  * dual role is deliberate: it gives the pipeline an honest floor, and it gives the eval harness a
  * baseline to measure what an agent actually adds.
  */
+/** Tools that apply only what is in one folder, so a deploy that changes nothing in it has nothing to apply. */
+const MIGRATION_FOLDERS: Readonly<Record<string, string>> = {
+  prisma: 'prisma/migrations',
+  rails: 'db/migrate',
+  ecto: 'priv/repo/migrations'
+};
+
+const findMigrationsPath = (
+  files: readonly string[],
+  migration: MigrationFact,
+  services: ReadonlyArray<Pick<ServiceFact, 'name' | 'path'>>
+): string | undefined => {
+  const folder = MIGRATION_FOLDERS[migration.tool];
+  if (folder === undefined) return undefined;
+  const owner = services.find((service) => service.name === migration.serviceName);
+  const candidate = posix.join(migration.directory ?? owner?.path ?? '.', folder);
+  return files.some((file) => file.startsWith(`${candidate}/`)) ? candidate : undefined;
+};
+
 export const assembleCandidateFacts = async ({
   root,
   probes,
@@ -1265,6 +1285,10 @@ export const assembleCandidateFacts = async ({
   }
   await markMigrationsRunElsewhere(context, migrationsByKey.values(), services);
   const migrations = [...migrationsByKey.values()];
+  for (const migration of migrations) {
+    const migrationsPath = findMigrationsPath(context.files, migration, services);
+    if (migrationsPath !== undefined) migration.migrationsPath = migrationsPath;
+  }
 
   const workspaceGlobs = [...new Set(outputs.flatMap((output) => output.workspaceGlobs ?? []))];
   const notes = outputs.flatMap((output) => output.notes ?? []).slice(0, 20);

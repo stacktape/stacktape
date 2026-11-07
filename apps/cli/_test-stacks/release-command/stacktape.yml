@@ -1,0 +1,68 @@
+# Sample app for `scripts/real-aws/release-command-canary.ts`.
+#
+# `web`'s health check passes only when the table the release command creates exists, so a first deploy works only when
+# the command runs before the service. `migrate.mjs` applies the files in `migrations/` that it has not applied yet, and
+# the canary adds files to `migrations/` and edits `server.mjs` between deploys.
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: local
+
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: canary-password-not-secret-1
+      engine:
+        type: postgres
+        properties:
+          version: '17.6'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: vpc
+
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: dockerfile
+        properties:
+          buildContextPath: .
+          dockerfilePath: Dockerfile
+      connectTo:
+        - database
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+      resources:
+        cpu: 0.25
+        memory: 512
+      internalHealthCheck:
+        healthCheckCommand:
+          - CMD-SHELL
+          - node health.mjs
+        intervalSeconds: 5
+        timeoutSeconds: 4
+        retries: 3
+        startPeriodSeconds: 5
+      releaseCommand:
+        command: node migrate.mjs
+        runWhenChanged:
+          - migrations
+
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: dockerfile
+        properties:
+          buildContextPath: .
+          dockerfilePath: Dockerfile
+          command:
+            - node
+            - worker.mjs
+      resources:
+        cpu: 0.25
+        memory: 512

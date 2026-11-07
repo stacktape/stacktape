@@ -131,6 +131,29 @@ export STP_AWS_CONTAINER_CANARY_REPORT="$(pwd)/.stacktape-container-canary-${STP
 pnpm test:aws --aws-scenario=container-fast-deploy-serving
 ```
 
+## Release command canary
+
+`test:real-aws-release-command-canary` (scenario `release-command-serving`) deploys `_test-stacks/release-command`, a
+web service whose health check needs the table its release command creates, a worker and a private Postgres database,
+and `_test-stacks/release-command-variants`, with EC2 capacity from zero, a side container and a `js-bundle` service.
+Each scenario asserts from outside what ran and which release serves: a first deploy, a skipped command, a migration on
+the fast path, failing commands on both paths, a failure after the command, `stacktape rollback`, concurrent deploys, a
+killed deploy, a timeout, adding and removing the setting, and `--skipReleaseCommand`.
+
+It uses the alias canary's guardrails and environment contract with the `STP_AWS_RELEASE_CANARY_` prefix. A full run
+takes about an hour. `STP_AWS_RELEASE_CANARY_ONLY=database|variants` runs one stack, and `STP_AWS_RELEASE_CANARY_LONG=1`
+adds a wait past the 15-minute Lambda limit, which adds about 20 minutes.
+
+```sh
+export STP_AWS_RELEASE_CANARY_DEPLOY=1
+export STP_AWS_RELEASE_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_RELEASE_CANARY_PROFILE='<profile>'
+export STP_AWS_RELEASE_CANARY_OWNER="local-rel-$(date -u +%s)"
+export STP_AWS_RELEASE_CANARY_STATE_FILE="$(pwd)/.stacktape-release-canary-${STP_AWS_RELEASE_CANARY_OWNER}.json"
+export STP_AWS_RELEASE_CANARY_REPORT="$(pwd)/.stacktape-release-canary-${STP_AWS_RELEASE_CANARY_OWNER}.report.json"
+pnpm test:aws --aws-scenario=release-command-serving
+```
+
 ## Dev-mode canary
 
 This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, local PostgreSQL and Redis containers,

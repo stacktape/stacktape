@@ -146,8 +146,12 @@ describe('the Procfile probe', () => {
         runsAt: 'ci'
       })
     ]);
-    expect(config.scripts?.migrateDatabase?.properties.executeCommand).toBe('npm run migration:run');
-    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+    expect(
+      Object.values(config.resources)
+        .map((resource) => resource.properties.releaseCommand)
+        .filter(Boolean)
+    ).toEqual(['npm run migration:run']);
+    expect(config.hooks).toBeUndefined();
     expect(JSON.stringify({ facts, config, gaps })).not.toContain("echo '' > .env");
     expect(JSON.stringify({ facts, config, gaps })).not.toContain('seed:run:relational');
   });
@@ -308,7 +312,7 @@ describe('the Procfile probe', () => {
       {
         subject: 'api.migrations',
         message:
-          'api depends on Alembic, but nothing we found runs "alembic upgrade head". Run it before the server starts (at the start of api\'s start command), or add it as a script and an afterDeploy hook.'
+          'api depends on Alembic, but nothing we found runs "alembic upgrade head". Set it as api\'s releaseCommand, or run it at the start of api\'s start command.'
       }
     ]);
   });
@@ -377,7 +381,7 @@ describe('the Procfile probe', () => {
     expect(gaps.filter((gap) => gap.subject.endsWith('.migrations'))).toEqual([]);
   });
 
-  // #368 review: deploy hooks run from the project root, where `manage.py` is not.
+  // #368 review: a command has to run where `manage.py` is.
   it("runs a service directory's release migration from that directory", async () => {
     root = await makeRepo({
       'api/requirements.txt': 'Django==5.0\ngunicorn==22.0\npsycopg2==2.9\n',
@@ -396,11 +400,9 @@ describe('the Procfile probe', () => {
         directory: 'api'
       })
     ]);
-    expect(config.scripts?.migrateDatabase).toEqual({
-      type: 'local-script',
-      properties: { executeCommand: 'python manage.py migrate', cwd: 'api' }
-    });
-    expect(config.hooks).toEqual({ afterDeploy: [{ scriptName: 'migrateDatabase' }] });
+    // The image is built from `api`, so the command already runs from that directory.
+    expect(config.resources.api?.properties.releaseCommand).toBe('python manage.py migrate');
+    expect(config.hooks).toBeUndefined();
   });
 
   it('names two service directories with the same basename apart', async () => {

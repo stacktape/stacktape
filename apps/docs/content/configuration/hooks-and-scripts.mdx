@@ -230,7 +230,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-Hooks commonly attach migration scripts to `afterDeploy` so database changes apply automatically after infrastructure updates. Use `connectTo` in the migration script to inject the database connection details — see [connecting resources](/configuration/connecting-resources) for details.
+To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. A failed `afterDeploy` hook does not fail the deploy.
 
 ### Lifecycle events
 
@@ -239,7 +239,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 | Hook | When it fires | Common use |
 |------|------|------|
 | `beforeDeploy` | Before deployment starts | Builds, linting, tests, asset preparation |
-| `afterDeploy` | After deployment completes | Migrations, seeding, cache warming, notifications |
+| `afterDeploy` | After deployment completes | Seeding, cache warming, notifications |
 | `beforeDelete` | Before stack deletion | Data exports, backups |
 | `afterDelete` | After stack deletion | External cleanup, notifications |
 | `beforeBucketSync` | Before syncing bucket contents | Pre-processing assets |
@@ -280,9 +280,9 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ## FAQ
 
-### How do I run a database migration after deploy?
+### How do I run a database migration on deploy?
 
-Define a `local-script` that runs your migration tool (Prisma, Drizzle, raw SQL) and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
+On a container service, set [`releaseCommand`](/deployment-and-lifecycle/release-commands). In a stack with only functions, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 

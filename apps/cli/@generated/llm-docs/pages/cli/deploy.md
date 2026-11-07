@@ -123,6 +123,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
 | `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
 
 
 ## Examples

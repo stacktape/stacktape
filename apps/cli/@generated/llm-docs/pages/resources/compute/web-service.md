@@ -574,6 +574,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
 | `port` | no | `number` | `3000` |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |

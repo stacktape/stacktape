@@ -37,7 +37,8 @@ import {
   getTriggerOfUnchangedDeploymentScript,
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
-  isImageOnlyTaskDefinitionChange
+  isImageOnlyTaskDefinitionChange,
+  isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 import { sharedLayerNumberOf } from '@domain-services/deployment-artifact-manager/shared-layers';
@@ -337,6 +338,8 @@ class DeployedStackOverviewManager {
           ? undefined
           : changed;
       case 'AWS::CloudFormation::CustomResource': {
+        // A fast deployment runs a due release command itself.
+        if (isOnlyReleaseCommandRunChange(change)) return undefined;
         const publishedFunction = (change.newValue?.Properties as Record<string, any> | undefined)?.publishLambdaVersion
           ?.functionName?.Ref;
         if (publishedFunction) return `${publishedFunction} is invoked through an alias`;
