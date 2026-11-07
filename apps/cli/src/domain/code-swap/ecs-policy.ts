@@ -10,17 +10,18 @@ import type { ContainerDefinition, KeyValuePair } from '@stacktape/cloudformatio
 export class NotRoutableError extends Error {}
 
 /**
- * Cloud Map reports a new task as healthy a few seconds after ECS reports it running, so a deploy right after a rollout
- * can find a healthy service that it can't see yet. Without this wait, the swap would fall back to an image deploy.
+ * For about a minute after an instance registers, a single Cloud Map read can return no healthy instances, and the next
+ * read 400 ms later returns the right answer. A swap must not fall back to an image deploy over one such read, so only a
+ * mismatch that persists counts as lost routing.
  */
-export const waitForRoutableFleet = async <T>(
-  check: () => Promise<T>,
-  { timeoutMs = 15_000, retryDelayMs = 1000 }: { timeoutMs?: number; retryDelayMs?: number } = {}
+export const retryWhileNotRoutable = async <T>(
+  read: () => Promise<T>,
+  { timeoutMs = 10_000, retryDelayMs = 500 }: { timeoutMs?: number; retryDelayMs?: number } = {}
 ): Promise<T> => {
   const deadline = Date.now() + timeoutMs;
   while (true) {
     try {
-      return await check();
+      return await read();
     } catch (error) {
       if (!(error instanceof NotRoutableError) || Date.now() >= deadline) throw error;
       await Bun.sleep(retryDelayMs);
