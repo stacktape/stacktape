@@ -874,7 +874,8 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
 
   // The deploy starts once the delete holds the lock, and whichever moment it reaches, it must not change a stack that
   // is going away or keep its bucket alive.
-  await stack.setRelease('bg/server.mjs', 'bg6-must-not-serve');
+  await stack.setRelease('bg/server.mjs', 'bg6');
+  const stackIdBeforeDelete = (await describeStack(stack.clients.cloudFormation, stack.stack.stackName))?.StackId;
   const deleting = stack.start('delete');
   let holder: Awaited<ReturnType<typeof readStackLockHolder>>;
   for (let attempt = 0; attempt < 120 && holder?.operation !== 'delete'; attempt += 1) {
@@ -885,12 +886,24 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   const racing = stack.start('deploy');
   const [deleted, raced] = await Promise.all([deleting.finished, racing.finished]);
   assert(deleted.exitCode === 0, `the delete should succeed:\n${deleted.output.slice(-2000)}`);
-  assert(raced.exitCode !== 0, 'a deploy that races a delete should fail.');
-  assert(
-    /Another operation|being deleted|DELETE_IN_PROGRESS|does not exist/.test(raced.output),
-    `the racing deploy failed for another reason:\n${raced.output.slice(-2000)}`
-  );
-  await record({ name: 'a deploy that races a stack delete fails, and the delete finishes' });
+  if (raced.exitCode === 0) {
+    // It started after CloudFormation accepted the delete, so it waited for the deletion and created a new stack.
+    const current = await describeStack(stack.clients.cloudFormation, stack.stack.stackName);
+    assert(
+      current?.StackId && current.StackId !== stackIdBeforeDelete,
+      'a deploy that races a delete must not update the stack being deleted.'
+    );
+    await stack.recordOwnedResources();
+  } else {
+    assert(
+      /Another operation|being deleted|DELETE_IN_PROGRESS|does not exist/.test(raced.output),
+      `the racing deploy failed for another reason:\n${raced.output.slice(-2000)}`
+    );
+  }
+  await record({
+    name: 'a deploy that races a stack delete is refused or creates a new stack, and the delete finishes',
+    details: { deployOutcome: raced.exitCode === 0 ? 'new stack' : 'refused' }
+  });
 };
 
 const isMissing = (error: unknown, names: string[]) =>
