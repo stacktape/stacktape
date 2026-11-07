@@ -46,6 +46,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
+import { readStackLockHolder } from '../code-swap/stack-lock-state';
 
 type Environment = Record<string, string | undefined>;
 const PREFIX = 'STP_AWS_RELEASE_CANARY_';
@@ -871,9 +872,16 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   await stack.expectRelease('blue/green deploy after a failed command', BG_URL, 'bg5');
   await record({ name: 'a blue/green service deploys again after a failed command' });
 
-  // Whichever moment the deploy reaches, it must not change a stack that is going away or keep its bucket alive.
+  // The deploy starts once the delete holds the lock, and whichever moment it reaches, it must not change a stack that
+  // is going away or keep its bucket alive.
   await stack.setRelease('bg/server.mjs', 'bg6-must-not-serve');
   const deleting = stack.start('delete');
+  let holder: Awaited<ReturnType<typeof readStackLockHolder>>;
+  for (let attempt = 0; attempt < 120 && holder?.operation !== 'delete'; attempt += 1) {
+    await sleep(1000);
+    holder = await readStackLockHolder(stack.clients.s3, stack.stack.deploymentBucket!);
+  }
+  assert(holder?.operation === 'delete', 'the delete never took the lock.');
   const racing = stack.start('deploy');
   const [deleted, raced] = await Promise.all([deleting.finished, racing.finished]);
   assert(deleted.exitCode === 0, `the delete should succeed:\n${deleted.output.slice(-2000)}`);

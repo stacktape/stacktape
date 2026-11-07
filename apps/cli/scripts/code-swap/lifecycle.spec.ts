@@ -8,7 +8,7 @@ import {
   type SwapRecord
 } from '../../src/domain/code-swap/release-record';
 import { taskTableProtection } from '../../src/domain/code-swap/permissions';
-import { resolveStatusRole } from '../../src/domain/code-swap/ecs-policy';
+import { NotRoutableError, resolveStatusRole, waitForRoutableFleet } from '../../src/domain/code-swap/ecs-policy';
 import {
   codeSwapTemplate,
   codeSwapTrackPreparation,
@@ -181,6 +181,37 @@ test('direct ECS image registration resolves RoleId rather than serializing its 
   expect(wire).toContain('"Value":"AROAOWNEDROLE"');
   expect(wire).not.toContain('Fn::GetAtt');
   expect(wire).toContain('"Value":"preserved"');
+});
+
+test('the first fleet check waits for Cloud Map to catch up, and only for that', async () => {
+  let attempts = 0;
+  const options = { timeoutMs: 1000, retryDelayMs: 1 };
+  await expect(
+    waitForRoutableFleet(async () => {
+      attempts += 1;
+      if (attempts < 3) throw new NotRoutableError('not yet');
+      return 'routable';
+    }, options)
+  ).resolves.toBe('routable');
+  expect(attempts).toBe(3);
+
+  attempts = 0;
+  await expect(
+    waitForRoutableFleet(async () => {
+      attempts += 1;
+      throw new Error('task is not healthy');
+    }, options)
+  ).rejects.toThrow('task is not healthy');
+  expect(attempts).toBe(1);
+
+  await expect(
+    waitForRoutableFleet(
+      async () => {
+        throw new NotRoutableError('still not routable');
+      },
+      { timeoutMs: 5, retryDelayMs: 1 }
+    )
+  ).rejects.toThrow('still not routable');
 });
 
 test('an operation that took the lock over keeps the repair pending until it has finished', () => {

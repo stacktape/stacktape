@@ -7,6 +7,27 @@ import { capacityWithOverrides, supervisorHealthCheck, supervisorStopBudget } fr
 import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { ContainerDefinition, KeyValuePair } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
 
+export class NotRoutableError extends Error {}
+
+/**
+ * Cloud Map reports a new task as healthy a few seconds after ECS reports it running, so a deploy right after a rollout
+ * can find a healthy service that it can't see yet. Without this wait, the swap would fall back to an image deploy.
+ */
+export const waitForRoutableFleet = async <T>(
+  check: () => Promise<T>,
+  { timeoutMs = 15_000, retryDelayMs = 1000 }: { timeoutMs?: number; retryDelayMs?: number } = {}
+): Promise<T> => {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      return await check();
+    } catch (error) {
+      if (!(error instanceof NotRoutableError) || Date.now() >= deadline) throw error;
+      await Bun.sleep(retryDelayMs);
+    }
+  }
+};
+
 export const resolveStatusRole = (
   definition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>,
   roleId: string
