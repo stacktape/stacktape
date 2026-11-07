@@ -42,6 +42,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { stringifyToYaml } from '@utils/yaml';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
+import { STACK_LOCK_S3_KEY } from '../../src/domain/stack-operation-lock/lock';
 import { startAwsFake, outputsFromTemplate, type AwsFake, type FakeStackState } from './aws-fake';
 import { startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
 
@@ -487,8 +488,9 @@ describe('delete', () => {
     const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
     expect(printable(run)).toBe('');
     expect(run.exitCode).toBe(0);
-    // Observe real S3 state before the emulator's CloudFormation provider removes the buckets.
-    expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [], customer: [] }]);
+    // Observe real S3 state before the emulator's CloudFormation provider removes the buckets. Only the stack's lock
+    // stays until CloudFormation accepts the delete, so no deploy can start in between.
+    expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [STACK_LOCK_S3_KEY], customer: [] }]);
     expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
     expect(aws.mutations[0].parameters.StackName).toBe(stackName);
     expect(aws.unexpectedRequests).toEqual([]);

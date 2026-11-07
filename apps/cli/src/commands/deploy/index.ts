@@ -10,7 +10,7 @@ import {
   runReleaseCommandsDirectly,
   startReleaseCommandLogs
 } from '@domain-services/release-command';
-import { holdStackLock } from '@domain-services/stack-operation-lock';
+import { holdStackLock, releaseHeldStackLock } from '@domain-services/stack-operation-lock';
 import { registerReleaseTaskDefinition } from '../_utils/cw-deployment';
 import {
   recordSecurityReport,
@@ -18,7 +18,7 @@ import {
 } from '@application-services/stacktape-trpc-api-manager/operation-recording';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { createHash } from 'node:crypto';
-import { CliError, type ExpectedError } from '@utils/errors';
+import { CliError, ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -123,18 +123,7 @@ export const commandDeploy = async () => {
       hints: 'Run the remote-runner deploy manually after reviewing its target and implications.'
     });
   }
-  if (runner === 'ec2') {
-    if (globalStateManager.args.recoverOperation) {
-      throw new CliError({
-        category: 'DEPLOYMENT',
-        code: 'CODE_SWAP_RECOVERY_LOCAL_RUNNER_REQUIRED',
-        message: 'Recover the code-swap operation with the local runner.',
-        hints:
-          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recover-operation.'
-      });
-    }
-    return deployWithEc2Runner();
-  }
+  if (runner === 'ec2') return deployWithEc2Runner();
   return deployLocally(initTargetExpectation);
 };
 
@@ -330,6 +319,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       // Not after Ctrl+C, which leaves the creation running, or when monitoring failed and the outcome is unknown.
       const endCreation =
         !interrupted && stack.rollsBackOnFailure && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
+      // Releasing writes to the bucket, so it has to finish before the bucket is emptied.
+      await releaseHeldStackLock();
       await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName, { endCreation });
     });
   }
@@ -469,6 +460,19 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await artifactStoreCreation;
 
   progress.setPhase('UPLOAD');
+  // Taken before the upload: a stack delete empties the bucket under this lock, and nothing may appear in it meanwhile.
+  const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
+  // A delete that finished with the lock while this deploy was building leaves a stack that is going away.
+  if (!createsStack) {
+    const currentStack = await awsSdkManager.cloudFormation.getDetails(stackContext.stackName);
+    if (!currentStack || currentStack.StackStatus?.startsWith('DELETE_')) {
+      throw new ExpectedError(
+        'STACK',
+        `Stack ${stackContext.stackName} is being deleted, so this deploy stopped without changing anything.`,
+        'Wait for the delete to finish and run the deploy again.'
+      );
+    }
+  }
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
   try {
     await deploymentArtifacts.uploadAllArtifacts({
@@ -533,7 +537,6 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
-  const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
   // Before anything changes: a failed command leaves every workload on its current code.
   if (fastDeployPlan) {
     await runReleaseCommandsDirectly({ registerTaskDefinition: registerReleaseTaskDefinition });

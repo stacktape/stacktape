@@ -45,7 +45,7 @@ export class StackLockLostError extends Error {
   }
 }
 
-const parseHolder = (body: string): StackLockHolder | undefined => {
+export const parseStackLockHolder = (body: string): StackLockHolder | undefined => {
   try {
     const parsed = JSON.parse(body) as Partial<StackLockHolder>;
     if (typeof parsed.invocationId === 'string' && typeof parsed.renewedAtMs === 'number') {
@@ -62,6 +62,8 @@ const parseHolder = (body: string): StackLockHolder | undefined => {
 };
 
 export type HeldStackLock = {
+  /** The operation that stopped without releasing the lock, when this one took it over after its lease ended. */
+  tookOverFrom?: StackLockHolder;
   /** False once another operation took the lock over, because this one could not renew it in time. */
   isHeld: () => boolean;
   /**
@@ -70,7 +72,10 @@ export type HeldStackLock = {
    */
   confirm: () => Promise<void>;
   release: () => Promise<void>;
-  /** Stops renewing without touching the lock, for an operation that is about to delete the bucket holding it. */
+  /**
+   * Stops renewing without touching the lock. An operation that stopped halfway uses it to make the next operation take
+   * the lock over after its lease, and a stack delete uses it just before it removes the lock.
+   */
   detach: () => void;
 };
 
@@ -96,38 +101,39 @@ export const acquireStackLock = async ({
   const bodyAt = (renewedAtMs: number) => JSON.stringify({ invocationId, operation, renewedAtMs });
   const unknownHolder = () => ({ invocationId: 'unknown', operation: 'unknown', renewedAtMs: now() });
 
-  const take = async (): Promise<string> => {
+  const take = async (): Promise<{ etag: string; tookOverFrom?: StackLockHolder }> => {
     const created = await store.create(bodyAt(now()));
-    if (created !== 'conflict') return created.etag;
+    if (created !== 'conflict') return created;
     const existing = await store.read();
-    // Deleted between the two calls, for example by a stack delete emptying the bucket.
+    // Deleted between the two calls, for example by a stack delete removing it.
     if (!existing) {
       const again = await store.create(bodyAt(now()));
-      if (again !== 'conflict') return again.etag;
+      if (again !== 'conflict') return again;
       throw new StackLockedError(unknownHolder(), now());
     }
-    const holder = parseHolder(existing.body);
+    const holder = parseStackLockHolder(existing.body);
     // The same invocation retrying its own step already holds the lock.
     if (holder && holder.invocationId !== invocationId && now() - holder.renewedAtMs < STACK_LOCK_LEASE_MS) {
       throw new StackLockedError(holder, now());
     }
     const replaced = await store.replace(bodyAt(now()), existing.etag);
     if (replaced === 'conflict') throw new StackLockedError(holder ?? unknownHolder(), now());
-    return replaced.etag;
+    return { ...replaced, ...(holder && holder.invocationId !== invocationId ? { tookOverFrom: holder } : {}) };
   };
 
-  let etag = await take();
+  const taken = await take();
+  let { etag } = taken;
   let held = true;
   let renewal: Promise<unknown> = Promise.resolve();
-  const lose = () => {
-    held = false;
-    onLost();
-  };
   const renewNow = async () => {
     if (!held) return;
     const result = await store.replace(bodyAt(now()), etag);
-    if (result === 'conflict') lose();
-    else etag = result.etag;
+    // Not held anymore means that this operation stopped using the lock while the renewal ran.
+    if (result !== 'conflict') etag = result.etag;
+    else if (held) {
+      held = false;
+      onLost();
+    }
   };
   const stopRenewing = setRenewTimer(() => {
     // A network blip: the next renewal tries again, and the lease covers several attempts.
@@ -135,6 +141,7 @@ export const acquireStackLock = async ({
   });
 
   return {
+    ...(taken.tookOverFrom ? { tookOverFrom: taken.tookOverFrom } : {}),
     isHeld: () => held,
     confirm: async () => {
       await renewal;

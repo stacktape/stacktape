@@ -152,6 +152,7 @@ type DeleteExecutionOperation = {
   deploymentArtifacts: {
     artifactStoreIsStackResource: boolean;
     deleteAllArtifacts: () => Promise<unknown>;
+    deleteAllObjects: () => Promise<unknown>;
     deleteArtifactStore: () => Promise<unknown>;
   };
   /** The template CloudFormation would delete. */
@@ -162,6 +163,8 @@ type DeleteExecutionOperation = {
   stack: {
     deleteStack: (options: {
       beforeDelete: () => Promise<unknown>;
+      beforeDeleteRequest: () => Promise<unknown>;
+      onDeleteRequested: () => Promise<unknown>;
       finishInBackground: boolean;
     }) => Promise<{ deletionContinuesInBackground?: PendingDelete[] } | undefined>;
     existingStackDetails: { EnableTerminationProtection?: boolean; StackStatus?: string };
@@ -176,7 +179,7 @@ type DeleteExecutionOperation = {
   /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
   finishInBackground: boolean;
   /** Takes the stack's lock, so that the delete cannot overlap a deploy or a rollback. */
-  holdLock?: () => Promise<{ detach: () => void } | undefined>;
+  holdLock?: () => Promise<{ confirm: () => Promise<void>; detach: () => void } | undefined>;
 };
 
 export const commandDelete = async () => {
@@ -350,10 +353,19 @@ export const executeDeleteOperation = async ({
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
   const deleteResult = await stack.deleteStack({
-    // The lock stays until emptying the bucket removes it, and from then on a deploy finds nothing it could reuse.
+    // Emptying the bucket keeps the lock, so a deploy cannot start until CloudFormation has accepted the delete. From
+    // then on a deploy sees the stack being deleted.
     beforeDelete: async () => {
-      lock?.detach();
+      await lock?.confirm();
       await deploymentArtifacts.deleteAllArtifacts();
+    },
+    // Emptying can take long, and a paused machine could have lost the lock to an operation that now uses the stack.
+    beforeDeleteRequest: async () => {
+      await lock?.confirm();
+    },
+    onDeleteRequested: async () => {
+      lock?.detach();
+      await deploymentArtifacts.deleteAllObjects();
     },
     finishInBackground
   });

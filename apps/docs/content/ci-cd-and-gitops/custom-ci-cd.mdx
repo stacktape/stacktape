@@ -391,4 +391,4 @@ Run the deploy command once per region with the same stage name but different `-
 
 ### Why does one of two concurrent deploys to the same stage fail?
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage at once, one fails because the stack is already in an `UPDATE_IN_PROGRESS` state. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.

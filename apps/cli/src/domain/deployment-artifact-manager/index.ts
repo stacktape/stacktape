@@ -1,4 +1,5 @@
 import { codeSwapIntegration } from '@domain-services/code-swap/integration';
+import { STACK_LOCK_S3_KEY } from '@domain-services/stack-operation-lock/lock';
 import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
 import { needsCloudMapDrain } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -1036,7 +1037,7 @@ class DeploymentArtifactManager {
 
     const [deletedImages, deletedObjects] = await Promise.all([
       this.deleteAllImages(),
-      this.deleteAllObjects(),
+      this.deleteAllObjects({ keepStackLock: true }),
       ...emptyBucketsPromises
       // this.emptyAllAutoSyncedUserBuckets()
     ]);
@@ -1050,11 +1051,15 @@ class DeploymentArtifactManager {
    * Empties the whole deployment bucket. CloudFormation cannot delete a bucket that still holds anything, and not
    * everything stored there is an artifact (bucket-sync manifests, the cleanup-failure record), so no key is kept.
    * Listing versions also covers an unversioned bucket, whose objects list with the version "null".
+   *
+   * `keepStackLock` is for a stack delete, which removes the lock with a second call once CloudFormation accepted it.
    */
-  deleteAllObjects = async () => {
+  deleteAllObjects = async ({ keepStackLock = false }: { keepStackLock?: boolean } = {}) => {
     let versions: ObjectIdentifier[];
     try {
-      versions = (await awsSdkManager.s3.listObjectVersions(this.deploymentBucketName)) as ObjectIdentifier[];
+      versions = ((await awsSdkManager.s3.listObjectVersions(this.deploymentBucketName)) as ObjectIdentifier[]).filter(
+        ({ Key }) => !keepStackLock || Key !== STACK_LOCK_S3_KEY
+      );
     } catch (err) {
       if (`${err}`.includes('NoSuchBucket')) return this.previousObjects;
       throw err;

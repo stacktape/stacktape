@@ -7,6 +7,28 @@ import { capacityWithOverrides, supervisorHealthCheck, supervisorStopBudget } fr
 import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { ContainerDefinition, KeyValuePair } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
 
+export class NotRoutableError extends Error {}
+
+/**
+ * For about a minute after an instance registers, a single Cloud Map read can return no healthy instances, and the next
+ * read 400 ms later returns the right answer. A swap must not fall back to an image deploy over one such read, so only a
+ * mismatch that persists counts as lost routing.
+ */
+export const retryWhileNotRoutable = async <T>(
+  read: () => Promise<T>,
+  { timeoutMs = 10_000, retryDelayMs = 500 }: { timeoutMs?: number; retryDelayMs?: number } = {}
+): Promise<T> => {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      return await read();
+    } catch (error) {
+      if (!(error instanceof NotRoutableError) || Date.now() >= deadline) throw error;
+      await Bun.sleep(retryDelayMs);
+    }
+  }
+};
+
 export const resolveStatusRole = (
   definition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>,
   roleId: string

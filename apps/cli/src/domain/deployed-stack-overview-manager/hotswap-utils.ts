@@ -84,6 +84,24 @@ export const getTriggerOfUnchangedDeploymentScript = (change: ResourceDifference
   return after.scriptFunction.triggerType;
 };
 
+const BLUE_GREEN_ORDERED_RESOURCE_TYPES = new Set<string>([
+  'Stacktape::ECSBlueGreenV1::Service',
+  'AWS::CodeDeploy::DeploymentGroup'
+]);
+
+/**
+ * A blue/green service and its deployment group swap their `DependsOn` after the stack's first deploy, because the group
+ * needs the service to exist first and later updates run the other way. This changes neither resource.
+ */
+export const isOnlyBlueGreenOrderChange = (change: ResourceDifference) => {
+  if (!BLUE_GREEN_ORDERED_RESOURCE_TYPES.has((change.newValue as Resource | undefined)?.Type as string)) return false;
+  const withoutOrder = (resource: unknown) => {
+    const { DependsOn: _dependsOn, ...rest } = (resource ?? {}) as Resource;
+    return rest;
+  };
+  return isEqual(withoutOrder(change.oldValue), withoutOrder(change.newValue));
+};
+
 /** A release command's custom resource says in `run` what one operation does with it. Nothing else about it changed. */
 export const isOnlyReleaseCommandRunChange = (change: ResourceDifference) =>
   !!propertiesOf(change).after.releaseCommand &&

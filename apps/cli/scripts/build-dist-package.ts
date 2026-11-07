@@ -8,7 +8,7 @@ import { archiveItem } from '@utils/zip';
 import { readdir, remove, stat } from 'fs-extra';
 import yargsParser from 'yargs-parser';
 import { generateStarterProjectsMetadata } from './generate-starter-projects-metadata';
-import { packageHelperLambdas } from './package-helper-lambdas';
+import { packageHelperLambdas, RELEASE_HELPER_LAMBDAS_BUILD_FOLDER_PATH } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
@@ -82,7 +82,10 @@ export const buildDistFolder = async ({
     copyInitWizardBundle({ distFolderPath: platformDistFolderPath }),
     copyMcpDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
-    packageHelperLambdas({ distFolderPath: platformDistFolderPath }),
+    packageHelperLambdas({
+      distFolderPath: platformDistFolderPath,
+      buildFolderPath: RELEASE_HELPER_LAMBDAS_BUILD_FOLDER_PATH
+    }),
     createReleaseDataFile({ distFolderPath: platformDistFolderPath, version }),
     generateSourceMapInstall({ distFolderPath: platformDistFolderPath }),
     generateLambdaTracingRuntime({ distFolderPath: platformDistFolderPath })

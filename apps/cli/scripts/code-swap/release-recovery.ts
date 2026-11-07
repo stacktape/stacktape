@@ -7,7 +7,7 @@ import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { ECSClient, DescribeTaskDefinitionCommand } from '@aws-sdk/client-ecs';
 import type { CodeSwapRun } from '../../src/domain/code-swap/code-swap-run';
-import { acquireLock, removeLock, readLock } from '../../src/domain/code-swap/operation-lock';
+import { readStackLockHolder, waitForStackLockLease } from './stack-lock-state';
 import { readReleaseRecord } from '../../src/domain/code-swap/release-record';
 import type { State, Owned } from './run';
 
@@ -125,7 +125,7 @@ export const qualifyReleaseRecovery = async (
     if (!rollbackOnly) {
       await writeFile(join(owned.directory, 'revision.mjs'), `export const revision = "race-${state.owner}";\n`);
       const race = await startFault('before-proposal', 'concurrent-swap');
-      const raceLock = await readLock(ddb, owned.table);
+      const raceLock = await readStackLockHolder(s3, owned.bucket);
       assert.equal(raceLock?.invocationId, race.checkpoint.invocationId);
       let rejected = false;
       try {
@@ -140,8 +140,7 @@ export const qualifyReleaseRecovery = async (
         rejected = true;
       }
       assert(
-        rejected &&
-          (await readFile(join(owned.directory, 'concurrent-full.log'), 'utf8')).includes('holds the code-swap lock')
+        rejected && (await readFile(join(owned.directory, 'concurrent-full.log'), 'utf8')).includes('Another operation')
       );
       await writeFile(`${race.run.result}.continue`, 'continue');
       assert.equal(await race.exited, 0);
@@ -157,17 +156,16 @@ export const qualifyReleaseRecovery = async (
       assert(committed.Committed && committed.HistoryVersion !== committed.Committed.Revision);
       killed.child.kill('SIGKILL');
       await killed.exited;
-      assert.equal((await readLock(ddb, owned.table))?.invocationId, killed.checkpoint.invocationId);
+      assert.equal((await readStackLockHolder(s3, owned.bucket))?.invocationId, killed.checkpoint.invocationId);
       const interruptedMarker = `fast-release/${committed.Committed.Revision}.json`;
       assert(await absent(() => s3.send(new GetObjectCommand({ Bucket: owned.bucket, Key: interruptedMarker }))));
       run.mode = 'swap';
       run.result = join(owned.directory, 'recovery-result.json');
       await save(runFile, run);
-      await invoke(
-        [...cliArgs(state, owned, 'deploy'), '--recoverOperation', killed.checkpoint.invocationId],
-        join(owned.directory, 'recovery.log'),
-        { STP_CODE_SWAP_BENCH_RUN: runFile }
-      );
+      await waitForStackLockLease();
+      await invoke(cliArgs(state, owned, 'deploy'), join(owned.directory, 'recovery.log'), {
+        STP_CODE_SWAP_BENCH_RUN: runFile
+      });
       await waitForFleet(owned, 1);
       const repair = JSON.parse(await readFile(run.result, 'utf8'));
       assert.equal(repair.mode, 'image');
@@ -193,24 +191,12 @@ export const qualifyReleaseRecovery = async (
       await deployImage(`permissions-${state.owner}`, 2);
       const tasks = await primaryTasks(owned);
       const before = await readReleaseRecord(ddb, owned.table);
-      const probeHolder = {
-        invocationId: `permission-probe-${state.owner}`,
-        operation: 'deploy' as const,
-        startedAt: new Date().toISOString()
-      };
-      await acquireLock(ddb, owned.table, probeHolder);
-      let probe: unknown;
-      try {
-        const response = await fetch(`${url}/_security?tasks=${tasks.ids.join(',')}`, {
-          signal: AbortSignal.timeout(120000)
-        });
-        probe = await response.json();
-        await save(join(owned.directory, 'permissions.json'), probe);
-        assert(response.ok, JSON.stringify(probe));
-        assert.deepEqual(await readLock(ddb, owned.table), probeHolder);
-      } finally {
-        await removeLock(ddb, owned.table, probeHolder.invocationId);
-      }
+      const response = await fetch(`${url}/_security?tasks=${tasks.ids.join(',')}`, {
+        signal: AbortSignal.timeout(120000)
+      });
+      const probe: unknown = await response.json();
+      await save(join(owned.directory, 'permissions.json'), probe);
+      assert(response.ok, JSON.stringify(probe));
       assert.deepEqual(await readReleaseRecord(ddb, owned.table), before);
       evidence.c = probe;
     }

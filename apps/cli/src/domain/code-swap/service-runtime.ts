@@ -41,7 +41,7 @@ import { awsClientConfig, createAwsClientContext } from '../../aws/context';
 import { z } from 'zod';
 import { codeSwapRouting, unsupportedReason } from './eligibility';
 import { codeSwapDockerfile } from './image';
-import { resolveStatusRole } from './ecs-policy';
+import { NotRoutableError, resolveStatusRole, retryWhileNotRoutable } from './ecs-policy';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 import { codeSwapBaseInputs } from './base-inputs';
 import { trace, traceAsync } from './trace';
@@ -315,14 +315,19 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
           };
           discoveryNames.set(serviceId, names);
         }
-        const { Instances = [] } = await discovery.send(
-          new DiscoverInstancesCommand({ ...names, HealthStatus: 'HEALTHY', MaxResults: 100 })
-        );
-        if (
-          Instances.length !== ids.length ||
-          !ids.every((id) => Instances.some((instance) => instance.InstanceId === id))
-        )
-          throw new Error('PRIMARY tasks lost HTTP API routability.');
+        const discoveryNamesOfService = names;
+        await retryWhileNotRoutable(async () => {
+          const { Instances = [] } = await discovery.send(
+            new DiscoverInstancesCommand({ ...discoveryNamesOfService, HealthStatus: 'HEALTHY', MaxResults: 100 })
+          );
+          if (
+            Instances.length !== ids.length ||
+            !ids.every((id) => Instances.some((instance) => instance.InstanceId === id))
+          )
+            throw new NotRoutableError(
+              `PRIMARY tasks lost HTTP API routability: ${ids.length} running, ${Instances.length} healthy in Cloud Map.`
+            );
+        });
       }
     }
     return { ids, primary: primary.id };

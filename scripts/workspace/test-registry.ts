@@ -4332,7 +4332,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command.ts',
       'apps/cli/scripts/real-aws/release-command-canary.ts',
       'apps/cli/_test-stacks/release-command/**',
-      'apps/cli/_test-stacks/release-command-variants/**'
+      'apps/cli/_test-stacks/release-command-variants/**',
+      'apps/cli/_test-stacks/release-command-extras/**'
     ],
     tests: [
       'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',

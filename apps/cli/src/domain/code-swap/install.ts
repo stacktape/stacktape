@@ -7,12 +7,7 @@ import {
   codeSwapReleaseIdentity,
   abortCodeSwapPreparation
 } from './runtime';
-import {
-  codeSwapNextVersion,
-  codeSwapTemplate,
-  codeSwapRollbackTemplate,
-  codeSwapTeardownAccepted
-} from './lifecycle-hooks';
+import { codeSwapNextVersion, codeSwapTemplate, codeSwapRollbackTemplate } from './lifecycle-hooks';
 
 export const installCodeSwap = () => {
   codeSwapIntegration.imageMatchesRunningCode = codeSwapImageMatchesRunningCode;
@@ -24,7 +19,4 @@ export const installCodeSwap = () => {
   codeSwapIntegration.nextVersion = codeSwapNextVersion;
   codeSwapIntegration.template = codeSwapTemplate;
   codeSwapIntegration.rollbackTemplate = codeSwapRollbackTemplate;
-  codeSwapIntegration.teardownAccepted = (stackName) => {
-    codeSwapTeardownAccepted(undefined, stackName);
-  };
 };
