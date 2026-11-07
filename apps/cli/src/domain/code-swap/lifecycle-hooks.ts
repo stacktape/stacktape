@@ -3,9 +3,9 @@ import { capacityWithOverrides } from './ecs-budget';
 import { codeSwapIntegration } from './integration';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { HeldStackLock } from '../stack-operation-lock/lock';
 import { z } from 'zod';
 import { awsClientConfig, createAwsClientContext } from '../../aws/context';
-import { acquireLock, recoverLock, removeLock, tableGoneDuringDelete } from './operation-lock';
 import { taskTableProtection } from './permissions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCodeSwapRuns } from './configuration';
@@ -16,17 +16,11 @@ import { getCfTemplateS3Key, getStpTemplateS3Key } from '../deployment-artifact-
 export const TABLE_LOGICAL_ID = 'StacktapeCodeSwapTable';
 let held:
   | {
-      ddb: DynamoDBClient;
-      table: string;
-      invocationId: string;
-      stackName: string;
-      stackId: string;
+      lock: HeldStackLock;
       services: { service: string; recordService: string }[];
       arn: string;
     }
   | undefined;
-let teardownRequested = false;
-let teardownAccepted = false;
 let interrupted = false;
 let retainLock = false;
 let mutationStarted = false;
@@ -72,51 +66,39 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
     )
   );
   const { stackManager: stack } = await import('../cloudformation-stack-manager');
-  const recovery = global.args.recoverOperation ?? process.env.STP_CODE_SWAP_BENCH_RECOVER;
-  try {
-    if (recovery) {
-      const { tuiManager } = await import('../../app/tui-manager');
-      tuiManager.warn(
-        `Recovering ${recovery}. Make sure that invocation no longer runs and every AWS change it started has finished. An interrupted swap will be repaired with an image deploy.`
-      );
-      if (
-        !global.args.autoConfirmOperation &&
-        !(await tuiManager.promptConfirm({
-          message: 'Has that invocation stopped and have its AWS changes finished?',
-          defaultValue: false
-        }))
-      )
-        throw new Error('Recovery was not confirmed.');
-      await recoverLock(ddb, tableName, recovery);
-      recoveredOperation = true;
-    }
-    await acquireLock(ddb, tableName, {
-      invocationId: global.invocationId,
-      operation,
-      startedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    if (tableGoneDuringDelete(error, operation, stack.existingStackDetails.StackStatus)) return;
-    throw error;
-  }
+  const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
+  const bucketName = artifacts.deploymentBucketName;
+  // Retrying a delete: the stack is going away and may have lost its bucket and table already.
+  const deleteIsRunning =
+    operation === 'delete' && ['DELETE_IN_PROGRESS', 'DELETE_FAILED'].includes(stack.existingStackDetails.StackStatus);
+  if (deleteIsRunning && !(await aws.s3.bucketExists({ bucketName }))) return;
+  const { holdStackLock } = await import('../stack-operation-lock');
+  const lock = await holdStackLock({ bucketName, operation, releaseOnExit: false });
   applicationManager.finalCleanUpHooks.push(codeSwapFinish);
   held = {
-    ddb,
-    table: tableName,
-    invocationId: global.invocationId,
-    stackName: global.targetStack.stackName,
+    lock,
     services: (await getCodeSwapRuns()).map(({ service, recordService }) => ({ service, recordService })),
-    arn: `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${tableName}`,
-    stackId: stack.existingStackDetails.StackId
+    arn: `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${tableName}`
   };
-  teardownRequested = operation === 'delete';
-  teardownAccepted =
-    operation === 'delete' && ['DELETE_IN_PROGRESS', 'DELETE_FAILED'].includes(stack.existingStackDetails.StackStatus);
+  if (lock.tookOverFrom) {
+    // Its swap may be half done, and only an image deploy puts every task on known code.
+    recoveredOperation = true;
+    const { tuiManager } = await import('../../app/tui-manager');
+    tuiManager.warn(
+      `The previous ${lock.tookOverFrom.operation} (${lock.tookOverFrom.invocationId}) stopped before it finished. An interrupted swap will be repaired with an image deploy.`
+    );
+  }
   applicationManager.registerCleanUpHook(async (outcome) => {
     interrupted ||= Boolean(outcome?.interrupted);
   });
   for (const run of await getCodeSwapRuns()) {
-    const record = await readReleaseRecord(ddb, tableName, run.recordService);
+    let record: SwapRecord | undefined;
+    try {
+      record = await readReleaseRecord(ddb, tableName, run.recordService);
+    } catch (error) {
+      if (deleteIsRunning && error instanceof Error && error.name === 'ResourceNotFoundException') return;
+      throw error;
+    }
     if (record?.HistoryVersion && stack.lastVersion && record.HistoryVersion > stack.lastVersion)
       throw new Error(
         'Another release finished while this operation initialized. Run the command again with fresh stack state.'
@@ -132,7 +114,6 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
     // SIGKILL can land between the ordinary history uploads and our final record write. Such an attempt is not a release.
     const incomplete = incompleteHistoryVersions(record);
     if (incomplete.length) {
-      const { deploymentArtifactManager: artifacts } = await import('../deployment-artifact-manager');
       const keys = incomplete.flatMap((version) => [
         getCfTemplateS3Key(version),
         getStpTemplateS3Key(version),
@@ -147,7 +128,8 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
 export const codeSwapInterrupted = () => interrupted;
 
 // Commands call this right before they change CloudFormation stacks or running services. An interruption before
-// that point aborts any prepared swap and releases the lock; after it, recovery must confirm the AWS changes finished.
+// that point aborts any prepared swap and releases the lock; after it, the lock stays until its lease ends, and the next
+// operation repairs the service.
 export const codeSwapBeginMutation = () => {
   if (interrupted) throw new Error('The operation was interrupted before it changed the stack.');
   mutationStarted = true;
@@ -159,22 +141,15 @@ export const codeSwapTrackPreparation = (work: Promise<unknown>) => {
 
 // The entrypoint calls this after the ordinary cleanup hooks (which run concurrently) have all finished.
 export const codeSwapFinish = async () => {
-  if (retainLock || (interrupted && mutationStarted)) return;
+  if (retainLock || (interrupted && mutationStarted)) {
+    held?.lock.detach();
+    return;
+  }
   await Promise.allSettled(pendingPreparations);
   pendingPreparations.length = 0;
   await codeSwapIntegration.abortPreparation();
-  if (!held) return;
-  const lock = held;
-  await removeLock(lock.ddb, lock.table, lock.invocationId).catch((error: unknown) => {
-    if (!(teardownAccepted && error instanceof Error && error.name === 'ResourceNotFoundException')) throw error;
-  });
+  await held?.lock.release();
   held = undefined;
-};
-
-export const codeSwapTeardownAccepted = <T>(result: T, stackName?: string): T => {
-  if (teardownRequested && held && (stackName === held.stackName || stackName === held.stackId))
-    teardownAccepted = true;
-  return result;
 };
 
 export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
@@ -190,7 +165,6 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
         !template.Resources[TABLE_LOGICAL_ID]
       )
         return;
-      teardownRequested = true;
     }
     const { globalStateManager: global } = await import('../../app/global-state-manager');
     const arn = `arn:aws:dynamodb:${global.region}:${global.targetAwsAccount.awsAccountId}:table/${run.table}`;
@@ -333,16 +307,28 @@ export const codeSwapTemplate = async (template: CloudFormationTemplate) => {
 };
 
 // Keep the Deny on the retained role through opt-out. Removing it early would expose a still-running app's table.
-const protectTaskRole = (template: CloudFormationTemplate, arn: string, service: string, recordService = 'node') => {
+export const protectTaskRole = (
+  template: CloudFormationTemplate,
+  arn: string,
+  service: string,
+  recordService = 'node'
+) => {
   const roleName = cfLogicalNames.ecsTaskRole(service);
   const definitionName = cfLogicalNames.ecsTaskDefinition(service);
-  const serviceName = cfLogicalNames.ecsService(service, false);
   const definition = template.Resources[definitionName];
-  const serviceResource = template.Resources[serviceName];
+  // A sibling service in the stack can be blue/green, whose custom resource nests the service's properties.
+  const serviceResource =
+    template.Resources[cfLogicalNames.ecsService(service, false)] ??
+    template.Resources[cfLogicalNames.ecsService(service, true)];
   const taskRole = z.object({ TaskRoleArn: z.unknown().optional() }).parse(definition?.Properties ?? {}).TaskRoleArn;
-  const taskDefinition = z
-    .object({ TaskDefinition: z.unknown().optional() })
-    .parse(serviceResource?.Properties ?? {}).TaskDefinition;
+  const { TaskDefinition: directTaskDefinition, ECSService: nestedService } = z
+    .object({
+      TaskDefinition: z.unknown().optional(),
+      ECSService: z.object({ TaskDefinition: z.unknown().optional() }).loose().optional()
+    })
+    .loose()
+    .parse(serviceResource?.Properties ?? {});
+  const taskDefinition = directTaskDefinition ?? nestedService?.TaskDefinition;
   if (
     JSON.stringify(taskRole) !== JSON.stringify({ 'Fn::GetAtt': [roleName, 'Arn'] }) ||
     JSON.stringify(taskDefinition) !== JSON.stringify({ Ref: definitionName })
@@ -373,7 +359,6 @@ const protectTaskRole = (template: CloudFormationTemplate, arn: string, service:
 
 export const codeSwapRollbackTemplate = (template: CloudFormationTemplate) => {
   if (held && !template.Resources[TABLE_LOGICAL_ID]) {
-    teardownRequested = true;
     for (const { service, recordService } of held.services) {
       if (template.Resources[cfLogicalNames.ecsTaskDefinition(service)])
         protectTaskRole(template, held.arn, service, recordService);
@@ -381,7 +366,7 @@ export const codeSwapRollbackTemplate = (template: CloudFormationTemplate) => {
   }
 };
 
-// A failed final reconciliation must remain recoverable even if another service finalized its row.
+// A failed final reconciliation leaves the lock to expire, so the next operation repairs the service.
 export const retainCodeSwapLock = () => {
   retainLock = true;
 };

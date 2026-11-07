@@ -315,6 +315,20 @@ describe('stack delete', () => {
     });
   });
 
+  test('runs the step after the delete request once CloudFormation accepted it, and survives its failure', async () => {
+    await withDeleteFixture([resource('AWS::S3::Bucket', 'delete-test-bucket')], async ({ calls }) => {
+      let callsAtTheStep: string[] = [];
+      await stackManager.deleteStack({
+        onDeleteRequested: async () => {
+          callsAtTheStep = [...calls];
+          throw new Error('removing the lock failed');
+        }
+      });
+      expect(callsAtTheStep).toEqual([expect.stringMatching(/^cloudformation:delete /)]);
+      expect(calls.at(-1)).toBe('cloudformation:monitor');
+    });
+  });
+
   test('a stack with an ElastiCache user group uses the standard delete', async () => {
     await withDeleteFixture(
       [resource('AWS::ElastiCache::UserGroup', 'cache-users'), resource('AWS::ElastiCache::User', 'cache-default')],
@@ -1388,15 +1402,18 @@ describe('deletion protection', () => {
       functionExists: async () => {
         throw new Error('No edge function was expected');
       }
-    }
+    },
+    holdLock,
+    calls = []
   }: {
     resources: EnrichedStackResourceInfo[];
     stackStatus?: string;
     deleteResult?: Awaited<ReturnType<Parameters<typeof executeDeleteOperation>[0]['stack']['deleteStack']>>;
     deployedTemplate?: Record<string, unknown>;
     edgeFunctions?: Parameters<typeof executeDeleteOperation>[0]['edgeFunctions'];
+    holdLock?: Parameters<typeof executeDeleteOperation>[0]['holdLock'];
+    calls?: string[];
   }) => {
-    const calls: string[] = [];
     const infos: string[] = [];
     const warnings: string[] = [];
     let result: unknown;
@@ -1407,8 +1424,10 @@ describe('deletion protection', () => {
       deploymentArtifacts: {
         artifactStoreIsStackResource: true,
         deleteAllArtifacts: async () => calls.push('artifacts:delete'),
+        deleteAllObjects: async () => calls.push('objects:delete'),
         deleteArtifactStore: async () => calls.push('artifact-store:delete')
       },
+      ...(holdLock ? { holdLock } : {}),
       deployedTemplate: deployedTemplate as never,
       lifecycle: {
         registerHooks: async () => {
@@ -1421,8 +1440,10 @@ describe('deletion protection', () => {
       notification: { sendDeploymentNotification: async () => calls.push('notify') } as never,
       progress: { setPhase: () => {} } as never,
       stack: {
-        deleteStack: async ({ finishInBackground }) => {
+        deleteStack: async ({ beforeDelete, onDeleteRequested, finishInBackground }) => {
+          await beforeDelete();
           calls.push(`stack:delete${finishInBackground ? ' (may finish in background)' : ''}`);
+          await onDeleteRequested();
           return deleteResult;
         },
         existingStackDetails: { StackStatus: stackStatus },
@@ -1466,6 +1487,47 @@ describe('deletion protection', () => {
     const { calls, error } = await runDelete({ resources: [db({ rdsInstanceDetail: { DeletionProtection: false } })] });
     expect(error).toBeUndefined();
     expect(calls).toContain('stack:delete (may finish in background)');
+  });
+
+  test('keeps the stack lock until CloudFormation has accepted the delete, then removes it', async () => {
+    const calls: string[] = [];
+    await runDelete({
+      resources: [],
+      calls,
+      holdLock: async () => ({
+        confirm: async () => {
+          calls.push('lock:confirm');
+        },
+        detach: () => {
+          calls.push('lock:detach');
+        }
+      })
+    });
+    const order = [
+      'lock:confirm',
+      'artifacts:delete',
+      'stack:delete (may finish in background)',
+      'lock:detach',
+      'objects:delete'
+    ];
+    expect(calls.filter((call) => order.includes(call))).toEqual(order);
+  });
+
+  test('a delete that lost the stack lock empties nothing', async () => {
+    const calls: string[] = [];
+    const { error } = await runDelete({
+      resources: [],
+      calls,
+      holdLock: async () => ({
+        confirm: async () => {
+          throw new Error('another operation took over');
+        },
+        detach: () => {}
+      })
+    });
+    expect(error?.message).toContain('another operation took over');
+    expect(calls).not.toContain('artifacts:delete');
+    expect(calls.some((call) => call.startsWith('stack:delete'))).toBe(false);
   });
 
   test('says what AWS still removes in the background and what a later deploy or delete does about it', async () => {

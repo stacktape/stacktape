@@ -38,6 +38,7 @@ import {
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
   isImageOnlyTaskDefinitionChange,
+  isOnlyBlueGreenOrderChange,
   isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
@@ -322,6 +323,7 @@ class DeployedStackOverviewManager {
     if (change.isRemoval) return `${cfLogicalName} is removed`;
     const changed = `${cfLogicalName} changed`;
     if (change.resourceTypeChanged) return changed;
+    if (isOnlyBlueGreenOrderChange(change)) return undefined;
     const isPartOf = (workloads: { resource: StackInfoMapResource }[]) =>
       workloads.some(({ resource }) => cfLogicalName in resource.cloudformationChildResources);
     switch (change.resourceType as KnownCloudFormationResourceType) {

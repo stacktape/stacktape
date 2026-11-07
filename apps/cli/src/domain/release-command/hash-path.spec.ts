@@ -24,6 +24,27 @@ describe('hashReleasePath', () => {
     return hash.digest('hex');
   };
 
+  test('is the same on every platform: files in the order of their names with forward slashes', async () => {
+    await mkdir(join(root, 'mixed', 'a'), { recursive: true });
+    await writeFile(join(root, 'mixed', 'a', 'x.sql'), 'inside');
+    await writeFile(join(root, 'mixed', 'a1.sql'), 'beside');
+    // `/` sorts before `1`, and `\` sorts after it, so sorting the platform's paths would differ on Windows.
+    const expected = createHash('sha256')
+      .update('mixed/a/x.sql\0inside\0')
+      .update('mixed/a1.sql\0beside\0')
+      .digest('hex');
+    expect(await hashOf('mixed')).toBe(expected);
+  });
+
+  test('treats CRLF and LF checkouts of a file as the same content, and keeps a lone CR', async () => {
+    await writeFile(join(root, 'migrations', '001.sql'), 'one\ntwo\n');
+    const unix = await hashOf();
+    await writeFile(join(root, 'migrations', '001.sql'), 'one\r\ntwo\r\n');
+    expect(await hashOf()).toBe(unix);
+    await writeFile(join(root, 'migrations', '001.sql'), 'one\rtwo\n');
+    expect(await hashOf()).not.toBe(unix);
+  });
+
   test('stays the same when nothing in the path changed', async () => {
     const before = await hashOf();
     await writeFile(join(root, 'other.txt'), 'changed');

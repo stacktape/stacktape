@@ -2,16 +2,18 @@
  * Real-AWS proof of release commands: the command runs once, in the deployed image, inside the VPC, before any workload
  * gets the new code, and a failure stops the deploy with the old code still serving.
  *
- * Two stacks, each deployed through the source-built CLI:
+ * Three stacks, deployed in parallel through the source-built CLI:
  *
  * - `database` (`_test-stacks/release-command`): a web service whose health check needs the table the command creates,
  *   a worker, and a private Postgres database. The app reports how often the command ran and which release serves, so
  *   every scenario asserts both from the outside.
  * - `variants` (`_test-stacks/release-command-variants`): EC2 capacity from zero, a multi-container workload with a side
  *   container, a `js-bundle` service whose command needs a tool from `devDependencies`, and the order of several commands.
+ * - `extras` (`_test-stacks/release-command-extras`): a Python service with code swap, including recovery from a killed
+ *   deploy, a blue/green service, and a deploy that races a stack delete.
  *
- * `STP_AWS_RELEASE_CANARY_ONLY=database|variants` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait past the
- * 15-minute Lambda limit.
+ * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
+ * past the 15-minute Lambda limit to the `variants` stack, which ends well before the `database` stack without it.
  *
  * Guardrails (docs/testing/live-aws.md): an explicit opt-in; STS must resolve the profile to the expected account, and
  * the CLI deploys through the single active Stacktape connection to that same account; new `v4rlscanary-` projects
@@ -32,6 +34,7 @@ import {
   type Stack
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { CodeDeployClient, ListDeploymentsCommand } from '@aws-sdk/client-codedeploy';
 import { DescribeRepositoriesCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { DescribeTasksCommand, ECSClient, ListTasksCommand, type Task } from '@aws-sdk/client-ecs';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
@@ -41,6 +44,8 @@ import { randomBytes } from 'node:crypto';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 
 type Environment = Record<string, string | undefined>;
 const PREFIX = 'STP_AWS_RELEASE_CANARY_';
@@ -55,6 +60,9 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 };
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const STACK_KINDS = ['database', 'variants', 'extras'] as const;
+type StackKind = (typeof STACK_KINDS)[number];
+
 type Options = {
   expectedAccountId: string;
   profile: string;
@@ -63,7 +71,7 @@ type Options = {
   owner: string;
   stateFile: string;
   reportFile?: string;
-  only?: 'database' | 'variants';
+  only?: StackKind;
   long: boolean;
 };
 
@@ -92,7 +100,7 @@ export const resolveOptions = (env: Environment = process.env): Options => {
   const reportFile = env[`${PREFIX}REPORT`]?.trim();
   assert(!reportFile || isAbsolute(reportFile), `${PREFIX}REPORT must be an absolute path.`);
   const only = env[`${PREFIX}ONLY`]?.trim();
-  assert(!only || only === 'database' || only === 'variants', `${PREFIX}ONLY must be database or variants.`);
+  assert(!only || STACK_KINDS.includes(only as StackKind), `${PREFIX}ONLY must be one of ${STACK_KINDS.join(', ')}.`);
   return {
     expectedAccountId,
     profile,
@@ -101,7 +109,7 @@ export const resolveOptions = (env: Environment = process.env): Options => {
     owner,
     stateFile,
     ...(reportFile && { reportFile }),
-    ...(only ? { only: only as 'database' | 'variants' } : {}),
+    ...(only ? { only: only as StackKind } : {}),
     long: env[`${PREFIX}LONG`] === '1'
   };
 };
@@ -206,6 +214,7 @@ const createClients = ({ profile, region }: Options) => {
   const config = { credentials: fromIni({ profile }), region, maxAttempts: 6, ignoreConfiguredEndpointUrls: true };
   return {
     cloudFormation: new CloudFormationClient(config),
+    codeDeploy: new CodeDeployClient(config),
     ecr: new ECRClient(config),
     ecs: new ECSClient(config),
     logs: new CloudWatchLogsClient(config),
@@ -316,7 +325,57 @@ class CanaryStack {
   async setRelease(file: string, release: string) {
     const path = join(this.stack.workDirectory, file);
     const source = await readFile(path, 'utf8');
-    await writeFile(path, source.replace(/const RELEASE = '[^']*';/, `const RELEASE = '${release}';`));
+    await writeFile(path, source.replace(/RELEASE = '[^']*'/, `RELEASE = '${release}'`));
+  }
+
+  /** The release a service with its own URL reports. Retries, because a URL can answer with an error after a rollout. */
+  async releaseAt(outputKey: string) {
+    const url = (await describeStack(this.clients.cloudFormation, this.stack.stackName))?.Outputs?.find(
+      ({ OutputKey }) => OutputKey === outputKey
+    )?.OutputValue;
+    assert(url, `The stack has no output ${outputKey}.`);
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+        if (response.ok) return ((await response.json()) as { release: string }).release;
+        lastError = `${response.status} ${await response.text()}`;
+      } catch (error) {
+        lastError = error;
+      }
+      await sleep(3000);
+    }
+    throw new Error(`${outputKey} does not answer: ${String(lastError)}`);
+  }
+
+  async expectRelease(label: string, outputKey: string, release: string) {
+    const serving = await this.releaseAt(outputKey);
+    assert(serving === release, `${label}: ${outputKey} serves ${serving}, expected ${release}.`);
+  }
+
+  /** How many blue/green deployments CodeDeploy has for this stack, in any state. */
+  async codeDeployDeployments() {
+    const applicationName = awsResourceNames.ecsCodeDeployApp(this.stack.stackName);
+    const { deployments = [] } = await this.clients.codeDeploy.send(
+      new ListDeploymentsCommand({ applicationName, deploymentGroupName: this.codeDeployGroup() })
+    );
+    return deployments.length;
+  }
+
+  codeDeployGroup() {
+    return awsResourceNames.codeDeployDeploymentGroup({
+      stackName: this.stack.stackName,
+      stpResourceName: 'bluegreen'
+    });
+  }
+
+  async waitForStackToSettle(label: string, expected: string) {
+    let status = await this.stackStatus();
+    for (let attempt = 0; attempt < 120 && status?.includes('IN_PROGRESS'); attempt += 1) {
+      await sleep(5000);
+      status = await this.stackStatus();
+    }
+    assert(status === expected, `${label}: the stack should be ${expected}, it is ${status}.`);
   }
 
   async url() {
@@ -415,11 +474,7 @@ const usesCloudFormation = (output: string) =>
 const whyCloudFormation = (output: string) =>
   output.match(/Deploying through CloudFormation[^"\n]*/)?.[0] ?? 'no reason printed';
 
-const runDatabaseScenarios = async (
-  stack: CanaryStack,
-  record: (scenario: Scenario) => Promise<void>,
-  long: boolean
-) => {
+const runDatabaseScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
   // The health check needs the table, so this works only when the command runs before the service.
   const first = await stack.deployOk('first deploy');
   await stack.recordOwnedResources();
@@ -601,19 +656,6 @@ cloudformationResources:
   const skipped = await stack.deployOk('--skipReleaseCommand', ['--skipReleaseCommand']);
   assert(!skipped.output.includes('release-command-started'), 'a skipped command should not run.');
   await record({ name: '--skipReleaseCommand does not run the command' });
-
-  if (long) {
-    await stack.editConfig((config) =>
-      config.replace(
-        '        - name: FEATURE\n          value: one\n',
-        '        - name: FEATURE\n          value: two\n'
-      )
-    );
-    await stack.write('migrations/006-very-slow.sql', 'SELECT pg_sleep(1000);\n');
-    const chained = await stack.deployOk('a wait past the Lambda limit');
-    assert(chained.seconds > 1000, 'the command should have taken over 1000 s.');
-    await record({ name: 'CloudFormation waits past the 15-minute Lambda limit', seconds: chained.seconds });
-  }
 };
 
 // The command's text is also in the config, so these match only what the command printed.
@@ -621,7 +663,11 @@ const RAN_EC2 = /\[release ec2app\] variant-ec2/;
 const RAN_MULTI = /\[release multi\] variant-multi/;
 const RAN_BUNDLE = /\[release bundle\] < variant-bundle >/;
 
-const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
+const runVariantScenarios = async (
+  stack: CanaryStack,
+  record: (scenario: Scenario) => Promise<void>,
+  long: boolean
+) => {
   const first = await stack.deployOk('variants first deploy');
   await stack.recordOwnedResources();
   assert(
@@ -651,11 +697,7 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
   }
   await record({ name: 'several commands run in config order', details: { taskTimes } });
 
-  // A new stack has no code-swap table on its first deploy, so the second one installs the supervisor.
   await stack.setRelease('bundle/server.ts', 'r2');
-  await stack.deployOk('js-bundle deploy that installs code swap');
-
-  await stack.setRelease('bundle/server.ts', 'r3');
   const bundleCodeOnly = await stack.deployOk('js-bundle code-only deploy');
   assert(
     !usesCloudFormation(bundleCodeOnly.output),
@@ -668,7 +710,7 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     seconds: bundleCodeOnly.seconds
   });
 
-  await stack.setRelease('bundle/server.ts', 'r4');
+  await stack.setRelease('bundle/server.ts', 'r3');
   await stack.write('bundle-migrations/002.txt', 'second\n');
   const bundleMigration = await stack.deployOk('js-bundle migration');
   assert(
@@ -690,6 +732,157 @@ const runVariantScenarios = async (stack: CanaryStack, record: (scenario: Scenar
     `an EC2 command should stay on the fast path: ${whyCloudFormation(ec2Run.output)}`
   );
   await record({ name: 'an EC2 command runs on the fast path', seconds: ec2Run.seconds });
+
+  if (long) {
+    // A changed command changes the template, so this one runs through CloudFormation's custom resource.
+    await stack.editConfig((config) => config.replace('command: wget -q -O -', 'command: sleep 1000 && wget -q -O -'));
+    const chained = await stack.deployOk('a wait past the Lambda limit');
+    assert(usesCloudFormation(chained.output), 'a changed command should use CloudFormation.');
+    assert(chained.seconds > 1000, 'the command should have taken over 1000 s.');
+    await record({ name: 'CloudFormation waits past the 15-minute Lambda limit', seconds: chained.seconds });
+  }
+};
+
+const RAN_PYTHON = /\[release pyswap\] variant-python/;
+const RAN_BLUE_GREEN = /\[release bluegreen\] variant-bluegreen/;
+const PY_URL = 'pyUrl';
+const BG_URL = 'bgUrl';
+
+const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
+  const first = await stack.deployOk('extras first deploy');
+  await stack.recordOwnedResources();
+  assert(
+    RAN_PYTHON.test(first.output) && RAN_BLUE_GREEN.test(first.output),
+    `some command logs are missing:\n${first.output.slice(-3000)}`
+  );
+  await stack.expectRelease('extras first deploy', PY_URL, 'initial');
+  await stack.expectRelease('extras first deploy', BG_URL, 'initial');
+  await record({ name: 'Python with code swap and blue/green both run on a first deploy', seconds: first.seconds });
+
+  // Python with code swap: the image starts the supervisor, which the release task must replace.
+  await stack.setRelease('py/server.py', 'py2');
+  const pyCodeOnly = await stack.deployOk('Python code-only deploy');
+  assert(
+    !usesCloudFormation(pyCodeOnly.output),
+    `a Python code change should stay on the fast path: ${whyCloudFormation(pyCodeOnly.output)}`
+  );
+  assert(
+    pyCodeOnly.output.includes('Swapped code in pyswap'),
+    `a Python code change should swap the code: ${pyCodeOnly.output.match(/Image deploy for pyswap[^"\n]*/)?.[0] ?? pyCodeOnly.output.slice(-1500)}`
+  );
+  assert(!RAN_PYTHON.test(pyCodeOnly.output), 'an unchanged folder should not run the command.');
+  await stack.expectRelease('Python code-only deploy', PY_URL, 'py2');
+  await record({
+    name: 'the second deploy of a Python service swaps code and skips the command',
+    seconds: pyCodeOnly.seconds
+  });
+
+  await stack.setRelease('py/server.py', 'py3');
+  await stack.write('py/migrations/002.txt', 'second\n');
+  const pyMigration = await stack.deployOk('Python migration');
+  assert(!usesCloudFormation(pyMigration.output), whyCloudFormation(pyMigration.output));
+  assert(/variant-python 001\.txt 002\.txt/.test(pyMigration.output), 'the command should see the new migration.');
+  assert(pyMigration.output.includes('Swapped code in pyswap'), 'the command should be followed by a swap.');
+  assert(
+    pyMigration.output.search(RAN_PYTHON) < pyMigration.output.indexOf('Swapped code in pyswap'),
+    'the command should run before the swap.'
+  );
+  await stack.expectRelease('Python migration', PY_URL, 'py3');
+  await record({
+    name: 'a Python migration runs from the new image, then the code swaps',
+    seconds: pyMigration.seconds
+  });
+
+  await stack.setRelease('py/server.py', 'py4-must-not-serve');
+  await stack.write('py/migrations/fail.txt', 'fail\n');
+  const pyFailed = await stack.deployFails('failing Python command', /exit code 1/);
+  assert(!pyFailed.output.includes('Swapped code in pyswap'), 'a failed command should stop the swap.');
+  await stack.expectRelease('failing Python command', PY_URL, 'py3');
+  await record({ name: 'a failing Python command stops the swap, old code serves', seconds: pyFailed.seconds });
+  await stack.remove('py/migrations/fail.txt');
+
+  // Killed during its command: the lock stays until its lease ends, then the next deploy repairs with an image.
+  await stack.setRelease('py/server.py', 'py5');
+  await stack.write('py/migrations/slow.txt', 'slow\n');
+  const killed = stack.start('deploy');
+  let running: Task | undefined;
+  for (let attempt = 0; attempt < 120 && !running; attempt += 1) {
+    await sleep(2000);
+    running = (await stack.releaseTasks('pyswap')).find(({ lastStatus }) => lastStatus === 'RUNNING');
+  }
+  assert(running, 'the slow Python command never started.');
+  process.kill(-killed.child.pid, 'SIGKILL');
+  await killed.finished;
+  await stack.deployFails('deploy right after a killed code-swap deploy', /Another operation/);
+  await sleep(125_000);
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (!(await stack.releaseTasks('pyswap')).some(({ lastStatus }) => lastStatus !== 'STOPPED')) break;
+    await sleep(5000);
+  }
+  await stack.remove('py/migrations/slow.txt');
+  const repaired = await stack.deployOk('deploy after a killed code-swap deploy');
+  assert(
+    repaired.output.includes('Image deploy for pyswap: repairing an interrupted swap'),
+    `the next deploy should repair with an image:\n${repaired.output.slice(-2000)}`
+  );
+  await stack.expectRelease('deploy after a killed code-swap deploy', PY_URL, 'py5');
+  await stack.setRelease('py/server.py', 'py6');
+  const swapsAgain = await stack.deployOk('code-only deploy after a repair');
+  assert(swapsAgain.output.includes('Swapped code in pyswap'), 'code swap should work again after a repair.');
+  await stack.expectRelease('code-only deploy after a repair', PY_URL, 'py6');
+  await record({
+    name: 'a killed code-swap deploy recovers by itself after the lease, with an image deploy',
+    seconds: repaired.seconds
+  });
+
+  // A changed blue/green service always goes through CloudFormation, which keeps its traffic shifting. The command's
+  // custom resource has to finish before the service's resource starts the CodeDeploy deployment.
+  const deploymentsAtStart = await stack.codeDeployDeployments();
+  await stack.setRelease('bg/server.mjs', 'bg2');
+  const bgCodeOnly = await stack.deployOk('blue/green code-only deploy');
+  assert(usesCloudFormation(bgCodeOnly.output), 'a blue/green code change should use CloudFormation.');
+  assert(!RAN_BLUE_GREEN.test(bgCodeOnly.output), 'an unchanged folder should not run the command.');
+  assert(
+    (await stack.codeDeployDeployments()) === deploymentsAtStart + 1,
+    'a blue/green code change should start one CodeDeploy deployment.'
+  );
+  await stack.expectRelease('blue/green code-only deploy', BG_URL, 'bg2');
+  await record({ name: 'a blue/green code change shifts traffic and skips the command', seconds: bgCodeOnly.seconds });
+
+  await stack.setRelease('bg/server.mjs', 'bg3');
+  await stack.write('bg/migrations/002.txt', 'second\n');
+  const bgMigration = await stack.deployOk('blue/green migration');
+  assert(/variant-bluegreen 001\.txt 002\.txt/.test(bgMigration.output), 'the command should see the new migration.');
+  await stack.expectRelease('blue/green migration', BG_URL, 'bg3');
+  await record({ name: 'a blue/green migration runs, then traffic shifts', seconds: bgMigration.seconds });
+
+  const beforeFailure = await stack.codeDeployDeployments();
+  await stack.setRelease('bg/server.mjs', 'bg4-must-not-serve');
+  await stack.write('bg/migrations/fail.txt', 'fail\n');
+  const bgFailed = await stack.deployFails('failing blue/green command', /exit code 1/);
+  await stack.waitForStackToSettle('failing blue/green command', 'UPDATE_ROLLBACK_COMPLETE');
+  assert((await stack.codeDeployDeployments()) === beforeFailure, 'a failed command should start no rollout.');
+  await stack.expectRelease('failing blue/green command', BG_URL, 'bg3');
+  await record({ name: 'a failing blue/green command starts no rollout, old code serves', seconds: bgFailed.seconds });
+
+  await stack.remove('bg/migrations/fail.txt');
+  await stack.setRelease('bg/server.mjs', 'bg5');
+  await stack.deployOk('blue/green deploy after a failed command');
+  await stack.expectRelease('blue/green deploy after a failed command', BG_URL, 'bg5');
+  await record({ name: 'a blue/green service deploys again after a failed command' });
+
+  // Whichever moment the deploy reaches, it must not change a stack that is going away or keep its bucket alive.
+  await stack.setRelease('bg/server.mjs', 'bg6-must-not-serve');
+  const deleting = stack.start('delete');
+  const racing = stack.start('deploy');
+  const [deleted, raced] = await Promise.all([deleting.finished, racing.finished]);
+  assert(deleted.exitCode === 0, `the delete should succeed:\n${deleted.output.slice(-2000)}`);
+  assert(raced.exitCode !== 0, 'a deploy that races a delete should fail.');
+  assert(
+    /Another operation|being deleted|DELETE_IN_PROGRESS|does not exist/.test(raced.output),
+    `the racing deploy failed for another reason:\n${raced.output.slice(-2000)}`
+  );
+  await record({ name: 'a deploy that races a stack delete fails, and the delete finishes' });
 };
 
 const isMissing = (error: unknown, names: string[]) =>
@@ -780,7 +973,7 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   const awsAccountName = await resolveAwsAccountName(options, `${options.projectPrefix}-whoami`);
-  const prepare = async (name: 'database' | 'variants', fixture: string): Promise<StackState> => {
+  const prepare = async (name: StackKind, fixture: string): Promise<StackState> => {
     const projectName = `${options.projectPrefix}-${name.slice(0, 2)}`;
     const stackName = `${projectName}-${STAGE}`;
     assert(
@@ -797,11 +990,29 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
       configPath,
       config.replace(/(name: stacktape-canary-owner\n\s+value: )local/, `$1${options.owner}`)
     );
-    return { stackName, projectName, workDirectory };
+    // A new stack's bucket and repository are not stack resources, so cleanup checks them by their derived names.
+    const stackHash = getGloballyUniqueStackHash({
+      stackName,
+      accountId: options.expectedAccountId,
+      region: options.region
+    });
+    return {
+      stackName,
+      projectName,
+      workDirectory,
+      deploymentBucket: awsResourceNames.deploymentBucket(stackHash),
+      ecrRepository: awsResourceNames.deploymentEcrRepo(stackHash)
+    };
   };
   const stacks: StackState[] = [];
-  if (options.only !== 'variants') stacks.push(await prepare('database', 'release-command'));
-  if (options.only !== 'database') stacks.push(await prepare('variants', 'release-command-variants'));
+  const fixtures: Record<StackKind, string> = {
+    database: 'release-command',
+    variants: 'release-command-variants',
+    extras: 'release-command-extras'
+  };
+  for (const kind of STACK_KINDS) {
+    if (!options.only || options.only === kind) stacks.push(await prepare(kind, fixtures[kind]));
+  }
   const state: State = {
     accountId: options.expectedAccountId,
     region: options.region,
@@ -817,9 +1028,9 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
     const results = await Promise.allSettled(
       stacks.map((stackState) => {
         const stack = new CanaryStack(options, clients, state, stackState);
-        return stackState.projectName.endsWith('-da')
-          ? runDatabaseScenarios(stack, record, options.long)
-          : runVariantScenarios(stack, record);
+        if (stackState.projectName.endsWith('-da')) return runDatabaseScenarios(stack, record);
+        if (stackState.projectName.endsWith('-ex')) return runExtraScenarios(stack, record);
+        return runVariantScenarios(stack, record, options.long);
       })
     );
     const failures = results.filter((result) => result.status === 'rejected') as PromiseRejectedResult[];

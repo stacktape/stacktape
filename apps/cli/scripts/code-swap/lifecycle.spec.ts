@@ -1,12 +1,5 @@
 import { expect, test } from 'bun:test';
-import {
-  GetItemCommand,
-  PutItemCommand,
-  DeleteItemCommand,
-  type DynamoDBClient,
-  type AttributeValue
-} from '@aws-sdk/client-dynamodb';
-import { acquireLock, recoverLock, removeLock, tableGoneDuringDelete } from '../../src/domain/code-swap/operation-lock';
+import { GetItemCommand, PutItemCommand, type DynamoDBClient, type AttributeValue } from '@aws-sdk/client-dynamodb';
 import {
   readReleaseRecord,
   writeReleaseRecord,
@@ -16,7 +9,12 @@ import {
 } from '../../src/domain/code-swap/release-record';
 import { taskTableProtection } from '../../src/domain/code-swap/permissions';
 import { resolveStatusRole } from '../../src/domain/code-swap/ecs-policy';
-import { codeSwapTemplate, codeSwapTrackPreparation, codeSwapFinish } from '../../src/domain/code-swap/lifecycle-hooks';
+import {
+  codeSwapTemplate,
+  codeSwapTrackPreparation,
+  codeSwapFinish,
+  protectTaskRole
+} from '../../src/domain/code-swap/lifecycle-hooks';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -66,12 +64,6 @@ const fixture = () => {
         }
         return {};
       }
-      if (command instanceof DeleteItemCommand) {
-        const pk = command.input.Key!.pk!.S!;
-        if (items.get(pk)?.holder?.S !== command.input.ExpressionAttributeValues![':holder']!.S) throw conflict();
-        items.delete(pk);
-        return {};
-      }
       throw new Error('Unexpected AWS request');
     }
   } as unknown as Pick<DynamoDBClient, 'send'>;
@@ -111,19 +103,6 @@ test('operation completion waits for preparation even when the image build has a
   expect(aborted).toBe(true);
   codeSwapIntegration.abortPreparation = originalAbort;
 });
-const holder = (invocationId: string, operation: 'deploy' | 'rollback' | 'delete' = 'deploy') => ({
-  invocationId,
-  operation,
-  startedAt: '2026-10-20T00:00:00.000Z'
-});
-test('a missing table ends an already accepted delete; it never bypasses an active-stack lock', () => {
-  const gone = Object.assign(new Error('gone'), { name: 'ResourceNotFoundException' });
-  expect(tableGoneDuringDelete(gone, 'delete', 'DELETE_IN_PROGRESS')).toBe(true);
-  expect(tableGoneDuringDelete(gone, 'delete', 'DELETE_FAILED')).toBe(true);
-  expect(tableGoneDuringDelete(gone, 'delete', 'UPDATE_COMPLETE')).toBe(false);
-  expect(tableGoneDuringDelete(gone, 'deploy', 'DELETE_FAILED')).toBe(false);
-  expect(tableGoneDuringDelete(new Error('network failure'), 'delete', 'DELETE_FAILED')).toBe(false);
-});
 const record = (Seq: number): SwapRecord => ({
   Seq,
   TaskDefinition: 'arn:aws:ecs:eu-west-1:597581086285:task-definition/api:1',
@@ -134,25 +113,8 @@ const record = (Seq: number): SwapRecord => ({
   Phase: 'abort'
 });
 
-test('swap excludes every other deployment operation; only its holder can release or recover', async () => {
-  const { client } = fixture();
-  await acquireLock(client, 'owned', holder('swap'));
-  for (const operation of ['deploy', 'rollback', 'delete'] as const)
-    await expect(acquireLock(client, 'owned', holder(`other-${operation}`, operation))).rejects.toThrow(
-      'holds the code-swap lock'
-    );
-  await expect(removeLock(client, 'owned', 'other')).rejects.toThrow();
-  await expect(recoverLock(client, 'owned', 'other')).rejects.toThrow('Nothing was recovered');
-  await recoverLock(client, 'owned', 'swap');
-  await acquireLock(client, 'owned', holder('next'));
-  await removeLock(client, 'owned', 'next');
-  await acquireLock(client, 'owned', holder('after-failure'));
-});
-
-test('lost lock and release-record responses are resolved by strong rereads', async () => {
+test('lost release-record responses are resolved by strong rereads', async () => {
   const f = fixture();
-  f.loseNextResponse();
-  await acquireLock(f.client, 'owned', holder('same'));
   f.loseNextResponse();
   await writeReleaseRecord(f.client, 'owned', undefined, record(1));
   f.loseNextResponse();
@@ -165,7 +127,7 @@ test('lost lock and release-record responses are resolved by strong rereads', as
   await expect(writeReleaseRecord(f.client, 'owned', undefined, record(4))).rejects.toThrow();
 });
 
-test('open proposals, commits without history and explicit recovery select an image repair', () => {
+test('open proposals, commits without history and a taken-over lock select an image repair', () => {
   const bundle = { Revision: 'v000002', Key: 'bundle', Sha256: 'a'.repeat(64), Size: 123 };
   expect(interruptedSwapReason(undefined, false)).toBeUndefined();
   expect(interruptedSwapReason(record(1), false)).toBeUndefined();
@@ -218,6 +180,28 @@ test('direct ECS image registration resolves RoleId rather than serializing its 
   expect(wire).toContain('"Value":"AROAOWNEDROLE"');
   expect(wire).not.toContain('Fn::GetAtt');
   expect(wire).toContain('"Value":"preserved"');
+});
+
+test('a blue/green service next to a code-swap service gets the table protection on its role', () => {
+  const service = 'bluegreen';
+  const template = {
+    Resources: {
+      [cfLogicalNames.ecsTaskRole(service)]: { Type: 'AWS::IAM::Role', Properties: {} },
+      [cfLogicalNames.ecsTaskDefinition(service)]: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: { TaskRoleArn: { 'Fn::GetAtt': [cfLogicalNames.ecsTaskRole(service), 'Arn'] } }
+      },
+      [cfLogicalNames.ecsService(service, true)]: {
+        Type: 'Custom::ECSBlueGreenService',
+        Properties: { ECSService: { TaskDefinition: { Ref: cfLogicalNames.ecsTaskDefinition(service) } } }
+      }
+    }
+  } as unknown as CloudFormationTemplate;
+  protectTaskRole(template, 'arn:aws:dynamodb:eu-west-1:123456789012:table/owned', service, `service:${service}`);
+  const { Policies } = template.Resources[cfLogicalNames.ecsTaskRole(service)]!.Properties as {
+    Policies: { PolicyName: string }[];
+  };
+  expect(Policies.map(({ PolicyName }) => PolicyName)).toEqual(['code-swap-table-protection']);
 });
 
 test('table creation follows task protection, and opt-out retains the Deny while old tasks drain', async () => {

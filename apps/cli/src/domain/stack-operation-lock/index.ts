@@ -35,17 +35,31 @@ const s3Store = (bucketName: string): StackLockStore => ({
   }
 });
 
+let heldLock: HeldStackLock | undefined;
+
+/** Releases the lock this command holds, if any. For a step that needs the bucket empty before the command ends. */
+export const releaseHeldStackLock = async () => {
+  await heldLock?.release();
+};
+
 /**
  * Takes the stack's lock until the returned function runs or the command ends. A held lock fails the command: running
  * next to another operation is never what a user wants, and CI should report it.
+ *
+ * A code-swap stack's operation holds the lock from its start, because preparing a swap already changes running tasks.
+ * It releases the lock itself, once the swap is settled, so `releaseOnExit` is off. A later step of the same operation
+ * shares that lock and its `release` does nothing.
  */
 export const holdStackLock = async ({
   bucketName,
-  operation
+  operation,
+  releaseOnExit = true
 }: {
   bucketName: string;
   operation: 'deploy' | 'rollback' | 'delete';
+  releaseOnExit?: boolean;
 }): Promise<HeldStackLock> => {
+  if (heldLock?.isHeld()) return { ...heldLock, release: async () => {} };
   const clockSkewMs = (await getAwsSynchronizedTime()).getTime() - Date.now();
   let lock: HeldStackLock;
   try {
@@ -66,8 +80,8 @@ export const holdStackLock = async ({
       `If it was killed, its lock expires in ${Math.ceil(error.retryAfterMs / 1000)} seconds.`
     ]);
   }
-  applicationManager.registerCleanUpHook(() => lock.release());
-  return {
+  if (releaseOnExit) applicationManager.registerCleanUpHook(() => lock.release());
+  heldLock = {
     ...lock,
     confirm: async () => {
       try {
@@ -80,4 +94,5 @@ export const holdStackLock = async ({
       }
     }
   };
+  return heldLock;
 };

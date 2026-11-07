@@ -492,7 +492,7 @@ Run the deploy command once per region with the same stage name but different `-
 
 ### Why does one of two concurrent deploys to the same stage fail?
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage at once, one fails because the stack is already in an `UPDATE_IN_PROGRESS` state. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
 
 ---
 
@@ -13028,7 +13028,7 @@ Each service's autoscaling maximum, scheduled overrides and deployment surge mus
 
 Python bundles the source and assets selected by the buildpack, using the same exclusions as its image. The image keeps the interpreter and virtualenv; each activation starts the buildpack's command from the new release directory. Read application files relative to that working directory. An absolute `/app/...` path still reads the image's files. Python projects that install their own source or compile it during a build use images.
 
-A deploy prepares every changed service before switching any. If a changed service cannot swap, all changed services use image deploys. A failure during switching also converges all changed services through images. Unchanged services keep their tasks and serving code during ordinary code deploys. Explicit interrupted-operation recovery can replace every opted-in service to repair the stack. Services switch independently after preparation; there is no atomic switch across their public endpoints. Keep ordinary API compatibility between service versions.
+A deploy prepares every changed service before switching any. If a changed service cannot swap, all changed services use image deploys. A failure during switching also converges all changed services through images. Unchanged services keep their tasks and serving code during ordinary code deploys. Repairing an interrupted operation can replace every opted-in service. Services switch independently after preparation; there is no atomic switch across their public endpoints. Keep ordinary API compatibility between service versions.
 
 ## Memory and request failures
 
@@ -13046,7 +13046,7 @@ A small supervisor owns the HTTP port, starts the candidate, verifies proxy reac
 
 Behind an application load balancer, the supervisor also runs the target group's health check. Before the switch, the candidate must answer `GET` on `loadBalancing.properties.healthcheckPath` (default `/`) with status 200 within `healthcheckTimeout` (default 4 s); it gets up to 30 seconds to pass. The same check runs on the new code right after the switch, every second while the old process drains, and once more before completion. The load balancer's own checks reach whichever process serves, with no gap during the switch. If a check fails, the task switches back to the old process and the deploy uses an image, which the load balancer and ECS then check as usual.
 
-The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit (except one that only holds long-lived connections), and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. If candidate cleanup cannot be confirmed, the command fails and keeps the operation lock; use the recovery procedure below. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
+The CLI reports success only after every current task completes, the fleet remains healthy and routable, old process trees exit (except one that only holds long-lived connections), and release history is durable. Candidate failure, OOM, task replacement or fleet changes prevent swap success and trigger image convergence. If candidate cleanup cannot be confirmed, the command fails and the next deploy repairs the service, as described below. A later crash is an ordinary application incident; use your existing monitoring and rollback procedure.
 
 Dependency, environment, runtime, supervisor and base configuration changes use image deploys. `--full` also forces an image rollout. Scaling without a new task revision keeps the committed code; replacement tasks load that code before reporting ready. Opted-in image rollouts and new tasks pay the ECS supervisor-readiness delay. Normal services without the opt-in keep their existing resources and behavior.
 
@@ -13064,9 +13064,9 @@ Use [`stacktape rollback`](/deployment-and-lifecycle/rollbacks) to deploy a reta
 
 Set `codeSwap: false` or remove it, then deploy, to return to image-only operation. [`stacktape delete`](/cli/delete) also removes the runtime table and code bundles.
 
-Deploy, rollback, opt-out and delete share one operation lock once the stack is opted in. If you interrupt the CLI (Ctrl+C, or a cancelled CI job) before it starts changing the stack, it aborts any prepared swap and releases the lock. After it has started changing the stack, and whenever the CLI is killed, the lock stays held. The next command names its holder. Stop that invocation, verify that every AWS change it started has finished, then run the command again with `--recover-operation <invocation-id>` using the local runner. For deploy, add `--runner local` if you normally use an EC2 runner. Recovery repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap.
+A stack runs one deploy, rollback or delete at a time. Once a stack is opted in, the operation holds the stack's lock from its start, because preparing a swap already starts new code in the running tasks. If you interrupt the CLI (Ctrl+C, or a cancelled CI job) before it starts changing the stack, it aborts any prepared swap and releases the lock. After it has started changing the stack, and whenever the CLI is killed, the lock stays until it expires, within two minutes. A command that runs before then fails and names the holder. The next command after that takes over and repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap.
 
-The application has permission to write its own supervisor status. A malicious application can forge its own completion and cause a false success report. It cannot write the release record, lock, or another task's status. Code bundles, images, release records and task status stay in your AWS account; this feature adds no external data service.
+The application has permission to write its own supervisor status. A malicious application can forge its own completion and cause a false success report. It cannot write the release record or another task's status. Code bundles, images, release records and task status stay in your AWS account; this feature adds no external data service.
 
 ---
 

@@ -56,6 +56,25 @@ describe('stack operation lock', () => {
     expect(JSON.parse(current()!.body).invocationId).toBe('next');
   });
 
+  test('names the stopped operation it took over from', async () => {
+    const { store } = memoryStore();
+    await acquireStackLock(options(store, 'killed', () => 0));
+    const next = await acquireStackLock(options(store, 'next', () => STACK_LOCK_LEASE_MS + 1));
+    expect(next.tookOverFrom?.invocationId).toBe('killed');
+  });
+
+  test('a released lock, an unreadable lock and its own lock are not a takeover', async () => {
+    const released = memoryStore();
+    await (await acquireStackLock(options(released.store, 'a', () => 0))).release();
+    expect((await acquireStackLock(options(released.store, 'b', () => 1))).tookOverFrom).toBeUndefined();
+    const unreadable = memoryStore();
+    await unreadable.store.create('not json');
+    expect((await acquireStackLock(options(unreadable.store, 'b', () => 1))).tookOverFrom).toBeUndefined();
+    const own = memoryStore();
+    await acquireStackLock(options(own.store, 'a', () => 0));
+    expect((await acquireStackLock(options(own.store, 'a', () => 1))).tookOverFrom).toBeUndefined();
+  });
+
   test('takes over a lock it cannot read', async () => {
     const { store, current } = memoryStore();
     await store.create('not json');
@@ -154,6 +173,35 @@ describe('stack operation lock', () => {
     await held.release();
     expect(current()).toEqual(before);
     expect(held.isHeld()).toBe(false);
+  });
+
+  test('a renewal that ends after detach is not reported as a takeover', async () => {
+    const { store } = memoryStore();
+    let renew = () => {};
+    let lost = false;
+    const held = await acquireStackLock({
+      ...options(
+        {
+          ...store,
+          replace: async () => {
+            held.detach();
+            return 'conflict' as const;
+          }
+        },
+        'a',
+        () => 0
+      ),
+      setRenewTimer: (callback) => {
+        renew = callback;
+        return () => {};
+      },
+      onLost: () => {
+        lost = true;
+      }
+    });
+    renew();
+    await Bun.sleep(0);
+    expect(lost).toBe(false);
   });
 
   test('a lock that was released or deleted can be taken again', async () => {

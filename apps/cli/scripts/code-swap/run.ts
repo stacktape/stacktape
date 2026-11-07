@@ -43,7 +43,7 @@ import { mkdir, readFile, writeFile, cp, rename } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { qualifyLifecycle } from './lifecycle';
 import { qualifyReleaseRecovery } from './release-recovery';
-import { readLock } from '../../src/domain/code-swap/operation-lock';
+import { readStackLockHolder, waitForStackLockLease } from './stack-lock-state';
 import { LambdaClient, GetFunctionCommand, ListEventSourceMappingsCommand } from '@aws-sdk/client-lambda';
 import { EventBridgeClient, DescribeRuleCommand } from '@aws-sdk/client-eventbridge';
 import { IAMClient, GetRoleCommand } from '@aws-sdk/client-iam';
@@ -353,14 +353,9 @@ const cleanup = async (state: State, owned: Owned) => {
     owned.stackId = stack.StackId;
     await save(join(state.directory, 'state.json'), state);
     // Deep benchmark artifacts are not understood by the ordinary historical key parser.
-    let interrupted: string | undefined;
-    try {
-      interrupted = (await readLock(ddb, owned.table))?.invocationId;
-    } catch (error) {
-      if (!missing(error)) throw error;
-    }
+    if (await readStackLockHolder(s3, owned.bucket)) await waitForStackLockLease();
     await invoke(
-      [...cliArgs(state, owned, 'delete'), ...(interrupted ? ['--recoverOperation', interrupted] : [])],
+      cliArgs(state, owned, 'delete'),
       join(owned.directory, 'delete.log'),
       // The customer path and the runtime fixture deploy without a benchmark run file.
       customerPath || !existsSync(join(owned.directory, 'run.json'))

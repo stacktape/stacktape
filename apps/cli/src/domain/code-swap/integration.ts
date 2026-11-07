@@ -15,7 +15,6 @@ export const codeSwapIntegration: {
   rollbackTemplate: (template: CloudFormationTemplate) => void;
   releaseIdentity: () => { identity: unknown; mode: unknown; fallback: unknown } | undefined;
   nextVersion: (version: string) => string;
-  teardownAccepted: (stackName: string) => void;
 } = {
   imageHasSupervisor: new Map(),
   imageMatchesRunningCode: () => false,
@@ -26,6 +25,5 @@ export const codeSwapIntegration: {
   template: async () => {},
   rollbackTemplate: () => {},
   releaseIdentity: () => undefined,
-  nextVersion: (version) => version,
-  teardownAccepted: () => {}
+  nextVersion: (version) => version
 };

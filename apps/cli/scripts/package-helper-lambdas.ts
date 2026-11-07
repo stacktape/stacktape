@@ -43,11 +43,20 @@ const helperLambdas: Record<HelperLambdaName, { filePath: string; bundleSizeLimi
   }
 };
 
+/**
+ * Where a release builds the functions. A function's digest depends on the folder it is built in, and the digest decides
+ * whether a deploy must update the stack. With one folder for every platform, a laptop and CI on the same CLI version
+ * deploy the same functions, so switching between them can stay a fast deployment.
+ */
+export const RELEASE_HELPER_LAMBDAS_BUILD_FOLDER_PATH = join(CLI_BUILD_DIST_FOLDER_PATH, '..', 'helper-lambdas-build');
+
 export const packageHelperLambdas = async ({
   distFolderPath,
+  buildFolderPath,
   bundleAwsSdk = false
 }: {
   distFolderPath: string;
+  buildFolderPath?: string;
   bundleAwsSdk?: boolean;
 }) => {
   logInfo('Packaging helper lambdas...');
@@ -77,7 +86,7 @@ export const packageHelperLambdas = async ({
       keepSourceMapsInPackage: true,
       externals: ['aws-sdk'],
       bundleAwsSdk,
-      distFolderPath: join(lambdasDistFolderPath, name),
+      distFolderPath: join(buildFolderPath ?? lambdasDistFolderPath, name),
       progressLogger: {
         startEvent: () => {},
         finishEvent: () => {},
@@ -96,8 +105,12 @@ export const packageHelperLambdas = async ({
     });
     if (!artifactPath) throw new Error(`Helper Lambda ${name} produced no artifact.`);
     artifacts[name] = basename(artifactPath);
-    await remove(join(lambdasDistFolderPath, name));
+    if (buildFolderPath) {
+      await fsExtra.move(artifactPath, join(lambdasDistFolderPath, artifacts[name]), { overwrite: true });
+    }
+    await remove(join(buildFolderPath ?? lambdasDistFolderPath, name));
   }
+  if (buildFolderPath) await remove(buildFolderPath);
 
   await buildSupervisor(lambdasDistFolderPath);
   // Written last: the CLI deploys only the ZIPs this build lists, so a partial build fails instead of mixing builds.

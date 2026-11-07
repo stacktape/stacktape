@@ -32,7 +32,8 @@ import {
   type State,
   type Owned
 } from './run';
-import { readLock } from '../../src/domain/code-swap/operation-lock';
+import { S3Client } from '@aws-sdk/client-s3';
+import { readStackLockHolder, waitForStackLockLease } from './stack-lock-state';
 
 const assert: (value: unknown, reason: string) => asserts value = (value, reason) => {
   if (!value) throw new Error(reason);
@@ -41,7 +42,8 @@ const root = process.env.STP_CODE_SWAP_BENCH_FIXTURES_ROOT ?? '/home/congy/proje
 const config = { ...clients, requestHandler: new NodeHttpHandler({ connectionTimeout: 10000, requestTimeout: 30000 }) };
 const ecs = new ECSClient(config),
   ddb = new DynamoDBClient(config),
-  ecr = new ECRClient(config);
+  ecr = new ECRClient(config),
+  s3 = new S3Client(config);
 const stateIndex = process.argv.indexOf('--state');
 const directory = resolve(stateIndex < 0 ? '.stacktape/extension-live' : process.argv[stateIndex + 1]!);
 const statePath = join(directory, 'state.json');
@@ -430,7 +432,10 @@ const main = async () => {
           closeSync(output);
         }
         assert(signalled, `The ${label} deploy never reached its interrupt point.`);
-        assert(!(await readLock(ddb, owned.table)), `An interrupt (${label}) before any stack change kept the lock.`);
+        assert(
+          !(await readStackLockHolder(s3, owned.bucket)),
+          `An interrupt (${label}) before any stack change kept the lock.`
+        );
         const current = await sample(target, urls[target]);
         assert(current.status === 200 && current.revision === before, `The ${label} deploy changed serving code.`);
         revisions[target] = before!;
@@ -631,12 +636,9 @@ const main = async () => {
         closeSync(output);
       }
       assert(killed, 'Missed interruption checkpoint.');
-      const lock = await readLock(ddb, owned.table);
-      assert(lock, 'Interrupted invocation did not retain its lock.');
-      await invoke(
-        [...cliArgs(state, owned, 'deploy'), '--recoverOperation', lock.invocationId],
-        join(directory, 'recovery.log')
-      );
+      assert(await readStackLockHolder(s3, owned.bucket), 'Interrupted invocation did not retain its lock.');
+      await waitForStackLockLease();
+      await invoke(cliArgs(state, owned, 'deploy'), join(directory, 'recovery.log'));
       const recoveryLog = await readFile(join(directory, 'recovery.log'), 'utf8');
       assert(
         changed.every((service) => !recoveryLog.includes(`Swapped code in ${service};`)),

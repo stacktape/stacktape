@@ -982,7 +982,6 @@ class StackManager {
       })
     });
     const { skipped } = updateResult;
-    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack(
         'update',
@@ -1043,7 +1042,6 @@ class StackManager {
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
-    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack('update', stackName, (progress) => {
         operationReporter.updateEvent({
@@ -1068,13 +1066,19 @@ class StackManager {
   /**
    * Deletes the stack. `beforeDelete` is work that must finish before CloudFormation starts, such as emptying the
    * buckets and the image repository. It runs alongside the steps below, which start slow AWS-side work early.
+   * `onDeleteRequested` runs once CloudFormation has accepted the delete; a failure there doesn't stop the delete.
    * With `finishInBackground`, it returns once only resources that cost nothing remain (see `background-delete.ts`);
    * the result then lists them in `deletionContinuesInBackground`.
    */
   deleteStack = async ({
     beforeDelete,
+    onDeleteRequested,
     finishInBackground = false
-  }: { beforeDelete?: () => Promise<unknown>; finishInBackground?: boolean } = {}) => {
+  }: {
+    beforeDelete?: () => Promise<unknown>;
+    onDeleteRequested?: () => Promise<unknown>;
+    finishInBackground?: boolean;
+  } = {}) => {
     await operationReporter.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
@@ -1154,7 +1158,7 @@ class StackManager {
       deleteRequested = false;
       throw err;
     }
-    codeSwapIntegration.teardownAccepted(this.#stackName);
+    await onDeleteRequested?.().catch((err) => tuiManager.debug(`A step after the delete request failed: ${err}`));
     // The template CloudFormation is deleting, read once the delete has started: a deploy between loading the stack and
     // the DeleteStack request may have changed a DeletionPolicy.
     let deletedTemplate: Promise<CloudFormationTemplate> | undefined;

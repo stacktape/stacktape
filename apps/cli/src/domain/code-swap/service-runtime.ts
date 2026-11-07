@@ -322,7 +322,9 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
           Instances.length !== ids.length ||
           !ids.every((id) => Instances.some((instance) => instance.InstanceId === id))
         )
-          throw new Error('PRIMARY tasks lost HTTP API routability.');
+          throw new Error(
+            `PRIMARY tasks lost HTTP API routability: ${ids.length} running, ${Instances.length} healthy in Cloud Map.`
+          );
       }
     }
     return { ids, primary: primary.id };

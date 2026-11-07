@@ -7,6 +7,7 @@ import {
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
   isImageOnlyTaskDefinitionChange,
+  isOnlyBlueGreenOrderChange,
   isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 
@@ -219,6 +220,26 @@ describe('shared chunk layers', () => {
     expect(isContentOnlyLayerChange(diff.resources.changes.StpSharedChunkLayer1LayerVersion!)).toBe(true);
     expect(isCodeOnlyFunctionChange(diff.resources.changes.ApiFunction!)).toBe(true);
   });
+});
+
+test.each([
+  ['the blue/green service', 'Stacktape::ECSBlueGreenV1::Service', {}, true],
+  ['the deployment group', 'AWS::CodeDeploy::DeploymentGroup', {}, true],
+  ['the service with a changed property', 'Stacktape::ECSBlueGreenV1::Service', { DesiredCount: 2 }, false],
+  ['another resource', 'AWS::ECS::Service', {}, false]
+])('a swapped DependsOn on %s', (_, Type, properties, fast) => {
+  expect(
+    isOnlyBlueGreenOrderChange(
+      change(
+        { DesiredCount: 1 },
+        { DesiredCount: 1, ...properties },
+        {
+          before: { Type, DependsOn: [] },
+          after: { Type, DependsOn: ['Other'] }
+        }
+      )
+    )
+  ).toBe(fast);
 });
 
 test('ECS container ordering does not turn an image-only update into a task configuration change', () => {
