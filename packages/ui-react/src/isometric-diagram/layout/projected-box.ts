@@ -50,3 +50,44 @@ export const clearanceAlongFlow = ({ p, q, dy }: { p: ProjectedBox; q: Projected
   const high = Math.min(p.u1 - q.u0 + dy, p.v1 - q.v0 - dy);
   return low < high ? high : Number.NEGATIVE_INFINITY;
 };
+
+/**
+ * A uniform grid over projected boxes, so a candidate chip is compared with the boxes near it rather
+ * than with every box in the picture. Overlaps are summed in insertion order, which keeps scores
+ * identical to a plain scan.
+ */
+/** Cell coordinates stay far below 2^20 for any drawable diagram, so one number keys a cell. */
+const cellKey = (u: number, v: number) => u * 1_048_576 + v;
+
+export const createBoxIndex = ({ cellSize }: { cellSize: number }) => {
+  const boxes: ProjectedBox[] = [];
+  const cells = new Map<number, number[]>();
+  const insert = (box: ProjectedBox) => {
+    const id = boxes.length;
+    boxes.push(box);
+    for (let u = Math.floor(box.u0 / cellSize); u <= Math.floor(box.u1 / cellSize); u++) {
+      for (let v = Math.floor(box.v0 / cellSize); v <= Math.floor(box.v1 / cellSize); v++) {
+        const cell = cells.get(cellKey(u, v));
+        if (cell) cell.push(id);
+        else cells.set(cellKey(u, v), [id]);
+      }
+    }
+  };
+  const overlapArea = (box: ProjectedBox) => {
+    const nearby: number[] = [];
+    for (let u = Math.floor(box.u0 / cellSize); u <= Math.floor(box.u1 / cellSize); u++) {
+      for (let v = Math.floor(box.v0 / cellSize); v <= Math.floor(box.v1 / cellSize); v++) {
+        const cell = cells.get(cellKey(u, v));
+        if (cell) nearby.push(...cell);
+      }
+    }
+    nearby.sort((a, b) => a - b);
+    let area = 0;
+    for (let index = 0; index < nearby.length; index++) {
+      if (index > 0 && nearby[index] === nearby[index - 1]) continue;
+      area += boxOverlapArea({ a: box, b: boxes[nearby[index]] });
+    }
+    return area;
+  };
+  return { insert, overlapArea };
+};

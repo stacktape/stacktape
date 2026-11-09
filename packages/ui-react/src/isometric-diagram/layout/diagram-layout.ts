@@ -21,7 +21,7 @@ import type { IsoTilePoint } from '../scene.js';
 import type { ProjectedBox } from './projected-box.js';
 import { assignFlowColumns, wrapTallColumns } from './columns.js';
 import { solveDifferenceConstraints } from './network-simplex.js';
-import { boxOverlapArea, clearanceAlongFlow, clearanceInFront, projectTile, shiftBox } from './projected-box.js';
+import { clearanceAlongFlow, clearanceInFront, createBoxIndex, projectTile, shiftBox } from './projected-box.js';
 
 export type LayoutNode = {
   id: string;
@@ -96,6 +96,14 @@ const ZONE_STACK_GAP = 1.5;
 const ZONE_OUTSIDE_GAP = 1.1;
 /** Fixed-point scale for the network simplex, which works on integers. */
 const SCALE = 100;
+/**
+ * The simplex pivot budget. Each pivot costs about one pass over the variables and constraints, so the
+ * budget is a fixed amount of that work, but never fewer than `MIN_PIVOTS` pivots. Real stacks finish
+ * well inside it (the 72-resource test config needs about 220 of its 3,000); a dense, cyclic graph
+ * stops early with straighter-than-start, still valid positions instead of freezing the page.
+ */
+const PIVOT_WORK = 3_000_000;
+const MIN_PIVOTS = 200;
 const SWEEPS = 8;
 /** How clearly a node's neighbours must pull it before it moves to the other side of a band. */
 const SIDE_DEAD_BAND = 0.05;
@@ -109,6 +117,12 @@ const WRAP_FACTOR = 3;
 /** Candidate chip positions along a route segment: about every quarter tile, at most 24. */
 const CHIP_SAMPLE_SPACING = 0.25;
 const CHIP_SAMPLES_PER_SEGMENT = 24;
+/** A chip prefers to sit near where its connector starts: this much cost per tile travelled. */
+const CHIP_DISTANCE_COST = 0.05;
+/** What a chip costs when it sits on a stretch shared with differently labelled connectors. */
+const MISLABEL_COST = 1000;
+/** Cell size of the spatial indexes used to place chips, in tile and projected units. */
+const INDEX_CELL = 2;
 /** How a gutter grows, and how often, when a chip next to it has no free spot. */
 const CHIP_WIDENING_STEP = 0.5;
 const CHIP_WIDENING_ROUNDS = 6;
@@ -552,13 +566,15 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
 
   // The banding constraints follow the column order, so they cannot contradict it. Should an
   // unforeseen configuration prove otherwise, draw it with overlapping bands rather than not at all.
+  const maxPivots = Math.max(MIN_PIVOTS, Math.floor(PIVOT_WORK / (variableCount + constraints.length)));
   let ranks: number[];
   try {
-    ranks = solveDifferenceConstraints({ variableCount, constraints });
+    ranks = solveDifferenceConstraints({ variableCount, constraints, maxPivots });
   } catch {
     ranks = solveDifferenceConstraints({
       variableCount,
-      constraints: constraints.filter((constraint) => !constraint.banding)
+      constraints: constraints.filter((constraint) => !constraint.banding),
+      maxPivots
     });
   }
   items.forEach((item, index) => {
@@ -705,14 +721,16 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
     extraGutter[gutter] = Math.max(extraGutter[gutter], needed);
   }
 
+  /** The narrowest a gutter can be: room for every track it carries, clear of both columns. */
+  const gutterWidth = (gutter: number) =>
+    Math.max(MIN_GUTTER, 2 * GUTTER_CLEARANCE + Math.max(0, trackOrder[gutter].length - 1) * TRACK_GAP) +
+    extraGutter[gutter];
+
   const placeAlongFlow = () => {
     // Column positions (tile x).
     const columnX = Array.from({ length: columnCount }, () => 0);
     for (let column = 1; column < columnCount; column++) {
-      const tracks = trackOrder[column - 1].length;
-      const gutter =
-        Math.max(MIN_GUTTER, 2 * GUTTER_CLEARANCE + Math.max(0, tracks - 1) * TRACK_GAP) + extraGutter[column - 1];
-      let x = columnX[column - 1] + columnWidth[column - 1] / 2 + gutter + columnWidth[column] / 2;
+      let x = columnX[column - 1] + columnWidth[column - 1] / 2 + gutterWidth(column - 1) + columnWidth[column] / 2;
       // Flat text must clear the bodies around it, including diagonal neighbours that are far apart
       // in tile space but close together on screen.
       for (let earlier = column - 1; earlier >= Math.max(0, column - 2); earlier--) {
@@ -732,7 +750,10 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
     for (let gutter = 0; gutter < columnCount; gutter++) {
       const sequence = trackOrder[gutter];
       const start = columnX[gutter] + columnWidth[gutter] / 2;
-      const end = gutter + 1 < columnCount ? columnX[gutter + 1] - columnWidth[gutter + 1] / 2 : start + MIN_GUTTER;
+      // The gutter after the last column only carries same-column loops, but it needs room for all
+      // of them just like any other gutter.
+      const end =
+        gutter + 1 < columnCount ? columnX[gutter + 1] - columnWidth[gutter + 1] / 2 : start + gutterWidth(gutter);
       const middle = (start + end) / 2;
       sequence.forEach((group, index) => {
         group.x = middle + (index - (sequence.length - 1) / 2) * TRACK_GAP;
@@ -793,48 +814,65 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
 
     // Connector chips: clear of node bodies, name tags, zone tags and each other, and as close to
     // where the connector starts as that allows.
-    const bodies: ProjectedBox[] = [];
-    const tags: ProjectedBox[] = [];
+    // Spatial indexes keep each candidate's checks local, so placing hundreds of chips stays linear.
+    const bodies = createBoxIndex({ cellSize: INDEX_CELL });
+    const tags = createBoxIndex({ cellSize: INDEX_CELL });
+    const chips = createBoxIndex({ cellSize: INDEX_CELL });
     items.forEach((item, index) => {
       if (item.node === undefined) return;
       const { u, v } = projectTile(tileOf(index));
       shapes[item.node].forEach((shape, shapeIndex) =>
-        (shapeIndex < BODY_SHAPES ? bodies : tags).push(shiftBox({ box: shape, u, v }))
+        (shapeIndex < BODY_SHAPES ? bodies : tags).insert(shiftBox({ box: shape, u, v }))
       );
     });
     for (const [zoneId, rect] of zoneRects) {
       const tag = input.zoneTag?.(zoneId);
       if (!tag) continue;
       const { u, v } = projectTile(rect.from);
-      tags.push(shiftBox({ box: tag, u, v }));
+      tags.insert(shiftBox({ box: tag, u, v }));
     }
-    const chips: { box: ProjectedBox; tile: IsoTilePoint }[] = [];
     const labelTiles = new Map<string, IsoTilePoint>();
     const crowdedGutters = new Set<number>();
     const score = (box: ProjectedBox) => {
-      let blocked = 0;
-      for (const body of bodies) blocked += boxOverlapArea({ a: box, b: body });
-      for (const chip of chips) blocked += boxOverlapArea({ a: box, b: chip.box });
-      let covered = 0;
-      for (const tag of tags) covered += boxOverlapArea({ a: box, b: tag });
+      const blocked = bodies.overlapArea(box) + chips.overlapArea(box);
+      const covered = tags.overlapArea(box);
       return { blocked: blocked + covered, cost: blocked * 100 + covered * 20 };
     };
     // A chip on a stretch that other connectors share would label them too, so it may only sit
-    // where every connector passing through carries the same label.
-    const edgesAtNode = new Map<string, ChainEdge[]>();
+    // where every connector passing through carries the same label. Route segments are indexed by
+    // grid cell so a candidate only looks at the connectors that pass near it.
+    const segmentCells = new Map<string, { chain: ChainEdge; start: IsoTilePoint; end: IsoTilePoint }[]>();
+    const segmentCellKey = (x: number, y: number) => `${Math.floor(x / INDEX_CELL)},${Math.floor(y / INDEX_CELL)}`;
     for (const chain of chainEdges) {
-      for (const id of [chain.edge.from, chain.edge.to]) edgesAtNode.set(id, [...(edgesAtNode.get(id) ?? []), chain]);
+      const route = routes.get(chain.edge.id)?.points ?? [];
+      for (let index = 0; index + 1 < route.length; index++) {
+        const start = route[index];
+        const end = route[index + 1];
+        const x0 = Math.floor((Math.min(start.x, end.x) - EPSILON) / INDEX_CELL);
+        const x1 = Math.floor((Math.max(start.x, end.x) + EPSILON) / INDEX_CELL);
+        const y0 = Math.floor((Math.min(start.y, end.y) - EPSILON) / INDEX_CELL);
+        const y1 = Math.floor((Math.max(start.y, end.y) + EPSILON) / INDEX_CELL);
+        for (let cellX = x0; cellX <= x1; cellX++) {
+          for (let cellY = y0; cellY <= y1; cellY++) {
+            const key = `${cellX},${cellY}`;
+            const cell = segmentCells.get(key);
+            if (cell) cell.push({ chain, start, end });
+            else segmentCells.set(key, [{ chain, start, end }]);
+          }
+        }
+      }
     }
     const mislabels = (chain: ChainEdge, tile: IsoTilePoint) =>
-      [...(edgesAtNode.get(chain.edge.from) ?? []), ...(edgesAtNode.get(chain.edge.to) ?? [])].some(
-        (other) =>
+      (segmentCells.get(segmentCellKey(tile.x, tile.y)) ?? []).some(
+        ({ chain: other, start, end }) =>
           other !== chain &&
           other.edge.label !== chain.edge.label &&
-          pointOnRoute({ point: tile, route: routes.get(other.edge.id)?.points ?? [] })
+          [other.edge.from, other.edge.to].some((id) => id === chain.edge.from || id === chain.edge.to) &&
+          pointOnRoute({ point: tile, route: [start, end] })
       );
     const commit = ({ tile, box, edgeIds }: { tile: IsoTilePoint; box: ProjectedBox; edgeIds: string[] }) => {
       const rounded = { x: round(tile.x), y: round(tile.y) };
-      chips.push({ box, tile: rounded });
+      chips.insert(box);
       for (const id of edgeIds) labelTiles.set(id, rounded);
     };
     const gutterAt = (x: number) => {
@@ -877,19 +915,27 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
       const route = routes.get(chain.edge.id)?.points ?? [];
       let best: { tile: IsoTilePoint; box: ProjectedBox; blocked: number; cost: number } | undefined;
       let travelled = 0;
-      for (let index = 0; index + 1 < route.length; index++) {
+      // Candidates come in order of distance from the start, and distance is part of the cost, so
+      // once the best cost is no more than the distance cost alone nothing later can beat it.
+      search: for (let index = 0; index + 1 < route.length; index++) {
         const start = route[index];
         const end = route[index + 1];
         const length = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
         const samples = Math.min(CHIP_SAMPLES_PER_SEGMENT, Math.max(1, Math.round(length / CHIP_SAMPLE_SPACING)));
         for (let sample = 0; sample < samples; sample++) {
           const fraction = (sample + 0.5) / samples;
+          const distanceCost = (travelled + length * fraction) * CHIP_DISTANCE_COST;
+          if (best && best.cost - EPSILON <= distanceCost) break search;
           const tile = { x: start.x + (end.x - start.x) * fraction, y: start.y + (end.y - start.y) * fraction };
+          const mislabelled = mislabels(chain, tile);
+          // A spot on someone else's trunk costs at least the mislabel penalty; skip the overlap
+          // queries when that alone cannot beat the best spot so far.
+          if (mislabelled && best && best.cost - EPSILON <= MISLABEL_COST + distanceCost) continue;
           const { u, v } = projectTile(tile);
           const box = shiftBox({ box: shape, u, v });
           const result = score(box);
-          const blocked = result.blocked + (mislabels(chain, tile) ? 1 : 0);
-          const cost = result.cost + blocked * 1000 + (travelled + length * fraction) * 0.05;
+          const blocked = result.blocked + (mislabelled ? 1 : 0);
+          const cost = result.cost + (mislabelled ? MISLABEL_COST : 0) + result.blocked * 1000 + distanceCost;
           if (!best || cost < best.cost - EPSILON) best = { tile, box, blocked, cost };
         }
         travelled += length;

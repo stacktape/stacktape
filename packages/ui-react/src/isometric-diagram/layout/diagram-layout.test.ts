@@ -14,6 +14,31 @@ import { solveDifferenceConstraints } from './network-simplex.js';
  * than exact coordinates, so the layout can be tuned without rewriting them.
  */
 
+const lambda = (properties: Record<string, unknown> = {}) => ({
+  type: 'function',
+  properties: { packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } }, ...properties }
+});
+
+/**
+ * Twenty functions that all reference one HTTP API declared after them, some joined to the VPC. They
+ * share a column with the API, so their connectors loop through the gutter after the last column,
+ * which once kept its minimum width and pushed loop tracks through the nodes beside it.
+ */
+const finalColumnLoops = {
+  resources: {
+    ...Object.fromEntries(
+      Array.from({ length: 20 }, (_, index) => [
+        `fn${index}`,
+        lambda({
+          environment: { API_URL: "$ResourceParam('api', 'url')" },
+          ...([1, 5, 7, 11, 12, 15, 17].includes(index) ? { joinDefaultVpc: true } : {})
+        })
+      ])
+    ),
+    api: { type: 'http-api-gateway' }
+  }
+};
+
 const configDirectory = new URL('../test-configs/', import.meta.url);
 const cases = [
   ...getDiagramFixtures().map((fixture) => ({ id: fixture.id, config: parseFixtureConfig({ fixture }) })),
@@ -22,7 +47,8 @@ const cases = [
     .map((file) => ({
       id: file.replace(/\.yml$/, ''),
       config: parse(readFileSync(new URL(file, configDirectory), 'utf8'))
-    }))
+    })),
+  { id: 'final-column-loops', config: finalColumnLoops }
 ];
 
 const DATA_STORES = new Set([
@@ -291,6 +317,39 @@ describe('diagram layout', () => {
   });
 });
 
+/**
+ * Inputs that once froze the page for seconds. Each lays out in about half a second; the budget leaves
+ * room for a loaded CI machine while still catching a return to quadratic or unbounded work.
+ */
+describe('layout performance', () => {
+  const BUDGET_MS = 2000;
+  const timed = (config: unknown) => {
+    const started = performance.now();
+    buildScene(config);
+    return performance.now() - started;
+  };
+
+  test('places 300 distinct connector labels without comparing every pair', () => {
+    const resources = Object.fromEntries(
+      Array.from({ length: 300 }, (_, index) => [
+        `fn${index}`,
+        lambda({ events: [{ type: 'schedule', properties: { scheduleRate: `rate(${index + 2} minutes)` } }] })
+      ])
+    );
+    expect(timed({ resources })).toBeLessThan(BUDGET_MS);
+  });
+
+  test('caps network simplex work on a dense cyclic graph', () => {
+    const resources = Object.fromEntries(
+      Array.from({ length: 300 }, (_, index) => [
+        `r${index}`,
+        lambda({ connectTo: Array.from({ length: 10 }, (__, step) => `r${(index + step + 1) % 300}`) })
+      ])
+    );
+    expect(timed({ resources })).toBeLessThan(BUDGET_MS);
+  });
+});
+
 const columns = (
   nodes: { id: string; rank?: 'first' | 'last' }[],
   edges: { from: string; to: string; flow?: boolean }[]
@@ -459,6 +518,24 @@ describe('network simplex', () => {
     });
     expect(values[y] - values[x]).toBe(2);
     expect(values[t]).toBe(values[y]);
+  });
+
+  test('returns valid ranks when the pivot budget runs out', () => {
+    // A chain of separations with pulls that need several pivots to optimise.
+    const count = 12;
+    const constraints = [
+      ...Array.from({ length: count - 1 }, (_, index) => ({ from: index, to: index + 1, minLength: 2, weight: 0 })),
+      ...Array.from({ length: count }, (_, index) => [
+        { from: count + index, to: index, minLength: 0, weight: index + 1 },
+        { from: count + index, to: (index * 7) % count, minLength: 0, weight: index + 1 }
+      ]).flat()
+    ];
+    for (const maxPivots of [0, 1, 3]) {
+      const values = solveDifferenceConstraints({ variableCount: count * 2, constraints, maxPivots });
+      for (const constraint of constraints) {
+        expect(values[constraint.to] - values[constraint.from]).toBeGreaterThanOrEqual(constraint.minLength);
+      }
+    }
   });
 
   test('rejects contradictory constraints instead of returning a wrong answer', () => {

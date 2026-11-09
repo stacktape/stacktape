@@ -10,6 +10,10 @@
  * This is the rank-assignment algorithm of Gansner et al., "A Technique for Drawing Directed Graphs"
  * (1993), in the form popularised by Graphviz and dagre. Every loop runs in index order, so equal
  * input always produces equal output.
+ *
+ * Every pivot rebuilds the spanning tree, so a dense graph can need thousands of expensive pivots.
+ * `maxPivots` caps them: the ranks are feasible after every pivot, only less optimal when the cap
+ * stops the search early.
  */
 
 export type DifferenceConstraint = {
@@ -81,11 +85,11 @@ const longestPathRanks = ({ variableCount, edges }: { variableCount: number; edg
 export const solveDifferenceConstraints = ({
   variableCount,
   constraints,
-  maxIterations = 20_000
+  maxPivots = 20_000
 }: {
   variableCount: number;
   constraints: DifferenceConstraint[];
-  maxIterations?: number;
+  maxPivots?: number;
 }): number[] => {
   if (variableCount === 0) return [];
 
@@ -218,7 +222,7 @@ export const solveDifferenceConstraints = ({
   initLowLim();
   initCutValues();
 
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
+  for (let pivot = 0; pivot < maxPivots; pivot++) {
     let leaving = -1;
     for (let index = 0; index < edges.length; index++) {
       if (isTreeEdge[index] && cutValue[index] < 0) {
