@@ -61,10 +61,11 @@ export const abandonHeldStackLock = () => {
 };
 
 /**
- * The invocation that holds a stack's lock, for the commands it starts. A command that a hook of the holder runs on the
- * same stack would otherwise wait for its own parent forever.
+ * The invocations that hold a stack's lock among a command's ancestors, comma-separated, for the commands they start. A
+ * command that a hook runs on a stack one of its ancestors holds would otherwise wait for that ancestor forever, also
+ * through a hook of another stack's deploy in between.
  */
-const LOCK_HOLDER_ENV = 'STP_STACK_LOCK_HOLDER';
+export const STACK_LOCK_HOLDERS_ENV = 'STP_STACK_LOCK_HOLDERS';
 
 let commandSucceeded = false;
 
@@ -118,7 +119,7 @@ export const holdStackLock = async ({
   const clockSkewMs = (await getAwsSynchronizedTime()).getTime() - Date.now();
   const now = () => Date.now() + clockSkewMs;
   const announced = new Set<string>();
-  const parentHolder = process.env[LOCK_HOLDER_ENV];
+  const ancestorHolders = (process.env[STACK_LOCK_HOLDERS_ENV] ?? '').split(',').filter(Boolean);
   const { lock, waited } = await waitForStackLock({
     acquire: () =>
       acquireStackLock({
@@ -132,7 +133,7 @@ export const holdStackLock = async ({
           )
       }),
     onWaiting: (busy) => {
-      if (parentHolder && busy.holder.invocationId === parentHolder) {
+      if (ancestorHolders.includes(busy.holder.invocationId)) {
         throw new ExpectedError(
           'STACK',
           `This ${operation} runs from a hook of the ${busy.holder.operation} that holds this stack's lock, so it cannot wait for that ${busy.holder.operation} to finish.`,
@@ -146,7 +147,7 @@ export const holdStackLock = async ({
       tuiManager.info(message);
     }
   });
-  process.env[LOCK_HOLDER_ENV] = globalStateManager.invocationId;
+  process.env[STACK_LOCK_HOLDERS_ENV] = [...ancestorHolders, globalStateManager.invocationId].join(',');
   if (releaseOnExit) {
     applicationManager.registerCleanUpHook((result) => {
       commandSucceeded = result?.success ?? false;

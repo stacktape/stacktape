@@ -28,7 +28,7 @@ beforeEach(() => {
   object = undefined;
   applicationManager.cleanUpHooks.length = 0;
   applicationManager.finalCleanUpHooks.length = 0;
-  delete process.env.STP_STACK_LOCK_HOLDER;
+  delete process.env.STP_STACK_LOCK_HOLDERS;
   spies.push(
     spyOn(awsSdkManager.s3, 'putObjectConditionally').mockImplementation(async ({ body, condition }) => {
       if ('ifNoneMatch' in condition) return object ? undefined : write(body);
@@ -40,7 +40,7 @@ beforeEach(() => {
 afterEach(() => {
   lockModule.abandonHeldStackLock();
   spies.splice(0).forEach((spy) => spy.mockRestore());
-  delete process.env.STP_STACK_LOCK_HOLDER;
+  delete process.env.STP_STACK_LOCK_HOLDERS;
 });
 
 const holder = (invocationId: string, renewedAtMs: number) =>
@@ -55,7 +55,8 @@ const exitCommand = async (success: boolean) => {
 describe('the stack lock of a command', () => {
   test('a command started from a hook of the operation holding the lock fails instead of waiting for its parent', async () => {
     write(holder('parent-deploy', Date.now()));
-    process.env.STP_STACK_LOCK_HOLDER = 'parent-deploy';
+    // A deploy of this stack ran a hook that deployed another stack, whose hook runs this command.
+    process.env.STP_STACK_LOCK_HOLDERS = 'parent-deploy,other-stack-deploy';
     const failure = await lockModule
       .holdStackLock({ bucketName: 'bucket', operation: 'rollback', onWaiting: () => {} })
       .catch((error: unknown) => error);
@@ -66,7 +67,13 @@ describe('the stack lock of a command', () => {
 
   test('tells the commands it starts which invocation holds the lock', async () => {
     await lockModule.holdStackLock({ bucketName: 'bucket', operation: 'deploy' });
-    expect(process.env.STP_STACK_LOCK_HOLDER).toBe(globalStateManager.invocationId);
+    expect(process.env.STP_STACK_LOCK_HOLDERS).toBe(globalStateManager.invocationId);
+  });
+
+  test('passes on the lock holders among its ancestors as well', async () => {
+    process.env.STP_STACK_LOCK_HOLDERS = 'grandparent';
+    await lockModule.holdStackLock({ bucketName: 'bucket', operation: 'deploy' });
+    expect(process.env.STP_STACK_LOCK_HOLDERS).toBe(`grandparent,${globalStateManager.invocationId}`);
   });
 
   test('a command that took over a stopped operation and failed leaves the lock to expire, for the next one to repair', async () => {
