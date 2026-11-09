@@ -51,7 +51,6 @@ export type IsoNodeShape =
  */
 export type IsoNodeGlyph =
   | 'lambda'
-  | 'http'
   | 'websocket'
   | 'graphql'
   | 'mcp'

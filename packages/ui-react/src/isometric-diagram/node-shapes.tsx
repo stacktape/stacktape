@@ -253,7 +253,6 @@ const stroke = {
 
 const GLYPHS: Record<IsoNodeGlyph, ReactNode> = {
   lambda: <path d="M6 20 L12 8.5 M8 4 H11 L18 20 H20.5" {...stroke} strokeWidth={2.6} />,
-  http: <path d="M8 6 L3 12 L8 18 M16 6 L21 12 L16 18" {...stroke} />,
   // Two-way arrows along the glyph's vertical, which is the flow direction on a top face.
   websocket: <path d="M8.5 20 V4.5 M5 8 L8.5 4.5 L12 8 M15.5 4 V19.5 M12 16 L15.5 19.5 L19 16" {...stroke} />,
   graphql: (
