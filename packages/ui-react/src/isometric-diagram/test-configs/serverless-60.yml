@@ -1,0 +1,1014 @@
+resources:
+  api:
+    type: http-api-gateway
+  adminApi:
+    type: http-api-gateway
+
+  publicRoute00:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute00.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r0
+            method: GET
+      connectTo:
+        - ordersTable
+        - jobs
+
+  publicRoute01:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute01.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r1
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute02:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute02.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r2
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute03:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute03.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r3
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute04:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute04.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r4
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute05:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute05.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r5
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute06:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute06.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r6
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute07:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute07.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r7
+            method: GET
+      connectTo:
+        - cartsTable
+        - jobs
+
+  publicRoute08:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute08.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r8
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute09:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute09.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r9
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute10:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute10.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r10
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute11:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute11.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r11
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute12:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute12.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r12
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute13:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute13.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r13
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute14:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute14.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r14
+            method: GET
+      connectTo:
+        - usersTable
+        - jobs
+
+  publicRoute15:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute15.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r15
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute16:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute16.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r16
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute17:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute17.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r17
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute18:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute18.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r18
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute19:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute19.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r19
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute20:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute20.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r20
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute21:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute21.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r21
+            method: GET
+      connectTo:
+        - productsTable
+        - jobs
+
+  publicRoute22:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute22.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r22
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute23:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute23.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r23
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute24:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute24.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r24
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute25:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute25.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r25
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute26:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute26.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r26
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute27:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute27.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r27
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute28:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute28.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r28
+            method: GET
+      connectTo:
+        - ordersTable
+        - jobs
+
+  publicRoute29:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute29.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r29
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute30:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute30.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r30
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute31:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute31.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r31
+            method: GET
+      connectTo:
+        - cartsTable
+
+  publicRoute32:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute32.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r32
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute33:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute33.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r33
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute34:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute34.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r34
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute35:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute35.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r35
+            method: GET
+      connectTo:
+        - cartsTable
+        - jobs
+
+  publicRoute36:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute36.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r36
+            method: GET
+      connectTo:
+        - ordersTable
+
+  publicRoute37:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute37.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r37
+            method: GET
+      connectTo:
+        - productsTable
+
+  publicRoute38:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute38.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r38
+            method: GET
+      connectTo:
+        - usersTable
+
+  publicRoute39:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/publicRoute39.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /r39
+            method: GET
+      connectTo:
+        - cartsTable
+
+  adminRoute00:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute00.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/0
+            method: POST
+      connectTo:
+        - auditTable
+        - ordersTable
+
+  adminRoute01:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute01.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/1
+            method: POST
+      connectTo:
+        - auditTable
+        - productsTable
+
+  adminRoute02:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute02.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/2
+            method: POST
+      connectTo:
+        - auditTable
+        - usersTable
+
+  adminRoute03:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute03.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/3
+            method: POST
+      connectTo:
+        - auditTable
+        - cartsTable
+
+  adminRoute04:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute04.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/4
+            method: POST
+      connectTo:
+        - auditTable
+        - ordersTable
+
+  adminRoute05:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute05.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/5
+            method: POST
+      connectTo:
+        - auditTable
+        - productsTable
+
+  adminRoute06:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute06.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/6
+            method: POST
+      connectTo:
+        - auditTable
+        - usersTable
+
+  adminRoute07:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute07.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/7
+            method: POST
+      connectTo:
+        - auditTable
+        - cartsTable
+
+  adminRoute08:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute08.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/8
+            method: POST
+      connectTo:
+        - auditTable
+        - ordersTable
+
+  adminRoute09:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/adminRoute09.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: adminApi
+            path: /admin/9
+            method: POST
+      connectTo:
+        - auditTable
+        - productsTable
+
+  jobWorker0:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/jobWorker0.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobs
+      connectTo:
+        - ordersTable
+        - events
+
+  jobWorker1:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/jobWorker1.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobs
+      connectTo:
+        - ordersTable
+        - events
+
+  jobWorker2:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/jobWorker2.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobs
+      connectTo:
+        - ordersTable
+        - events
+
+  jobWorker3:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/jobWorker3.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobs
+      connectTo:
+        - ordersTable
+        - events
+
+  subscriber0:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/subscriber0.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: events
+      connectTo:
+        - usersTable
+
+  subscriber1:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/subscriber1.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: events
+      connectTo:
+        - usersTable
+
+  subscriber2:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/subscriber2.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: events
+      connectTo:
+        - usersTable
+
+  cron0:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/cron0.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hours)
+      connectTo:
+        - auditTable
+
+  cron1:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/cron1.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(2 hours)
+      connectTo:
+        - auditTable
+
+  cron2:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/cron2.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(3 hours)
+      connectTo:
+        - auditTable
+
+  ordersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  productsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  usersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  cartsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  auditTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  jobs:
+    type: sqs-queue
+
+  events:
+    type: sns-topic
+
+  assets:
+    type: bucket
