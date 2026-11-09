@@ -460,9 +460,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await artifactStoreCreation;
 
   progress.setPhase('UPLOAD');
-  // Taken before the upload: a stack delete empties the bucket under this lock, and nothing may appear in it meanwhile.
+  // A deploy of an existing stack took the lock when it started, before it read the stack, and this shares it. A new
+  // stack's bucket exists only now, so its lock is taken here, before the upload: a stack delete empties the bucket
+  // under this lock, and nothing may appear in it meanwhile.
   const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
-  // Another deploy, rollback or delete may have finished with the lock while this deploy was building.
+  // Another first deploy may have created the stack meanwhile. For an existing stack, this is a safety net.
   await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'deploy', createsStack });
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
   try {

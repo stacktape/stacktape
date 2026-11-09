@@ -301,7 +301,8 @@ class StackManager {
     commandModifiesStack,
     commandRequiresDeployedStack,
     parentEventType,
-    whileLoadingResourceDetails
+    whileLoadingResourceDetails,
+    takeStackLock
   }: {
     stackName: string;
     commandModifiesStack: boolean;
@@ -313,6 +314,14 @@ class StackManager {
      * It runs while those load.
      */
     whileLoadingResourceDetails?: () => Promise<unknown>;
+    /**
+     * Takes the stack's lock once the stack exists and CloudFormation is done with it, before anything else about it is
+     * read. Says whether another operation may have changed the stack since it was read, and lets go of the lock when
+     * the stack turns out to be going away.
+     */
+    takeStackLock?: (
+      onWaiting: (message: string) => void
+    ) => Promise<{ stackMayHaveChanged: boolean; abandon: () => void } | undefined>;
   }) => {
     await operationReporter.startEvent({
       eventType: 'FETCH_STACK_DATA',
@@ -338,13 +347,27 @@ class StackManager {
       throw fetchedDetails.reason;
     }
     const instanceId = parentEventType ? 'Stack data' : undefined;
-    const { stackDetails } = await this.waitForStackToBeReadyForOperation({
-      stackDetails: fetchedDetails.value,
-      commandModifiesStack,
-      commandRequiresDeployedStack,
-      progressLogger: operationReporter,
-      eventContext: { parentEventType, instanceId }
-    });
+    const waitUntilReady = (details: StackDetails) =>
+      this.waitForStackToBeReadyForOperation({
+        stackDetails: details,
+        commandModifiesStack,
+        commandRequiresDeployedStack,
+        progressLogger: operationReporter,
+        eventContext: { parentEventType, instanceId }
+      });
+    let { stackDetails } = await waitUntilReady(fetchedDetails.value);
+    const lock = stackDetails
+      ? await takeStackLock?.((description) =>
+          operationReporter.updateEvent({ eventType: 'FETCH_STACK_DATA', description, parentEventType, instanceId })
+        )
+      : undefined;
+    if (lock?.stackMayHaveChanged) {
+      const current = await awsSdkManager.cloudFormation.getDetails(stackName);
+      // A delete that held the lock leaves a stack that is going away. The command then works as on a new stack, which
+      // takes the lock again when it needs it.
+      if (!current || current.StackStatus?.startsWith('DELETE_')) lock.abandon();
+      ({ stackDetails } = await waitUntilReady(current));
+    }
     const stackResources =
       stackDetails === fetchedDetails.value && listedResources.status === 'fulfilled'
         ? listedResources.value

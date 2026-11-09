@@ -74,7 +74,8 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
   if (deleteIsRunning && !(await aws.s3.bucketExists({ bucketName }))) return;
   const { holdStackLock } = await import('../stack-operation-lock');
   const lock = await holdStackLock({ bucketName, operation, releaseOnExit: false });
-  applicationManager.finalCleanUpHooks.push(codeSwapFinish);
+  // Before the exit release of the stack lock, which this may leave to expire instead.
+  applicationManager.finalCleanUpHooks.unshift(codeSwapFinish);
   held = {
     lock,
     services: (await getCodeSwapRuns()).map(({ service, recordService }) => ({ service, recordService })),

@@ -466,7 +466,9 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. A deploy also stops, without changing anything, when another deploy finished while it was building, so it never overwrites a newer release; run it again. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
+
+The first deploy of a new stage is the exception: until the stage exists, it has nowhere to keep the lock. If two first deploys of the same stage run at once, the second stops without changing anything; run it again.
 
 ## FAQ
 
@@ -490,9 +492,9 @@ By default, the stack keeps what the failed deployment created or updated and st
 
 Run the deploy command once per region with the same stage name but different `--region` values. Each region creates an independent stack. You can run these as parallel jobs in your CI pipeline. See [multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and considerations.
 
-### Why does one of two concurrent deploys to the same stage fail?
+### What happens when two deploys to the same stage run at once?
 
-A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. If the first one finished while the second was still building, the second stops before it changes anything, because it was built against an older release. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. The second deploy waits for the first to finish and then deploys on top of its result. A killed run blocks the next one for at most two minutes. To control the order of runs, use a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
 
 ---
 
@@ -13064,7 +13066,7 @@ Use [`stacktape rollback`](/deployment-and-lifecycle/rollbacks) to deploy a reta
 
 Set `codeSwap: false` or remove it, then deploy, to return to image-only operation. [`stacktape delete`](/cli/delete) also removes the runtime table and code bundles.
 
-A stack runs one deploy, rollback or delete at a time. Once a stack is opted in, the operation holds the stack's lock from its start, because preparing a swap already starts new code in the running tasks. If you interrupt the CLI (Ctrl+C, or a cancelled CI job) before it starts changing the stack, it aborts any prepared swap and releases the lock. After it has started changing the stack, and whenever the CLI is killed, the lock stays until it expires, within two minutes. A command that runs before then fails and names the holder. The next command after that takes over and repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap. If that repair also stops before it finishes, the following command repairs the swap the same way.
+A stack runs one deploy, rollback or delete at a time. Once a stack is opted in, the operation holds the stack's lock from its start, because preparing a swap already starts new code in the running tasks. If you interrupt the CLI (Ctrl+C, or a cancelled CI job) before it starts changing the stack, it aborts any prepared swap and releases the lock. After it has started changing the stack, and whenever the CLI is killed, the lock stays until it expires, within two minutes. A command that starts before then waits and names the holder. Once the lock expires, it takes over and repairs an interrupted swap through an image deploy; it never reports the interrupted attempt as a successful swap. If that repair also stops before it finishes, the following command repairs the swap the same way.
 
 The application has permission to write its own supervisor status. A malicious application can forge its own completion and cause a false success report. It cannot write the release record or another task's status. Code bundles, images, release records and task status stay in your AWS account; this feature adds no external data service.
 

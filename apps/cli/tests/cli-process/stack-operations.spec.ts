@@ -467,6 +467,35 @@ describe('delete', () => {
     expect(aws.unexpectedRequests).toEqual([]);
   });
 
+  test('a delete started while a deploy holds the stack waits for it, then deletes', async () => {
+    const startedAtMs = Date.now();
+    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'), {
+      [STACK_LOCK_S3_KEY]: JSON.stringify({
+        invocationId: 'ci-deploy',
+        operation: 'deploy',
+        renewedAtMs: startedAtMs,
+        startedAtMs
+      })
+    });
+    const deleting = runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
+    await Bun.sleep(3000);
+    // Nothing changes the stack while the deploy holds it.
+    expect(aws.mutations).toEqual([]);
+    await bucket.put(
+      deploymentBucketName,
+      STACK_LOCK_S3_KEY,
+      JSON.stringify({ released: true, releasedAtMs: Date.now() })
+    );
+    const run = await deleting;
+
+    expect(printable(run)).toBe('');
+    expect(run.exitCode).toBe(0);
+    expect(JSON.stringify(run.records)).toContain(
+      'Waiting for another deploy of this stack to finish (invocation ci-deploy'
+    );
+    expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
+  });
+
   test('a non-interactive delete without explicit confirmation stops before touching the stack', async () => {
     const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'));
     const run = await runCli({ args: ['delete'], controlPlane, aws, bucket });
