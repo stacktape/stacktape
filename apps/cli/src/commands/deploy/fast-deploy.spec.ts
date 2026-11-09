@@ -155,6 +155,29 @@ describe('a fast deployment with shared layers', () => {
     expect(steps.some(({ step }) => step === 'function:mixed')).toBe(true);
   });
 
+  test('changes no function that waited for its layers when another operation took over the stack meanwhile', async () => {
+    steps.length = 0;
+    let confirmations = 0;
+    const plan = {
+      functions: [lambda('api', [1]), lambda('report', [1])],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    const failure = await performFastDeploy({
+      plan,
+      recordRelease: false,
+      progress,
+      deploymentArtifacts: {},
+      confirmLock: async () => {
+        confirmations += 1;
+        throw new Error('Another operation took over this stack.');
+      }
+    } as never).catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(steps.map(({ step }) => step)).toEqual(['layers:1']);
+    expect(confirmations).toBe(1);
+  });
+
   test('changes no function when a layer cannot be published, and says so', async () => {
     steps.length = 0;
     failLayerPublication = true;

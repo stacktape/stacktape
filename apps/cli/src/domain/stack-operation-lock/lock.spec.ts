@@ -165,6 +165,13 @@ describe('stack operation lock', () => {
     await expect(acquireStackLock(options(store, 'b', () => time))).rejects.toBeInstanceOf(StackLockedError);
   });
 
+  test('confirmations at the same time do not read as a takeover', async () => {
+    const { store } = memoryStore();
+    const held = await acquireStackLock(options(store, 'a', () => 0));
+    await Promise.all([held.confirm(), held.confirm(), held.confirm()]);
+    expect(held.isHeld()).toBe(true);
+  });
+
   test('detach leaves the lock in place and stops renewing it', async () => {
     const { store, current } = memoryStore();
     const held = await acquireStackLock(options(store, 'deleting', () => 0));

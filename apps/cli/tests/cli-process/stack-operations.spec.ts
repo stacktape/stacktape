@@ -584,7 +584,8 @@ describe('rollback', () => {
     expect(run.exitCode).not.toBe(0);
     expect(printable(run)).toMatch(/v000001/);
     expect(aws.mutations).toEqual([]);
-    expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
+    // The rollback takes the stack lock before it reads or writes anything, and leaves it released.
+    expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002'), STACK_LOCK_S3_KEY]);
   });
 
   for (const desiredCount of [0, 1]) {

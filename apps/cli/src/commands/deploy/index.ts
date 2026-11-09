@@ -462,17 +462,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   progress.setPhase('UPLOAD');
   // Taken before the upload: a stack delete empties the bucket under this lock, and nothing may appear in it meanwhile.
   const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
-  // A delete that finished with the lock while this deploy was building leaves a stack that is going away.
-  if (!createsStack) {
-    const currentStack = await awsSdkManager.cloudFormation.getDetails(stackContext.stackName);
-    if (!currentStack || currentStack.StackStatus?.startsWith('DELETE_')) {
-      throw new ExpectedError(
-        'STACK',
-        `Stack ${stackContext.stackName} is being deleted, so this deploy stopped without changing anything.`,
-        'Wait for the delete to finish and run the deploy again.'
-      );
-    }
-  }
+  // Another deploy, rollback or delete may have finished with the lock while this deploy was building.
+  if (!createsStack) await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'deploy' });
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
   try {
     await deploymentArtifacts.uploadAllArtifacts({
@@ -552,7 +543,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
         recordRelease: createsRelease,
         deploymentArtifacts,
         progress,
-        layerVersions: sharedLayerPublication?.wait()
+        layerVersions: sharedLayerPublication?.wait(),
+        confirmLock: lock.confirm
       });
     } else {
       await performFullDeploy({ deploymentArtifacts, stack, tui });
@@ -565,7 +557,6 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     // The stage stack now imports the shared stacks it uses, which keeps them.
     stopMarkingSharedNetworkUsed();
     await releaseCommandLogs?.stop();
-    await lock.release();
   }
   // Recorded while the post-deploy steps run; nothing below depends on it. It never throws. A failing post-deploy step
   // still lets it finish before the command exits.
@@ -726,6 +717,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await Promise.all([syncUptimeChecks(), reportSecurityFindings(), sourceMapActivation]);
   await notification.waitForQueuedEvents();
   await codeSwapComplete(createsRelease);
+  // Held through the steps after the rollout, which still write to the bucket and the stack's websites. A failure
+  // releases it when the command ends.
+  await lock.release();
 
   return {
     stackInfo: detailedStackInfoSensitive,

@@ -135,11 +135,15 @@ export const performFastDeploy = async ({
   recordRelease,
   deploymentArtifacts,
   progress,
-  layerVersions
-}: { plan: FastDeployPlan; recordRelease: boolean; layerVersions?: Promise<Map<number, string>> } & Pick<
-  DeployOperation,
-  'deploymentArtifacts' | 'progress'
->) => {
+  layerVersions,
+  confirmLock = async () => {}
+}: {
+  plan: FastDeployPlan;
+  recordRelease: boolean;
+  layerVersions?: Promise<Map<number, string>>;
+  /** Throws if another operation took over the stack lock. */
+  confirmLock?: () => Promise<void>;
+} & Pick<DeployOperation, 'deploymentArtifacts' | 'progress'>) => {
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
   // Publication and bridge preparation are independent. Functions whose layers stay unchanged can also update while
@@ -168,6 +172,8 @@ export const performFastDeploy = async ({
   );
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
+  // Publishing layers can take long enough for another operation to take over a paused deploy's lock.
+  let lockConfirmedAfterLayers: Promise<void> | undefined;
   await codeSwapPrepareServices(plan.services);
   const updates = [
     ...plan.functions.map((update) => ({
@@ -190,6 +196,8 @@ export const performFastDeploy = async ({
             transitionalLayerArns = transition?.layerArns;
             layerFirst = transition?.layerFirst ?? false;
           }
+          lockConfirmedAfterLayers ??= confirmLock();
+          await lockConfirmedAfterLayers;
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,

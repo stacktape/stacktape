@@ -144,8 +144,10 @@ export const acquireStackLock = async ({
     ...(taken.tookOverFrom ? { tookOverFrom: taken.tookOverFrom } : {}),
     isHeld: () => held,
     confirm: async () => {
-      await renewal;
-      await renewNow();
+      // Queued behind every other renewal: two writes with the same ETag would fail one of them, which reads as a takeover.
+      const confirmation = renewal.then(renewNow);
+      renewal = confirmation.catch(() => {});
+      await confirmation;
       if (!held) throw new StackLockLostError();
     },
     release: async () => {

@@ -358,6 +358,45 @@ class DeploymentArtifactManager {
     );
   }
 
+  /**
+   * Stops an operation that read the stack before another operation changed it. Its plan and release number date from
+   * then, so continuing would overwrite the newer release. Run it after taking the stack lock, which keeps the stack as
+   * it is from then on.
+   */
+  ensureNoReleaseSinceStart = async ({ operation }: { operation: 'deploy' | 'rollback' }) => {
+    const { stackName } = globalStateManager.targetStack;
+    const [currentStack, markers] = await Promise.all([
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.s3.listObjects(this.deploymentBucketName, undefined, { prefix: `${FAST_RELEASE_MARKER_NAME}/` })
+    ]);
+    if (!currentStack || currentStack.StackStatus?.startsWith('DELETE_')) {
+      throw new ExpectedError(
+        'STACK',
+        `Stack ${stackName} is being deleted, so this ${operation} stopped without changing anything.`,
+        `Wait for the delete to finish and run the ${operation} again.`
+      );
+    }
+    const versionOutput = outputNames.deploymentVersion();
+    const deployedVersion = currentStack.stackOutput[versionOutput] || null;
+    const latestFastRelease =
+      markers
+        .map(({ Key }) => parseBucketObjectS3Key(Key))
+        .filter((parsed) => parsed?.name === FAST_RELEASE_MARKER_NAME)
+        .map(({ version }) => version)
+        .toSorted((a, b) => getNumericVersion(b) - getNumericVersion(a))
+        .at(0) ?? null;
+    if (
+      deployedVersion !== (stackManager.lastDeploymentStackOutput[versionOutput] || null) ||
+      latestFastRelease !== this.latestRecordedRelease
+    ) {
+      throw new ExpectedError(
+        'STACK',
+        `Another operation changed stack ${stackName} while this ${operation} was preparing, so it stopped without changing anything.`,
+        `Run the ${operation} again, so it starts from the current release.`
+      );
+    }
+  };
+
   getImageUrlForJob = ({ tag }: { tag: string }) => {
     return getEcrImageUrl(this.repositoryUrl, tag);
   };

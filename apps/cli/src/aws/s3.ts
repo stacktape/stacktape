@@ -544,17 +544,19 @@ export class AwsS3 {
     return Promise.resolve();
   };
 
-  listObjects = async (bucketName: string, injectedS3Client?: S3Client) => {
+  listObjects = async (bucketName: string, injectedS3Client?: S3Client, { prefix }: { prefix?: string } = {}) => {
     let result: _Object[] = [];
     const errorHandler = this.#getErrorHandler(`Failed to list all objects in bucket ${bucketName}.`);
     let { Contents, NextContinuationToken } = await (injectedS3Client || this.#createClient())
-      .send(new ListObjectsV2Command({ Bucket: bucketName }))
+      .send(new ListObjectsV2Command({ Bucket: bucketName, Prefix: prefix }))
       .catch(errorHandler);
 
     if (Contents) result = result.concat(Contents);
     while (NextContinuationToken) {
       ({ Contents, NextContinuationToken } = await (injectedS3Client || this.#createClient())
-        .send(new ListObjectsV2Command({ Bucket: bucketName, ContinuationToken: NextContinuationToken }))
+        .send(
+          new ListObjectsV2Command({ Bucket: bucketName, Prefix: prefix, ContinuationToken: NextContinuationToken })
+        )
         .catch(errorHandler));
       if (Contents) result = result.concat(Contents);
     }
