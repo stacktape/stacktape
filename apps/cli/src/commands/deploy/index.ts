@@ -463,7 +463,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Taken before the upload: a stack delete empties the bucket under this lock, and nothing may appear in it meanwhile.
   const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
   // Another deploy, rollback or delete may have finished with the lock while this deploy was building.
-  if (!createsStack) await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'deploy' });
+  await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'deploy', createsStack });
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
   try {
     await deploymentArtifacts.uploadAllArtifacts({

@@ -127,13 +127,21 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
 
 export const codeSwapInterrupted = () => interrupted;
 
+let lockLoss: unknown;
 /**
  * Throws if another operation took over the stack lock. A swap calls it after its waits, right before it changes
  * running tasks: a paused process does not notice by itself that its lease ended.
  */
 export const codeSwapConfirmLock = async () => {
-  await held?.lock.confirm();
+  if (lockLoss) throw lockLoss;
+  await held?.lock.confirm().catch((error: unknown) => {
+    lockLoss = error;
+    throw error;
+  });
 };
+
+/** Set once a lock check failed. From then on, this operation must not change any service, not even to abort a swap. */
+export const codeSwapLockLoss = () => lockLoss;
 
 let repairCompleted = false;
 export const codeSwapRepairCompleted = () => {
@@ -161,7 +169,7 @@ export const codeSwapTrackPreparation = (work: Promise<unknown>) => {
 
 // The entrypoint calls this after the ordinary cleanup hooks (which run concurrently) have all finished.
 export const codeSwapFinish = async () => {
-  if (retainLock || (interrupted && mutationStarted)) {
+  if (retainLock || lockLoss || (interrupted && mutationStarted)) {
     held?.lock.detach();
     return;
   }

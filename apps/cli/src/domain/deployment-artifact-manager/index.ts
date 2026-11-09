@@ -363,8 +363,25 @@ class DeploymentArtifactManager {
    * then, so continuing would overwrite the newer release. Run it after taking the stack lock, which keeps the stack as
    * it is from then on.
    */
-  ensureNoReleaseSinceStart = async ({ operation }: { operation: 'deploy' | 'rollback' }) => {
+  ensureNoReleaseSinceStart = async ({
+    operation,
+    createsStack = false
+  }: {
+    operation: 'deploy' | 'rollback';
+    /** The operation found no stack when it started and plans to create it. */
+    createsStack?: boolean;
+  }) => {
     const { stackName } = globalStateManager.targetStack;
+    if (createsStack) {
+      if (await awsSdkManager.cloudFormation.getDetails(stackName)) {
+        throw new ExpectedError(
+          'STACK',
+          `Another operation created stack ${stackName} while this ${operation} was preparing, so it stopped without changing anything.`,
+          `Run the ${operation} again, so it starts from the current release.`
+        );
+      }
+      return;
+    }
     const [currentStack, markers] = await Promise.all([
       awsSdkManager.cloudFormation.getDetails(stackName),
       awsSdkManager.s3.listObjects(this.deploymentBucketName, undefined, { prefix: `${FAST_RELEASE_MARKER_NAME}/` })

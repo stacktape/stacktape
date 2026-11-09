@@ -62,3 +62,13 @@ test('stops an operation on a stack that is being deleted', async () => {
   current = stack('v000003', 'DELETE_IN_PROGRESS');
   expect(((await check()) as Error).message).toContain('is being deleted');
 });
+
+test('stops a first deploy when another deploy created the stack meanwhile', async () => {
+  const error = await manager.ensureNoReleaseSinceStart({ operation: 'deploy', createsStack: true }).catch((e) => e);
+  expect((error as Error).message).toContain('Another operation created stack app-prod');
+});
+
+test('lets a first deploy continue while the stack still does not exist', async () => {
+  current = null as unknown as StackDetails;
+  expect(await manager.ensureNoReleaseSinceStart({ operation: 'deploy', createsStack: true })).toBeUndefined();
+});

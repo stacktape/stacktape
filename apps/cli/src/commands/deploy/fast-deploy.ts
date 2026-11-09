@@ -172,9 +172,12 @@ export const performFastDeploy = async ({
   );
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
-  // Publishing layers can take long enough for another operation to take over a paused deploy's lock.
-  let lockConfirmedAfterLayers: Promise<void> | undefined;
-  await codeSwapPrepareServices(plan.services);
+  // Publishing layers and preparing their transition can take long enough for another operation to take over a paused
+  // deploy's lock. The functions that waited for the same step share one check made when that step ended.
+  let lockConfirmedAfterPublication: Promise<void> | undefined;
+  let lockConfirmedAfterPreparation: Promise<void> | undefined;
+  // Code-swap services prepare and switch first, which can take minutes. The functions below change afterwards.
+  if (await codeSwapPrepareServices(plan.services)) await confirmLock();
   const updates = [
     ...plan.functions.map((update) => ({
       name: update.workloadName,
@@ -195,9 +198,8 @@ export const performFastDeploy = async ({
             const transition = prepared.transitions.get(update.lambdaResourceName);
             transitionalLayerArns = transition?.layerArns;
             layerFirst = transition?.layerFirst ?? false;
-          }
-          lockConfirmedAfterLayers ??= confirmLock();
-          await lockConfirmedAfterLayers;
+            await (lockConfirmedAfterPreparation ??= confirmLock());
+          } else await (lockConfirmedAfterPublication ??= confirmLock());
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,

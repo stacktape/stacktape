@@ -67,7 +67,8 @@ import {
   hadCodeSwapTable,
   codeSwapTrackPreparation,
   codeSwapInterrupted,
-  codeSwapConfirmLock
+  codeSwapConfirmLock,
+  codeSwapLockLoss
 } from './lifecycle-hooks';
 import { createHash } from 'node:crypto';
 
@@ -735,8 +736,11 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
   const codeSwapSwap = async (update: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
     trace('codeSwapSwap:start');
     if (result.mode === 'swap') return true;
-    if (!prepare) return false;
-    let lostLock: unknown;
+    if (!prepare) {
+      // False sends the service to an image update.
+      await codeSwapConfirmLock();
+      return false;
+    }
     try {
       const { ids, service, cluster } = await prepare;
       if (preparationError) throw preparationError;
@@ -749,10 +753,7 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
       if (JSON.stringify((await traceAsync('commitFleet', () => fleet(service, cluster))).ids) !== JSON.stringify(ids))
         throw new Error('Fleet changed before commit.');
       // Preparation can take long. An operation that lost the lock must not switch serving code.
-      await codeSwapConfirmLock().catch((error: unknown) => {
-        lostLock = error;
-        throw error;
-      });
+      await codeSwapConfirmLock();
       await put({
         Revision: identity!.revision,
         Key: identity!.key,
@@ -783,7 +784,7 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
       return true;
     } catch (error) {
       // Another operation owns the stack now, so neither an abort nor the image fallback may change the service.
-      if (lostLock) throw lostLock;
+      if (codeSwapLockLoss()) throw codeSwapLockLoss();
       const capReason =
         error instanceof Error && error.message.startsWith('Code swap skipped') ? error.message : undefined;
       if (capReason) {
