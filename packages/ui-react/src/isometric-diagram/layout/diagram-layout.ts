@@ -63,15 +63,27 @@ export type DiagramLayoutInput = {
   zones: LayoutZone[];
   /** The size of an edge's label chip, in projected units. */
   measureLabel: (text: string) => LayoutConnectorLabel;
-  /** Boxes of flat zone tags hanging under a zone's front tip, relative to that tip. */
-  zoneTag?: ((zoneId: string) => ProjectedBox | undefined) | undefined;
+  /**
+   * The size of a zone's name tag, a strip of text laid along one of the zone's edges: `length` tiles along the edge
+   * and `thickness` tiles across it.
+   */
+  zoneTag?: ((zoneId: string) => ZoneTagSize | undefined) | undefined;
 };
+
+export type ZoneTagSize = { length: number; thickness: number };
+
+/**
+ * Where a zone tag goes: the start of its centre line, and the tile axis it runs along (`y` towards −y, `x` towards
+ * +x), so it always reads left to right on screen.
+ */
+export type ZoneTagPlacement = { start: IsoTilePoint; axis: 'x' | 'y' };
 
 export type DiagramLayout = {
   nodes: Map<string, IsoTilePoint>;
   columns: Map<string, number>;
   zones: Map<string, { from: IsoTilePoint; to: IsoTilePoint }>;
   edges: Map<string, { points: IsoTilePoint[]; labelTile: IsoTilePoint; reversed: boolean }>;
+  zoneTags: Map<string, ZoneTagPlacement>;
 };
 
 // ── Spacing, in tile units ──
@@ -90,7 +102,7 @@ const ZONE_PAD_FRONT = 1.15;
 const ZONE_PAD_BACK = 0.75;
 const ZONE_PAD_SIDE = 0.65;
 const PARENT_ZONE_PAD = 0.5;
-/** Gap between stacked sibling zones; it leaves room for the back zone's tag. */
+/** Gap between stacked sibling zones. */
 const ZONE_STACK_GAP = 1.5;
 /** Gap between a zone and a node outside it in the same column. */
 const ZONE_OUTSIDE_GAP = 1.1;
@@ -126,6 +138,11 @@ const INDEX_CELL = 2;
 /** How a gutter grows, and how often, when a chip next to it has no free spot. */
 const CHIP_WIDENING_STEP = 0.5;
 const CHIP_WIDENING_ROUNDS = 6;
+/** Between a zone edge and the tag laid along it, and between the tag and the zone's corners. */
+const ZONE_TAG_EDGE_GAP = 0.08;
+const ZONE_TAG_CORNER_GAP = 0.3;
+/** Spacing of candidate tag positions along an edge, and of the samples that test a candidate. */
+const ZONE_TAG_STEP = 0.2;
 /** The first shapes of a node are its body; the last is its name tag. */
 const BODY_SHAPES = 3;
 const EPSILON = 1e-6;
@@ -825,11 +842,14 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
         (shapeIndex < BODY_SHAPES ? bodies : tags).insert(shiftBox({ box: shape, u, v }))
       );
     });
+    // Zone tags go before chips, so chips keep clear of them.
+    const zoneTags = new Map<string, ZoneTagPlacement>();
     for (const [zoneId, rect] of zoneRects) {
-      const tag = input.zoneTag?.(zoneId);
-      if (!tag) continue;
-      const { u, v } = projectTile(rect.from);
-      tags.insert(shiftBox({ box: tag, u, v }));
+      const size = input.zoneTag?.(zoneId);
+      if (!size) continue;
+      const placed = placeZoneTag({ rect, size, occupied: (box) => bodies.overlapArea(box) + tags.overlapArea(box) });
+      zoneTags.set(zoneId, placed.placement);
+      for (const box of placed.boxes) tags.insert(box);
     }
     const labelTiles = new Map<string, IsoTilePoint>();
     const crowdedGutters = new Set<number>();
@@ -945,7 +965,7 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
       commit({ tile: best.tile, box: best.box, edgeIds: [chain.edge.id] });
     }
 
-    return { tileOf, routes, zoneRects, labelTiles, crowdedGutters };
+    return { tileOf, routes, zoneRects, zoneTags, labelTiles, crowdedGutters };
   };
 
   let placed = placeAlongFlow();
@@ -955,7 +975,7 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
   }
 
   // ── Output ──
-  const { tileOf, routes, zoneRects, labelTiles } = placed;
+  const { tileOf, routes, zoneRects, zoneTags, labelTiles } = placed;
   const roundPoint = (point: IsoTilePoint) => ({ x: round(point.x), y: round(point.y) });
   const nodeTiles = new Map(nodes.map((node, index) => [node.id, roundPoint(tileOf(index))]));
   const edgeOutput = new Map<string, { points: IsoTilePoint[]; labelTile: IsoTilePoint; reversed: boolean }>();
@@ -972,7 +992,69 @@ export const layoutDiagram = (input: DiagramLayoutInput): DiagramLayout => {
   const zoneOutput = new Map(
     [...zoneRects].map(([id, rect]) => [id, { from: roundPoint(rect.from), to: roundPoint(rect.to) }])
   );
-  return { nodes: nodeTiles, columns: columnById, zones: zoneOutput, edges: edgeOutput };
+  const zoneTagOutput = new Map(
+    [...zoneTags].map(([id, tag]) => [id, { start: roundPoint(tag.start), axis: tag.axis }] as const)
+  );
+  return { nodes: nodeTiles, columns: columnById, zones: zoneOutput, edges: edgeOutput, zoneTags: zoneTagOutput };
+};
+
+/**
+ * Lays a zone's name along one of its edges. It prefers the inside of the front-left edge, read from the left corner
+ * towards the front tip, then the other edges, then just outside them (where it may run past a corner), and takes the
+ * first spot no body, name tag or earlier zone tag covers; if every spot is covered, the least covered one. The strip is tested as small projected
+ * boxes along its centre line.
+ */
+const placeZoneTag = ({
+  rect,
+  size,
+  occupied
+}: {
+  rect: { from: IsoTilePoint; to: IsoTilePoint };
+  size: ZoneTagSize;
+  occupied: (box: ProjectedBox) => number;
+}) => {
+  const { from, to } = rect;
+  const half = size.thickness / 2;
+  const across = ZONE_TAG_EDGE_GAP + half;
+  // `at(distance, inward)` is the start of the centre line, `distance` from the corner where reading starts and
+  // `inward` tiles into the zone (negative is outside).
+  const edges: { axis: 'x' | 'y'; length: number; at: (distance: number, inward: number) => IsoTilePoint }[] = [
+    { axis: 'y', length: to.y - from.y, at: (distance, inward) => ({ x: from.x + inward, y: to.y - distance }) },
+    { axis: 'x', length: to.x - from.x, at: (distance, inward) => ({ x: from.x + distance, y: from.y + inward }) },
+    { axis: 'x', length: to.x - from.x, at: (distance, inward) => ({ x: from.x + distance, y: to.y - inward }) },
+    { axis: 'y', length: to.y - from.y, at: (distance, inward) => ({ x: to.x - inward, y: to.y - distance }) }
+  ];
+  const boxesOf = (placement: ZoneTagPlacement) => {
+    const boxes: ProjectedBox[] = [];
+    for (let along = 0; along <= size.length + EPSILON; along += ZONE_TAG_STEP) {
+      const point =
+        placement.axis === 'y'
+          ? { x: placement.start.x, y: placement.start.y - along }
+          : { x: placement.start.x + along, y: placement.start.y };
+      // Moving `thickness` tiles across the edge moves the projection as much in `u` as in `v`, so the strip is
+      // `thickness` tall around its centre line; each sample also covers the step to the next one.
+      const { u, v } = projectTile(point);
+      const width = half + ZONE_TAG_STEP / 2;
+      boxes.push({ u0: u - width, u1: u + width, v0: v - size.thickness, v1: v + size.thickness });
+    }
+    return boxes;
+  };
+  let best: { placement: ZoneTagPlacement; boxes: ProjectedBox[]; covered: number } | undefined;
+  for (const inward of [across, -across]) {
+    for (const edge of edges) {
+      // Inside, the tag stays between the corners. Outside, it may run past the far corner, so a zone shorter than its
+      // name still gets a spot clear of its members.
+      const last = Math.max(ZONE_TAG_CORNER_GAP, edge.length - (inward > 0 ? size.length : 0) - ZONE_TAG_CORNER_GAP);
+      for (let distance = ZONE_TAG_CORNER_GAP; distance <= last + EPSILON; distance += ZONE_TAG_STEP) {
+        const placement = { start: edge.at(distance, inward), axis: edge.axis };
+        const boxes = boxesOf(placement);
+        const covered = boxes.reduce((sum, box) => sum + occupied(box), 0);
+        if (!best || covered < best.covered - EPSILON) best = { placement, boxes, covered };
+        if (covered <= EPSILON) return best;
+      }
+    }
+  }
+  return best as { placement: ZoneTagPlacement; boxes: ProjectedBox[]; covered: number };
 };
 
 const simplifyRoute = (points: IsoTilePoint[]) => {

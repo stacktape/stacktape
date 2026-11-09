@@ -37,7 +37,7 @@ const DEFAULT_EMPTY_MESSAGE = 'No resources to display. Add resources to your co
  *     StacktapeConfig → topology.ts → scene-builder.ts → IsoScene → IsoRenderer.tsx
  *
  * Load `@stacktape/ui-react/isometric-diagram.css` alongside this component. Import it from the
- * same module the host lazy-loads, so the stylesheet and the icon data travel in the same chunk.
+ * same module the host lazy-loads, so the stylesheet travels in the same chunk.
  */
 export function IsometricDiagram({
   config,

@@ -21,14 +21,24 @@ geometry. The layout reasons about flat text in projected units (`layout/project
 ## Host and bundle contract
 
 The host supplies a parsed `StacktapeConfig` and loads `@stacktape/ui-react/isometric-diagram.css`. The product-wide
-icon mapping lives in `../resource-icon/catalog.ts`. Only the lazy diagram path may import the heavy isopack resolver;
-ordinary icons and controls must not pull it into their bundles.
+resource category lives in `../resource-icon/catalog.ts`; the diagram colours shapes by it and draws everything else
+itself, with no icon packs or images.
 
 ## Synthesis rules that are easy to miss
 
 - Stacktape has public and private subnet tiers; do not invent an isolated data tier.
 - Accessibility changes reachability and security groups, not database/Redis/EFS subnet placement.
-- NAT applies only to supported container services and follows configured availability zones.
+- Private subnets and the NAT exist for container services with `usePrivateSubnetsWithNAT`, AgentCore runtimes that
+  connect to a database or Redis, and, once `stackConfig.nat` is set, every VPC function. NAT follows the configured
+  availability zones.
+- Kafka clusters, like databases, Redis and EFS, sit in the public subnets.
+- Convex expands into its ALB, backend and dashboard containers, Postgres database and storage buckets.
+- Uptime checks, synthetic tests and custom-resource instances are not drawn: the checks watch a URL, not a resource,
+  and an instance is one deploy-time call of its definition, whose type line counts them.
+- `security` edges come from `useFirewall` (on an ALB, web service, user pool, hosting bucket, SSR site or `cdn`) and
+  from route authorizers (Cognito user pool or Lambda function) and AppSync user-pool sign-in.
+- An enabled `cdn` on an HTTP API, ALB, function or bucket adds a CDN node that takes the user's edge; its
+  `edgeFunctions` and `routeRewrites` targets hang off that CDN.
 - Every web service has its own implicit ingress. Internal private-service ingress never connects to the public user.
 - SSR resources expand into CDN, server Lambda and assets bucket; `connectTo` starts at the server Lambda.
 - Batch-job events include the synthesized trigger Lambda.
@@ -43,9 +53,10 @@ was evaluated and rejected: it lays out each compound level separately, so a VPC
 and its subnet tiers end up side by side, which turns ALB → service → database into a backward edge.
 
 - **Columns follow the flow.** A node sits one column after whatever triggers or feeds it: request, event and egress
-  edges, and `connectTo` into a channel (queue, topic, bus, stream) or another workload. Users and schedules come first;
-  data stores share the last column, so events they emit (streams, bucket triggers) are drawn as back edges. Cycles are
-  cut deterministically. A node nothing feeds moves next to the first node it reaches.
+  edges, a firewall's `security` edge, and `connectTo` into a channel (queue, topic, bus, stream, Kafka, email) or
+  another workload. Users and schedules come first; data stores share the last column, so events they emit (streams,
+  bucket triggers) are drawn as back edges. Cycles are cut deterministically. A node nothing feeds moves next to the
+  first node it reaches.
 - **Zones are bands.** The edge zone and the VPC, with its public tier behind the private one, span the columns of their
   members. Members stay inside, and every other node in those columns stays above or below the band.
 - **Tall columns wrap** into sub-columns, because the default view fits the whole picture, whose size grows with tile
@@ -53,27 +64,44 @@ and its subnet tiers end up side by side, which turns ALB → service → databa
 - **Routes are orthogonal in tile space.** Long edges pass through shared waypoints, bundled by source or target and
   edge semantic, and turn only in the gutters between columns. They never cross a node they do not start or end at. Back
   edges reuse the same channels in reverse.
-- **Flat text gets room.** Name tags under each node's front tip, the bodies in front of them and connector chips are
-  kept apart in projected units. A chip sits only on route parts whose connectors share its label; a gutter widens when
-  a chip has no free spot.
+- **Flat text gets room.** Name tags under each node's front tip, the bodies in front of them (each as tall as its shape
+  plus any badge) and connector chips are kept apart in projected units. A chip sits only on route parts whose
+  connectors share its label; a gutter widens when a chip has no free spot.
+- **Zone tags run along a zone edge.** The engine lays each before the chips: inside the front-left edge first, then the
+  other edges, then just outside them, at the first spot no body, name tag or earlier tag covers.
 - **Stability.** Declaration order seeds and breaks ties in ordering and picks between mirror images, so adding or
   hiding a resource leaves the other nodes in their columns.
 
 ## Rendering rules
 
-Use the existing 2:1 projection and preserve painter order: grid and boundaries, connectors, depth-sorted nodes,
-connector chips, then zone tags. Text stays flat in screen space. Trim connector endpoints around pedestals and keep
-routing deterministic. Wheel listeners stay non-passive and pointer capture supports mouse and touch.
+Use the existing 2:1 projection and preserve painter order: grid and boundaries, connectors, depth-sorted nodes (shape,
+badges, name tag), connector chips, then zone tags.
+
+- `scene.ts` carries a semantic `shape`, `category` and optional `glyph` per node; `node-appearance.ts` picks them from
+  the resource type and the catalog, and holds the sizes the layout reserves (shape heights, badges, name lengths).
+  `node-shapes.tsx` owns every pixel of a shape: a silhouette per kind, the body in the AWS category colour, at most one
+  flat white glyph on a top face. Add a shape there before reusing a generic one.
+- Draw replicas literally: database instances as side-by-side cylinders (writer first), NAT gateways as one slab each,
+  container tasks as cubes for the minimum and dashed cubes up to the maximum, with a small range badge.
+- Name tags have two lines: the resource name and a muted type line from the topology.
+- A data store reachable from the internet by its accessibility mode carries a red `public` badge. Keep it visible in
+  every view.
+- Zone tags are rotated to the edge the layout chose. Other text stays flat in screen space. Connector labels say
+  something specific (schedule rate, poll, push, stream, HTTPS, an authorizer); a plain synchronous call needs none.
+
+Trim connector endpoints around node footprints and keep routing deterministic. Wheel listeners stay non-passive and
+pointer capture supports mouse and touch.
 
 Reset pan/zoom only when the sorted node-ID set changes. Hover is a graph focus operation, so related nodes, edges and
 the explanation must agree.
 
 ## Validate changes
 
-Update topology, icon/category mapping, explanations and at least one fixture together. Prefer semantic tests for nodes,
-edges, zones and routes over whole-SVG snapshots. `layout/diagram-layout.test.ts` checks the layout rules over every
-fixture and the larger configs in `test-configs/`. When layout spacing or routing changes, render the fixtures and those
-configs and look at them at a 16:10 size; tests do not judge legibility.
+Update topology, the category mapping and node appearance, explanations and at least one fixture together. Prefer
+semantic tests for nodes, edges, zones and routes over whole-SVG snapshots; `synthesis.test.ts` holds the
+synthesizer-checked rules for resource types and relations. `layout/diagram-layout.test.ts` checks the layout rules over
+every fixture and the larger configs in `test-configs/`. When layout spacing or routing changes, render the fixtures and
+those configs and look at them at a 16:10 size; tests do not judge legibility.
 
 ```sh
 pnpm --filter @stacktape/ui-react run test

@@ -42,74 +42,75 @@ export type FrameworkIconName =
 
 export type ResourceVisual = {
   category: ResourceVisualCategory;
-  diagramIconId: string;
   icon: { kind: 'aws'; name: AwsResourceIconName } | { kind: 'framework'; name: FrameworkIconName };
 };
 
-type DiagramOnlyResourceType = 'cloudfront' | 'nat-gateway' | 'schedule' | 'user';
+type DiagramOnlyResourceType = 'cloudfront' | 'nat-gateway' | 'schedule';
 
 /**
  * The product-wide meaning of a resource icon.
  *
  * Renderers deliberately stay elsewhere: Console and other ordinary React surfaces render the
- * component named by `icon`; the isometric diagram resolves `diagramIconId` from its large isopack
- * catalogue. This catalog is small, has no React or icon-pack dependency, and is the only place
+ * component named by `icon`; the isometric diagram draws its own shapes and colours them by
+ * `category`. This catalog is small, has no React or icon-pack dependency, and is the only place
  * where a Stacktape resource type is assigned an icon and AWS category.
  */
 export const RESOURCE_VISUALS = {
-  function: visual('compute', 'lambda', 'aws-lambda'),
-  'web-service': visual('compute', 'fargate', 'aws-fargate'),
-  'private-service': visual('compute', 'fargate', 'aws-fargate'),
-  'worker-service': visual('compute', 'fargate', 'aws-fargate'),
-  'multi-container-workload': visual('compute', 'fargate', 'aws-elastic-container-service'),
-  'batch-job': visual('compute', 'batch', 'aws-batch'),
-  'deployment-script': visual('compute', 'lambda', 'aws-lambda'),
-  'edge-lambda-function': visual('compute', 'cloudfront', 'aws-cloudfront'),
-  bastion: visual('compute', 'ec2', 'aws-ec2'),
-  'relational-database': visual('database', 'rds', 'aws-rds'),
-  // Aurora DSQL has no icon of its own in either pack; it is Aurora, so it borrows RDS's.
-  'dsql-database': visual('database', 'rds', 'aws-aurora'),
-  'dynamo-db-table': visual('database', 'dynamo-db', 'aws-dynamodb'),
-  redis: visual('database', 'elasticache', 'aws-elasticache'),
-  'mongo-db-atlas-cluster': frameworkVisual('database', 'mongodb', 'aws-documentdb'),
-  'upstash-redis': frameworkVisual('database', 'upstash', 'aws-elasticache'),
-  'open-search-domain': visual('database', 'open-search', 'aws-opensearch-service'),
-  'http-api-gateway': visual('network', 'api-gateway', 'aws-api-gateway'),
-  'websocket-api-gateway': visual('network', 'api-gateway', 'aws-api-gateway'),
-  'appsync-api': visual('network', 'api-gateway', 'aws-appsync'),
-  'application-load-balancer': visual('network', 'elastic-load-balancing', 'aws-elastic-load-balancing'),
-  'network-load-balancer': visual('network', 'elastic-load-balancing', 'aws-elastic-load-balancing'),
-  'sqs-queue': visual('integration', 'sqs', 'aws-simple-queue-service'),
-  'sns-topic': visual('integration', 'sns', 'aws-simple-notification-service'),
-  // SES has no icon in the pack this component draws from; SNS is the nearest messaging mark.
-  'email-sender': visual('integration', 'sns', 'aws-simple-email-service'),
-  'event-bus': visual('integration', 'eventbridge', 'aws-eventbridge'),
-  'kinesis-stream': visual('integration', 'kinesis', 'aws-kinesis'),
-  // MSK has no mark in the flat icon set this component draws from; Kinesis is the nearest streaming
-  // one. The diagram has the real Kafka icon and uses it.
-  'kafka-cluster': visual('integration', 'kinesis', 'aws-managed-streaming-for-apache-kafka'),
-  bucket: visual('storage', 's3', 'aws-simple-storage-service'),
-  'hosting-bucket': visual('network', 'cloudfront', 'aws-cloudfront'),
-  'efs-filesystem': visual('storage', 'efs', 'aws-efs'),
-  'user-auth-pool': visual('security', 'cognito', 'aws-cognito'),
-  'web-app-firewall': visual('security', 'waf', 'aws-waf'),
-  'state-machine': visual('integration', 'step-functions', 'aws-step-functions'),
-  'nextjs-web': frameworkVisual('network', 'nextjs', 'aws-cloudfront'),
-  'astro-web': frameworkVisual('network', 'astro', 'aws-cloudfront'),
-  'nuxt-web': frameworkVisual('network', 'nuxt', 'aws-cloudfront'),
-  'sveltekit-web': frameworkVisual('network', 'sveltekit', 'aws-cloudfront'),
-  'solidstart-web': frameworkVisual('network', 'solidstart', 'aws-cloudfront'),
-  'tanstack-web': frameworkVisual('network', 'tanstack-start', 'aws-cloudfront'),
-  'remix-web': frameworkVisual('network', 'remix', 'aws-cloudfront'),
-  'agentcore-runtime': visual('compute', 'bedrock', 'aws-lambda'),
-  'agentcore-memory': visual('database', 'bedrock', 'aws-memorydb-for-redis'),
-  'agentcore-gateway': visual('network', 'bedrock', 'aws-api-gateway'),
-  'agentcore-browser': visual('compute', 'bedrock', 'aws-lambda'),
-  'agentcore-code-interpreter': visual('compute', 'bedrock', 'aws-lambda'),
-  'nat-gateway': visual('network', 'elastic-load-balancing', 'aws-transit-gateway'),
-  cloudfront: visual('network', 'cloudfront', 'aws-cloudfront'),
-  schedule: visual('integration', 'eventbridge', 'aws-eventbridge'),
-  user: visual('security', 'cognito', 'user')
+  function: visual('compute', 'lambda'),
+  'web-service': visual('compute', 'fargate'),
+  'private-service': visual('compute', 'fargate'),
+  'worker-service': visual('compute', 'fargate'),
+  'multi-container-workload': visual('compute', 'fargate'),
+  'batch-job': visual('compute', 'batch'),
+  'deployment-script': visual('compute', 'lambda'),
+  // A custom-resource definition is the Lambda function CloudFormation calls for each of its instances.
+  'custom-resource-definition': visual('compute', 'lambda'),
+  // Convex runs as a Fargate container behind its own load balancer.
+  convex: visual('compute', 'fargate'),
+  'edge-lambda-function': visual('compute', 'cloudfront'),
+  bastion: visual('compute', 'ec2'),
+  'relational-database': visual('database', 'rds'),
+  // Aurora DSQL has no icon of its own; it is Aurora, so it borrows RDS's.
+  'dsql-database': visual('database', 'rds'),
+  'dynamo-db-table': visual('database', 'dynamo-db'),
+  redis: visual('database', 'elasticache'),
+  'mongo-db-atlas-cluster': frameworkVisual('database', 'mongodb'),
+  'upstash-redis': frameworkVisual('database', 'upstash'),
+  'open-search-domain': visual('database', 'open-search'),
+  'http-api-gateway': visual('network', 'api-gateway'),
+  'websocket-api-gateway': visual('network', 'api-gateway'),
+  'appsync-api': visual('network', 'api-gateway'),
+  'application-load-balancer': visual('network', 'elastic-load-balancing'),
+  'network-load-balancer': visual('network', 'elastic-load-balancing'),
+  'sqs-queue': visual('integration', 'sqs'),
+  'sns-topic': visual('integration', 'sns'),
+  // SES has no icon in the set this component draws from; SNS is the nearest messaging mark.
+  'email-sender': visual('integration', 'sns'),
+  'event-bus': visual('integration', 'eventbridge'),
+  'kinesis-stream': visual('integration', 'kinesis'),
+  // MSK has no mark in the flat icon set this component draws from; Kinesis is the nearest streaming one.
+  'kafka-cluster': visual('integration', 'kinesis'),
+  bucket: visual('storage', 's3'),
+  'hosting-bucket': visual('network', 'cloudfront'),
+  'efs-filesystem': visual('storage', 'efs'),
+  'user-auth-pool': visual('security', 'cognito'),
+  'web-app-firewall': visual('security', 'waf'),
+  'state-machine': visual('integration', 'step-functions'),
+  'nextjs-web': frameworkVisual('network', 'nextjs'),
+  'astro-web': frameworkVisual('network', 'astro'),
+  'nuxt-web': frameworkVisual('network', 'nuxt'),
+  'sveltekit-web': frameworkVisual('network', 'sveltekit'),
+  'solidstart-web': frameworkVisual('network', 'solidstart'),
+  'tanstack-web': frameworkVisual('network', 'tanstack-start'),
+  'remix-web': frameworkVisual('network', 'remix'),
+  'agentcore-runtime': visual('compute', 'bedrock'),
+  'agentcore-memory': visual('database', 'bedrock'),
+  'agentcore-gateway': visual('network', 'bedrock'),
+  'agentcore-browser': visual('compute', 'bedrock'),
+  'agentcore-code-interpreter': visual('compute', 'bedrock'),
+  'nat-gateway': visual('network', 'elastic-load-balancing'),
+  cloudfront: visual('network', 'cloudfront'),
+  schedule: visual('integration', 'eventbridge')
 } as const satisfies Partial<Record<StacktapeResourceType | DiagramOnlyResourceType, ResourceVisual>>;
 
 /** Stacks deployed by Stacktape v3 still report Redis caches as `redis-cluster` until their next deployment. */
@@ -118,14 +119,10 @@ const LEGACY_RESOURCE_TYPES: Record<string, keyof typeof RESOURCE_VISUALS> = { '
 export const getResourceVisual = (resourceType: string): ResourceVisual | undefined =>
   RESOURCE_VISUALS[(LEGACY_RESOURCE_TYPES[resourceType] ?? resourceType) as keyof typeof RESOURCE_VISUALS];
 
-function visual(category: ResourceVisualCategory, name: AwsResourceIconName, diagramIconId: string): ResourceVisual {
-  return { category, diagramIconId, icon: { kind: 'aws', name } };
+function visual(category: ResourceVisualCategory, name: AwsResourceIconName): ResourceVisual {
+  return { category, icon: { kind: 'aws', name } };
 }
 
-function frameworkVisual(
-  category: ResourceVisualCategory,
-  name: FrameworkIconName,
-  diagramIconId: string
-): ResourceVisual {
-  return { category, diagramIconId, icon: { kind: 'framework', name } };
+function frameworkVisual(category: ResourceVisualCategory, name: FrameworkIconName): ResourceVisual {
+  return { category, icon: { kind: 'framework', name } };
 }

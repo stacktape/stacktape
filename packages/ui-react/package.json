@@ -132,7 +132,6 @@
     "typecheck": "bun check -p tsconfig.json && bun check -p tsconfig.isometric-diagram.json"
   },
   "dependencies": {
-    "@isoflow/isopacks": "^0.0.10",
     "@stacktape/config": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@tippyjs/react": "^4.2.6",

@@ -104,7 +104,13 @@ export const RESOURCE_EXPLANATIONS: Record<string, DiagramExplanation> = {
     name: 'MongoDB Atlas Cluster',
     summary: 'A managed MongoDB database hosted by MongoDB Atlas.',
     details:
-      'Runs in Atlas’s own cloud account and connects to your VPC through private network peering, so database traffic never crosses the public internet.'
+      'Runs in Atlas’s own cloud account. Its accessibility mode decides who can connect: anyone with credentials over the internet (the default), listed IP addresses, or only your VPC.'
+  },
+  'dsql-database': {
+    name: 'Aurora DSQL',
+    summary: 'A serverless, distributed PostgreSQL-compatible database.',
+    details:
+      'There are no instances to size: it scales with load and bills by use. It has a public endpoint outside your VPC, and every connection authenticates with a short-lived IAM token instead of a password.'
   },
   'open-search-domain': {
     name: 'OpenSearch Domain',
@@ -128,6 +134,18 @@ export const RESOURCE_EXPLANATIONS: Record<string, DiagramExplanation> = {
     summary: 'A shared network drive your containers can mount.',
     details:
       'Multiple services can read and write the same files simultaneously; capacity grows and shrinks automatically.'
+  },
+  'websocket-api-gateway': {
+    name: 'WebSocket API Gateway',
+    summary: 'Keeps long-lived two-way connections open with clients.',
+    details:
+      'Clients connect once and both sides can send messages at any time. The gateway routes each message to a function by its route key, and your code can push messages back to connected clients. Billed per message and connection minute.'
+  },
+  'appsync-api': {
+    name: 'AppSync GraphQL API',
+    summary: 'A managed GraphQL endpoint.',
+    details:
+      'Clients send GraphQL queries and mutations over HTTPS; AppSync resolves each field with the function attached to it and returns one combined response. AWS IAM, an API key or a Cognito user pool checks every request before any resolver runs.'
   },
   'http-api-gateway': {
     name: 'HTTP API Gateway',
@@ -171,6 +189,18 @@ export const RESOURCE_EXPLANATIONS: Record<string, DiagramExplanation> = {
     details:
       'Producers append records; consumers read them asynchronously in order and in batches, each tracking its own position. Records are retained so consumers can replay history.'
   },
+  'kafka-cluster': {
+    name: 'Kafka Cluster (MSK Serverless)',
+    summary: 'A managed Apache Kafka cluster for event streams.',
+    details:
+      'Producers append records to topics; consumers read them in order, at their own pace. It runs inside your VPC with IAM authentication, functions can consume a topic directly, and capacity scales automatically.'
+  },
+  'email-sender': {
+    name: 'Email Sender (SES)',
+    summary: 'Sends email from your domain through Amazon SES.',
+    details:
+      'Stacktape verifies the sending identity and by default keeps it in a shared stack, so several stacks can send from the same domain. Resources that connectTo it get permission to send; bounces and complaints are published to an SNS topic.'
+  },
   'state-machine': {
     name: 'Step Functions State Machine',
     summary: 'A managed workflow that orchestrates multiple steps.',
@@ -194,6 +224,53 @@ export const RESOURCE_EXPLANATIONS: Record<string, DiagramExplanation> = {
     summary: 'A function running at CDN edge locations.',
     details:
       'Runs close to your users to rewrite requests and responses — redirects, auth checks, A/B routing — with minimal latency.'
+  },
+  'custom-resource-definition': {
+    name: 'Custom Resource',
+    summary: 'A function CloudFormation calls to create, update or delete something it cannot manage itself.',
+    details:
+      'Each custom-resource instance in the configuration calls this function during deployment with its own properties. It runs only while the stack deploys, never on user traffic.'
+  },
+  'aws-cdk-construct': {
+    name: 'AWS CDK Construct',
+    summary: 'Infrastructure you define yourself with the AWS CDK.',
+    details:
+      'Stacktape synthesizes the construct and deploys its resources as part of this stack. The diagram cannot see inside it; connections appear where other resources reference its outputs.'
+  },
+  convex: {
+    name: 'Convex (self-hosted)',
+    summary: 'A Convex backend running in your own AWS account.',
+    details:
+      'Stacktape runs the open-source Convex backend as one container behind its own load balancer, keeps its data in a Postgres database and its files in S3 buckets. Your app reaches it over HTTPS, and the Convex dashboard is served from the same load balancer.'
+  },
+  'agentcore-runtime': {
+    name: 'AgentCore Runtime',
+    summary: 'Hosts an AI agent built from your container image.',
+    details:
+      'Amazon Bedrock AgentCore runs every agent session in its own isolated environment and scales with the number of sessions. It joins the VPC only when it connects to a VPC-only resource such as a database, and then runs in the private subnets.'
+  },
+  'agentcore-memory': {
+    name: 'AgentCore Memory',
+    summary: 'Stores what an agent remembers across conversations.',
+    details:
+      'Keeps recent conversation events and, with memory strategies configured, extracts long-term memories such as facts, preferences and summaries that the agent can recall later.'
+  },
+  'agentcore-gateway': {
+    name: 'AgentCore Gateway',
+    summary: 'Offers your functions to agents as MCP tools.',
+    details:
+      'Agents call the gateway over the Model Context Protocol; it checks the caller and synchronously invokes the Lambda function behind each tool.'
+  },
+  'agentcore-browser': {
+    name: 'AgentCore Browser',
+    summary: 'A managed web browser an agent can drive.',
+    details:
+      'Lets an agent open pages, click and fill in forms in an isolated browser session; sessions can be recorded to S3.'
+  },
+  'agentcore-code-interpreter': {
+    name: 'AgentCore Code Interpreter',
+    summary: 'A sandbox where an agent runs the code it writes.',
+    details: 'Runs generated code in an isolated environment and returns the output to the agent.'
   },
   'nextjs-web': SSR_WEB_EXPLANATION('Next.js'),
   'astro-web': SSR_WEB_EXPLANATION('Astro'),
@@ -259,5 +336,6 @@ export const EDGE_SEMANTIC_LABELS: Record<string, string> = {
   request: 'Synchronous request flow',
   event: 'Asynchronous event delivery',
   dependency: 'Connection & permissions (connectTo)',
-  egress: 'Outbound internet traffic'
+  egress: 'Outbound internet traffic',
+  security: 'Security control (firewall or sign-in)'
 };

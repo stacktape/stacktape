@@ -33,11 +33,26 @@ describe('diagram svg structure', () => {
     });
   }
 
-  test('renders replica count indicators', () => {
-    const scene = getSceneForFixture({ fixture: getFixtureById({ id: 'web-service-rds' }) });
+  test('marks running copies and internet-reachable data stores on the drawing', () => {
+    const scene = getSceneForFixture({ fixture: getFixtureById({ id: 'agents-and-platform' }) });
     expect(scene).not.toBeNull();
 
     const markup = renderToStaticMarkup(<IsoRenderer scene={scene!} width={1200} height={800} />);
-    expect(markup.includes('x2')).toBe(true);
+    // The database left on its default `internet` accessibility carries the badge; the Convex database does not.
+    expect(countMatches({ text: markup, pattern: /data-iso-kind="public-badge"/g })).toBe(
+      scene!.nodes.filter((node) => node.isPublic).length
+    );
+    expect(scene!.nodes.filter((node) => node.isPublic).map((node) => node.id)).toEqual(['ticketsDb']);
+    // Two NAT gateways are drawn as two slabs, not as a badge.
+    expect(markup).toContain('2 gateways · 1 per zone');
+    expect(countMatches({ text: markup, pattern: /data-iso-kind="replica-badge"/g })).toBe(0);
+  });
+
+  test('shows a container service task range as a badge and in its type line', () => {
+    const scene = getSceneForFixture({ fixture: getFixtureById({ id: 'default-microservices' }) });
+    const markup = renderToStaticMarkup(<IsoRenderer scene={scene!} width={1200} height={800} />);
+
+    expect(markup).toContain('Web service · 2–6 tasks');
+    expect(countMatches({ text: markup, pattern: /data-iso-kind="replica-badge"/g })).toBe(1);
   });
 });

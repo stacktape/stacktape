@@ -13,15 +13,15 @@ feature styles with large lazy dependencies may ship a separate stylesheet besid
   determinate progress, linear/section loaders, and responsive grid lists. Application wrappers may translate old prop
   names or add form-library/router behavior, but must not duplicate the primitive's DOM, focus, or interaction
   implementation.
-- `resource-icon` owns the product-wide resource-to-icon/category/diagram mapping. `framework-icon` owns reusable
-  framework artwork. The isometric diagram consumes the same catalog through its heavy, private isopack resolver; do not
-  put product icon meaning back under `isometric-diagram` or reproduce the mapping in an application.
+- `resource-icon` owns the product-wide resource-to-icon/category mapping. `framework-icon` owns reusable framework
+  artwork. The isometric diagram colours its own shapes by the same catalog's categories; do not put product category
+  meaning under `isometric-diagram` or reproduce the mapping in an application.
 - `install-platform` detects the visitor's operating system and CPU architecture so the website and documentation
   preselect the matching installer. It is browser detection only; each application keeps its own install commands.
 - `config-editor` is the editor frame: view navigation, panels, overlays and fullscreen layout. The host supplies the
   panels' content, Monaco behavior and actions.
 - `isometric-diagram` is an independent component that accepts a parsed `StacktapeConfig`. It does not belong to or
-  import ConfigEditor. Keep its icon-heavy entry point lazy in applications.
+  import ConfigEditor. Keep its entry point lazy in applications.
 - `monaco-editor` is the small lifecycle-safe base for Monaco models and editor instances. It has no Stacktape language
   services or toolbar. Console adds those in `components/StacktapeEditor`.
 
