@@ -165,6 +165,33 @@ describe('stack operation lock', () => {
     await expect(acquireStackLock(options(store, 'b', () => time))).rejects.toBeInstanceOf(StackLockedError);
   });
 
+  test('every caller of release waits until the lock is written as released', async () => {
+    const { store, current } = memoryStore();
+    let finishWrite!: () => void;
+    const writeStarted = new Promise<void>((resolve) => {
+      const replace = store.replace;
+      store.replace = async (body, etag) => {
+        resolve();
+        await new Promise<void>((done) => {
+          finishWrite = done;
+        });
+        return replace(body, etag);
+      };
+    });
+    const held = await acquireStackLock(options(store, 'a', () => 0));
+    const first = held.release();
+    await writeStarted;
+    let secondDone = false;
+    const second = held.release().then(() => {
+      secondDone = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(secondDone).toBe(false);
+    finishWrite();
+    await Promise.all([first, second]);
+    expect(JSON.parse(current()!.body)).toEqual({ released: true });
+  });
+
   test('confirmations at the same time do not read as a takeover', async () => {
     const { store } = memoryStore();
     const held = await acquireStackLock(options(store, 'a', () => 0));
