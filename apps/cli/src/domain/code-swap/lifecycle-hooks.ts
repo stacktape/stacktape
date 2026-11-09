@@ -176,7 +176,13 @@ export const codeSwapFinish = async () => {
   }
   await Promise.allSettled(pendingPreparations);
   pendingPreparations.length = 0;
-  await codeSwapIntegration.abortPreparation();
+  try {
+    await codeSwapIntegration.abortPreparation();
+  } catch (error) {
+    // A candidate that may still run needs the next operation's repair, which only an expired lock asks for.
+    held?.lock.detach();
+    throw error;
+  }
   if (leavesStackLockToExpire({ recovering: recoveredOperation, repairCompleted })) held?.lock.detach();
   else await held?.lock.release();
   held = undefined;

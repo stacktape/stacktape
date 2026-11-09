@@ -60,6 +60,14 @@ export const abandonHeldStackLock = () => {
   releasedOnlyAtExit = false;
 };
 
+/**
+ * The invocation that holds a stack's lock, for the commands it starts. A command that a hook of the holder runs on the
+ * same stack would otherwise wait for its own parent forever.
+ */
+const LOCK_HOLDER_ENV = 'STP_STACK_LOCK_HOLDER';
+
+let commandSucceeded = false;
+
 /** A previous holder that released the lock this recently may have changed the stack after the command read it. */
 const RECENT_RELEASE_MS = 30_000;
 
@@ -110,6 +118,7 @@ export const holdStackLock = async ({
   const clockSkewMs = (await getAwsSynchronizedTime()).getTime() - Date.now();
   const now = () => Date.now() + clockSkewMs;
   const announced = new Set<string>();
+  const parentHolder = process.env[LOCK_HOLDER_ENV];
   const { lock, waited } = await waitForStackLock({
     acquire: () =>
       acquireStackLock({
@@ -123,6 +132,13 @@ export const holdStackLock = async ({
           )
       }),
     onWaiting: (busy) => {
+      if (parentHolder && busy.holder.invocationId === parentHolder) {
+        throw new ExpectedError(
+          'STACK',
+          `This ${operation} runs from a hook of the ${busy.holder.operation} that holds this stack's lock, so it cannot wait for that ${busy.holder.operation} to finish.`,
+          `Run it after the ${busy.holder.operation} finishes, for example as a separate CI step.`
+        );
+      }
       const message = describeWait(busy, now());
       if (onWaiting) return onWaiting(message);
       if (announced.has(message)) return;
@@ -130,8 +146,19 @@ export const holdStackLock = async ({
       tuiManager.info(message);
     }
   });
-  // Last at exit: a code swap settles before it, and may leave the lock to expire instead.
-  if (releaseOnExit) applicationManager.finalCleanUpHooks.push(() => lock.release());
+  process.env[LOCK_HOLDER_ENV] = globalStateManager.invocationId;
+  if (releaseOnExit) {
+    applicationManager.registerCleanUpHook((result) => {
+      commandSucceeded = result?.success ?? false;
+    });
+    // Last at exit: a code swap settles before it, and may leave the lock to expire instead. A command that took the lock
+    // over from a stopped operation and then failed leaves it to expire too: the next command takes it over as well and
+    // repairs what the stopped one left, such as an interrupted code swap.
+    applicationManager.finalCleanUpHooks.push(async () => {
+      if (lock.tookOverFrom && !commandSucceeded) lock.detach();
+      else await lock.release();
+    });
+  }
   releasedOnlyAtExit = !releaseOnExit;
   heldLock = {
     ...lock,
