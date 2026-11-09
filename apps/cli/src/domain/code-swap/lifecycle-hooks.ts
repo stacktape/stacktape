@@ -127,6 +127,14 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
 
 export const codeSwapInterrupted = () => interrupted;
 
+/**
+ * Throws if another operation took over the stack lock. A swap calls it after its waits, right before it changes
+ * running tasks: a paused process does not notice by itself that its lease ended.
+ */
+export const codeSwapConfirmLock = async () => {
+  await held?.lock.confirm();
+};
+
 let repairCompleted = false;
 export const codeSwapRepairCompleted = () => {
   repairCompleted = true;
