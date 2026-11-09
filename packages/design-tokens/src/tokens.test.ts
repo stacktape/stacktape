@@ -44,6 +44,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-motion-duration-fast',
       '--stp-motion-duration-base',
       '--stp-motion-easing',
+      '--stp-motion-easing-out',
       '--stp-space-4',
       '--stp-space-8',
       '--stp-space-12',

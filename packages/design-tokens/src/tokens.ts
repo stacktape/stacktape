@@ -84,10 +84,15 @@ export const designTokens = {
     outlineWidth: '2px',
     outlineOffset: '2px'
   },
+  /**
+   * Fast for hover and small state changes, base for things that open, move or arrive. Things that enter or move ease
+   * out: they start quickly and settle without overshoot.
+   */
   motion: {
     durationFast: '150ms',
     durationBase: '250ms',
-    easing: 'ease'
+    easing: 'ease',
+    easingOut: 'cubic-bezier(0.2, 0, 0, 1)'
   },
   /** Spacing stops on a 4 px grid, named by their size: gaps, padding, rhythm between sections. */
   space: {
@@ -192,7 +197,8 @@ export const tokenVar = {
   motion: {
     durationFast: 'var(--stp-motion-duration-fast)',
     durationBase: 'var(--stp-motion-duration-base)',
-    easing: 'var(--stp-motion-easing)'
+    easing: 'var(--stp-motion-easing)',
+    easingOut: 'var(--stp-motion-easing-out)'
   },
   space: {
     4: 'var(--stp-space-4)',
