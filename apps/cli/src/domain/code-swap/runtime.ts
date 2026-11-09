@@ -1,7 +1,7 @@
 import { compareEcsTaskDefinitions } from '../deployed-stack-overview-manager/hotswap-utils';
 import { createServiceRuntime } from './service-runtime';
 import { getCodeSwapRuns } from './configuration';
-import { codeSwapRepairCompleted, retainCodeSwapLock } from './lifecycle-hooks';
+import { codeSwapLockLoss, codeSwapRepairCompleted, retainCodeSwapLock } from './lifecycle-hooks';
 type ServiceRuntime = ReturnType<typeof createServiceRuntime>;
 const runtimes = new Map<string, ServiceRuntime>();
 let runtimeInitialization: Promise<void> | undefined;
@@ -69,12 +69,18 @@ export const codeSwapComplete = async (createsRelease: boolean) => {
 type ServiceUpdate = Parameters<ServiceRuntime['codeSwapSwap']>[0];
 type PreparedRuntime = Pick<ServiceRuntime, 'prepared' | 'codeSwapSwap' | 'codeSwapUseImage' | 'forceImage'>;
 // No service commits until every changed service has prepared. A later failure converges all changed services to images.
+// Returns whether any code-swap service took part, which can take minutes.
 export const prepareCodeSwapServices = async (
   all: ReadonlyMap<string, PreparedRuntime>,
   updates: ServiceUpdate[],
-  taskConfigurationChanged: (update: ServiceUpdate) => boolean
+  taskConfigurationChanged: (update: ServiceUpdate) => boolean,
+  lockLoss: () => unknown = codeSwapLockLoss
 ) => {
-  if (!all.size || !updates.length) return;
+  if (!all.size || !updates.length) return false;
+  // A swap that lost the stack lock rejects. Settling it must not turn that into an image update of any service.
+  const throwIfLockLost = () => {
+    if (lockLoss()) throw lockLoss();
+  };
   const selected = updates.map((update) => all.get(update.workload.name));
   const prepared = await Promise.allSettled(selected.map((runtime) => runtime?.prepared()));
   const configurationChanged = updates.some(taskConfigurationChanged);
@@ -89,14 +95,17 @@ export const prepareCodeSwapServices = async (
         item.status === 'rejected' ? [selected[index]!.codeSwapSwap(updates[index]!)] : []
       )
     );
+    throwIfLockLost();
     await useImage(all.values(), configurationChanged ? undefined : 'another_service_failed');
-    return;
+    return true;
   }
   const outcomes = await Promise.allSettled(updates.map((update, index) => selected[index]!.codeSwapSwap(update)));
+  throwIfLockLost();
   if (outcomes.some((item) => item.status === 'rejected' || !item.value)) {
     await useImage(all.values(), 'another_service_failed');
     for (const runtime of selected) runtime?.forceImage();
   }
+  return true;
 };
 export const codeSwapPrepareServices = (updates: ServiceUpdate[]) =>
   prepareCodeSwapServices(

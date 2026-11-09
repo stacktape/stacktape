@@ -66,7 +66,9 @@ import {
   releaseRecordsAtStart,
   hadCodeSwapTable,
   codeSwapTrackPreparation,
-  codeSwapInterrupted
+  codeSwapInterrupted,
+  codeSwapConfirmLock,
+  codeSwapLockLoss
 } from './lifecycle-hooks';
 import { createHash } from 'node:crypto';
 
@@ -714,6 +716,9 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
       trace('preparePrerequisitesReady');
       await faultCheckpoint('before-proposal');
       if (codeSwapInterrupted()) throw new Error('Interrupted before the code-swap proposal.');
+      // The checks above run while the project builds. Tasks must not prepare a candidate for an operation that lost the
+      // stack to another one.
+      await codeSwapConfirmLock();
       proposal = { ids: before.ids, revision };
       await put({ Revision: revision, Key: key, Sha256: bundle.sha256, Size: bundle.size, Phase: 'prepare' });
       const prepared = await waitStatus(before.ids, revision, 'prepared');
@@ -731,7 +736,11 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
   const codeSwapSwap = async (update: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
     trace('codeSwapSwap:start');
     if (result.mode === 'swap') return true;
-    if (!prepare) return false;
+    if (!prepare) {
+      // False sends the service to an image update.
+      await codeSwapConfirmLock();
+      return false;
+    }
     try {
       const { ids, service, cluster } = await prepare;
       if (preparationError) throw preparationError;
@@ -743,6 +752,8 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
         throw new Error('This workload cannot swap code.');
       if (JSON.stringify((await traceAsync('commitFleet', () => fleet(service, cluster))).ids) !== JSON.stringify(ids))
         throw new Error('Fleet changed before commit.');
+      // Preparation can take long. An operation that lost the lock must not switch serving code.
+      await codeSwapConfirmLock();
       await put({
         Revision: identity!.revision,
         Key: identity!.key,
@@ -772,6 +783,8 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
       completedStatuses = completed;
       return true;
     } catch (error) {
+      // Another operation owns the stack now, so neither an abort nor the image fallback may change the service.
+      if (codeSwapLockLoss()) throw codeSwapLockLoss();
       const capReason =
         error instanceof Error && error.message.startsWith('Code swap skipped') ? error.message : undefined;
       if (capReason) {
@@ -806,6 +819,8 @@ export const createServiceRuntime = (run: import('./code-swap-run').CodeSwapRun)
       };
       await abortPublishedProposal();
       prepare = undefined;
+      // The image fallback that follows changes the service too, after waits a paused process can outlast.
+      await codeSwapConfirmLock();
       return false;
     }
   };

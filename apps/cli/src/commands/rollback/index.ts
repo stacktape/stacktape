@@ -25,6 +25,7 @@ type RollbackExecutionOperation = {
   deploymentArtifacts: Pick<
     RollbackOperation['deploymentArtifacts'],
     | 'availablePreviousVersions'
+    | 'ensureNoReleaseSinceStart'
     | 'prepareRollbackTemplate'
     | 'restoreBucketSyncFromManifest'
     | 'tagRestoredFunctions'
@@ -193,6 +194,14 @@ export const executeRollbackOperation = async ({
     return listAvailableVersions({ deploymentArtifacts, stack, tui });
   }
 
+  // Taken before anything is written: the rollback stores its template under the next release number.
+  const lock = await holdStackLock({
+    bucketName: deploymentArtifactManager.deploymentBucketName,
+    operation: 'rollback'
+  });
+  // The versions below were read before the lock. Another operation may have created a release since.
+  await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'rollback' });
+
   const currentVersion = stack.lastVersion;
   const targetVersion = resolveTargetVersion({ args, deploymentArtifacts, stack });
 
@@ -228,10 +237,8 @@ export const executeRollbackOperation = async ({
     text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
   });
 
-  const lock = await holdStackLock({
-    bucketName: deploymentArtifactManager.deploymentBucketName,
-    operation: 'rollback'
-  });
+  // Preparing copies artifacts and can take long. A paused rollback that lost the lock must not overwrite the newer one.
+  await lock.confirm();
   try {
     codeSwapBeginMutation();
     await stack.deployStackForRollback(templateUrl);
@@ -245,7 +252,6 @@ export const executeRollbackOperation = async ({
   } finally {
     // Records what the rollback switched, also when it failed partway. It never throws.
     await recordSourceMapActivation(sourceMapManifest);
-    await lock.release();
   }
 
   await codeSwapRollbackComplete(newVersion, targetVersion, Boolean(template.Resources.StacktapeCodeSwapTable));
@@ -258,6 +264,8 @@ export const executeRollbackOperation = async ({
     );
   }
 
+  // Held through the bucket restore. A failure releases it when the command ends.
+  await lock.release();
   tui.info(`Rollback to ${targetVersion} complete. New deployment version: ${newVersion}`);
 
   return null;

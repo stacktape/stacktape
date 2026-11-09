@@ -125,6 +125,7 @@ export const acquireStackLock = async ({
   let { etag } = taken;
   let held = true;
   let renewal: Promise<unknown> = Promise.resolve();
+  let releasing: Promise<void> | undefined;
   const renewNow = async () => {
     if (!held) return;
     const result = await store.replace(bodyAt(now()), etag);
@@ -144,18 +145,22 @@ export const acquireStackLock = async ({
     ...(taken.tookOverFrom ? { tookOverFrom: taken.tookOverFrom } : {}),
     isHeld: () => held,
     confirm: async () => {
-      await renewal;
-      await renewNow();
+      // Queued behind every other renewal: two writes with the same ETag would fail one of them, which reads as a takeover.
+      const confirmation = renewal.then(renewNow);
+      renewal = confirmation.catch(() => {});
+      await confirmation;
       if (!held) throw new StackLockLostError();
     },
-    release: async () => {
-      stopRenewing();
-      await renewal;
-      if (!held) return;
-      held = false;
-      // A failed release only means the next operation waits for the lease to end.
-      await store.replace(RELEASED_BODY, etag).catch(() => {});
-    },
+    // Shared, so a caller that empties the bucket right after releasing never races another caller's release write.
+    release: () =>
+      (releasing ??= (async () => {
+        stopRenewing();
+        await renewal;
+        if (!held) return;
+        held = false;
+        // A failed release only means the next operation waits for the lease to end.
+        await store.replace(RELEASED_BODY, etag).catch(() => {});
+      })()),
     detach: () => {
       stopRenewing();
       held = false;

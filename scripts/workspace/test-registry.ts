@@ -4369,6 +4369,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/release-command/hash-path.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/release-command.spec.ts',
       'apps/cli/src/domain/stack-operation-lock/lock.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/release-since-start.spec.ts',
       'apps/cli/tests/synthesis-families/release-command.spec.ts'
     ],
     lanes: [

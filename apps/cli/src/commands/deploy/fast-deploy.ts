@@ -135,11 +135,15 @@ export const performFastDeploy = async ({
   recordRelease,
   deploymentArtifacts,
   progress,
-  layerVersions
-}: { plan: FastDeployPlan; recordRelease: boolean; layerVersions?: Promise<Map<number, string>> } & Pick<
-  DeployOperation,
-  'deploymentArtifacts' | 'progress'
->) => {
+  layerVersions,
+  confirmLock = async () => {}
+}: {
+  plan: FastDeployPlan;
+  recordRelease: boolean;
+  layerVersions?: Promise<Map<number, string>>;
+  /** Throws if another operation took over the stack lock. */
+  confirmLock?: () => Promise<void>;
+} & Pick<DeployOperation, 'deploymentArtifacts' | 'progress'>) => {
   const workloadCount = plan.functions.length + plan.services.length;
   await progress.startEvent({ eventType: 'HOTSWAP_UPDATE', description: 'Updating code directly' });
   // Publication and bridge preparation are independent. Functions whose layers stay unchanged can also update while
@@ -168,7 +172,12 @@ export const performFastDeploy = async ({
   );
   const updatedLayerArns = new Map<string, string[]>();
   const confirmFunctionTags: (() => Promise<unknown>)[] = [];
-  await codeSwapPrepareServices(plan.services);
+  // Publishing layers and preparing their transition can take long enough for another operation to take over a paused
+  // deploy's lock. The functions that waited for the same step share one check made when that step ended.
+  let lockConfirmedAfterPublication: Promise<void> | undefined;
+  let lockConfirmedAfterPreparation: Promise<void> | undefined;
+  // Code-swap services prepare and switch first, which can take minutes. The functions below change afterwards.
+  if (await codeSwapPrepareServices(plan.services)) await confirmLock();
   const updates = [
     ...plan.functions.map((update) => ({
       name: update.workloadName,
@@ -189,7 +198,8 @@ export const performFastDeploy = async ({
             const transition = prepared.transitions.get(update.lambdaResourceName);
             transitionalLayerArns = transition?.layerArns;
             layerFirst = transition?.layerFirst ?? false;
-          }
+            await (lockConfirmedAfterPreparation ??= confirmLock());
+          } else await (lockConfirmedAfterPublication ??= confirmLock());
         }
         const { updatedLayerArns: arns, tagUpdatedFunction } = await updateFunctionCode({
           ...update,
