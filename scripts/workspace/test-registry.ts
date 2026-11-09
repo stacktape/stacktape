@@ -3003,6 +3003,7 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/icon-button/IconButton.test.tsx',
       'packages/ui-react/src/install-platform/detectInstallPlatform.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/link/Link.test.tsx',
@@ -5308,6 +5309,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/resource-icon/catalog.test.ts'
