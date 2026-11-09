@@ -2,7 +2,7 @@ export type DiagramFixtureExpectation = {
   minNodes: number;
   minConnectors: number;
   hasVpc?: boolean;
-  connectorSemantics?: Array<'request' | 'event' | 'dependency' | 'egress'>;
+  connectorSemantics?: Array<'request' | 'event' | 'dependency' | 'egress' | 'security'>;
 };
 
 export type DiagramFixture = {
@@ -637,6 +637,295 @@ export const diagramFixtures: DiagramFixture[] = [
         accessibilityMode: vpc
 `,
     expectation: { minNodes: 8, minConnectors: 8, hasVpc: true, connectorSemantics: ['request', 'event', 'dependency'] }
+  },
+  {
+    id: 'secured-apis',
+    title: 'Secured APIs',
+    description:
+      'HTTP, GraphQL and WebSocket APIs with sign-in through a user pool, a CDN with an edge function and firewalls in front of the CDN, the load balancer and the user pool.',
+    yaml: `resources:
+  api:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        useFirewall: edgeFirewall
+        edgeFunctions:
+          onRequest: geoRedirect
+
+  graphql:
+    type: appsync-api
+    properties:
+      authentication:
+        type: user-auth-pool
+        properties:
+          userAuthPoolName: users
+
+  realtime:
+    type: websocket-api-gateway
+
+  adminAlb:
+    type: application-load-balancer
+    properties:
+      useFirewall: regionalFirewall
+
+  listOrders:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/list-orders.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders
+            method: GET
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: users
+      connectTo:
+        - orders
+
+  resolveUser:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/resolve-user.ts
+      events:
+        - type: appsync-api
+          properties:
+            appsyncApiName: graphql
+            field: Query.user
+      connectTo:
+        - orders
+
+  onMessage:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/on-message.ts
+      events:
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: sendMessage
+            authorizer:
+              type: lambda
+              properties:
+                functionName: checkToken
+
+  checkToken:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/check-token.ts
+
+  adminPanel:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/admin.ts
+      events:
+        - type: application-load-balancer
+          properties:
+            loadBalancerName: adminAlb
+            priority: 1
+            paths:
+              - /admin/*
+
+  geoRedirect:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/edge/geo-redirect.ts
+
+  users:
+    type: user-auth-pool
+    properties:
+      useFirewall: regionalFirewall
+
+  edgeFirewall:
+    type: web-app-firewall
+    properties:
+      scope: cdn
+
+  regionalFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+
+  orders:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+`,
+    expectation: {
+      minNodes: 16,
+      minConnectors: 18,
+      hasVpc: true,
+      connectorSemantics: ['request', 'dependency', 'security']
+    }
+  },
+  {
+    id: 'agents-and-platform',
+    title: 'Agents and Platform Resources',
+    description:
+      'An AgentCore agent with memory, tools and an MCP gateway, a Kafka consumer, Aurora DSQL, email, a self-hosted Convex backend, a CDK construct, a custom resource and a database left open to the internet.',
+    yaml: `stackConfig:
+  nat:
+    type: gateway
+
+resources:
+  supportAgent:
+    type: agentcore-runtime
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: my-org/support-agent:latest
+      useMemory: agentMemory
+      useGateway: toolGateway
+      useBrowser: webBrowser
+      useCodeInterpreter: sandbox
+      connectTo:
+        - ticketsDb
+
+  agentMemory:
+    type: agentcore-memory
+
+  toolGateway:
+    type: agentcore-gateway
+    properties:
+      tools:
+        - name: lookupOrder
+          function: lookupOrder
+          toolSchema:
+            - name: lookupOrder
+              inputSchema:
+                type: object
+
+  webBrowser:
+    type: agentcore-browser
+
+  sandbox:
+    type: agentcore-code-interpreter
+
+  lookupOrder:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/lookup-order.ts
+      connectTo:
+        - ledger
+
+  ticketsDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('ticketsDb.password')
+      engine:
+        type: postgres
+        properties:
+          primaryInstance:
+            instanceSize: db.t4g.micro
+
+  events:
+    type: kafka-cluster
+
+  consumeEvents:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/consume-events.ts
+      joinDefaultVpc: true
+      events:
+        - type: kafka-topic
+          properties:
+            kafkaClusterName: events
+            topicName: orders
+      connectTo:
+        - ledger
+        - mailer
+
+  ledger:
+    type: dsql-database
+
+  mailer:
+    type: email-sender
+    properties:
+      identity: example.com
+
+  backend:
+    type: convex
+    properties:
+      appDirectory: apps/backend
+
+  analytics:
+    type: aws-cdk-construct
+    properties:
+      entryfilePath: cdk/analytics.ts
+
+  seedHandler:
+    type: custom-resource-definition
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/seed.ts
+
+  seedDefaults:
+    type: custom-resource-instance
+    properties:
+      definitionName: seedHandler
+      resourceProperties:
+        dataset: defaults
+
+  seedDemo:
+    type: custom-resource-instance
+    properties:
+      definitionName: seedHandler
+      resourceProperties:
+        dataset: demo
+
+  homepageCheck:
+    type: uptime-check
+    properties:
+      url: https://example.com
+
+  checkoutFlow:
+    type: synthetic-test
+    properties:
+      test:
+        type: api
+        properties:
+          scriptPath: tests/checkout.ts
+`,
+    expectation: {
+      minNodes: 20,
+      minConnectors: 16,
+      hasVpc: true,
+      connectorSemantics: ['request', 'event', 'dependency', 'egress']
+    }
   }
 ];
 

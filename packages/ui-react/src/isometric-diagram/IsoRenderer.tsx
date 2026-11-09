@@ -1,13 +1,10 @@
 /**
- * Isometric diagram renderer with category-specific pedestal silhouettes.
+ * Isometric diagram renderer.
  *
- * Each category renders as a beveled prism (see PEDESTAL_STYLE): tall near-cylinders
- * for databases, sharp boxes for compute, low slabs for gateways, squat drums for
- * storage, and so on. The roof is always painted with the AWS icon, expanded to crop
- * the icon's internal padding and clipped to the silhouette.
- * Non-AWS icons (user) are rendered upright.
- * All text (node names, zone tags, connector chips, tooltips) is flat screen-space,
- * drawn above the scene geometry — only the geometry itself is isometric.
+ * Each node is drawn as its own isometric shape (see `node-shapes.tsx`): cylinders for databases, an open bucket
+ * for S3, a gate for an API, a plate of task cubes for a container service, and so on, painted in the AWS category
+ * colour. Names, type lines, badges, zone tags, connector chips and tooltips are flat screen-space text drawn above
+ * the geometry — only the geometry itself is isometric.
  * Layout flows bottom-left (external) to top-right (data).
  */
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
@@ -18,92 +15,39 @@ import type {
   IsoNode,
   IsoRectangle,
   IsoScene,
-  IsoTilePoint,
-  PedestalType
+  IsoTilePoint
 } from './scene.js';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiExpand, BiMinus, BiPlus } from 'react-icons/bi';
+import {
+  BADGE_HEIGHT_PX,
+  BADGE_OFFSET_PX,
+  NAME_MAX_CHARS,
+  SHAPE_HEIGHT_PX,
+  TYPE_MAX_CHARS
+} from './node-appearance.js';
+import { NodeBadges, NodeShape } from './node-shapes.js';
+import { pts, t2s, TH, TW } from './projection.js';
 import { EDGE_SEMANTIC_LABELS } from './resource-explanations.js';
 
 // Chrome colours come from `@stacktape/design-tokens`; the host loads the token CSS together with
 // `@stacktape/ui-react/isometric-diagram.css`. They are referenced as variables rather than
 // imported values so a host can retheme the diagram without rebuilding this package. Scene colours
-// (pedestal bodies, connector semantics keyed to AWS categories) stay literal — the shading maths
-// below has to read their channels.
+// (node bodies, connector semantics keyed to AWS categories) stay literal — the shading maths has
+// to read their channels.
 const TEXT_SUBTLE = 'var(--stp-text-subtle)';
 const BRAND = 'var(--stp-color-brand)';
-
-// ── Iso projection (2:1), flipped Y so flow goes bottom-left → top-right ──
-
-const TW = 80; // tile width
-const TH = 40; // tile height
-
-const t2s = (tx: number, ty: number) => ({
-  x: (tx - ty) * (TW / 2),
-  y: -((tx + ty) * (TH / 2))
-});
-
-// Shade a color: f=1 is original, f=0.5 is halfway to a dark base (not black)
-const dk = (hex: string, f: number) => {
-  let r: number;
-  let g: number;
-  let b: number;
-  if (hex.startsWith('rgb')) {
-    const m = hex.match(/(\d+)/g);
-    if (!m) return hex;
-    [r, g, b] = m.map(Number);
-  } else {
-    r = Number.parseInt(hex.slice(1, 3), 16);
-    g = Number.parseInt(hex.slice(3, 5), 16);
-    b = Number.parseInt(hex.slice(5, 7), 16);
-  }
-  const base = 30;
-  return `rgb(${Math.round(base + (r - base) * f)},${Math.round(base + (g - base) * f)},${Math.round(base + (b - base) * f)})`;
-};
+const SECURITY = '#E2484E';
 
 // ── Iso helpers ──
 
-const BW = 1.32; // node block width in tile units (~15% larger than original 1.15)
-const HW = BW / 2;
+/** Half the footprint of a node's floor tile, in tiles. Shapes stay inside it; connectors stop at its edge. */
+const HW = 0.66;
 
-// Top face vertices. With flipped Y, the vertex with the largest (tx+ty) is now
-// highest on screen (farthest from viewer), so we swap f/b so that f=front (closest to viewer).
-const topFace = (cx: number, cy: number, lift: number) => {
-  const rawF = t2s(cx + HW, cy + HW); // largest tx+ty → with flipped Y = highest on screen = back
-  const rawR = t2s(cx + HW, cy - HW);
-  const rawB = t2s(cx - HW, cy - HW); // smallest tx+ty → with flipped Y = lowest on screen = front
-  const rawL = t2s(cx - HW, cy + HW);
-  return {
-    f: { x: rawB.x, y: rawB.y - lift }, // front = closest to viewer (lowest on screen)
-    r: { x: rawL.x, y: rawL.y - lift }, // right visible face
-    b: { x: rawF.x, y: rawF.y - lift }, // back = farthest from viewer (highest on screen)
-    l: { x: rawR.x, y: rawR.y - lift } // left visible face
-  };
-};
+const frontTip = (cx: number, cy: number) => t2s(cx - HW, cy - HW);
 
-const pts = (...ps: { x: number; y: number }[]) => ps.map((p) => `${p.x},${p.y}`).join(' ');
-
-// ── Pedestal silhouettes ──
-// Resource names live in flat tags below each node (never on the 3D body), so the
-// silhouettes are free to differ for real: a tall ringed cylinder for databases, a
-// cube for compute, a low slab for gateways, a squat drum for storage, faceted prisms
-// for messaging/auth. The roof is always painted with the AWS icon. `seams` draws
-// horizontal rings around the body at the given height fractions (cylinder look).
-const PEDESTAL_STYLE: Record<PedestalType, { height: number; bevel: number; seams?: number[] }> = {
-  compute: { height: 20, bevel: 0 },
-  database: { height: 26, bevel: 0.32, seams: [0.33, 0.66] },
-  gateway: { height: 11, bevel: 0 },
-  messaging: { height: 20, bevel: 0.2 },
-  storage: { height: 15, bevel: 0.26, seams: [0.5] },
-  auth: { height: 22, bevel: 0.12 },
-  user: { height: 20, bevel: 0 },
-  default: { height: 20, bevel: 0 }
-};
-
-const getPedestalStyle = (ped?: PedestalType) => PEDESTAL_STYLE[ped || 'default'];
-
-const MAX_PEDESTAL_H = 26;
+const MAX_SHAPE_HEIGHT = Math.max(...Object.values(SHAPE_HEIGHT_PX));
 
 type ScreenBounds = {
   minX: number;
@@ -114,15 +58,15 @@ type ScreenBounds = {
 
 const getNodeScreenBounds = (node: IsoNode): ScreenBounds => {
   const origin = t2s(node.tile.x, node.tile.y);
-  const halfWidth = (BW * TW) / 2 + 8;
-  const iconTopPadding = node.isAwsIcon === false ? 24 : 8;
+  const halfWidth = HW * TW + 8;
 
   return {
     minX: origin.x - halfWidth,
     maxX: origin.x + halfWidth,
-    minY: origin.y - MAX_PEDESTAL_H - iconTopPadding,
-    // Includes the name tag hanging below the front tip.
-    maxY: origin.y + 26 + TH / 2
+    // Leaves room for a badge above the tallest shape.
+    minY: origin.y - MAX_SHAPE_HEIGHT - BADGE_OFFSET_PX - BADGE_HEIGHT_PX,
+    // Includes the two-line name tag hanging below the front tip.
+    maxY: origin.y + HW * TH + 40
   };
 };
 
@@ -148,258 +92,48 @@ const mergeBounds = ({ bounds }: { bounds: ScreenBounds[] }) => {
 
 const tilePointsToScreen = ({ points }: { points: IsoTilePoint[] }) => points.map((point) => t2s(point.x, point.y));
 
-// ── Pedestals ──
-
-const lerpScreenPoint = (from: { x: number; y: number }, to: { x: number; y: number }, fraction: number) => ({
-  x: from.x + (to.x - from.x) * fraction,
-  y: from.y + (to.y - from.y) * fraction
-});
-
-const insetFace = ({ top, amount = 0.16 }: { top: ReturnType<typeof topFace>; amount?: number }) => ({
-  f: lerpScreenPoint(top.f, top.b, amount),
-  r: lerpScreenPoint(top.r, top.l, amount),
-  b: lerpScreenPoint(top.b, top.f, amount),
-  l: lerpScreenPoint(top.l, top.r, amount)
-});
-
-// ── Generic beveled-prism pedestal ──
-// A square footprint with per-category corner bevels approximates every silhouette
-// from a sharp box (bevel 0) to a near-cylinder (bevel ~0.35). Side faces are drawn
-// back-to-front with direction-based shading, so bevel corner faces pick up a middle
-// tone that reads as a rounded body.
-
-type TilePoint2 = { x: number; y: number };
-
-const lerpPoint = (from: TilePoint2, to: TilePoint2, amount: number): TilePoint2 => ({
-  x: from.x + (to.x - from.x) * amount,
-  y: from.y + (to.y - from.y) * amount
-});
-
-// Footprint polygon in tile space (relative to node center), clockwise.
-const beveledSquareFootprint = (bevel: number): TilePoint2[] => {
-  const corners: TilePoint2[] = [
-    { x: HW, y: HW },
-    { x: HW, y: -HW },
-    { x: -HW, y: -HW },
-    { x: -HW, y: HW }
-  ];
-  if (bevel <= 0.01) return corners;
-
-  const points: TilePoint2[] = [];
-  for (let i = 0; i < corners.length; i++) {
-    const corner = corners[i];
-    const previous = corners[(i + 3) % 4];
-    const next = corners[(i + 1) % 4];
-    points.push(lerpPoint(corner, previous, bevel), lerpPoint(corner, next, bevel));
-  }
-  return points;
-};
-
-// Shade factor for a side face from its outward normal (tile space). Calibrated so a
-// square box keeps the original look: the face toward -y gets 0.55, toward -x gets 0.72.
-const SHADE_MID = 0.635;
-const SHADE_SPAN = 0.12;
-const faceShade = (normal: TilePoint2) => {
-  const length = Math.hypot(normal.x, normal.y) || 1;
-  return SHADE_MID - SHADE_SPAN * ((normal.x - normal.y) / (length * Math.SQRT2));
-};
-
-const lerpScreen = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({
-  x: a.x + (b.x - a.x) * t,
-  y: a.y + (b.y - a.y) * t
-});
-
-const PrismPedestal = ({ cx, cy, c, ped }: { cx: number; cy: number; c: string; ped: PedestalType }) => {
-  const { height, bevel, seams } = getPedestalStyle(ped);
-  const footprint = beveledSquareFootprint(bevel).map((p) => ({ x: cx + p.x, y: cy + p.y }));
-  const topPoints = footprint.map((p) => {
-    const s = t2s(p.x, p.y);
-    return { x: s.x, y: s.y - height };
-  });
-  const botPoints = footprint.map((p) => t2s(p.x, p.y));
-
-  const faces = footprint.map((p0, i) => {
-    const j = (i + 1) % footprint.length;
-    const p1 = footprint[j];
-    const direction = { x: p1.x - p0.x, y: p1.y - p0.y };
-    // Clockwise footprint → outward normal is direction rotated by +90°.
-    const normal = { x: -direction.y, y: direction.x };
-    return {
-      polygon: pts(topPoints[i], topPoints[j], botPoints[j], botPoints[i]),
-      corners: { topA: topPoints[i], topB: topPoints[j], botA: botPoints[i], botB: botPoints[j] },
-      depth: p0.x + p0.y + p1.x + p1.y,
-      shade: faceShade(normal)
-    };
-  });
-  faces.sort((a, b) => b.depth - a.depth);
-
-  return (
-    <g>
-      {faces.map((face, i) => (
-        <g key={i}>
-          <polygon
-            points={face.polygon}
-            fill={dk(c, face.shade)}
-            stroke={dk(c, Math.max(0.4, face.shade - 0.1))}
-            strokeWidth={0.6}
-          />
-          {/* Seam rings drawn per-face right after it, so nearer faces cover them
-              correctly and the lines read as rings around the body. */}
-          {seams?.map((fraction) => {
-            const from = lerpScreen(face.corners.topA, face.corners.botA, fraction);
-            const to = lerpScreen(face.corners.topB, face.corners.botB, fraction);
-            return (
-              <line
-                key={fraction}
-                x1={from.x}
-                y1={from.y}
-                x2={to.x}
-                y2={to.y}
-                stroke={dk(c, Math.max(0.35, face.shade - 0.16))}
-                strokeWidth={1}
-              />
-            );
-          })}
-        </g>
-      ))}
-      <polygon points={pts(...topPoints)} fill={c} stroke={dk(c, 0.84)} strokeWidth={0.8} />
-    </g>
-  );
-};
-
-// Top face outline (screen points) used to clip the roof icon to the silhouette.
-const prismTopPath = ({ cx, cy, ped }: { cx: number; cy: number; ped: PedestalType }) => {
-  const { height, bevel } = getPedestalStyle(ped);
-  return pts(
-    ...beveledSquareFootprint(bevel).map((p) => {
-      const s = t2s(cx + p.x, cy + p.y);
-      return { x: s.x, y: s.y - height };
-    })
-  );
-};
-
 const FONT = "'Montserrat', 'Inter', sans-serif";
 
+const truncate = (text: string, maxChars: number) =>
+  text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
+
 // ── Node name tag ──
-// Flat, horizontal, hanging below the pedestal's front tip. All text in the diagram
-// is screen-space; only the geometry is isometric — this keeps names readable
-// regardless of pedestal shape.
-const NodeNameTag = ({ cx, cy, text }: { cx: number; cy: number; text: string }) => {
-  const maxChars = 20;
-  const displayText = text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
-  const tip = topFace(cx, cy, 0).f;
+// Flat, horizontal, hanging below the shape's front tip: the resource name, then a muted line saying what it is.
+const NodeNameTag = ({ node }: { node: IsoNode }) => {
+  const tip = frontTip(node.tile.x, node.tile.y);
 
   return (
     <text
       x={tip.x}
-      y={tip.y + 13}
+      y={tip.y + 14}
       textAnchor="middle"
-      dominantBaseline="central"
-      fill="rgba(255,255,255,0.92)"
       stroke="rgba(9, 11, 17, 0.85)"
       strokeWidth={3}
       strokeLinejoin="round"
       paintOrder="stroke fill"
-      fontSize={12}
       fontFamily={FONT}
-      fontWeight={600}
     >
-      {displayText}
+      <tspan x={tip.x} fill="rgba(255,255,255,0.92)" fontSize={12} fontWeight={600}>
+        {truncate(node.label, NAME_MAX_CHARS)}
+      </tspan>
+      {node.typeLabel && (
+        <tspan x={tip.x} dy={14} fill="#8E9AAB" fontSize={10} fontWeight={500} data-iso-kind="type-label">
+          {truncate(node.typeLabel, TYPE_MAX_CHARS)}
+        </tspan>
+      )}
     </text>
   );
 };
 
-// ── Node Block ──
+// ── Node ──
 
-const IsoNodeBlock = ({ idPrefix, node }: { idPrefix: string; node: IsoNode }) => {
-  const c = node.color || '#cbd5e1';
-  const o = t2s(node.tile.x, node.tile.y);
-  const ped = node.pedestal || 'default';
-  const ph = getPedestalStyle(ped).height;
-  const replicaCount = Math.max(1, Math.min(node.replicaCount || 1, 9));
-
-  // Icon transform: map the square image onto the top face, EXPANDED slightly beyond
-  // the face and clipped back to the roof silhouette. AWS icons carry internal padding;
-  // a small expansion trims it without zooming into the artwork itself.
-  const ICON_BLEED = 0.02;
-  const iSize = 40;
-  const tf = topFace(node.tile.x, node.tile.y, ph);
-  const iconTop = insetFace({ top: tf, amount: -ICON_BLEED });
-  const roofPath = prismTopPath({ cx: node.tile.x, cy: node.tile.y, ped });
-  const iA = (iconTop.l.x - iconTop.b.x) / iSize;
-  const iB = (iconTop.l.y - iconTop.b.y) / iSize;
-  const iC = (iconTop.r.x - iconTop.b.x) / iSize;
-  const iD = (iconTop.r.y - iconTop.b.y) / iSize;
-  const iTx = iconTop.b.x;
-  const iTy = iconTop.b.y;
-
-  // Clip shapes
-  const clipId = `${idPrefix}-clip-${node.id}`;
-
-  const shadowFace = insetFace({ top: topFace(node.tile.x, node.tile.y, 0), amount: -0.22 });
-
-  return (
-    <g>
-      {/* Soft ground shadow for depth */}
-      <polygon
-        points={pts(shadowFace.f, shadowFace.r, shadowFace.b, shadowFace.l)}
-        fill="rgba(0, 0, 0, 0.35)"
-        filter={`url(#${idPrefix}-iso-shadow-blur)`}
-        transform="translate(0, 3)"
-      />
-      {/* Pedestal */}
-      <PrismPedestal cx={node.tile.x} cy={node.tile.y} c={c} ped={ped} />
-
-      {/* Icon on the roof, clipped to the silhouette */}
-      {node.iconUrl && node.isAwsIcon && (
-        <>
-          <defs>
-            <clipPath id={clipId}>
-              <polygon points={roofPath} />
-            </clipPath>
-          </defs>
-          <g clipPath={`url(#${clipId})`}>
-            <g transform={`matrix(${iA},${iB},${iC},${iD},${iTx},${iTy})`}>
-              <image href={node.iconUrl} x={0} y={0} width={iSize} height={iSize} />
-            </g>
-          </g>
-        </>
-      )}
-      {/* Non-AWS icon: upright */}
-      {node.iconUrl && !node.isAwsIcon && (
-        <image href={node.iconUrl} x={o.x - 18} y={o.y - ph - 20} width={36} height={36} />
-      )}
-
-      {replicaCount > 1 && (
-        <g>
-          <circle
-            cx={o.x + 36}
-            cy={o.y - ph - 18}
-            r={10}
-            fill="rgba(9, 11, 17, 0.78)"
-            stroke={dk(c, 0.95)}
-            strokeWidth={1}
-          />
-          <text
-            x={o.x + 36}
-            y={o.y - ph - 18}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill="rgba(255,255,255,0.9)"
-            fontSize={9}
-            fontFamily={FONT}
-            fontWeight={700}
-          >
-            {`x${replicaCount}`}
-          </text>
-        </g>
-      )}
-
-      {/* Name tag below the front tip */}
-      <NodeNameTag cx={node.tile.x} cy={node.tile.y} text={node.label} />
-    </g>
-  );
-};
+const IsoNodeBlock = ({ idPrefix, node }: { idPrefix: string; node: IsoNode }) => (
+  <g>
+    <NodeShape node={node} idBase={`${idPrefix}-n-${node.id}`} shadowFilterId={`${idPrefix}-iso-shadow-blur`} />
+    <NodeBadges node={node} />
+    <NodeNameTag node={node} />
+  </g>
+);
 
 // ── Floor plane ──
 
@@ -466,19 +200,22 @@ const IsoGrid = ({ range }: { range: TileRange }) => {
 };
 
 // ── Zone tag ──
-// Horizontal name tag hanging just below a zone's front tip (the lowest vertex of its
-// diamond). Rendered above all scene geometry, so it can never be occluded; nothing in
-// the zone renders below its front tip either, so the tag always touches empty floor.
+// The zone's name, set by the layout along one of the zone's edges (inside it when there is room) and rotated to that
+// edge. Drawn above all scene geometry, so it is never occluded.
+const EDGE_ANGLE_DEGREES = (Math.atan2(TH / 2, TW / 2) * 180) / Math.PI;
+
 function ZoneTag({ label }: { label: IsoLabel }) {
-  const tip = t2s(label.tile.x, label.tile.y);
+  const { x, y } = t2s(label.tile.x, label.tile.y);
+  const degrees = label.axis === 'y' ? EDGE_ANGLE_DEGREES : -EDGE_ANGLE_DEGREES;
 
   return (
     <text
       data-iso-kind="floor-label"
       data-iso-id={label.id}
-      x={tip.x}
-      y={tip.y + 14}
-      textAnchor="middle"
+      x={x}
+      y={y}
+      transform={`rotate(${degrees.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)})`}
+      textAnchor="start"
       dominantBaseline="central"
       fill={label.color || TEXT_SUBTLE}
       stroke="rgba(9, 11, 17, 0.8)"
@@ -488,6 +225,7 @@ function ZoneTag({ label }: { label: IsoLabel }) {
       fontSize={label.fontSize || 11}
       fontFamily={FONT}
       fontWeight={700}
+      letterSpacing={0.4}
       className="stp-diagram__zone-tag"
     >
       {label.text}
@@ -529,6 +267,8 @@ const getSemanticStyle = (semantic?: string) => {
       return { strokeWidth: 1.5, strokeOpacity: 0.35, dashArray: '6 4', color: BRAND };
     case 'egress':
       return { strokeWidth: 1.2, strokeOpacity: 0.3, dashArray: '4 4', color: '#A166FF' };
+    case 'security':
+      return { strokeWidth: 1.6, strokeOpacity: 0.55, dashArray: '2 4', color: SECURITY };
     default:
       return { strokeWidth: 2, strokeOpacity: 0.45, dashArray: undefined, color: BRAND };
   }
@@ -543,6 +283,8 @@ const getMarkerId = ({ idPrefix, semantic }: { idPrefix: string; semantic?: stri
         return 'dependency';
       case 'egress':
         return 'egress';
+      case 'security':
+        return 'security';
       default:
         return 'request';
     }
@@ -810,18 +552,8 @@ export function IsoRenderer({
         maxY: Math.max(...corners.map((corner) => corner.y))
       } satisfies ScreenBounds;
     });
-    const labelBounds = scene.labels.map((label) => {
-      const origin = t2s(label.tile.x, label.tile.y);
-      const fontSize = label.fontSize || 10;
-      const estimatedWidth = label.text.length * fontSize * 0.75;
-
-      return {
-        minX: origin.x,
-        maxX: origin.x + estimatedWidth,
-        minY: origin.y - fontSize,
-        maxY: origin.y + fontSize
-      } satisfies ScreenBounds;
-    });
+    // Zone tags lie inside their zone, whose rectangle is already in the bounds.
+    const labelBounds: ScreenBounds[] = [];
     const connectorBounds = scene.connectors.flatMap((connector) => {
       const points = tilePointsToScreen({ points: connector.route.points });
       return [
@@ -1122,6 +854,17 @@ export function IsoRenderer({
           >
             <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill="#A166FF" fillOpacity={0.3} />
           </marker>
+          <marker
+            id={`${idPrefix}-iso-arrow-security`}
+            markerWidth="8"
+            markerHeight="6"
+            refX="7"
+            refY="3"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={SECURITY} fillOpacity={0.7} />
+          </marker>
         </defs>
         <IsoGrid range={gridRange} />
         {scene.rectangles.map((r) => (
@@ -1192,7 +935,7 @@ export function IsoRenderer({
               e.stopPropagation();
               moveTooltip(e, {
                 title: n.label,
-                subtitle: [n.typeName || n.resourceType, n.isImplicit ? 'created automatically' : null]
+                subtitle: [n.typeName || n.typeLabel || n.resourceType, n.isImplicit ? 'created automatically' : null]
                   .filter(Boolean)
                   .join(' · '),
                 summary: n.summary,

@@ -1,8 +1,9 @@
-import type { IsoConnector, IsoNode, IsoScene, IsoTilePoint } from '../scene.js';
+import type { IsoConnector, IsoLabel, IsoNode, IsoScene, IsoTilePoint } from '../scene.js';
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { getDiagramFixtures, parseFixtureConfig } from '../fixture-scenes.js';
+import { BADGE_HEIGHT_PX, BADGE_OFFSET_PX, hasBadge, SHAPE_HEIGHT_PX } from '../node-appearance.js';
 import { buildIsometricScene } from '../scene-builder.js';
 import { assignFlowColumns } from './columns.js';
 import { layoutDiagram } from './diagram-layout.js';
@@ -60,7 +61,9 @@ const DATA_STORES = new Set([
   'open-search-domain',
   'bucket',
   'efs-filesystem',
-  'user-auth-pool'
+  'user-auth-pool',
+  'dsql-database',
+  'agentcore-memory'
 ]);
 const SOURCES = new Set(['user', 'schedule']);
 /** The renderer's block is 1.32 tiles square. */
@@ -118,17 +121,45 @@ const polygonsOverlap = (a: ScreenPoint[], b: ScreenPoint[]) => {
   }
   return true;
 };
-/** A block's silhouette: its floor diamond (105 × 53 px) extruded by the tallest pedestal drawn today. */
-const PEDESTAL_PX = 30;
+/** A node's silhouette: its floor diamond (105 × 53 px) extruded by its shape's height, and any badge above it. */
 const nodeBody = (node: IsoNode): ScreenPoint[] => {
   const { x, y } = toScreen(node.tile);
+  const height = SHAPE_HEIGHT_PX[node.shape] + (hasBadge(node) ? BADGE_OFFSET_PX + BADGE_HEIGHT_PX / 2 : 0);
   return [
     { x, y: y + 26.4 },
     { x: x + 52.8, y },
-    { x: x + 52.8, y: y - PEDESTAL_PX },
-    { x, y: y - 26.4 - PEDESTAL_PX },
-    { x: x - 52.8, y: y - PEDESTAL_PX },
+    { x: x + 52.8, y: y - height },
+    { x, y: y - 26.4 - height },
+    { x: x - 52.8, y: y - height },
     { x: x - 52.8, y }
+  ];
+};
+/** The two-line name tag under a node's front tip: the name and the muted type line. */
+const nodeTag = (node: IsoNode): ScreenPoint[] => {
+  const { x, y } = toScreen({ x: node.tile.x - HALF_FOOTPRINT, y: node.tile.y - HALF_FOOTPRINT });
+  const halfWidth =
+    Math.max(Math.min(node.label.length, 20) * 6.4, Math.min(node.typeLabel?.length ?? 0, 32) * 4.8) / 2;
+  return [
+    { x: x - halfWidth, y: y + 6 },
+    { x: x + halfWidth, y: y + 6 },
+    { x: x + halfWidth, y: y + 31 },
+    { x: x - halfWidth, y: y + 31 }
+  ];
+};
+/** A zone tag: bold text rotated to the edge it runs along, about 0.68 em per character, as tall as its font. */
+const zoneTagStrip = (label: IsoLabel): ScreenPoint[] => {
+  const fontSize = label.fontSize ?? 11;
+  const length = label.text.length * fontSize * 0.68;
+  const angle = Math.atan2(20, 40) * (label.axis === 'y' ? 1 : -1);
+  const along = { x: Math.cos(angle), y: Math.sin(angle) };
+  const across = { x: -Math.sin(angle) * (fontSize / 2), y: Math.cos(angle) * (fontSize / 2) };
+  const start = toScreen(label.tile);
+  const end = { x: start.x + along.x * length, y: start.y + along.y * length };
+  return [
+    { x: start.x - across.x, y: start.y - across.y },
+    { x: end.x - across.x, y: end.y - across.y },
+    { x: end.x + across.x, y: end.y + across.y },
+    { x: start.x + across.x, y: start.y + across.y }
   ];
 };
 /** A connector chip: 10 px text with 6 px padding, 18 px tall, centered on its label tile. */
@@ -277,6 +308,28 @@ describe('diagram layout', () => {
         for (const [index, [key, box]] of boxes.entries()) {
           for (const [otherKey, other] of boxes.slice(index + 1)) {
             expect(polygonsOverlap(box, other), `chips ${key} and ${otherKey} overlap`).toBe(false);
+          }
+        }
+      });
+
+      test('lays zone tags along their zone, clear of node bodies, name tags and chips', () => {
+        for (const label of scene.labels) {
+          const rectangle = scene.rectangles.find((zone) => `${zone.id}-label` === label.id)!;
+          // The tag starts on, or just beside, one of its zone's edges.
+          const nearX = Math.min(Math.abs(label.tile.x - rectangle.from.x), Math.abs(label.tile.x - rectangle.to.x));
+          const nearY = Math.min(Math.abs(label.tile.y - rectangle.from.y), Math.abs(label.tile.y - rectangle.to.y));
+          expect(Math.min(nearX, nearY), `${label.id} is not on an edge of its zone`).toBeLessThan(0.5);
+          const strip = zoneTagStrip(label);
+          for (const node of scene.nodes) {
+            expect(polygonsOverlap(strip, nodeBody(node)), `${label.id} covers ${node.id}`).toBe(false);
+            expect(polygonsOverlap(strip, nodeTag(node)), `${label.id} covers the name of ${node.id}`).toBe(false);
+          }
+          for (const connector of scene.connectors) {
+            if (!connector.label) continue;
+            expect(polygonsOverlap(strip, chipBox(connector)), `${label.id} covers chip ${connector.id}`).toBe(false);
+          }
+          for (const other of scene.labels) {
+            if (other !== label) expect(polygonsOverlap(strip, zoneTagStrip(other))).toBe(false);
           }
         }
       });
