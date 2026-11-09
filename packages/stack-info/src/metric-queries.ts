@@ -15,7 +15,7 @@ type MetricQueryInput = {
    * or topic name, or state machine ARN.
    */
   primaryResourceIdentifier: string;
-  /** ECS service name and Cognito user pool client id; unused for the other resource types. */
+  /** ECS service name, Cognito user pool client id and an event bus's rule name; unused for the other resource types. */
   secondaryResourceIdentifier?: string;
   period: number;
 };
@@ -230,6 +230,33 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('executionsFailed', 'ExecutionsFailed', 'Sum'),
       metric('executionsTimedOut', 'ExecutionsTimedOut', 'Sum'),
       metric('executionTime', 'ExecutionTime', 'Average')
+    ];
+  },
+
+  // A custom bus counts the events any of its rules matched. What each rule delivered is counted per rule, below.
+  events: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [{ Name: 'EventBusName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [metric('matchedEvents', 'MatchedEvents', 'Sum')];
+  },
+
+  // EventBridge publishes a failed delivery only when there is one, so an empty series means none failed.
+  eventsRule: ({ primaryResourceIdentifier, secondaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [
+        { Name: 'EventBusName', Value: primaryResourceIdentifier },
+        { Name: 'RuleName', Value: secondaryResourceIdentifier! }
+      ],
+      period
+    });
+    return [
+      metric('invocations', 'Invocations', 'Sum'),
+      metric('failedInvocations', 'FailedInvocations', 'Sum'),
+      metric('matchedEvents', 'MatchedEvents', 'Sum')
     ];
   },
 

@@ -19,7 +19,9 @@ export type MetricTargetType =
   | 'sqs'
   | 'sns'
   | 'stepfunctions'
-  | 'redis';
+  | 'redis'
+  | 'events'
+  | 'eventsRule';
 
 /**
  * The subset of CloudFormation's `StackResourceSummary` this module reads. Keys keep the SDK's
@@ -39,7 +41,7 @@ export type MetricTarget = {
    * name, state machine ARN or Redis node.
    */
   primaryResourceIdentifier: string;
-  /** ECS service name and Cognito user pool client id; unused for the other target types. */
+  /** ECS service name, Cognito user pool client id and an event bus's rule name; unused for the other target types. */
   secondaryResourceIdentifier?: string;
 };
 
@@ -158,6 +160,9 @@ export const getMetricTargets = ({
         break;
       case 'state-machine':
         addTarget('stepfunctions', physicalIdOf('AWS::StepFunctions::StateMachine'));
+        break;
+      case 'event-bus':
+        addTarget('events', physicalIdOf('AWS::Events::EventBus'));
         break;
       case 'redis': {
         // ElastiCache reports per node, and the first node of a replication group is `<group>-001`.
