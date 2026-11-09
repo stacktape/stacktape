@@ -129,7 +129,10 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('freeableMemory', 'FreeableMemory', 'Average'),
       metric('databaseConnections', 'DatabaseConnections', 'Average'),
       // Used storage is calculated from free storage later.
-      metric('storageUsed', 'FreeStorageSpace', 'Average')
+      metric('storageUsed', 'FreeStorageSpace', 'Average'),
+      // Seconds per operation: the first place a slow query shows when CPU looks fine.
+      metric('readLatency', 'ReadLatency', 'Average'),
+      metric('writeLatency', 'WriteLatency', 'Average')
     ];
   },
 
@@ -259,6 +262,17 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('invocations', 'Invocations', 'Sum'),
       metric('failedInvocations', 'FailedInvocations', 'Sum'),
       metric('matchedEvents', 'MatchedEvents', 'Sum')
+    ];
+  },
+
+  // The account's sending in this region. The rates are shares (0.012 is 1.2%) over AWS's own recent window.
+  ses: ({ period }) => {
+    const metric = metricsOf({ namespace: 'AWS/SES', dimensions: [], period });
+    return [
+      metric('sent', 'Send', 'Sum'),
+      metric('delivered', 'Delivery', 'Sum'),
+      metric('bounceRate', 'Reputation.BounceRate', 'Average'),
+      metric('complaintRate', 'Reputation.ComplaintRate', 'Average')
     ];
   },
 

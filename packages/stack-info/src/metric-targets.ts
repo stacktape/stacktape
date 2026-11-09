@@ -21,7 +21,8 @@ export type MetricTargetType =
   | 'stepfunctions'
   | 'redis'
   | 'events'
-  | 'eventsRule';
+  | 'eventsRule'
+  | 'ses';
 
 /**
  * The subset of CloudFormation's `StackResourceSummary` this module reads. Keys keep the SDK's
@@ -163,6 +164,10 @@ export const getMetricTargets = ({
         break;
       case 'event-bus':
         addTarget('events', physicalIdOf('AWS::Events::EventBus'));
+        break;
+      // SES reports sending and reputation for the whole account and region, not per sender.
+      case 'email-sender':
+        addTarget('ses', 'account');
         break;
       case 'redis': {
         // ElastiCache reports per node, and the first node of a replication group is `<group>-001`.
