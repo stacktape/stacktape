@@ -1401,8 +1401,9 @@
     background: var(--stp-dialog-background, var(--stp-surface-modal));
     color: var(--stp-text-primary);
     box-shadow: var(--stp-dialog-shadow, 0 24px 64px rgba(0, 0, 0, 0.5));
-    /* A dialog rises a few pixels into place as the page behind it dims. */
-    animation: stp-ui-dialog-in var(--stp-motion-duration-base) var(--stp-motion-easing-out);
+    /* A dialog fades in as the page behind it dims. Opacity only: what measures the dialog as it opens (a list placed
+       under its field, a test) sees its final size and place. */
+    animation: stp-ui-fade-in var(--stp-motion-duration-base) var(--stp-motion-easing-out);
   }
 
   .stp-ui-dialog__backdrop {
@@ -1736,13 +1737,6 @@
 @keyframes stp-ui-fade-in {
   from {
     opacity: 0;
-  }
-}
-
-@keyframes stp-ui-dialog-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
   }
 }
 
