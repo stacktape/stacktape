@@ -466,7 +466,7 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. A deploy also stops, without changing anything, when another deploy finished while it was building, so it never overwrites a newer release; run it again. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
 
 ## FAQ
 
@@ -492,7 +492,7 @@ Run the deploy command once per region with the same stage name but different `-
 
 ### Why does one of two concurrent deploys to the same stage fail?
 
-A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. If the first one finished while the second was still building, the second stops before it changes anything, because it was built against an older release. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
 
 ---
 
