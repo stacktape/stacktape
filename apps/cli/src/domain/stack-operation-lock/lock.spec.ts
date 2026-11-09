@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import {
   acquireStackLock,
   STACK_LOCK_LEASE_MS,
+  STACK_LOCK_WAIT_POLL_MS,
   StackLockedError,
   StackLockLostError,
+  waitForStackLock,
   type StackLockStore
 } from './lock';
 
@@ -189,7 +191,7 @@ describe('stack operation lock', () => {
     expect(secondDone).toBe(false);
     finishWrite();
     await Promise.all([first, second]);
-    expect(JSON.parse(current()!.body)).toEqual({ released: true });
+    expect(JSON.parse(current()!.body)).toEqual({ released: true, releasedAtMs: 0 });
   });
 
   test('confirmations at the same time do not read as a takeover', async () => {
@@ -273,5 +275,69 @@ describe('stack operation lock', () => {
     await Bun.sleep(0);
     expect(lost).toBe(false);
     expect(held.isHeld()).toBe(true);
+  });
+});
+
+describe('waiting for the stack lock', () => {
+  test('takes the lock as soon as the operation holding it releases it, and says it waited', async () => {
+    const { store } = memoryStore();
+    let time = 0;
+    const running = await acquireStackLock(options(store, 'running', () => time));
+    const waits: string[] = [];
+    const sleeps: number[] = [];
+    const taken = await waitForStackLock({
+      acquire: () => acquireStackLock(options(store, 'next', () => time)),
+      onWaiting: (busy) => waits.push(busy.holder.invocationId),
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        time += ms;
+        // The running operation finishes during the second wait.
+        if (sleeps.length === 2) await running.release();
+      }
+    });
+    expect(taken.waited).toBe(true);
+    expect(waits).toEqual(['running', 'running']);
+    expect(sleeps).toEqual([STACK_LOCK_WAIT_POLL_MS, STACK_LOCK_WAIT_POLL_MS]);
+    expect(taken.lock.previousReleaseAtMs).toBe(2 * STACK_LOCK_WAIT_POLL_MS);
+  });
+
+  test('takes over a killed operation once its lease ends, without waiting longer than needed', async () => {
+    const { store, current } = memoryStore();
+    let time = 0;
+    await acquireStackLock(options(store, 'killed', () => time));
+    time = STACK_LOCK_LEASE_MS - 1200;
+    const sleeps: number[] = [];
+    const taken = await waitForStackLock({
+      acquire: () => acquireStackLock(options(store, 'next', () => time)),
+      onWaiting: () => {},
+      sleep: async (ms) => {
+        sleeps.push(ms);
+        time += ms;
+      }
+    });
+    expect(sleeps).toEqual([1200]);
+    expect(taken.lock.tookOverFrom?.invocationId).toBe('killed');
+    expect(JSON.parse(current()!.body)).toMatchObject({ invocationId: 'next', startedAtMs: STACK_LOCK_LEASE_MS });
+  });
+
+  test('does not wait when the lock is free, and passes other errors on', async () => {
+    const { store } = memoryStore();
+    const taken = await waitForStackLock({
+      acquire: () => acquireStackLock(options(store, 'only', () => 0)),
+      onWaiting: () => {
+        throw new Error('should not wait');
+      }
+    });
+    expect(taken.waited).toBe(false);
+    expect(taken.lock.previousReleaseAtMs).toBeUndefined();
+    const failure = new Error('Access Denied');
+    await expect(
+      waitForStackLock({
+        acquire: async () => {
+          throw failure;
+        },
+        onWaiting: () => {}
+      })
+    ).rejects.toBe(failure);
   });
 });

@@ -74,7 +74,8 @@ export const codeSwapOperation = async (operation: 'deploy' | 'rollback' | 'dele
   if (deleteIsRunning && !(await aws.s3.bucketExists({ bucketName }))) return;
   const { holdStackLock } = await import('../stack-operation-lock');
   const lock = await holdStackLock({ bucketName, operation, releaseOnExit: false });
-  applicationManager.finalCleanUpHooks.push(codeSwapFinish);
+  // Before the exit release of the stack lock, which this may leave to expire instead.
+  applicationManager.finalCleanUpHooks.unshift(codeSwapFinish);
   held = {
     lock,
     services: (await getCodeSwapRuns()).map(({ service, recordService }) => ({ service, recordService })),
@@ -175,7 +176,13 @@ export const codeSwapFinish = async () => {
   }
   await Promise.allSettled(pendingPreparations);
   pendingPreparations.length = 0;
-  await codeSwapIntegration.abortPreparation();
+  try {
+    await codeSwapIntegration.abortPreparation();
+  } catch (error) {
+    // A candidate that may still run needs the next operation's repair, which only an expired lock asks for.
+    held?.lock.detach();
+    throw error;
+  }
   if (leavesStackLockToExpire({ recovering: recoveredOperation, repairCompleted })) held?.lock.detach();
   else await held?.lock.release();
   held = undefined;

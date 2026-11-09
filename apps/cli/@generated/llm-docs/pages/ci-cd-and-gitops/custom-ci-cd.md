@@ -358,7 +358,9 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second fails and names the operation in progress. A deploy also stops, without changing anything, when another deploy finished while it was building, so it never overwrites a newer release; run it again. If a CI job is killed, its lock expires within two minutes and the next deploy continues. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
+
+The first deploy of a new stage is the exception: until the stage exists, it has nowhere to keep the lock. If two first deploys of the same stage run at once, the second stops without changing anything; run it again.
 
 ## FAQ
 
@@ -382,6 +384,6 @@ By default, the stack keeps what the failed deployment created or updated and st
 
 Run the deploy command once per region with the same stage name but different `--region` values. Each region creates an independent stack. You can run these as parallel jobs in your CI pipeline. See [multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and considerations.
 
-### Why does one of two concurrent deploys to the same stage fail?
+### What happens when two deploys to the same stage run at once?
 
-A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. If two CI runs deploy to the same stage at once, the second fails and names the operation in progress. If the first one finished while the second was still building, the second stops before it changes anything, because it was built against an older release. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. The second deploy waits for the first to finish and then deploys on top of its result. A killed run blocks the next one for at most two minutes. To control the order of runs, use a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.

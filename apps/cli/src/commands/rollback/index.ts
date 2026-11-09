@@ -194,12 +194,12 @@ export const executeRollbackOperation = async ({
     return listAvailableVersions({ deploymentArtifacts, stack, tui });
   }
 
-  // Taken before anything is written: the rollback stores its template under the next release number.
+  // The rollback took the lock when it started, before it read the stack. This shares it.
   const lock = await holdStackLock({
     bucketName: deploymentArtifactManager.deploymentBucketName,
     operation: 'rollback'
   });
-  // The versions below were read before the lock. Another operation may have created a release since.
+  // A safety net: the lock was taken before the versions below were read, so nothing should have changed.
   await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'rollback' });
 
   const currentVersion = stack.lastVersion;

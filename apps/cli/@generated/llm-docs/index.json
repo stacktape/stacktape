@@ -15409,7 +15409,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#where-does-the-deployment-build-run",
         "page:/ci-cd-and-gitops/custom-ci-cd#what-happens-when-a-deploy-fails-in-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-deploy-to-multiple-aws-regions-from-ci",
-        "page:/ci-cd-and-gitops/custom-ci-cd#why-does-one-of-two-concurrent-deploys-to-the-same-stage-fail"
+        "page:/ci-cd-and-gitops/custom-ci-cd#what-happens-when-two-deploys-to-the-same-stage-run-at-once"
       ]
     },
     {

@@ -40,6 +40,9 @@ export const getScriptEnv = ({
       STP_HOOK_TRIGGER: fullHookTrigger,
       STP_COMMAND: command
     }),
+    // A script on a bastion gets only this environment. A Stacktape command it runs on a stack this command holds must
+    // fail instead of waiting for this command forever (see `STACK_LOCK_HOLDERS_ENV`).
+    ...(process.env.STP_STACK_LOCK_HOLDERS && { STP_STACK_LOCK_HOLDERS: process.env.STP_STACK_LOCK_HOLDERS }),
     ...(errorData && { STP_ERROR: JSON.stringify(errorData) }),
     ...[...userDefinedEnv, ...connectToEnv, ...assumedRoleAWSEnvVars].reduce((curr, next) => {
       return { ...curr, [next.name]: next.value };
