@@ -98,7 +98,7 @@ describe('resource types', () => {
     expect(topologyOf(`stackConfig:\n  nat: gateway\nresources:${vpcFunction}`).nodes[0].subnet).toBe('private');
   });
 
-  test('Convex expands into its load balancer, backend, dashboard, database and storage', () => {
+  test('Convex expands into its load balancer, backend, dashboard, database and storage; the backend is in the public subnets', () => {
     const topology = topologyOf(`resources:
   backend:
     type: convex
@@ -110,7 +110,7 @@ describe('resource types', () => {
       'backend--dashboard:public',
       'backend--db:public',
       'backend--storage:null',
-      'backend:null',
+      'backend:public',
       'user:null'
     ]);
     expect(topology.edges.some(({ from, to }) => from === 'user' && to === 'backend--alb')).toBe(true);
@@ -162,7 +162,6 @@ describe('type lines, replicas and reachability', () => {
     ['relational-database', 'accessibility: { accessibilityMode: whitelisted-ips-only }', false],
     ['open-search-domain', '', true],
     ['open-search-domain', 'accessibility: { accessibilityMode: scoping-workloads-in-vpc }', false],
-    ['mongo-db-atlas-cluster', '', true],
     ['redis', '', false],
     ['dsql-database', '', false]
   ] as const)('marks %s {%s} as internet-reachable: %s', (type, properties, isPublic) => {
@@ -176,6 +175,22 @@ describe('type lines, replicas and reachability', () => {
       )
     ).toBe(isPublic);
   });
+});
+
+test('MongoDB Atlas reachability comes from the provider-level accessibility, which defaults to the internet', () => {
+  const atlas = (providerConfig: string) =>
+    topologyOf(`${providerConfig}resources:
+  docs:
+    type: mongo-db-atlas-cluster
+    properties:
+      accessibility: { accessibilityMode: internet }
+`).nodes[0];
+  expect(atlas('').isPublic).toBe(true);
+  expect(atlas('').accessNote).toContain('internet');
+  // A cluster-level setting is not what the CLI reads; the project-level one restricts the access list to the VPC.
+  const peered = atlas('providerConfig:\n  mongoDbAtlas:\n    accessibility: { accessibilityMode: vpc }\n');
+  expect(peered.isPublic).toBeUndefined();
+  expect(peered.accessNote).toBe('Reachable only through a private connection from the VPC.');
 });
 
 describe('relations', () => {

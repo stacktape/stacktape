@@ -32,7 +32,8 @@ itself, with no icon packs or images.
   connect to a database or Redis, and, once `stackConfig.nat` is set, every VPC function. NAT follows the configured
   availability zones.
 - Kafka clusters, like databases, Redis and EFS, sit in the public subnets.
-- Convex expands into its ALB, backend and dashboard containers, Postgres database and storage buckets.
+- Convex expands into its ALB, backend and dashboard containers (public subnets), Postgres database and storage buckets.
+- MongoDB Atlas accessibility is project-wide, under `providerConfig.mongoDbAtlas`, and defaults to the internet.
 - Uptime checks, synthetic tests and custom-resource instances are not drawn: the checks watch a URL, not a resource,
   and an instance is one deploy-time call of its definition, whose type line counts them.
 - `security` edges come from `useFirewall` (on an ALB, web service, user pool, hosting bucket, SSR site or `cdn`) and

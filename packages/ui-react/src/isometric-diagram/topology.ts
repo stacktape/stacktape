@@ -79,7 +79,9 @@ const SSR_FRAMEWORK_NAMES: Record<string, string> = {
 
 const CONTAINER_SERVICES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
-const VPC_COMPUTE = new Set([...CONTAINER_SERVICES, 'batch-job', 'bastion']);
+// Convex's backend is a container workload the CLI creates with `usePrivateSubnetsWithNAT: false`, so it runs in the
+// public subnets like a batch job or bastion.
+const VPC_COMPUTE = new Set([...CONTAINER_SERVICES, 'batch-job', 'bastion', 'convex']);
 
 const INTEGRATION_TYPES = new Set([
   'sqs-queue',
@@ -1061,6 +1063,12 @@ export const buildDiagramTopology = ({
         (resource.type === 'agentcore-runtime' && isAgentRuntimeInVpc({ resource, resources }))
     );
 
+  // MongoDB Atlas accessibility is set once for the Atlas project, under `providerConfig.mongoDbAtlas`, not on each
+  // cluster. Without it the CLI opens the project's access list to 0.0.0.0/0, which is the `internet` default below.
+  const atlasAccessibility = (parsedConfig as any)?.providerConfig?.mongoDbAtlas?.accessibility;
+  const accessSettingsOf = ({ type, resource }: { type: string; resource: any }) =>
+    type === 'mongo-db-atlas-cluster' ? { properties: { accessibility: atlasAccessibility } } : resource;
+
   // Phase 1: Create nodes for all user-defined resources
   const userNodes = resourceEntries
     .filter(([, resource]) => !HIDDEN_TYPES.has(resource.type))
@@ -1078,8 +1086,8 @@ export const buildDiagramTopology = ({
             ? `Custom resource · ${instances} instance${instances === 1 ? '' : 's'}`
             : getTypeLabel({ type, resource }),
         replicas: getReplicas({ type, resource }),
-        accessNote: getAccessNote({ type, resource }),
-        isPublic: isInternetReachable({ type, resource }) || undefined,
+        accessNote: getAccessNote({ type, resource: accessSettingsOf({ type, resource }) }),
+        isPublic: isInternetReachable({ type, resource: accessSettingsOf({ type, resource }) }) || undefined,
         internal: isInternalLoadBalancer({ type, resource }) || undefined
       } satisfies TopologyNode;
     });
