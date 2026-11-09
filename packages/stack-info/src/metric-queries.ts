@@ -188,7 +188,9 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('evictions', 'Evictions', 'Sum'),
       metric('networkRxBytes', 'NetworkBytesIn', 'Average'),
       metric('networkTxBytes', 'NetworkBytesOut', 'Average'),
-      metric('currConnections', 'CurrConnections', 'Average')
+      metric('currConnections', 'CurrConnections', 'Average'),
+      // How full the node's memory is, which bytes alone cannot say without its size.
+      metric('memoryPercent', 'DatabaseMemoryUsagePercentage', 'Average')
     ];
   },
 
