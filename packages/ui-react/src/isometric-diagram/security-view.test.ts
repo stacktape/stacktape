@@ -1,6 +1,6 @@
 import type { ProjectedBox } from './layout/projected-box.js';
 import type { IsoScene, IsoSecurityRule, IsoTilePoint } from './scene.js';
-import type { DiagramOverlays } from './views.js';
+import type { DiagramLayers } from './views.js';
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
@@ -10,10 +10,10 @@ import { boxOverlapArea, projectTile, shiftBox } from './layout/projected-box.js
 import { buildDiagramModel, diagramFrame, measureChip, selectDiagramView } from './scene-builder.js';
 import { buildSecurityGroupModel } from './security-groups.js';
 import { buildDiagramTopology } from './topology.js';
-import { DIAGRAM_VIEWS, VIEW_PRESETS } from './views.js';
+import { ALL_LAYERS, NO_LAYERS } from './views.js';
 
 /**
- * The Security view drawn from the templates the CLI synthesizes for `security-groups.test.ts`. Each test restates what
+ * The Access layer drawn from the templates the CLI synthesizes for `security-groups.test.ts`. Each test restates what
  * a reader should see for one template; the last checks legibility rules over all of them.
  */
 const TEMPLATES = new URL('./generated/security-group-templates/', import.meta.url);
@@ -22,15 +22,18 @@ const templateNames = readdirSync(TEMPLATES)
   .map((file) => file.replace(/\.json$/, ''))
   .sort();
 
+const ACCESS: DiagramLayers = { infrastructure: false, access: true };
+const COMBINATIONS = [NO_LAYERS, { infrastructure: true, access: false }, ACCESS, ALL_LAYERS];
+
 const load = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, TEMPLATES), 'utf8'));
 
 const securityScene = ({
   name,
-  overlays = VIEW_PRESETS.security,
+  layers = ALL_LAYERS,
   expand = false
 }: {
   name: string;
-  overlays?: DiagramOverlays;
+  layers?: DiagramLayers;
   expand?: boolean;
 }) => {
   const fixture = load(name);
@@ -39,7 +42,7 @@ const securityScene = ({
   const expandedGroups = new Set(expand && topology ? findRoleGroups({ topology }).map((group) => group.id) : []);
   const model = buildDiagramModel({ parsedConfig: config, expandedGroups });
   if (!model) throw new Error(`No model for ${name}`);
-  return { model, scene: selectDiagramView({ model, overlays, security: buildSecurityGroupModel(fixture) }) };
+  return { model, scene: selectDiagramView({ model, layers, security: buildSecurityGroupModel(fixture) }) };
 };
 
 const groupOn = (scene: IsoScene, name: string) => {
@@ -193,8 +196,8 @@ describe('security view of real templates', () => {
     expect(expanded.connectors.some((edge) => edge.from === 'indexer' && edge.to === 'cache')).toBe(true);
   });
 
-  test('batch jobs join their compute environment’s group; the NAT instance shows with the network overlay', () => {
-    const plain = securityScene({ name: 'batch-bastion-nat-instance' }).scene;
+  test('batch jobs join their compute environment’s group; the NAT instance shows with the Infrastructure layer', () => {
+    const plain = securityScene({ name: 'batch-bastion-nat-instance', layers: ACCESS }).scene;
     expect(groupOn(plain, 'Batch instances SG').memberNodeIds).toEqual(['importer']);
     expect(plain.securityGroups?.some((group) => group.name === 'NAT instances SG')).toBe(false);
     expect(rulesInto(plain, 'db')).toEqual([
@@ -204,7 +207,7 @@ describe('security view of real templates', () => {
 
     const withNetwork = securityScene({
       name: 'batch-bastion-nat-instance',
-      overlays: { ...VIEW_PRESETS.security, network: true }
+      layers: ALL_LAYERS
     }).scene;
     expect(groupOn(withNetwork, 'NAT instances SG').memberNodeIds).toEqual(['nat-gateway']);
     expect(rulesInto(withNetwork, 'nat-gateway')).toEqual([
@@ -240,10 +243,10 @@ describe('security view of real templates', () => {
     ]);
   });
 
-  test('with Stacktape-created resources hidden, a load balancer’s group moves onto its service', () => {
+  test('without the Infrastructure layer, a load balancer’s group moves onto its service', () => {
     const { scene } = securityScene({
       name: 'http-api-vpc-link',
-      overlays: { ...VIEW_PRESETS.security, createdResources: false }
+      layers: ACCESS
     });
     expect(groupOn(scene, 'albWeb LB SG').memberNodeIds).toEqual(['albWeb']);
     // The load balancer's rule into its own service would point at itself, so it is not drawn.
@@ -255,9 +258,15 @@ describe('security view of real templates', () => {
 
 describe('legibility over every template', () => {
   for (const name of templateNames) {
-    for (const expand of [false, true]) {
-      test(`${name}${expand ? ' (expanded)' : ''}: outlines hold their members, arrows avoid other nodes, text avoids bodies`, () => {
-        const { model, scene } = securityScene({ name, expand });
+    for (const [expand, layers] of [
+      [false, ALL_LAYERS],
+      [true, ALL_LAYERS],
+      [false, ACCESS],
+      [true, ACCESS]
+    ] as const) {
+      const variant = `${expand ? ' (expanded)' : ''}${layers.infrastructure ? '' : ' (without infrastructure)'}`;
+      test(`${name}${variant}: outlines hold their members, arrows avoid other nodes, text avoids bodies`, () => {
+        const { model, scene } = securityScene({ name, expand, layers });
         const tiles = new Map(scene.nodes.map((node) => [node.id, node.tile]));
 
         for (const group of scene.securityGroups ?? []) {
@@ -390,7 +399,7 @@ describe('bounded work', () => {
     const model = buildDiagramModel({ parsedConfig: config as never });
     const scene = selectDiagramView({
       model: model!,
-      overlays: VIEW_PRESETS.security,
+      layers: ALL_LAYERS,
       security: buildSecurityGroupModel(input)
     });
     expect((scene.securityRules ?? []).map(({ label }) => label)).toEqual([
@@ -423,11 +432,11 @@ describe('bounded work', () => {
     const model = buildDiagramModel({ parsedConfig: config as never, expandedGroups })!;
     const security = buildSecurityGroupModel(input);
     const frame = diagramFrame({ model, security });
-    const scenes = DIAGRAM_VIEWS.map((view) => selectDiagramView({ model, overlays: VIEW_PRESETS[view], security }));
+    const scenes = COMBINATIONS.map((layers) => selectDiagramView({ model, layers, security }));
     const elapsed = performance.now() - started;
 
     expect(frame?.nodeTiles).toHaveLength(300);
-    const securityScene300 = scenes[2];
+    const securityScene300 = scenes[3];
     expect(securityScene300.nodes).toHaveLength(300);
     expect(
       securityScene300.securityRules?.map(({ fromGroup, toGroup, label }) => ({ fromGroup, toGroup, label }))
@@ -461,13 +470,10 @@ const intoBalancer = (scene: IsoScene) =>
 
 describe('arrow identity', () => {
   for (const name of templateNames) {
-    test(`${name}: every arrow, chip and outline has its own ID in every view`, () => {
+    test(`${name}: every arrow, chip and outline has its own ID whichever layers are on`, () => {
       for (const expand of [false, true]) {
-        for (const overlays of [
-          ...DIAGRAM_VIEWS.map((view) => VIEW_PRESETS[view]),
-          { ...VIEW_PRESETS.security, network: true }
-        ]) {
-          const { scene } = securityScene({ name, expand, overlays });
+        for (const layers of COMBINATIONS) {
+          const { scene } = securityScene({ name, expand, layers });
           expect(new Set(ids(scene)).size).toBe(ids(scene).length);
           expect(new Set(scene.connectors.map(({ id }) => id)).size).toBe(scene.connectors.length);
           const groups = (scene.securityGroups ?? []).map(({ id }) => id);
@@ -482,7 +488,7 @@ describe('arrow identity', () => {
     const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
     const scene = selectDiagramView({
       model,
-      overlays: VIEW_PRESETS.security,
+      layers: ALL_LAYERS,
       security: buildSecurityGroupModel(fixture)
     });
     const internet = (scene.securityRules ?? []).filter(
@@ -500,7 +506,7 @@ describe('arrow identity', () => {
     const after = loadBalancerTemplate({ ipv6: true, internet: false });
     const model = buildDiagramModel({ parsedConfig: parse(before.config) })!;
     const sceneOf = (fixture: typeof before) =>
-      selectDiagramView({ model, overlays: VIEW_PRESETS.security, security: buildSecurityGroupModel(fixture) });
+      selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
     const first = sceneOf(before);
     const second = sceneOf(after);
     expect(intoBalancer(first)).toHaveLength(2);

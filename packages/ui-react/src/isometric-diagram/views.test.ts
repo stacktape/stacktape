@@ -1,5 +1,5 @@
 import type { IsoScene } from './scene.js';
-import type { DiagramOverlays } from './views.js';
+import type { DiagramLayers } from './views.js';
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
@@ -8,11 +8,11 @@ import { findRoleGroups } from './grouping.js';
 import { buildDiagramModel, diagramFrame, selectDiagramView } from './scene-builder.js';
 import { buildSecurityGroupModel } from './security-groups.js';
 import { buildDiagramTopology } from './topology.js';
-import { ALL_OVERLAYS, DIAGRAM_VIEWS, presetOf, VIEW_PRESETS } from './views.js';
+import { ALL_LAYERS, hasInfrastructure, NO_LAYERS } from './views.js';
 
 /**
- * The view model: which nodes, connectors and zones each preset and overlay shows, and the rule that a node keeps its
- * place in every view that shows it.
+ * The layer model: which nodes, connectors and zones the picture shows with and without each layer, and the rule that
+ * a node keeps its place whichever layers are on.
  */
 
 const configDirectory = new URL('./test-configs/', import.meta.url);
@@ -43,11 +43,18 @@ const configs = [
     })
 ];
 
-const sceneFor = ({ id, overlays }: { id: string; overlays: DiagramOverlays }) => {
+const modelFor = (id: string) => {
   const model = buildDiagramModel({ parsedConfig: parseFixtureConfig({ fixture: getFixtureById({ id }) }) });
   if (!model) throw new Error(`No model for ${id}`);
-  return selectDiagramView({ model, overlays });
+  return model;
 };
+
+const sceneFor = ({ id, layers }: { id: string; layers: DiagramLayers }) =>
+  selectDiagramView({ model: modelFor(id), layers });
+
+const INFRASTRUCTURE: DiagramLayers = { infrastructure: true, access: false };
+const ACCESS: DiagramLayers = { infrastructure: false, access: true };
+const COMBINATIONS = [NO_LAYERS, INFRASTRUCTURE, ACCESS, ALL_LAYERS];
 
 /** Whether a route's segments pass through a point. */
 const passesThrough = (points: { x: number; y: number }[], point: { x: number; y: number }) =>
@@ -71,26 +78,10 @@ const allGroups = (config: unknown) => {
   return new Set(topology ? findRoleGroups({ topology }).map((group) => group.id) : []);
 };
 
-const CUSTOM: DiagramOverlays = {
-  createdResources: false,
-  network: true,
-  securityGroups: true,
-  permissions: false,
-  labels: false
-};
-
-describe('presets', () => {
-  test('each preset is recognised, and any other combination is custom', () => {
-    for (const view of DIAGRAM_VIEWS) expect(presetOf(VIEW_PRESETS[view])).toBe(view);
-    expect(presetOf({ ...VIEW_PRESETS.application, labels: false })).toBeUndefined();
-    expect(presetOf(ALL_OVERLAYS)).toBeUndefined();
-  });
-});
-
-describe('application view', () => {
+describe('without layers', () => {
   test('shows declared resources and their flow, without zones, NAT or outbound pipes', () => {
     for (const fixture of getDiagramFixtures()) {
-      const scene = sceneFor({ id: fixture.id, overlays: VIEW_PRESETS.application });
+      const scene = sceneFor({ id: fixture.id, layers: NO_LAYERS });
       expect(scene.rectangles).toEqual([]);
       expect(scene.labels).toEqual([]);
       expect(nodeIds(scene)).not.toContain('nat-gateway');
@@ -104,8 +95,8 @@ describe('application view', () => {
   });
 
   test('a web service’s own gateway folds into it, and the user’s connector runs through the gateway’s spot', () => {
-    const full = sceneFor({ id: 'web-service-rds', overlays: ALL_OVERLAYS });
-    const scene = sceneFor({ id: 'web-service-rds', overlays: VIEW_PRESETS.application });
+    const full = sceneFor({ id: 'web-service-rds', layers: ALL_LAYERS });
+    const scene = sceneFor({ id: 'web-service-rds', layers: NO_LAYERS });
     const gateway = full.nodes.find((node) => node.id === 'webApp--gw');
     expect(gateway).toBeDefined();
     const folded = connector(scene, 'user', 'webApp');
@@ -120,7 +111,7 @@ describe('application view', () => {
   });
 
   test('an SSR site keeps the access its hidden server function has', () => {
-    const scene = sceneFor({ id: 'nextjs-hosting', overlays: VIEW_PRESETS.application });
+    const scene = sceneFor({ id: 'nextjs-hosting', layers: NO_LAYERS });
     expect(nodeIds(scene)).not.toContain('web--server');
     expect(nodeIds(scene)).not.toContain('web--assets');
     expect(
@@ -128,39 +119,45 @@ describe('application view', () => {
     ).not.toEqual([]);
   });
 
-  test('keeps a public data store and its badge whatever else it hides', () => {
+  test('keeps connectTo access and connector labels, which no layer hides', () => {
+    for (const layers of COMBINATIONS) {
+      const scene = sceneFor({ id: 'full-stack', layers });
+      expect(scene.connectors.some((candidate) => candidate.semantic === 'dependency')).toBe(true);
+      expect(scene.connectors.some((candidate) => candidate.label)).toBe(true);
+    }
+  });
+
+  test('keeps a public data store and its badge whatever else is hidden', () => {
     for (const fixture of getDiagramFixtures()) {
-      const network = sceneFor({ id: fixture.id, overlays: VIEW_PRESETS.network });
-      const publicIds = network.nodes.filter((node) => node.isPublic).map((node) => node.id);
-      for (const view of DIAGRAM_VIEWS) {
-        const scene = sceneFor({ id: fixture.id, overlays: VIEW_PRESETS[view] });
+      const full = sceneFor({ id: fixture.id, layers: INFRASTRUCTURE });
+      const publicIds = full.nodes.filter((node) => node.isPublic).map((node) => node.id);
+      for (const layers of COMBINATIONS) {
+        const scene = sceneFor({ id: fixture.id, layers });
         expect(scene.nodes.filter((node) => node.isPublic).map((node) => node.id)).toEqual(publicIds);
       }
     }
   });
 });
 
-describe('network view', () => {
-  test('shows the VPC, subnet tiers, NAT and outbound traffic', () => {
-    const scene = sceneFor({ id: 'private-subnets', overlays: VIEW_PRESETS.network });
+describe('infrastructure layer', () => {
+  test('shows what Stacktape creates, the VPC, subnet tiers, NAT and outbound traffic', () => {
+    const scene = sceneFor({ id: 'private-subnets', layers: INFRASTRUCTURE });
     expect(scene.rectangles.map((rectangle) => rectangle.id)).toEqual(
       expect.arrayContaining(['vpc', 'subnet-public', 'subnet-private'])
     );
     expect(nodeIds(scene)).toContain('nat-gateway');
     expect(scene.connectors.some((candidate) => candidate.semantic === 'egress')).toBe(true);
+    expect(nodeIds(sceneFor({ id: 'web-service-rds', layers: INFRASTRUCTURE }))).toContain('webApp--gw');
   });
 
   test('marks whether a load balancer faces the internet and names VPC Links', () => {
-    const shared = sceneFor({ id: 'shared-alb-platform', overlays: VIEW_PRESETS.network });
+    const shared = sceneFor({ id: 'shared-alb-platform', layers: INFRASTRUCTURE });
     expect(shared.nodes.find((node) => node.resourceType === 'application-load-balancer')?.exposure).toBe(
       'internet-facing'
     );
-    const full = sceneFor({ id: 'full-stack', overlays: VIEW_PRESETS.network });
-    expect(connector(full, 'webApp--gw', 'webApp')?.label).toBe('VPC Link');
-    // The label is the Network view's: the Security view, which shows the gateway too, does not carry it.
-    expect(
-      connector(sceneFor({ id: 'full-stack', overlays: VIEW_PRESETS.security }), 'webApp--gw', 'webApp')?.label
-    ).toBeUndefined();
+    expect(connector(sceneFor({ id: 'full-stack', layers: INFRASTRUCTURE }), 'webApp--gw', 'webApp')?.label).toBe(
+      'VPC Link'
+    );
   });
 
   test('internal load balancers, declared or a private service’s, are marked internal', () => {
@@ -170,36 +167,53 @@ describe('network view', () => {
     ]) {
       const fixture = JSON.parse(readFileSync(new URL(`${template}.json`, templateDirectory), 'utf8'));
       const model = buildDiagramModel({ parsedConfig: parse(fixture.config) });
-      const scene = selectDiagramView({ model: model!, overlays: VIEW_PRESETS.network });
+      const scene = selectDiagramView({ model: model!, layers: INFRASTRUCTURE });
       expect(scene.nodes.find((node) => node.id === id)?.exposure).toBe('internal');
     }
   });
-});
 
-describe('security view without a deployment', () => {
-  test('keeps firewalls, authorizers and connectTo access prominent and fades the request flow', () => {
-    const scene = sceneFor({ id: 'secured-apis', overlays: VIEW_PRESETS.security });
-    expect(scene.securityGroups).toBeUndefined();
-    const security = scene.connectors.filter((candidate) => candidate.semantic === 'security');
-    expect(security.length).toBeGreaterThan(0);
-    for (const edge of security) expect(edge.muted).toBeFalsy();
-    for (const edge of scene.connectors.filter((candidate) => candidate.semantic === 'request')) {
-      expect(edge.muted).toBe(true);
+  test('has something to add only where Stacktape creates infrastructure', () => {
+    // Functions, an HTTP API, queues and tables: nothing sits under the configuration.
+    expect(hasInfrastructure(modelFor('serverless-routes'))).toBe(false);
+    expect(sceneFor({ id: 'serverless-routes', layers: INFRASTRUCTURE })).toEqual(
+      sceneFor({ id: 'serverless-routes', layers: NO_LAYERS })
+    );
+    for (const id of ['web-service-rds', 'private-subnets', 'nextjs-hosting', 'full-stack']) {
+      expect(hasInfrastructure(modelFor(id))).toBe(true);
     }
-    expect(scene.rectangles).toEqual([]);
+    // Whenever the layer changes the picture, it is offered.
+    for (const fixture of getDiagramFixtures()) {
+      const model = modelFor(fixture.id);
+      const changes =
+        JSON.stringify(selectDiagramView({ model, layers: INFRASTRUCTURE })) !==
+        JSON.stringify(selectDiagramView({ model, layers: NO_LAYERS }));
+      expect(hasInfrastructure(model)).toBe(changes);
+    }
   });
 });
 
-describe('overlays', () => {
-  test('permissions and labels switch connectTo connectors and connector labels', () => {
-    const scene = sceneFor({
-      id: 'full-stack',
-      overlays: { ...VIEW_PRESETS.network, permissions: false, labels: false }
-    });
-    expect(scene.connectors.filter((candidate) => candidate.semantic === 'dependency')).toEqual([]);
-    expect(scene.connectors.filter((candidate) => candidate.label)).toEqual([]);
-    for (const node of scene.nodes) {
-      expect(node.connections.filter((connection) => connection.semantic === 'dependency')).toEqual([]);
+describe('access layer', () => {
+  test('adds nothing without a deployed stage’s security groups', () => {
+    for (const id of ['secured-apis', 'full-stack']) {
+      expect(sceneFor({ id, layers: ACCESS })).toEqual(sceneFor({ id, layers: NO_LAYERS }));
+    }
+  });
+
+  test('draws the deployed stage’s groups and fades the request flow behind them', () => {
+    const fixture = JSON.parse(readFileSync(new URL('database-accessibility.json', templateDirectory), 'utf8'));
+    const model = buildDiagramModel({ parsedConfig: parse(fixture.config) });
+    const security = buildSecurityGroupModel(fixture);
+    for (const layers of [ACCESS, ALL_LAYERS]) {
+      const scene = selectDiagramView({ model: model!, layers, security });
+      expect(scene.securityGroups?.length).toBeGreaterThan(0);
+      for (const edge of scene.connectors.filter((candidate) => candidate.semantic === 'request')) {
+        expect(edge.muted).toBe(true);
+      }
+      for (const edge of scene.connectors.filter((candidate) => candidate.semantic === 'dependency')) {
+        expect(edge.muted).toBeFalsy();
+      }
+      // The VPC is the Infrastructure layer's, with or without access rules over it.
+      expect(scene.rectangles.length > 0).toBe(layers.infrastructure);
     }
   });
 });
@@ -214,12 +228,11 @@ describe('stable positions', () => {
       const expandedGroups = expanded ? allGroups(config) : new Set<string>();
       if (expanded && expandedGroups.size === 0) continue;
       const suffix = `${expanded ? ' (expanded)' : ''}${statusLines ? ' (with status lines)' : ''}`;
-      test(`a node keeps its place in every view that shows it: ${id}${suffix}`, () => {
-        // Status lines are reserved in the one layout every view selects from, so statuses show in every view too.
+      test(`a node keeps its place whichever layers are on: ${id}${suffix}`, () => {
+        // Status lines are reserved in the one layout every picture selects from, so statuses show under every layer.
         const model = buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines });
         if (!model) throw new Error(`No model for ${id}`);
-        const combinations = [...DIAGRAM_VIEWS.map((view) => VIEW_PRESETS[view]), CUSTOM, ALL_OVERLAYS];
-        const scenes = combinations.map((overlays) => selectDiagramView({ model, overlays, security }));
+        const scenes = COMBINATIONS.map((layers) => selectDiagramView({ model, layers, security }));
         const tiles = new Map<string, { x: number; y: number }>();
         for (const scene of scenes) {
           for (const node of scene.nodes) {
@@ -237,7 +250,7 @@ describe('stable positions', () => {
             expect(edge.route.points.at(-1)).toEqual(byId.get(edge.to)?.tile);
           }
         }
-        // The frame the renderer fits covers every view's nodes.
+        // The frame the renderer fits covers every combination's nodes.
         const frame = diagramFrame({ model, security });
         for (const tile of tiles.values()) expect(frame?.nodeTiles).toContainEqual(tile);
       });

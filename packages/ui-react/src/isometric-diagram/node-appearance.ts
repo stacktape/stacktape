@@ -178,7 +178,7 @@ export const getReplicaBadgeText = ({
 
 /**
  * Whether a node carries a badge above its shape: a replica range, a group's count, the `public` mark or a load
- * balancer's exposure (Network view only, but the layout keeps room for it in every view so nothing moves).
+ * balancer's exposure (Infrastructure layer only, but the layout keeps room for it in every picture so nothing moves).
  */
 export const hasBadge = (
   node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic' | 'exposure'> & { memberCount?: number | undefined }

@@ -404,96 +404,21 @@
     font-weight: 600;
   }
 
-  /* ── Views ───────────────────────────────────────────────────────────────────────────────────
-   * A segment per preset, and a popover with the overlays behind them. */
-  .stp-diagram__views {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .stp-diagram__segments {
+  /* ── Layers ──────────────────────────────────────────────────────────────────────────────────
+   * One checkbox per layer the picture can add, in one frame the height of the find box. */
+  .stp-diagram__layers {
     display: inline-flex;
+    align-items: center;
+    gap: 2px;
     height: 32px;
-    padding: 2px;
+    padding: 2px 2px 2px 10px;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--stp-radius-medium);
     background: rgba(9, 11, 17, 0.78);
   }
 
-  .stp-diagram__segment {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    padding: 0 11px;
-    border-radius: calc(var(--stp-radius-medium) - 2px);
-    color: var(--stp-text-subtle);
-    font-size: 12.5px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .stp-diagram__segment input {
-    position: absolute;
-    inset: 0;
-    margin: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .stp-diagram__segment:hover {
-    color: var(--stp-text-primary);
-  }
-
-  .stp-diagram__segment[data-checked] {
-    background: color-mix(in srgb, var(--stp-color-brand) 20%, transparent);
-    color: var(--stp-text-primary);
-  }
-
-  .stp-diagram__segment:has(input:focus-visible) {
-    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
-    outline-offset: -2px;
-  }
-
-  .stp-diagram__segment--custom {
-    cursor: default;
-    font-style: italic;
-  }
-
-  .stp-diagram__customize {
-    position: relative;
-  }
-
-  .stp-diagram__customize .stp-diagram__chip-button {
-    height: 32px;
-    border-radius: var(--stp-radius-medium);
-  }
-
-  .stp-diagram__customize .stp-diagram__chip-button[aria-expanded='true'] {
-    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
-  }
-
-  .stp-diagram__popover {
-    position: absolute;
-    z-index: 2;
-    top: calc(100% + 6px);
-    left: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 280px;
-    margin: 0;
-    padding: 10px 8px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    background: var(--stp-surface-input);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-    font-family: Montserrat, Inter, sans-serif;
-  }
-
-  .stp-diagram__popover-title {
-    margin: 0;
-    padding: 0 8px 6px;
+  .stp-diagram__layers-title {
+    margin-right: 4px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -501,39 +426,54 @@
     color: var(--stp-text-subtle);
   }
 
-  .stp-diagram__option {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: 10px;
-    row-gap: 1px;
-    align-items: start;
-    padding: 6px 8px;
-    border-radius: var(--stp-radius-medium);
+  .stp-diagram__layer {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 100%;
+    padding: 0 10px 0 8px;
+    border-radius: calc(var(--stp-radius-medium) - 2px);
+    color: var(--stp-text-subtle);
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
   }
 
-  .stp-diagram__option:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .stp-diagram__option input {
-    grid-row: span 2;
-    margin: 2px 0 0;
+  .stp-diagram__layer input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
     accent-color: var(--stp-color-brand);
+    cursor: inherit;
   }
 
-  .stp-diagram__option-name {
-    font-size: 13px;
-    font-weight: 600;
+  .stp-diagram__layer:hover {
     color: var(--stp-text-primary);
   }
 
-  .stp-diagram__option-hint {
-    font-size: 11.5px;
-    color: var(--stp-text-subtle);
+  .stp-diagram__layer[data-checked] {
+    background: color-mix(in srgb, var(--stp-color-brand) 20%, transparent);
+    color: var(--stp-text-primary);
   }
 
-  /* A line about the current view where the usage hint otherwise is. */
+  .stp-diagram__layer[data-disabled] {
+    color: var(--stp-text-subtle);
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .stp-diagram__layer-note {
+    font-size: 11px;
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  .stp-diagram__layer:has(input:focus-visible) {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: -2px;
+  }
+
+  /* A line about what is shown, where the usage hint otherwise is. */
   .stp-diagram__view-note {
     position: absolute;
     left: 12px;

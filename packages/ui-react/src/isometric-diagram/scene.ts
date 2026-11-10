@@ -100,9 +100,9 @@ export type IsoNode = {
   replicas?: { min: number; max: number } | undefined;
   /** Reachable from the internet by its accessibility mode; the renderer marks it in every view. */
   isPublic?: boolean | undefined;
-  /** On a load balancer: whether the internet can reach it. The Network view marks it. */
+  /** On a load balancer: whether the internet can reach it. The Infrastructure layer marks it. */
   exposure?: 'internal' | 'internet-facing' | undefined;
-  /** The security groups this node carries in the deployed stage, in the Security view. */
+  /** The security groups this node carries in the deployed stage, under the Access layer. */
   securityGroups?: IsoNodeSecurityGroup[] | undefined;
   /**
    * The role group this node belongs to: its own id on a collapsed group's node, the group's id on each member drawn
@@ -182,7 +182,7 @@ export type IsoConnector = {
   color?: string | undefined;
   semantic?: string | undefined;
   description?: string | undefined;
-  /** Drawn faintly: context in a view about something else, such as request flow in the Security view. */
+  /** Drawn faintly: context behind a layer about something else, such as request flow under the Access layer. */
   muted?: boolean | undefined;
   route: IsoConnectorRoute;
 };
@@ -237,7 +237,7 @@ export type IsoSecurityRule = {
 };
 
 /**
- * What the view must fit, whichever overlays are on: the whole picture, so switching views neither moves nor rescales
+ * What the view must fit, whichever layers are on: the whole picture, so switching layers neither moves nor rescales
  * anything. `key` changes only when the set of nodes does.
  */
 export type IsoSceneFrame = {

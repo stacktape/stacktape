@@ -1,13 +1,17 @@
 /**
- * Views: which parts of one laid-out picture a reader sees.
+ * Layers: what a reader adds to one laid-out picture.
  *
  * The layout runs once, on every node, connector and zone the topology has, so a node keeps its exact place whichever
- * view shows it. A view only hides things. Three presets cover what most readers ask: Application (your resources and
- * how requests and events flow), Network (the VPC, its subnets, NAT and the infrastructure Stacktape creates) and
- * Security (security groups and the traffic their rules allow, firewalls, authorizers and IAM access). Overlays are the
- * individual switches behind the presets; changing one leaves the presets ("Custom").
+ * layers are on. A layer only shows or hides things. The picture without layers is the application: the resources the
+ * configuration declares and how requests and events flow between them. Two layers add to it, in any combination:
  *
- * A Stacktape-created node that a view hides folds into the resource that owns it: the per-service gateway of a web
+ * - Infrastructure: what Stacktape creates under the configuration (per-service gateways and load balancers, CDNs, an
+ *   SSR site's server function and assets bucket, Convex's parts), the VPC with its subnet tiers and the edge network,
+ *   the NAT and outbound traffic, load balancer exposure and VPC Links.
+ * - Access: who can reach what. The security groups of a deployed stage and the traffic their rules allow, with the
+ *   request and event flow drawn faintly behind them.
+ *
+ * A Stacktape-created node that is hidden folds into the resource that owns it: the per-service gateway of a web
  * service folds into the service, so the user's connector runs through the gateway's empty spot into the service. A
  * hidden node with no owner (the NAT) takes its connectors with it.
  */
@@ -15,76 +19,39 @@ import type { IsoConnector, IsoNode, IsoNodeConnection, IsoScene, IsoTilePoint }
 import type { TopologyNode } from './topology.js';
 import { simplifyRoute } from './layout/diagram-layout.js';
 
-export type DiagramView = 'application' | 'network' | 'security';
+export type DiagramLayer = 'infrastructure' | 'access';
 
-export const DIAGRAM_VIEWS: readonly DiagramView[] = ['application', 'network', 'security'];
+export type DiagramLayers = Readonly<Record<DiagramLayer, boolean>>;
 
-export const DIAGRAM_VIEW_NAMES: Record<DiagramView, string> = {
-  application: 'Application',
-  network: 'Network',
-  security: 'Security'
+export const DIAGRAM_LAYERS: readonly DiagramLayer[] = ['infrastructure', 'access'];
+
+export const DIAGRAM_LAYER_NAMES: Record<DiagramLayer, string> = {
+  infrastructure: 'Infrastructure',
+  access: 'Access'
 };
 
-/**
- * - `createdResources`: resources Stacktape creates for you (per-service gateways and load balancers, CDNs, an SSR
- *   site's server function and assets bucket, Convex's parts). Off, each folds into the resource that owns it.
- * - `network`: the VPC and subnet tiers, the edge network, the NAT and outbound traffic, load balancer exposure and
- *   VPC Links.
- * - `securityGroups`: security groups of a deployed stage and the traffic their rules allow.
- * - `permissions`: `connectTo` and other references, which grant IAM access.
- * - `labels`: connector labels.
- */
-export type DiagramOverlay = 'createdResources' | 'network' | 'securityGroups' | 'permissions' | 'labels';
-
-export type DiagramOverlays = Readonly<Record<DiagramOverlay, boolean>>;
-
-export const DIAGRAM_OVERLAYS: readonly DiagramOverlay[] = [
-  'createdResources',
-  'network',
-  'securityGroups',
-  'permissions',
-  'labels'
-];
-
-export const DIAGRAM_OVERLAY_NAMES: Record<DiagramOverlay, string> = {
-  createdResources: 'Stacktape-created resources',
-  network: 'VPC & subnets',
-  securityGroups: 'Security groups',
-  permissions: 'Permissions (connectTo)',
-  labels: 'Connector labels'
-};
-
-export const VIEW_PRESETS: Record<DiagramView, DiagramOverlays> = {
-  application: { createdResources: false, network: false, securityGroups: false, permissions: true, labels: true },
-  network: { createdResources: true, network: true, securityGroups: false, permissions: true, labels: true },
-  security: { createdResources: true, network: false, securityGroups: true, permissions: true, labels: true }
-};
+/** The application alone: the picture a diagram opens with. */
+export const NO_LAYERS: DiagramLayers = { infrastructure: false, access: false };
 
 /** Everything on: the picture the layout is computed for. */
-export const ALL_OVERLAYS: DiagramOverlays = {
-  createdResources: true,
-  network: true,
-  securityGroups: true,
-  permissions: true,
-  labels: true
-};
+export const ALL_LAYERS: DiagramLayers = { infrastructure: true, access: true };
 
-/** The preset these overlays are, or undefined for a custom combination. */
-export const presetOf = (overlays: DiagramOverlays): DiagramView | undefined =>
-  DIAGRAM_VIEWS.find((view) => DIAGRAM_OVERLAYS.every((overlay) => VIEW_PRESETS[view][overlay] === overlays[overlay]));
-
-export const isDiagramView = (value: unknown): value is DiagramView =>
-  typeof value === 'string' && (DIAGRAM_VIEWS as readonly string[]).includes(value);
+export const isDiagramLayer = (value: unknown): value is DiagramLayer =>
+  typeof value === 'string' && (DIAGRAM_LAYERS as readonly string[]).includes(value);
 
 // ── Membership ──
 
-/** Which overlay shows a node, and what it folds into when that overlay is off. */
-export type NodeMembership = { overlay?: 'createdResources' | 'network' | undefined; foldInto?: string | undefined };
+/** A node only the Infrastructure layer shows, and what it folds into when the layer is off. */
+export type NodeMembership = { foldInto?: string | undefined };
 
-/** Which overlay shows a connector; `networkLabel` marks a label only the network overlay shows ("VPC Link"). */
-export type ConnectorMembership = { overlay?: 'network' | 'permissions' | undefined; networkLabel?: boolean };
+/**
+ * `infrastructure` marks a connector only the Infrastructure layer shows (outbound traffic); `infrastructureLabel`
+ * marks a label only that layer shows ("VPC Link").
+ */
+export type ConnectorMembership = { infrastructure?: boolean; infrastructureLabel?: boolean };
 
 export type ViewMembership = {
+  /** The nodes of the Infrastructure layer. Every other node is in every picture. */
   nodes: Map<string, NodeMembership>;
   connectors: Map<string, ConnectorMembership>;
 };
@@ -96,26 +63,35 @@ const ownerOf = (nodeId: string) => {
 };
 
 /**
- * Sorts the topology's nodes into overlays. The schedule node is a trigger, not infrastructure, and stays in every
- * view, as does any implicit data store open to the internet: its `public` badge is never hidden.
+ * The nodes of the Infrastructure layer. The schedule node is a trigger, not infrastructure, and stays in every
+ * picture, as does any implicit data store open to the internet: its `public` badge is never hidden.
  */
 export const classifyNodes = (nodes: readonly TopologyNode[]): Map<string, NodeMembership> => {
   const ids = new Set(nodes.map((node) => node.id));
   const membership = new Map<string, NodeMembership>();
   for (const node of nodes) {
     if (node.resourceType === 'nat-gateway') {
-      membership.set(node.id, { overlay: 'network' });
+      membership.set(node.id, {});
       continue;
     }
     if (!node.implicit || node.resourceType === 'schedule' || node.isPublic) continue;
     const owner = ownerOf(node.id);
-    membership.set(node.id, { overlay: 'createdResources', foldInto: owner && ids.has(owner) ? owner : undefined });
+    membership.set(node.id, { foldInto: owner && ids.has(owner) ? owner : undefined });
   }
   return membership;
 };
 
-export const connectorOverlay = (semantic: string | undefined): ConnectorMembership['overlay'] =>
-  semantic === 'egress' ? 'network' : semantic === 'dependency' ? 'permissions' : undefined;
+/** Whether the Infrastructure layer would add anything to this picture. A stack of functions and tables has none. */
+export const hasInfrastructure = ({ scene, membership }: { scene: IsoScene; membership: ViewMembership }) =>
+  membership.nodes.size > 0 ||
+  scene.rectangles.length > 0 ||
+  scene.nodes.some((node) => node.exposure) ||
+  scene.connectors.some(
+    (connector) =>
+      connector.semantic === 'egress' ||
+      membership.connectors.get(connector.id)?.infrastructure ||
+      (membership.connectors.get(connector.id)?.infrastructureLabel && connector.label)
+  );
 
 // ── Selection ──
 
@@ -129,23 +105,20 @@ export type ViewSelection = {
 };
 
 /**
- * The part of the full scene these overlays show. Positions are untouched; hidden nodes fold into their owners and
- * their connectors are rerouted through the hidden node's spot. Security groups are added afterwards, from the
+ * The full scene with or without its Infrastructure layer. Positions are untouched; hidden nodes fold into their owners
+ * and their connectors are rerouted through the hidden node's spot. The Access layer is added afterwards, from the
  * deployment, by `security-view.ts`.
  */
 export const selectView = ({
   scene,
   membership,
-  overlays
+  infrastructure
 }: {
   scene: IsoScene;
   membership: ViewMembership;
-  overlays: DiagramOverlays;
+  infrastructure: boolean;
 }): ViewSelection => {
-  const isShown = (nodeId: string) => {
-    const overlay = membership.nodes.get(nodeId)?.overlay;
-    return !overlay || overlays[overlay];
-  };
+  const isShown = (nodeId: string) => infrastructure || !membership.nodes.has(nodeId);
   const resolved = new Map<string, string | null>();
   const resolve = (nodeId: string): string | null => {
     const known = resolved.get(nodeId);
@@ -161,10 +134,8 @@ export const selectView = ({
     return result;
   };
 
-  const connectorShown = (connector: IsoConnector) => {
-    const overlay = membership.connectors.get(connector.id)?.overlay ?? connectorOverlay(connector.semantic);
-    return !overlay || overlays[overlay];
-  };
+  const connectorShown = (connector: IsoConnector) =>
+    infrastructure || !(connector.semantic === 'egress' || membership.connectors.get(connector.id)?.infrastructure);
 
   // Routes between a hidden node and the node it folds into, to extend a folded connector through the hidden spot.
   const routeBetween = (from: string, to: string): IsoTilePoint[] | undefined => {
@@ -201,8 +172,8 @@ export const selectView = ({
     const from = resolve(connector.from);
     const to = resolve(connector.to);
     if (!from || !to || from === to) continue;
-    const networkOnlyLabel = membership.connectors.get(connector.id)?.networkLabel && !overlays.network;
-    const label = overlays.labels && !networkOnlyLabel ? connector.label : undefined;
+    const hiddenLabel = membership.connectors.get(connector.id)?.infrastructureLabel && !infrastructure;
+    const label = hiddenLabel ? undefined : connector.label;
     const folded = from !== connector.from || to !== connector.to;
     const points = folded
       ? joinRoutes([
@@ -232,9 +203,7 @@ export const selectView = ({
     connectors.push(next);
   }
 
-  const connectionShown = (connection: IsoNodeConnection) =>
-    !(connection.semantic === 'egress' && !overlays.network) &&
-    !(connection.semantic === 'dependency' && !overlays.permissions);
+  const connectionShown = (connection: IsoNodeConnection) => infrastructure || connection.semantic !== 'egress';
   const foldedInto = new Map<string, string[]>();
   for (const node of scene.nodes) {
     if (isShown(node.id)) continue;
@@ -264,7 +233,7 @@ export const selectView = ({
         seen.add(key);
         return true;
       });
-      return Object.assign({}, node, { connections, exposure: overlays.network ? node.exposure : undefined });
+      return Object.assign({}, node, { connections, exposure: infrastructure ? node.exposure : undefined });
     });
 
   return {
@@ -272,8 +241,8 @@ export const selectView = ({
       ...scene,
       nodes,
       connectors,
-      rectangles: overlays.network ? scene.rectangles : [],
-      labels: overlays.network ? scene.labels : []
+      rectangles: infrastructure ? scene.rectangles : [],
+      labels: infrastructure ? scene.labels : []
     },
     resolve
   };

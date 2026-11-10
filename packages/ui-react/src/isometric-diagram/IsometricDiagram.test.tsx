@@ -59,53 +59,88 @@ const quiet = <T,>(render: () => T) => {
 };
 
 const viewBox = (markup: string) => markup.match(/viewBox="([^"]+)"/)?.[1];
+/** Each layer checkbox in the markup, with its name. */
+const switches = (markup: string) => [...markup.matchAll(/<input type="checkbox"[^>]*\/><span>([^<]+)</g)];
 
-describe('views', () => {
+describe('layers', () => {
   const config = parseFixtureConfig({ fixture: getFixtureById({ id: 'full-stack' }) });
-  const markupOf = (props: Partial<IsometricDiagramProps>) =>
-    quiet(() => renderToStaticMarkup(<IsometricDiagram config={config} animateConnectors={false} {...props} />));
+  const markupOf = (props: Partial<IsometricDiagramProps>, shown = config) =>
+    quiet(() => renderToStaticMarkup(<IsometricDiagram config={shown} animateConnectors={false} {...props} />));
+  const deployed = diagramDeploymentFixtures.find(({ id }) => id === 'deployed-database-accessibility')!;
 
-  test('opens in the Application view and offers the three presets', () => {
+  test('opens on the application alone and offers the Infrastructure layer unchecked', () => {
     const markup = markupOf({});
-    expect(markup).toContain('role="radiogroup"');
-    expect(markup).toMatch(/<input type="radio"[^>]*checked=""[^>]*value="application"/);
+    expect(switches(markup).map((match) => match[1])).toEqual(['Infrastructure']);
+    expect(switches(markup)[0][0]).not.toContain('checked');
     expect(markup).not.toContain('data-iso-kind="zone"');
-    expect(markup).toContain('Customize');
   });
 
-  test('every view fits the same frame, so switching moves nothing', () => {
-    const boxes = (['application', 'network', 'security'] as const).map((view) => viewBox(markupOf({ view })));
+  test('every combination of layers fits the same frame, so switching moves nothing', () => {
+    const combinations = [
+      { infrastructure: false, access: false },
+      { infrastructure: true, access: false },
+      { infrastructure: false, access: true },
+      { infrastructure: true, access: true }
+    ];
+    const boxes = combinations.map((layers) =>
+      viewBox(markupOf({ layers, deployment: deployed.deployment }, parse(deployed.yaml)))
+    );
     expect(boxes[0]).toBeDefined();
     expect(new Set(boxes).size).toBe(1);
-    expect(markupOf({ view: 'network' })).toContain('data-iso-kind="zone"');
+    expect(markupOf({ layers: combinations[1] })).toContain('data-iso-kind="zone"');
   });
 
-  test('without a deployment the Security view says where security groups come from', () => {
-    expect(markupOf({ view: 'security' })).toContain('Security groups appear for deployed stages');
-    // A deployed stage whose template is unreadable says so instead.
-    expect(markupOf({ view: 'security', deployment: { template: 'not a template', resources: [] } })).toContain(
-      'The deployed template could not be read'
-    );
-    expect(markupOf({ view: 'security', deployment: null })).toContain('The deployed template could not be read');
+  test('a stack with nothing under its configuration gets no Infrastructure switch', () => {
+    const serverless = parseFixtureConfig({ fixture: getFixtureById({ id: 'serverless-routes' }) });
+    expect(switches(markupOf({}, serverless))).toEqual([]);
+    // A host that asks for the layer anyway gets the application picture.
+    expect(markupOf({ layers: { infrastructure: true, access: true } }, serverless)).toBe(markupOf({}, serverless));
+  });
+
+  test('the Access layer is offered for a deployed stage that has security groups', () => {
+    // No deployed stage: no switch, and asking for the layer changes nothing.
+    expect(switches(markupOf({})).map((match) => match[1])).toEqual(['Infrastructure']);
+    expect(markupOf({ layers: { infrastructure: false, access: true } })).toBe(markupOf({}));
+
+    const markup = markupOf({ deployment: deployed.deployment }, parse(deployed.yaml));
+    expect(switches(markup).map((match) => match[1])).toEqual(['Infrastructure', 'Access']);
+    expect(markup).not.toContain('data-iso-kind="security-group"');
+
+    // Deployed, but nothing in a VPC: the template has no security groups to show.
+    const serverless = parseFixtureConfig({ fixture: getFixtureById({ id: 'serverless-routes' }) });
+    const noGroups = { template: { Resources: { Fn: { Type: 'AWS::Lambda::Function' } } }, resources: [] };
+    expect(switches(markupOf({ deployment: noGroups }, serverless))).toEqual([]);
+  });
+
+  test('a deployed stage whose template cannot be read keeps the Access switch, disabled, and says why', () => {
+    for (const deployment of [null, { template: 'not a template', resources: [] }]) {
+      const markup = markupOf({ deployment, layers: { infrastructure: false, access: true } });
+      const access = switches(markup).find((match) => match[1] === 'Access')?.[0] ?? '';
+      expect(access).toContain('disabled=""');
+      expect(access).not.toContain('checked');
+      expect(markup).toContain('The deployed template could not be read');
+      expect(markup).not.toContain('data-iso-kind="security-group"');
+    }
   });
 
   test('draws a deployed stage’s security groups from its template', () => {
-    const fixture = diagramDeploymentFixtures.find(({ id }) => id === 'deployed-database-accessibility')!;
     const markup = quiet(() =>
       renderToStaticMarkup(
-        <IsometricDiagram config={parse(fixture.yaml)} deployment={fixture.deployment} defaultView="security" />
+        <IsometricDiagram
+          config={parse(deployed.yaml)}
+          deployment={deployed.deployment}
+          defaultLayers={{ infrastructure: false, access: true }}
+        />
       )
     );
     expect(markup).toContain('data-iso-kind="security-group"');
     expect(markup).toContain('data-iso-source="internet"');
     expect(markup).toContain('0.0.0.0/0 · TCP 5432');
-    expect(markup).not.toContain('Security groups appear for deployed stages');
+    expect(markup).toContain('open to the internet');
   });
 
-  test('a host that offers one view gets no view controls', () => {
-    const markup = markupOf({ views: ['application'] });
-    expect(markup).not.toContain('role="radiogroup"');
-    expect(markup).not.toContain('Customize');
+  test('a host that offers no layers gets no switches', () => {
+    expect(switches(markupOf({ layerChoices: [] }))).toEqual([]);
   });
 });
 

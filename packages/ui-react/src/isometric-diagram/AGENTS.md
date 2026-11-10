@@ -12,18 +12,19 @@ StacktapeConfig -> topology.ts -> grouping.ts -> scene-builder.ts (+ layout/) ->
 - `grouping.ts` collapses functions and batch jobs that play one role into a group node and merges their connectors.
 - `scene-builder.ts` composes the scene. It decides what the layout must respect (flow edges, sources and sinks, zones,
   room for text) and maps the result to scene nodes, zone rectangles and connectors. It lays out the whole picture once
-  (`buildDiagramModel`) and selects a view from it (`selectDiagramView`).
-- `views.ts` is the view model: the Application, Network and Security presets, the overlays behind them, and which
-  nodes, connectors and zones each overlay shows.
-- `security-view.ts` draws a deployed stage's security groups from `security-groups.ts`: outlines, rule arrows and the
-  panel's words.
+  (`buildDiagramModel`) and selects what the layers show from it (`selectDiagramView`).
+- `views.ts` is the layer model: the Infrastructure and Access layers, and which nodes, connectors and zones the picture
+  shows with and without them.
+- `security-view.ts` draws the Access layer: a deployed stage's security groups from `security-groups.ts`, as outlines,
+  rule arrows and the panel's words.
 - `layout/` is the layout engine. It knows nodes with a size, edges and nested zones, not AWS.
 - `scene-details.ts` builds what the side panel says: connections as drawn, an API's routes, a group's members.
 - `scene.ts` is the tile-space contract. It has no SVG geometry, CSS or interaction state.
 - `IsoRenderer.tsx` owns projection, drawing, pan, zoom, focus, tooltips, selection and search; `DiagramPanel.tsx` is
   the side panel.
-- `IsometricDiagram.tsx` is the public component. It holds which groups are expanded and which view and overlays are
-  shown, and validates the `deployment` input. `ViewControls.tsx` is the switcher and its Customize popover.
+- `IsometricDiagram.tsx` is the public component. It holds which groups are expanded and which layers are on, decides
+  which layers the stage has anything for, and validates the `deployment` input. `LayerControls.tsx` is the toolbar's
+  checkboxes.
 - `status.ts` checks a host's live statuses and summarizes them per drawn node; `status-marks.tsx` draws them.
 
 Keep those boundaries one-way. The renderer does not infer infrastructure; topology and layout do not calculate screen
@@ -35,13 +36,14 @@ The host supplies a parsed `StacktapeConfig` and loads `@stacktape/ui-react/isom
 resource category lives in `../resource-icon/catalog.ts`; the diagram colours shapes by it and draws everything else
 itself, with no icon packs or images.
 
-`view`/`defaultView` and `onViewChange` let a host keep the view (Console keeps it in the stage tab's `view` search
-parameter); `views` limits the switcher, and with one view there are no view controls (the website islands show the
-Application view only). `deployment` carries the deployed CloudFormation template and each Stacktape resource's logical
-IDs (in Console, the `cf` template query and `getUserResourcesFromStackInfoMap`). It is untrusted and read at the
-boundary. Omit it where there is no deployed stage; pass `null` for a deployed stage whose template could not be read,
-so the Security view says so instead of "appear for deployed stages". `deployment-fixtures.ts` exports three
-configurations with their synthesized templates for Console's `/diagram-test` and offline browser test.
+`layers`/`defaultLayers` and `onLayersChange` let a host keep the layers that are on (Console keeps them in the stage
+tab's `layers` search parameter); `layerChoices` limits the switches, and with none there are no layer controls (the
+website islands show the application picture only). `deployment` carries the deployed CloudFormation template and each
+Stacktape resource's logical IDs (in Console, the `cf` template query and `getUserResourcesFromStackInfoMap`). It is
+untrusted and read at the boundary. Omit it where there is no deployed stage, and the Access layer is not offered; pass
+`null` for a deployed stage whose template could not be read, and its switch is disabled and says so.
+`deployment-fixtures.ts` exports three configurations with their synthesized templates for Console's `/diagram-test` and
+offline browser test.
 
 `onOpenResource(resourceName)` is optional. When a host passes it, the side panel offers to open declared resources
 (never implicit ones or groups); `canOpenResource` narrows that to the ones the host can show. Console opens its
@@ -92,8 +94,8 @@ incidents, open errors and critical or high security findings (`StageDetails/dia
   makes the scene builder reserve a pill's room (`STATUS_LINE_HEIGHT_PX`, at least `STATUS_MIN_WIDTH_PX` wide) under
   every declared resource and group, so a host passes it from its first render while data loads. Without the prop the
   layout is exactly as before (website islands, `/diagram-test`). The reservation spreads a stage diagram by roughly
-  5–25% in area. It is part of the one layout every view selects from, so a declared resource's pill sits in the same
-  place in the Application, Network and Security views.
+  5–25% in area. It is part of the one layout every picture selects from, so a declared resource's pill sits in the same
+  place whichever layers are on.
 - **Links.** Links are anchors with an `href`; `onNavigate` lets a host follow a plain click with its router, while a
   modified click opens a new tab.
 - **Notices.** What is about the whole picture (a deploy that will replace it, an incident no resource is tied to) goes
@@ -104,7 +106,7 @@ incidents, open errors and critical or high security findings (`StageDetails/dia
 
 `security-groups.ts` derives a deployed stage's security groups from its CloudFormation template, not from the config:
 accessibility modes, shared function groups, the shared network's stage group and group handovers are all decided by
-synthesis. The Security view draws it (see "Views" below).
+synthesis. The Access layer draws it (see "Layers" below).
 
 - **Input.** The template's `Resources` as parsed JSON or YAML (untrusted), and each Stacktape resource with the logical
   IDs it owns (in Console, `getUserResourcesFromStackInfoMap` and the keys of `cloudformationChildResources`).
@@ -132,29 +134,41 @@ The tests read real templates from `generated/security-group-templates/`, which
 generator lives in the CLI because a package must not import it). Its spec fails when a resolver change makes them
 stale; regenerate, review the template diff and update `security-groups.test.ts`.
 
-## Views
+## Layers
 
-The layout runs once, on every node, connector and zone, and a view only hides things. A node therefore keeps its exact
-tile in every view that shows it, and the renderer fits the frame of the whole picture (`IsoScene.frame`), so switching
-views neither moves nor rescales anything. Do not lay out per view; `views.test.ts` checks positions across every view
-for every fixture, test config and template config, collapsed and expanded.
+The diagram opens on the application: the resources the configuration declares and how requests and events flow between
+them, with `connectTo` access and connector labels. The reader adds two layers to it, in any combination, with the
+checkboxes in the toolbar. They are named for what a developer or a CTO wants to know, not for AWS parts. Add a third
+only for a question these two cannot answer, never one per AWS construct, and do not bring back preset tabs: with the
+layout fixed, a preset is only a saved combination of checkboxes.
 
-- **Presets set overlays.** Application: your resources and how requests and events flow (permissions and labels on).
-  Network: adds Stacktape-created resources, the VPC, subnet tiers and edge zone, the NAT and outbound connectors, load
-  balancer exposure badges (`internal`/`internet-facing`) and the "VPC Link" label on an HTTP API's connector into a
-  container. Security: Stacktape-created resources, security groups, permissions and labels. Changing an overlay in
-  Customize shows "Custom"; picking a preset again restores its overlays. Security does not nest inside Network.
+- **Infrastructure** is what Stacktape creates under the configuration: Stacktape-created resources (per-service
+  gateways and load balancers, CDNs, an SSR site's server function and assets bucket, Convex's parts), the VPC, subnet
+  tiers and edge zone, the NAT and outbound connectors, load balancer exposure badges (`internal`/`internet-facing`) and
+  the "VPC Link" label on an HTTP API's connector into a container.
+- **Access** is who can reach what: a deployed stage's security groups and the traffic their rules allow (below). It
+  draws request, event and egress connectors faintly and keeps firewalls, authorizers and `connectTo` (IAM) access at
+  full strength. Stacktape puts databases in public subnets and protects them with security groups, so the two layers
+  together are the truthful answer to "is my database reachable": never make them exclusive.
+
+The layout runs once, on every node, connector and zone, and a layer only shows or hides things. A node therefore keeps
+its exact tile whichever layers are on, and the renderer fits the frame of the whole picture (`IsoScene.frame`), so
+switching a layer neither moves nor rescales anything. Do not lay out per combination; `views.test.ts` checks positions
+across all four for every fixture, test config and template config, collapsed and expanded.
+
+- **A layer is offered only where the stage has something for it.** Infrastructure has no switch on a stack of
+  functions, APIs, queues and tables (`hasInfrastructure`). Access has none where there is no deployed stage or the
+  template has no security groups (nothing runs in a VPC). A deployed stage whose template could not be read keeps the
+  Access switch, disabled, with the reason, so it does not vanish on a failed request. A host that asks for a layer the
+  stage has nothing for gets the picture without it.
 - **Hidden Stacktape-created nodes fold into their owner** (the `<owner>` of an `<owner>--<part>` ID): their connectors
   move to the owner and are routed through the hidden node's spot, and the owner's panel lists their connections. A
   hidden node with no owner (the NAT) drops its connectors. The schedule node and any implicit node that is `isPublic`
-  are never hidden: a public data store keeps its badge in every view.
-- **Room for every view is reserved in every view:** the layout gives load balancers badge room and reserves the "VPC
-  Link" chip, so nothing moves when the Network view shows them.
-- **Toolbar.** The view switcher and Customize come first, then Find, the "need attention" chip and collapse chips; host
-  `notices` take their own row under them. The Security view's legend or note (`viewNote`) replaces the usage hint at
-  the bottom left.
-- **The Security view mutes request, event and egress connectors** and keeps firewalls, authorizers and `connectTo`
-  (IAM) access at full strength. Without deployment data it shows that config-level picture with a note.
+  are in every picture: a public data store keeps its badge whatever is hidden.
+- **Room for every layer is reserved in every picture:** the layout gives load balancers badge room and reserves the
+  "VPC Link" chip, so nothing moves when the Infrastructure layer shows them.
+- **Toolbar.** The layer checkboxes come first, then Find, the "need attention" chip and collapse chips; host `notices`
+  take their own row under them. The Access layer's legend (`viewNote`) replaces the usage hint at the bottom left.
 
 ### Security groups
 
@@ -165,8 +179,8 @@ for every fixture, test config and template config, collapsed and expanded.
   container services owned by `app`, and `AppDashboardContainerWorkloadService` is `app--dashboard` (stems in
   `NESTED_PART_STEMS`). By kind, a web service's load balancer is `<name>--alb` or `--nlb`, its VPC Link `<name>--gw`,
   an SSR site's function `<name>--server`, a NAT instance `nat-gateway`. Then through grouping (a collapsed member is
-  its group's deck) and the view's folding. VPC endpoints and compute environments have no node and are listed in the
-  group's tooltip.
+  its group's deck) and, without the Infrastructure layer, its folding. VPC endpoints and compute environments have no
+  node and are listed in the group's tooltip.
 - **Outlines** are chamfered floor rectangles in the group's colour (dashed grey for an external group). Members that
   are neighbours with nothing between them share one outline (found on a grid, so hundreds of members stay cheap);
   others get one each. The largest three outlines of a group carry its name tab. A node in several groups gets nested
@@ -176,7 +190,7 @@ for every fixture, test config and template config, collapsed and expanded.
   connector between members of the two groups and replaces it; otherwise it joins the closest pair and is routed along
   the gutters next to them and a free lane between. Ports that only some conditions allow say so ("TCP 80 if Prod").
   Work is bounded by groups and rules (`MAX_GROUP_ARROWS`), not members: two groups of 150 functions and one rule are
-  one arrow, and every view of them takes milliseconds.
+  one arrow, and every combination of layers takes milliseconds.
 - **Address ranges** (internet, VPC, CIDR, prefix list, or a group with nothing drawn) get a short arrow into the
   group's largest outline: red for `0.0.0.0/0`/`::/0`, amber otherwise. Each address gets its own arrow, never one label
   for several, which would lend one address another's ports. Past three per group, one more arrow says "N more address
@@ -256,7 +270,7 @@ tags.
   `deck` of three slabs in its members' colour with their glyph, a filled count badge and a round "+" to expand it.
 - Name tags have two lines: the resource name and a muted type line from the topology.
 - A data store reachable from the internet by its accessibility mode carries a red `public` badge. Keep it visible in
-  every view.
+  every picture.
 - Zone tags are rotated to the edge the layout chose. Other text stays flat in screen space. Connector labels say
   something specific (schedule rate, poll, push, stream, HTTPS, an authorizer); a plain synchronous call needs none.
 
@@ -283,13 +297,14 @@ operation, so related nodes, edges and the explanation must agree; keyboard focu
 Update topology, the category mapping and node appearance, explanations and at least one fixture together. Prefer
 semantic tests for nodes, edges, zones and routes over whole-SVG snapshots; `synthesis.test.ts` holds the
 synthesizer-checked rules for resource types and relations, `grouping.test.ts` the grouping rules, `views.test.ts` what
-each view shows and position stability, and `security-view.test.ts` the Security view against real templates.
+each layer shows and position stability, and `security-view.test.ts` the Access layer against real templates.
 `layout/diagram-layout.test.ts` checks the layout rules over every fixture and the larger configs in `test-configs/`,
 each collapsed and with every group expanded, and the room for status pills; `status.test.tsx` holds the status rules.
 Console's `e2e/diagram-ui.spec.ts` (offline browser lane) drives the panel, expand and collapse, search, the stage tab's
-live statuses (refreshed in place), view switching with positions compared on screen, Customize, the `view` search
-parameter, the Security panel and a redeploy that drops rules in Chromium. When layout spacing or routing changes,
-render the fixtures and those configs and look at them at a 16:10 size; tests do not judge legibility.
+live statuses (refreshed in place), the layer checkboxes in every combination with positions compared on screen, the
+`layers` search parameter, a stage with no layers to offer, the Access panel and a redeploy that drops rules in
+Chromium. When layout spacing or routing changes, render the fixtures and those configs and look at them at a 16:10
+size; tests do not judge legibility.
 
 ```sh
 pnpm --filter @stacktape/ui-react run test
@@ -297,6 +312,7 @@ pnpm --filter @stacktape/ui-react run typecheck
 ```
 
 Use Console's `/diagram-test` route to check tooltips, zoom, drag, keyboard control, the side panel, groups, search,
-views, internal ingress, SSR expansion and NAT placement in a browser; the `serverless-routes` fixture has groups and
-the "Deployed: …" fixtures have security groups. When the Security view's drawing changes, render the template configs
-with their deployment in each view and look at them; the legibility test catches overlaps, not confusing arrows.
+layers, internal ingress, SSR expansion and NAT placement in a browser; the `serverless-routes` fixture has groups and
+the "Deployed: …" fixtures have security groups. When the Access layer's drawing changes, render the template configs
+with their deployment with and without the Infrastructure layer and look at them; the legibility test catches overlaps,
+not confusing arrows.
