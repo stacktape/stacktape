@@ -66,6 +66,7 @@
         "playwright*.config.ts",
         "e2e/*fixture.tsx",
         "e2e/ui-capture/*.capture.ts",
+        "e2e/ui-capture/broken-check.ts",
         "src/dev/auth-review/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"]
