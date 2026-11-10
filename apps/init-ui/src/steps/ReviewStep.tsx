@@ -20,7 +20,7 @@ import { Row, RowList } from '../components/RowList';
 import { Evidence } from '../components/Evidence';
 import { GapList } from '../components/GapList';
 import { gapsToList } from '../gaps';
-import { requiredSecretVariables } from '../required-secrets';
+import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
 
 /** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));

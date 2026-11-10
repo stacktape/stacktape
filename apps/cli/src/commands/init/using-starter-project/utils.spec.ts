@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathExists, readJson } from 'fs-extra';
-import { addDefaultTsConfigIfNeeded } from './utils';
+import { parse } from 'yaml';
+import { addDefaultTsConfigIfNeeded, starterCommands } from './utils';
 
 const temporaryDirectories: string[] = [];
 const metadata: Parameters<typeof addDefaultTsConfigIfNeeded>[0]['metadata'] = {
@@ -53,5 +55,48 @@ describe('downloaded starter TypeScript config', () => {
         })
       })
     );
+  });
+});
+
+describe('commands printed after a starter is created', () => {
+  const startersDirectory = join(import.meta.dir, '..', '..', '..', '..', 'starter-projects');
+  const starterIds = readdirSync(startersDirectory).toSorted();
+  // Read from each starter's config by hand. Database and Redis passwords are not here: the deploy generates them.
+  const secretsOnlyTheUserHas: Record<string, string[]> = {
+    'discord-bot': ['discord-bot-token'],
+    'open-webui-self-hosted': ['openai-api-key'],
+    'phoenix-api-postgres': ['secret-key-base'],
+    'telegram-bot': ['telegram-bot-token']
+  };
+  const commandsFor = (starterId: string, awsAccount?: string) =>
+    starterCommands({
+      projectName: starterId,
+      region: 'eu-west-1',
+      awsAccount,
+      resources: parse(readFileSync(join(startersDirectory, starterId, 'stacktape.yml'), 'utf8')).resources
+    });
+
+  test('cover every starter', () => {
+    expect(starterIds.length).toBeGreaterThan(60);
+    expect(starterIds).toEqual(expect.arrayContaining(Object.keys(secretsOnlyTheUserHas)));
+  });
+
+  test.each(starterIds)('%s: every command is complete as printed', (starterId) => {
+    const { secrets, dev, deploy } = commandsFor(starterId);
+
+    for (const command of [...secrets, dev, deploy]) expect(command).not.toMatch(/[{}<>]/);
+    expect(secrets).toEqual(
+      (secretsOnlyTheUserHas[starterId] ?? []).map((name) => `stacktape secret set ${name} --region eu-west-1`)
+    );
+    expect(dev).toBe(`stacktape dev --project ${starterId} --stage local --region eu-west-1`);
+    expect(deploy).toBe(`stacktape deploy --project ${starterId} --stage dev --region eu-west-1`);
+  });
+
+  test('every command names the AWS account init was given, as one argument', () => {
+    const { secrets, dev, deploy } = commandsFor('phoenix-api-postgres', 'Development Account');
+
+    for (const command of [...secrets, dev, deploy]) {
+      expect(command.endsWith(" --aws-account 'Development Account'")).toBe(true);
+    }
   });
 });

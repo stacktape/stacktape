@@ -12,6 +12,7 @@ import { publicApiClient, type StackPriceEstimationResponse } from '@stacktape-a
 import { deleteDirectoryContent } from '@utils/fs-utils';
 import { unzip } from '@utils/unzip';
 import color from 'picocolors';
+import { parse as parseYaml } from 'yaml';
 import {
   appendResourceRows,
   formatResourceType,
@@ -36,10 +37,16 @@ import {
   addDefaultTsConfigIfNeeded,
   adjustPackageJson,
   getAvailableStartersMetadata,
-  promptTargetDirectory
+  promptTargetDirectory,
+  starterCommands
 } from './utils';
 
-export const initUsingStarterProject = async () => {
+/**
+ * Creates a project from a starter and prints the commands that put it on AWS.
+ *
+ * `region` is the one `stacktape init` writes into a new config; `regionChoice` says why, as the end of a sentence.
+ */
+export const initUsingStarterProject = async ({ region, regionChoice }: { region: string; regionChoice: string }) => {
   const availableStarters = await getAvailableStartersMetadata({
     startersMetadataFilePath: fsPaths.startersMetadataFilePath()
   });
@@ -98,8 +105,16 @@ export const initUsingStarterProject = async () => {
 
   await downloadStarterFromGithub({ githubLink: projectToUse.githubLink, targetDirectory: absoluteProjectPath });
 
-  // Estimate costs from the YAML config (before potentially deleting it)
-  const costEstimation = await fetchCostEstimate(join(absoluteProjectPath, 'stacktape.yml'));
+  // Read the YAML config before the chosen format may delete it. The TypeScript config describes the same resources.
+  const yamlConfigPath = join(absoluteProjectPath, 'stacktape.yml');
+  const yamlConfig = (await pathExists(yamlConfigPath)) ? await readFile(yamlConfigPath, 'utf8') : undefined;
+  const costEstimation = yamlConfig === undefined ? null : await fetchCostEstimate({ yamlConfig, region });
+  const commands = starterCommands({
+    projectName: projectToUse.starterProjectId,
+    region,
+    awsAccount: globalStateManager.args.awsAccount,
+    resources: yamlConfig === undefined ? {} : (parseYaml(yamlConfig)?.resources ?? {})
+  });
 
   const configFormat = configFormatArg ?? (await promptConfigFormat());
   await removeUnusedConfigFile({ absoluteProjectPath, chosenFormat: configFormat });
@@ -109,7 +124,15 @@ export const initUsingStarterProject = async () => {
     await addDefaultTsConfigIfNeeded({ absoluteProjectPath, metadata: projectToUse });
   }
 
-  displayResult({ targetDirectory, absoluteProjectPath, projectToUse, costEstimation, configFormat });
+  displayResult({
+    targetDirectory,
+    absoluteProjectPath,
+    projectToUse,
+    costEstimation,
+    configFormat,
+    commands,
+    regionChoice
+  });
 };
 
 const downloadStarterFromGithub = async ({
@@ -200,11 +223,15 @@ const removeUnusedConfigFile = async ({
   }
 };
 
-const fetchCostEstimate = async (yamlConfigPath: string): Promise<StackPriceEstimationResponse | null> => {
+const fetchCostEstimate = async ({
+  yamlConfig,
+  region
+}: {
+  yamlConfig: string;
+  region: string;
+}): Promise<StackPriceEstimationResponse | null> => {
   try {
-    if (!(await pathExists(yamlConfigPath))) return null;
-    const yamlContent = await readFile(yamlConfigPath, 'utf8');
-    const result = await publicApiClient.stackPriceEstimation({ stackConfig: yamlContent });
+    const result = await publicApiClient.stackPriceEstimation({ stackConfig: yamlConfig, region });
     if (!result.success || !result.costs) return null;
     return result;
   } catch {
@@ -217,13 +244,17 @@ const displayResult = ({
   absoluteProjectPath,
   projectToUse,
   costEstimation,
-  configFormat
+  configFormat,
+  commands,
+  regionChoice
 }: {
   targetDirectory: string;
   absoluteProjectPath: string;
   projectToUse: StarterProjectMetadata;
   costEstimation: StackPriceEstimationResponse | null;
   configFormat: 'typescript' | 'yaml';
+  commands: ReturnType<typeof starterCommands>;
+  regionChoice: string;
 }) => {
   const configFile = configFormat === 'typescript' ? 'stacktape.ts' : 'stacktape.yml';
   const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
@@ -256,18 +287,25 @@ const displayResult = ({
     lines.push(`\n${color.dim('Estimated total costs:')} ${getStackCostLabel(costEstimation.costs)}`);
   }
 
-  const projectName = projectToUse.starterProjectId;
-  const options = `--project ${shellQuote(projectName)} --stage {stage} --region {region}`;
+  lines.push(`${color.dim('Region:')} ${regionChoice}`);
 
   lines.push('');
   lines.push(tuiManager.makeBold('Navigate to the project:'));
   lines.push(`  ${tuiManager.colorize('yellow', 'cd')} ${shellQuote(targetDirectory)}`);
+  if (commands.secrets.length) {
+    const [what, how] =
+      commands.secrets.length === 1
+        ? ['the secret', 'the command asks for its value']
+        : ['the secrets', 'each command asks for its value'];
+    lines.push(tuiManager.makeBold(`Create ${what} the starter needs ${color.dim(`(${how})`)}:`));
+    lines.push(...commands.secrets.map((command) => `  ${tuiManager.prettyCommand(command)}`));
+  }
   lines.push(
     tuiManager.makeBold(`Run hybrid-local dev mode ${color.dim('(deploys minimal, free dev stack to AWS)')}:`)
   );
-  lines.push(`  ${tuiManager.prettyCommand(`dev ${options}`)}`);
+  lines.push(`  ${tuiManager.prettyCommand(commands.dev)}`);
   lines.push(tuiManager.makeBold('Deploy to AWS:'));
-  lines.push(`  ${tuiManager.prettyCommand(`deploy ${options}`)}`);
+  lines.push(`  ${tuiManager.prettyCommand(commands.deploy)}`);
 
   tuiManager.printBox({ title: projectToUse.name, lines });
 };

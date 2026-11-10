@@ -15,10 +15,10 @@ import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { Row, RowList } from '../components/RowList';
 import { SignInPanel } from '../components/SignInPanel';
-import { stackCommand } from '../deploy-commands';
+import { secretCommand, stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
-import { requiredSecrets, secretCommand } from '../required-secrets';
+import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
 import { organizationLabel } from '../sign-in';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
 

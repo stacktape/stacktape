@@ -1,12 +1,11 @@
-import { quoteArgument } from './deploy-commands';
 /**
  * The secrets a deploy will ask for.
  *
  * The configuration references secrets as `$Secret('name')` or `$Secret('name.key')`. The deploy creates database
  * passwords by itself (the same fields `ensureMissingSecretsCreated` treats as generable); every other secret must
- * exist in the region first, and a deploy started from the wizard runs non-interactively, so it stops with "Missing
- * secret" instead of asking. Listing them here, with the command that creates each, is the difference between a
- * first deploy and a first failure.
+ * exist in the region first. A deploy started from the wizard or by another program runs non-interactively, so it
+ * stops with "Missing secret" instead of asking. The wizard and `stacktape init --starter-id` list them, with the
+ * command that creates each, before the first deploy.
  */
 
 const SECRET_REFERENCE = /\$Secret\('([^'.]+)(?:\.[^']*)?'\)/g;
@@ -40,10 +39,6 @@ export const requiredSecrets = (resources: Record<string, unknown>): string[] =>
   visit(resources, '');
   return [...names].filter((name) => !generated.has(name)).toSorted();
 };
-
-/** The command that creates one secret. The value is prompted for, so it never lands in shell history. */
-export const secretCommand = (name: string, region: string, awsAccount?: string): string =>
-  `stacktape secret set ${name} --region ${region}${awsAccount === undefined ? '' : ` --aws-account ${quoteArgument(awsAccount)}`}`;
 
 /**
  * The variables those secrets reach the app as, for a reader who knows `SESSION_SECRET` and not `session_secret`.
