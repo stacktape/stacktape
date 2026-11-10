@@ -153,9 +153,15 @@ export function IsometricDiagram({
   // only on that, never on what the statuses say, so a refresh redraws pills and rings without moving a node.
   const statusLines = statuses !== undefined;
 
-  // A layer the reader switches shows at once, before a host that keeps the layers has passed them back.
-  const [uncontrolledLayers, setUncontrolledLayers] = useState<DiagramLayers>(() => defaultLayers ?? NO_LAYERS);
-  const requested = layers ?? uncontrolledLayers;
+  // The diagram keeps its own copy of the layers. A layer the reader switches shows at once, before a host that keeps
+  // the layers has passed them back; layers that change from outside (the host's URL, the back button) replace it.
+  const [requested, setRequested] = useState<DiagramLayers>(() => layers ?? defaultLayers ?? NO_LAYERS);
+  const hostLayers = layers ? `${layers.infrastructure === true}|${layers.access === true}` : undefined;
+  const [seenHostLayers, setSeenHostLayers] = useState(hostLayers);
+  if (hostLayers !== seenHostLayers) {
+    setSeenHostLayers(hostLayers);
+    if (layers) setRequested(layers);
+  }
   const wantsInfrastructure = requested.infrastructure === true;
   const wantsAccess = requested.access === true;
 
@@ -181,7 +187,7 @@ export function IsometricDiagram({
         infrastructure: layer === 'infrastructure' ? !showInfrastructure : showInfrastructure,
         access: layer === 'access' ? !showAccess : showAccess
       };
-      setUncontrolledLayers(next);
+      setRequested(next);
       onLayersChange?.(next);
     },
     [showInfrastructure, showAccess, onLayersChange]
