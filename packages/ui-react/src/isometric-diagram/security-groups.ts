@@ -2,7 +2,7 @@
  * The security-group picture of a deployed stage, read from its CloudFormation template.
  *
  * Configuration alone cannot say which rules a deployed stage has: accessibility modes, shared function groups, the
- * shared network's stage group and previous-group handovers all depend on synthesis. The Security view therefore reads
+ * shared network's stage group and previous-group handovers all depend on synthesis. The Access layer therefore reads
  * the template the stage was deployed with. The template is untrusted input. Anything this module cannot read is
  * skipped, or reported as an external group or an unresolved peer; nothing throws.
  */

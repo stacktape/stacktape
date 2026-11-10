@@ -62,7 +62,7 @@ describe('diagram scene model', () => {
             from,
             to,
             semantic,
-            // The Network view names the VPC Link an HTTP API reaches a container through.
+            // The Infrastructure layer names the VPC Link an HTTP API reaches a container through.
             label:
               label ??
               (semantic === 'request' &&

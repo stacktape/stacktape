@@ -1,5 +1,5 @@
 /**
- * The Security view's drawing: security groups as outlines around their members, the traffic their rules allow as
+ * The Access layer's drawing: security groups as outlines around their members, the traffic their rules allow as
  * port-labelled arrows, and what each node's groups allow in plain words for the side panel.
  *
  * Everything comes from the deployed stage's template (`security-groups.ts`), never from the config. The picture is
@@ -80,7 +80,6 @@ export type SecurityLayerInput = {
   columnXs: readonly number[];
   security: SecurityGroupModel;
   measureChip: (text: string) => { halfWidth: number; halfHeight: number };
-  showLabels: boolean;
 };
 
 // ── Members and names ──
@@ -423,8 +422,7 @@ export const addSecurityLayer = ({
   layoutNodes,
   columnXs,
   security,
-  measureChip,
-  showLabels
+  measureChip
 }: SecurityLayerInput): IsoScene => {
   const baseIds = new Set(base.nodes.map((node) => node.id));
   const baseLabels = new Map(base.nodes.map((node) => [node.id, node.label]));
@@ -1206,6 +1204,6 @@ export const addSecurityLayer = ({
     ),
     connectors: scene.connectors.filter((connector) => !replaced.has(connector.id)),
     securityGroups: groups,
-    securityRules: showLabels ? rules : rules.map((rule) => Object.assign({}, rule, { label: '' }))
+    securityRules: rules
   };
 };

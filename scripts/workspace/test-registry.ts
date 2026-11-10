@@ -5329,7 +5329,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/IsometricDiagramView.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Diagram.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.ts',
-      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-view.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-layers.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/useDiagramStatuses.ts',
       'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'

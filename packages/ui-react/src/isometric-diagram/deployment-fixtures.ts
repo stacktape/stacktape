@@ -1,5 +1,5 @@
 /**
- * Configurations with the CloudFormation template Stacktape synthesized for them, for hosts that show the Security view
+ * Configurations with the CloudFormation template Stacktape synthesized for them, for hosts that show the Access layer
  * of a deployed stage without one: Console's `/diagram-test` and its offline browser test. The templates are the real
  * ones `security-groups.test.ts` reads (see `generated/security-group-templates`).
  */

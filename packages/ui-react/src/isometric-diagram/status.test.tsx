@@ -183,8 +183,8 @@ const pills = (markup: string) =>
   [...markup.matchAll(/<g data-iso-kind="node-status".*?<\/g>/gs)].map((match) => match[0]).sort();
 const viewBox = (markup: string) => markup.match(/viewBox="([^"]+)"/)?.[1];
 
-describe('statuses and views', () => {
-  test('every view shows the same statuses in the same place, in the same frame', () => {
+describe('statuses and layers', () => {
+  test('the same statuses show in the same place and frame whichever layers are on', () => {
     const fixture = getFixtureById({ id: 'full-stack' });
     const config = parseFixtureConfig({ fixture });
     const statuses: DiagramStatuses = { webApp: [incident], mainDb: [risk], apiHandler: [error('TimeoutError')] };
@@ -192,9 +192,14 @@ describe('statuses and views', () => {
     console.error = (...args: unknown[]) => {
       if (!String(args[0] ?? '').includes('useLayoutEffect')) originalError(...args);
     };
-    const markups = (['application', 'network', 'security'] as const).map((view) =>
+    const markups = [false, true].map((infrastructure) =>
       renderToStaticMarkup(
-        <IsometricDiagram config={config} statuses={statuses} view={view} animateConnectors={false} />
+        <IsometricDiagram
+          config={config}
+          statuses={statuses}
+          layers={{ infrastructure, access: false }}
+          animateConnectors={false}
+        />
       )
     );
     console.error = originalError;

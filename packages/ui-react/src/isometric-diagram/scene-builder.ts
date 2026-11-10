@@ -18,11 +18,11 @@ import type { GroupedTopology } from './grouping.js';
 import type { IsoConnector, IsoLabel, IsoNode, IsoRectangle, IsoScene } from './scene.js';
 import type { SecurityGroupModel } from './security-groups.js';
 import type { DiagramTopology, TopologyEdge, TopologyNode } from './topology.js';
-import type { ConnectorMembership, DiagramOverlays, ViewMembership } from './views.js';
+import type { ConnectorMembership, DiagramLayers, ViewMembership } from './views.js';
 import { groupTopology } from './grouping.js';
 import { layoutDiagram } from './layout/diagram-layout.js';
 import { addSecurityLayer } from './security-view.js';
-import { ALL_OVERLAYS, classifyNodes, selectView, VIEW_PRESETS } from './views.js';
+import { ALL_LAYERS, classifyNodes, selectView } from './views.js';
 import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
@@ -115,13 +115,13 @@ const CHIP_MARGIN_PX = 4;
 
 const LOAD_BALANCER_TYPES = new Set(['application-load-balancer', 'network-load-balancer']);
 
-/** Whether the internet reaches a load balancer. The Network view marks it. */
+/** Whether the internet reaches a load balancer. The Infrastructure layer marks it. */
 const getExposure = (node: TopologyNode): IsoNode['exposure'] =>
   LOAD_BALANCER_TYPES.has(node.resourceType) ? (node.internal ? 'internal' : 'internet-facing') : undefined;
 
 const CONTAINER_TYPES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
-/** An HTTP API reaches a container in the VPC through a VPC Link, which the Network view labels. */
+/** An HTTP API reaches a container in the VPC through a VPC Link, which the Infrastructure layer labels. */
 const isVpcLink = ({ edge, nodeById }: { edge: TopologyEdge; nodeById: Map<string, TopologyNode> }) =>
   edge.semantic === 'request' &&
   nodeById.get(edge.from)?.resourceType === 'http-api-gateway' &&
@@ -250,7 +250,7 @@ const buildLayoutInput = (topology: DiagramTopology, statusLines: boolean): Diag
       to: edge.to,
       flow: isFlowEdge({ edge, nodeById }),
       bundle: edge.semantic,
-      // Room for the Network view's "VPC Link" is kept in every view.
+      // Room for the Infrastructure layer's "VPC Link" is kept in every picture.
       label: edge.label ?? (isVpcLink({ edge, nodeById }) ? VPC_LINK_LABEL : undefined)
     })),
     zones: ZONES,
@@ -358,7 +358,7 @@ export type DiagramModel = {
   /** The topology before grouping, whose node IDs security-group members map to. */
   base: DiagramTopology;
   grouped: GroupedTopology;
-  /** What each node occupies on screen, for placing the Security view's text clear of it. */
+  /** What each node occupies on screen, for placing the Access layer's text clear of it. */
   layoutNodes: Map<string, LayoutNode>;
   /** The tile x of every column, left to right. */
   columnXs: number[];
@@ -393,7 +393,7 @@ export const buildDiagramModel = ({
     const route = layout.edges.get(edge.id);
     if (!route) return [];
     const vpcLink = !edge.label && isVpcLink({ edge, nodeById });
-    if (vpcLink) connectorMembership.set(edge.id, { networkLabel: true });
+    if (vpcLink) connectorMembership.set(edge.id, { infrastructureLabel: true });
     return [
       {
         id: edge.id,
@@ -420,31 +420,34 @@ export const buildDiagramModel = ({
   };
 };
 
-/** Flow is context in the Security view: drawn faintly so security groups, firewalls and access stand out. */
-const MUTED_IN_SECURITY = new Set(['request', 'event', 'egress']);
+/** Flow is context under the Access layer: drawn faintly so security groups, firewalls and access stand out. */
+const MUTED_UNDER_ACCESS = new Set(['request', 'event', 'egress']);
 
 /**
- * The scene one combination of overlays shows. `security` is the deployed stage's security-group model; without it the
- * Security view still shows firewalls, authorizers, public data stores and `connectTo` access.
+ * The scene one combination of layers shows. `security` is the deployed stage's security-group model, which the Access
+ * layer draws; without it that layer adds nothing.
  */
 export const selectDiagramView = ({
   model,
-  overlays,
+  layers,
   security
 }: {
   model: DiagramModel;
-  overlays: DiagramOverlays;
+  layers: DiagramLayers;
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene => {
-  const selection = selectView({ scene: model.scene, membership: model.membership, overlays });
-  if (!overlays.securityGroups) return selection.scene;
+  const selection = selectView({
+    scene: model.scene,
+    membership: model.membership,
+    infrastructure: layers.infrastructure
+  });
+  if (!layers.access || !security) return selection.scene;
   const scene: IsoScene = {
     ...selection.scene,
     connectors: selection.scene.connectors.map((connector) =>
-      MUTED_IN_SECURITY.has(connector.semantic ?? '') ? { ...connector, muted: true } : connector
+      MUTED_UNDER_ACCESS.has(connector.semantic ?? '') ? { ...connector, muted: true } : connector
     )
   };
-  if (!security) return scene;
   return addSecurityLayer({
     scene,
     resolve: selection.resolve,
@@ -453,13 +456,12 @@ export const selectDiagramView = ({
     layoutNodes: model.layoutNodes,
     columnXs: model.columnXs,
     security,
-    measureChip,
-    showLabels: overlays.labels
+    measureChip
   });
 };
 
 /**
- * The frame every view of this model fits: the picture with every overlay on. Hosts and tests that switch views pass it
+ * The frame every picture of this model fits: the one with every layer on. Hosts and tests that switch layers pass it
  * along, so nothing moves or rescales.
  */
 export const diagramFrame = ({
@@ -469,7 +471,7 @@ export const diagramFrame = ({
   model: DiagramModel;
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene['frame'] => {
-  const scene = selectDiagramView({ model, overlays: ALL_OVERLAYS, security });
+  const scene = selectDiagramView({ model, layers: ALL_LAYERS, security });
   return {
     key: model.scene.nodes
       .map((node) => node.id)
@@ -513,14 +515,14 @@ export const measureChip = (text: string) => ({
 });
 
 /**
- * The scene for one combination of overlays, laid out like every other combination. Without overlays it is the Network
- * preset: every node, the VPC and its subnets, connectors and labels.
+ * The scene for one combination of layers, laid out like every other combination. Unless told otherwise it shows the
+ * Infrastructure layer: every node, the VPC and its subnets, connectors and labels.
  */
 export const buildIsometricScene = ({
   parsedConfig,
   expandedGroups,
   statusLines,
-  overlays = VIEW_PRESETS.network,
+  layers = { infrastructure: true, access: false },
   security
 }: {
   parsedConfig: StacktapeConfig | null;
@@ -528,10 +530,10 @@ export const buildIsometricScene = ({
   expandedGroups?: ReadonlySet<string> | undefined;
   /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
   statusLines?: boolean | undefined;
-  overlays?: DiagramOverlays | undefined;
+  layers?: DiagramLayers | undefined;
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene | null => {
   const model = buildDiagramModel({ parsedConfig, expandedGroups, statusLines });
   if (!model) return null;
-  return { ...selectDiagramView({ model, overlays, security }), frame: diagramFrame({ model, security }) };
+  return { ...selectDiagramView({ model, layers, security }), frame: diagramFrame({ model, security }) };
 };

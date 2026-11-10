@@ -846,9 +846,9 @@ export type IsoRendererProps = DiagramViewProps & {
   height?: CSSProperties['height'] | undefined;
   /** Expands or collapses a role group. Without it, groups have no expand control. */
   onToggleGroup?: ((groupId: string) => void) | undefined;
-  /** Controls placed first in the toolbar, such as the view switcher. */
+  /** Controls placed first in the toolbar, such as the layer switches. */
   toolbar?: ReactNode;
-  /** A line about the current view, such as the Security view's legend, shown where the usage hint otherwise is. */
+  /** A line about what is shown, such as the Access layer's legend, shown where the usage hint otherwise is. */
   viewNote?: ReactNode;
 };
 
@@ -947,7 +947,7 @@ export function IsoRenderer({
   }, [tooltip]);
 
   const { minX, minY, svgW, svgH } = useMemo(() => {
-    // A scene with a frame fits the whole picture, whichever view shows part of it, so switching views moves nothing.
+    // A scene with a frame fits the whole picture, whichever layers are on, so switching layers moves nothing.
     if (scene.frame) {
       const { frame } = scene;
       const merged = expandBounds({
