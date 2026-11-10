@@ -158,17 +158,6 @@ export function IsometricDiagram({
   const requested = layers ?? uncontrolledLayers;
   const wantsInfrastructure = requested.infrastructure === true;
   const wantsAccess = requested.access === true;
-  const toggleLayer = useCallback(
-    (layer: DiagramLayer) => {
-      const next: DiagramLayers = {
-        infrastructure: layer === 'infrastructure' ? !wantsInfrastructure : wantsInfrastructure,
-        access: layer === 'access' ? !wantsAccess : wantsAccess
-      };
-      setUncontrolledLayers(next);
-      onLayersChange?.(next);
-    },
-    [wantsInfrastructure, wantsAccess, onLayersChange]
-  );
 
   const model = useMemo(
     () => buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines }),
@@ -184,6 +173,19 @@ export function IsometricDiagram({
   const canShowAccess = Boolean(security && security.groups.length > 0);
   const showInfrastructure = wantsInfrastructure && canShowInfrastructure;
   const showAccess = wantsAccess && canShowAccess;
+  // A switch starts from what is shown, not from what was asked for: a layer the host requested but the stage has
+  // nothing for is dropped on the next switch, so the host's copy (Console's URL) matches the checkboxes again.
+  const toggleLayer = useCallback(
+    (layer: DiagramLayer) => {
+      const next: DiagramLayers = {
+        infrastructure: layer === 'infrastructure' ? !showInfrastructure : showInfrastructure,
+        access: layer === 'access' ? !showAccess : showAccess
+      };
+      setUncontrolledLayers(next);
+      onLayersChange?.(next);
+    },
+    [showInfrastructure, showAccess, onLayersChange]
+  );
   const frame = useMemo(() => (model ? diagramFrame({ model, security }) : undefined), [model, security]);
   const scene: IsoScene | null = useMemo(
     () =>
