@@ -365,7 +365,7 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. If the killed job was running a [release command](/deployment-and-lifecycle/release-commands), the waiting deploy also waits for that command to finish. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
 
 The first deploy of a new stage is the exception: until the stage exists, it has nowhere to keep the lock. If two first deploys of the same stage run at once, the second stops without changing anything; run it again.
 

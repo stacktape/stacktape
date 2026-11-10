@@ -102,7 +102,7 @@ export const holdStackLock = async ({
   bucketName: string;
   operation: StackLockOperation;
   releaseOnExit?: boolean;
-  /** Shows why the command waits. By default it is printed once for each operation it waits for. */
+  /** Also shows why the command waits, such as in a spinner. Each reason is printed once either way. */
   onWaiting?: (message: string) => void;
 }): Promise<HeldStackLock & { stackMayHaveChanged: boolean }> => {
   const current = heldLock;
@@ -141,7 +141,9 @@ export const holdStackLock = async ({
         );
       }
       const message = describeWait(busy, now());
-      if (onWaiting) return onWaiting(message);
+      onWaiting?.(message);
+      // Printed as well: only an interactive terminal shows what `onWaiting` puts in a spinner, and a CI log that
+      // shows nothing while it waits looks like a hung deploy.
       if (announced.has(message)) return;
       announced.add(message);
       tuiManager.info(message);

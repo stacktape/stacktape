@@ -130,6 +130,12 @@ const normalizeAndValidateServiceRegistriesForEcsApi = (input: UpdateServiceComm
   (input as any).serviceRegistries = sanitized;
 };
 
+/** The cluster a release command's workload runs in, when the stack already has its service. */
+export const releaseCommandClusterOf = ({ workload }: ResolvedReleaseCommand): string | undefined =>
+  stackManager.existingStackResources?.find(
+    ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.ecsService(workload.name, !!workload.deployment)
+  )?.ecsService?.clusterArn;
+
 /**
  * Prepares the task definition of a release command for `RegisterTaskDefinition`, with this deploy's image, when the
  * deploy doesn't go through CloudFormation. It returns where the service's tasks run, which is where the command runs.
