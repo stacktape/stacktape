@@ -249,6 +249,19 @@ export function DiagramPanel({
           <RouteTable routes={node.routes} canSelect={canSelect} onSelect={onSelect} />
         )}
 
+        {node?.undrawnTriggers && node.undrawnTriggers.length > 0 && (
+          <section className="stp-diagram__panel-section">
+            <h3 className="stp-diagram__panel-section-title">Also triggered by</h3>
+            <ul className="stp-diagram__panel-list">
+              {node.undrawnTriggers.map((trigger) => (
+                <li key={trigger} className="stp-diagram__panel-code">
+                  {trigger}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {node && (
           <ConnectionList connections={node.connections} canSelect={canSelect} onSelect={onSelect} selfId={node.id} />
         )}

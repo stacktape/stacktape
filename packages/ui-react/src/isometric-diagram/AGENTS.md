@@ -95,7 +95,9 @@ Grouping is a stage on the topology, not a renderer feature.
 
 - Functions, and separately batch jobs, form a group when at least `MIN_GROUP_SIZE` (3) share a role: the same set of
   incoming request, event and security sources (an API, a queue, a topic, a schedule, a stream, a bucket, an API that
-  calls them as its authorizer, or none) and the same subnet. Implicit nodes and data stores are never grouped.
+  calls them as its authorizer, or none) and the same subnet. Declared triggers with no drawn sender (an external queue
+  or topic by ARN, MSK or self-managed Kafka, a CloudWatch alarm or log group) count too, by sender identity, and the
+  panel lists them. Implicit nodes and data stores are never grouped.
 - Labels come from the role: "<api> routes", "<queue> consumers", "<topic> subscribers", "Scheduled jobs", "Functions"
   for untriggered ones; the VPC copy of a duplicate label says "(VPC)". The type line counts members ("18 functions").
 - Group IDs are `group--<type>--<signature>[--<subnet>]`: deterministic, independent of declaration order, and unable to

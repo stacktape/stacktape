@@ -91,9 +91,12 @@ export const buildSceneDetails = ({ base, grouped }: { base: DiagramTopology; gr
         id: memberId,
         label: member?.label ?? memberId,
         typeLabel: member?.typeLabel,
-        triggers: base.triggers
-          .filter((trigger) => trigger.to === memberId)
-          .map((trigger) => triggerText({ trigger, sourceName: baseLabels.get(trigger.from) ?? trigger.from })),
+        triggers: [
+          ...base.triggers
+            .filter((trigger) => trigger.to === memberId)
+            .map((trigger) => triggerText({ trigger, sourceName: baseLabels.get(trigger.from) ?? trigger.from })),
+          ...(member?.undrawnTriggers ?? []).map((trigger) => trigger.text)
+        ],
         connections: connectionsOf({ nodeId: memberId, edges: base.edges, endpoint: baseEndpoint, merged: false })
       };
     })

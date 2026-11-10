@@ -111,6 +111,8 @@ export type IsoNode = {
   connections: IsoNodeConnection[];
   /** Routes an API or load balancer sends to its targets, in declaration order. */
   routes?: IsoRoute[] | undefined;
+  /** Declared triggers whose sender is not drawn, e.g. "payments-queue · poll (not drawn)". */
+  undrawnTriggers?: string[] | undefined;
 };
 
 /**

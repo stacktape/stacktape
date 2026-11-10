@@ -123,6 +123,89 @@ describe('role groups', () => {
   });
 });
 
+const external = (queue: string) => ({
+  type: 'sqs',
+  properties: { sqsQueueArn: `arn:aws:sqs:eu-west-1:123456789012:${queue}` }
+});
+
+describe('triggers the diagram cannot draw', () => {
+  test('keep functions on different external queues apart', () => {
+    const queues = { orders: 'orders-queue', payments: 'payments-queue', notifications: 'notifications-queue' };
+    const onQueues = (withApi: boolean) =>
+      Object.fromEntries(
+        Object.entries(queues).map(([name, queue]) => [
+          name,
+          lambda({ events: withApi ? [route('GET', `/${name}`), external(queue)] : [external(queue)] })
+        ])
+      );
+    expect(groupsOf(onQueues(false))).toEqual([]);
+    // The same HTTP API on all three does not make them one role either.
+    expect(groupsOf({ ...channels, ...onQueues(true) })).toEqual([]);
+  });
+
+  test('group consumers of one external queue under its name and list the queue for each member', () => {
+    const resources = Object.fromEntries(
+      ['a', 'b', 'c'].map((name) => [name, lambda({ events: [external('orders-queue')] })])
+    );
+    expect(groupsOf(resources)).toEqual([{ label: 'orders-queue consumers', memberIds: ['a', 'b', 'c'] }]);
+    const scene = buildIsometricScene({ parsedConfig: { resources } as never })!;
+    expect(scene.groups[0].members.map((member) => member.triggers)).toEqual([
+      ['orders-queue · poll (not drawn)'],
+      ['orders-queue · poll (not drawn)'],
+      ['orders-queue · poll (not drawn)']
+    ]);
+  });
+
+  test('keep a function with an extra undrawn trigger out of a group of functions without it', () => {
+    const alarm = { type: 'cloudwatch-alarm', properties: { alarmName: 'high-latency' } };
+    const resources = {
+      ...channels,
+      a: lambda({ events: [route('GET', '/a')] }),
+      b: lambda({ events: [route('GET', '/b')] }),
+      c: lambda({ events: [route('GET', '/c')] }),
+      d: lambda({ events: [route('GET', '/d'), alarm] })
+    };
+    expect(groupsOf(resources)).toEqual([{ label: 'api routes', memberIds: ['a', 'b', 'c'] }]);
+    const scene = buildIsometricScene({ parsedConfig: { resources } as never })!;
+    expect(scene.nodes.find((node) => node.id === 'd')?.undrawnTriggers).toEqual(['high-latency · alarm (not drawn)']);
+  });
+
+  test('identify every event type a function or batch job can declare', () => {
+    const events = [
+      { type: 'sns', properties: { snsTopicArn: 'arn:aws:sns:eu-west-1:1:alerts' } },
+      { type: 'kinesis-stream', properties: { streamArn: 'arn:aws:kinesis:eu-west-1:1:stream/clicks' } },
+      { type: 'dynamo-db-stream', properties: { streamArn: 'arn:aws:dynamodb:eu-west-1:1:table/Users/stream/2026' } },
+      { type: 's3', properties: { bucketArn: 'arn:aws:s3:::uploads' } },
+      { type: 'event-bus', properties: { useDefaultBus: true, eventPattern: { source: ['app'] } } },
+      {
+        type: 'kafka-topic',
+        properties: { mskClusterArn: 'arn:aws:kafka:eu-west-1:1:cluster/main/x', topicName: 'orders' }
+      },
+      { type: 'cloudwatch-log', properties: { logGroupArn: 'arn:aws:logs:eu-west-1:1:log-group:/aws/app:*' } },
+      { type: 'application-load-balancer', properties: { loadBalancerName: 'missingLb', priority: 1, paths: ['/x'] } }
+    ];
+    const topology = topologyOf({ worker: lambda({ events }) });
+    expect(
+      topology.nodes.find((node) => node.id === 'worker')?.undrawnTriggers?.map((trigger) => trigger.text)
+    ).toEqual([
+      'alerts · push (not drawn)',
+      'clicks · stream (not drawn)',
+      'Users · stream (not drawn)',
+      'uploads · trigger (not drawn)',
+      'default event bus · event (not drawn)',
+      'Kafka topic orders (not drawn)',
+      '/aws/app · log events (not drawn)',
+      'missingLb · /x (not drawn)'
+    ]);
+    // Triggers whose sender is drawn are not repeated.
+    expect(
+      topologyOf({ ...channels, f: lambda({ events: [poll, route('GET', '/')] }) }).nodes.find(
+        (node) => node.id === 'f'
+      )?.undrawnTriggers
+    ).toBeUndefined();
+  });
+});
+
 describe('merged connectors', () => {
   const resources = {
     ...channels,

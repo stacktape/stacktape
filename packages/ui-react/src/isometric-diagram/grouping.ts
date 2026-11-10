@@ -49,27 +49,23 @@ const groupNoun = (group: TopologyGroup) => GROUPABLE[group.resourceType]?.many 
 
 const slug = (value: string) => value.replace(/[^a-zA-Z0-9-]/g, '-');
 
-type RoleSource = { from: string; semantic: EdgeSemantic };
+/**
+ * One thing that starts a workload: a drawn node with the semantic of its edge, or a declared sender the diagram cannot
+ * draw (an external queue by ARN, a CloudWatch alarm). `key` identifies it in the role signature.
+ */
+type RoleSource = { key: string; name: string; type: string | undefined; semantic: EdgeSemantic };
 
-const roleLabel = ({
-  sources,
-  resourceType,
-  nodeById
-}: {
-  sources: RoleSource[];
-  resourceType: string;
-  nodeById: Map<string, TopologyNode>;
-}) => {
+const roleLabel = ({ sources, resourceType }: { sources: RoleSource[]; resourceType: string }) => {
   const words = GROUPABLE[resourceType];
-  const names = sources.map((source) => nodeById.get(source.from)?.label ?? source.from);
+  const names = sources.map((source) => source.name);
   if (sources.length === 0) return words.untriggered;
   if (sources.length > 1) {
     return sources.length === 2 ? `${names[0]} + ${names[1]} handlers` : `${names[0]} + ${names.length - 1} more`;
   }
-  const [{ from, semantic }] = sources;
+  const [{ type, semantic }] = sources;
   const name = names[0];
   if (semantic === 'security') return `${name} authorizers`;
-  switch (nodeById.get(from)?.resourceType) {
+  switch (type) {
     case 'schedule':
       return words.scheduled;
     case 'user':
@@ -103,22 +99,34 @@ const roleLabel = ({
 export const findRoleGroups = ({ topology }: { topology: DiagramTopology }) => {
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   const sourcesOf = new Map<string, RoleSource[]>();
+  const addSource = (nodeId: string, source: RoleSource) => {
+    const list = sourcesOf.get(nodeId) ?? [];
+    if (!list.some((existing) => existing.key === source.key)) list.push(source);
+    sourcesOf.set(nodeId, list);
+  };
   for (const edge of topology.edges) {
     if (!ROLE_SEMANTICS.has(edge.semantic)) continue;
-    const list = sourcesOf.get(edge.to) ?? [];
-    if (!list.some((source) => source.from === edge.from && source.semantic === edge.semantic)) {
-      list.push({ from: edge.from, semantic: edge.semantic });
+    const from = nodeById.get(edge.from);
+    addSource(edge.to, {
+      key: `${edge.from}:${edge.semantic}`,
+      name: from?.label ?? edge.from,
+      type: from?.resourceType,
+      semantic: edge.semantic
+    });
+  }
+  // A declared trigger the diagram cannot draw still says what starts the workload: two functions on different
+  // external queues do different jobs, and one with an extra alarm trigger is not like the others.
+  for (const node of topology.nodes) {
+    for (const trigger of node.undrawnTriggers ?? []) {
+      addSource(node.id, { key: `ext:${trigger.key}`, name: trigger.name, type: trigger.type, semantic: 'event' });
     }
-    sourcesOf.set(edge.to, list);
   }
 
   const candidates = new Map<string, { key: string; sources: RoleSource[]; node: TopologyNode; members: string[] }>();
   for (const node of topology.nodes) {
     if (node.implicit || !GROUPABLE[node.resourceType]) continue;
-    const sources = (sourcesOf.get(node.id) ?? []).toSorted((a, b) =>
-      `${a.from}:${a.semantic}`.localeCompare(`${b.from}:${b.semantic}`)
-    );
-    const signature = sources.map((source) => `${source.from}:${source.semantic}`).join('+') || 'none';
+    const sources = (sourcesOf.get(node.id) ?? []).toSorted((a, b) => a.key.localeCompare(b.key));
+    const signature = sources.map((source) => source.key).join('+') || 'none';
     const key = `${node.resourceType}--${signature}${node.subnet ? `--${node.subnet}` : ''}`;
     const candidate = candidates.get(key) ?? { key, sources, node, members: [] };
     candidate.members.push(node.id);
@@ -129,7 +137,7 @@ export const findRoleGroups = ({ topology }: { topology: DiagramTopology }) => {
     .filter((candidate) => candidate.members.length >= MIN_GROUP_SIZE)
     .map((candidate) => ({
       id: `group--${slug(candidate.key)}`,
-      label: roleLabel({ sources: candidate.sources, resourceType: candidate.node.resourceType, nodeById }),
+      label: roleLabel({ sources: candidate.sources, resourceType: candidate.node.resourceType }),
       resourceType: candidate.node.resourceType,
       subnet: candidate.node.subnet,
       typeLabel: describeGroupSize({ resourceType: candidate.node.resourceType, count: candidate.members.length }),

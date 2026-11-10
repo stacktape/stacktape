@@ -37,6 +37,22 @@ export type TopologyNode = {
   accessNote?: string | undefined;
   /** Set on a role group's node (see `grouping.ts`): the resources it stands for, in declaration order. */
   memberIds?: string[] | undefined;
+  /**
+   * Triggers a function or batch job declares whose sender is not drawn: an external queue, topic or stream given by
+   * ARN, an existing MSK or self-managed Kafka topic, a CloudWatch alarm or log group, a resource the config lacks.
+   */
+  undrawnTriggers?: UndrawnTrigger[] | undefined;
+};
+
+/** A declared trigger with no node to draw it from. `key` identifies its sender, so grouping can tell senders apart. */
+export type UndrawnTrigger = {
+  key: string;
+  /** The sender's name as far as the config says it, e.g. a queue name taken from its ARN. */
+  name: string;
+  /** The sender's resource type, or the event type when there is none. */
+  type: string;
+  /** How the panel lists it: "payments-queue · poll". */
+  text: string;
 };
 
 export type TopologyEdge = {
@@ -491,6 +507,110 @@ const extractResourceParamReferences = ({ value }: { value: unknown }): string[]
 
   scan(value);
   return Array.from(references);
+};
+
+// ── Declared triggers ──
+
+const lastArnPart = (arn: string) => arn.split(/[:/]/).findLast(Boolean) ?? arn;
+
+/** A stable string for any value, so an unknown trigger type still gets a deterministic identity. */
+const stableKey = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stableKey).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${key}:${stableKey((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`;
+  }
+  return String(value);
+};
+
+/**
+ * Who sends one declared event, whether or not the diagram can draw it: the node it comes from when the config names a
+ * resource (`sourceId`), and otherwise a key that identifies the external sender. Every event type of a function or
+ * batch job is covered; an unknown type is identified by its whole configuration.
+ */
+const describeDeclaredTrigger = (event: any): UndrawnTrigger & { sourceId?: string | undefined } => {
+  const props = event?.properties ?? {};
+  const type: string = typeof event?.type === 'string' ? event.type : 'unknown';
+  const named = (sourceId: unknown, sourceType: string, text: string) => {
+    const name = typeof sourceId === 'string' ? sourceId : '?';
+    return { key: `${type}:${name}`, sourceId: name, name, type: sourceType, text: `${name} · ${text}` };
+  };
+  const byArn = (arn: unknown, sourceType: string, verb: string, name?: string) => {
+    const value = typeof arn === 'string' ? arn : stableKey(arn);
+    const label = name ?? lastArnPart(value);
+    return { key: `${type}:${value}`, name: label, type: sourceType, text: `${label} · ${verb}` };
+  };
+  const referenced = (value: unknown) => extractResourceParamReferences({ value })[0];
+
+  switch (type) {
+    case 'http-api-gateway':
+      return named(props.httpApiGatewayName, 'http-api-gateway', `${props.method ?? 'ANY'} ${props.path ?? '/'}`);
+    case 'websocket-api-gateway':
+      return named(props.websocketApiGatewayName, 'websocket-api-gateway', `route ${props.routeKey ?? '$default'}`);
+    case 'appsync-api':
+      return named(props.appsyncApiName, 'appsync-api', props.field ?? 'resolver');
+    case 'application-load-balancer':
+    case 'network-load-balancer':
+      return named(
+        getLoadBalancerName(props),
+        type,
+        joinList(props.paths) ?? `port ${props.listenerPort ?? 'default'}`
+      );
+    case 'sqs':
+      return props.sqsQueueName
+        ? named(props.sqsQueueName, 'sqs-queue', 'poll')
+        : byArn(props.sqsQueueArn, 'sqs-queue', 'poll');
+    case 'sns':
+      return props.snsTopicName
+        ? named(props.snsTopicName, 'sns-topic', 'push')
+        : byArn(props.snsTopicArn, 'sns-topic', 'push');
+    case 'kinesis-stream':
+      return props.kinesisStreamName
+        ? named(props.kinesisStreamName, 'kinesis-stream', 'stream')
+        : byArn(props.streamArn, 'kinesis-stream', 'stream');
+    case 'dynamo-db-stream': {
+      const table = referenced(props.streamArn);
+      if (table) return named(table, 'dynamo-db-table', 'stream');
+      const name = typeof props.streamArn === 'string' ? props.streamArn.match(/table\/([^/]+)/)?.[1] : undefined;
+      return byArn(props.streamArn, 'dynamo-db-table', 'stream', name);
+    }
+    case 's3': {
+      const bucket = referenced(props.bucketArn);
+      return bucket ? named(bucket, 'bucket', 'trigger') : byArn(props.bucketArn, 'bucket', 'trigger');
+    }
+    case 'schedule':
+      return {
+        key: 'schedule',
+        sourceId: SCHEDULE_NODE_ID,
+        name: 'Schedule',
+        type: 'schedule',
+        text: typeof props.scheduleRate === 'string' ? props.scheduleRate : 'schedule'
+      };
+    case 'event-bus':
+      if (props.eventBusName) return named(props.eventBusName, 'event-bus', 'event');
+      return props.useDefaultBus
+        ? { key: 'event-bus:default', name: 'default event bus', type: 'event-bus', text: 'default event bus · event' }
+        : byArn(props.eventBusArn, 'event-bus', 'event');
+    case 'kafka-topic': {
+      if (props.kafkaClusterName)
+        return named(props.kafkaClusterName, 'kafka-cluster', `topic ${props.topicName ?? '?'}`);
+      const custom = props.customKafkaConfiguration;
+      const topic = custom?.topicName ?? props.topicName ?? '?';
+      const cluster = props.mskClusterArn ?? stableKey(custom?.bootstrapServers);
+      return { key: `${type}:${cluster}:${topic}`, name: topic, type: 'kafka-cluster', text: `Kafka topic ${topic}` };
+    }
+    case 'cloudwatch-alarm':
+      return byArn(props.alarmName, 'cloudwatch-alarm', 'alarm', String(props.alarmName ?? '?'));
+    case 'cloudwatch-log': {
+      const logGroup =
+        typeof props.logGroupArn === 'string' ? props.logGroupArn.match(/log-group:([^:]+)/)?.[1] : undefined;
+      return byArn(props.logGroupArn, 'cloudwatch-log', 'log events', logGroup);
+    }
+    default:
+      return { key: `${type}:${stableKey(props)}`, name: type, type, text: `${type} trigger` };
+  }
 };
 
 // ── Graph builder helpers ──
@@ -1671,7 +1791,18 @@ export const buildDiagramTopology = ({
     }
   }
 
-  // Phase 6: Finalize
+  // Phase 6: Declared triggers the diagram cannot draw. Grouping tells functions apart by them, and the panel lists them.
+  for (const node of userNodes) {
+    if (node.resourceType !== 'function' && node.resourceType !== 'batch-job') continue;
+    const events = getField(resources[node.id], 'events');
+    const undrawn = (Array.isArray(events) ? events : [])
+      .map(describeDeclaredTrigger)
+      .filter(({ sourceId }) => !sourceId || !nodeMap.has(sourceId))
+      .map(({ key, name, type, text }) => ({ key, name, type, text: `${text} (not drawn)` }));
+    if (undrawn.length > 0) nodeMap.set(node.id, { ...node, undrawnTriggers: undrawn });
+  }
+
+  // Phase 7: Finalize
   const nodes = Array.from(nodeMap.values());
   const edges = Array.from(edgeMap.values());
   const hasVpc = nodes.some((node) => node.subnet !== null);

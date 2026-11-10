@@ -271,7 +271,8 @@ const buildSceneNodes = ({
       groupId: isGroup ? node.id : memberGroup.get(node.id),
       memberCount: node.memberIds?.length,
       connections: details.connections.get(node.id) ?? [],
-      routes: details.routes.get(node.id)
+      routes: details.routes.get(node.id),
+      undrawnTriggers: node.undrawnTriggers?.map((trigger) => trigger.text)
     });
   }
 
