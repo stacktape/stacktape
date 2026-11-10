@@ -8,10 +8,11 @@ import {
   planReleaseCommands,
   recordCompletedReleaseCommands,
   runReleaseCommandsDirectly,
-  startReleaseCommandLogs
+  startReleaseCommandLogs,
+  waitForEarlierReleaseCommands
 } from '@domain-services/release-command';
 import { holdStackLock, releaseHeldStackLock } from '@domain-services/stack-operation-lock';
-import { registerReleaseTaskDefinition } from '../_utils/cw-deployment';
+import { registerReleaseTaskDefinition, releaseCommandClusterOf } from '../_utils/cw-deployment';
 import {
   recordSecurityReport,
   deleteUndeployedStage
@@ -530,6 +531,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
+  if (await waitForEarlierReleaseCommands({ fastDeployment: !!fastDeployPlan, clusterOf: releaseCommandClusterOf })) {
+    await lock.confirm();
+  }
   // Before anything changes: a failed command leaves every workload on its current code.
   if (fastDeployPlan) {
     await runReleaseCommandsDirectly({ registerTaskDefinition: registerReleaseTaskDefinition });

@@ -96,7 +96,7 @@ A `js-bundle` image contains only the bundled code, not your migration tool or m
 
 Pass `--skipReleaseCommand` to deploy without running the command, for example when you ran it yourself or when you need to deploy a fix for it. The next deploy without the flag runs it.
 
-If you cancel a deploy while the command runs, its task keeps running, because stopping a migration partway can leave the database half migrated. The next deploy refuses to start a second one until the task has finished.
+If you cancel a deploy while the command runs, its task keeps running, because stopping a migration partway can leave the database half migrated. The next deploy waits for that task to finish before it runs the command again or changes anything, and prints which task it waits for. It stops waiting after the command's `timeout`.
 
 ## Logs
 

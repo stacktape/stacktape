@@ -11,8 +11,11 @@
  *   container, a `js-bundle` service whose command needs a tool from `devDependencies`, and the order of several commands.
  * - `extras` (`_test-stacks/release-command-extras`): a Python service with code swap, including recovery from a killed
  *   deploy, a blue/green service, and a deploy that races a stack delete.
+ * - `lock` (`_test-stacks/stack-lock`): one function, for the stack lock itself. Racing first deploys, deploys,
+ *   a rollback and a delete that wait for each other, a cancelled wait, killed deploys taken over, and a hook that runs a
+ *   command on the stack its deploy holds. A second copy of the project plays a second CI job.
  *
- * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
+ * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
  * past the 15-minute Lambda limit to the `variants` stack, which ends well before the `database` stack without it.
  *
  * Guardrails (docs/testing/live-aws.md): an explicit opt-in; STS must resolve the profile to the expected account, and
@@ -43,7 +46,7 @@ import { fromIni } from '@aws-sdk/credential-providers';
 import { randomBytes } from 'node:crypto';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { readStackLockHolder } from '../code-swap/stack-lock-state';
@@ -61,7 +64,7 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 };
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const STACK_KINDS = ['database', 'variants', 'extras'] as const;
+const STACK_KINDS = ['database', 'variants', 'extras', 'lock'] as const;
 type StackKind = (typeof STACK_KINDS)[number];
 
 type Options = {
@@ -164,12 +167,28 @@ const cliEnvironment = (options: Options, invocationId: string): Environment => 
   return env;
 };
 
-type CliResult = { exitCode: number; output: string; seconds: number };
+type CliResult = { exitCode: number; output: string; seconds: number; endedAt: number };
+
+/**
+ * The source CLI, as `pnpm dev:cli` runs it, minus the artifact build: the canary builds those once before its first
+ * command. Concurrent commands each building them in the same folder break each other's builds.
+ */
+const SOURCE_CLI = ['pnpm', '--filter', '@stacktape/cli', 'run', 'dev'];
+
+const buildDevArtifacts = async () => {
+  const build = Bun.spawn({
+    cmd: ['pnpm', 'exec', 'turbo', 'run', 'build:dev-artifacts', '--filter=@stacktape/cli'],
+    cwd: REPO_ROOT,
+    stdout: 'inherit',
+    stderr: 'inherit'
+  });
+  assert((await build.exited) === 0, 'Building the CLI development artifacts failed.');
+};
 
 /** One source-built CLI command. It returns what happened; the scenario decides what should have. */
 const startCli = (options: Options, args: string[], invocationId: string) => {
   const child = Bun.spawn({
-    cmd: ['pnpm', 'dev:cli', ...args, '--agent'],
+    cmd: [...SOURCE_CLI, ...args, '--agent'],
     cwd: REPO_ROOT,
     env: cliEnvironment(options, invocationId),
     stdout: 'pipe',
@@ -179,17 +198,36 @@ const startCli = (options: Options, args: string[], invocationId: string) => {
   activeChildren.add(child);
   const startedAt = Date.now();
   const timer = setTimeout(() => stopActiveChildren('SIGKILL'), COMMAND_TIMEOUT_MS);
+  const streams = { stdout: '', stderr: '' };
+  const collect = async (name: keyof typeof streams, stream: ReadableStream<Uint8Array>) => {
+    const decoder = new TextDecoder();
+    for await (const chunk of stream) streams[name] += decoder.decode(chunk, { stream: true });
+  };
   const finished: Promise<CliResult> = Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    collect('stdout', child.stdout),
+    collect('stderr', child.stderr),
     child.exited
-  ]).then(async ([stdout, stderr, exitCode]) => {
+  ]).then(async ([, , exitCode]) => {
     clearTimeout(timer);
     activeChildren.delete(child);
     await rm(join(CLI_DIRECTORY, '.stacktape', invocationId), { recursive: true, force: true });
-    return { exitCode, output: `${stdout}\n${stderr}`, seconds: (Date.now() - startedAt) / 1000 };
+    const endedAt = Date.now();
+    const output = `${streams.stdout}\n${streams.stderr}`;
+    // Kept next to the state file, so a failed scenario can be read in full.
+    const logDirectory = join(dirname(options.stateFile), `${options.owner}-logs`);
+    await mkdir(logDirectory, { recursive: true });
+    await writeFile(join(logDirectory, `${invocationId}.log`), `${args.join(' ')}\nexit ${exitCode}\n${output}`);
+    return { exitCode, output, seconds: (endedAt - startedAt) / 1000, endedAt };
   });
-  return { child, finished };
+  /** Waits until the command has printed something that matches, while it runs. */
+  const printed = async (pattern: RegExp, timeoutMs: number) => {
+    for (const deadline = Date.now() + timeoutMs; Date.now() < deadline; await sleep(500)) {
+      if (pattern.test(`${streams.stdout}\n${streams.stderr}`)) return true;
+      if (child.exitCode !== null) return false;
+    }
+    return false;
+  };
+  return { child, finished, invocationId, printed };
 };
 
 const resolveAwsAccountName = async (options: Options, invocationId: string) => {
@@ -256,13 +294,17 @@ class CanaryStack {
     this.awsAccountName = state.awsAccountName;
   }
 
-  commandArgs(command: 'deploy' | 'delete' | 'rollback', extra: string[] = []) {
+  commandArgs(
+    command: 'deploy' | 'delete' | 'rollback',
+    extra: string[] = [],
+    workDirectory = this.stack.workDirectory
+  ) {
     return [
       command,
       '--configPath',
-      join(this.stack.workDirectory, 'stacktape.yml'),
+      join(workDirectory, 'stacktape.yml'),
       '--currentWorkingDirectory',
-      this.stack.workDirectory,
+      workDirectory,
       '--projectName',
       this.stack.projectName,
       '--stage',
@@ -278,11 +320,12 @@ class CanaryStack {
     ];
   }
 
-  start(command: 'deploy' | 'delete' | 'rollback', extra: string[] = []) {
+  /** `workDirectory` deploys another copy of the project, as a second CI job would. */
+  start(command: 'deploy' | 'delete' | 'rollback', extra: string[] = [], workDirectory = this.stack.workDirectory) {
     this.invocations += 1;
     return startCli(
       this.options,
-      this.commandArgs(command, extra),
+      this.commandArgs(command, extra, workDirectory),
       `${this.stack.projectName}-${command}-${this.invocations}`
     );
   }
@@ -315,16 +358,16 @@ class CanaryStack {
     await rm(join(this.stack.workDirectory, path), { force: true });
   }
 
-  async editConfig(edit: (config: string) => string) {
-    const path = join(this.stack.workDirectory, 'stacktape.yml');
+  async editConfig(edit: (config: string) => string, workDirectory = this.stack.workDirectory) {
+    const path = join(workDirectory, 'stacktape.yml');
     const before = await readFile(path, 'utf8');
     const after = edit(before);
     assert(after !== before, 'The config edit changed nothing.');
     await writeFile(path, after);
   }
 
-  async setRelease(file: string, release: string) {
-    const path = join(this.stack.workDirectory, file);
+  async setRelease(file: string, release: string, workDirectory = this.stack.workDirectory) {
+    const path = join(workDirectory, file);
     const source = await readFile(path, 'utf8');
     await writeFile(path, source.replace(/RELEASE = '[^']*'/, `RELEASE = '${release}'`));
   }
@@ -387,13 +430,13 @@ class CanaryStack {
   }
 
   /** What the app reports. Retries, because a public URL can answer with an error right after a rollout. */
-  async app(): Promise<{ release: string; runs: number; migrations: string[] }> {
+  async app<Report = { release: string; runs: number; migrations: string[] }>(): Promise<Report> {
     const url = await this.url();
     let lastError: unknown;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
         const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        if (response.ok) return (await response.json()) as { release: string; runs: number; migrations: string[] };
+        if (response.ok) return (await response.json()) as Report;
         lastError = `${response.status} ${await response.text()}`;
       } catch (error) {
         lastError = error;
@@ -449,6 +492,26 @@ class CanaryStack {
 
   async stackStatus() {
     return (await describeStack(this.clients.cloudFormation, this.stack.stackName))?.StackStatus;
+  }
+
+  async waitForStatus(label: string, expected: string) {
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      if ((await this.stackStatus()) === expected) return;
+      await sleep(1000);
+    }
+    throw new Error(`${label}: the stack never reached ${expected}.`);
+  }
+
+  lockHolder() {
+    return readStackLockHolder(this.clients.s3, this.stack.deploymentBucket!);
+  }
+
+  async waitForLockHolder(label: string, invocationId: string) {
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      if ((await this.lockHolder())?.invocationId === invocationId) return;
+      await sleep(1000);
+    }
+    throw new Error(`${label}: ${invocationId} never took the stack's lock.`);
   }
 
   async recordOwnedResources() {
@@ -585,16 +648,27 @@ cloudformationResources:
     throw new Error(`stacktape rollback failed:\n${rollback.output.slice(-2000)}`);
   }
 
+  // Two CI jobs of the same commit: the second waits for the first, then finds nothing left to do.
   await stack.setRelease('server.mjs', 'r7');
-  const [one, two] = await Promise.all([stack.deploy(), stack.deploy()]);
-  const failed = [one, two].filter(({ exitCode }) => exitCode !== 0);
-  assert(failed.length === 1, `of two concurrent deploys, ${failed.length} failed.`);
+  const runsBeforeConcurrent = (await stack.app()).runs;
+  const firstConcurrent = stack.start('deploy');
+  await stack.waitForLockHolder('concurrent deploys', firstConcurrent.invocationId);
+  const secondConcurrent = stack.start('deploy');
+  const [one, two] = await Promise.all([firstConcurrent.finished, secondConcurrent.finished]);
   assert(
-    /Another operation/.test(failed[0]!.output),
-    `the second deploy failed for another reason:\n${failed[0]!.output.slice(-1500)}`
+    one.exitCode === 0 && two.exitCode === 0,
+    `a concurrent deploy failed:\n${[one, two].map(({ output }) => output.slice(-1500)).join('\n\n')}`
   );
-  await record({ name: 'of two concurrent deploys, the second is refused' });
+  assert(
+    two.output.includes(
+      `Waiting for another deploy of this stack to finish (invocation ${firstConcurrent.invocationId}`
+    ),
+    `the second deploy did not say what it waited for:\n${two.output.slice(-1500)}`
+  );
+  await stack.expectApp('concurrent deploys', { release: 'r7', runs: runsBeforeConcurrent });
+  await record({ name: 'of two concurrent deploys, the second waits for the first', seconds: two.seconds });
 
+  // Killed while its command runs: the next deploy waits for the lock to expire and for the command, then deploys.
   await stack.write('migrations/004-slow.sql', 'SELECT pg_sleep(170);\nALTER TABLE items ADD COLUMN slow text;\n');
   await stack.setRelease('server.mjs', 'r8');
   const killed = stack.start('deploy');
@@ -606,16 +680,31 @@ cloudformationResources:
   assert(running, 'the slow command never started.');
   process.kill(-killed.child.pid, 'SIGKILL');
   await killed.finished;
-  await stack.deployFails('deploy right after a killed deploy', /Another operation/);
-  await sleep(125_000);
-  await stack.deployFails('deploy after the lock expired, command still running', /still running/);
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (!(await stack.releaseTasks('web')).some(({ lastStatus }) => lastStatus !== 'STOPPED')) break;
-    await sleep(5000);
-  }
-  await stack.deployOk('deploy after the killed command finished');
-  await stack.expectApp('deploy after the killed command finished', { release: 'r8' });
-  await record({ name: 'a killed deploy holds the lock for its lease, and its task blocks a second one' });
+  const afterKill = await stack.deployOk('deploy right after a killed deploy');
+  assert(
+    afterKill.output.includes(`invocation ${killed.invocationId}`) &&
+      afterKill.output.includes('stopped without releasing it'),
+    `the deploy did not say it waited for the killed one:\n${afterKill.output.slice(-2000)}`
+  );
+  assert(
+    afterKill.output.includes(`Waiting for an earlier release command of web to finish (task ${running.taskArn}`),
+    `the deploy did not wait for the killed deploy's command:\n${afterKill.output.slice(-2000)}`
+  );
+  const tasksAfterKill = await stack.releaseTasks('web');
+  const killedTask = tasksAfterKill.find(({ taskArn }) => taskArn === running.taskArn);
+  const nextTask = tasksAfterKill.find(({ taskArn }) => taskArn !== running.taskArn);
+  assert(
+    killedTask?.stoppedAt && nextTask?.startedAt && nextTask.startedAt >= killedTask.stoppedAt,
+    'the next command started before the killed one stopped.'
+  );
+  await stack.expectApp('deploy right after a killed deploy', {
+    release: 'r8',
+    migrations: ['001-items.sql', '002-more.sql', '003-good.sql', '004-slow.sql']
+  });
+  await record({
+    name: 'a deploy after a killed one waits for its lock and its command, then deploys',
+    seconds: afterKill.seconds
+  });
 
   await stack.editConfig((config) =>
     config.replace('        command: node migrate.mjs\n', '        command: node migrate.mjs\n        timeout: 20\n')
@@ -802,7 +891,8 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   await record({ name: 'a failing Python command stops the swap, old code serves', seconds: pyFailed.seconds });
   await stack.remove('py/migrations/fail.txt');
 
-  // Killed during its command: the lock stays until its lease ends, then the next deploy repairs with an image.
+  // Killed during its command: the lock stays until its lease ends. The next deploy, started right away, waits for it
+  // and repairs with an image.
   await stack.setRelease('py/server.py', 'py5');
   await stack.write('py/migrations/slow.txt', 'slow\n');
   const killed = stack.start('deploy');
@@ -814,14 +904,13 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   assert(running, 'the slow Python command never started.');
   process.kill(-killed.child.pid, 'SIGKILL');
   await killed.finished;
-  await stack.deployFails('deploy right after a killed code-swap deploy', /Another operation/);
-  await sleep(125_000);
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (!(await stack.releaseTasks('pyswap')).some(({ lastStatus }) => lastStatus !== 'STOPPED')) break;
-    await sleep(5000);
-  }
   await stack.remove('py/migrations/slow.txt');
   const repaired = await stack.deployOk('deploy after a killed code-swap deploy');
+  assert(
+    repaired.output.includes(`invocation ${killed.invocationId}`) &&
+      repaired.output.includes('stopped without releasing it'),
+    `the next deploy did not say it waited for the killed one:\n${repaired.output.slice(-2000)}`
+  );
   assert(
     repaired.output.includes('Image deploy for pyswap: repairing an interrupted swap'),
     `the next deploy should repair with an image:\n${repaired.output.slice(-2000)}`
@@ -832,7 +921,7 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   assert(swapsAgain.output.includes('Swapped code in pyswap'), 'code swap should work again after a repair.');
   await stack.expectRelease('code-only deploy after a repair', PY_URL, 'py6');
   await record({
-    name: 'a killed code-swap deploy recovers by itself after the lease, with an image deploy',
+    name: 'a deploy started right after a killed code-swap deploy waits for its lease, then repairs with an image',
     seconds: repaired.seconds
   });
 
@@ -906,6 +995,303 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   });
 };
 
+const APP_FILE = 'src/app.mjs';
+const waitedFor = (output: string, operation: string, invocationId: string) =>
+  output.includes(`Waiting for another ${operation} of this stack to finish (invocation ${invocationId}`);
+const stoppedHolder = (output: string, invocationId: string) =>
+  output.includes(`(invocation ${invocationId}) stopped without releasing it`);
+const HOOK_REFUSAL = "runs from a hook of the deploy that holds this stack's lock";
+
+/**
+ * The stack lock with the cheapest stack. `other` is a second copy of the project, which plays a second CI job deploying
+ * other code to the same stage.
+ */
+const runLockScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
+  const other = `${stack.stack.workDirectory}-b`;
+  await rm(other, { recursive: true, force: true });
+  await cp(stack.stack.workDirectory, other, { recursive: true });
+  type Served = { release: string; feature: string };
+  const expectServed = async (label: string, expected: Served) => {
+    // A new Lambda version can take a moment to answer every request.
+    let served = await stack.app<Served>();
+    for (let attempt = 0; attempt < 10 && JSON.stringify(served) !== JSON.stringify(expected); attempt += 1) {
+      await sleep(3000);
+      served = await stack.app<Served>();
+    }
+    assert(
+      served.release === expected.release && served.feature === expected.feature,
+      `${label}: serves ${JSON.stringify(served)}, expected ${JSON.stringify(expected)}.`
+    );
+  };
+  const failure = (results: CliResult[]) =>
+    results
+      .filter(({ exitCode }) => exitCode !== 0)
+      .map(({ output }) => output.slice(-2000))
+      .join('\n\n');
+  // A `beforeDeploy` hook runs while its deploy holds the lock. Sleeping in one holds the lock long enough for a second
+  // command, whose start takes a few seconds, to find it held, however quick the deploy itself is.
+  const setHook = (command: string) =>
+    stack.editConfig(
+      (config) => `${config}
+scripts:
+  canaryHook:
+    type: local-script
+    properties:
+      executeCommand: ${JSON.stringify(command)}
+
+hooks:
+  beforeDeploy:
+    - scriptName: canaryHook
+`
+    );
+  const removeHook = () => stack.editConfig((config) => `${config.slice(0, config.indexOf('\nscripts:\n'))}\n`);
+  const holdingTheLock = async (run: () => Promise<void>) => {
+    await setHook('sleep 75');
+    try {
+      await run();
+    } finally {
+      await removeHook();
+    }
+  };
+
+  // Two CI jobs deploy a new stage at once. No bucket holds a lock yet, so they race until the first one creates it.
+  await stack.setRelease(APP_FILE, 'a0');
+  await stack.setRelease(APP_FILE, 'b0', other);
+  const firstA = stack.start('deploy');
+  const firstB = stack.start('deploy', [], other);
+  const [a0, b0] = await Promise.all([firstA.finished, firstB.finished]);
+  await stack.recordOwnedResources();
+  const succeeded = [
+    { result: a0, release: 'a0' },
+    { result: b0, release: 'b0' }
+  ].filter(({ result }) => result.exitCode === 0);
+  assert(succeeded.length, `both first deploys failed:\n${failure([a0, b0])}`);
+  if (succeeded.length === 1) {
+    const refused = a0.exitCode === 0 ? b0 : a0;
+    assert(
+      /Another operation created stack .* while this deploy was preparing, so it stopped without changing anything/.test(
+        refused.output
+      ),
+      `the losing first deploy failed for another reason:\n${refused.output.slice(-2000)}`
+    );
+  }
+  const lastFirst = succeeded.sort((x, y) => x.result.endedAt - y.result.endedAt).at(-1)!;
+  await expectServed('racing first deploys', { release: lastFirst.release, feature: 'one' });
+  await record({
+    name: 'of two racing first deploys, one creates the stack and the other waits or stops unchanged',
+    details: { outcome: succeeded.length === 2 ? 'both deployed' : 'one stopped' }
+  });
+
+  // Two jobs with different code. The second waits for the first, then reads the stack again and fast-deploys on top.
+  await stack.setRelease(APP_FILE, 'a1');
+  await stack.setRelease(APP_FILE, 'b1', other);
+  await holdingTheLock(async () => {
+    const fastA = stack.start('deploy');
+    await stack.waitForLockHolder('concurrent fast deploys', fastA.invocationId);
+    const fastB = stack.start('deploy', [], other);
+    const [a1, b1] = await Promise.all([fastA.finished, fastB.finished]);
+    assert(a1.exitCode === 0 && b1.exitCode === 0, `a concurrent fast deploy failed:\n${failure([a1, b1])}`);
+    assert(!usesCloudFormation(a1.output) && !usesCloudFormation(b1.output), 'a code change should fast-deploy.');
+    assert(
+      waitedFor(b1.output, 'deploy', fastA.invocationId),
+      `the second deploy did not say what it waited for:\n${b1.output.slice(-2000)}`
+    );
+    await expectServed('concurrent fast deploys', { release: 'b1', feature: 'one' });
+    assert(!(await stack.lockHolder()), 'the lock is still held after both deploys.');
+    await record({ name: 'a second fast deploy waits for the first, then deploys on top', seconds: b1.seconds });
+  });
+
+  // Two jobs that change the infrastructure. The second waits for CloudFormation and the lock, then updates again.
+  await stack.editConfig((config) => config.replace('value: one', 'value: two'));
+  await stack.editConfig((config) => config.replace('value: one', 'value: three'), other);
+  await stack.setRelease(APP_FILE, 'b2', other);
+  const fullA = stack.start('deploy');
+  await stack.waitForStatus('concurrent CloudFormation deploys', 'UPDATE_IN_PROGRESS');
+  const fullB = stack.start('deploy', [], other);
+  const [a2, b2] = await Promise.all([fullA.finished, fullB.finished]);
+  assert(a2.exitCode === 0 && b2.exitCode === 0, `a concurrent CloudFormation deploy failed:\n${failure([a2, b2])}`);
+  assert(
+    usesCloudFormation(a2.output) && usesCloudFormation(b2.output),
+    'an environment change should use CloudFormation.'
+  );
+  // Which waits it reaches depends on how far the first one got by the time the second has started.
+  const waitedForCloudFormation = /Waiting for stack to be ready for deploy/.test(b2.output);
+  const waitedForLock = waitedFor(b2.output, 'deploy', fullA.invocationId);
+  assert(
+    waitedForCloudFormation || waitedForLock,
+    `the second deploy did not say what it waited for:\n${b2.output.slice(-2000)}`
+  );
+  await expectServed('concurrent CloudFormation deploys', { release: 'b2', feature: 'three' });
+  await record({
+    name: 'a second CloudFormation deploy waits for the first, then updates again',
+    seconds: b2.seconds,
+    details: { waitedForCloudFormation, waitedForLock }
+  });
+  await stack.editConfig((config) => config.replace('value: two', 'value: three'));
+
+  // A rollback started during a deploy rolls back from what that deploy left, not from what it saw when it started.
+  await stack.setRelease(APP_FILE, 'a3');
+  await holdingTheLock(async () => {
+    const deploying = stack.start('deploy');
+    await stack.waitForLockHolder('rollback during a deploy', deploying.invocationId);
+    const rollingBack = stack.start('rollback', ['--rollbackSteps', '1']);
+    const [a3, rollback] = await Promise.all([deploying.finished, rollingBack.finished]);
+    assert(
+      a3.exitCode === 0 && rollback.exitCode === 0,
+      `the deploy or the rollback failed:\n${failure([a3, rollback])}`
+    );
+    assert(
+      waitedFor(rollback.output, 'deploy', deploying.invocationId),
+      `the rollback did not say what it waited for:\n${rollback.output.slice(-2000)}`
+    );
+    await expectServed('rollback during a deploy', { release: 'b2', feature: 'three' });
+    await record({
+      name: 'a rollback waits for a running deploy, then rolls that deploy back',
+      seconds: rollback.seconds
+    });
+  });
+
+  // Ctrl+C while waiting stops only the waiting command. The holder keeps its lock and finishes.
+  await stack.setRelease(APP_FILE, 'a4');
+  await stack.setRelease(APP_FILE, 'b4-must-not-serve', other);
+  await holdingTheLock(async () => {
+    const holding = stack.start('deploy');
+    await stack.waitForLockHolder('cancelled wait', holding.invocationId);
+    const cancelled = stack.start('deploy', [], other);
+    assert(
+      await cancelled.printed(/Waiting for another deploy of this stack/, 120_000),
+      'the second deploy never said it waits.'
+    );
+    const cancelledAt = Date.now();
+    process.kill(-cancelled.child.pid, 'SIGINT');
+    const cancelledResult = await cancelled.finished;
+    assert(cancelledResult.exitCode !== 0, 'a cancelled wait should fail.');
+    assert(Date.now() - cancelledAt < 60_000, 'Ctrl+C took more than a minute to stop a waiting deploy.');
+    const holderAfterCancel = await stack.lockHolder();
+    const holderResult = await holding.finished;
+    assert(
+      holderResult.exitCode === 0,
+      `the holder failed after a cancelled wait:\n${holderResult.output.slice(-2000)}`
+    );
+    assert(
+      holderAfterCancel === undefined || holderAfterCancel.invocationId === holding.invocationId,
+      `a cancelled wait changed the lock: ${JSON.stringify(holderAfterCancel)}`
+    );
+    await expectServed('cancelled wait', { release: 'a4', feature: 'three' });
+    assert(!(await stack.lockHolder()), 'the lock is still held after the holder finished.');
+    await record({ name: 'Ctrl+C on a waiting deploy leaves the running one alone' });
+  });
+
+  // Killed during a CloudFormation update, which goes on without it. The next deploy waits for the update, takes the
+  // lock over once its lease ends, and deploys.
+  await stack.editConfig((config) => config.replace('value: three', 'value: five'));
+  await stack.setRelease(APP_FILE, 'a5');
+  const killedFull = stack.start('deploy');
+  await stack.waitForStatus('killed CloudFormation deploy', 'UPDATE_IN_PROGRESS');
+  process.kill(-killedFull.child.pid, 'SIGKILL');
+  await killedFull.finished;
+  await stack.setRelease(APP_FILE, 'a6');
+  const afterKilledFull = await stack.deployOk('deploy after a killed CloudFormation deploy');
+  await expectServed('deploy after a killed CloudFormation deploy', { release: 'a6', feature: 'five' });
+  assert(!(await stack.lockHolder()), 'the lock is still held after a takeover.');
+  await record({
+    name: 'a deploy after one killed during CloudFormation waits, takes the lock over and deploys',
+    seconds: afterKilledFull.seconds,
+    // An update that outlasts the lease leaves an expired lock, which the deploy takes over without waiting.
+    details: {
+      waitedForCloudFormation: /Waiting for stack to be ready for deploy/.test(afterKilledFull.output),
+      namedTheKilledDeploy: afterKilledFull.output.includes(`invocation ${killedFull.invocationId}`)
+    }
+  });
+
+  // Killed during a fast deploy.
+  await stack.setRelease(APP_FILE, 'a7-killed');
+  const killedFast = stack.start('deploy');
+  await stack.waitForLockHolder('killed fast deploy', killedFast.invocationId);
+  process.kill(-killedFast.child.pid, 'SIGKILL');
+  await killedFast.finished;
+  await stack.setRelease(APP_FILE, 'a7');
+  const afterKilledFast = await stack.deployOk('deploy after a killed fast deploy');
+  assert(
+    stoppedHolder(afterKilledFast.output, killedFast.invocationId),
+    `the deploy did not say the killed one stopped:\n${afterKilledFast.output.slice(-2000)}`
+  );
+  await expectServed('deploy after a killed fast deploy', { release: 'a7', feature: 'five' });
+  await record({
+    name: 'a deploy after a killed fast deploy waits for its lease, takes the lock over and deploys',
+    seconds: afterKilledFast.seconds
+  });
+
+  // A hook that runs a command on the stack its own deploy holds would wait forever. It fails instead. `beforeDeploy` runs
+  // under the lock; `afterDeploy` runs once the deploy has released it.
+  const nestedLog = join(stack.stack.workDirectory, 'nested-rollback.log');
+  await setHook(
+    [
+      // What the CLI's `dev` script runs. pnpm inside a hook of a command pnpm started finds no such script.
+      'cd',
+      CLI_DIRECTORY,
+      '&&',
+      'bun',
+      'run',
+      'scripts/dev.ts',
+      ...stack.commandArgs('rollback', ['--rollbackSteps', '1']),
+      '--agent',
+      '>',
+      nestedLog,
+      '2>&1'
+    ].join(' ')
+  );
+  await stack.setRelease(APP_FILE, 'a8-must-not-serve');
+  const withHook = await stack.deploy();
+  await removeHook();
+  const nestedOutput = await readFile(nestedLog, 'utf8').catch(() => '');
+  assert(
+    nestedOutput.includes(HOOK_REFUSAL),
+    `the hook's command did not refuse to wait:\n${nestedOutput.slice(-2000)}\n${withHook.output.slice(-2000)}`
+  );
+  assert(withHook.exitCode !== 0, 'a failed beforeDeploy hook should fail the deploy.');
+  assert(withHook.seconds < 600, `the deploy with the hook took ${withHook.seconds} s.`);
+  await expectServed('hook on its own stack', { release: 'a7', feature: 'five' });
+  assert(!(await stack.lockHolder()), 'the lock is still held after the deploy with the hook.');
+  await record({
+    name: 'a hook that runs a command on its own stack fails right away instead of waiting forever',
+    seconds: withHook.seconds
+  });
+
+  // A delete started during a deploy waits for it, then deletes the stack and its bucket.
+  await stack.setRelease(APP_FILE, 'a9');
+  await holdingTheLock(async () => {
+    const deploying = stack.start('deploy');
+    await stack.waitForLockHolder('delete during a deploy', deploying.invocationId);
+    const deleting = stack.start('delete');
+    const [a9, deleted] = await Promise.all([deploying.finished, deleting.finished]);
+    assert(a9.exitCode === 0 && deleted.exitCode === 0, `the deploy or the delete failed:\n${failure([a9, deleted])}`);
+    assert(
+      waitedFor(deleted.output, 'deploy', deploying.invocationId),
+      `the delete did not say what it waited for:\n${deleted.output.slice(-2000)}`
+    );
+    // The delete returns while AWS still removes resources that cost nothing, such as a role.
+    let status = await stack.stackStatus();
+    for (let attempt = 0; attempt < 240 && status === 'DELETE_IN_PROGRESS'; attempt += 1) {
+      await sleep(5000);
+      status = await stack.stackStatus();
+    }
+    assert(!status, `the stack is ${status} after the delete.`);
+    const bucketGone = await stack.clients.s3
+      .send(new HeadBucketCommand({ Bucket: stack.stack.deploymentBucket }))
+      .then(
+        () => false,
+        (error: unknown) => isMissing(error, ['NotFound', 'NoSuchBucket'])
+      );
+    assert(bucketGone, 'the deployment bucket still exists after the delete.');
+    await record({
+      name: 'a delete waits for a running deploy, then deletes the stack and its bucket',
+      seconds: deleted.seconds
+    });
+  });
+  await rm(other, { recursive: true, force: true });
+};
+
 const isMissing = (error: unknown, names: string[]) =>
   error instanceof Error && (names.includes(error.name) || /not ?found|does not exist/i.test(error.message));
 
@@ -954,6 +1340,7 @@ const cleanupStack = async (clients: Clients, options: Options, state: State, st
     }
   }
   await rm(stack.workDirectory, { recursive: true, force: true });
+  await rm(`${stack.workDirectory}-b`, { recursive: true, force: true });
 };
 
 const cleanupAll = async (clients: Clients, options: Options, state: State) => {
@@ -986,6 +1373,7 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
     const state = JSON.parse(await readFile(options.stateFile, 'utf8')) as State;
     assert(state.accountId === options.expectedAccountId, 'The state file belongs to another AWS account.');
     assert(state.owner === options.owner, 'The state file belongs to another run.');
+    await buildDevArtifacts();
     await cleanupAll(clients, options, state);
     return;
   }
@@ -993,6 +1381,7 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
   const onSignal = (signal: NodeJS.Signals) => stopActiveChildren(signal);
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
+  await buildDevArtifacts();
   const awsAccountName = await resolveAwsAccountName(options, `${options.projectPrefix}-whoami`);
   const prepare = async (name: StackKind, fixture: string): Promise<StackState> => {
     const projectName = `${options.projectPrefix}-${name.slice(0, 2)}`;
@@ -1029,7 +1418,8 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
   const fixtures: Record<StackKind, string> = {
     database: 'release-command',
     variants: 'release-command-variants',
-    extras: 'release-command-extras'
+    extras: 'release-command-extras',
+    lock: 'stack-lock'
   };
   for (const kind of STACK_KINDS) {
     if (!options.only || options.only === kind) stacks.push(await prepare(kind, fixtures[kind]));
@@ -1051,6 +1441,7 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
         const stack = new CanaryStack(options, clients, state, stackState);
         if (stackState.projectName.endsWith('-da')) return runDatabaseScenarios(stack, record);
         if (stackState.projectName.endsWith('-ex')) return runExtraScenarios(stack, record);
+        if (stackState.projectName.endsWith('-lo')) return runLockScenarios(stack, record);
         return runVariantScenarios(stack, record, options.long);
       })
     );

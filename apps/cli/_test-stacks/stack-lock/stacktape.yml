@@ -1,0 +1,29 @@
+# Sample app for the stack lock scenarios of `scripts/real-aws/release-command-canary.ts`: one function behind an HTTP
+# API, cheap and quick to deploy. It reports its release and its `FEATURE` value, so a scenario can tell which deploy
+# came last. A changed release in `src/app.mjs` is a fast deploy; a changed `FEATURE` goes through CloudFormation.
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: local
+
+resources:
+  api:
+    type: http-api-gateway
+
+  app:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/app.mjs
+      memory: 128
+      environment:
+        - name: FEATURE
+          value: one
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /
+            method: GET
