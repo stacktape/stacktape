@@ -2080,6 +2080,7 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/console/ui/src/pages/DeployNewProject/starter-projects.test.ts',
+      'apps/console/ui/src/pages/DeployNewProject/agent-prompt.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
@@ -6224,6 +6225,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/DeployNewProject/starter-projects.test.ts',
+      'apps/console/ui/src/pages/DeployNewProject/agent-prompt.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
