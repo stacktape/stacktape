@@ -55,6 +55,10 @@
       "types": "./dist/isometric-diagram/fixtures.d.ts",
       "default": "./dist/isometric-diagram/fixtures.js"
     },
+    "./isometric-diagram/deployment-fixtures": {
+      "types": "./dist/isometric-diagram/deployment-fixtures.d.ts",
+      "default": "./dist/isometric-diagram/deployment-fixtures.js"
+    },
     "./linear-loader": {
       "types": "./dist/linear-loader/LinearLoader.d.ts",
       "default": "./dist/linear-loader/LinearLoader.js"

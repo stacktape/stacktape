@@ -100,6 +100,10 @@ export type IsoNode = {
   replicas?: { min: number; max: number } | undefined;
   /** Reachable from the internet by its accessibility mode; the renderer marks it in every view. */
   isPublic?: boolean | undefined;
+  /** On a load balancer: whether the internet can reach it. The Network view marks it. */
+  exposure?: 'internal' | 'internet-facing' | undefined;
+  /** The security groups this node carries in the deployed stage, in the Security view. */
+  securityGroups?: IsoNodeSecurityGroup[] | undefined;
   /**
    * The role group this node belongs to: its own id on a collapsed group's node, the group's id on each member drawn
    * after the group was expanded. See `IsoScene.groups`.
@@ -178,7 +182,69 @@ export type IsoConnector = {
   color?: string | undefined;
   semantic?: string | undefined;
   description?: string | undefined;
+  /** Drawn faintly: context in a view about something else, such as request flow in the Security view. */
+  muted?: boolean | undefined;
   route: IsoConnectorRoute;
+};
+
+/** A security group a node carries, and its rules in plain words, for the side panel. */
+export type IsoNodeSecurityGroup = {
+  id: string;
+  name: string;
+  color: string;
+  /** Defined outside this stack: its rules are not in the template. */
+  external: boolean;
+  /** "Allows TCP 5432 from api, worker". */
+  inbound: string[];
+  outbound: string[];
+};
+
+/**
+ * A security group drawn as outlines around its members. Members drawn next to each other share one outline; a group
+ * whose members are apart has one outline per cluster, all in the group's colour with its name on a tab.
+ */
+export type IsoSecurityGroup = {
+  id: string;
+  name: string;
+  color: string;
+  external: boolean;
+  memberNodeIds: string[];
+  /** A group spread over many outlines names only its largest few, so `tab` can be absent. */
+  outlines: Array<{ from: IsoTilePoint; to: IsoTilePoint; tab?: IsoTilePoint | undefined }>;
+  /** What the group allows, for its tooltip. */
+  summary: string;
+  details?: string | undefined;
+};
+
+/**
+ * Traffic security group rules allow into a group: from another group, drawn once between them from the source group's
+ * outline, or from one address range (the internet, the VPC, a CIDR), whose arrow starts a short way out from the
+ * target group. `from` and `to` are the members the arrow starts beside and points at.
+ */
+export type IsoSecurityRule = {
+  id: string;
+  from?: string | undefined;
+  to: string;
+  fromGroup?: string | undefined;
+  toGroup: string;
+  source: 'group' | 'internet' | 'address';
+  /** "TCP 5432", or "0.0.0.0/0 · TCP 443" for an address range. */
+  label: string;
+  color: string;
+  route: IsoConnectorRoute;
+  title: string;
+  description: string;
+};
+
+/**
+ * What the view must fit, whichever overlays are on: the whole picture, so switching views neither moves nor rescales
+ * anything. `key` changes only when the set of nodes does.
+ */
+export type IsoSceneFrame = {
+  key: string;
+  nodeTiles: IsoTilePoint[];
+  points: IsoTilePoint[];
+  chips: Array<{ tile: IsoTilePoint; text: string }>;
 };
 
 /** A network boundary drawn as a floor plane, e.g. the VPC or a subnet tier. */
@@ -214,4 +280,7 @@ export type IsoScene = {
   rectangles: IsoRectangle[];
   labels: IsoLabel[];
   groups: IsoGroup[];
+  securityGroups?: IsoSecurityGroup[] | undefined;
+  securityRules?: IsoSecurityRule[] | undefined;
+  frame?: IsoSceneFrame | undefined;
 };

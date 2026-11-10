@@ -79,6 +79,9 @@ export default function DiagramIsland({ config, ariaLabel }: Props) {
         <IsometricDiagram
           animateConnectors={animate}
           config={config as unknown as StacktapeConfig}
+          // The marketing pages show the Application view only: no view controls, and no Security view that needs a
+          // deployed stage.
+          views={['application']}
           ariaLabel={ariaLabel}
           style={{ width: '100%', height: '100%' }}
         />

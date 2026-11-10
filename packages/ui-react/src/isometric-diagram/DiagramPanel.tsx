@@ -4,7 +4,7 @@
  * renderer (select another node, expand or collapse a group) or to the host (`onOpenResource`).
  */
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from 'react';
-import type { IsoGroup, IsoGroupMember, IsoNode, IsoNodeConnection, IsoRoute } from './scene.js';
+import type { IsoGroup, IsoGroupMember, IsoNode, IsoNodeConnection, IsoNodeSecurityGroup, IsoRoute } from './scene.js';
 import type { DiagramResourceStatus, DiagramStatusEntry, NodeStatus } from './status.js';
 import { useId } from 'react';
 import { BiX } from 'react-icons/bi';
@@ -339,6 +339,8 @@ export function DiagramPanel({
           </section>
         )}
 
+        {node?.securityGroups && node.securityGroups.length > 0 && <SecurityGroupList groups={node.securityGroups} />}
+
         {node && (
           <ConnectionList connections={node.connections} canSelect={canSelect} onSelect={onSelect} selfId={node.id} />
         )}
@@ -392,6 +394,55 @@ function RouteTable({
           ))}
         </tbody>
       </table>
+    </section>
+  );
+}
+
+/** A node's security groups with what each allows, in plain words. */
+function SecurityGroupList({ groups }: { groups: IsoNodeSecurityGroup[] }) {
+  return (
+    <section className="stp-diagram__panel-section">
+      <h3 className="stp-diagram__panel-section-title">Security groups ({groups.length})</h3>
+      <ul className="stp-diagram__panel-list stp-diagram__panel-groups">
+        {groups.map((group) => (
+          <li key={group.id} className="stp-diagram__panel-group">
+            <p className="stp-diagram__panel-group-name">
+              <span
+                aria-hidden="true"
+                className="stp-diagram__panel-swatch"
+                style={{ borderColor: group.color, borderStyle: group.external ? 'dashed' : 'solid' }}
+              />
+              {group.name}
+            </p>
+            {group.external ? (
+              <p className="stp-diagram__panel-muted">Defined outside this stack; its rules are not in the template.</p>
+            ) : (
+              <>
+                <p className="stp-diagram__panel-rule-heading">Inbound</p>
+                {group.inbound.length > 0 ? (
+                  <ul className="stp-diagram__panel-rules">
+                    {group.inbound.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="stp-diagram__panel-muted">Nothing can connect in.</p>
+                )}
+                <p className="stp-diagram__panel-rule-heading">Outbound</p>
+                {group.outbound.length > 0 ? (
+                  <ul className="stp-diagram__panel-rules">
+                    {group.outbound.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="stp-diagram__panel-muted">No outbound traffic.</p>
+                )}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

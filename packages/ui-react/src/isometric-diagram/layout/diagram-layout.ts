@@ -146,7 +146,7 @@ const ZONE_TAG_CORNER_GAP = 0.3;
 /** Spacing of candidate tag positions along an edge, and of the samples that test a candidate. */
 const ZONE_TAG_STEP = 0.2;
 /** The first shapes of a node are its body; the last is its name tag. */
-const BODY_SHAPES = 3;
+export const BODY_SHAPES = 3;
 const EPSILON = 1e-6;
 
 type Item = {
@@ -184,7 +184,7 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
  * What a node occupies on screen, relative to its center: the extruded body (its hexagonal
  * silhouette as a centre box and two shoulders) and the flat name tag under its front tip.
  */
-const nodeShapes = (node: LayoutNode): ProjectedBox[] => {
+export const nodeShapes = (node: LayoutNode): ProjectedBox[] => {
   const half = (node.width + node.depth) / 2;
   const margin = 0.1;
   return [
@@ -1059,7 +1059,8 @@ const placeZoneTag = ({
   return best as { placement: ZoneTagPlacement; boxes: ProjectedBox[]; covered: number };
 };
 
-const simplifyRoute = (points: IsoTilePoint[]) => {
+/** Drops repeated points and points in the middle of a straight run. */
+export const simplifyRoute = (points: IsoTilePoint[]) => {
   const deduplicated = points.filter(
     (point, index) =>
       index === 0 ||

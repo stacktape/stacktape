@@ -273,6 +273,7 @@
     left: 12px;
     bottom: 12px;
     margin: 0;
+    font-family: Montserrat, Inter, sans-serif;
     font-size: 12px;
     color: var(--stp-text-subtle);
     pointer-events: none;
@@ -331,6 +332,7 @@
     position: absolute;
     top: 12px;
     left: 12px;
+    font-family: Montserrat, Inter, sans-serif;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -400,6 +402,188 @@
   .stp-diagram__chip-action {
     color: var(--stp-color-brand);
     font-weight: 600;
+  }
+
+  /* ── Views ───────────────────────────────────────────────────────────────────────────────────
+   * A segment per preset, and a popover with the overlays behind them. */
+  .stp-diagram__views {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .stp-diagram__segments {
+    display: inline-flex;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+  }
+
+  .stp-diagram__segment {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 11px;
+    border-radius: calc(var(--stp-radius-medium) - 2px);
+    color: var(--stp-text-subtle);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__segment input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .stp-diagram__segment:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__segment[data-checked] {
+    background: color-mix(in srgb, var(--stp-color-brand) 20%, transparent);
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__segment:has(input:focus-visible) {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: -2px;
+  }
+
+  .stp-diagram__segment--custom {
+    cursor: default;
+    font-style: italic;
+  }
+
+  .stp-diagram__customize {
+    position: relative;
+  }
+
+  .stp-diagram__customize .stp-diagram__chip-button {
+    height: 32px;
+    border-radius: var(--stp-radius-medium);
+  }
+
+  .stp-diagram__customize .stp-diagram__chip-button[aria-expanded='true'] {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+  }
+
+  .stp-diagram__popover {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 280px;
+    margin: 0;
+    padding: 10px 8px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: var(--stp-surface-input);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    font-family: Montserrat, Inter, sans-serif;
+  }
+
+  .stp-diagram__popover-title {
+    margin: 0;
+    padding: 0 8px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__option {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 10px;
+    row-gap: 1px;
+    align-items: start;
+    padding: 6px 8px;
+    border-radius: var(--stp-radius-medium);
+    cursor: pointer;
+  }
+
+  .stp-diagram__option:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .stp-diagram__option input {
+    grid-row: span 2;
+    margin: 2px 0 0;
+    accent-color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__option-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__option-hint {
+    font-size: 11.5px;
+    color: var(--stp-text-subtle);
+  }
+
+  /* A line about the current view where the usage hint otherwise is. */
+  .stp-diagram__view-note {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    max-width: min(560px, calc(100% - 80px));
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+    font-family: Montserrat, Inter, sans-serif;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--stp-text-subtle);
+    pointer-events: none;
+  }
+
+  .stp-diagram--panel-open .stp-diagram__view-note {
+    max-width: calc(100% - var(--stp-diagram-panel-width) - 84px);
+  }
+
+  .stp-diagram__view-note p {
+    margin: 0;
+  }
+
+  .stp-diagram__view-note code {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 11px;
+  }
+
+  .stp-diagram__legend-outline,
+  .stp-diagram__legend-arrow {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .stp-diagram__legend-outline {
+    width: 14px;
+    height: 9px;
+    border: 1.5px solid #5b9cff;
+    border-radius: 2px;
+  }
+
+  .stp-diagram__legend-arrow {
+    width: 16px;
+    height: 0;
+    border-top: 2.4px solid #5b9cff;
+  }
+
+  .stp-diagram__legend-arrow--internet {
+    border-top-color: #f0545a;
   }
 
   /* ── Side panel ──────────────────────────────────────────────────────────────────────────────
@@ -655,6 +839,48 @@
   .stp-diagram__panel-routes .stp-diagram__panel-link {
     overflow-wrap: normal;
     word-break: normal;
+  }
+
+  .stp-diagram__panel-groups {
+    gap: 10px;
+  }
+
+  .stp-diagram__panel-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .stp-diagram__panel-group-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-swatch {
+    flex-shrink: 0;
+    width: 12px;
+    height: 9px;
+    border-width: 2px;
+    border-radius: 2px;
+  }
+
+  .stp-diagram__panel-rule-heading {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel .stp-diagram__panel-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 16px;
+    font-size: 12.5px;
+    list-style: disc;
   }
 
   .stp-diagram__panel button:focus-visible,

@@ -178,3 +178,31 @@ describe('drawing statuses', () => {
     expect(geometry(website)).not.toEqual(geometry(quiet));
   });
 });
+
+const pills = (markup: string) =>
+  [...markup.matchAll(/<g data-iso-kind="node-status".*?<\/g>/gs)].map((match) => match[0]).sort();
+const viewBox = (markup: string) => markup.match(/viewBox="([^"]+)"/)?.[1];
+
+describe('statuses and views', () => {
+  test('every view shows the same statuses in the same place, in the same frame', () => {
+    const fixture = getFixtureById({ id: 'full-stack' });
+    const config = parseFixtureConfig({ fixture });
+    const statuses: DiagramStatuses = { webApp: [incident], mainDb: [risk], apiHandler: [error('TimeoutError')] };
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      if (!String(args[0] ?? '').includes('useLayoutEffect')) originalError(...args);
+    };
+    const markups = (['application', 'network', 'security'] as const).map((view) =>
+      renderToStaticMarkup(
+        <IsometricDiagram config={config} statuses={statuses} view={view} animateConnectors={false} />
+      )
+    );
+    console.error = originalError;
+    expect(pills(markups[0])).toHaveLength(3);
+    for (const markup of markups) {
+      expect(pills(markup)).toEqual(pills(markups[0]));
+      expect(viewBox(markup)).toBe(viewBox(markups[0]));
+      expect(countMatches(markup, /data-iso-kind="status-ring"/g)).toBe(3);
+    }
+  });
+});
