@@ -1,0 +1,1728 @@
+{
+  "description": "An HTTP API that reaches containers through a VPC link, next to a blue/green web service behind an application load balancer and one behind a network load balancer.",
+  "config": "resources:\n  api:\n    type: http-api-gateway\n  app:\n    type: multi-container-workload\n    properties:\n      containers:\n        - name: server\n          packaging:\n            type: prebuilt-image\n            properties:\n              image: example.invalid/app:v1\n          events:\n            - type: http-api-gateway\n              properties:\n                httpApiGatewayName: api\n                containerPort: 8080\n                method: '*'\n                path: /{proxy+}\n      resources:\n        cpu: 0.25\n        memory: 512\n  albWeb:\n    type: web-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      deployment:\n        strategy: Canary10Percent5Minutes\n  tcpWeb:\n    type: web-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: network-load-balancer\n        properties:\n          ports:\n            - port: 5000\n              protocol: TCP\n",
+  "stacktapeResources": [
+    {
+      "name": "app",
+      "type": "multi-container-workload",
+      "logicalIds": [
+        "AppApiToPort8080Integration",
+        "AppCluster",
+        "AppPort8080DiscoveryService",
+        "AppRole",
+        "AppScalableTarget",
+        "AppSecurityGroup",
+        "AppServerLogGroup",
+        "AppService",
+        "AppTaskDefinition",
+        "StpApiAnyProxyRoute"
+      ]
+    },
+    {
+      "name": "api",
+      "type": "http-api-gateway",
+      "logicalIds": [
+        "ApiApi",
+        "ApiApiMapping",
+        "ApiDefaultDomainCustomResource",
+        "ApiDomainName",
+        "ApiLogGroup",
+        "ApiStage",
+        "ApiVpcLink",
+        "ApiVpcLinkSecurityGroup"
+      ]
+    },
+    {
+      "name": "albWeb",
+      "type": "web-service",
+      "logicalIds": [
+        "AlbWebAlbWebToPort3000BgTargetGroup",
+        "AlbWebAlbWebToPort3000TargetGroup",
+        "AlbWebBlueGreenService",
+        "AlbWebCluster",
+        "AlbWebDefaultDomainCustomResource",
+        "AlbWebDeploymentGroup",
+        "AlbWebDeregisterTargetsCustomResource",
+        "AlbWebLbSecurityGroup",
+        "AlbWebLoadBalancer",
+        "AlbWebPort443Listener",
+        "AlbWebPort443Priority3ListenerRule",
+        "AlbWebPort80Listener",
+        "AlbWebRole",
+        "AlbWebScalableTarget",
+        "AlbWebSecurityGroup",
+        "AlbWebServiceContainerLogGroup",
+        "AlbWebTaskDefinition"
+      ]
+    },
+    {
+      "name": "tcpWeb",
+      "type": "web-service",
+      "logicalIds": [
+        "TcpWebCluster",
+        "TcpWebDefaultDomainCustomResource",
+        "TcpWebDeregisterTargetsCustomResource",
+        "TcpWebLbSecurityGroup",
+        "TcpWebLoadBalancer",
+        "TcpWebPort5000Listener",
+        "TcpWebRole",
+        "TcpWebScalableTarget",
+        "TcpWebSecurityGroup",
+        "TcpWebService",
+        "TcpWebServiceContainerLogGroup",
+        "TcpWebTaskDefinition",
+        "TcpWebTcpWebToPort5000TargetGroup"
+      ]
+    }
+  ],
+  "resources": {
+    "StpEcsExecutionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpEcsAutoScaleRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AppScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "AppCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "AppService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "AppCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-app-cluster"
+      }
+    },
+    "AppSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with app in stack security-fixture",
+        "GroupName": "security-fixture-app-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from http api gateway api to 8080",
+            "FromPort": 8080,
+            "ToPort": 8080,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "ApiVpcLinkSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "AppService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {
+          "Ref": "AppCluster"
+        },
+        "DeploymentConfiguration": {
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100
+        },
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "LaunchType": "FARGATE",
+        "LoadBalancers": [],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": [
+              {
+                "Ref": "StpPublicSubnet0"
+              },
+              {
+                "Ref": "StpPublicSubnet1"
+              },
+              {
+                "Ref": "StpPublicSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "AppSecurityGroup"
+              }
+            ]
+          }
+        },
+        "TaskDefinition": {
+          "Ref": "AppTaskDefinition"
+        },
+        "PlatformVersion": "LATEST",
+        "ServiceRegistries": [
+          {
+            "RegistryArn": {
+              "Fn::GetAtt": [
+                "AppPort8080DiscoveryService",
+                "Arn"
+              ]
+            },
+            "ContainerPort": 8080,
+            "ContainerName": "server"
+          }
+        ],
+        "EnableExecuteCommand": false
+      }
+    },
+    "AppServerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/app/server/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "StpApiAnyProxyRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ApiApi"
+        },
+        "RouteKey": "ANY /{proxy+}",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "AppApiToPort8080Integration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "AppApiToPort8080Integration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ApiApi"
+        },
+        "IntegrationType": "HTTP_PROXY",
+        "IntegrationUri": {
+          "Fn::GetAtt": [
+            "AppPort8080DiscoveryService",
+            "Arn"
+          ]
+        },
+        "ConnectionId": {
+          "Ref": "ApiVpcLink"
+        },
+        "ConnectionType": "VPC_LINK",
+        "IntegrationMethod": "ANY",
+        "PayloadFormatVersion": "1.0"
+      }
+    },
+    "AppPort8080DiscoveryService": {
+      "Type": "AWS::ServiceDiscovery::Service",
+      "Properties": {
+        "DnsConfig": {
+          "RoutingPolicy": "MULTIVALUE",
+          "DnsRecords": [
+            {
+              "TTL": 60,
+              "Type": "SRV"
+            }
+          ]
+        },
+        "HealthCheckCustomConfig": {
+          "FailureThreshold": 1
+        },
+        "NamespaceId": {
+          "Ref": "StpDiscoveryService"
+        }
+      }
+    },
+    "AppRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AppTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-app-task-definition",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "Cpu": "256",
+        "Memory": "512",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "AppRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "server",
+            "Image": "example.invalid/app:v1",
+            "PortMappings": [
+              {
+                "ContainerPort": 8080,
+                "Protocol": "tcp",
+                "HostPort": 8080,
+                "Name": "port-8080"
+              }
+            ],
+            "Essential": true,
+            "Environment": [],
+            "StopTimeout": 30,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-group": {
+                  "Ref": "AppServerLogGroup"
+                },
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "DependsOn": []
+          },
+          {
+            "Name": "stp-cloudmap-drain",
+            "Image": "123456789999.dkr.ecr.eu-west-1.amazonaws.com/7e618203-stp-multi-container-workload-repo@sha256:66a6306db78bf2dbf3487f293aa8d6990d8e506fdffab9cc43fe422becf886e4",
+            "Essential": false,
+            "Memory": 16,
+            "User": "65534",
+            "ReadonlyRootFilesystem": true,
+            "EntryPoint": [
+              "/bin/sh",
+              "-c"
+            ],
+            "Command": [
+              "trap 'sleep 35; exit 0' TERM; while :; do sleep 1; done"
+            ],
+            "StopTimeout": 40,
+            "DependsOn": [
+              {
+                "ContainerName": "server",
+                "Condition": "START"
+              }
+            ]
+          }
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        }
+      }
+    },
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StpInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[{\"attributionCfResourceLogicalName\":\"StpDiscoveryService\",\"namespaceId\":\"${sub0}\"}],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub1}\",\"attributionCfResourceLogicalName\":\"AlbWebLoadBalancer\"}]}",
+                {
+                  "sub0": {
+                    "Fn::GetAtt": [
+                      "StpDiscoveryService",
+                      "Id"
+                    ]
+                  },
+                  "sub1": {
+                    "Ref": "AlbWebLbSecurityGroup"
+                  }
+                }
+              ]
+            },
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": []
+      }
+    },
+    "StpDefaultDomainCertCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomainCert": {
+          "certDomainSuffix": ".stacktape-app.com",
+          "version": 2
+        }
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "ApiApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Properties": {
+        "Name": "security-fixture-http-api",
+        "ProtocolType": "HTTP",
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      }
+    },
+    "ApiStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ApiApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "AccessLogSettings": {
+          "DestinationArn": {
+            "Fn::GetAtt": [
+              "ApiLogGroup",
+              "Arn"
+            ]
+          },
+          "Format": "{\"requestId\":\"$context.requestId\",\"ip\":\"$context.identity.sourceIp\",\"requestTime\":\"$context.requestTime\",\"httpMethod\":\"$context.httpMethod\",\"routeKey\":\"$context.routeKey\",\"status\":\"$context.status\",\"protocol\":\"$context.protocol\",\"responseLength\":\"$context.responseLength\"}"
+        },
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      }
+    },
+    "ApiLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/vendedlogs/security-fixture/api-gateway/api/access-logs",
+        "RetentionInDays": 30
+      }
+    },
+    "ApiVpcLinkSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-api-vpc-link-sg",
+        "GroupDescription": "Security group generated for http api vpc link api in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "CidrIp": "0.0.0.0/0",
+            "FromPort": 8080,
+            "ToPort": 8080
+          }
+        ]
+      }
+    },
+    "ApiVpcLink": {
+      "Type": "AWS::ApiGatewayV2::VpcLink",
+      "Properties": {
+        "Name": "security-fixture-api-vpc-link",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "SecurityGroupIds": [
+          {
+            "Ref": "ApiVpcLinkSecurityGroup"
+          }
+        ],
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      }
+    },
+    "ApiDomainName": {
+      "Type": "AWS::ApiGatewayV2::DomainName",
+      "Properties": {
+        "DomainName": "api-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+        "DomainNameConfigurations": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            },
+            "EndpointType": "REGIONAL"
+          }
+        ]
+      }
+    },
+    "ApiApiMapping": {
+      "Type": "AWS::ApiGatewayV2::ApiMapping",
+      "Properties": {
+        "DomainName": {
+          "Ref": "ApiDomainName"
+        },
+        "ApiId": {
+          "Ref": "ApiApi"
+        },
+        "Stage": {
+          "Ref": "ApiStage"
+        }
+      }
+    },
+    "ApiDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "api-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "ApiDomainName",
+                "RegionalDomainName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "ApiDomainName",
+                "RegionalHostedZoneId"
+              ]
+            }
+          },
+          "version": 2
+        }
+      }
+    },
+    "StpDiscoveryService": {
+      "Type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+      "Properties": {
+        "Name": "security-fixture-private-namespace",
+        "Vpc": {
+          "Ref": "StpVpc"
+        },
+        "Tags": [
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      }
+    },
+    "StpCodeDeployRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AlbWebScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "AlbWebCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "AlbWebBlueGreenService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "StpEcsCodeDeployApplication": {
+      "Type": "AWS::CodeDeploy::Application",
+      "Properties": {
+        "ApplicationName": "security-fixture-ecs-code-deploy",
+        "ComputePlatform": "ECS"
+      }
+    },
+    "AlbWebDeploymentGroup": {
+      "Type": "AWS::CodeDeploy::DeploymentGroup",
+      "Properties": {
+        "ApplicationName": {
+          "Ref": "StpEcsCodeDeployApplication"
+        },
+        "AutoRollbackConfiguration": {
+          "Enabled": false,
+          "Events": [
+            "DEPLOYMENT_FAILURE",
+            "DEPLOYMENT_STOP_ON_ALARM",
+            "DEPLOYMENT_STOP_ON_REQUEST"
+          ]
+        },
+        "BlueGreenDeploymentConfiguration": {
+          "DeploymentReadyOption": {
+            "ActionOnTimeout": "CONTINUE_DEPLOYMENT",
+            "WaitTimeInMinutes": 0
+          },
+          "TerminateBlueInstancesOnDeploymentSuccess": {
+            "Action": "TERMINATE",
+            "TerminationWaitTimeInMinutes": 0
+          }
+        },
+        "LoadBalancerInfo": {
+          "TargetGroupPairInfoList": [
+            {
+              "TargetGroups": [
+                {
+                  "Name": {
+                    "Fn::GetAtt": [
+                      "AlbWebAlbWebToPort3000TargetGroup",
+                      "TargetGroupName"
+                    ]
+                  }
+                },
+                {
+                  "Name": {
+                    "Fn::GetAtt": [
+                      "AlbWebAlbWebToPort3000BgTargetGroup",
+                      "TargetGroupName"
+                    ]
+                  }
+                }
+              ],
+              "ProdTrafficRoute": {
+                "ListenerArns": [
+                  {
+                    "Ref": "AlbWebPort443Listener"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "DeploymentGroupName": "security-fixture-albWeb",
+        "DeploymentStyle": {
+          "DeploymentType": "BLUE_GREEN",
+          "DeploymentOption": "WITH_TRAFFIC_CONTROL"
+        },
+        "DeploymentConfigName": "CodeDeployDefault.ECSCanary10Percent5Minutes",
+        "ECSServices": [
+          {
+            "ClusterName": "security-fixture-albWeb-cluster",
+            "ServiceName": "security-fixture-albWeb-bg-service"
+          }
+        ],
+        "ServiceRoleArn": {
+          "Fn::GetAtt": [
+            "StpCodeDeployRole",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "AlbWebBlueGreenService"
+      ]
+    },
+    "AlbWebCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-albWeb-cluster"
+      }
+    },
+    "AlbWebSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with albWeb in stack security-fixture",
+        "GroupName": "security-fixture-albWeb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from load balancer albWeb to 3000",
+            "FromPort": 3000,
+            "ToPort": 3000,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "AlbWebLbSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "AlbWebBlueGreenService": {
+      "Type": "Stacktape::ECSBlueGreenV1::Service",
+      "Properties": {
+        "ECSService": {
+          "Cluster": {
+            "Ref": "AlbWebCluster"
+          },
+          "DeploymentConfiguration": {
+            "MaximumPercent": 200,
+            "MinimumHealthyPercent": 100
+          },
+          "EnableECSManagedTags": true,
+          "PropagateTags": "SERVICE",
+          "LaunchType": "FARGATE",
+          "LoadBalancers": [
+            {
+              "ContainerPort": 3000,
+              "ContainerName": "service-container",
+              "TargetGroupArn": {
+                "Ref": "AlbWebAlbWebToPort3000TargetGroup"
+              }
+            }
+          ],
+          "NetworkConfiguration": {
+            "AwsvpcConfiguration": {
+              "AssignPublicIp": "ENABLED",
+              "Subnets": [
+                {
+                  "Ref": "StpPublicSubnet0"
+                },
+                {
+                  "Ref": "StpPublicSubnet1"
+                },
+                {
+                  "Ref": "StpPublicSubnet2"
+                }
+              ],
+              "SecurityGroups": [
+                {
+                  "Ref": "AlbWebSecurityGroup"
+                }
+              ]
+            }
+          },
+          "TaskDefinition": {
+            "Ref": "AlbWebTaskDefinition"
+          },
+          "PlatformVersion": "LATEST",
+          "EnableExecuteCommand": false,
+          "DeploymentController": {
+            "Type": "CODE_DEPLOY"
+          },
+          "ServiceName": "security-fixture-albWeb-bg-service",
+          "DesiredCount": 1
+        },
+        "StackName": "security-fixture",
+        "CodeDeployApplicationName": {
+          "Ref": "StpEcsCodeDeployApplication"
+        },
+        "CodeDeployDeploymentGroupName": "security-fixture-albWeb"
+      },
+      "DependsOn": [
+        "AlbWebPort443Listener",
+        "AlbWebPort443Priority3ListenerRule"
+      ]
+    },
+    "AlbWebDeregisterTargetsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "deregisterTargets": {
+          "targetGroupArns": [
+            {
+              "Ref": "AlbWebAlbWebToPort3000TargetGroup"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "AlbWebBlueGreenService"
+      ]
+    },
+    "AlbWebServiceContainerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/albWeb/service-container/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "AlbWebPort443Priority3ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "AlbWebAlbWebToPort3000TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "*"
+              ]
+            }
+          }
+        ],
+        "Priority": 3,
+        "ListenerArn": {
+          "Ref": "AlbWebPort443Listener"
+        }
+      },
+      "DependsOn": [
+        "AlbWebAlbWebToPort3000BgTargetGroup"
+      ]
+    },
+    "AlbWebAlbWebToPort3000TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 3000,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "5"
+          }
+        ]
+      }
+    },
+    "AlbWebAlbWebToPort3000BgTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 3000,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "5"
+          }
+        ]
+      }
+    },
+    "AlbWebRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AlbWebTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-albWeb-task-definition",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "Cpu": "256",
+        "Memory": "512",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "AlbWebRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "service-container",
+            "Image": "example.invalid/app:v1",
+            "PortMappings": [
+              {
+                "ContainerPort": 3000,
+                "Protocol": "tcp",
+                "HostPort": 3000,
+                "Name": "port-3000"
+              }
+            ],
+            "Essential": true,
+            "Environment": [
+              {
+                "Name": "PORT",
+                "Value": "3000"
+              },
+              {
+                "Name": "HOST",
+                "Value": "0.0.0.0"
+              },
+              {
+                "Name": "DEPLOYMENT_TEST_PORT",
+                "Value": "8080"
+              }
+            ],
+            "StopTimeout": 2,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-group": {
+                  "Ref": "AlbWebServiceContainerLogGroup"
+                },
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "DependsOn": []
+          }
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        }
+      }
+    },
+    "AlbWebLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "IpAddressType": "ipv4",
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "AlbWebLbSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "Type": "application"
+      }
+    },
+    "AlbWebLbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Stacktape generated security group for redis cluster albWeb in stack security-fixture",
+        "GroupName": "security-fixture-albWeb-lb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          },
+          {
+            "FromPort": 443,
+            "ToPort": 443,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "AlbWebPort80Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "Type": "redirect",
+            "Order": 1,
+            "RedirectConfig": {
+              "Port": "443",
+              "Protocol": "HTTPS",
+              "StatusCode": "HTTP_301"
+            }
+          }
+        ],
+        "Port": 80,
+        "Protocol": "HTTP",
+        "LoadBalancerArn": {
+          "Ref": "AlbWebLoadBalancer"
+        }
+      }
+    },
+    "AlbWebPort443Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            }
+          }
+        ],
+        "DefaultActions": [
+          {
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            },
+            "Type": "fixed-response",
+            "Order": 1
+          }
+        ],
+        "Port": 443,
+        "Protocol": "HTTPS",
+        "LoadBalancerArn": {
+          "Ref": "AlbWebLoadBalancer"
+        },
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      }
+    },
+    "AlbWebDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "albweb-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "AlbWebLoadBalancer",
+                "DNSName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "AlbWebLoadBalancer",
+                "CanonicalHostedZoneID"
+              ]
+            }
+          },
+          "version": 2
+        }
+      }
+    },
+    "TcpWebScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "TcpWebCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "TcpWebService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "TcpWebCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-tcpWeb-cluster"
+      }
+    },
+    "TcpWebSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with tcpWeb in stack security-fixture",
+        "GroupName": "security-fixture-tcpWeb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from load balancer tcpWeb to 5000",
+            "FromPort": 5000,
+            "ToPort": 5000,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "TcpWebLbSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "TcpWebService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {
+          "Ref": "TcpWebCluster"
+        },
+        "DeploymentConfiguration": {
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100
+        },
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "LaunchType": "FARGATE",
+        "LoadBalancers": [
+          {
+            "ContainerPort": 5000,
+            "ContainerName": "service-container",
+            "TargetGroupArn": {
+              "Ref": "TcpWebTcpWebToPort5000TargetGroup"
+            }
+          }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": [
+              {
+                "Ref": "StpPublicSubnet0"
+              },
+              {
+                "Ref": "StpPublicSubnet1"
+              },
+              {
+                "Ref": "StpPublicSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "TcpWebSecurityGroup"
+              }
+            ]
+          }
+        },
+        "TaskDefinition": {
+          "Ref": "TcpWebTaskDefinition"
+        },
+        "PlatformVersion": "LATEST",
+        "EnableExecuteCommand": false
+      },
+      "DependsOn": [
+        "TcpWebPort5000Listener"
+      ]
+    },
+    "TcpWebDeregisterTargetsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "deregisterTargets": {
+          "targetGroupArns": [
+            {
+              "Ref": "TcpWebTcpWebToPort5000TargetGroup"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "TcpWebService"
+      ]
+    },
+    "TcpWebServiceContainerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/tcpWeb/service-container/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "TcpWebTcpWebToPort5000TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "TCP",
+        "Port": 5000,
+        "Protocol": "TCP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "30"
+          }
+        ]
+      }
+    },
+    "TcpWebRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "TcpWebTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-tcpWeb-task-definition",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "Cpu": "256",
+        "Memory": "512",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "TcpWebRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "service-container",
+            "Image": "example.invalid/app:v1",
+            "PortMappings": [
+              {
+                "ContainerPort": 5000,
+                "Protocol": "tcp",
+                "HostPort": 5000,
+                "Name": "port-5000"
+              }
+            ],
+            "Essential": true,
+            "Environment": [
+              {
+                "Name": "HOST",
+                "Value": "0.0.0.0"
+              }
+            ],
+            "StopTimeout": 30,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-group": {
+                  "Ref": "TcpWebServiceContainerLogGroup"
+                },
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "DependsOn": []
+          }
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        }
+      }
+    },
+    "TcpWebLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "IpAddressType": "ipv4",
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "TcpWebLbSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "Type": "network"
+      }
+    },
+    "TcpWebLbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Stacktape generated security group for network load balancer tcpWeb in stack security-fixture",
+        "GroupName": "security-fixture-tcpWeb-lb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 5000,
+            "ToPort": 5000,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "TcpWebPort5000Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Port": 5000,
+        "Protocol": "TCP",
+        "LoadBalancerArn": {
+          "Ref": "TcpWebLoadBalancer"
+        },
+        "DefaultActions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "TcpWebTcpWebToPort5000TargetGroup"
+            }
+          }
+        ]
+      }
+    },
+    "TcpWebDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "tcpweb-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "TcpWebLoadBalancer",
+                "DNSName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "TcpWebLoadBalancer",
+                "CanonicalHostedZoneID"
+              ]
+            }
+          },
+          "version": 2
+        }
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}
