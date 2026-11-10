@@ -47,6 +47,38 @@ itself, with no icon packs or images.
 - Add edges only from actual directives or supported reference-bearing fields.
 - Implicit node IDs contain `--`; keep IDs deterministic so layout and view state stay stable.
 
+## Security-group model
+
+`security-groups.ts` derives a deployed stage's security groups from its CloudFormation template, not from the config:
+accessibility modes, shared function groups, the shared network's stage group and group handovers are all decided by
+synthesis. It is not wired into the renderer yet; the Security view will consume it.
+
+- **Input.** The template's `Resources` as parsed JSON or YAML (untrusted), and each Stacktape resource with the logical
+  IDs it owns (in Console, `getUserResourcesFromStackInfoMap` and the keys of `cloudformationChildResources`).
+- **Groups.** Template groups keep their owning resource, which stack-wide groups (shared function groups, batch
+  instances, NAT instances, the stage group, Kafka endpoints) do not have. A group referred to by a literal ID, an
+  import, a parameter or an unreadable expression becomes an `external:` group with no known rules.
+- **Members.** Read from where groups are attached: functions, ECS services (blue/green included), launch templates and
+  instances, network interfaces, RDS, ElastiCache, OpenSearch, MSK, load balancers, VPC links and endpoints, EFS mount
+  targets, Batch compute environments and AgentCore runtimes. A batch job joins its compute environment's groups through
+  its state machine and job queue. Instances that attach an interface without a source/destination check are NAT
+  instances.
+- **Rules.** Inline and standalone ingress/egress, plus the allow-all egress EC2 adds to a group that declares none.
+  Peers are a group, the internet (`0.0.0.0/0`, `::/0`), the CIDR of a VPC the template creates, another CIDR, a prefix
+  list, or an unresolved expression. In the shared network the stage group stands in for the VPC CIDR.
+- **Robustness.** It never throws. `Fn::If` keeps both branches and records the condition (`Name` or `!Name`), as does a
+  resource's `Condition`; `AWS::NoValue` drops out; unreadable ports or protocols are `unknown`.
+
+Known gaps: a reused VPC's CIDR is not in the template, so rules that admit it show as a plain CIDR. Custom resources
+that only pass group IDs along (the tagging schedule, an ECS release-command task that runs as its workload) are not
+members. MongoDB Atlas access lists are not modelled. A group whose declared egress exists only in some `Fn::If`
+branches gets no default egress.
+
+The tests read real templates from `generated/security-group-templates/`, which
+`apps/cli/tests/synthesis-families/security-group-fixtures.ts` synthesizes offline (`bun` that file to refresh them; the
+generator lives in the CLI because a package must not import it). Its spec fails when a resolver change makes them
+stale; regenerate, review the template diff and update `security-groups.test.ts`.
+
 ## Layout rules
 
 The engine lays out the base plane in tile space and the renderer projects it; it is synchronous and deterministic. ELK

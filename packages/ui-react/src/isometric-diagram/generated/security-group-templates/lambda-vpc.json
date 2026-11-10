@@ -1,0 +1,1135 @@
+{
+  "description": "VPC functions that share groups by connection, an OpenSearch domain reachable from the VPC and Redis scoped to one function.",
+  "config": "resources:\n  search:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [searchDomain, cache]\n  indexer:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [searchDomain, cache]\n  plain:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n  searchDomain:\n    type: open-search-domain\n    properties:\n      clusterConfig:\n        instanceType: t3.small.search\n        instanceCount: 1\n      storage:\n        size: 10\n      accessibility:\n        accessibilityMode: vpc\n  cache:\n    type: redis\n    properties:\n      engine:\n        type: valkey\n        properties:\n          instanceSize: cache.t4g.micro\n      defaultUserPassword: synthetic-redis-password\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n",
+  "stacktapeResources": [
+    {
+      "name": "search",
+      "type": "function",
+      "logicalIds": [
+        "SearchFunction",
+        "SearchIssueDetectionSubscriptionFilter",
+        "SearchLogGroup",
+        "SearchRole"
+      ]
+    },
+    {
+      "name": "indexer",
+      "type": "function",
+      "logicalIds": [
+        "IndexerFunction",
+        "IndexerIssueDetectionSubscriptionFilter",
+        "IndexerLogGroup",
+        "IndexerRole"
+      ]
+    },
+    {
+      "name": "plain",
+      "type": "function",
+      "logicalIds": [
+        "PlainFunction",
+        "PlainIssueDetectionSubscriptionFilter",
+        "PlainLogGroup",
+        "PlainRole"
+      ]
+    },
+    {
+      "name": "searchDomain",
+      "type": "open-search-domain",
+      "logicalIds": [
+        "SearchDomainDomain",
+        "SearchDomainInstanceErrorLogsLogGroup",
+        "SearchDomainInstanceIndexSlowLogsLogGroup",
+        "SearchDomainInstanceSearchSlowLogsLogGroup",
+        "SearchDomainOpenSearchCustomResource",
+        "SearchDomainSecurityGroup"
+      ]
+    },
+    {
+      "name": "cache",
+      "type": "redis",
+      "logicalIds": [
+        "CacheLogGroup",
+        "CacheParameterGroup",
+        "CacheReplicationGroup",
+        "CacheSecurityGroup",
+        "CacheSubnetGroup"
+      ]
+    }
+  ],
+  "resources": {
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StpInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "SearchRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpcFunctions3d66a5abSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-vpc-functions-3d66a5ab-sg",
+        "GroupDescription": "VPC functions in stack security-fixture connecting to cache, searchDomain"
+      }
+    },
+    "SearchLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-search",
+        "RetentionInDays": 90
+      }
+    },
+    "StpIssueDetectionLogsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "logs.eu-west-1.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "SearchIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-search",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "SearchLogGroup"
+      ]
+    },
+    "SearchFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-search",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module",
+            "STP_SEARCH_DOMAIN_DOMAIN_ENDPOINT": {
+              "Fn::GetAtt": [
+                "SearchDomainDomain",
+                "DomainEndpoint"
+              ]
+            },
+            "STP_SEARCH_DOMAIN_ARN": {
+              "Fn::GetAtt": [
+                "SearchDomainDomain",
+                "Arn"
+              ]
+            },
+            "STP_CACHE_SHARDING": "disabled",
+            "STP_CACHE_HOST": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "PrimaryEndPoint.Address"
+              ]
+            },
+            "STP_CACHE_CONNECTION_STRING": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            },
+            "STP_CACHE_READER_HOST": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "ReaderEndPoint.Address"
+              ]
+            },
+            "STP_CACHE_READER_CONNECTION_STRING": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "ReaderEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            },
+            "STP_CACHE_PORT": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "PrimaryEndPoint.Port"
+              ]
+            },
+            "STP_CACHE_READER_PORT": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "ReaderEndPoint.Port"
+              ]
+            }
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "SearchRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctions3d66a5abSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            },
+            {
+              "Ref": "StpPublicSubnet2"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "SearchRole",
+        "SearchLogGroup"
+      ]
+    },
+    "IndexerRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "IndexerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-indexer",
+        "RetentionInDays": 90
+      }
+    },
+    "IndexerIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-indexer",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "IndexerLogGroup"
+      ]
+    },
+    "IndexerFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-indexer",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module",
+            "STP_SEARCH_DOMAIN_DOMAIN_ENDPOINT": {
+              "Fn::GetAtt": [
+                "SearchDomainDomain",
+                "DomainEndpoint"
+              ]
+            },
+            "STP_SEARCH_DOMAIN_ARN": {
+              "Fn::GetAtt": [
+                "SearchDomainDomain",
+                "Arn"
+              ]
+            },
+            "STP_CACHE_SHARDING": "disabled",
+            "STP_CACHE_HOST": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "PrimaryEndPoint.Address"
+              ]
+            },
+            "STP_CACHE_CONNECTION_STRING": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            },
+            "STP_CACHE_READER_HOST": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "ReaderEndPoint.Address"
+              ]
+            },
+            "STP_CACHE_READER_CONNECTION_STRING": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "ReaderEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            },
+            "STP_CACHE_PORT": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "PrimaryEndPoint.Port"
+              ]
+            },
+            "STP_CACHE_READER_PORT": {
+              "Fn::GetAtt": [
+                "CacheReplicationGroup",
+                "ReaderEndPoint.Port"
+              ]
+            }
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IndexerRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctions3d66a5abSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            },
+            {
+              "Ref": "StpPublicSubnet2"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "IndexerRole",
+        "IndexerLogGroup"
+      ]
+    },
+    "PlainRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpcFunctionsSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-vpc-functions-sg",
+        "GroupDescription": "VPC functions in stack security-fixture without security-group scoped connections"
+      }
+    },
+    "PlainLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-plain",
+        "RetentionInDays": 90
+      }
+    },
+    "PlainIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-plain",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "PlainLogGroup"
+      ]
+    },
+    "PlainFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-plain",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "PlainRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctionsSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            },
+            {
+              "Ref": "StpPublicSubnet2"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "PlainRole",
+        "PlainLogGroup"
+      ]
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": [
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/cache/connectionString",
+            "value": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/cache/readerConnectionString",
+            "value": {
+              "Fn::Join": [
+                "",
+                [
+                  "rediss://",
+                  "default",
+                  ":",
+                  "synthetic-redis-password",
+                  "@",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "ReaderEndPoint.Address"
+                    ]
+                  },
+                  ":",
+                  {
+                    "Fn::GetAtt": [
+                      "CacheReplicationGroup",
+                      "PrimaryEndPoint.Port"
+                    ]
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "SearchDomainDomain": {
+      "Type": "AWS::OpenSearchService::Domain",
+      "Properties": {
+        "DomainName": "security-fixture-sear-af1e36",
+        "ClusterConfig": {
+          "InstanceType": "t3.small.search",
+          "InstanceCount": 1
+        },
+        "VPCOptions": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "SearchDomainSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            }
+          ]
+        },
+        "EBSOptions": {
+          "EBSEnabled": true,
+          "VolumeSize": 10,
+          "VolumeType": "gp3"
+        },
+        "LogPublishingOptions": {
+          "ES_APPLICATION_LOGS": {
+            "Enabled": true,
+            "CloudWatchLogsLogGroupArn": {
+              "Fn::GetAtt": [
+                "SearchDomainInstanceErrorLogsLogGroup",
+                "Arn"
+              ]
+            }
+          }
+        }
+      },
+      "DependsOn": [
+        "SearchDomainOpenSearchCustomResource"
+      ]
+    },
+    "SearchDomainSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-searchDomain-sg",
+        "GroupDescription": "Stacktape generated security group for database searchDomain in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 443,
+            "ToPort": 443,
+            "IpProtocol": "tcp",
+            "CidrIp": "172.16.0.0/16"
+          }
+        ]
+      }
+    },
+    "SearchDomainInstanceErrorLogsLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/open-search/searchDomain/errorLogs",
+        "RetentionInDays": 30
+      }
+    },
+    "SearchDomainInstanceSearchSlowLogsLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/open-search/searchDomain/searchSlowLogs",
+        "RetentionInDays": 5
+      }
+    },
+    "SearchDomainInstanceIndexSlowLogsLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/open-search/searchDomain/indexSlowLogs",
+        "RetentionInDays": 5
+      }
+    },
+    "SearchDomainOpenSearchCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "openSearch": {
+          "name": "searchDomain",
+          "type": "open-search-domain",
+          "configParentResourceType": "open-search-domain",
+          "nameChain": [
+            "searchDomain"
+          ],
+          "clusterConfig": {
+            "instanceType": "t3.small.search",
+            "instanceCount": 1
+          },
+          "storage": {
+            "size": 10
+          },
+          "accessibility": {
+            "accessibilityMode": "vpc"
+          }
+        }
+      }
+    },
+    "CacheSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-cache-sg",
+        "GroupDescription": "Stacktape generated security group for redis cluster cache in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "SourceSecurityGroupId": {
+              "Ref": "StpVpcFunctions3d66a5abSecurityGroup"
+            },
+            "FromPort": 6379,
+            "ToPort": 6379,
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "CacheParameterGroup": {
+      "Type": "AWS::ElastiCache::ParameterGroup",
+      "Properties": {
+        "CacheParameterGroupFamily": "valkey9",
+        "Description": "Parameter group for cache replica group in security-fixture stack.",
+        "Properties": {
+          "cluster-enabled": "no"
+        }
+      }
+    },
+    "CacheSubnetGroup": {
+      "Type": "AWS::ElastiCache::SubnetGroup",
+      "Properties": {
+        "Description": "security-fixture-cache subnet group",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ]
+      }
+    },
+    "CacheLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/vendedlogs/security-fixture/redis/cache/slow-log",
+        "RetentionInDays": 30
+      }
+    },
+    "CacheReplicationGroup": {
+      "Type": "AWS::ElastiCache::ReplicationGroup",
+      "Properties": {
+        "Engine": "valkey",
+        "EngineVersion": "9.1",
+        "CacheParameterGroupName": {
+          "Ref": "CacheParameterGroup"
+        },
+        "CacheNodeType": "cache.t4g.micro",
+        "TransitEncryptionEnabled": true,
+        "AtRestEncryptionEnabled": true,
+        "AuthToken": "synthetic-redis-password",
+        "AutomaticFailoverEnabled": false,
+        "ReplicationGroupDescription": "security-fixture-cache",
+        "CacheSubnetGroupName": {
+          "Ref": "CacheSubnetGroup"
+        },
+        "Port": 6379,
+        "SecurityGroupIds": [
+          {
+            "Ref": "CacheSecurityGroup"
+          }
+        ],
+        "LogDeliveryConfigurations": [
+          {
+            "DestinationType": "cloudwatch-logs",
+            "DestinationDetails": {
+              "CloudWatchLogsDetails": {
+                "LogGroup": {
+                  "Ref": "CacheLogGroup"
+                }
+              }
+            },
+            "LogFormat": "json",
+            "LogType": "slow-log"
+          }
+        ],
+        "NumCacheClusters": 1,
+        "ReplicationGroupId": "security-fixture-cache"
+      },
+      "UpdatePolicy": {
+        "UseOnlineResharding": true
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

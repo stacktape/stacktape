@@ -1,0 +1,1556 @@
+{
+  "description": "A web service on EC2 instances behind a load balancer, and functions that connect to a Kafka cluster or consume its topic.",
+  "config": "resources:\n  ec2Web:\n    type: web-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        instanceTypes: [t3.micro]\n      loadBalancing:\n        type: application-load-balancer\n  events:\n    type: kafka-cluster\n  producer:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [events]\n  consumer:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      events:\n        - type: kafka-topic\n          properties:\n            kafkaClusterName: events\n            topicName: orders\n            startFrom: latest\n",
+  "stacktapeResources": [
+    {
+      "name": "producer",
+      "type": "function",
+      "logicalIds": [
+        "ProducerFunction",
+        "ProducerIssueDetectionSubscriptionFilter",
+        "ProducerLogGroup",
+        "ProducerRole"
+      ]
+    },
+    {
+      "name": "consumer",
+      "type": "function",
+      "logicalIds": [
+        "ConsumerFunction",
+        "ConsumerIssueDetectionSubscriptionFilter",
+        "ConsumerKafkab444eade68f2EventSourceMapping",
+        "ConsumerLogGroup",
+        "ConsumerRole"
+      ]
+    },
+    {
+      "name": "ec2Web",
+      "type": "web-service",
+      "logicalIds": [
+        "Ec2WebAutoScalingGroup",
+        "Ec2WebCapacityProvider",
+        "Ec2WebCluster",
+        "Ec2WebClusterCapacityProviderAssociations",
+        "Ec2WebDefaultDomainCustomResource",
+        "Ec2WebDeregisterTargetsCustomResource",
+        "Ec2WebDisableManagedTerminationProtectionCustomResource",
+        "Ec2WebEc2WebToPort3000TargetGroup",
+        "Ec2WebForceDeleteAsgCustomResource",
+        "Ec2WebLaunchTemplate",
+        "Ec2WebLbSecurityGroup",
+        "Ec2WebLoadBalancer",
+        "Ec2WebPort443Listener",
+        "Ec2WebPort443Priority3ListenerRule",
+        "Ec2WebPort80Listener",
+        "Ec2WebRole",
+        "Ec2WebScalableTarget",
+        "Ec2WebScheduledInstanceRefreshRule",
+        "Ec2WebSecurityGroup",
+        "Ec2WebService",
+        "Ec2WebServiceContainerLogGroup",
+        "Ec2WebTaskDefinition"
+      ]
+    },
+    {
+      "name": "events",
+      "type": "kafka-cluster",
+      "logicalIds": [
+        "EventsKafkaBootstrapBrokersCustomResource",
+        "EventsKafkaSecurityGroup",
+        "EventsKafkaSelfSecurityGroupIngress",
+        "EventsKafkaServerlessCluster"
+      ]
+    }
+  ],
+  "resources": {
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StpInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "StpKafkaOnDemandEndpointsSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupDescription": "PrivateLink endpoints used by Lambda on-demand Kafka event-source mappings",
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": "172.16.0.0/16",
+            "FromPort": 443,
+            "ToPort": 443,
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "StpKafkaOnDemandlambdaVpcEndpoint": {
+      "Type": "AWS::EC2::VPCEndpoint",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "VpcEndpointType": "Interface",
+        "ServiceName": "com.amazonaws.eu-west-1.lambda",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "SecurityGroupIds": [
+          {
+            "Ref": "StpKafkaOnDemandEndpointsSecurityGroup"
+          }
+        ],
+        "PrivateDnsEnabled": true
+      }
+    },
+    "StpKafkaOnDemandstsVpcEndpoint": {
+      "Type": "AWS::EC2::VPCEndpoint",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "VpcEndpointType": "Interface",
+        "ServiceName": "com.amazonaws.eu-west-1.sts",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "SecurityGroupIds": [
+          {
+            "Ref": "StpKafkaOnDemandEndpointsSecurityGroup"
+          }
+        ],
+        "PrivateDnsEnabled": true
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub0}\",\"attributionCfResourceLogicalName\":\"Ec2WebLoadBalancer\"}]}",
+                {
+                  "sub0": {
+                    "Ref": "Ec2WebLbSecurityGroup"
+                  }
+                }
+              ]
+            },
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "ProducerRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpcFunctions7fa183faSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-vpc-functions-7fa183fa-sg",
+        "GroupDescription": "VPC functions in stack security-fixture connecting to events"
+      }
+    },
+    "ProducerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-producer",
+        "RetentionInDays": 90
+      }
+    },
+    "StpIssueDetectionLogsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "logs.eu-west-1.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "ProducerIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-producer",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "ProducerLogGroup"
+      ]
+    },
+    "ProducerFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-producer",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module",
+            "STP_EVENTS_ARN": {
+              "Ref": "EventsKafkaServerlessCluster"
+            },
+            "STP_EVENTS_NAME": "security-fixture-events",
+            "STP_EVENTS_BOOTSTRAP_SERVERS": {
+              "Fn::GetAtt": [
+                "EventsKafkaBootstrapBrokersCustomResource",
+                "BootstrapServers"
+              ]
+            }
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "ProducerRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctions7fa183faSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            },
+            {
+              "Ref": "StpPublicSubnet2"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "ProducerRole",
+        "ProducerLogGroup"
+      ]
+    },
+    "ConsumerKafkab444eade68f2EventSourceMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "Enabled": true,
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "ConsumerFunction",
+            "Arn"
+          ]
+        },
+        "EventSourceArn": {
+          "Ref": "EventsKafkaServerlessCluster"
+        },
+        "StartingPosition": "LATEST",
+        "Topics": [
+          "orders"
+        ]
+      },
+      "DependsOn": [
+        "StpKafkaOnDemandlambdaVpcEndpoint",
+        "StpKafkaOnDemandstsVpcEndpoint"
+      ]
+    },
+    "ConsumerRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpcFunctionsSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-vpc-functions-sg",
+        "GroupDescription": "VPC functions in stack security-fixture without security-group scoped connections"
+      }
+    },
+    "ConsumerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-consumer",
+        "RetentionInDays": 90
+      }
+    },
+    "ConsumerIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-consumer",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "ConsumerLogGroup"
+      ]
+    },
+    "ConsumerFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-consumer",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "ConsumerRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctionsSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            },
+            {
+              "Ref": "StpPublicSubnet2"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "ConsumerRole",
+        "ConsumerLogGroup"
+      ]
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": []
+      }
+    },
+    "StpDefaultDomainCertCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomainCert": {
+          "certDomainSuffix": ".stacktape-app.com",
+          "version": 2
+        }
+      }
+    },
+    "StpEcsExecutionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpEcsAutoScaleRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "Ec2WebScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "Ec2WebCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "Ec2WebService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "StpEcsInstanceRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpScheduledInstanceRefreshRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpEcsInstanceInstanceProfileServiceLambdaPolicy": {
+      "Type": "AWS::IAM::Policy"
+    },
+    "StpEcsInstanceInstanceProfile": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "instanceProfile": {
+          "instanceProfileName": "security-fixture-ecs-instance-eu-west-1",
+          "roleName": {
+            "Ref": "StpEcsInstanceRole"
+          },
+          "probeImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}",
+          "probeSubnetId": {
+            "Ref": "StpPublicSubnet0"
+          }
+        }
+      },
+      "DependsOn": [
+        "StpEcsInstanceInstanceProfileServiceLambdaPolicy"
+      ]
+    },
+    "Ec2WebLaunchTemplate": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateData": {
+          "ImageId": "{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id}}",
+          "IamInstanceProfile": {
+            "Arn": {
+              "Fn::GetAtt": [
+                "StpEcsInstanceInstanceProfile",
+                "Arn"
+              ]
+            }
+          },
+          "UserData": {
+            "Fn::Base64": {
+              "Fn::Sub": [
+                "#!/bin/bash\necho ECS_CLUSTER=${clusterName} >> /etc/ecs/ecs.config;\necho ECS_WARM_POOLS_CHECK=true >> /etc/ecs/ecs.config;\necho ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config;",
+                {
+                  "clusterName": {
+                    "Ref": "Ec2WebCluster"
+                  }
+                }
+              ]
+            }
+          },
+          "InstanceType": "t3.micro",
+          "SecurityGroupIds": [
+            {
+              "Ref": "Ec2WebSecurityGroup"
+            }
+          ],
+          "TagSpecifications": [
+            {
+              "ResourceType": "instance",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-ec2Web-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "volume",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-ec2Web-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "network-interface",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-ec2Web-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "Ec2WebAutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "MinSize": "0",
+        "MaxSize": "4",
+        "LaunchTemplate": {
+          "LaunchTemplateId": {
+            "Ref": "Ec2WebLaunchTemplate"
+          },
+          "Version": {
+            "Fn::GetAtt": [
+              "Ec2WebLaunchTemplate",
+              "LatestVersionNumber"
+            ]
+          }
+        },
+        "AutoScalingGroupName": "security-fixture-ec2Web-asg",
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "NewInstancesProtectedFromScaleIn": true,
+        "InstanceMaintenancePolicy": {
+          "MaxHealthyPercentage": 200,
+          "MinHealthyPercentage": 100
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment",
+        "Ec2WebCluster"
+      ]
+    },
+    "Ec2WebForceDeleteAsgCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "forceDeleteAsg": {
+          "asgName": {
+            "Ref": "Ec2WebAutoScalingGroup"
+          }
+        }
+      },
+      "DependsOn": [
+        "Ec2WebCluster",
+        "Ec2WebCapacityProvider"
+      ]
+    },
+    "Ec2WebDisableManagedTerminationProtectionCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "disableEcsManagedTerminationProtection": {
+          "capacityProviderName": {
+            "Ref": "Ec2WebCapacityProvider"
+          }
+        }
+      },
+      "DependsOn": [
+        "Ec2WebCapacityProvider",
+        "Ec2WebForceDeleteAsgCustomResource"
+      ]
+    },
+    "Ec2WebCapacityProvider": {
+      "Type": "AWS::ECS::CapacityProvider",
+      "Properties": {
+        "AutoScalingGroupProvider": {
+          "AutoScalingGroupArn": {
+            "Ref": "Ec2WebAutoScalingGroup"
+          },
+          "ManagedScaling": {
+            "Status": "ENABLED",
+            "TargetCapacity": 100,
+            "MaximumScalingStepSize": 1
+          },
+          "ManagedDraining": "ENABLED",
+          "ManagedTerminationProtection": "ENABLED"
+        },
+        "Tags": [
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "Ec2WebAutoScalingGroup"
+      ]
+    },
+    "Ec2WebClusterCapacityProviderAssociations": {
+      "Type": "AWS::ECS::ClusterCapacityProviderAssociations",
+      "Properties": {
+        "Cluster": {
+          "Ref": "Ec2WebCluster"
+        },
+        "DefaultCapacityProviderStrategy": [],
+        "CapacityProviders": [
+          {
+            "Ref": "Ec2WebCapacityProvider"
+          }
+        ]
+      },
+      "DependsOn": [
+        "Ec2WebCluster"
+      ]
+    },
+    "Ec2WebScheduledInstanceRefreshRule": {
+      "Type": "AWS::Scheduler::Schedule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "cron(0 0 ? * SUN *)",
+        "FlexibleTimeWindow": {
+          "Mode": "OFF"
+        },
+        "Target": {
+          "Arn": "arn:aws:scheduler:::aws-sdk:autoscaling:startInstanceRefresh",
+          "RoleArn": {
+            "Fn::GetAtt": [
+              "StpScheduledInstanceRefreshRole",
+              "Arn"
+            ]
+          },
+          "Input": {
+            "Fn::Sub": [
+              "{\"AutoScalingGroupName\":\"${sub0}\",\"Preferences\":{\"MinHealthyPercentage\":100,\"MaxHealthyPercentage\":200,\"ScaleInProtectedInstances\":\"Refresh\",\"SkipMatching\":false}}",
+              {
+                "sub0": {
+                  "Ref": "Ec2WebAutoScalingGroup"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "Ec2WebCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-ec2Web-cluster"
+      }
+    },
+    "Ec2WebSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with ec2Web in stack security-fixture",
+        "GroupName": "security-fixture-ec2Web-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from load balancer ec2Web to 3000",
+            "FromPort": 32768,
+            "ToPort": 65535,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "Ec2WebLbSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "Ec2WebService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {
+          "Ref": "Ec2WebCluster"
+        },
+        "DeploymentConfiguration": {
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100
+        },
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "CapacityProviderStrategy": [
+          {
+            "Weight": 1,
+            "CapacityProvider": {
+              "Ref": "Ec2WebCapacityProvider"
+            }
+          }
+        ],
+        "LoadBalancers": [
+          {
+            "ContainerPort": 3000,
+            "ContainerName": "service-container",
+            "TargetGroupArn": {
+              "Ref": "Ec2WebEc2WebToPort3000TargetGroup"
+            }
+          }
+        ],
+        "TaskDefinition": {
+          "Ref": "Ec2WebTaskDefinition"
+        },
+        "PlacementStrategies": [
+          {
+            "Type": "binpack",
+            "Field": "memory"
+          }
+        ],
+        "EnableExecuteCommand": false
+      },
+      "DependsOn": [
+        "Ec2WebDisableManagedTerminationProtectionCustomResource",
+        "Ec2WebClusterCapacityProviderAssociations",
+        "StpInternetGatewayRoute0",
+        "StpPublicSubnet0SubnetRouteTableAssociation",
+        "StpInternetGatewayRoute1",
+        "StpPublicSubnet1SubnetRouteTableAssociation",
+        "StpInternetGatewayRoute2",
+        "StpPublicSubnet2SubnetRouteTableAssociation",
+        "Ec2WebPort443Listener",
+        "Ec2WebPort443Priority3ListenerRule"
+      ]
+    },
+    "Ec2WebDeregisterTargetsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "deregisterTargets": {
+          "targetGroupArns": [
+            {
+              "Ref": "Ec2WebEc2WebToPort3000TargetGroup"
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "Ec2WebService"
+      ]
+    },
+    "Ec2WebServiceContainerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/ec2Web/service-container/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "Ec2WebPort443Priority3ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "Ec2WebEc2WebToPort3000TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "*"
+              ]
+            }
+          }
+        ],
+        "Priority": 3,
+        "ListenerArn": {
+          "Ref": "Ec2WebPort443Listener"
+        }
+      }
+    },
+    "Ec2WebEc2WebToPort3000TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 3000,
+        "Protocol": "HTTP",
+        "TargetType": "instance",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "30"
+          }
+        ]
+      }
+    },
+    "Ec2WebRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "Ec2WebTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-ec2Web-task-definition",
+        "NetworkMode": "bridge",
+        "RequiresCompatibilities": [
+          "EC2"
+        ],
+        "Memory": "870",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "Ec2WebRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "service-container",
+            "Image": "example.invalid/app:v1",
+            "PortMappings": [
+              {
+                "ContainerPort": 3000,
+                "Protocol": "tcp",
+                "HostPort": 0,
+                "Name": "port-3000"
+              }
+            ],
+            "Essential": true,
+            "Environment": [
+              {
+                "Name": "PORT",
+                "Value": "3000"
+              },
+              {
+                "Name": "HOST",
+                "Value": "0.0.0.0"
+              }
+            ],
+            "StopTimeout": 30,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-group": {
+                  "Ref": "Ec2WebServiceContainerLogGroup"
+                },
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "DependsOn": []
+          }
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        }
+      }
+    },
+    "Ec2WebLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "IpAddressType": "ipv4",
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "Ec2WebLbSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "Type": "application"
+      }
+    },
+    "Ec2WebLbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Stacktape generated security group for redis cluster ec2Web in stack security-fixture",
+        "GroupName": "security-fixture-ec2Web-lb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          },
+          {
+            "FromPort": 443,
+            "ToPort": 443,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "Ec2WebPort80Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "Type": "redirect",
+            "Order": 1,
+            "RedirectConfig": {
+              "Port": "443",
+              "Protocol": "HTTPS",
+              "StatusCode": "HTTP_301"
+            }
+          }
+        ],
+        "Port": 80,
+        "Protocol": "HTTP",
+        "LoadBalancerArn": {
+          "Ref": "Ec2WebLoadBalancer"
+        }
+      }
+    },
+    "Ec2WebPort443Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            }
+          }
+        ],
+        "DefaultActions": [
+          {
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            },
+            "Type": "fixed-response",
+            "Order": 1
+          }
+        ],
+        "Port": 443,
+        "Protocol": "HTTPS",
+        "LoadBalancerArn": {
+          "Ref": "Ec2WebLoadBalancer"
+        },
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      }
+    },
+    "Ec2WebDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "ec2web-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "Ec2WebLoadBalancer",
+                "DNSName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "Ec2WebLoadBalancer",
+                "CanonicalHostedZoneID"
+              ]
+            }
+          },
+          "version": 2
+        }
+      }
+    },
+    "EventsKafkaSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupDescription": "Security group for Kafka cluster events in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "SourceSecurityGroupId": {
+              "Ref": "StpVpcFunctions7fa183faSecurityGroup"
+            },
+            "FromPort": 9098,
+            "ToPort": 9098,
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "EventsKafkaSelfSecurityGroupIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "EventsKafkaSecurityGroup"
+        },
+        "SourceSecurityGroupId": {
+          "Ref": "EventsKafkaSecurityGroup"
+        },
+        "FromPort": 9098,
+        "ToPort": 9098,
+        "IpProtocol": "tcp"
+      }
+    },
+    "EventsKafkaServerlessCluster": {
+      "Type": "AWS::MSK::ServerlessCluster",
+      "Properties": {
+        "ClusterName": "security-fixture-events",
+        "ClientAuthentication": {
+          "Sasl": {
+            "Iam": {
+              "Enabled": true
+            }
+          }
+        },
+        "VpcConfigs": [
+          {
+            "SubnetIds": [
+              {
+                "Ref": "StpPublicSubnet0"
+              },
+              {
+                "Ref": "StpPublicSubnet1"
+              },
+              {
+                "Ref": "StpPublicSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "EventsKafkaSecurityGroup"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "EventsKafkaBootstrapBrokersCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "kafkaBootstrapBrokers": {
+          "clusterArn": {
+            "Ref": "EventsKafkaServerlessCluster"
+          }
+        }
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

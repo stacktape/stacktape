@@ -1,0 +1,2262 @@
+{
+  "description": "A batch job and an AgentCore runtime that connect to a scoped database, a bastion, and NAT instances for a private worker.",
+  "config": "stackConfig:\n  nat: ec2\nresources:\n  importer:\n    type: batch-job\n    properties:\n      container:\n        packaging:\n          type: prebuilt-image\n          properties:\n            image: example.invalid/importer:v1\n      resources:\n        cpu: 1\n        memory: 2048\n      connectTo: [db]\n  jumpHost:\n    type: bastion\n  agent:\n    type: agentcore-runtime\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/agent:v1\n      connectTo: [db]\n  privateWorker:\n    type: worker-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true\n  db:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n",
+  "stacktapeResources": [
+    {
+      "name": "importer",
+      "type": "batch-job",
+      "logicalIds": [
+        "ImporterJobDefinition",
+        "ImporterJobExecutionStateMachine",
+        "ImporterLogGroup",
+        "ImporterRole",
+        "ImporterTaskExecutionRole",
+        "ImporterTriggerFunctionFunction",
+        "ImporterTriggerFunctionLogGroup",
+        "ImporterTriggerFunctionRole"
+      ]
+    },
+    {
+      "name": "agent",
+      "type": "agentcore-runtime",
+      "logicalIds": [
+        "AgentAgentCoreRuntimeRole",
+        "AgentDefaultRuntimeEndpoint",
+        "AgentRuntime",
+        "AgentSecurityGroup"
+      ]
+    },
+    {
+      "name": "db",
+      "type": "relational-database",
+      "logicalIds": [
+        "DbDbInstance",
+        "DbDbParameterGroup",
+        "DbDbSubnetGroup",
+        "DbInstancePostgresqlLogGroup",
+        "DbSecurityGroup"
+      ]
+    },
+    {
+      "name": "jumpHost",
+      "type": "bastion",
+      "logicalIds": [
+        "JumpHostAuditLogGroup",
+        "JumpHostAutoScalingGroup",
+        "JumpHostCwAgentAssociation",
+        "JumpHostInstanceProfile",
+        "JumpHostInstanceProfileServiceLambdaPolicy",
+        "JumpHostLaunchTemplate",
+        "JumpHostMessagesLogGroup",
+        "JumpHostRole",
+        "JumpHostSecureLogGroup",
+        "JumpHostSecurityGroup",
+        "JumpHostSsmAgentAssociation"
+      ]
+    },
+    {
+      "name": "privateWorker",
+      "type": "worker-service",
+      "logicalIds": [
+        "PrivateWorkerCluster",
+        "PrivateWorkerRole",
+        "PrivateWorkerScalableTarget",
+        "PrivateWorkerSecurityGroup",
+        "PrivateWorkerService",
+        "PrivateWorkerServiceContainerLogGroup",
+        "PrivateWorkerTaskDefinition"
+      ]
+    }
+  ],
+  "resources": {
+    "StpBatchServiceRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpBatchSpotFleetRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpBatchInstanceRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpBatchInstanceInstanceProfileServiceLambdaPolicy": {
+      "Type": "AWS::IAM::Policy"
+    },
+    "StpBatchInstanceInstanceProfile": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "instanceProfile": {
+          "instanceProfileName": "security-fixture-batch-instance-eu-west-1",
+          "roleName": {
+            "Ref": "StpBatchInstanceRole"
+          },
+          "probeImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}",
+          "probeSubnetId": {
+            "Ref": "StpPublicSubnet0"
+          }
+        }
+      },
+      "DependsOn": [
+        "StpBatchInstanceInstanceProfileServiceLambdaPolicy"
+      ]
+    },
+    "StpBatchStateMachineRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpBatchInstanceLaunchTemplate": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateName": "security-fixture-batch-instance-launch-template",
+        "LaunchTemplateData": {
+          "BlockDeviceMappings": [
+            {
+              "DeviceName": "/dev/xvda",
+              "Ebs": {
+                "VolumeSize": 100
+              }
+            }
+          ]
+        }
+      }
+    },
+    "StpBatchInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-batch-instance-sg",
+        "GroupDescription": "Stacktape generated security group for batch ec2 instances in stack security-fixture"
+      }
+    },
+    "StpBatchOnDemandComputeEnvironment": {
+      "Type": "AWS::Batch::ComputeEnvironment",
+      "Properties": {
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "StpBatchServiceRole",
+            "Arn"
+          ]
+        },
+        "State": "ENABLED",
+        "Type": "MANAGED",
+        "ComputeResources": {
+          "Type": "EC2",
+          "InstanceRole": {
+            "Fn::GetAtt": [
+              "StpBatchInstanceInstanceProfile",
+              "Arn"
+            ]
+          },
+          "SpotIamFleetRole": {
+            "Fn::GetAtt": [
+              "StpBatchSpotFleetRole",
+              "Arn"
+            ]
+          },
+          "MinvCpus": 0,
+          "MaxvCpus": 1000,
+          "Ec2Configuration": [
+            {
+              "ImageType": "ECS_AL2023"
+            }
+          ],
+          "InstanceTypes": [
+            "optimal"
+          ],
+          "Subnets": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            }
+          ],
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpBatchInstanceSecurityGroup"
+            }
+          ],
+          "AllocationStrategy": "BEST_FIT",
+          "LaunchTemplate": {
+            "LaunchTemplateId": {
+              "Ref": "StpBatchInstanceLaunchTemplate"
+            }
+          },
+          "Tags": {
+            "stp:stack-name": "security-fixture",
+            "stp:project-name": "security",
+            "stp:stage": "fixture",
+            "stp:globally-unique-stack-hash": "7e618203"
+          }
+        },
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment",
+        "StpInternetGatewayRoute0",
+        "StpPublicSubnet0SubnetRouteTableAssociation",
+        "StpInternetGatewayRoute1",
+        "StpPublicSubnet1SubnetRouteTableAssociation"
+      ]
+    },
+    "StpBatchOnDemandJobQueue": {
+      "Type": "AWS::Batch::JobQueue",
+      "Properties": {
+        "JobQueueName": "security-fixture-batch-onDemand--job-queue",
+        "Priority": 10,
+        "State": "ENABLED",
+        "ComputeEnvironmentOrder": [
+          {
+            "ComputeEnvironment": {
+              "Ref": "StpBatchOnDemandComputeEnvironment"
+            },
+            "Order": 0
+          }
+        ]
+      }
+    },
+    "StpBatchSpotComputeEnvironment": {
+      "Type": "AWS::Batch::ComputeEnvironment",
+      "Properties": {
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "StpBatchServiceRole",
+            "Arn"
+          ]
+        },
+        "State": "ENABLED",
+        "Type": "MANAGED",
+        "ComputeResources": {
+          "Type": "SPOT",
+          "InstanceRole": {
+            "Fn::GetAtt": [
+              "StpBatchInstanceInstanceProfile",
+              "Arn"
+            ]
+          },
+          "SpotIamFleetRole": {
+            "Fn::GetAtt": [
+              "StpBatchSpotFleetRole",
+              "Arn"
+            ]
+          },
+          "MinvCpus": 0,
+          "MaxvCpus": 1000,
+          "Ec2Configuration": [
+            {
+              "ImageType": "ECS_AL2023"
+            }
+          ],
+          "InstanceTypes": [
+            "optimal"
+          ],
+          "Subnets": [
+            {
+              "Ref": "StpPublicSubnet0"
+            },
+            {
+              "Ref": "StpPublicSubnet1"
+            }
+          ],
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpBatchInstanceSecurityGroup"
+            }
+          ],
+          "AllocationStrategy": "BEST_FIT",
+          "LaunchTemplate": {
+            "LaunchTemplateId": {
+              "Ref": "StpBatchInstanceLaunchTemplate"
+            }
+          },
+          "Tags": {
+            "stp:stack-name": "security-fixture",
+            "stp:project-name": "security",
+            "stp:stage": "fixture",
+            "stp:globally-unique-stack-hash": "7e618203"
+          }
+        },
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment",
+        "StpInternetGatewayRoute0",
+        "StpPublicSubnet0SubnetRouteTableAssociation",
+        "StpInternetGatewayRoute1",
+        "StpPublicSubnet1SubnetRouteTableAssociation"
+      ]
+    },
+    "StpBatchSpotJobQueue": {
+      "Type": "AWS::Batch::JobQueue",
+      "Properties": {
+        "JobQueueName": "security-fixture-batch-spot--job-queue",
+        "Priority": 10,
+        "State": "ENABLED",
+        "ComputeEnvironmentOrder": [
+          {
+            "ComputeEnvironment": {
+              "Ref": "StpBatchSpotComputeEnvironment"
+            },
+            "Order": 0
+          }
+        ]
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "ImporterTriggerFunctionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "ImporterTriggerFunctionLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-importerTriggerFunction",
+        "RetentionInDays": 90
+      }
+    },
+    "ImporterTriggerFunctionFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-importerTriggerFunction",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "batchJobTriggerLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "Timeout": 10,
+        "Environment": {
+          "Variables": {
+            "STATE_MACHINE_NAME": "security-fixture-importer-batch-state-machine",
+            "STATE_MACHINE_ARN": {
+              "Ref": "ImporterJobExecutionStateMachine"
+            },
+            "BATCH_JOB_NAME_BASE": "importer-security-fixture"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "ImporterTriggerFunctionRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "ImporterTriggerFunctionRole",
+        "ImporterTriggerFunctionLogGroup"
+      ]
+    },
+    "ImporterJobDefinition": {
+      "Type": "AWS::Batch::JobDefinition",
+      "Properties": {
+        "JobDefinitionName": "security-fixture-importer-job-definition",
+        "Type": "container",
+        "PropagateTags": true,
+        "ContainerProperties": {
+          "Environment": [
+            {
+              "Name": "STP_DB_HOST",
+              "Value": {
+                "Fn::GetAtt": [
+                  "DbDbInstance",
+                  "Endpoint.Address"
+                ]
+              }
+            },
+            {
+              "Name": "STP_DB_CONNECTION_STRING",
+              "Value": {
+                "Fn::Sub": [
+                  "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+                  {
+                    "host": {
+                      "Fn::GetAtt": [
+                        "DbDbInstance",
+                        "Endpoint.Address"
+                      ]
+                    },
+                    "username": "db_master_user",
+                    "password": "synthetic-password",
+                    "port": "5432",
+                    "databaseName": "defdb"
+                  }
+                ]
+              }
+            },
+            {
+              "Name": "STP_DB_JDBC_CONNECTION_STRING",
+              "Value": {
+                "Fn::Sub": [
+                  "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+                  {
+                    "host": {
+                      "Fn::GetAtt": [
+                        "DbDbInstance",
+                        "Endpoint.Address"
+                      ]
+                    },
+                    "username": "db_master_user",
+                    "password": "synthetic-password",
+                    "port": "5432",
+                    "databaseName": "defdb"
+                  }
+                ]
+              }
+            },
+            {
+              "Name": "STP_DB_PORT",
+              "Value": "5432"
+            },
+            {
+              "Name": "STP_DB_DB_NAME",
+              "Value": "defdb"
+            }
+          ],
+          "Image": "example.invalid/importer:v1",
+          "Vcpus": 1,
+          "Memory": 2048,
+          "LogConfiguration": {
+            "LogDriver": "awslogs",
+            "Options": {
+              "awslogs-region": "eu-west-1",
+              "awslogs-group": {
+                "Ref": "ImporterLogGroup"
+              },
+              "awslogs-stream-prefix": "batch"
+            }
+          },
+          "Ulimits": [
+            {
+              "SoftLimit": 10000,
+              "HardLimit": 10000,
+              "Name": "nofile"
+            }
+          ],
+          "ResourceRequirements": [],
+          "JobRoleArn": {
+            "Fn::GetAtt": [
+              "ImporterRole",
+              "Arn"
+            ]
+          },
+          "ExecutionRoleArn": {
+            "Fn::GetAtt": [
+              "ImporterTaskExecutionRole",
+              "Arn"
+            ]
+          }
+        }
+      }
+    },
+    "ImporterJobExecutionStateMachine": {
+      "Type": "AWS::StepFunctions::StateMachine",
+      "Properties": {
+        "StateMachineName": "security-fixture-importer-batch-state-machine",
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "StpBatchStateMachineRole",
+            "Arn"
+          ]
+        },
+        "StateMachineType": "STANDARD",
+        "DefinitionString": "{\"StartAt\":\"onDemand1\",\"States\":{\"fail\":{\"Type\":\"Fail\"},\"succeed\":{\"Type\":\"Succeed\"},\"onDemand1\":{\"Type\":\"Task\",\"Resource\":\"arn:aws:states:::batch:submitJob.sync\",\"Parameters\":{\"JobDefinition\":\"arn:aws:batch:eu-west-1:123456789999:job-definition/security-fixture-importer-job-definition\",\"JobName.$\":\"$.jobName\",\"JobQueue\":\"arn:aws:batch:eu-west-1:123456789999:job-queue/security-fixture-batch-onDemand--job-queue\",\"ContainerOverrides\":{\"Environment\":[{\"Name\":\"STP_TRIGGER_EVENT_DATA\",\"Value.$\":\"$.triggerEvent\"},{\"Name\":\"STP_MAXIMUM_ATTEMPTS\",\"Value\":\"1\"},{\"Name\":\"STP_CURRENT_ATTEMPT\",\"Value\":\"1\"},{\"Name\":\"AWS_REGION\",\"Value\":\"eu-west-1\"}]}},\"Next\":\"succeed\",\"Catch\":[{\"ErrorEquals\":[\"States.ALL\"],\"Next\":\"fail\",\"ResultPath\":\"$.error-info\"}]}}}"
+      },
+      "DependsOn": [
+        "ImporterJobDefinition",
+        "StpBatchOnDemandJobQueue"
+      ]
+    },
+    "ImporterLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/batch/importer/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "ImporterRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "ImporterTaskExecutionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StpInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "StpNatInstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-nat-instance-sg",
+        "GroupDescription": "NAT instances: forward outbound traffic of the private subnets",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "172.16.0.0/16"
+          }
+        ],
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    "StpNatInstanceRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpNatInstanceInstanceProfileServiceLambdaPolicy": {
+      "Type": "AWS::IAM::Policy"
+    },
+    "StpNatInstanceInstanceProfile": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "instanceProfile": {
+          "instanceProfileName": "security-fixture-nat-instance-eu-west-1",
+          "roleName": {
+            "Ref": "StpNatInstanceRole"
+          },
+          "probeImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}",
+          "probeSubnetId": {
+            "Ref": "StpPublicSubnet0"
+          }
+        }
+      },
+      "DependsOn": [
+        "StpNatInstanceInstanceProfileServiceLambdaPolicy"
+      ]
+    },
+    "StpNatInstanceEip0": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc",
+        "Tags": [
+          {
+            "Key": "stp:asg-name",
+            "Value": "security-fixture-nat-instance-0-asg"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      }
+    },
+    "StpNatInstanceNetworkInterface0": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        },
+        "GroupSet": [
+          {
+            "Ref": "StpNatInstanceSecurityGroup"
+          }
+        ],
+        "SourceDestCheck": false,
+        "Description": "Stacktape NAT instance route target, availability zone 0",
+        "Tags": [
+          {
+            "Key": "stp:asg-name",
+            "Value": "security-fixture-nat-instance-0-asg"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      }
+    },
+    "StpNatInstanceHeartbeatParameter0": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/stp/eu-west-1/security-fixture/nat-instance/0/heartbeat",
+        "Type": "String",
+        "Value": "{}",
+        "Description": "Heartbeat of the Stacktape NAT instance in availability zone 0"
+      }
+    },
+    "StpNatInstanceLaunchTemplate0": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateData": {
+          "ImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}",
+          "InstanceType": "t4g.nano",
+          "IamInstanceProfile": {
+            "Arn": {
+              "Fn::GetAtt": [
+                "StpNatInstanceInstanceProfile",
+                "Arn"
+              ]
+            }
+          },
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpNatInstanceSecurityGroup"
+            }
+          ],
+          "MetadataOptions": {
+            "HttpTokens": "required",
+            "HttpPutResponseHopLimit": 1
+          },
+          "UserData": {
+            "Fn::Base64": {
+              "Fn::Sub": [
+                "#!/bin/bash\nset -uo pipefail\nexec > >(tee -a /var/log/stacktape-nat.log | logger -t stacktape-nat) 2>&1\n\nENI_ID='${eniId}'\nEIP_ALLOCATION_ID='${eipAllocationId}'\nSTACK_NAME='${stackName}'\nASG_LOGICAL_ID='${asgLogicalId}'\nHEARTBEAT_PARAMETER='/stp/eu-west-1/security-fixture/nat-instance/0/heartbeat'\nREGION='${AWS::Region}'\nexport AWS_DEFAULT_REGION=\"$REGION\"\n\nretry() {\n  local attempt=1\n  until \"$@\"; do\n    if [ \"$attempt\" -ge 30 ]; then\n      echo \"stacktape-nat: giving up on: $*\"\n      return 1\n    fi\n    attempt=$((attempt + 1))\n    sleep 5\n  done\n}\n\nsignal() {\n  aws cloudformation signal-resource --stack-name \"$STACK_NAME\" --logical-resource-id \"$ASG_LOGICAL_ID\" \\\n    --unique-id \"$INSTANCE_ID\" --status \"$1\" || true\n}\n\nfail() {\n  echo \"stacktape-nat: $1\"\n  # The instance is gone minutes after a failure signal; the reason stays readable on the terminated instance's tags.\n  aws ec2 create-tags --resources \"$INSTANCE_ID\" --tags \"Key=stacktape:nat-failure,Value=$(printf '%s' \"$1\" | tr -c 'A-Za-z0-9 ._:/=+@-' ' ' | cut -c1-250)\" || true\n  signal FAILURE\n  exit 1\n}\n\nTOKEN=$(curl -sS -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')\nimds() { curl -sS -H \"X-aws-ec2-metadata-token: $TOKEN\" \"http://169.254.169.254/latest/meta-data/$1\"; }\nINSTANCE_ID=$(imds instance-id)\nPRIMARY_MAC=$(imds mac)\nPRIMARY_ENI_ID=$(imds \"network/interfaces/macs/$PRIMARY_MAC/interface-id\")\nPRIMARY_IF=$(ip -o link show | awk -v mac=\"$PRIMARY_MAC\" '$0 ~ mac {print $2}' | sed 's/://' | head -n 1)\necho \"stacktape-nat: instance $INSTANCE_ID, primary interface $PRIMARY_IF ($PRIMARY_ENI_ID)\"\n\nif ! command -v nft >/dev/null; then\n  # The standard image ships without nftables; cloud-init may still hold the package lock, hence the retries.\n  install_output=$(retry dnf install -y nftables 2>&1)     || fail \"nftables could not be installed: $(printf '%s' \"$install_output\" | tail -c 180)\"\nfi\n\n# Attaching the second interface briefly disturbs the primary one, and a lost API response must not turn into a\n# second attach call that fails with \"already attached\": every step checks the state first and treats it as done.\nAWS_CLI_TIMEOUTS='--cli-connect-timeout 10 --cli-read-timeout 20'\n\neip_associated() {\n  [ \"$(aws ec2 describe-addresses $AWS_CLI_TIMEOUTS --allocation-ids \"$EIP_ALLOCATION_ID\" \\\n    --query 'Addresses[0].NetworkInterfaceId' --output text 2>/dev/null)\" = \"$PRIMARY_ENI_ID\" ]\n}\nassociate_eip() {\n  eip_associated && return 0\n  # The zone's Elastic IP moves from the previous instance to this one: the public IP of outbound traffic stays stable.\n  aws ec2 associate-address $AWS_CLI_TIMEOUTS --allocation-id \"$EIP_ALLOCATION_ID\" \\\n    --network-interface-id \"$PRIMARY_ENI_ID\" --allow-reassociation >/dev/null 2>&1 || true\n  eip_associated\n}\nretry associate_eip || fail 'could not associate the Elastic IP'\n\n# Forwarded packets leave this interface with foreign source addresses.\nretry aws ec2 modify-network-interface-attribute $AWS_CLI_TIMEOUTS --network-interface-id \"$PRIMARY_ENI_ID\" \\\n  --no-source-dest-check || fail 'could not disable the source/destination check'\n\n# The static interface is the route target of the private subnets; it arrives here as the second interface.\neni_attached_here() {\n  [ \"$(aws ec2 describe-network-interfaces $AWS_CLI_TIMEOUTS --network-interface-ids \"$ENI_ID\" \\\n    --query 'NetworkInterfaces[0].Attachment.InstanceId' --output text 2>/dev/null)\" = \"$INSTANCE_ID\" ]\n}\nattach_eni() {\n  eni_attached_here && return 0\n  aws ec2 attach-network-interface $AWS_CLI_TIMEOUTS --instance-id \"$INSTANCE_ID\" --device-index 1 \\\n    --network-interface-id \"$ENI_ID\" >/dev/null 2>&1 || true\n  eni_attached_here\n}\nretry attach_eni || fail 'could not attach the route-target interface'\n\nENI_MAC=$(aws ec2 describe-network-interfaces $AWS_CLI_TIMEOUTS --network-interface-ids \"$ENI_ID\" \\\n  --query 'NetworkInterfaces[0].MacAddress' --output text | tr 'A-F' 'a-f')\neni_link_present() {\n  local dev\n  for dev in /sys/class/net/*; do\n    [ \"$(cat \"$dev/address\" 2>/dev/null)\" = \"$ENI_MAC\" ] && return 0\n  done\n  return 1\n}\nfor _ in $(seq 1 60); do\n  eni_link_present && break\n  sleep 2\ndone\neni_link_present || fail 'the route-target interface never came up'\n\ncat > /etc/sysctl.d/90-stacktape-nat.conf <<'SYSCTL'\nnet.ipv4.ip_forward = 1\nnet.ipv4.conf.all.rp_filter = 0\nnet.ipv4.conf.default.rp_filter = 0\nnet.ipv4.ip_local_port_range = 1024 65535\nnet.netfilter.nf_conntrack_max = 131072\nSYSCTL\nsysctl -q --system\nfor conf in /proc/sys/net/ipv4/conf/*/rp_filter; do echo 0 > \"$conf\"; done\nsysctl -q -w net.ipv4.conf.\"$PRIMARY_IF\".send_redirects=0\n\nmkdir -p /etc/nftables.d\ncat > /etc/nftables.d/stacktape-nat.nft <<NFT\ntable ip stacktape_nat {\n  chain postrouting {\n    type nat hook postrouting priority srcnat; policy accept;\n    oifname \"$PRIMARY_IF\" masquerade\n  }\n}\nNFT\ngrep -q 'stacktape-nat.nft' /etc/sysconfig/nftables.conf 2>/dev/null || echo 'include \"/etc/nftables.d/stacktape-nat.nft\"' >> /etc/sysconfig/nftables.conf\nnft -f /etc/nftables.d/stacktape-nat.nft || fail 'could not install the NAT rule'\nsystemctl enable nftables >/dev/null 2>&1 || true\n\n# What the heartbeat repeats: a request through the primary interface must come back from the Elastic IP.\ncat > /usr/local/bin/stacktape-nat-heartbeat <<HEARTBEAT\n#!/bin/bash\nset -u\nexport AWS_DEFAULT_REGION=\"$REGION\"\nSTATE_DIR=/run/stacktape-nat\nmkdir -p \"\\$STATE_DIR\"\n# Healthy means: forwarding is on, the masquerade rule is in place, and this interface reaches the internet.\nif [ \"\\$(cat /proc/sys/net/ipv4/ip_forward)\" = 1 ] && nft list table ip stacktape_nat 2>/dev/null | grep -q masquerade \\\n  && curl -sS --max-time 5 --interface \"$PRIMARY_IF\" https://checkip.amazonaws.com >/dev/null; then\n  echo 0 > \"\\$STATE_DIR/failures\"\n  aws ssm put-parameter --name \"$HEARTBEAT_PARAMETER\" --type String --overwrite \\\\\n    --value \"{\\\"instanceId\\\":\\\"$INSTANCE_ID\\\",\\\"at\\\":\\$(date +%s)}\" >/dev/null\nelse\n  failures=\\$(( \\$(cat \"\\$STATE_DIR/failures\" 2>/dev/null || echo 0) + 1 ))\n  echo \"\\$failures\" > \"\\$STATE_DIR/failures\"\n  echo \"stacktape-nat: outbound check failed (\\$failures in a row)\"\n  if [ \"\\$failures\" -ge 3 ]; then\n    # The zone's interface carries the reason so the failover handler can tell a real failure from a planned\n    # replacement and report it; the handler removes the tag once the zone is healthy again.\n    aws ec2 create-tags --resources \"$ENI_ID\" --tags \"Key=stp:nat-failure,Value=the outbound check failed 3 times in a row\" || true\n    aws autoscaling set-instance-health --instance-id \"$INSTANCE_ID\" --health-status Unhealthy || true\n  fi\nfi\nHEARTBEAT\nchmod +x /usr/local/bin/stacktape-nat-heartbeat\n\ncat > /etc/systemd/system/stacktape-nat-heartbeat.service <<'UNIT'\n[Unit]\nDescription=Stacktape NAT outbound check and heartbeat\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/stacktape-nat-heartbeat\nUNIT\ncat > /etc/systemd/system/stacktape-nat-heartbeat.timer <<UNIT\n[Unit]\nDescription=Stacktape NAT outbound check and heartbeat\n[Timer]\nOnBootSec=20\nOnUnitActiveSec=20\nAccuracySec=1\n[Install]\nWantedBy=timers.target\nUNIT\n\n# First verification, done in the foreground: the stack only continues when this zone actually forwards traffic.\nEGRESS_IP=''\nfor _ in $(seq 1 30); do\n  EGRESS_IP=$(curl -sS --max-time 5 --interface \"$PRIMARY_IF\" https://checkip.amazonaws.com | tr -d '[:space:]') && [ -n \"$EGRESS_IP\" ] && break\n  sleep 2\ndone\n[ -n \"$EGRESS_IP\" ] || fail 'no outbound internet through the primary interface'\necho \"stacktape-nat: outbound traffic leaves as $EGRESS_IP\"\n/usr/local/bin/stacktape-nat-heartbeat\nsystemctl daemon-reload\nsystemctl enable --now stacktape-nat-heartbeat.timer\nsignal SUCCESS\necho \"stacktape-nat: ready (zone 0)\"\n(dnf -y -q upgrade --security >/dev/null 2>&1 || true) &\n",
+                {
+                  "eniId": {
+                    "Ref": "StpNatInstanceNetworkInterface0"
+                  },
+                  "eipAllocationId": {
+                    "Fn::GetAtt": [
+                      "StpNatInstanceEip0",
+                      "AllocationId"
+                    ]
+                  },
+                  "stackName": {
+                    "Ref": "AWS::StackName"
+                  },
+                  "asgLogicalId": "StpNatInstanceAutoScalingGroup0"
+                }
+              ]
+            }
+          },
+          "TagSpecifications": [
+            {
+              "ResourceType": "instance",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-nat-instance-0-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "volume",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-nat-instance-0-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "network-interface",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-nat-instance-0-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "StpNatInstanceAutoScalingGroup0": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AutoScalingGroupName": "security-fixture-nat-instance-0-asg",
+        "MinSize": "1",
+        "MaxSize": "1",
+        "DesiredCapacity": "1",
+        "LaunchTemplate": {
+          "LaunchTemplateId": {
+            "Ref": "StpNatInstanceLaunchTemplate0"
+          },
+          "Version": {
+            "Fn::GetAtt": [
+              "StpNatInstanceLaunchTemplate0",
+              "LatestVersionNumber"
+            ]
+          }
+        },
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "StpPublicSubnet0"
+          }
+        ],
+        "HealthCheckType": "EC2",
+        "HealthCheckGracePeriod": 120,
+        "Tags": [
+          {
+            "Key": "stp:asg-name",
+            "Value": "security-fixture-nat-instance-0-asg",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture",
+            "PropagateAtLaunch": true
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203",
+            "PropagateAtLaunch": true
+          }
+        ]
+      },
+      "CreationPolicy": {
+        "ResourceSignal": {
+          "Count": 1,
+          "Timeout": "PT6M"
+        }
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": 0,
+          "MaxBatchSize": 1,
+          "WaitOnResourceSignals": true,
+          "PauseTime": "PT6M"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment",
+        "StpInternetGatewayRoute0",
+        "StpNatInstanceHeartbeatParameter0"
+      ]
+    },
+    "StpNatRoutesCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "natRoutes": {
+          "routes": [
+            {
+              "routeTableId": {
+                "Ref": "StpPrivateSubnet0RouteTable"
+              },
+              "networkInterfaceId": {
+                "Ref": "StpNatInstanceNetworkInterface0"
+              }
+            },
+            {
+              "routeTableId": {
+                "Ref": "StpPrivateSubnet1RouteTable"
+              },
+              "networkInterfaceId": {
+                "Ref": "StpNatInstanceNetworkInterface0"
+              }
+            },
+            {
+              "routeTableId": {
+                "Ref": "StpPrivateSubnet2RouteTable"
+              },
+              "networkInterfaceId": {
+                "Ref": "StpNatInstanceNetworkInterface0"
+              }
+            }
+          ],
+          "launchTemplateVersions": [
+            {
+              "Fn::GetAtt": [
+                "StpNatInstanceLaunchTemplate0",
+                "LatestVersionNumber"
+              ]
+            }
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpNatInstanceAutoScalingGroup0",
+        "StpNatPrivateSubnetRoute0",
+        "StpNatPrivateSubnetRoute1",
+        "StpNatPrivateSubnetRoute2"
+      ]
+    },
+    "StpStpNatFailoverProbeRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(1 minute)",
+        "Targets": [
+          {
+            "Id": "natFailoverProbe",
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Input": {
+              "Fn::Sub": [
+                "{\"natFailover\":{\"stackName\":\"security-fixture\",\"region\":\"${sub0}\",\"zones\":[{\"azIndex\":0,\"autoscalingGroupName\":\"security-fixture-nat-instance-0-asg\",\"networkInterfaceId\":\"${sub1}\",\"heartbeatParameterName\":\"/stp/eu-west-1/security-fixture/nat-instance/0/heartbeat\"}],\"routeTables\":[{\"routeTableId\":\"${sub2}\",\"homeAzIndex\":0},{\"routeTableId\":\"${sub3}\",\"homeAzIndex\":0},{\"routeTableId\":\"${sub4}\",\"homeAzIndex\":0}]}}",
+                {
+                  "sub0": {
+                    "Ref": "AWS::Region"
+                  },
+                  "sub1": {
+                    "Ref": "StpNatInstanceNetworkInterface0"
+                  },
+                  "sub2": {
+                    "Ref": "StpPrivateSubnet0RouteTable"
+                  },
+                  "sub3": {
+                    "Ref": "StpPrivateSubnet1RouteTable"
+                  },
+                  "sub4": {
+                    "Ref": "StpPrivateSubnet2RouteTable"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StpStpNatFailoverProbeRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpNatFailoverProbeRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpStpNatFailoverAutoscalingEventsRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "EventPattern": {
+          "source": [
+            "aws.autoscaling"
+          ],
+          "detail-type": [
+            "EC2 Instance-terminate Lifecycle Action",
+            "EC2 Instance Launch Successful",
+            "EC2 Instance Launch Unsuccessful",
+            "EC2 Instance Terminate Successful",
+            "EC2 Instance Terminate Unsuccessful"
+          ],
+          "detail": {
+            "AutoScalingGroupName": [
+              "security-fixture-nat-instance-0-asg"
+            ]
+          }
+        },
+        "Targets": [
+          {
+            "Id": "natFailoverAutoscalingEvents",
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Input": {
+              "Fn::Sub": [
+                "{\"natFailover\":{\"stackName\":\"security-fixture\",\"region\":\"${sub0}\",\"zones\":[{\"azIndex\":0,\"autoscalingGroupName\":\"security-fixture-nat-instance-0-asg\",\"networkInterfaceId\":\"${sub1}\",\"heartbeatParameterName\":\"/stp/eu-west-1/security-fixture/nat-instance/0/heartbeat\"}],\"routeTables\":[{\"routeTableId\":\"${sub2}\",\"homeAzIndex\":0},{\"routeTableId\":\"${sub3}\",\"homeAzIndex\":0},{\"routeTableId\":\"${sub4}\",\"homeAzIndex\":0}]}}",
+                {
+                  "sub0": {
+                    "Ref": "AWS::Region"
+                  },
+                  "sub1": {
+                    "Ref": "StpNatInstanceNetworkInterface0"
+                  },
+                  "sub2": {
+                    "Ref": "StpPrivateSubnet0RouteTable"
+                  },
+                  "sub3": {
+                    "Ref": "StpPrivateSubnet1RouteTable"
+                  },
+                  "sub4": {
+                    "Ref": "StpPrivateSubnet2RouteTable"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StpStpNatFailoverAutoscalingEventsRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpNatFailoverAutoscalingEventsRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpPrivateSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.48.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": false,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPrivateSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpNatPrivateSubnetRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NetworkInterfaceId": {
+          "Ref": "StpNatInstanceNetworkInterface0"
+        }
+      },
+      "DependsOn": [
+        "StpNatInstanceAutoScalingGroup0"
+      ]
+    },
+    "StpPrivateSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPrivateSubnet0"
+        }
+      }
+    },
+    "StpPrivateSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.64.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": false,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPrivateSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpNatPrivateSubnetRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NetworkInterfaceId": {
+          "Ref": "StpNatInstanceNetworkInterface0"
+        }
+      },
+      "DependsOn": [
+        "StpNatInstanceAutoScalingGroup0"
+      ]
+    },
+    "StpPrivateSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPrivateSubnet1"
+        }
+      }
+    },
+    "StpPrivateSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.80.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": false,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPrivateSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpNatPrivateSubnetRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NetworkInterfaceId": {
+          "Ref": "StpNatInstanceNetworkInterface0"
+        }
+      },
+      "DependsOn": [
+        "StpNatInstanceAutoScalingGroup0"
+      ]
+    },
+    "StpPrivateSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPrivateSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPrivateSubnet2"
+        }
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub0}\",\"attributionCfResourceLogicalName\":\"DbDbSubnetGroup\"}]}",
+                {
+                  "sub0": {
+                    "Ref": "DbSecurityGroup"
+                  }
+                }
+              ]
+            },
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "AgentAgentCoreRuntimeRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AgentSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-agent-sg",
+        "GroupDescription": "Security group associated with agent in stack security-fixture"
+      }
+    },
+    "AgentRuntime": {
+      "Type": "AWS::BedrockAgentCore::Runtime",
+      "Properties": {
+        "AgentRuntimeName": "stp_security_fixture_agent",
+        "ProtocolConfiguration": "HTTP",
+        "EnvironmentVariables": {
+          "STP_DB_HOST": {
+            "Fn::GetAtt": [
+              "DbDbInstance",
+              "Endpoint.Address"
+            ]
+          },
+          "STP_DB_CONNECTION_STRING": {
+            "Fn::Sub": [
+              "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+              {
+                "host": {
+                  "Fn::GetAtt": [
+                    "DbDbInstance",
+                    "Endpoint.Address"
+                  ]
+                },
+                "username": "db_master_user",
+                "password": "synthetic-password",
+                "port": "5432",
+                "databaseName": "defdb"
+              }
+            ]
+          },
+          "STP_DB_JDBC_CONNECTION_STRING": {
+            "Fn::Sub": [
+              "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+              {
+                "host": {
+                  "Fn::GetAtt": [
+                    "DbDbInstance",
+                    "Endpoint.Address"
+                  ]
+                },
+                "username": "db_master_user",
+                "password": "synthetic-password",
+                "port": "5432",
+                "databaseName": "defdb"
+              }
+            ]
+          },
+          "STP_DB_PORT": "5432",
+          "STP_DB_DB_NAME": "defdb"
+        },
+        "NetworkConfiguration": {
+          "NetworkMode": "VPC",
+          "NetworkModeConfig": {
+            "SecurityGroups": [
+              {
+                "Ref": "AgentSecurityGroup"
+              }
+            ],
+            "Subnets": [
+              {
+                "Ref": "StpPrivateSubnet0"
+              },
+              {
+                "Ref": "StpPrivateSubnet1"
+              },
+              {
+                "Ref": "StpPrivateSubnet2"
+              }
+            ]
+          }
+        },
+        "AgentRuntimeArtifact": {
+          "ContainerConfiguration": {
+            "ContainerUri": "example.invalid/agent:v1"
+          }
+        },
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "AgentAgentCoreRuntimeRole",
+            "Arn"
+          ]
+        },
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      }
+    },
+    "AgentDefaultRuntimeEndpoint": {
+      "Type": "AWS::BedrockAgentCore::RuntimeEndpoint",
+      "Properties": {
+        "AgentRuntimeId": {
+          "Fn::GetAtt": [
+            "AgentRuntime",
+            "AgentRuntimeId"
+          ]
+        },
+        "AgentRuntimeVersion": {
+          "Fn::GetAtt": [
+            "AgentRuntime",
+            "AgentRuntimeVersion"
+          ]
+        },
+        "Name": "stp_security_fixture_agent_default",
+        "Tags": {
+          "stp:stack-name": "security-fixture",
+          "stp:project-name": "security",
+          "stp:stage": "fixture",
+          "stp:globally-unique-stack-hash": "7e618203"
+        }
+      }
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": [
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/db/connectionString",
+            "value": {
+              "Fn::Sub": [
+                "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+                {
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb",
+                  "host": {
+                    "Fn::GetAtt": [
+                      "DbDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/db/jdbcConnectionString",
+            "value": {
+              "Fn::Sub": [
+                "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+                {
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb",
+                  "host": {
+                    "Fn::GetAtt": [
+                      "DbDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "DbDbSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupName": "security-fixture-db-subnet-group",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "DBSubnetGroupDescription": "security-fixture-db-subnet-group"
+      }
+    },
+    "DbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "GroupName": "security-fixture-db-sg",
+        "GroupDescription": "Stacktape generated security group for database db in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "SourceSecurityGroupId": {
+              "Ref": "StpBatchInstanceSecurityGroup"
+            },
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "IpProtocol": "tcp"
+          },
+          {
+            "SourceSecurityGroupId": {
+              "Ref": "AgentSecurityGroup"
+            },
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "DbDbInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBInstanceClass": "db.t4g.micro",
+        "DBInstanceIdentifier": "security-fixture-db",
+        "AutoMinorVersionUpgrade": true,
+        "DBName": "defdb",
+        "Engine": "postgres",
+        "EngineVersion": "16.9",
+        "EnableCloudwatchLogsExports": [
+          "postgresql"
+        ],
+        "DBParameterGroupName": {
+          "Ref": "DbDbParameterGroup"
+        },
+        "Port": "5432",
+        "MasterUsername": "db_master_user",
+        "MasterUserPassword": "synthetic-password",
+        "AllocatedStorage": "20",
+        "MaxAllocatedStorage": 200,
+        "PubliclyAccessible": true,
+        "DBSubnetGroupName": {
+          "Ref": "DbDbSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "DbSecurityGroup"
+          }
+        ],
+        "AllowMajorVersionUpgrade": true,
+        "StorageType": "gp3",
+        "PreferredMaintenanceWindow": "Sun:02:00-Sun:04:00",
+        "PreferredBackupWindow": "01:00-01:30",
+        "StorageEncrypted": true
+      },
+      "DependsOn": [
+        "DbInstancePostgresqlLogGroup"
+      ],
+      "DeletionPolicy": "Delete"
+    },
+    "DbInstancePostgresqlLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/rds/instance/security-fixture-db/postgresql",
+        "RetentionInDays": 90
+      }
+    },
+    "DbDbParameterGroup": {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties": {
+        "Description": "security-fixture db param group",
+        "Family": "postgres16",
+        "Parameters": {
+          "log_connections": "0",
+          "log_disconnections": "0",
+          "log_lock_waits": "0",
+          "log_min_duration_statement": "10000",
+          "log_statement": "ddl"
+        }
+      }
+    },
+    "StpBastionCloudwatchAgentDocument": {
+      "Type": "AWS::SSM::Document",
+      "Properties": {
+        "DocumentType": "Command",
+        "Content": {
+          "schemaVersion": "2.2",
+          "description": "Install, setup auto-update, and start AWS CloudWatch Agent",
+          "mainSteps": [
+            {
+              "action": "aws:configurePackage",
+              "name": "InstallAgent",
+              "inputs": {
+                "action": "Install",
+                "name": "AmazonCloudWatchAgent"
+              }
+            },
+            {
+              "action": "aws:runDocument",
+              "name": "StartAgent",
+              "inputs": {
+                "documentType": "SSMDocument",
+                "documentPath": "AmazonCloudWatch-ManageAgent",
+                "documentParameters": {
+                  "action": "start",
+                  "optionalConfigurationSource": "default"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "JumpHostAutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "MinSize": "1",
+        "DesiredCapacity": "1",
+        "MaxSize": "2",
+        "MixedInstancesPolicy": {
+          "LaunchTemplate": {
+            "LaunchTemplateSpecification": {
+              "LaunchTemplateId": {
+                "Ref": "JumpHostLaunchTemplate"
+              },
+              "Version": {
+                "Fn::GetAtt": [
+                  "JumpHostLaunchTemplate",
+                  "LatestVersionNumber"
+                ]
+              }
+            },
+            "Overrides": [
+              {
+                "InstanceType": "t3.micro"
+              }
+            ]
+          },
+          "InstancesDistribution": {
+            "OnDemandAllocationStrategy": "prioritized"
+          }
+        },
+        "AutoScalingGroupName": "security-fixture-jumpHost-asg",
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ]
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": 1
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "JumpHostSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for bastion host jumpHost in stack security-fixture.",
+        "GroupName": "security-fixture-jumpHost-bastion-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "JumpHostLaunchTemplate": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateData": {
+          "ImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}",
+          "SecurityGroupIds": [
+            {
+              "Ref": "JumpHostSecurityGroup"
+            }
+          ],
+          "IamInstanceProfile": {
+            "Arn": {
+              "Fn::GetAtt": [
+                "JumpHostInstanceProfile",
+                "Arn"
+              ]
+            }
+          },
+          "UserData": {
+            "Fn::Base64": {
+              "Fn::Sub": "#!/bin/bash -xe\nmkdir -p /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.d\n\ncat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.d/default <<- EOF\n{\n  \"agent\": {\n    \"metrics_collection_interval\": 60,\n    \"run_as_user\": \"root\"\n  },\n  \"logs\": {\n    \"logs_collected\": {\n      \"files\": {\n        \"collect_list\": [\n          {\n            \"file_path\": \"/var/log/secure\",\n            \"log_group_name\": \"/stp/security-fixture/bastion/jumpHost/secure\",\n            \"log_stream_name\": \"{instance_id}\"\n          },\n          {\n            \"file_path\": \"/var/log/audit/audit.log\",\n            \"log_group_name\": \"/stp/security-fixture/bastion/jumpHost/audit\",\n            \"log_stream_name\": \"{instance_id}\"\n          },\n          {\n            \"file_path\": \"/var/log/messages\",\n            \"log_group_name\": \"/stp/security-fixture/bastion/jumpHost/messages\",\n            \"log_stream_name\": \"{instance_id}\"\n          }\n        ]\n      }\n    }\n  }\n}\nEOF\ntouch /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.toml\n"
+            }
+          },
+          "InstanceRequirements": {
+            "VCpuCount": {
+              "Min": 0
+            },
+            "MemoryMiB": {
+              "Min": 0
+            },
+            "BareMetal": "included",
+            "BurstablePerformance": "included",
+            "AllowedInstanceTypes": [
+              "t3.micro"
+            ]
+          },
+          "TagSpecifications": [
+            {
+              "ResourceType": "instance",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-jumpHost-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "volume",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-jumpHost-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            },
+            {
+              "ResourceType": "network-interface",
+              "Tags": [
+                {
+                  "Key": "stp:asg-name",
+                  "Value": "security-fixture-jumpHost-asg"
+                },
+                {
+                  "Key": "stp:stack-name",
+                  "Value": "security-fixture"
+                },
+                {
+                  "Key": "stp:project-name",
+                  "Value": "security"
+                },
+                {
+                  "Key": "stp:stage",
+                  "Value": "fixture"
+                },
+                {
+                  "Key": "stp:globally-unique-stack-hash",
+                  "Value": "7e618203"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "JumpHostRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "JumpHostInstanceProfileServiceLambdaPolicy": {
+      "Type": "AWS::IAM::Policy"
+    },
+    "JumpHostInstanceProfile": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "instanceProfile": {
+          "instanceProfileName": "security-fixture-jumpHost-bastion-eu-west-1",
+          "roleName": {
+            "Ref": "JumpHostRole"
+          },
+          "probeImageId": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}",
+          "probeSubnetId": {
+            "Ref": "StpPublicSubnet0"
+          }
+        }
+      },
+      "DependsOn": [
+        "JumpHostInstanceProfileServiceLambdaPolicy"
+      ]
+    },
+    "JumpHostCwAgentAssociation": {
+      "Type": "AWS::SSM::Association",
+      "Properties": {
+        "Name": {
+          "Ref": "StpBastionCloudwatchAgentDocument"
+        },
+        "ScheduleExpression": "rate(1 day)",
+        "Targets": [
+          {
+            "Key": "tag:stp:asg-name",
+            "Values": [
+              {
+                "Ref": "JumpHostAutoScalingGroup"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "JumpHostSsmAgentAssociation": {
+      "Type": "AWS::SSM::Association",
+      "Properties": {
+        "Name": "AWS-UpdateSSMAgent",
+        "ScheduleExpression": "rate(1 day)",
+        "Targets": [
+          {
+            "Key": "tag:stp:asg-name",
+            "Values": [
+              {
+                "Ref": "JumpHostAutoScalingGroup"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "JumpHostAuditLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/bastion/jumpHost/audit",
+        "RetentionInDays": 365
+      }
+    },
+    "JumpHostSecureLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/bastion/jumpHost/secure",
+        "RetentionInDays": 180
+      }
+    },
+    "JumpHostMessagesLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/bastion/jumpHost/messages",
+        "RetentionInDays": 30
+      }
+    },
+    "StpEcsExecutionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpEcsAutoScaleRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "PrivateWorkerScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "PrivateWorkerCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "PrivateWorkerService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        },
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs"
+      }
+    },
+    "PrivateWorkerCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-privateWorker-cluster"
+      }
+    },
+    "PrivateWorkerSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with privateWorker in stack security-fixture",
+        "GroupName": "security-fixture-privateWorker-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": []
+      }
+    },
+    "PrivateWorkerService": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {
+          "Ref": "PrivateWorkerCluster"
+        },
+        "DeploymentConfiguration": {
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100
+        },
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "LaunchType": "FARGATE",
+        "LoadBalancers": [],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "DISABLED",
+            "Subnets": [
+              {
+                "Ref": "StpPrivateSubnet0"
+              },
+              {
+                "Ref": "StpPrivateSubnet1"
+              },
+              {
+                "Ref": "StpPrivateSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "PrivateWorkerSecurityGroup"
+              }
+            ]
+          }
+        },
+        "TaskDefinition": {
+          "Ref": "PrivateWorkerTaskDefinition"
+        },
+        "PlatformVersion": "LATEST",
+        "EnableExecuteCommand": false
+      }
+    },
+    "PrivateWorkerServiceContainerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/privateWorker/service-container/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "PrivateWorkerRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "PrivateWorkerTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-privateWorker-task-definition",
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "Cpu": "256",
+        "Memory": "512",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "PrivateWorkerRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "service-container",
+            "Image": "example.invalid/app:v1",
+            "PortMappings": [],
+            "Essential": true,
+            "Environment": [],
+            "StopTimeout": 30,
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-group": {
+                  "Ref": "PrivateWorkerServiceContainerLogGroup"
+                },
+                "awslogs-stream-prefix": "ecs"
+              }
+            },
+            "DependsOn": []
+          }
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        }
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

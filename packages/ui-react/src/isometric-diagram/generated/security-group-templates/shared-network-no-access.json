@@ -1,0 +1,612 @@
+{
+  "description": "A shared-network stage where nothing admits the stage's group, so a function that reaches nothing runs in the network's no-access group.",
+  "config": "stackConfig:\n  nat: ec2\nresources:\n  orders:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [orders]\n  cron:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n",
+  "stacktapeResources": [
+    {
+      "name": "api",
+      "type": "function",
+      "logicalIds": [
+        "ApiFunction",
+        "ApiIssueDetectionSubscriptionFilter",
+        "ApiLogGroup",
+        "ApiRole"
+      ]
+    },
+    {
+      "name": "cron",
+      "type": "function",
+      "logicalIds": [
+        "CronFunction",
+        "CronIssueDetectionSubscriptionFilter",
+        "CronLogGroup",
+        "CronRole"
+      ]
+    },
+    {
+      "name": "orders",
+      "type": "relational-database",
+      "logicalIds": [
+        "OrdersDbInstance",
+        "OrdersDbParameterGroup",
+        "OrdersDbSubnetGroup",
+        "OrdersInstancePostgresqlLogGroup",
+        "OrdersSecurityGroup"
+      ]
+    }
+  ],
+  "resources": {
+    "StpStageNetworkSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Workloads of stack security-fixture in the shared network",
+        "VpcId": {
+          "Fn::ImportValue": "stacktape-network-vpc-id"
+        },
+        "Tags": [
+          {
+            "Key": "stacktape:network-placement",
+            "Value": "shared"
+          },
+          {
+            "Key": "stacktape:network-nat",
+            "Value": {
+              "Fn::ImportValue": "stacktape-network-nat-id"
+            }
+          }
+        ]
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub0}\",\"attributionCfResourceLogicalName\":\"OrdersDbSubnetGroup\"}]}",
+                {
+                  "sub0": {
+                    "Ref": "OrdersSecurityGroup"
+                  }
+                }
+              ]
+            },
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "ApiRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpVpcFunctions7f798818SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": "vpc-0shared",
+        "GroupName": "security-fixture-vpc-functions-7f798818-sg",
+        "GroupDescription": "VPC functions in stack security-fixture connecting to orders"
+      }
+    },
+    "ApiLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-api",
+        "RetentionInDays": 90
+      }
+    },
+    "StpIssueDetectionLogsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "logs.eu-west-1.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "ApiIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-api",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "ApiLogGroup"
+      ]
+    },
+    "ApiFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-api",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module",
+            "STP_ORDERS_HOST": {
+              "Fn::GetAtt": [
+                "OrdersDbInstance",
+                "Endpoint.Address"
+              ]
+            },
+            "STP_ORDERS_CONNECTION_STRING": {
+              "Fn::Sub": [
+                "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+                {
+                  "host": {
+                    "Fn::GetAtt": [
+                      "OrdersDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  },
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb"
+                }
+              ]
+            },
+            "STP_ORDERS_JDBC_CONNECTION_STRING": {
+              "Fn::Sub": [
+                "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+                {
+                  "host": {
+                    "Fn::GetAtt": [
+                      "OrdersDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  },
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb"
+                }
+              ]
+            },
+            "STP_ORDERS_PORT": "5432",
+            "STP_ORDERS_DB_NAME": "defdb"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "ApiRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            {
+              "Ref": "StpVpcFunctions7f798818SecurityGroup"
+            },
+            {
+              "Ref": "StpStageNetworkSecurityGroup"
+            }
+          ],
+          "SubnetIds": [
+            "subnet-private-a",
+            "subnet-private-b",
+            "subnet-private-c"
+          ]
+        }
+      },
+      "DependsOn": [
+        "ApiRole",
+        "ApiLogGroup"
+      ]
+    },
+    "CronRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "CronLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-cron",
+        "RetentionInDays": 90
+      }
+    },
+    "CronIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-cron",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "CronLogGroup"
+      ]
+    },
+    "CronFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-cron",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "CronRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "VpcConfig": {
+          "SecurityGroupIds": [
+            "sg-0noaccess"
+          ],
+          "SubnetIds": [
+            "subnet-private-a",
+            "subnet-private-b",
+            "subnet-private-c"
+          ]
+        }
+      },
+      "DependsOn": [
+        "CronRole",
+        "CronLogGroup"
+      ]
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": [
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/orders/connectionString",
+            "value": {
+              "Fn::Sub": [
+                "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+                {
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb",
+                  "host": {
+                    "Fn::GetAtt": [
+                      "OrdersDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/orders/jdbcConnectionString",
+            "value": {
+              "Fn::Sub": [
+                "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+                {
+                  "username": "db_master_user",
+                  "password": "synthetic-password",
+                  "port": "5432",
+                  "databaseName": "defdb",
+                  "host": {
+                    "Fn::GetAtt": [
+                      "OrdersDbInstance",
+                      "Endpoint.Address"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "OrdersDbSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupName": "security-fixture-orders-subnet-group",
+        "SubnetIds": [
+          "subnet-public-a",
+          "subnet-public-b",
+          "subnet-public-c"
+        ],
+        "DBSubnetGroupDescription": "security-fixture-orders-subnet-group"
+      }
+    },
+    "OrdersSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "VpcId": "vpc-0shared",
+        "GroupName": "security-fixture-orders-sg",
+        "GroupDescription": "Stacktape generated security group for database orders in stack security-fixture",
+        "SecurityGroupIngress": [
+          {
+            "SourceSecurityGroupId": {
+              "Ref": "StpVpcFunctions7f798818SecurityGroup"
+            },
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "OrdersDbInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBInstanceClass": "db.t4g.micro",
+        "DBInstanceIdentifier": "security-fixture-orders",
+        "AutoMinorVersionUpgrade": true,
+        "DBName": "defdb",
+        "Engine": "postgres",
+        "EngineVersion": "16.9",
+        "EnableCloudwatchLogsExports": [
+          "postgresql"
+        ],
+        "DBParameterGroupName": {
+          "Ref": "OrdersDbParameterGroup"
+        },
+        "Port": "5432",
+        "MasterUsername": "db_master_user",
+        "MasterUserPassword": "synthetic-password",
+        "AllocatedStorage": "20",
+        "MaxAllocatedStorage": 200,
+        "PubliclyAccessible": true,
+        "DBSubnetGroupName": {
+          "Ref": "OrdersDbSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "OrdersSecurityGroup"
+          }
+        ],
+        "AllowMajorVersionUpgrade": true,
+        "StorageType": "gp3",
+        "PreferredMaintenanceWindow": "Sun:02:00-Sun:04:00",
+        "PreferredBackupWindow": "01:00-01:30",
+        "StorageEncrypted": true
+      },
+      "DependsOn": [
+        "OrdersInstancePostgresqlLogGroup"
+      ],
+      "DeletionPolicy": "Delete"
+    },
+    "OrdersInstancePostgresqlLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/rds/instance/security-fixture-orders/postgresql",
+        "RetentionInDays": 90
+      }
+    },
+    "OrdersDbParameterGroup": {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties": {
+        "Description": "security-fixture orders param group",
+        "Family": "postgres16",
+        "Parameters": {
+          "log_connections": "0",
+          "log_disconnections": "0",
+          "log_lock_waits": "0",
+          "log_min_duration_statement": "10000",
+          "log_statement": "ddl"
+        }
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

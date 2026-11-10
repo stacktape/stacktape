@@ -3005,6 +3005,7 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
       'packages/ui-react/src/link/Link.test.tsx',
@@ -5306,17 +5307,20 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/ui-react/src/isometric-diagram/**',
       'apps/console/ui/src/components/IsometricDiagramView.tsx',
+      'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'
     ],
     tests: [
+      'apps/cli/tests/synthesis-families/security-group-fixtures.spec.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
       'packages/ui-react/src/resource-icon/catalog.test.ts'
     ],
-    lanes: ['ui-react-test', 'console-browser-offline', 'shared-ui-browser']
+    lanes: ['ui-react-test', 'synthesis-families', 'console-browser-offline', 'shared-ui-browser']
   },
   {
     id: 'S42',
