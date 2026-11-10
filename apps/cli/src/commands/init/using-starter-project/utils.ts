@@ -2,6 +2,8 @@ import type { StarterProjectMetadata } from '@scripts/types';
 import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
+import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
+import { shellQuote } from '../../../config/cli/public-names';
 import { sortObjectKeys } from '@utils/misc';
 import { pathExists, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
@@ -59,6 +61,33 @@ export const adjustPackageJson = async ({
   };
 
   return writeJson(packageJsonPath, content, { spaces: 2 });
+};
+
+/**
+ * The commands that take a fresh starter to AWS, complete as printed: the secrets only the user has, then dev mode or a
+ * deploy. The deploy generates database passwords itself, so they are not listed. A deploy goes to `dev`, the wizard's
+ * first stage. Dev mode gets a stage of its own, because `deploy` refuses a stack `dev` created, and the other way round.
+ */
+export const starterCommands = ({
+  projectName,
+  region,
+  awsAccount,
+  resources
+}: {
+  projectName: string;
+  region: string;
+  awsAccount: string | undefined;
+  resources: Record<string, unknown>;
+}) => {
+  const account = awsAccount === undefined ? '' : ` --aws-account ${shellQuote(awsAccount)}`;
+  const stack = (stage: string) => `--project ${shellQuote(projectName)} --stage ${stage} --region ${region}${account}`;
+  return {
+    secrets: requiredSecrets(resources).map(
+      (name) => `stacktape secret set ${shellQuote(name)} --region ${region}${account}`
+    ),
+    dev: `stacktape dev ${stack('local')}`,
+    deploy: `stacktape deploy ${stack('dev')}`
+  };
 };
 
 export const promptTargetDirectory = async (): Promise<string> => {

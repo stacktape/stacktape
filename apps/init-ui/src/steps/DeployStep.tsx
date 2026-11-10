@@ -15,11 +15,10 @@ import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { Row, RowList } from '../components/RowList';
 import { SignInPanel } from '../components/SignInPanel';
-import { stackCommand } from '../deploy-commands';
+import { secretCommand, stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
-import { requiredSecrets, secretCommand } from '../required-secrets';
-import { organizationLabel } from '../sign-in';
+import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
 
 /**
@@ -423,7 +422,7 @@ export function DeployStep({
                   <span className="[overflow-wrap:anywhere]">
                     {account.email ?? 'Signed in'}
                     {account.organization !== undefined && (
-                      <span className="text-[var(--stp-text-muted)]"> · {organizationLabel(account.organization)}</span>
+                      <span className="text-[var(--stp-text-muted)]"> · {account.organization}</span>
                     )}
                   </span>
                 ) : (

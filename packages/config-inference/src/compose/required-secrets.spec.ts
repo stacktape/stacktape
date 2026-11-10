@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { requiredSecrets, requiredSecretVariables, secretCommand } from './required-secrets';
+import { requiredSecrets, requiredSecretVariables } from './required-secrets';
 
 describe('requiredSecrets', () => {
   it('lists secrets the user must create and skips database passwords the deploy generates', () => {
@@ -37,13 +37,5 @@ describe('requiredSecrets', () => {
 
   it('finds nothing in a configuration without secret references', () => {
     expect(requiredSecrets({ app: { type: 'nextjs-web', properties: { appDirectory: '.' } } })).toEqual([]);
-  });
-
-  it('builds a command that prompts for the value', () => {
-    expect(secretCommand('rmq_url', 'eu-west-1')).toBe('stacktape secret set rmq_url --region eu-west-1');
-    // The account the wizard was started with, kept in one argument even when its name has spaces.
-    expect(secretCommand('rmq_url', 'eu-west-1', 'Development Account')).toBe(
-      'stacktape secret set rmq_url --region eu-west-1 --aws-account "Development Account"'
-    );
   });
 });
