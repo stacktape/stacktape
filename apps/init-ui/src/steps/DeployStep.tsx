@@ -19,6 +19,7 @@ import { secretCommand, stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
 import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
+import { organizationLabel } from '../sign-in';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
 
 /**
@@ -422,7 +423,7 @@ export function DeployStep({
                   <span className="[overflow-wrap:anywhere]">
                     {account.email ?? 'Signed in'}
                     {account.organization !== undefined && (
-                      <span className="text-[var(--stp-text-muted)]"> · {account.organization}</span>
+                      <span className="text-[var(--stp-text-muted)]"> · {organizationLabel(account.organization)}</span>
                     )}
                   </span>
                 ) : (
