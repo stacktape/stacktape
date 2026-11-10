@@ -905,23 +905,44 @@ const runExtraScenarios = async (stack: CanaryStack, record: (scenario: Scenario
   process.kill(-killed.child.pid, 'SIGKILL');
   await killed.finished;
   await stack.remove('py/migrations/slow.txt');
-  const repaired = await stack.deployOk('deploy after a killed code-swap deploy');
+  // The repair is cancelled with Ctrl+C while its image deploy rolls out. It took the lock over and did not finish, so it
+  // leaves the lock to expire, and the deploy after it repairs again.
+  const cancelledRepair = stack.start('deploy');
   assert(
-    repaired.output.includes(`invocation ${killed.invocationId}`) &&
+    await cancelledRepair.printed(/Updating ECS service/, 600_000),
+    'the repair never started its image deploy, so it could not be cancelled during it.'
+  );
+  await sleep(5000);
+  process.kill(-cancelledRepair.child.pid, 'SIGINT');
+  const cancelled = await cancelledRepair.finished;
+  assert(cancelled.exitCode !== 0, 'a cancelled repair should fail.');
+  assert(
+    cancelled.output.includes(`invocation ${killed.invocationId}`) &&
+      cancelled.output.includes('stopped without releasing it'),
+    `the repair did not say it waited for the killed deploy:\n${cancelled.output.slice(-2000)}`
+  );
+  assert(
+    cancelled.output.includes('An interrupted swap will be repaired with an image deploy'),
+    `the deploy after the killed one did not start a repair:\n${cancelled.output.slice(-2000)}`
+  );
+  await record({ name: 'a repair cancelled with Ctrl+C fails', seconds: cancelled.seconds });
+  const repaired = await stack.deployOk('deploy after a cancelled repair');
+  assert(
+    repaired.output.includes(`invocation ${cancelledRepair.invocationId}`) &&
       repaired.output.includes('stopped without releasing it'),
-    `the next deploy did not say it waited for the killed one:\n${repaired.output.slice(-2000)}`
+    `the next deploy did not say it waited for the cancelled repair:\n${repaired.output.slice(-2000)}`
   );
   assert(
     repaired.output.includes('Image deploy for pyswap: repairing an interrupted swap'),
-    `the next deploy should repair with an image:\n${repaired.output.slice(-2000)}`
+    `the deploy after a cancelled repair should repair with an image again:\n${repaired.output.slice(-2000)}`
   );
-  await stack.expectRelease('deploy after a killed code-swap deploy', PY_URL, 'py5');
+  await stack.expectRelease('deploy after a cancelled repair', PY_URL, 'py5');
   await stack.setRelease('py/server.py', 'py6');
   const swapsAgain = await stack.deployOk('code-only deploy after a repair');
   assert(swapsAgain.output.includes('Swapped code in pyswap'), 'code swap should work again after a repair.');
   await stack.expectRelease('code-only deploy after a repair', PY_URL, 'py6');
   await record({
-    name: 'a deploy started right after a killed code-swap deploy waits for its lease, then repairs with an image',
+    name: 'after a killed code-swap deploy and a cancelled repair, the next deploy waits for the lease and repairs with an image',
     seconds: repaired.seconds
   });
 
