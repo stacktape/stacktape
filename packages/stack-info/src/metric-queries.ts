@@ -15,7 +15,7 @@ type MetricQueryInput = {
    * or topic name, or state machine ARN.
    */
   primaryResourceIdentifier: string;
-  /** ECS service name and Cognito user pool client id; unused for the other resource types. */
+  /** ECS service name, Cognito user pool client id and an event bus's rule name; unused for the other resource types. */
   secondaryResourceIdentifier?: string;
   period: number;
 };
@@ -129,7 +129,10 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('freeableMemory', 'FreeableMemory', 'Average'),
       metric('databaseConnections', 'DatabaseConnections', 'Average'),
       // Used storage is calculated from free storage later.
-      metric('storageUsed', 'FreeStorageSpace', 'Average')
+      metric('storageUsed', 'FreeStorageSpace', 'Average'),
+      // Seconds per operation: the first place a slow query shows when CPU looks fine.
+      metric('readLatency', 'ReadLatency', 'Average'),
+      metric('writeLatency', 'WriteLatency', 'Average')
     ];
   },
 
@@ -188,7 +191,9 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('evictions', 'Evictions', 'Sum'),
       metric('networkRxBytes', 'NetworkBytesIn', 'Average'),
       metric('networkTxBytes', 'NetworkBytesOut', 'Average'),
-      metric('currConnections', 'CurrConnections', 'Average')
+      metric('currConnections', 'CurrConnections', 'Average'),
+      // How full the node's memory is, which bytes alone cannot say without its size.
+      metric('memoryPercent', 'DatabaseMemoryUsagePercentage', 'Average')
     ];
   },
 
@@ -230,6 +235,44 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('executionsFailed', 'ExecutionsFailed', 'Sum'),
       metric('executionsTimedOut', 'ExecutionsTimedOut', 'Sum'),
       metric('executionTime', 'ExecutionTime', 'Average')
+    ];
+  },
+
+  // A custom bus counts the events any of its rules matched. What each rule delivered is counted per rule, below.
+  events: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [{ Name: 'EventBusName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [metric('matchedEvents', 'MatchedEvents', 'Sum')];
+  },
+
+  // EventBridge publishes a failed delivery only when there is one, so an empty series means none failed.
+  eventsRule: ({ primaryResourceIdentifier, secondaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [
+        { Name: 'EventBusName', Value: primaryResourceIdentifier },
+        { Name: 'RuleName', Value: secondaryResourceIdentifier! }
+      ],
+      period
+    });
+    return [
+      metric('invocations', 'Invocations', 'Sum'),
+      metric('failedInvocations', 'FailedInvocations', 'Sum'),
+      metric('matchedEvents', 'MatchedEvents', 'Sum')
+    ];
+  },
+
+  // The account's sending in this region. The rates are shares (0.012 is 1.2%) over AWS's own recent window.
+  ses: ({ period }) => {
+    const metric = metricsOf({ namespace: 'AWS/SES', dimensions: [], period });
+    return [
+      metric('sent', 'Send', 'Sum'),
+      metric('delivered', 'Delivery', 'Sum'),
+      metric('bounceRate', 'Reputation.BounceRate', 'Average'),
+      metric('complaintRate', 'Reputation.ComplaintRate', 'Average')
     ];
   },
 

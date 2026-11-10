@@ -30,6 +30,8 @@ export function TextField(props: TextFieldProps) {
     rootClassName,
     reserveMessageSpace = true,
     trailing,
+    // Chooses the element; on the element itself React would warn about an unknown attribute.
+    multiline,
     ...controlProps
   } = props;
   const inputId = controlProps.id ?? `stacktape-field-${generatedId}`;
@@ -47,7 +49,7 @@ export function TextField(props: TextFieldProps) {
       ) : null}
       <div className="stp-ui-text-field__surface">
         {leading ? <span className="stp-ui-text-field__leading">{leading}</span> : null}
-        {props.multiline ? (
+        {multiline ? (
           <textarea
             {...(controlProps as ComponentPropsWithRef<'textarea'>)}
             aria-describedby={describedBy}
