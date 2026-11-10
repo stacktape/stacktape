@@ -2135,6 +2135,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-order.test.ts',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/console/ui/src/services/request-errors.test.ts',
@@ -2924,6 +2925,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-order.test.ts',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
@@ -5703,7 +5705,8 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/ui/e2e/git-provider-writes-live.spec.ts',
-      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx'
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-order.test.ts'
     ],
     lanes: [
       'console-github-actions-cleanup',
