@@ -31,6 +31,11 @@ const LOG_POLL_INTERVAL_MS = 2000;
 /** CloudWatch can show the last lines a few seconds after the container ended. */
 const LOG_DRAIN_MS = 6000;
 const LOG_QUIET_MS = 2500;
+/**
+ * CloudWatch can show a container's first lines well after a quick command ended, such as an `echo` on a warm EC2
+ * instance. Stopping after one quiet period lost them. A command that prints nothing delays the end of its deploy by this.
+ */
+const LOG_FIRST_LINE_MS = 20_000;
 
 type PlannedReleaseCommand = {
   release: ResolvedReleaseCommand;
@@ -156,6 +161,64 @@ export const planReleaseCommands = async ({
 
 export const dueReleaseCommands = () => plan.filter(({ due }) => due);
 
+const EARLIER_TASK_POLL_MS = 5000;
+
+/**
+ * Waits while a release command that an interrupted operation started is still running: a cancelled CI job or a rolled
+ * back stack leaves the task running, because stopping a migration partway can leave the database half migrated, and a
+ * second migration next to it could corrupt it. Runs before anything changes, for the commands this deploy may run. It
+ * gives up after the command's timeout, the longest that run was allowed. Says whether it waited.
+ */
+export const waitForEarlierReleaseCommands = async ({
+  fastDeployment,
+  clusterOf
+}: {
+  /** A fast deployment runs only the due commands; a CloudFormation operation decides about the others itself. */
+  fastDeployment: boolean;
+  /** The cluster the workload's service runs in, when it has one already. */
+  clusterOf: (release: ResolvedReleaseCommand) => string | undefined;
+}) => {
+  if (skipped) return false;
+  const { stackName } = globalStateManager.targetStack;
+  const ecs = awsSdkManager.ecs.client();
+  const startedBy = releaseTaskStartedBy(globalStateManager.invocationId);
+  let waited = false;
+  for (const { release } of fastDeployment ? dueReleaseCommands() : plan) {
+    const cluster = clusterOf(release);
+    if (!cluster) continue;
+    const { workload, containerName, timeoutSeconds } = release;
+    const name = workload.nameChain[0];
+    const giveUpAtMs = Date.now() + timeoutSeconds * 1000;
+    let announced: string | undefined;
+    for (;;) {
+      const otherTask = await findReleaseTaskOfAnotherOperation({
+        ecs,
+        cluster,
+        family: awsResourceNames.ecsReleaseTaskDefinitionFamily(workload.name, stackName),
+        startedBy,
+        containerName
+      });
+      if (!otherTask) break;
+      if (Date.now() >= giveUpAtMs) {
+        throw new ExpectedError(
+          'STACK',
+          `An earlier release command of ${name} is still running (task ${otherTask}), longer than its ${timeoutSeconds} s timeout.`,
+          ['Stop the task or wait for it to finish, then deploy again.']
+        );
+      }
+      if (announced !== otherTask) {
+        announced = otherTask;
+        tuiManager.info(
+          `Waiting for an earlier release command of ${name} to finish (task ${otherTask}). An interrupted deploy or a rollback left it running.`
+        );
+      }
+      waited = true;
+      await new Promise((done) => setTimeout(done, EARLIER_TASK_POLL_MS));
+    }
+  }
+  return waited;
+};
+
 /**
  * Sets what each custom resource does in this CloudFormation operation. A fast deployment ignores this and runs the due
  * commands itself.
@@ -213,6 +276,7 @@ export const startReleaseCommandLogs = async () => {
   // The container's clock is AWS's, and this machine's can be off.
   const startTime = (await getAwsSynchronizedTime()).getTime() - 5000;
   const seen = new Set<string>();
+  const groupsWithOutput = new Set<string>();
   const poll = async () => {
     await Promise.all(
       groups.map(async ({ label, logGroupName }) => {
@@ -225,6 +289,7 @@ export const startReleaseCommandLogs = async () => {
           for (const { eventId, message } of page.events) {
             if (eventId && !seen.has(eventId)) {
               seen.add(eventId);
+              groupsWithOutput.add(logGroupName);
               tuiManager.info(`[release ${label}] ${(message ?? '').trimEnd()}`);
             }
           }
@@ -242,8 +307,15 @@ export const startReleaseCommandLogs = async () => {
   })();
   return {
     stop: async () => {
+      const ran = dueReleaseCommands().map(({ release }) =>
+        getReleaseCommandLogGroupName(release.workload.name, stackName)
+      );
       // Nothing ran, so nothing is on its way.
-      if (seen.size || dueReleaseCommands().length) {
+      if (seen.size || ran.length) {
+        const firstLinesDeadline = Date.now() + LOG_FIRST_LINE_MS;
+        while (Date.now() < firstLinesDeadline && ran.some((group) => !groupsWithOutput.has(group))) {
+          await new Promise((done) => setTimeout(done, LOG_POLL_INTERVAL_MS));
+        }
         const deadline = Date.now() + LOG_DRAIN_MS;
         let lastCount = -1;
         while (Date.now() < deadline && lastCount !== seen.size) {
@@ -259,8 +331,8 @@ export const startReleaseCommandLogs = async () => {
 
 /**
  * Runs the due commands from this machine, for a deployment that doesn't go through CloudFormation. The stack lock takes
- * the place of CloudFormation's one update at a time. An interrupted CLI leaves the task running; the next deploy refuses
- * to start until it has finished.
+ * the place of CloudFormation's one update at a time. An interrupted CLI leaves the task running; the next deploy waits
+ * for it first (`waitForEarlierReleaseCommands`).
  */
 export const runReleaseCommandsDirectly = async ({
   registerTaskDefinition

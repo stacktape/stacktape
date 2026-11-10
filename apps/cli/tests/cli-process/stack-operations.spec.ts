@@ -478,6 +478,10 @@ describe('delete', () => {
       })
     });
     const deleting = runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
+    // The delete reads the stack, then takes the lock. A busy machine can take longer than any fixed pause to start it.
+    for (const deadline = Date.now() + 60_000; !aws.reads.includes('DescribeStacks') && Date.now() < deadline;) {
+      await Bun.sleep(100);
+    }
     await Bun.sleep(3000);
     // Nothing changes the stack while the deploy holds it.
     expect(aws.mutations).toEqual([]);

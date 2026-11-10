@@ -174,7 +174,7 @@ export const releaseCommand: ServiceLambdaResolver<StpServiceCustomResourceRelea
   if (result.outcome === 'failed') throw failure(result.message, physicalResourceId, props);
   if (rollingBack) {
     // The update was cancelled. The rollback should not wait. Stopping a running migration can leave the database half
-    // migrated, so the task finishes on its own, and the next deploy refuses to start until it has.
+    // migrated, so the task finishes on its own, and the next deploy waits for it before it changes anything.
     console.warn(`The stack is rolling back. Release command task ${state.taskArn} keeps running.`);
     return done;
   }
