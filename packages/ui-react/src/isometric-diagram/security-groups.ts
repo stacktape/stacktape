@@ -195,24 +195,39 @@ const expandList = (value: unknown, conditions: string[] = []): Branch[] =>
 const expandNestedList = (value: unknown, key: string): Branch[] =>
   expandList(value).flatMap((item) => expandList(field(item.value, key), item.conditions));
 
-/** Whether `value` refers to `logicalId` through `Ref`, `Fn::GetAtt` or a `Fn::Sub` variable. */
-const refersTo = (value: unknown, logicalId: string, seen = new Set<object>(), depth = 0): boolean => {
+/**
+ * The logical IDs `value` refers to through `Ref`, `Fn::GetAtt` or a `Fn::Sub` variable, collected in one walk so that
+ * callers look candidates up instead of searching the tree once per candidate.
+ */
+const collectReferences = (value: unknown): Set<string> => {
+  const references = new Set<string>();
   // Parsed YAML can share one node in many places, or nest a node in itself.
-  if (typeof value !== 'object' || value === null || seen.has(value) || depth > MAX_REFERENCE_DEPTH) return false;
-  seen.add(value);
-  if (Array.isArray(value)) return value.some((item) => refersTo(item, logicalId, seen, depth + 1));
-  const intrinsic = intrinsicOf(value);
-  if (intrinsic?.name === 'Ref' && intrinsic.argument === logicalId) return true;
-  if (intrinsic?.name === 'Fn::GetAtt' && getAttParts(intrinsic.argument)?.[0] === logicalId) return true;
-  if (intrinsic?.name === 'Fn::Sub') {
-    const template = Array.isArray(intrinsic.argument) ? intrinsic.argument[0] : intrinsic.argument;
-    if (
-      typeof template === 'string' &&
-      (template.includes(`\${${logicalId}}`) || template.includes(`\${${logicalId}.`))
-    )
-      return true;
-  }
-  return Object.values(value).some((child) => refersTo(child, logicalId, seen, depth + 1));
+  const seen = new Set<object>();
+  const visit = (node: unknown, depth: number) => {
+    if (typeof node !== 'object' || node === null || seen.has(node) || depth > MAX_REFERENCE_DEPTH) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+    const intrinsic = intrinsicOf(node);
+    if (intrinsic?.name === 'Ref' && typeof intrinsic.argument === 'string') references.add(intrinsic.argument);
+    if (intrinsic?.name === 'Fn::GetAtt') {
+      const parts = getAttParts(intrinsic.argument);
+      if (parts) references.add(parts[0]);
+    }
+    if (intrinsic?.name === 'Fn::Sub') {
+      const template = Array.isArray(intrinsic.argument) ? intrinsic.argument[0] : intrinsic.argument;
+      if (typeof template === 'string') {
+        // `${Name}` and `${Name.Attribute}`; `${!Literal}` is escaped text.
+        for (const [, variable] of template.matchAll(/\$\{([^!}][^}]*)\}/g))
+          references.add(variable.split('.')[0].trim());
+      }
+    }
+    for (const child of Object.values(node)) visit(child, depth + 1);
+  };
+  visit(value, 0);
+  return references;
 };
 
 const readTemplateResources = (resources: unknown): TemplateResource[] => {
@@ -247,114 +262,127 @@ const ecsServiceGroups = (properties: unknown) =>
  * `apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers`) and the common EC2 shapes of custom
  * CloudFormation resources.
  */
-const ATTACHMENTS: Record<
-  string,
-  { kind: SecurityGroupMemberKind; groups: (properties: Record<string, unknown>) => GroupReference[] }
-> = {
-  'AWS::Lambda::Function': {
-    kind: 'function',
-    groups: (properties) => expandList(field(properties.VpcConfig, 'SecurityGroupIds'))
-  },
-  'AWS::ECS::Service': { kind: 'container-service', groups: ecsServiceGroups },
-  // A blue/green service is Stacktape's resource provider wrapped around the ECS service's properties.
-  'Stacktape::ECSBlueGreenV1::Service': {
-    kind: 'container-service',
-    groups: (properties) => ecsServiceGroups(properties.ECSService)
-  },
-  'AWS::ECS::TaskSet': {
-    kind: 'container-service',
-    groups: (properties) =>
-      expandList(field(field(properties.NetworkConfiguration, 'AwsVpcConfiguration'), 'SecurityGroups'))
-  },
-  'AWS::EC2::LaunchTemplate': {
-    kind: 'ec2-instances',
-    groups: (properties) => {
-      const data = properties.LaunchTemplateData;
-      return [
-        ...expandList(field(data, 'SecurityGroupIds')),
-        ...asNames(expandList(field(data, 'SecurityGroups'))),
-        ...expandNestedList(field(data, 'NetworkInterfaces'), 'Groups')
-      ];
-    }
-  },
-  'AWS::EC2::Instance': {
-    kind: 'ec2-instances',
-    groups: (properties) => [
-      ...expandList(properties.SecurityGroupIds),
-      ...asNames(expandList(properties.SecurityGroups)),
-      ...expandNestedList(properties.NetworkInterfaces, 'GroupSet')
-    ]
-  },
-  'AWS::AutoScaling::LaunchConfiguration': {
-    kind: 'ec2-instances',
-    groups: (properties) => expandList(properties.SecurityGroups)
-  },
-  'AWS::EC2::NetworkInterface': { kind: 'network-interface', groups: (properties) => expandList(properties.GroupSet) },
-  'AWS::RDS::DBInstance': { kind: 'database', groups: (properties) => expandList(properties.VPCSecurityGroups) },
-  'AWS::RDS::DBCluster': { kind: 'database', groups: (properties) => expandList(properties.VpcSecurityGroupIds) },
-  'AWS::ElastiCache::ReplicationGroup': {
-    kind: 'redis',
-    groups: (properties) => expandList(properties.SecurityGroupIds)
-  },
-  'AWS::ElastiCache::ServerlessCache': {
-    kind: 'redis',
-    groups: (properties) => expandList(properties.SecurityGroupIds)
-  },
-  'AWS::ElastiCache::CacheCluster': {
-    kind: 'redis',
-    groups: (properties) => expandList(properties.VpcSecurityGroupIds)
-  },
-  'AWS::OpenSearchService::Domain': {
-    kind: 'opensearch',
-    groups: (properties) => expandList(field(properties.VPCOptions, 'SecurityGroupIds'))
-  },
-  'AWS::Elasticsearch::Domain': {
-    kind: 'opensearch',
-    groups: (properties) => expandList(field(properties.VPCOptions, 'SecurityGroupIds'))
-  },
-  'AWS::MSK::ServerlessCluster': {
-    kind: 'kafka',
-    groups: (properties) => expandNestedList(properties.VpcConfigs, 'SecurityGroups')
-  },
-  'AWS::MSK::Cluster': {
-    kind: 'kafka',
-    groups: (properties) => expandList(field(properties.BrokerNodeGroupInfo, 'SecurityGroups'))
-  },
-  'AWS::ElasticLoadBalancingV2::LoadBalancer': {
-    kind: 'load-balancer',
-    groups: (properties) => expandList(properties.SecurityGroups)
-  },
-  'AWS::ApiGatewayV2::VpcLink': { kind: 'vpc-link', groups: (properties) => expandList(properties.SecurityGroupIds) },
-  'AWS::EC2::VPCEndpoint': { kind: 'vpc-endpoint', groups: (properties) => expandList(properties.SecurityGroupIds) },
-  'AWS::EFS::MountTarget': { kind: 'efs-mount-target', groups: (properties) => expandList(properties.SecurityGroups) },
-  'AWS::Batch::ComputeEnvironment': {
-    kind: 'batch-compute-environment',
-    groups: (properties) => expandList(field(properties.ComputeResources, 'SecurityGroupIds'))
-  },
-  'AWS::BedrockAgentCore::Runtime': {
-    kind: 'agentcore-runtime',
-    groups: (properties) =>
-      expandList(field(field(properties.NetworkConfiguration, 'NetworkModeConfig'), 'SecurityGroups'))
-  }
+type Attachment = {
+  kind: SecurityGroupMemberKind;
+  groups: (properties: Record<string, unknown>) => GroupReference[];
 };
 
-const PROTOCOL_NAMES: Record<string, SecurityRuleProtocol> = {
-  '-1': 'all',
-  all: 'all',
-  tcp: 'tcp',
-  '6': 'tcp',
-  udp: 'udp',
-  '17': 'udp',
-  icmp: 'icmp',
-  '1': 'icmp',
-  icmpv6: 'icmpv6',
-  '58': 'icmpv6'
-};
+// A Map, because resource types come from the template and a plain object would also answer `__proto__` or
+// `constructor`.
+const ATTACHMENTS = new Map<string, Attachment>(
+  Object.entries({
+    'AWS::Lambda::Function': {
+      kind: 'function',
+      groups: (properties) => expandList(field(properties.VpcConfig, 'SecurityGroupIds'))
+    },
+    'AWS::ECS::Service': { kind: 'container-service', groups: ecsServiceGroups },
+    // A blue/green service is Stacktape's resource provider wrapped around the ECS service's properties.
+    'Stacktape::ECSBlueGreenV1::Service': {
+      kind: 'container-service',
+      groups: (properties) => ecsServiceGroups(properties.ECSService)
+    },
+    'AWS::ECS::TaskSet': {
+      kind: 'container-service',
+      groups: (properties) =>
+        expandList(field(field(properties.NetworkConfiguration, 'AwsVpcConfiguration'), 'SecurityGroups'))
+    },
+    'AWS::EC2::LaunchTemplate': {
+      kind: 'ec2-instances',
+      groups: (properties) => {
+        const data = properties.LaunchTemplateData;
+        return [
+          ...expandList(field(data, 'SecurityGroupIds')),
+          ...asNames(expandList(field(data, 'SecurityGroups'))),
+          ...expandNestedList(field(data, 'NetworkInterfaces'), 'Groups')
+        ];
+      }
+    },
+    'AWS::EC2::Instance': {
+      kind: 'ec2-instances',
+      groups: (properties) => [
+        ...expandList(properties.SecurityGroupIds),
+        ...asNames(expandList(properties.SecurityGroups)),
+        ...expandNestedList(properties.NetworkInterfaces, 'GroupSet')
+      ]
+    },
+    'AWS::AutoScaling::LaunchConfiguration': {
+      kind: 'ec2-instances',
+      groups: (properties) => expandList(properties.SecurityGroups)
+    },
+    'AWS::EC2::NetworkInterface': {
+      kind: 'network-interface',
+      groups: (properties) => expandList(properties.GroupSet)
+    },
+    'AWS::RDS::DBInstance': { kind: 'database', groups: (properties) => expandList(properties.VPCSecurityGroups) },
+    'AWS::RDS::DBCluster': { kind: 'database', groups: (properties) => expandList(properties.VpcSecurityGroupIds) },
+    'AWS::ElastiCache::ReplicationGroup': {
+      kind: 'redis',
+      groups: (properties) => expandList(properties.SecurityGroupIds)
+    },
+    'AWS::ElastiCache::ServerlessCache': {
+      kind: 'redis',
+      groups: (properties) => expandList(properties.SecurityGroupIds)
+    },
+    'AWS::ElastiCache::CacheCluster': {
+      kind: 'redis',
+      groups: (properties) => expandList(properties.VpcSecurityGroupIds)
+    },
+    'AWS::OpenSearchService::Domain': {
+      kind: 'opensearch',
+      groups: (properties) => expandList(field(properties.VPCOptions, 'SecurityGroupIds'))
+    },
+    'AWS::Elasticsearch::Domain': {
+      kind: 'opensearch',
+      groups: (properties) => expandList(field(properties.VPCOptions, 'SecurityGroupIds'))
+    },
+    'AWS::MSK::ServerlessCluster': {
+      kind: 'kafka',
+      groups: (properties) => expandNestedList(properties.VpcConfigs, 'SecurityGroups')
+    },
+    'AWS::MSK::Cluster': {
+      kind: 'kafka',
+      groups: (properties) => expandList(field(properties.BrokerNodeGroupInfo, 'SecurityGroups'))
+    },
+    'AWS::ElasticLoadBalancingV2::LoadBalancer': {
+      kind: 'load-balancer',
+      groups: (properties) => expandList(properties.SecurityGroups)
+    },
+    'AWS::ApiGatewayV2::VpcLink': { kind: 'vpc-link', groups: (properties) => expandList(properties.SecurityGroupIds) },
+    'AWS::EC2::VPCEndpoint': { kind: 'vpc-endpoint', groups: (properties) => expandList(properties.SecurityGroupIds) },
+    'AWS::EFS::MountTarget': {
+      kind: 'efs-mount-target',
+      groups: (properties) => expandList(properties.SecurityGroups)
+    },
+    'AWS::Batch::ComputeEnvironment': {
+      kind: 'batch-compute-environment',
+      groups: (properties) => expandList(field(properties.ComputeResources, 'SecurityGroupIds'))
+    },
+    'AWS::BedrockAgentCore::Runtime': {
+      kind: 'agentcore-runtime',
+      groups: (properties) =>
+        expandList(field(field(properties.NetworkConfiguration, 'NetworkModeConfig'), 'SecurityGroups'))
+    }
+  } satisfies Record<string, Attachment>)
+);
+
+// A Map for the same reason as `ATTACHMENTS`: protocols come from the template.
+const PROTOCOL_NAMES = new Map<string, SecurityRuleProtocol>([
+  ['-1', 'all'],
+  ['all', 'all'],
+  ['tcp', 'tcp'],
+  ['6', 'tcp'],
+  ['udp', 'udp'],
+  ['17', 'udp'],
+  ['icmp', 'icmp'],
+  ['1', 'icmp'],
+  ['icmpv6', 'icmpv6'],
+  ['58', 'icmpv6']
+]);
 
 const readProtocol = (value: unknown): SecurityRuleProtocol => {
   if (typeof value !== 'string' && typeof value !== 'number') return 'unknown';
   const key = String(value).trim().toLowerCase();
-  const known = PROTOCOL_NAMES[key];
+  const known = PROTOCOL_NAMES.get(key);
   if (known) return known;
   return /^\d{1,3}$/.test(key) && Number(key) <= 255 ? `${Number(key)}` : 'unknown';
 };
@@ -377,13 +405,36 @@ const readPorts = (protocol: SecurityRuleProtocol, rule: Record<string, unknown>
 
 const INTERNET_CIDRS = new Set(['0.0.0.0/0', '::/0']);
 
+const MAX_EXPRESSION_NODES = 256;
+const MAX_EXPRESSION_LENGTH = 512;
+const UNREADABLE_EXPRESSION = '(unreadable expression)';
+
+/**
+ * An expression this module cannot evaluate, as JSON. Parsed YAML can share one node in many places or nest it in
+ * itself, which makes plain `JSON.stringify` exponential or throw. A shared node, or an expression over the node or
+ * length budget, gives a placeholder instead.
+ */
 const describeExpression = (value: unknown): string => {
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    // A cyclic value, which parsed YAML can contain.
-    return '(unreadable expression)';
-  }
+  const seen = new Set<object>();
+  let nodes = 0;
+  const write = (node: unknown): string | undefined => {
+    nodes += 1;
+    if (nodes > MAX_EXPRESSION_NODES) return undefined;
+    if (typeof node === 'string') return node.length > MAX_EXPRESSION_LENGTH ? undefined : JSON.stringify(node);
+    if (node === null || typeof node === 'number' || typeof node === 'boolean') return JSON.stringify(node);
+    if (typeof node !== 'object' || seen.has(node)) return undefined;
+    seen.add(node);
+    const parts: string[] = [];
+    for (const [key, child] of Array.isArray(node) ? node.entries() : Object.entries(node)) {
+      if (child === undefined && !Array.isArray(node)) continue;
+      const part = child === undefined ? 'null' : write(child);
+      if (part === undefined) return undefined;
+      parts.push(Array.isArray(node) ? part : `${JSON.stringify(key)}:${part}`);
+    }
+    const text = Array.isArray(node) ? `[${parts.join(',')}]` : `{${parts.join(',')}}`;
+    return text.length > MAX_EXPRESSION_LENGTH ? undefined : text;
+  };
+  return write(value) ?? UNREADABLE_EXPRESSION;
 };
 
 /**
@@ -457,36 +508,50 @@ export const buildSecurityGroupModel = ({ resources, stacktapeResources }: Secur
     return externalGroup(describeExpression(value));
   };
 
+  const memberIds = new Map<string, Set<string>>();
   const addMember = (groupId: string, member: SecurityGroupMember) => {
     const group = groups.get(groupId) ?? externalGroups.get(groupId);
-    if (group && !group.members.some(({ logicalId }) => logicalId === member.logicalId)) group.members.push(member);
+    if (!group) return;
+    const ids = memberIds.get(groupId) ?? new Set<string>();
+    memberIds.set(groupId, ids);
+    if (ids.has(member.logicalId)) return;
+    ids.add(member.logicalId);
+    group.members.push(member);
   };
 
   // An interface without a source/destination check forwards other hosts' traffic; the instances that attach it are
   // the stack's NAT instances.
-  const natInterfaces = templateResources.filter(
-    ({ type, properties }) =>
-      type === 'AWS::EC2::NetworkInterface' &&
-      (properties.SourceDestCheck === false || properties.SourceDestCheck === 'false')
+  const natInterfaces = new Set(
+    templateResources
+      .filter(
+        ({ type, properties }) =>
+          type === 'AWS::EC2::NetworkInterface' &&
+          (properties.SourceDestCheck === false || properties.SourceDestCheck === 'false')
+      )
+      .map(({ logicalId }) => logicalId)
   );
   const memberKind = (resource: TemplateResource, kind: SecurityGroupMemberKind): SecurityGroupMemberKind => {
-    if (kind === 'network-interface' && natInterfaces.includes(resource)) return 'nat-instance';
-    if (kind === 'ec2-instances' && natInterfaces.some(({ logicalId }) => refersTo(resource.properties, logicalId)))
-      return 'nat-instance';
+    if (kind === 'network-interface' && natInterfaces.has(resource.logicalId)) return 'nat-instance';
+    if (kind === 'ec2-instances' && natInterfaces.size) {
+      for (const reference of collectReferences(resource.properties)) {
+        if (natInterfaces.has(reference)) return 'nat-instance';
+      }
+    }
     return kind;
   };
 
-  const computeEnvironments = new Map<string, { resource: TemplateResource; references: GroupReference[] }>();
+  // The groups each Batch compute environment carries, with the conditions under which it carries them.
+  const computeEnvironmentGroups = new Map<string, { groupId: string; conditions: string[] }[]>();
   for (const resource of templateResources) {
-    const attachment = ATTACHMENTS[resource.type];
+    const attachment = ATTACHMENTS.get(resource.type);
     if (!attachment) continue;
     const references = attachment.groups(resource.properties);
-    if (resource.type === 'AWS::Batch::ComputeEnvironment')
-      computeEnvironments.set(resource.logicalId, { resource, references });
     const kind = memberKind(resource, attachment.kind);
+    const attached: { groupId: string; conditions: string[] }[] = [];
     for (const reference of references) {
       const groupId = resolveGroup(reference);
       if (!groupId) continue;
+      attached.push({ groupId, conditions: [...resource.conditions, ...reference.conditions] });
       addMember(groupId, {
         logicalId: resource.logicalId,
         resourceType: resource.type,
@@ -495,34 +560,41 @@ export const buildSecurityGroupModel = ({ resources, stacktapeResources }: Secur
         conditions: [...resource.conditions, ...reference.conditions]
       });
     }
+    if (resource.type === 'AWS::Batch::ComputeEnvironment') computeEnvironmentGroups.set(resource.logicalId, attached);
   }
 
   // A batch job runs on the instances of the compute environments behind the job queue its state machine submits to.
   // The state machine names the queue by ARN, so the link is its `DependsOn` (or a reference, in other templates).
-  const queues = templateResources.flatMap((queue) => {
-    if (queue.type !== 'AWS::Batch::JobQueue') return [];
-    const environments = [...computeEnvironments.values()].filter(({ resource }) =>
-      refersTo(queue.properties.ComputeEnvironmentOrder, resource.logicalId)
-    );
-    return environments.length ? [{ queue, environments }] : [];
-  });
+  // Each queue's groups are resolved once, in template order of its environments, keeping the first way it reaches each.
+  const environmentOrder = new Map([...computeEnvironmentGroups.keys()].map((logicalId, index) => [logicalId, index]));
+  const queueGroups = new Map<string, { groupId: string; conditions: string[] }[]>();
+  for (const queue of templateResources) {
+    if (queue.type !== 'AWS::Batch::JobQueue' || !environmentOrder.size) continue;
+    const environments = [...collectReferences(queue.properties.ComputeEnvironmentOrder)]
+      .filter((logicalId) => environmentOrder.has(logicalId))
+      .sort((left, right) => (environmentOrder.get(left) ?? 0) - (environmentOrder.get(right) ?? 0));
+    const reached = new Map<string, { groupId: string; conditions: string[] }>();
+    for (const environment of environments) {
+      for (const attached of computeEnvironmentGroups.get(environment) ?? []) {
+        if (!reached.has(attached.groupId)) reached.set(attached.groupId, attached);
+      }
+    }
+    if (reached.size) queueGroups.set(queue.logicalId, [...reached.values()]);
+  }
   for (const stateMachine of templateResources) {
-    if (stateMachine.type !== 'AWS::StepFunctions::StateMachine') continue;
-    for (const { queue, environments } of queues) {
-      if (!stateMachine.dependsOn.includes(queue.logicalId) && !refersTo(stateMachine.properties, queue.logicalId))
-        continue;
-      for (const { resource: environment, references } of environments) {
-        for (const reference of references) {
-          const groupId = resolveGroup(reference);
-          if (!groupId) continue;
-          addMember(groupId, {
-            logicalId: stateMachine.logicalId,
-            resourceType: stateMachine.type,
-            kind: 'batch-job',
-            ...ownerOf(stateMachine.logicalId),
-            conditions: [...stateMachine.conditions, ...environment.conditions, ...reference.conditions]
-          });
-        }
+    if (stateMachine.type !== 'AWS::StepFunctions::StateMachine' || !queueGroups.size) continue;
+    const referenced = collectReferences(stateMachine.properties);
+    for (const dependency of stateMachine.dependsOn) referenced.add(dependency);
+    for (const [queue, reachedGroups] of queueGroups) {
+      if (!referenced.has(queue)) continue;
+      for (const { groupId, conditions } of reachedGroups) {
+        addMember(groupId, {
+          logicalId: stateMachine.logicalId,
+          resourceType: stateMachine.type,
+          kind: 'batch-job',
+          ...ownerOf(stateMachine.logicalId),
+          conditions: [...stateMachine.conditions, ...conditions]
+        });
       }
     }
   }

@@ -563,6 +563,92 @@ describe('template input it cannot fully read', () => {
     ).toEqual(['Environment batch-compute-environment -', 'Job batch-job importer']);
   });
 
+  test.each([['__proto__'], ['constructor'], ['toString'], ['hasOwnProperty']])(
+    'a resource type or protocol named %p is unknown, not an inherited object property',
+    (name: string) => {
+      const model = build({
+        Named: { Type: name },
+        Group: group({ SecurityGroupIngress: [{ IpProtocol: name, FromPort: 80, ToPort: 80, CidrIp: '0.0.0.0/0' }] })
+      });
+      expect(model.groups.map(({ id, members }) => `${id} ${members.length}`)).toEqual(['Group 0']);
+      expect(model.rules.map((rule) => describeRule(model, rule))).toEqual([
+        'unknown unknown from internet 0.0.0.0/0',
+        'all all to internet 0.0.0.0/0'
+      ]);
+    }
+  );
+
+  test('an expression that shares nodes or exceeds the budget is described by a short placeholder, quickly', () => {
+    // 26 levels of `[x, x]` are a few dozen nodes once parsed from YAML aliases, and 400 million characters as JSON.
+    let shared: unknown = 'x';
+    for (let level = 0; level < 26; level += 1) shared = [shared, shared];
+    const started = performance.now();
+    const model = build({
+      Shared: fn([{ 'Fn::ImportValue': shared }]),
+      Long: fn([{ 'Fn::Sub': 'x'.repeat(100_000) }]),
+      Wide: fn([{ 'Fn::Join': ['', Array.from({ length: 1000 }, (_, index) => `part${index}`)] }])
+    });
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(
+      model.groups.map(({ id, members }) => `${id} [${members.map(({ logicalId }) => logicalId).join(',')}]`)
+    ).toEqual(['external:import:(unreadable expression) [Shared]', 'external:(unreadable expression) [Long,Wide]']);
+  });
+
+  test('many compute environments, job queues and NAT interfaces resolve in near-linear time', () => {
+    const count = 400;
+    const names = (prefix: string) => Array.from({ length: count }, (_, index) => `${prefix}${index}`);
+    const environments = names('Environment');
+    const queues = names('Queue');
+    const interfaces = names('Eni');
+    const resources: Record<string, unknown> = { Batch: group(), Nat: group() };
+    for (const environment of environments) {
+      resources[environment] = {
+        Type: 'AWS::Batch::ComputeEnvironment',
+        Properties: { ComputeResources: { SecurityGroupIds: [{ Ref: 'Batch' }] } }
+      };
+    }
+    for (const queue of queues) {
+      resources[queue] = {
+        Type: 'AWS::Batch::JobQueue',
+        Properties: {
+          ComputeEnvironmentOrder: environments.map((environment, order) => ({
+            ComputeEnvironment: { Ref: environment },
+            Order: order
+          }))
+        }
+      };
+    }
+    resources.Job = { Type: 'AWS::StepFunctions::StateMachine', DependsOn: queues, Properties: {} };
+    for (const eni of interfaces) {
+      resources[eni] = {
+        Type: 'AWS::EC2::NetworkInterface',
+        Properties: { GroupSet: [{ Ref: 'Nat' }], SourceDestCheck: false }
+      };
+    }
+    // Each launch template refers to many other resources and, last, to one NAT interface.
+    for (const [index, eni] of interfaces.entries()) {
+      resources[`Template${index}`] = {
+        Type: 'AWS::EC2::LaunchTemplate',
+        Properties: {
+          LaunchTemplateData: {
+            SecurityGroupIds: [{ Ref: 'Nat' }],
+            TagSpecifications: [...names('Unrelated').map((name) => ({ Ref: name })), { Ref: eni }]
+          }
+        }
+      };
+    }
+    const started = performance.now();
+    const model = build(resources);
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(groupById(model, 'Batch').members.map(({ kind }): string => kind)).toEqual([
+      ...environments.map(() => 'batch-compute-environment'),
+      'batch-job'
+    ]);
+    const natKinds = new Set(groupById(model, 'Nat').members.map(({ kind }) => kind));
+    expect(groupById(model, 'Nat').members.length).toBe(2 * count);
+    expect([...natKinds]).toEqual(['nat-instance']);
+  });
+
   test('a cyclic value, as a YAML alias can produce, does not hang or throw', () => {
     const cyclic: Record<string, unknown> = { IpProtocol: 'tcp', FromPort: 80, ToPort: 80, CidrIp: '0.0.0.0/0' };
     cyclic.Self = cyclic;
