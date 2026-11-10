@@ -21,11 +21,12 @@ import { layoutDiagram } from './layout/diagram-layout.js';
 import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
+  getNameTagWidthPx,
   getNodeAppearance,
   hasBadge,
-  NAME_MAX_CHARS,
   SHAPE_HEIGHT_PX,
-  TYPE_MAX_CHARS
+  STATUS_LINE_HEIGHT_PX,
+  STATUS_MIN_WIDTH_PX
 } from './node-appearance.js';
 import { GROUP_EXPLANATION, RESOURCE_EXPLANATIONS, ZONE_EXPLANATIONS } from './resource-explanations.js';
 import { buildSceneDetails } from './scene-details.js';
@@ -99,13 +100,7 @@ const V_PX = 20;
 /** Room above a shape's top: a small margin, or the badge (replica range or `public`) that sits there. */
 const BODY_MARGIN_PX = 4;
 const BADGE_ROOM_PX = BADGE_OFFSET_PX + BADGE_HEIGHT_PX / 2 + 1;
-/**
- * The name tag: the name in 12 px semibold and the muted type line in 10 px under it, as the renderer truncates them.
- * Measured in Chromium, names stay under 7.4 px per character and type lines under 5.6 px. The two lines end 31 px below
- * the front tip, plus the halo.
- */
-const NAME_CHAR_PX = 7.4;
-const TYPE_CHAR_PX = 5.6;
+/** The name tag's two lines (`getNameTagWidthPx`) end 31 px below the front tip, plus the halo. */
 const NAME_TAG_HEIGHT_PX = 34;
 /** Connector chips: 10 px text with 6 px padding, 18 px tall. */
 const CHIP_CHAR_PX = 6.6;
@@ -113,9 +108,18 @@ const CHIP_PADDING_PX = 12;
 const CHIP_HEIGHT_PX = 18;
 const CHIP_MARGIN_PX = 4;
 
-const toLayoutNode = ({ node, zone }: { node: TopologyNode; zone: string | undefined }): LayoutNode => {
-  const nameWidth = Math.min(node.label.length, NAME_MAX_CHARS) * NAME_CHAR_PX;
-  const typeWidth = Math.min(node.typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX;
+const toLayoutNode = ({
+  node,
+  zone,
+  statusLines
+}: {
+  node: TopologyNode;
+  zone: string | undefined;
+  statusLines: boolean;
+}): LayoutNode => {
+  // A declared resource or group can report a status; its pill hangs under the name tag.
+  const status = statusLines && !node.implicit;
+  const tagWidth = Math.max(getNameTagWidthPx(node), status ? STATUS_MIN_WIDTH_PX : 0);
   const { shape } = getNodeAppearance(node.resourceType, { group: Boolean(node.memberIds) });
   const above = hasBadge({
     shape,
@@ -130,7 +134,10 @@ const toLayoutNode = ({ node, zone }: { node: TopologyNode; zone: string | undef
     width: NODE_FOOTPRINT,
     depth: NODE_FOOTPRINT,
     lift: (SHAPE_HEIGHT_PX[shape] + above) / V_PX,
-    tag: { halfWidth: Math.max(nameWidth, typeWidth) / 2 / U_PX, height: NAME_TAG_HEIGHT_PX / V_PX },
+    tag: {
+      halfWidth: tagWidth / 2 / U_PX,
+      height: (NAME_TAG_HEIGHT_PX + (status ? STATUS_LINE_HEIGHT_PX : 0)) / V_PX
+    },
     rank: node.layer === 'external' ? 'first' : DATA_STORE_TYPES.has(node.resourceType) ? 'last' : undefined,
     zone
   };
@@ -211,10 +218,10 @@ const getZoneTagSize = (zoneId: string): ZoneTagSize | undefined => {
   };
 };
 
-const buildLayoutInput = (topology: DiagramTopology): DiagramLayoutInput => {
+const buildLayoutInput = (topology: DiagramTopology, statusLines: boolean): DiagramLayoutInput => {
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   return {
-    nodes: topology.nodes.map((node) => toLayoutNode({ node, zone: getZone(node) })),
+    nodes: topology.nodes.map((node) => toLayoutNode({ node, zone: getZone(node), statusLines })),
     edges: topology.edges.map((edge) => ({
       id: edge.id,
       from: edge.from,
@@ -322,11 +329,14 @@ const buildRectanglesAndLabels = ({ topology, layout }: { topology: DiagramTopol
 
 export const buildIsometricScene = ({
   parsedConfig,
-  expandedGroups
+  expandedGroups,
+  statusLines = false
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
   expandedGroups?: ReadonlySet<string> | undefined;
+  /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
+  statusLines?: boolean | undefined;
 }): IsoScene | null => {
   const base = buildDiagramTopology({ parsedConfig });
   if (!base || base.nodes.length === 0) return null;
@@ -336,7 +346,7 @@ export const buildIsometricScene = ({
   const memberGroup = new Map(
     topology.groups.filter((group) => group.expanded).flatMap((group) => group.memberIds.map((id) => [id, group.id]))
   );
-  const layout = layoutDiagram(buildLayoutInput(topology));
+  const layout = layoutDiagram(buildLayoutInput(topology, statusLines));
   const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, memberGroup });
   const { rectangles, labels } = buildRectanglesAndLabels({ topology, layout });
   const connectors: IsoConnector[] = topology.edges.flatMap((edge) => {

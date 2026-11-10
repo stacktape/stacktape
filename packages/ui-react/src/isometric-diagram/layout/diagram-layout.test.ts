@@ -4,7 +4,17 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { getDiagramFixtures, parseFixtureConfig } from '../fixture-scenes.js';
 import { findRoleGroups } from '../grouping.js';
-import { BADGE_HEIGHT_PX, BADGE_OFFSET_PX, hasBadge, SHAPE_HEIGHT_PX } from '../node-appearance.js';
+import {
+  BADGE_HEIGHT_PX,
+  BADGE_OFFSET_PX,
+  getStatusTextBudget,
+  hasBadge,
+  SHAPE_HEIGHT_PX,
+  STATUS_CHAR_PX,
+  STATUS_PILL_CHROME_PX,
+  STATUS_PILL_HEIGHT_PX,
+  STATUS_PILL_TOP_PX
+} from '../node-appearance.js';
 import { buildIsometricScene } from '../scene-builder.js';
 import { buildDiagramTopology } from '../topology.js';
 import { assignFlowColumns } from './columns.js';
@@ -164,6 +174,18 @@ const nodeTag = (node: IsoNode): ScreenPoint[] => {
     { x: x + halfWidth, y: y + 6 },
     { x: x + halfWidth, y: y + 31 },
     { x: x - halfWidth, y: y + 31 }
+  ];
+};
+/** The widest status pill a node can carry, under its name tag. */
+const statusPill = (node: IsoNode): ScreenPoint[] => {
+  const { x, y } = toScreen({ x: node.tile.x - HALF_FOOTPRINT, y: node.tile.y - HALF_FOOTPRINT });
+  const halfWidth = (getStatusTextBudget(node) * STATUS_CHAR_PX + STATUS_PILL_CHROME_PX) / 2;
+  const top = y + STATUS_PILL_TOP_PX;
+  return [
+    { x: x - halfWidth, y: top },
+    { x: x + halfWidth, y: top },
+    { x: x + halfWidth, y: top + STATUS_PILL_HEIGHT_PX },
+    { x: x - halfWidth, y: top + STATUS_PILL_HEIGHT_PX }
   ];
 };
 /** A zone tag: bold text rotated to the edge it runs along, about 0.68 em per character, as tall as its font. */
@@ -397,6 +419,40 @@ describe('diagram layout', () => {
  * Inputs that once froze the page for seconds. Each lays out in about half a second; the budget leaves
  * room for a loaded CI machine while still catching a return to quadratic or unbounded work.
  */
+describe('live status lines', () => {
+  // A host showing live status gets room for a pill under every declared resource, whatever it reports.
+  for (const { id, config } of configs) {
+    test(`${id}: every pill stays clear of bodies, chips, zone tags and other text`, () => {
+      const scene = buildIsometricScene({ parsedConfig: config as never, statusLines: true })!;
+      const pills = scene.nodes.filter((node) => !node.isImplicit).map((node) => ({ node, box: statusPill(node) }));
+      for (const { node, box } of pills) {
+        for (const other of scene.nodes) {
+          expect(polygonsOverlap(box, nodeBody(other)), `the pill of ${node.id} covers ${other.id}`).toBe(false);
+          if (other !== node) {
+            expect(polygonsOverlap(box, nodeTag(other)), `the pill of ${node.id} covers the name of ${other.id}`).toBe(
+              false
+            );
+          }
+        }
+        for (const connector of scene.connectors) {
+          if (!connector.label) continue;
+          expect(polygonsOverlap(box, chipBox(connector)), `the pill of ${node.id} covers chip ${connector.id}`).toBe(
+            false
+          );
+        }
+        for (const label of scene.labels) {
+          expect(polygonsOverlap(box, zoneTagStrip(label)), `${label.id} covers the pill of ${node.id}`).toBe(false);
+        }
+      }
+      for (const [index, { node, box }] of pills.entries()) {
+        for (const { node: other, box: otherBox } of pills.slice(index + 1)) {
+          expect(polygonsOverlap(box, otherBox), `the pills of ${node.id} and ${other.id} overlap`).toBe(false);
+        }
+      }
+    });
+  }
+});
+
 describe('layout performance', () => {
   const BUDGET_MS = 2000;
   const timed = (config: unknown) => {

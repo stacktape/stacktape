@@ -3,10 +3,12 @@
  * and a group's members with their own triggers and connections. It reads the scene only; actions go back to the
  * renderer (select another node, expand or collapse a group) or to the host (`onOpenResource`).
  */
-import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from 'react';
 import type { IsoGroup, IsoGroupMember, IsoNode, IsoNodeConnection, IsoRoute } from './scene.js';
+import type { DiagramResourceStatus, DiagramStatusEntry, NodeStatus } from './status.js';
 import { useId } from 'react';
 import { BiX } from 'react-icons/bi';
+import { TONE_NAMES, ToneIconInline } from './status-marks.js';
 
 /** Headings for each kind of connection, seen from the selected node. */
 const CONNECTION_HEADINGS: Record<string, { in: string; out: string }> = {
@@ -47,8 +49,56 @@ export type DiagramPanelProps = {
   onShowMember?: ((groupId: string, memberId: string) => void) | undefined;
   onOpenResource?: ((resourceName: string) => void) | undefined;
   canOpenResource?: ((resourceName: string) => boolean) | undefined;
+  /** What the host reports about the selected resource, or a group's members. */
+  status?: NodeStatus | undefined;
+  /** Every resource's statuses, worst first, for the member list of a group. */
+  statuses?: Map<string, DiagramResourceStatus[]> | undefined;
+  onNavigate?: ((href: string) => void) | undefined;
   headingRef: RefObject<HTMLHeadingElement | null>;
 };
+
+/** A plain left click follows the link through the host; other clicks (new tab, new window) stay the browser's. */
+const followLink =
+  (href: string, onNavigate: ((href: string) => void) | undefined) => (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!onNavigate || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onNavigate(href);
+  };
+
+function StatusList({
+  entries,
+  showResource,
+  onNavigate
+}: {
+  entries: DiagramStatusEntry[];
+  showResource: boolean;
+  onNavigate?: ((href: string) => void) | undefined;
+}) {
+  return (
+    <ul className="stp-diagram__panel-list stp-diagram__status-list">
+      {entries.map((entry, index) => (
+        <li key={`${entry.resourceName}-${index}`} className="stp-diagram__status-item" data-tone={entry.tone}>
+          <span className="stp-diagram__status-icon" title={TONE_NAMES[entry.tone]}>
+            <ToneIconInline tone={entry.tone} />
+          </span>
+          <div className="stp-diagram__status-body">
+            <p className="stp-diagram__status-text">
+              {showResource && <span className="stp-diagram__panel-name">{entry.resourceName}: </span>}
+              {entry.href ? (
+                <a className="stp-diagram__panel-link" href={entry.href} onClick={followLink(entry.href, onNavigate)}>
+                  {entry.text}
+                </a>
+              ) : (
+                <span>{entry.text}</span>
+              )}
+            </p>
+            {entry.detail && <p className="stp-diagram__panel-muted">{entry.detail}</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function ConnectionList({
   connections,
@@ -101,11 +151,14 @@ function ConnectionList({
 function MemberRow({
   member,
   group,
+  status,
   onShowMember,
   onOpenResource
 }: {
   member: IsoGroupMember;
   group: IsoGroup;
+  /** The member's worst status, with how many more it has. */
+  status?: { worst: DiagramResourceStatus; more: number } | undefined;
   onShowMember?: ((groupId: string, memberId: string) => void) | undefined;
   onOpenResource?: ((resourceName: string) => void) | undefined;
 }) {
@@ -136,6 +189,15 @@ function MemberRow({
           </button>
         )}
       </div>
+      {status && (
+        <p className="stp-diagram__member-status" data-tone={status.worst.tone}>
+          <ToneIconInline tone={status.worst.tone} size={11} />
+          <span>
+            {status.worst.text}
+            {status.more > 0 && ` +${status.more}`}
+          </span>
+        </p>
+      )}
       {member.triggers.length > 0 && <p className="stp-diagram__panel-code">{member.triggers.join(', ')}</p>}
       {uses.length > 0 && (
         <p className="stp-diagram__panel-muted">→ {uses.map((connection) => connection.name).join(', ')}</p>
@@ -154,6 +216,9 @@ export function DiagramPanel({
   onShowMember,
   onOpenResource,
   canOpenResource = openAnything,
+  status,
+  statuses,
+  onNavigate,
   headingRef
 }: DiagramPanelProps) {
   const headingId = useId();
@@ -224,6 +289,14 @@ export function DiagramPanel({
       )}
 
       <div className="stp-diagram__panel-body">
+        {status && (
+          <section className="stp-diagram__panel-section" aria-label="Status">
+            <h3 className="stp-diagram__panel-section-title">
+              {status.affected ? `Status · ${status.line}` : 'Status'}
+            </h3>
+            <StatusList entries={status.entries} showResource={isGroupSelected} onNavigate={onNavigate} />
+          </section>
+        )}
         {node?.summary && <p className="stp-diagram__panel-summary">{node.summary}</p>}
         {node?.details && <p className="stp-diagram__panel-details">{node.details}</p>}
         {node?.accessNote && <p className="stp-diagram__panel-note">{node.accessNote}</p>}
@@ -237,6 +310,10 @@ export function DiagramPanel({
                   key={member.id}
                   member={member}
                   group={group}
+                  status={(() => {
+                    const list = statuses?.get(member.id);
+                    return list?.[0] ? { worst: list[0], more: list.length - 1 } : undefined;
+                  })()}
                   onShowMember={onShowMember}
                   onOpenResource={onOpenResource && canOpenResource(member.id) ? onOpenResource : undefined}
                 />

@@ -124,6 +124,149 @@
     color: var(--stp-text-subtle);
   }
 
+  /* What the host reports about the hovered resource, before what it is: tone icon, short text, then the detail. */
+  .stp-diagram__tooltip-status {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 9px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .stp-diagram__tooltip-status li {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .stp-diagram__tooltip-status-detail {
+    color: var(--stp-text-subtle);
+  }
+
+  /* ── Live status ─────────────────────────────────────────────────────────────────────────── */
+  .stp-diagram__tone-icon {
+    flex-shrink: 0;
+    align-self: center;
+    overflow: visible;
+  }
+
+  .stp-diagram__attention[data-tone='critical'] {
+    border-color: rgba(240, 86, 92, 0.55);
+  }
+
+  .stp-diagram__attention[data-tone='warning'] {
+    border-color: rgba(242, 169, 59, 0.55);
+  }
+
+  .stp-diagram__attention[aria-pressed='true'] {
+    background: rgba(32, 36, 46, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+
+  /* Host notices about the whole picture: a row of their own under the toolbar's controls. */
+  .stp-diagram__notices {
+    display: flex;
+    flex-direction: column;
+    flex-basis: 100%;
+    gap: 6px;
+    max-width: 560px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .stp-diagram__notice {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left-width: 3px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.86);
+    color: var(--stp-text-primary);
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .stp-diagram__notice[data-tone='critical'] {
+    border-left-color: #f0565c;
+  }
+
+  .stp-diagram__notice[data-tone='warning'] {
+    border-left-color: #f2a93b;
+  }
+
+  .stp-diagram__notice[data-tone='info'] {
+    border-left-color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__notice-info {
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__status-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left-width: 3px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .stp-diagram__status-item[data-tone='critical'] {
+    border-left-color: #f0565c;
+  }
+
+  .stp-diagram__status-item[data-tone='warning'] {
+    border-left-color: #f2a93b;
+  }
+
+  .stp-diagram__status-item[data-tone='ok'] {
+    border-left-color: #3dc98a;
+  }
+
+  .stp-diagram__status-icon {
+    display: flex;
+    padding-top: 3px;
+  }
+
+  .stp-diagram__status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .stp-diagram__status-text {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__member-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .stp-diagram__member-status[data-tone='critical'] {
+    color: #ffc2c4;
+  }
+
+  .stp-diagram__member-status[data-tone='warning'] {
+    color: #ffdda6;
+  }
+
   /* ── Hint and view controls ──────────────────────────────────────────────────────────────── */
   .stp-diagram__hint {
     position: absolute;

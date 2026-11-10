@@ -6,6 +6,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { IsoRenderer } from './IsoRenderer.js';
 import { buildIsometricScene } from './scene-builder.js';
 
+export type { DiagramNotice } from './IsoRenderer.js';
+export type { DiagramResourceStatus, DiagramStatuses, DiagramStatusTone } from './status.js';
+
 export type IsometricDiagramProps = DiagramViewProps & {
   /**
    * A parsed, normalized Stacktape configuration, or `null` when the host has nothing to show yet.
@@ -38,6 +41,8 @@ const DEFAULT_EMPTY_MESSAGE = 'No resources to display. Add resources to your co
  *
  * Functions and batch jobs that play the same role are drawn as one group until the reader expands it. Clicking a node
  * opens a side panel with its connections; pass `onOpenResource` to offer opening a declared resource in the host.
+ * Pass `statuses` to show what a deployed stage reports about its resources: a pill under the name, a ring in the
+ * worst tone, a group's summary and every status with its link in the panel.
  *
  * Load `@stacktape/ui-react/isometric-diagram.css` alongside this component. Import it from the
  * same module the host lazy-loads, so the stylesheet travels in the same chunk.
@@ -51,7 +56,10 @@ export function IsometricDiagram({
   style,
   initialZoom,
   onOpenResource,
-  canOpenResource
+  canOpenResource,
+  statuses,
+  onNavigate,
+  notices
 }: IsometricDiagramProps) {
   // Role groups start collapsed; the reader expands them one by one.
   const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
@@ -62,9 +70,12 @@ export function IsometricDiagram({
       return next;
     });
   }, []);
+  // A host that passes statuses at all gets room for a status line under every declared resource. The room depends
+  // only on that, never on what the statuses say, so a refresh redraws pills and rings without moving a node.
+  const statusLines = statuses !== undefined;
   const scene: IsoScene | null = useMemo(
-    () => buildIsometricScene({ parsedConfig: config, expandedGroups }),
-    [config, expandedGroups]
+    () => buildIsometricScene({ parsedConfig: config, expandedGroups, statusLines }),
+    [config, expandedGroups, statusLines]
   );
 
   if (!scene || scene.nodes.length === 0) {
@@ -87,6 +98,9 @@ export function IsometricDiagram({
       style={style}
       onOpenResource={onOpenResource}
       canOpenResource={canOpenResource}
+      statuses={statuses}
+      onNavigate={onNavigate}
+      notices={notices}
       onToggleGroup={toggleGroup}
     />
   );
