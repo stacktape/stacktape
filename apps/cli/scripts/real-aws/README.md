@@ -138,14 +138,24 @@ web service whose health check needs the table its release command creates, a wo
 `_test-stacks/release-command-variants`, with EC2 capacity from zero, a side container and a `js-bundle` service, and
 `_test-stacks/release-command-extras`, with a Python code-swap service and a blue/green service. Each scenario asserts
 from outside what ran and which release serves: a first deploy, a skipped command, a migration on the fast path, failing
-commands on both paths, a failure after the command, `stacktape rollback`, concurrent deploys, a killed deploy on both a
-regular and a code-swap stack, a timeout, adding and removing the setting, `--skipReleaseCommand`, and a deploy that
-races a stack delete.
+commands on both paths, a failure after the command, `stacktape rollback`, concurrent deploys that wait for each other,
+a deploy right after a killed one on both a regular and a code-swap stack (it waits for the lock and for the killed
+deploy's command), a timeout, adding and removing the setting, `--skipReleaseCommand`, and a deploy that races a stack
+delete.
+
+The `lock` stack (`_test-stacks/stack-lock`, one function) covers the stack lock in about 20 minutes: racing first
+deploys of a new stage, fast and CloudFormation deploys, a rollback and a delete that wait for a running deploy, Ctrl+C
+while waiting, deploys killed during CloudFormation and during a fast deploy and taken over after the lease, and a
+`beforeDeploy` hook that runs a command on its own stack. A second copy of the project plays a second CI job, and a
+`beforeDeploy` hook that sleeps holds the lock long enough for the second command to find it held. Every command's full
+output is kept in `<owner>-logs` next to the state file.
 
 It uses the alias canary's guardrails and environment contract with the `STP_AWS_RELEASE_CANARY_` prefix. The stacks run
 in parallel and a full run takes about an hour, which is the `database` stack.
-`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds a wait past
-the 15-minute Lambda limit to the `variants` stack, which finishes early enough to absorb it.
+`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. The canary builds the CLI's development
+artifacts once before its first command, so concurrent commands don't rebuild them in the same folder.
+`STP_AWS_RELEASE_CANARY_LONG=1` adds a wait past the 15-minute Lambda limit to the `variants` stack, which finishes
+early enough to absorb it.
 
 ```sh
 export STP_AWS_RELEASE_CANARY_DEPLOY=1

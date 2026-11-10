@@ -30,6 +30,8 @@ export type AwsFake = {
   stack: FakeStackState | undefined;
   /** CloudFormation actions that change state, in order, with their parameters. */
   mutations: { action: string; parameters: Record<string, string> }[];
+  /** CloudFormation reads, in order. A scenario can tell from them how far a running command got. */
+  reads: string[];
   bucketsBeforeDelete: Array<{ deployment: string[]; customer: string[] }>;
   unexpectedRequests: string[];
   close: () => Promise<void>;
@@ -156,6 +158,7 @@ export const startAwsFake = async ({
 }): Promise<AwsFake> => {
   const state: { stack: FakeStackState | undefined } = { stack };
   const mutations: AwsFake['mutations'] = [];
+  const readActions: string[] = [];
   const bucketsBeforeDelete: AwsFake['bucketsBeforeDelete'] = [];
   const unexpectedRequests: string[] = [];
   let deleteObserved = 0;
@@ -178,6 +181,7 @@ export const startAwsFake = async ({
       response.end(document);
     };
     if (writes.has(action)) mutations.push({ action, parameters });
+    if (reads.has(action)) readActions.push(action);
     if (!reads.has(action) && !writes.has(action)) {
       const requestName = `${request.method} ${url.pathname}${url.search} (${action})`;
       unexpectedRequests.push(requestName);
@@ -282,6 +286,7 @@ export const startAwsFake = async ({
       return state.stack;
     },
     mutations,
+    reads: readActions,
     bucketsBeforeDelete,
     unexpectedRequests,
     close: () =>

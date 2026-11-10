@@ -1003,7 +1003,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network'],
     release: 'affected-external-contract',
     proves:
-      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, a rollback does not rerun it, and concurrent or killed deploys are refused safely.'
+      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; and a hook running a command on its own stack fails instead of waiting. A deploy after a killed one waits for its still-running command.'
   },
   {
     id: 'local-dev-live',
@@ -4355,7 +4355,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/real-aws/release-command-canary.ts',
       'apps/cli/_test-stacks/release-command/**',
       'apps/cli/_test-stacks/release-command-variants/**',
-      'apps/cli/_test-stacks/release-command-extras/**'
+      'apps/cli/_test-stacks/release-command-extras/**',
+      'apps/cli/_test-stacks/stack-lock/**'
     ],
     tests: [
       'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',

@@ -815,18 +815,25 @@ class StackManager {
     }
     if (commandModifiesStack) {
       // wait for stack to be stable
+      const announced = new Set<string>();
       while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
         const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
+        // `delete` can return while AWS still removes resources that cost nothing.
+        const description =
+          stackDetails?.StackStatus === StackStatus.DELETE_IN_PROGRESS
+            ? `Waiting for AWS to finish the earlier delete of this stack before ${publicCommandName(globalStateManager.command)}`
+            : `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`;
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          // `delete` can return while AWS still removes resources that cost nothing.
-          description:
-            stackDetails?.StackStatus === StackStatus.DELETE_IN_PROGRESS
-              ? `Waiting for AWS to finish the earlier delete of this stack before ${publicCommandName(globalStateManager.command)}`
-              : `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`,
+          description,
           parentEventType: eventContext?.parentEventType,
           instanceId: eventContext?.instanceId
         });
+        // Only an interactive terminal shows the description. A CI log that shows nothing while it waits looks hung.
+        if (!announced.has(description)) {
+          announced.add(description);
+          tuiManager.info(`${description}.`);
+        }
         await wait(4000);
         stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
       }
