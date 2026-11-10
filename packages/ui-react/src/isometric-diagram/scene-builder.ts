@@ -16,6 +16,7 @@ import type {
 } from './layout/diagram-layout.js';
 import type { IsoConnector, IsoLabel, IsoNode, IsoRectangle, IsoScene } from './scene.js';
 import type { DiagramTopology, TopologyEdge, TopologyNode } from './topology.js';
+import { groupTopology } from './grouping.js';
 import { layoutDiagram } from './layout/diagram-layout.js';
 import {
   BADGE_HEIGHT_PX,
@@ -26,7 +27,8 @@ import {
   SHAPE_HEIGHT_PX,
   TYPE_MAX_CHARS
 } from './node-appearance.js';
-import { RESOURCE_EXPLANATIONS, ZONE_EXPLANATIONS } from './resource-explanations.js';
+import { GROUP_EXPLANATION, RESOURCE_EXPLANATIONS, ZONE_EXPLANATIONS } from './resource-explanations.js';
+import { buildSceneDetails } from './scene-details.js';
 import { buildDiagramTopology } from './topology.js';
 
 type LayoutPlacement = {
@@ -114,8 +116,15 @@ const CHIP_MARGIN_PX = 4;
 const toLayoutNode = ({ node, zone }: { node: TopologyNode; zone: string | undefined }): LayoutNode => {
   const nameWidth = Math.min(node.label.length, NAME_MAX_CHARS) * NAME_CHAR_PX;
   const typeWidth = Math.min(node.typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX;
-  const { shape } = getNodeAppearance(node.resourceType);
-  const above = hasBadge({ shape, replicas: node.replicas, isPublic: node.isPublic }) ? BADGE_ROOM_PX : BODY_MARGIN_PX;
+  const { shape } = getNodeAppearance(node.resourceType, { group: Boolean(node.memberIds) });
+  const above = hasBadge({
+    shape,
+    replicas: node.replicas,
+    isPublic: node.isPublic,
+    memberCount: node.memberIds?.length
+  })
+    ? BADGE_ROOM_PX
+    : BODY_MARGIN_PX;
   return {
     id: node.id,
     width: NODE_FOOTPRINT,
@@ -227,10 +236,15 @@ const buildLayoutInput = (topology: DiagramTopology): DiagramLayoutInput => {
 
 const buildSceneNodes = ({
   topology,
-  placements
+  placements,
+  details,
+  memberGroup
 }: {
   topology: DiagramTopology;
   placements: Map<string, LayoutPlacement>;
+  details: ReturnType<typeof buildSceneDetails>;
+  /** The group of each member drawn on its own because its group is expanded. */
+  memberGroup: Map<string, string>;
 }) => {
   const sceneNodes: IsoNode[] = [];
 
@@ -238,7 +252,8 @@ const buildSceneNodes = ({
     const placement = placements.get(node.id);
     if (!placement) continue;
 
-    const explanation = RESOURCE_EXPLANATIONS[node.resourceType];
+    const isGroup = Boolean(node.memberIds);
+    const explanation = isGroup ? GROUP_EXPLANATION[node.resourceType] : RESOURCE_EXPLANATIONS[node.resourceType];
     sceneNodes.push({
       id: node.id,
       label: node.label,
@@ -250,9 +265,13 @@ const buildSceneNodes = ({
       typeLabel: node.typeLabel,
       tile: placement,
       isImplicit: node.implicit,
-      ...getNodeAppearance(node.resourceType),
+      ...getNodeAppearance(node.resourceType, { group: isGroup }),
       replicas: node.replicas,
-      isPublic: node.isPublic
+      isPublic: node.isPublic,
+      groupId: isGroup ? node.id : memberGroup.get(node.id),
+      memberCount: node.memberIds?.length,
+      connections: details.connections.get(node.id) ?? [],
+      routes: details.routes.get(node.id)
     });
   }
 
@@ -300,12 +319,24 @@ const buildRectanglesAndLabels = ({ topology, layout }: { topology: DiagramTopol
 
 // ── Main entry point ──
 
-export const buildIsometricScene = ({ parsedConfig }: { parsedConfig: StacktapeConfig | null }): IsoScene | null => {
-  const topology = buildDiagramTopology({ parsedConfig });
-  if (!topology || topology.nodes.length === 0) return null;
+export const buildIsometricScene = ({
+  parsedConfig,
+  expandedGroups
+}: {
+  parsedConfig: StacktapeConfig | null;
+  /** Role groups the reader has expanded; every other group is drawn as one node. */
+  expandedGroups?: ReadonlySet<string> | undefined;
+}): IsoScene | null => {
+  const base = buildDiagramTopology({ parsedConfig });
+  if (!base || base.nodes.length === 0) return null;
 
+  const topology = groupTopology({ topology: base, expandedGroupIds: expandedGroups });
+  const details = buildSceneDetails({ base, grouped: topology });
+  const memberGroup = new Map(
+    topology.groups.filter((group) => group.expanded).flatMap((group) => group.memberIds.map((id) => [id, group.id]))
+  );
   const layout = layoutDiagram(buildLayoutInput(topology));
-  const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes });
+  const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, memberGroup });
   const { rectangles, labels } = buildRectanglesAndLabels({ topology, layout });
   const connectors: IsoConnector[] = topology.edges.flatMap((edge) => {
     const route = layout.edges.get(edge.id);
@@ -316,6 +347,7 @@ export const buildIsometricScene = ({ parsedConfig }: { parsedConfig: StacktapeC
         from: edge.from,
         to: edge.to,
         label: edge.label,
+        count: edge.count,
         semantic: edge.semantic,
         description: edge.description,
         route: { points: route.points, labelTile: route.labelTile }
@@ -327,6 +359,7 @@ export const buildIsometricScene = ({ parsedConfig }: { parsedConfig: StacktapeC
     nodes: sceneNodes,
     connectors,
     rectangles,
-    labels
+    labels,
+    groups: details.groups
   };
 };

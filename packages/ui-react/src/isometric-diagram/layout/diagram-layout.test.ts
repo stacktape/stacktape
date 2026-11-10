@@ -3,8 +3,10 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { getDiagramFixtures, parseFixtureConfig } from '../fixture-scenes.js';
+import { findRoleGroups } from '../grouping.js';
 import { BADGE_HEIGHT_PX, BADGE_OFFSET_PX, hasBadge, SHAPE_HEIGHT_PX } from '../node-appearance.js';
 import { buildIsometricScene } from '../scene-builder.js';
+import { buildDiagramTopology } from '../topology.js';
 import { assignFlowColumns } from './columns.js';
 import { layoutDiagram } from './diagram-layout.js';
 import { solveDifferenceConstraints } from './network-simplex.js';
@@ -23,7 +25,8 @@ const lambda = (properties: Record<string, unknown> = {}) => ({
 /**
  * Twenty functions that all reference one HTTP API declared after them, some joined to the VPC. They
  * share a column with the API, so their connectors loop through the gutter after the last column,
- * which once kept its minimum width and pushed loop tracks through the nodes beside it.
+ * which once kept its minimum width and pushed loop tracks through the nodes beside it. Collapsed,
+ * they are two groups and nothing loops, so this case is laid out with its groups expanded.
  */
 const finalColumnLoops = {
   resources: {
@@ -41,15 +44,29 @@ const finalColumnLoops = {
 };
 
 const configDirectory = new URL('../test-configs/', import.meta.url);
-const cases = [
+const configs = [
   ...getDiagramFixtures().map((fixture) => ({ id: fixture.id, config: parseFixtureConfig({ fixture }) })),
   ...readdirSync(configDirectory)
     .filter((file) => file.endsWith('.yml'))
     .map((file) => ({
       id: file.replace(/\.yml$/, ''),
       config: parse(readFileSync(new URL(file, configDirectory), 'utf8'))
-    })),
-  { id: 'final-column-loops', config: finalColumnLoops }
+    }))
+];
+
+/** Every role group of a configuration, to lay it out with all of them expanded. */
+const allGroups = (config: unknown) => {
+  const topology = buildDiagramTopology({ parsedConfig: config as never });
+  return new Set(topology ? findRoleGroups({ topology }).map((group) => group.id) : []);
+};
+
+/** Each configuration as it opens (groups collapsed) and, when it has groups, with every group expanded. */
+const cases: { id: string; config: any; expand: boolean }[] = [
+  ...configs.map(({ id, config }) => ({ id, config, expand: false })),
+  ...configs
+    .filter(({ config }) => allGroups(config).size > 0)
+    .map(({ id, config }) => ({ id: `${id} (expanded)`, config, expand: true })),
+  { id: 'final-column-loops', config: finalColumnLoops, expand: true }
 ];
 
 const DATA_STORES = new Set([
@@ -70,8 +87,11 @@ const SOURCES = new Set(['user', 'schedule']);
 const HALF_FOOTPRINT = 0.66;
 const EPSILON = 1e-6;
 
-const buildScene = (config: unknown) => {
-  const scene = buildIsometricScene({ parsedConfig: config as never });
+const buildScene = (config: unknown, expand = false) => {
+  const scene = buildIsometricScene({
+    parsedConfig: config as never,
+    expandedGroups: expand ? allGroups(config) : undefined
+  });
   if (!scene) throw new Error('Expected a scene');
   return scene;
 };
@@ -196,9 +216,9 @@ const closesCycle = ({ scene, from, to }: { scene: IsoScene; from: string; to: s
 };
 
 describe('diagram layout', () => {
-  for (const { id, config } of cases) {
+  for (const { id, config, expand } of cases) {
     describe(id, () => {
-      const scene = buildScene(config);
+      const scene = buildScene(config, expand);
       const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
 
       test('keeps node footprints apart', () => {
@@ -335,15 +355,18 @@ describe('diagram layout', () => {
       });
 
       test('is deterministic', () => {
-        expect(buildScene(structuredClone(config))).toEqual(scene);
+        expect(buildScene(structuredClone(config), expand)).toEqual(scene);
       });
     });
   }
 
   test('keeps existing nodes in their columns and mostly in order when an unrelated resource appears', () => {
-    for (const { id, config } of cases) {
-      const before = buildScene(config);
-      const after = buildScene({ ...config, resources: { ...config.resources, addedLater: { type: 'bucket' } } });
+    for (const { id, config, expand } of cases) {
+      const before = buildScene(config, expand);
+      const after = buildScene(
+        { ...config, resources: { ...config.resources, addedLater: { type: 'bucket' } } },
+        expand
+      );
       const [oldColumns, newColumns] = [columnOf(before), columnOf(after)];
       const newTiles = new Map(after.nodes.map((node) => [node.id, node.tile]));
       let pairs = 0;

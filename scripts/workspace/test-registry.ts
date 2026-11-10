@@ -2390,6 +2390,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
@@ -2799,6 +2800,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/authenticated.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/git-provider-writes-live.spec.ts',
@@ -3003,6 +3005,7 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/icon-button/IconButton.test.tsx',
       'packages/ui-react/src/install-platform/detectInstallPlatform.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/grouping.test.ts',
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
@@ -3618,6 +3621,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
@@ -5312,7 +5316,9 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/synthesis-families/security-group-fixtures.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/grouping.test.ts',
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',

@@ -4,16 +4,20 @@ The diagram explains infrastructure Stacktape will synthesize. It is not a direc
 the config type and synthesizer differ, verify behavior against synthesis.
 
 ```text
-StacktapeConfig -> topology.ts -> scene-builder.ts (+ layout/) -> IsoScene -> IsoRenderer.tsx
+StacktapeConfig -> topology.ts -> grouping.ts -> scene-builder.ts (+ layout/) -> IsoScene -> IsoRenderer.tsx
 ```
 
-- `topology.ts` derives semantic nodes and edges, including implicit infrastructure.
+- `topology.ts` derives semantic nodes and edges, including implicit infrastructure, and the triggers behind them
+  (routes, subscriptions, schedules).
+- `grouping.ts` collapses functions and batch jobs that play one role into a group node and merges their connectors.
 - `scene-builder.ts` composes the scene. It decides what the layout must respect (flow edges, sources and sinks, zones,
   room for text) and maps the result to scene nodes, zone rectangles and connectors.
 - `layout/` is the layout engine. It knows nodes with a size, edges and nested zones, not AWS.
+- `scene-details.ts` builds what the side panel says: connections as drawn, an API's routes, a group's members.
 - `scene.ts` is the tile-space contract. It has no SVG geometry, CSS or interaction state.
-- `IsoRenderer.tsx` owns projection, drawing, pan, zoom, focus and tooltips.
-- `IsometricDiagram.tsx` is the public component.
+- `IsoRenderer.tsx` owns projection, drawing, pan, zoom, focus, tooltips, selection and search; `DiagramPanel.tsx` is
+  the side panel.
+- `IsometricDiagram.tsx` is the public component. It holds which groups are expanded.
 
 Keep those boundaries one-way. The renderer does not infer infrastructure; topology and layout do not calculate screen
 geometry. The layout reasons about flat text in projected units (`layout/projected-box.ts`), never in pixels.
@@ -23,6 +27,11 @@ geometry. The layout reasons about flat text in projected units (`layout/project
 The host supplies a parsed `StacktapeConfig` and loads `@stacktape/ui-react/isometric-diagram.css`. The product-wide
 resource category lives in `../resource-icon/catalog.ts`; the diagram colours shapes by it and draws everything else
 itself, with no icon packs or images.
+
+`onOpenResource(resourceName)` is optional. When a host passes it, the side panel offers to open declared resources
+(never implicit ones or groups); `canOpenResource` narrows that to the ones the host can show. Console opens its
+resource dialog through the stage's `selectedResourceName` search parameter. The panel, search and group controls sit
+inside the diagram's frame, so they work in any host, the website islands included.
 
 ## Synthesis rules that are easy to miss
 
@@ -79,6 +88,25 @@ The tests read real templates from `generated/security-group-templates/`, which
 generator lives in the CLI because a package must not import it). Its spec fails when a resolver change makes them
 stale; regenerate, review the template diff and update `security-groups.test.ts`.
 
+## Role groups
+
+Many functions with the same job make an unreadable picture, so they are drawn as one group until the reader expands it.
+Grouping is a stage on the topology, not a renderer feature.
+
+- Functions, and separately batch jobs, form a group when at least `MIN_GROUP_SIZE` (3) share a role: the same set of
+  incoming request, event and security sources (an API, a queue, a topic, a schedule, a stream, a bucket, an API that
+  calls them as its authorizer, or none) and the same subnet. Implicit nodes and data stores are never grouped.
+- Labels come from the role: "<api> routes", "<queue> consumers", "<topic> subscribers", "Scheduled jobs", "Functions"
+  for untriggered ones; the VPC copy of a duplicate label says "(VPC)". The type line counts members ("18 functions").
+- Group IDs are `group--<type>--<signature>[--<subnet>]`: deterministic, independent of declaration order, and unable to
+  collide with resource names. A group takes its first member's place in the node order, so expanding or collapsing it
+  keeps every other node in its flow column.
+- Connectors touching a collapsed group merge into one per neighbour and semantic, with a count. Requests from an API
+  read "N routes" (counted from triggers, not functions); a uniform event label (`poll`, a schedule rate) stays and
+  mixed ones become a count; a dependency's tooltip says "used by 7 of 18 functions". Relations between members of one
+  group are not drawn; the panel lists them per member. Connectors between ungrouped nodes are untouched.
+- Groups start collapsed. The deck's "+" control, the panel and the toolbar's collapse chips change that in place.
+
 ## Layout rules
 
 The engine lays out the base plane in tile space and the renderer projects it; it is synchronous and deterministic. ELK
@@ -93,7 +121,7 @@ and its subnet tiers end up side by side, which turns ALB → service → databa
 - **Zones are bands.** The edge zone and the VPC, with its public tier behind the private one, span the columns of their
   members. Members stay inside, and every other node in those columns stays above or below the band.
 - **Tall columns wrap** into sub-columns, because the default view fits the whole picture, whose size grows with tile
-  width plus height.
+  width plus height. Columns of up to eight stay single, so a few data stores do not re-wrap when one more is added.
 - **Routes are orthogonal in tile space.** Long edges pass through shared waypoints, bundled by source or target and
   edge semantic, and turn only in the gutters between columns. They never cross a node they do not start or end at. Back
   edges reuse the same channels in reverse.
@@ -115,7 +143,8 @@ badges, name tag), connector chips, then zone tags.
   `node-shapes.tsx` owns every pixel of a shape: a silhouette per kind, the body in the AWS category colour, at most one
   flat white glyph on a top face. Add a shape there before reusing a generic one.
 - Draw replicas literally: database instances as side-by-side cylinders (writer first), NAT gateways as one slab each,
-  container tasks as cubes for the minimum and dashed cubes up to the maximum, with a small range badge.
+  container tasks as cubes for the minimum and dashed cubes up to the maximum, with a small range badge. A group is a
+  `deck` of three slabs in its members' colour with their glyph, a filled count badge and a round "+" to expand it.
 - Name tags have two lines: the resource name and a muted type line from the topology.
 - A data store reachable from the internet by its accessibility mode carries a red `public` badge. Keep it visible in
   every view.
@@ -125,15 +154,27 @@ badges, name tag), connector chips, then zone tags.
 Trim connector endpoints around node footprints and keep routing deterministic. Wheel listeners stay non-passive and
 pointer capture supports mouse and touch.
 
-Reset pan/zoom only when the sorted node-ID set changes. Hover is a graph focus operation, so related nodes, edges and
-the explanation must agree.
+Reset pan/zoom only when the sorted node-ID set changes (expanding a group refits the view). Hover is a graph focus
+operation, so related nodes, edges and the explanation must agree; keyboard focus on a node does the same.
+
+## Interaction rules
+
+- Every node is a focusable button. Click, Enter or Space opens the side panel: name, type, the tooltip's explanation,
+  connections in and out grouped by kind, an API's route table (method, path, target, authorizer) and a group's members
+  with their triggers and connections. Escape closes it and returns focus to the node that opened it.
+- A press becomes a drag only after it moves a few pixels, so clicks reach nodes; a click on empty canvas closes the
+  panel.
+- "Find resource" dims everything that does not match by name and rings what does, without moving anything; a group
+  matches when one of its members does. Enter opens the first match.
 
 ## Validate changes
 
 Update topology, the category mapping and node appearance, explanations and at least one fixture together. Prefer
 semantic tests for nodes, edges, zones and routes over whole-SVG snapshots; `synthesis.test.ts` holds the
-synthesizer-checked rules for resource types and relations. `layout/diagram-layout.test.ts` checks the layout rules over
-every fixture and the larger configs in `test-configs/`. When layout spacing or routing changes, render the fixtures and
+synthesizer-checked rules for resource types and relations and `grouping.test.ts` the grouping rules.
+`layout/diagram-layout.test.ts` checks the layout rules over every fixture and the larger configs in `test-configs/`,
+each collapsed and with every group expanded. Console's `e2e/diagram-ui.spec.ts` (offline browser lane) drives the
+panel, expand and collapse, and search in Chromium. When layout spacing or routing changes, render the fixtures and
 those configs and look at them at a 16:10 size; tests do not judge legibility.
 
 ```sh
@@ -141,5 +182,5 @@ pnpm --filter @stacktape/ui-react run test
 pnpm --filter @stacktape/ui-react run typecheck
 ```
 
-Use Console's `/diagram-test` route to check tooltips, zoom, drag, keyboard control, internal ingress, SSR expansion and
-NAT placement in a browser.
+Use Console's `/diagram-test` route to check tooltips, zoom, drag, keyboard control, the side panel, groups, search,
+internal ingress, SSR expansion and NAT placement in a browser; the `serverless-routes` fixture has groups.

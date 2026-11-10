@@ -170,6 +170,362 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
+  /* ── Nodes and group controls ────────────────────────────────────────────────────────────── */
+  .stp-diagram__node,
+  .stp-diagram__group-toggle {
+    cursor: pointer;
+    outline: none;
+  }
+
+  .stp-diagram__group-toggle:hover circle,
+  .stp-diagram__group-toggle:focus-visible circle {
+    stroke: var(--stp-color-brand);
+    stroke-width: 2.2;
+  }
+
+  /* ── Find and expanded groups ────────────────────────────────────────────────────────────── */
+  .stp-diagram__toolbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+  }
+
+  .stp-diagram--panel-open .stp-diagram__toolbar {
+    max-width: calc(100% - var(--stp-diagram-panel-width) - 36px);
+  }
+
+  .stp-diagram__find {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__find:focus-within {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 70%, transparent);
+  }
+
+  .stp-diagram__find input {
+    width: 150px;
+    border: 0;
+    background: transparent;
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .stp-diagram__find input::placeholder {
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__find-count {
+    margin: 0;
+    font-size: 12px;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__chip-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(9, 11, 17, 0.78);
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .stp-diagram__chip-button:hover {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+  }
+
+  .stp-diagram__chip-action {
+    color: var(--stp-color-brand);
+    font-weight: 600;
+  }
+
+  /* ── Side panel ──────────────────────────────────────────────────────────────────────────────
+   * Inside the diagram's frame, so it works wherever the diagram is embedded; it scrolls on its own. */
+  .stp-diagram {
+    --stp-diagram-panel-width: min(380px, calc(100% - 24px));
+  }
+
+  .stp-diagram__panel-frame {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: var(--stp-diagram-panel-width);
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .stp-diagram__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: var(--stp-surface-input);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    font-family: Montserrat, Inter, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--stp-text-primary);
+    pointer-events: auto;
+    user-select: text;
+  }
+
+  .stp-diagram__panel p,
+  .stp-diagram__panel h2,
+  .stp-diagram__panel h3,
+  .stp-diagram__panel ul {
+    margin: 0;
+    padding: 0;
+  }
+
+  .stp-diagram__panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 10px 18px;
+  }
+
+  .stp-diagram__panel-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    outline: none;
+  }
+
+  .stp-diagram__panel-subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__panel-close {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--stp-radius-medium);
+    background: transparent;
+    color: var(--stp-text-subtle);
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-close:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 18px 12px;
+  }
+
+  .stp-diagram__panel-button {
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-button:hover {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+  }
+
+  .stp-diagram__panel-button--primary {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 55%, transparent);
+    background: color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
+  }
+
+  .stp-diagram__panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    padding: 0 18px 18px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .stp-diagram__panel-summary {
+    font-size: 13.5px;
+  }
+
+  .stp-diagram__panel-details {
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-note {
+    padding-left: 10px;
+    border-left: 2px solid var(--stp-color-brand);
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .stp-diagram__panel-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+  }
+
+  .stp-diagram__panel-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+  }
+
+  .stp-diagram__panel-member {
+    padding: 7px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .stp-diagram__panel-member-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .stp-diagram__panel-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.25);
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-link:hover {
+    color: var(--stp-color-brand);
+    text-decoration-color: currentColor;
+  }
+
+  .stp-diagram__panel-mini-action {
+    flex-shrink: 0;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--stp-color-brand);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-muted {
+    font-size: 12px;
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-code {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-routes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .stp-diagram__panel-routes th {
+    padding: 0 8px 4px 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-routes td {
+    padding: 4px 8px 4px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    vertical-align: top;
+  }
+
+  /* Paths may break anywhere; resource names only where they must. */
+  .stp-diagram__panel-routes .stp-diagram__panel-link {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .stp-diagram__panel button:focus-visible,
+  .stp-diagram__chip-button:focus-visible,
+  .stp-diagram__find:focus-within {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  /* The zoom controls step aside while the panel is open. */
+  .stp-diagram--panel-open .stp-diagram__controls {
+    right: calc(var(--stp-diagram-panel-width) + 24px);
+  }
+
   /* ── Empty state ─────────────────────────────────────────────────────────────────────────── */
   .stp-diagram-empty {
     display: flex;

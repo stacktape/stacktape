@@ -66,12 +66,14 @@ const APPEARANCE: Record<string, Appearance> = {
   user: { shape: 'user' }
 };
 
+/** A role group of functions or batch jobs is a deck of slabs in its members' colour, with their glyph on top. */
 export const getNodeAppearance = (
-  resourceType: string
+  resourceType: string,
+  { group = false }: { group?: boolean } = {}
 ): { shape: IsoNodeShape; glyph?: IsoNodeGlyph | undefined; category: IsoNodeCategory } => {
   const appearance = APPEARANCE[resourceType] ?? { shape: 'construct' };
   return {
-    shape: appearance.shape,
+    shape: group ? 'deck' : appearance.shape,
     glyph: appearance.glyph,
     // The visitor and anything the catalog does not place in an AWS category (a CDK construct) stay neutral.
     category: resourceType === 'user' ? 'neutral' : (getResourceVisual(resourceType)?.category ?? 'neutral')
@@ -83,6 +85,7 @@ export const getNodeAppearance = (
 /** How far each shape rises above its floor tile, in SVG units at zoom 1. */
 export const SHAPE_HEIGHT_PX: Record<IsoNodeShape, number> = {
   function: 10,
+  deck: 26,
   container: 29,
   batch: 22,
   server: 32,
@@ -118,13 +121,22 @@ export const BADGE_HEIGHT_PX = 17;
 export const NAME_MAX_CHARS = 20;
 export const TYPE_MAX_CHARS = 32;
 
-/** Running and maximum copies, e.g. "2–6" tasks. Database instances and NAT gateways are drawn one by one instead. */
-export const getReplicaBadgeText = ({ shape, replicas }: Pick<IsoNode, 'shape' | 'replicas'>) => {
+/**
+ * Running and maximum copies, e.g. "2–6" tasks, or how many resources a group stands for. Database instances and NAT
+ * gateways are drawn one by one instead.
+ */
+export const getReplicaBadgeText = ({
+  shape,
+  replicas,
+  memberCount
+}: Pick<IsoNode, 'shape' | 'replicas'> & { memberCount?: number | undefined }) => {
+  if (memberCount) return String(memberCount);
   if (!replicas || shape === 'database' || shape === 'nat') return undefined;
   if (replicas.max > replicas.min) return `${replicas.min}–${replicas.max}`;
   return replicas.min > 1 ? `×${replicas.min}` : undefined;
 };
 
-/** Whether a node carries a badge above its shape: a replica range or the `public` mark. */
-export const hasBadge = (node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic'>) =>
-  Boolean(node.isPublic || getReplicaBadgeText(node));
+/** Whether a node carries a badge above its shape: a replica range, a group's count or the `public` mark. */
+export const hasBadge = (
+  node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic'> & { memberCount?: number | undefined }
+) => Boolean(node.isPublic || getReplicaBadgeText(node));

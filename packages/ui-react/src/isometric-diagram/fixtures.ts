@@ -926,6 +926,238 @@ resources:
       hasVpc: true,
       connectorSemantics: ['request', 'event', 'dependency', 'egress']
     }
+  },
+  {
+    id: 'serverless-routes',
+    title: 'Serverless API (grouped functions)',
+    description:
+      'Six functions behind one HTTP API, three subscribers of one topic and two scheduled jobs. Functions that share a trigger are drawn as one group until you expand it; the two scheduled jobs stay separate because a group needs three.',
+    yaml: `resources:
+  api:
+    type: http-api-gateway
+
+  users:
+    type: user-auth-pool
+
+  listOrders:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/listOrders.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders
+            method: GET
+      connectTo:
+        - ordersTable
+
+  getOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/getOrder.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders/{id}
+            method: GET
+      connectTo:
+        - ordersTable
+
+  createOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/createOrder.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders
+            method: POST
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: users
+      connectTo:
+        - ordersTable
+        - orderQueue
+
+  listProducts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/listProducts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products
+            method: GET
+      connectTo:
+        - productsTable
+
+  updateProduct:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/updateProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products/{id}
+            method: PUT
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: users
+      connectTo:
+        - productsTable
+
+  deleteProduct:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/deleteProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products/{id}
+            method: DELETE
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: users
+      connectTo:
+        - productsTable
+
+  processOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/processOrder.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: orderQueue
+      connectTo:
+        - ordersTable
+        - orderEvents
+
+  sendReceipt:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/sendReceipt.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: orderEvents
+      connectTo:
+        - ordersTable
+
+  updateStock:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/updateStock.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: orderEvents
+      connectTo:
+        - productsTable
+
+  notifyWarehouse:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/notifyWarehouse.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: orderEvents
+
+  nightlyReport:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/nightlyReport.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 2 * * ? *)
+      connectTo:
+        - ordersTable
+
+  expireCarts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/expireCarts.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hour)
+      connectTo:
+        - ordersTable
+
+  orderQueue:
+    type: sqs-queue
+
+  orderEvents:
+    type: sns-topic
+
+  ordersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  productsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+`,
+    expectation: {
+      minNodes: 10,
+      minConnectors: 10,
+      connectorSemantics: ['request', 'event', 'dependency', 'security']
+    }
   }
 ];
 

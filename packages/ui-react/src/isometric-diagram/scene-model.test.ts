@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
 import { buildIsometricScene } from './scene-builder.js';
+import { groupTopology } from './grouping.js';
 import { buildDiagramTopology } from './topology.js';
 import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fixture-scenes.js';
 
@@ -38,11 +39,13 @@ describe('diagram scene model', () => {
     test(`preserves topology, routes and subnet membership through the scene pipeline for ${fixture.id}`, () => {
       const config = parseFixtureConfig({ fixture });
       const before = structuredClone(config);
-      const topology = buildDiagramTopology({ parsedConfig: config });
+      const base = buildDiagramTopology({ parsedConfig: config });
       const scene = buildIsometricScene({ parsedConfig: config });
-      expect(topology).not.toBeNull();
+      expect(base).not.toBeNull();
       expect(scene).not.toBeNull();
-      if (!topology || !scene) throw new Error('Representative fixture must produce a topology and scene');
+      if (!base || !scene) throw new Error('Representative fixture must produce a topology and scene');
+      // The scene draws the topology after grouping, with every group collapsed.
+      const topology = groupTopology({ topology: base });
       expect(config).toEqual(before);
       expect(buildIsometricScene({ parsedConfig: config })).toEqual(scene);
       expect(scene.nodes.map(({ id }) => id).toSorted()).toEqual(topology.nodes.map(({ id }) => id).toSorted());

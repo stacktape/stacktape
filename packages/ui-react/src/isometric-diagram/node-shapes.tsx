@@ -461,6 +461,27 @@ const drawShape = (context: DrawContext, node: IsoNode) => {
       if (glyph) glyphOnTop(context, { glyph, cx, cy, s: 0.3, z: height });
       return;
     }
+    case 'deck': {
+      // A group of functions or batch jobs: a short stack of slabs, the top one in full colour with its glyph.
+      squareShadow(context, cx, cy, 0.46);
+      const slabs = 3;
+      const slabHeight = 6;
+      const step = (height - slabHeight) / (slabs - 1);
+      for (let index = 0; index < slabs; index++) {
+        const isTop = index === slabs - 1;
+        box(context, {
+          cx,
+          cy,
+          sx: 0.44,
+          h: slabHeight,
+          z0: index * step,
+          color: isTop ? color : shade(color, 0.8 + index * 0.06),
+          top: isTop ? topColor : shade(color, 0.9)
+        });
+      }
+      if (glyph) glyphOnTop(context, { glyph, cx, cy, s: 0.3, z: height });
+      return;
+    }
     case 'container':
       drawContainer(context, node, color);
       return;
@@ -842,10 +863,16 @@ export function NodeBadges({ node }: { node: IsoNode }) {
   const color = CATEGORY_COLORS[node.category];
   return (
     <>
-      {replicaText && (
-        <g data-iso-kind="replica-badge">
-          <Pill x={center.x + 34} y={badgeY} text={replicaText} fill="#0B0D12" stroke={color} />
+      {replicaText && node.memberCount ? (
+        <g data-iso-kind="group-count">
+          <Pill x={center.x + 34} y={badgeY} text={replicaText} fill={shade(color, 0.7)} stroke={tint(color, 0.3)} />
         </g>
+      ) : (
+        replicaText && (
+          <g data-iso-kind="replica-badge">
+            <Pill x={center.x + 34} y={badgeY} text={replicaText} fill="#0B0D12" stroke={color} />
+          </g>
+        )
       )}
       {node.isPublic && (
         <g data-iso-kind="public-badge">

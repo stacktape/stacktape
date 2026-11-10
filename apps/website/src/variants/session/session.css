@@ -949,7 +949,8 @@
 }
 
 .ss-diagram .stp-diagram__controls,
-.ss-diagram .stp-diagram__hint {
+.ss-diagram .stp-diagram__hint,
+.ss-diagram .stp-diagram__find {
   display: none;
 }
 

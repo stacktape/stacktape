@@ -332,6 +332,22 @@ export const ZONE_EXPLANATIONS: Record<string, DiagramExplanation> = {
 };
 
 /** Friendly label for each edge semantic, shown as the tooltip subtitle on pipes. */
+/** Role groups (see `grouping.ts`), by their members' resource type. */
+export const GROUP_EXPLANATION: Record<string, DiagramExplanation> = {
+  function: {
+    name: 'Function group',
+    summary: 'Functions that play the same role, drawn as one stack.',
+    details:
+      'They are started by the same things and sit in the same place on the network, so they share every incoming connector. Each one is still a separate Lambda function with its own code, permissions and scaling. Expand the stack to see them one by one.'
+  },
+  'batch-job': {
+    name: 'Batch job group',
+    summary: 'Batch jobs that play the same role, drawn as one stack.',
+    details:
+      'They are started by the same things and sit in the same place on the network, so they share every incoming connector. Each one is still a separate job definition with its own container and resources. Expand the stack to see them one by one.'
+  }
+};
+
 export const EDGE_SEMANTIC_LABELS: Record<string, string> = {
   request: 'Synchronous request flow',
   event: 'Asynchronous event delivery',

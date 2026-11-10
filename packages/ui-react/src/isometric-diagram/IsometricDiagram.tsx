@@ -2,7 +2,7 @@ import type { StacktapeConfig } from '@stacktape/config';
 import type { ReactNode } from 'react';
 import type { DiagramViewProps } from './IsoRenderer.js';
 import type { IsoScene } from './scene.js';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { IsoRenderer } from './IsoRenderer.js';
 import { buildIsometricScene } from './scene-builder.js';
 
@@ -34,7 +34,10 @@ const DEFAULT_EMPTY_MESSAGE = 'No resources to display. Add resources to your co
  *
  * The pipeline behind it is one-way, and each stage is worth keeping separate:
  *
- *     StacktapeConfig → topology.ts → scene-builder.ts → IsoScene → IsoRenderer.tsx
+ *     StacktapeConfig → topology.ts → grouping.ts → scene-builder.ts → IsoScene → IsoRenderer.tsx
+ *
+ * Functions and batch jobs that play the same role are drawn as one group until the reader expands it. Clicking a node
+ * opens a side panel with its connections; pass `onOpenResource` to offer opening a declared resource in the host.
  *
  * Load `@stacktape/ui-react/isometric-diagram.css` alongside this component. Import it from the
  * same module the host lazy-loads, so the stylesheet travels in the same chunk.
@@ -46,9 +49,23 @@ export function IsometricDiagram({
   ariaLabel,
   className,
   style,
-  initialZoom
+  initialZoom,
+  onOpenResource,
+  canOpenResource
 }: IsometricDiagramProps) {
-  const scene: IsoScene | null = useMemo(() => buildIsometricScene({ parsedConfig: config }), [config]);
+  // Role groups start collapsed; the reader expands them one by one.
+  const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (!next.delete(groupId)) next.add(groupId);
+      return next;
+    });
+  }, []);
+  const scene: IsoScene | null = useMemo(
+    () => buildIsometricScene({ parsedConfig: config, expandedGroups }),
+    [config, expandedGroups]
+  );
 
   if (!scene || scene.nodes.length === 0) {
     if (emptyState === null) return null;
@@ -68,6 +85,9 @@ export function IsometricDiagram({
       initialZoom={initialZoom}
       scene={scene}
       style={style}
+      onOpenResource={onOpenResource}
+      canOpenResource={canOpenResource}
+      onToggleGroup={toggleGroup}
     />
   );
 }

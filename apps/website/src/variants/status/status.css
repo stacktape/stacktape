@@ -1070,7 +1070,8 @@
 }
 
 .su-diagram .stp-diagram__controls,
-.su-diagram .stp-diagram__hint {
+.su-diagram .stp-diagram__hint,
+.su-diagram .stp-diagram__find {
   display: none;
 }
 
