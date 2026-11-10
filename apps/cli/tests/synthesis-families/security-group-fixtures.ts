@@ -202,6 +202,42 @@ resources:
 `
   },
   {
+    name: 'convex',
+    description:
+      'A Convex resource with its defaults: a load balancer in front of the backend and the dashboard, which run as two services, and its Postgres database.',
+    config: `resources:
+  app:
+    type: convex
+    properties:
+      appDirectory: ./convex
+`
+  },
+  {
+    name: 'alb-whitelisted-listeners',
+    description:
+      'An application load balancer whose two listeners each admit one address: port 80 from 203.0.113.10/32 and port 8080 from 198.51.100.20/32.',
+    config: `resources:
+  edge:
+    type: application-load-balancer
+    properties:
+      listeners:
+        - protocol: HTTP
+          port: 80
+          whitelistIps: [203.0.113.10/32]
+        - protocol: HTTP
+          port: 8080
+          whitelistIps: [198.51.100.20/32]
+  handler:${handler(`
+      events:
+        - type: application-load-balancer
+          properties:
+            loadBalancerName: edge
+            listenerPort: 80
+            priority: 1
+            paths: ['/*']`)}
+`
+  },
+  {
     name: 'batch-bastion-nat-instance',
     description:
       'A batch job and an AgentCore runtime that connect to a scoped database, a bastion, and NAT instances for a private worker.',
@@ -392,6 +428,9 @@ export const synthesizeSecurityGroupFixtures = async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-security-group-fixtures-'));
   try {
     await writeFile(join(directory, 'handler.ts'), 'export default async () => ({ statusCode: 200 });\n');
+    // The Convex scenario's app directory, which synthesis checks exists.
+    await mkdir(join(directory, 'convex'));
+    await writeFile(join(directory, 'convex', 'schema.ts'), 'export default {};\n');
     const files = new Map<string, string>();
     for (const scenario of SECURITY_GROUP_SCENARIOS) {
       // Synthesis shares process-wide managers, so the scenarios run one after another.

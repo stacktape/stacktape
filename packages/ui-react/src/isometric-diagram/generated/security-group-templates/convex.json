@@ -1,0 +1,1773 @@
+{
+  "description": "A Convex resource with its defaults: a load balancer in front of the backend and the dashboard, which run as two services, and its Postgres database.",
+  "config": "resources:\n  app:\n    type: convex\n    properties:\n      appDirectory: ./convex\n",
+  "stacktapeResources": [
+    {
+      "name": "app",
+      "type": "convex",
+      "logicalIds": [
+        "AppBackendContainerWorkloadAppLoadBalancerToPort3210TargetGroup",
+        "AppBackendContainerWorkloadAppLoadBalancerToPort3211TargetGroup",
+        "AppBackendContainerWorkloadCluster",
+        "AppBackendContainerWorkloadConvexBackendLogGroup",
+        "AppBackendContainerWorkloadDeregisterTargetsCustomResource",
+        "AppBackendContainerWorkloadRole",
+        "AppBackendContainerWorkloadScalableTarget",
+        "AppBackendContainerWorkloadSecurityGroup",
+        "AppBackendContainerWorkloadService",
+        "AppBackendContainerWorkloadTaskDefinition",
+        "AppDashboardContainerWorkloadAppLoadBalancerToPort6791TargetGroup",
+        "AppDashboardContainerWorkloadCluster",
+        "AppDashboardContainerWorkloadConvexDashboardLogGroup",
+        "AppDashboardContainerWorkloadDeregisterTargetsCustomResource",
+        "AppDashboardContainerWorkloadRole",
+        "AppDashboardContainerWorkloadScalableTarget",
+        "AppDashboardContainerWorkloadSecurityGroup",
+        "AppDashboardContainerWorkloadService",
+        "AppDashboardContainerWorkloadTaskDefinition",
+        "AppDatabaseDbInstance",
+        "AppDatabaseDbParameterGroup",
+        "AppDatabaseDbSubnetGroup",
+        "AppDatabaseInstancePostgresqlLogGroup",
+        "AppDatabaseSecurityGroup",
+        "AppExportsBucketBucket",
+        "AppFilesBucketBucket",
+        "AppLoadBalancerDefaultDomainCustomResource",
+        "AppLoadBalancerLbSecurityGroup",
+        "AppLoadBalancerLoadBalancer",
+        "AppLoadBalancerPort3210Listener",
+        "AppLoadBalancerPort3210Priority10ListenerRule",
+        "AppLoadBalancerPort3211Listener",
+        "AppLoadBalancerPort3211Priority20ListenerRule",
+        "AppLoadBalancerPort6791Listener",
+        "AppLoadBalancerPort6791Priority30ListenerRule",
+        "AppModulesBucketBucket",
+        "AppRuntimeSecret",
+        "AppSearchBucketBucket",
+        "AppSnapshotImportsBucketBucket"
+      ]
+    }
+  ],
+  "resources": {
+    "StpInternetGateway": {
+      "Properties": {},
+      "Type": "AWS::EC2::InternetGateway"
+    },
+    "AppBackendContainerWorkloadCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-appBackendContainerWorkload-cluster"
+      }
+    },
+    "AppBackendContainerWorkloadConvexBackendLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/appBackendContainerWorkload/convex-backend/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "AppDashboardContainerWorkloadCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterName": "security-fixture-appDashboardContainerWorkload-cluster"
+      }
+    },
+    "AppDashboardContainerWorkloadConvexDashboardLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/stp/security-fixture/ecs/appDashboardContainerWorkload/convex-dashboard/process-logs",
+        "RetentionInDays": 90
+      }
+    },
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "AppDatabaseInstancePostgresqlLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/rds/instance/security-fixture-appdatabase/postgresql",
+        "RetentionInDays": 90
+      }
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ],
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "AppDatabaseDbParameterGroup": {
+      "Type": "AWS::RDS::DBParameterGroup",
+      "Properties": {
+        "Description": "security-fixture appDatabase param group",
+        "Family": "postgres16",
+        "Parameters": {
+          "log_connections": "0",
+          "log_disconnections": "0",
+          "log_lock_waits": "0",
+          "log_min_duration_statement": "10000",
+          "log_statement": "ddl",
+          "rds.force_ssl": "0"
+        }
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        },
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "AppLoadBalancerLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "IpAddressType": "ipv4",
+        "Scheme": "internet-facing",
+        "Type": "application",
+        "SecurityGroups": [
+          {
+            "Ref": "AppLoadBalancerLbSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerLbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Stacktape generated security group for redis cluster appLoadBalancer in stack security-fixture",
+        "GroupName": "security-fixture-appLoadBalancer-lb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 3210,
+            "ToPort": 3210,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          },
+          {
+            "FromPort": 3211,
+            "ToPort": 3211,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          },
+          {
+            "FromPort": 6791,
+            "ToPort": 6791,
+            "CidrIp": "0.0.0.0/0",
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "AppBackendContainerWorkloadAppLoadBalancerToPort3210TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckPath": "/",
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 3210,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "30"
+          }
+        ],
+        "Matcher": {
+          "HttpCode": "200-499"
+        }
+      }
+    },
+    "AppBackendContainerWorkloadAppLoadBalancerToPort3211TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckPath": "/",
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 3211,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "30"
+          }
+        ],
+        "Matcher": {
+          "HttpCode": "200-499"
+        }
+      }
+    },
+    "AppDashboardContainerWorkloadAppLoadBalancerToPort6791TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "HealthCheckIntervalSeconds": 5,
+        "HealthCheckTimeoutSeconds": 4,
+        "HealthyThresholdCount": 2,
+        "HealthCheckProtocol": "HTTP",
+        "Port": 6791,
+        "Protocol": "HTTP",
+        "TargetType": "ip",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "30"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "sensitiveData": [
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/app/adminKey",
+            "value": "__pending_post_deploy_generation__"
+          },
+          {
+            "ssmParameterName": "/stp/eu-west-1/security-fixture/app/instanceSecret",
+            "value": "__pending_post_deploy_generation__"
+          }
+        ],
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "StpDefaultDomainCertCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "defaultDomainCert": {
+          "certDomainSuffix": ".stacktape-app.com",
+          "version": 2
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "AppDatabaseDbSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupName": "security-fixture-appdatabase-subnet-group",
+        "DBSubnetGroupDescription": "security-fixture-appdatabase-subnet-group",
+        "SubnetIds": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ]
+      }
+    },
+    "AppDatabaseDbInstance": {
+      "Type": "AWS::RDS::DBInstance",
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AppDatabaseInstancePostgresqlLogGroup"
+      ],
+      "Properties": {
+        "DBInstanceClass": "db.t4g.micro",
+        "DBInstanceIdentifier": "security-fixture-appdatabase",
+        "MultiAZ": false,
+        "AutoMinorVersionUpgrade": true,
+        "DBName": "convex",
+        "Engine": "postgres",
+        "EngineVersion": "16.6",
+        "Port": "5432",
+        "BackupRetentionPeriod": 1,
+        "MasterUsername": "convex",
+        "MasterUserPassword": "{{resolve:secretsmanager:stp/eu-west-1/security-fixture/app:SecretString:dbPassword}}",
+        "AllocatedStorage": "20",
+        "MaxAllocatedStorage": 200,
+        "PubliclyAccessible": true,
+        "AllowMajorVersionUpgrade": true,
+        "StorageType": "gp3",
+        "PreferredMaintenanceWindow": "Sun:02:00-Sun:04:00",
+        "PreferredBackupWindow": "01:00-01:30",
+        "StorageEncrypted": true,
+        "EnableCloudwatchLogsExports": [
+          "postgresql"
+        ],
+        "DBParameterGroupName": {
+          "Ref": "AppDatabaseDbParameterGroup"
+        },
+        "DBSubnetGroupName": {
+          "Ref": "AppDatabaseDbSubnetGroup"
+        },
+        "VPCSecurityGroups": [
+          {
+            "Ref": "AppDatabaseSecurityGroup"
+          }
+        ]
+      }
+    },
+    "AppBackendContainerWorkloadSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with appBackendContainerWorkload in stack security-fixture",
+        "GroupName": "security-fixture-appBackendContainerWorkload-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from load balancer appLoadBalancer to 3210",
+            "FromPort": 3210,
+            "ToPort": 3210,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "AppLoadBalancerLbSecurityGroup"
+            }
+          },
+          {
+            "Description": "from load balancer appLoadBalancer to 3211",
+            "FromPort": 3211,
+            "ToPort": 3211,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "AppLoadBalancerLbSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "AppBackendContainerWorkloadDeregisterTargetsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "DependsOn": [
+        "AppBackendContainerWorkloadService"
+      ],
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "deregisterTargets": {
+          "targetGroupArns": [
+            {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3210TargetGroup"
+            },
+            {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3211TargetGroup"
+            }
+          ]
+        }
+      }
+    },
+    "AppDashboardContainerWorkloadSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group associated with appDashboardContainerWorkload in stack security-fixture",
+        "GroupName": "security-fixture-appDashboardContainerWorkload-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "from load balancer appLoadBalancer to 6791",
+            "FromPort": 6791,
+            "ToPort": 6791,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "AppLoadBalancerLbSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "AppDashboardContainerWorkloadDeregisterTargetsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "DependsOn": [
+        "AppDashboardContainerWorkloadService"
+      ],
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "deregisterTargets": {
+          "targetGroupArns": [
+            {
+              "Ref": "AppDashboardContainerWorkloadAppLoadBalancerToPort6791TargetGroup"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "MapPublicIpOnLaunch": true,
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "MapPublicIpOnLaunch": true,
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "MapPublicIpOnLaunch": true,
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "AppDatabaseSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupName": "security-fixture-appDatabase-sg",
+        "GroupDescription": "Stacktape generated security group for database appDatabase in stack security-fixture",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "AppBackendContainerWorkloadSecurityGroup"
+            }
+          }
+        ]
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ],
+      "Properties": {
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "FunctionName": "security-fixture-stpService-CR",
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Runtime": "nodejs22.x",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ],
+        "Environment": {
+          "Variables": {
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000",
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            }
+          }
+        }
+      }
+    },
+    "AppLoadBalancerPort3210Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Port": 3210,
+        "Protocol": "HTTPS",
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+        "LoadBalancerArn": {
+          "Ref": "AppLoadBalancerLoadBalancer"
+        },
+        "DefaultActions": [
+          {
+            "Type": "fixed-response",
+            "Order": 1,
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            }
+          }
+        ],
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerPort3211Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Port": 3211,
+        "Protocol": "HTTPS",
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+        "LoadBalancerArn": {
+          "Ref": "AppLoadBalancerLoadBalancer"
+        },
+        "DefaultActions": [
+          {
+            "Type": "fixed-response",
+            "Order": 1,
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            }
+          }
+        ],
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerPort6791Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "Port": 6791,
+        "Protocol": "HTTPS",
+        "SslPolicy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+        "LoadBalancerArn": {
+          "Ref": "AppLoadBalancerLoadBalancer"
+        },
+        "DefaultActions": [
+          {
+            "Type": "fixed-response",
+            "Order": 1,
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            }
+          }
+        ],
+        "Certificates": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": [
+                "StpDefaultDomainCertCustomResource",
+                "certArn"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerPort3210Priority10ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Priority": 10,
+        "ListenerArn": {
+          "Ref": "AppLoadBalancerPort3210Listener"
+        },
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3210TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "*"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerPort3211Priority20ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Priority": 20,
+        "ListenerArn": {
+          "Ref": "AppLoadBalancerPort3211Listener"
+        },
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3211TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "*"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerPort6791Priority30ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Priority": 30,
+        "ListenerArn": {
+          "Ref": "AppLoadBalancerPort6791Listener"
+        },
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "AppDashboardContainerWorkloadAppLoadBalancerToPort6791TargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "*"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppLoadBalancerDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "apploadbalancer-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "version": 2,
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "AppLoadBalancerLoadBalancer",
+                "DNSName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "AppLoadBalancerLoadBalancer",
+                "CanonicalHostedZoneID"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "AppModulesBucketBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "security-fixture-appmodulesbucket-7e618203",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ],
+              "AllowedHeaders": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AppFilesBucketBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "security-fixture-appfilesbucket-7e618203",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ],
+              "AllowedHeaders": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AppSearchBucketBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "security-fixture-appsearchbucket-7e618203",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ],
+              "AllowedHeaders": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AppExportsBucketBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "security-fixture-appexportsbucket-7e618203",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ],
+              "AllowedHeaders": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AppSnapshotImportsBucketBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "security-fixture-appsnapshotimportsbucket-7e618203",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE",
+                "HEAD"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ],
+              "AllowedHeaders": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "StpEcsExecutionRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StpEcsAutoScaleRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AppBackendContainerWorkloadService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": [
+        "AppLoadBalancerPort3210Listener",
+        "AppLoadBalancerPort3211Listener",
+        "AppLoadBalancerPort3210Priority10ListenerRule",
+        "AppLoadBalancerPort3211Priority20ListenerRule"
+      ],
+      "Properties": {
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "LaunchType": "FARGATE",
+        "PlatformVersion": "LATEST",
+        "EnableExecuteCommand": true,
+        "Cluster": {
+          "Ref": "AppBackendContainerWorkloadCluster"
+        },
+        "TaskDefinition": {
+          "Ref": "AppBackendContainerWorkloadTaskDefinition"
+        },
+        "DeploymentConfiguration": {
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100,
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          }
+        },
+        "LoadBalancers": [
+          {
+            "ContainerPort": 3210,
+            "ContainerName": "convex-backend",
+            "TargetGroupArn": {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3210TargetGroup"
+            }
+          },
+          {
+            "ContainerPort": 3211,
+            "ContainerName": "convex-backend",
+            "TargetGroupArn": {
+              "Ref": "AppBackendContainerWorkloadAppLoadBalancerToPort3211TargetGroup"
+            }
+          }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": [
+              {
+                "Ref": "StpPublicSubnet0"
+              },
+              {
+                "Ref": "StpPublicSubnet1"
+              },
+              {
+                "Ref": "StpPublicSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "AppBackendContainerWorkloadSecurityGroup"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "AppDashboardContainerWorkloadService": {
+      "Type": "AWS::ECS::Service",
+      "DependsOn": [
+        "AppLoadBalancerPort6791Listener",
+        "AppLoadBalancerPort6791Priority30ListenerRule"
+      ],
+      "Properties": {
+        "EnableECSManagedTags": true,
+        "PropagateTags": "SERVICE",
+        "LaunchType": "FARGATE",
+        "PlatformVersion": "LATEST",
+        "EnableExecuteCommand": false,
+        "Cluster": {
+          "Ref": "AppDashboardContainerWorkloadCluster"
+        },
+        "TaskDefinition": {
+          "Ref": "AppDashboardContainerWorkloadTaskDefinition"
+        },
+        "DeploymentConfiguration": {
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100,
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          }
+        },
+        "LoadBalancers": [
+          {
+            "ContainerPort": 6791,
+            "ContainerName": "convex-dashboard",
+            "TargetGroupArn": {
+              "Ref": "AppDashboardContainerWorkloadAppLoadBalancerToPort6791TargetGroup"
+            }
+          }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "ENABLED",
+            "Subnets": [
+              {
+                "Ref": "StpPublicSubnet0"
+              },
+              {
+                "Ref": "StpPublicSubnet1"
+              },
+              {
+                "Ref": "StpPublicSubnet2"
+              }
+            ],
+            "SecurityGroups": [
+              {
+                "Ref": "AppDashboardContainerWorkloadSecurityGroup"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "AppDashboardContainerWorkloadRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AppBackendContainerWorkloadScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs",
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "AppBackendContainerWorkloadCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "AppBackendContainerWorkloadService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "AppDashboardContainerWorkloadScalableTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "MaxCapacity": 1,
+        "MinCapacity": 1,
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ServiceNamespace": "ecs",
+        "RoleARN": {
+          "Fn::GetAtt": [
+            "StpEcsAutoScaleRole",
+            "Arn"
+          ]
+        },
+        "ResourceId": {
+          "Fn::Join": [
+            "/",
+            [
+              "service",
+              {
+                "Ref": "AppDashboardContainerWorkloadCluster"
+              },
+              {
+                "Fn::GetAtt": [
+                  "AppDashboardContainerWorkloadService",
+                  "Name"
+                ]
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "AppRuntimeSecret": {
+      "Type": "AWS::SecretsManager::Secret",
+      "Properties": {
+        "Description": "Runtime secrets for Convex resource app",
+        "SecretString": {
+          "Fn::Sub": [
+            "{\"instanceSecret\":\"{{resolve:secretsmanager:stp/eu-west-1/security-fixture/app:SecretString:instanceSecret}}\",\"postgresUrl\":\"postgresql://convex:{{resolve:secretsmanager:stp/eu-west-1/security-fixture/app:SecretString:dbPassword}}@${dbHost}:${dbPort}?sslmode=disable\"}",
+            {
+              "dbHost": {
+                "Fn::GetAtt": [
+                  "AppDatabaseDbInstance",
+                  "Endpoint.Address"
+                ]
+              },
+              "dbPort": {
+                "Fn::GetAtt": [
+                  "AppDatabaseDbInstance",
+                  "Endpoint.Port"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AppBackendContainerWorkloadTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-appBackendContainerWorkload-task-definition",
+        "NetworkMode": "awsvpc",
+        "Cpu": "512",
+        "Memory": "1024",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        },
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "AppBackendContainerWorkloadRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "convex-backend",
+            "Image": "ghcr.io/get-convex/convex-backend@sha256:122da352b12b216a017a1fb45c6a467f41a5b746158b47aecd1fe12f9f74edb0",
+            "Essential": true,
+            "StopTimeout": 30,
+            "DependsOn": [],
+            "PortMappings": [
+              {
+                "ContainerPort": 3210,
+                "Protocol": "tcp",
+                "HostPort": 3210,
+                "Name": "port-3210"
+              },
+              {
+                "ContainerPort": 3211,
+                "Protocol": "tcp",
+                "HostPort": 3211,
+                "Name": "port-3211"
+              }
+            ],
+            "Environment": [
+              {
+                "Name": "INSTANCE_NAME",
+                "Value": "app"
+              },
+              {
+                "Name": "CONVEX_CLOUD_ORIGIN",
+                "Value": "https://apploadbalancer-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com:3210"
+              },
+              {
+                "Name": "CONVEX_SITE_ORIGIN",
+                "Value": "https://apploadbalancer-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com:3211"
+              },
+              {
+                "Name": "AWS_REGION",
+                "Value": "eu-west-1"
+              },
+              {
+                "Name": "DO_NOT_REQUIRE_SSL",
+                "Value": "true"
+              },
+              {
+                "Name": "PORT",
+                "Value": "3210"
+              },
+              {
+                "Name": "SITE_PROXY_PORT",
+                "Value": "3211"
+              },
+              {
+                "Name": "S3_STORAGE_MODULES_BUCKET",
+                "Value": {
+                  "Ref": "AppModulesBucketBucket"
+                }
+              },
+              {
+                "Name": "S3_STORAGE_FILES_BUCKET",
+                "Value": {
+                  "Ref": "AppFilesBucketBucket"
+                }
+              },
+              {
+                "Name": "S3_STORAGE_SEARCH_BUCKET",
+                "Value": {
+                  "Ref": "AppSearchBucketBucket"
+                }
+              },
+              {
+                "Name": "S3_STORAGE_EXPORTS_BUCKET",
+                "Value": {
+                  "Ref": "AppExportsBucketBucket"
+                }
+              },
+              {
+                "Name": "S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET",
+                "Value": {
+                  "Ref": "AppSnapshotImportsBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_DATABASE_HOST",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppDatabaseDbInstance",
+                    "Endpoint.Address"
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_DATABASE_CONNECTION_STRING",
+                "Value": {
+                  "Fn::Sub": [
+                    "postgresql://${username}:${password}@${host}:${port}/${databaseName}",
+                    {
+                      "host": {
+                        "Fn::GetAtt": [
+                          "AppDatabaseDbInstance",
+                          "Endpoint.Address"
+                        ]
+                      },
+                      "username": "convex",
+                      "password": "{{resolve:secretsmanager:stp/eu-west-1/security-fixture/app:SecretString:dbPassword}}",
+                      "port": "5432",
+                      "databaseName": "convex"
+                    }
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_DATABASE_JDBC_CONNECTION_STRING",
+                "Value": {
+                  "Fn::Sub": [
+                    "jdbc:postgresql://${host}:${port}/${databaseName}?user=${username}&password=${password}",
+                    {
+                      "host": {
+                        "Fn::GetAtt": [
+                          "AppDatabaseDbInstance",
+                          "Endpoint.Address"
+                        ]
+                      },
+                      "username": "convex",
+                      "password": "{{resolve:secretsmanager:stp/eu-west-1/security-fixture/app:SecretString:dbPassword}}",
+                      "port": "5432",
+                      "databaseName": "convex"
+                    }
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_DATABASE_PORT",
+                "Value": "5432"
+              },
+              {
+                "Name": "STP_APP_DATABASE_DB_NAME",
+                "Value": "convex"
+              },
+              {
+                "Name": "STP_APP_MODULES_BUCKET_NAME",
+                "Value": {
+                  "Ref": "AppModulesBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_MODULES_BUCKET_ARN",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppModulesBucketBucket",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_FILES_BUCKET_NAME",
+                "Value": {
+                  "Ref": "AppFilesBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_FILES_BUCKET_ARN",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppFilesBucketBucket",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_SEARCH_BUCKET_NAME",
+                "Value": {
+                  "Ref": "AppSearchBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_SEARCH_BUCKET_ARN",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppSearchBucketBucket",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_EXPORTS_BUCKET_NAME",
+                "Value": {
+                  "Ref": "AppExportsBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_EXPORTS_BUCKET_ARN",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppExportsBucketBucket",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Name": "STP_APP_SNAPSHOT_IMPORTS_BUCKET_NAME",
+                "Value": {
+                  "Ref": "AppSnapshotImportsBucketBucket"
+                }
+              },
+              {
+                "Name": "STP_APP_SNAPSHOT_IMPORTS_BUCKET_ARN",
+                "Value": {
+                  "Fn::GetAtt": [
+                    "AppSnapshotImportsBucketBucket",
+                    "Arn"
+                  ]
+                }
+              }
+            ],
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-stream-prefix": "ecs",
+                "awslogs-group": {
+                  "Ref": "AppBackendContainerWorkloadConvexBackendLogGroup"
+                }
+              }
+            },
+            "Secrets": [
+              {
+                "Name": "INSTANCE_SECRET",
+                "ValueFrom": {
+                  "Fn::Sub": [
+                    "${runtimeSecretArn}:instanceSecret::",
+                    {
+                      "runtimeSecretArn": {
+                        "Ref": "AppRuntimeSecret"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "Name": "POSTGRES_URL",
+                "ValueFrom": {
+                  "Fn::Sub": [
+                    "${runtimeSecretArn}:postgresUrl::",
+                    {
+                      "runtimeSecretArn": {
+                        "Ref": "AppRuntimeSecret"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "AppDashboardContainerWorkloadTaskDefinition": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "Family": "security-fixture-appDashboardContainerWorkload-task-definition",
+        "NetworkMode": "awsvpc",
+        "Cpu": "256",
+        "Memory": "512",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "RuntimePlatform": {
+          "OperatingSystemFamily": "LINUX",
+          "CpuArchitecture": "X86_64"
+        },
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "StpEcsExecutionRole",
+            "Arn"
+          ]
+        },
+        "TaskRoleArn": {
+          "Fn::GetAtt": [
+            "AppDashboardContainerWorkloadRole",
+            "Arn"
+          ]
+        },
+        "ContainerDefinitions": [
+          {
+            "Name": "convex-dashboard",
+            "Image": "ghcr.io/get-convex/convex-dashboard@sha256:26bd4a89b097c5dd89e78d194a6b79c5c1b8cb1d02801b9946a9eb7b716e18dd",
+            "Essential": true,
+            "StopTimeout": 5,
+            "DependsOn": [],
+            "PortMappings": [
+              {
+                "ContainerPort": 6791,
+                "Protocol": "tcp",
+                "HostPort": 6791,
+                "Name": "port-6791"
+              }
+            ],
+            "Environment": [
+              {
+                "Name": "NEXT_PUBLIC_DEPLOYMENT_URL",
+                "Value": "https://apploadbalancer-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com:3210"
+              },
+              {
+                "Name": "PORT",
+                "Value": "6791"
+              }
+            ],
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-region": "eu-west-1",
+                "awslogs-stream-prefix": "ecs",
+                "awslogs-group": {
+                  "Ref": "AppDashboardContainerWorkloadConvexDashboardLogGroup"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Id": "scheduledService",
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub0}\",\"attributionCfResourceLogicalName\":\"AppDatabaseDbSubnetGroup\"},{\"securityGroupId\":\"${sub1}\",\"attributionCfResourceLogicalName\":\"AppLoadBalancerLoadBalancer\"}]}",
+                {
+                  "sub0": {
+                    "Ref": "AppDatabaseSecurityGroup"
+                  },
+                  "sub1": {
+                    "Ref": "AppLoadBalancerLbSecurityGroup"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "AppBackendContainerWorkloadRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

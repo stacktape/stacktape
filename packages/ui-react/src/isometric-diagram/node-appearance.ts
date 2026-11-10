@@ -122,6 +122,46 @@ export const NAME_MAX_CHARS = 20;
 export const TYPE_MAX_CHARS = 32;
 
 /**
+ * The name tag: the name in 12 px semibold and the muted type line in 10 px under it, as the renderer truncates them.
+ * Measured in Chromium, names stay under 7.4 px per character and type lines under 5.6 px.
+ */
+const NAME_CHAR_PX = 7.4;
+const TYPE_CHAR_PX = 5.6;
+
+export const getNameTagWidthPx = ({ label, typeLabel }: { label: string; typeLabel?: string | undefined }) =>
+  Math.max(
+    Math.min(label.length, NAME_MAX_CHARS) * NAME_CHAR_PX,
+    Math.min(typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX
+  );
+
+// ── Live status line ──
+// A host that shows live status gets a pill under every declared resource's name tag: a tone icon and a few words in
+// 10 px semibold. The layout reserves its room whether or not a resource reports anything, so statuses arriving or
+// changing never move a node.
+
+/** The pill's top sits this far below the front tip, under the type line; it is this tall. */
+export const STATUS_PILL_TOP_PX = 36;
+export const STATUS_PILL_HEIGHT_PX = 16;
+/** What the status line adds to the name tag's height, halo included. */
+export const STATUS_LINE_HEIGHT_PX = STATUS_PILL_TOP_PX + STATUS_PILL_HEIGHT_PX + 2 - 34;
+/** 10 px semibold stays under 6 px per character; the icon, gap and padding take 26 px. */
+export const STATUS_CHAR_PX = 6;
+export const STATUS_PILL_CHROME_PX = 26;
+/** Every pill has room for this many characters, and never more than the second number. */
+const STATUS_MIN_CHARS = 17;
+const STATUS_MAX_CHARS = 26;
+
+/** The narrowest name tag that holds a status pill. */
+export const STATUS_MIN_WIDTH_PX = STATUS_MIN_CHARS * STATUS_CHAR_PX + STATUS_PILL_CHROME_PX;
+
+/** How much status text fits under a node: as wide as its name tag, and never narrower than `STATUS_MIN_WIDTH_PX`. */
+export const getStatusTextBudget = (node: { label: string; typeLabel?: string | undefined }) =>
+  Math.min(
+    STATUS_MAX_CHARS,
+    Math.floor((Math.max(getNameTagWidthPx(node), STATUS_MIN_WIDTH_PX) - STATUS_PILL_CHROME_PX) / STATUS_CHAR_PX)
+  );
+
+/**
  * Running and maximum copies, e.g. "2–6" tasks, or how many resources a group stands for. Database instances and NAT
  * gateways are drawn one by one instead.
  */
@@ -136,7 +176,16 @@ export const getReplicaBadgeText = ({
   return replicas.min > 1 ? `×${replicas.min}` : undefined;
 };
 
-/** Whether a node carries a badge above its shape: a replica range, a group's count or the `public` mark. */
+/**
+ * Whether a node carries a badge above its shape: a replica range, a group's count, the `public` mark or a load
+ * balancer's exposure (Network view only, but the layout keeps room for it in every view so nothing moves).
+ */
 export const hasBadge = (
-  node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic'> & { memberCount?: number | undefined }
-) => Boolean(node.isPublic || getReplicaBadgeText(node));
+  node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic' | 'exposure'> & { memberCount?: number | undefined }
+) => Boolean(node.isPublic || node.exposure || getReplicaBadgeText(node));
+
+/** The badge text of a load balancer's exposure. */
+export const EXPOSURE_BADGE_TEXT: Record<NonNullable<IsoNode['exposure']>, string> = {
+  internal: 'internal',
+  'internet-facing': 'internet-facing'
+};

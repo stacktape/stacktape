@@ -14,18 +14,24 @@ import type {
   LayoutZone,
   ZoneTagSize
 } from './layout/diagram-layout.js';
+import type { GroupedTopology } from './grouping.js';
 import type { IsoConnector, IsoLabel, IsoNode, IsoRectangle, IsoScene } from './scene.js';
+import type { SecurityGroupModel } from './security-groups.js';
 import type { DiagramTopology, TopologyEdge, TopologyNode } from './topology.js';
+import type { ConnectorMembership, DiagramOverlays, ViewMembership } from './views.js';
 import { groupTopology } from './grouping.js';
 import { layoutDiagram } from './layout/diagram-layout.js';
+import { addSecurityLayer } from './security-view.js';
+import { ALL_OVERLAYS, classifyNodes, selectView, VIEW_PRESETS } from './views.js';
 import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
+  getNameTagWidthPx,
   getNodeAppearance,
   hasBadge,
-  NAME_MAX_CHARS,
   SHAPE_HEIGHT_PX,
-  TYPE_MAX_CHARS
+  STATUS_LINE_HEIGHT_PX,
+  STATUS_MIN_WIDTH_PX
 } from './node-appearance.js';
 import { GROUP_EXPLANATION, RESOURCE_EXPLANATIONS, ZONE_EXPLANATIONS } from './resource-explanations.js';
 import { buildSceneDetails } from './scene-details.js';
@@ -99,13 +105,7 @@ const V_PX = 20;
 /** Room above a shape's top: a small margin, or the badge (replica range or `public`) that sits there. */
 const BODY_MARGIN_PX = 4;
 const BADGE_ROOM_PX = BADGE_OFFSET_PX + BADGE_HEIGHT_PX / 2 + 1;
-/**
- * The name tag: the name in 12 px semibold and the muted type line in 10 px under it, as the renderer truncates them.
- * Measured in Chromium, names stay under 7.4 px per character and type lines under 5.6 px. The two lines end 31 px below
- * the front tip, plus the halo.
- */
-const NAME_CHAR_PX = 7.4;
-const TYPE_CHAR_PX = 5.6;
+/** The name tag's two lines (`getNameTagWidthPx`) end 31 px below the front tip, plus the halo. */
 const NAME_TAG_HEIGHT_PX = 34;
 /** Connector chips: 10 px text with 6 px padding, 18 px tall. */
 const CHIP_CHAR_PX = 6.6;
@@ -113,14 +113,40 @@ const CHIP_PADDING_PX = 12;
 const CHIP_HEIGHT_PX = 18;
 const CHIP_MARGIN_PX = 4;
 
-const toLayoutNode = ({ node, zone }: { node: TopologyNode; zone: string | undefined }): LayoutNode => {
-  const nameWidth = Math.min(node.label.length, NAME_MAX_CHARS) * NAME_CHAR_PX;
-  const typeWidth = Math.min(node.typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX;
+const LOAD_BALANCER_TYPES = new Set(['application-load-balancer', 'network-load-balancer']);
+
+/** Whether the internet reaches a load balancer. The Network view marks it. */
+const getExposure = (node: TopologyNode): IsoNode['exposure'] =>
+  LOAD_BALANCER_TYPES.has(node.resourceType) ? (node.internal ? 'internal' : 'internet-facing') : undefined;
+
+const CONTAINER_TYPES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
+
+/** An HTTP API reaches a container in the VPC through a VPC Link, which the Network view labels. */
+const isVpcLink = ({ edge, nodeById }: { edge: TopologyEdge; nodeById: Map<string, TopologyNode> }) =>
+  edge.semantic === 'request' &&
+  nodeById.get(edge.from)?.resourceType === 'http-api-gateway' &&
+  CONTAINER_TYPES.has(nodeById.get(edge.to)?.resourceType ?? '');
+
+const VPC_LINK_LABEL = 'VPC Link';
+
+const toLayoutNode = ({
+  node,
+  zone,
+  statusLines
+}: {
+  node: TopologyNode;
+  zone: string | undefined;
+  statusLines: boolean;
+}): LayoutNode => {
+  // A declared resource or group can report a status; its pill hangs under the name tag.
+  const status = statusLines && !node.implicit;
+  const tagWidth = Math.max(getNameTagWidthPx(node), status ? STATUS_MIN_WIDTH_PX : 0);
   const { shape } = getNodeAppearance(node.resourceType, { group: Boolean(node.memberIds) });
   const above = hasBadge({
     shape,
     replicas: node.replicas,
     isPublic: node.isPublic,
+    exposure: getExposure(node),
     memberCount: node.memberIds?.length
   })
     ? BADGE_ROOM_PX
@@ -130,7 +156,10 @@ const toLayoutNode = ({ node, zone }: { node: TopologyNode; zone: string | undef
     width: NODE_FOOTPRINT,
     depth: NODE_FOOTPRINT,
     lift: (SHAPE_HEIGHT_PX[shape] + above) / V_PX,
-    tag: { halfWidth: Math.max(nameWidth, typeWidth) / 2 / U_PX, height: NAME_TAG_HEIGHT_PX / V_PX },
+    tag: {
+      halfWidth: tagWidth / 2 / U_PX,
+      height: (NAME_TAG_HEIGHT_PX + (status ? STATUS_LINE_HEIGHT_PX : 0)) / V_PX
+    },
     rank: node.layer === 'external' ? 'first' : DATA_STORE_TYPES.has(node.resourceType) ? 'last' : undefined,
     zone
   };
@@ -211,23 +240,21 @@ const getZoneTagSize = (zoneId: string): ZoneTagSize | undefined => {
   };
 };
 
-const buildLayoutInput = (topology: DiagramTopology): DiagramLayoutInput => {
+const buildLayoutInput = (topology: DiagramTopology, statusLines: boolean): DiagramLayoutInput => {
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   return {
-    nodes: topology.nodes.map((node) => toLayoutNode({ node, zone: getZone(node) })),
+    nodes: topology.nodes.map((node) => toLayoutNode({ node, zone: getZone(node), statusLines })),
     edges: topology.edges.map((edge) => ({
       id: edge.id,
       from: edge.from,
       to: edge.to,
       flow: isFlowEdge({ edge, nodeById }),
       bundle: edge.semantic,
-      label: edge.label
+      // Room for the Network view's "VPC Link" is kept in every view.
+      label: edge.label ?? (isVpcLink({ edge, nodeById }) ? VPC_LINK_LABEL : undefined)
     })),
     zones: ZONES,
-    measureLabel: (text) => ({
-      halfWidth: (text.length * CHIP_CHAR_PX + CHIP_PADDING_PX + CHIP_MARGIN_PX) / 2 / U_PX,
-      halfHeight: (CHIP_HEIGHT_PX + CHIP_MARGIN_PX) / 2 / V_PX
-    }),
+    measureLabel: measureChip,
     zoneTag: getZoneTagSize
   };
 };
@@ -268,6 +295,7 @@ const buildSceneNodes = ({
       ...getNodeAppearance(node.resourceType, { group: isGroup }),
       replicas: node.replicas,
       isPublic: node.isPublic,
+      exposure: getExposure(node),
       groupId: isGroup ? node.id : memberGroup.get(node.id),
       memberCount: node.memberIds?.length,
       connections: details.connections.get(node.id) ?? [],
@@ -320,14 +348,33 @@ const buildRectanglesAndLabels = ({ topology, layout }: { topology: DiagramTopol
 
 // ── Main entry point ──
 
-export const buildIsometricScene = ({
+/**
+ * The whole picture, laid out once: every node, connector and zone any view can show. Views select from it without
+ * moving anything (see `views.ts`).
+ */
+export type DiagramModel = {
+  scene: IsoScene;
+  membership: ViewMembership;
+  /** The topology before grouping, whose node IDs security-group members map to. */
+  base: DiagramTopology;
+  grouped: GroupedTopology;
+  /** What each node occupies on screen, for placing the Security view's text clear of it. */
+  layoutNodes: Map<string, LayoutNode>;
+  /** The tile x of every column, left to right. */
+  columnXs: number[];
+};
+
+export const buildDiagramModel = ({
   parsedConfig,
-  expandedGroups
+  expandedGroups,
+  statusLines = false
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
   expandedGroups?: ReadonlySet<string> | undefined;
-}): IsoScene | null => {
+  /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
+  statusLines?: boolean | undefined;
+}): DiagramModel | null => {
   const base = buildDiagramTopology({ parsedConfig });
   if (!base || base.nodes.length === 0) return null;
 
@@ -336,31 +383,155 @@ export const buildIsometricScene = ({
   const memberGroup = new Map(
     topology.groups.filter((group) => group.expanded).flatMap((group) => group.memberIds.map((id) => [id, group.id]))
   );
-  const layout = layoutDiagram(buildLayoutInput(topology));
+  const layoutInput = buildLayoutInput(topology, statusLines);
+  const layout = layoutDiagram(layoutInput);
   const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, memberGroup });
   const { rectangles, labels } = buildRectanglesAndLabels({ topology, layout });
+  const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
+  const connectorMembership = new Map<string, ConnectorMembership>();
   const connectors: IsoConnector[] = topology.edges.flatMap((edge) => {
     const route = layout.edges.get(edge.id);
     if (!route) return [];
+    const vpcLink = !edge.label && isVpcLink({ edge, nodeById });
+    if (vpcLink) connectorMembership.set(edge.id, { networkLabel: true });
     return [
       {
         id: edge.id,
         from: edge.from,
         to: edge.to,
-        label: edge.label,
+        label: vpcLink ? VPC_LINK_LABEL : edge.label,
         count: edge.count,
         semantic: edge.semantic,
-        description: edge.description,
+        description: vpcLink
+          ? `${edge.description ?? ''} The VPC Link is the gateway’s private entry into the VPC.`.trim()
+          : edge.description,
         route: { points: route.points, labelTile: route.labelTile }
       }
     ];
   });
 
   return {
-    nodes: sceneNodes,
-    connectors,
-    rectangles,
-    labels,
-    groups: details.groups
+    scene: { nodes: sceneNodes, connectors, rectangles, labels, groups: details.groups },
+    membership: { nodes: classifyNodes(topology.nodes), connectors: connectorMembership },
+    base,
+    grouped: topology,
+    layoutNodes: new Map(layoutInput.nodes.map((node) => [node.id, node])),
+    columnXs: [...new Set([...layout.nodes.values()].map((tile) => tile.x))].sort((a, b) => a - b)
   };
+};
+
+/** Flow is context in the Security view: drawn faintly so security groups, firewalls and access stand out. */
+const MUTED_IN_SECURITY = new Set(['request', 'event', 'egress']);
+
+/**
+ * The scene one combination of overlays shows. `security` is the deployed stage's security-group model; without it the
+ * Security view still shows firewalls, authorizers, public data stores and `connectTo` access.
+ */
+export const selectDiagramView = ({
+  model,
+  overlays,
+  security
+}: {
+  model: DiagramModel;
+  overlays: DiagramOverlays;
+  security?: SecurityGroupModel | null | undefined;
+}): IsoScene => {
+  const selection = selectView({ scene: model.scene, membership: model.membership, overlays });
+  if (!overlays.securityGroups) return selection.scene;
+  const scene: IsoScene = {
+    ...selection.scene,
+    connectors: selection.scene.connectors.map((connector) =>
+      MUTED_IN_SECURITY.has(connector.semantic ?? '') ? { ...connector, muted: true } : connector
+    )
+  };
+  if (!security) return scene;
+  return addSecurityLayer({
+    scene,
+    resolve: selection.resolve,
+    base: model.base,
+    collapsedInto: model.grouped.collapsedInto,
+    layoutNodes: model.layoutNodes,
+    columnXs: model.columnXs,
+    security,
+    measureChip,
+    showLabels: overlays.labels
+  });
+};
+
+/**
+ * The frame every view of this model fits: the picture with every overlay on. Hosts and tests that switch views pass it
+ * along, so nothing moves or rescales.
+ */
+export const diagramFrame = ({
+  model,
+  security
+}: {
+  model: DiagramModel;
+  security?: SecurityGroupModel | null | undefined;
+}): IsoScene['frame'] => {
+  const scene = selectDiagramView({ model, overlays: ALL_OVERLAYS, security });
+  return {
+    key: model.scene.nodes
+      .map((node) => node.id)
+      .sort()
+      .join('\n'),
+    nodeTiles: scene.nodes.map((node) => node.tile),
+    points: [
+      ...scene.rectangles.flatMap((rect) => [
+        rect.from,
+        rect.to,
+        { x: rect.from.x, y: rect.to.y },
+        { x: rect.to.x, y: rect.from.y }
+      ]),
+      ...scene.connectors.flatMap((connector) => connector.route.points),
+      ...(scene.securityRules ?? []).flatMap((rule) => rule.route.points),
+      ...(scene.securityGroups ?? []).flatMap((group) =>
+        group.outlines.flatMap((outline) => [
+          outline.from,
+          outline.to,
+          { x: outline.from.x, y: outline.to.y },
+          { x: outline.to.x, y: outline.from.y }
+        ])
+      )
+    ],
+    chips: [
+      ...scene.connectors.flatMap((connector) =>
+        connector.label ? [{ tile: connector.route.labelTile, text: connector.label }] : []
+      ),
+      ...(scene.securityRules ?? []).map((rule) => ({ tile: rule.route.labelTile, text: rule.label })),
+      ...(scene.securityGroups ?? []).flatMap((group) =>
+        group.outlines.flatMap((outline) => (outline.tab ? [{ tile: outline.tab, text: group.name }] : []))
+      )
+    ]
+  };
+};
+
+/** A connector chip's size in projected units, as the layout reserves it. */
+export const measureChip = (text: string) => ({
+  halfWidth: (text.length * CHIP_CHAR_PX + CHIP_PADDING_PX + CHIP_MARGIN_PX) / 2 / U_PX,
+  halfHeight: (CHIP_HEIGHT_PX + CHIP_MARGIN_PX) / 2 / V_PX
+});
+
+/**
+ * The scene for one combination of overlays, laid out like every other combination. Without overlays it is the Network
+ * preset: every node, the VPC and its subnets, connectors and labels.
+ */
+export const buildIsometricScene = ({
+  parsedConfig,
+  expandedGroups,
+  statusLines,
+  overlays = VIEW_PRESETS.network,
+  security
+}: {
+  parsedConfig: StacktapeConfig | null;
+  /** Role groups the reader has expanded; every other group is drawn as one node. */
+  expandedGroups?: ReadonlySet<string> | undefined;
+  /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
+  statusLines?: boolean | undefined;
+  overlays?: DiagramOverlays | undefined;
+  security?: SecurityGroupModel | null | undefined;
+}): IsoScene | null => {
+  const model = buildDiagramModel({ parsedConfig, expandedGroups, statusLines });
+  if (!model) return null;
+  return { ...selectDiagramView({ model, overlays, security }), frame: diagramFrame({ model, security }) };
 };

@@ -1966,6 +1966,18 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-incidents']
   },
   {
+    id: 'console-database-diagram-status',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--diagram-status'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/diagram-status-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Alarm and error reports through HTTP become the resources a stage diagram marks, within project and organization access.',
+    selections: ['console-database-diagram-status']
+  },
+  {
     id: 'console-database-incident-agent',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--incident-agent'],
     level: 'api-db',
@@ -2089,6 +2101,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
@@ -3024,8 +3037,11 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
+      'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/link/Link.test.tsx',
       'packages/ui-react/src/monaco-editor/session.test.ts',
       'packages/ui-react/src/progress/Progress.test.tsx',
@@ -5326,22 +5342,38 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/ui-react/src/isometric-diagram/**',
       'apps/console/ui/src/components/IsometricDiagramView.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Diagram.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-view.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/useDiagramStatuses.ts',
       'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'
     ],
     tests: [
       'apps/cli/tests/synthesis-families/security-group-fixtures.spec.ts',
+      'apps/console/api/scripts/diagram-status-database.test.ts',
       'apps/console/ui/e2e/diagram-ui.spec.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
       'packages/ui-react/src/isometric-diagram/grouping.test.ts',
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
+      'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/resource-icon/catalog.test.ts'
     ],
-    lanes: ['ui-react-test', 'synthesis-families', 'console-browser-offline', 'shared-ui-browser']
+    lanes: [
+      'ui-react-test',
+      'synthesis-families',
+      'console-ui',
+      'console-database-diagram-status',
+      'console-browser-offline',
+      'shared-ui-browser'
+    ]
   },
   {
     id: 'S42',

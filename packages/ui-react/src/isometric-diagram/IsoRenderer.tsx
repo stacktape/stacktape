@@ -7,7 +7,12 @@
  * the geometry — only the geometry itself is isometric.
  * Layout flows bottom-left (external) to top-right (data).
  */
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode
+} from 'react';
 import type {
   IsoConnector,
   IsoConnectorRoute,
@@ -16,11 +21,14 @@ import type {
   IsoNode,
   IsoRectangle,
   IsoScene,
+  IsoSecurityGroup,
+  IsoSecurityRule,
   IsoTilePoint
 } from './scene.js';
+import type { DiagramStatuses, DiagramStatusTone, NodeStatus } from './status.js';
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BiExpand, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
+import { BiExpand, BiInfoCircle, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
 import { DiagramPanel } from './DiagramPanel.js';
 import {
   BADGE_HEIGHT_PX,
@@ -32,6 +40,16 @@ import {
 import { NodeBadges, NodeShape } from './node-shapes.js';
 import { pts, t2s, TH, TW } from './projection.js';
 import { EDGE_SEMANTIC_LABELS } from './resource-explanations.js';
+import { NodeStatusPill, NodeStatusRing, ToneIconInline } from './status-marks.js';
+import {
+  buildNodeStatuses,
+  countResourcesNeedingAttention,
+  getGroupStatus,
+  getResourceStatus,
+  needsAttention,
+  readStatuses,
+  worseTone
+} from './status.js';
 
 // Chrome colours come from `@stacktape/design-tokens`; the host loads the token CSS together with
 // `@stacktape/ui-react/isometric-diagram.css`. They are referenced as variables rather than
@@ -70,6 +88,11 @@ const getNodeScreenBounds = (node: IsoNode): ScreenBounds => {
     // Includes the two-line name tag hanging below the front tip.
     maxY: origin.y + HW * TH + 40
   };
+};
+
+const pointBounds = (point: IsoTilePoint): ScreenBounds => {
+  const screen = t2s(point.x, point.y);
+  return { minX: screen.x, maxX: screen.x, minY: screen.y, maxY: screen.y };
 };
 
 const expandBounds = ({ bounds, padding }: { bounds: ScreenBounds; padding: number }): ScreenBounds => ({
@@ -155,17 +178,21 @@ const NodeRing = ({ node, strong }: { node: IsoNode; strong: boolean }) => {
 const IsoNodeBlock = ({
   idPrefix,
   node,
-  ring
+  ring,
+  status
 }: {
   idPrefix: string;
   node: IsoNode;
   ring: 'strong' | 'soft' | null;
+  status: NodeStatus | undefined;
 }) => (
   <g>
+    {status && <NodeStatusRing node={node} tone={status.tone} halfWidth={HW} />}
     {ring && <NodeRing node={node} strong={ring === 'strong'} />}
     <NodeShape node={node} idBase={`${idPrefix}-n-${node.id}`} shadowFilterId={`${idPrefix}-iso-shadow-blur`} />
     <NodeBadges node={node} />
     <NodeNameTag node={node} />
+    {status && <NodeStatusPill node={node} status={status} tip={frontTip(node.tile.x, node.tile.y)} />}
   </g>
 );
 
@@ -441,7 +468,7 @@ const ConnSvg = ({
   const cc = conn.color || style.color;
 
   return (
-    <g className="stp-diagram__fade" opacity={dimmed ? 0.12 : 1}>
+    <g className="stp-diagram__fade" opacity={dimmed ? 0.12 : conn.muted && !highlighted ? 0.35 : 1}>
       <path
         data-iso-kind="connector-path"
         data-iso-id={conn.id}
@@ -464,7 +491,7 @@ const ConnSvg = ({
         onPointerLeave={onPointerLeave}
         onPointerMove={onPointerMove}
       />
-      {animateConnectors && conn.semantic !== 'egress' && (
+      {animateConnectors && conn.semantic !== 'egress' && !conn.muted && (
         <circle className="stp-diagram__motion" r={2.5} fill={cc} opacity={0.85}>
           <animateMotion dur={conn.semantic === 'event' ? '2.5s' : '2s'} repeatCount="indefinite" path={path} />
         </circle>
@@ -487,7 +514,7 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
     <g
       data-iso-kind="connector-label"
       data-iso-id={conn.id}
-      opacity={dimmed ? 0.12 : 1}
+      opacity={dimmed ? 0.12 : conn.muted ? 0.45 : 1}
       className="stp-diagram__fade stp-diagram__chip"
     >
       <rect
@@ -516,6 +543,230 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
   );
 };
 
+// ── Security groups and rules ──
+
+/** A security group's outline: a chamfered floor rectangle in the group's colour, dashed for a group defined elsewhere. */
+const OUTLINE_CHAMFER = 0.22;
+
+const SecurityOutline = ({
+  group,
+  outline,
+  dimmed,
+  highlighted,
+  onPointerEnter,
+  onPointerLeave,
+  onPointerMove
+}: {
+  group: IsoSecurityGroup;
+  outline: IsoSecurityGroup['outlines'][number];
+  dimmed: boolean;
+  highlighted: boolean;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onPointerMove: (e: ReactPointerEvent) => void;
+}) => {
+  const { from, to } = outline;
+  const c = Math.min(OUTLINE_CHAMFER, (to.x - from.x) / 4, (to.y - from.y) / 4);
+  const corners = [
+    t2s(from.x + c, from.y),
+    t2s(to.x - c, from.y),
+    t2s(to.x, from.y + c),
+    t2s(to.x, to.y - c),
+    t2s(to.x - c, to.y),
+    t2s(from.x + c, to.y),
+    t2s(from.x, to.y - c),
+    t2s(from.x, from.y + c)
+  ];
+  return (
+    <polygon
+      data-iso-kind="security-group"
+      data-iso-id={group.id}
+      points={pts(...corners)}
+      fill={group.color}
+      fillOpacity={highlighted ? 0.1 : 0.045}
+      stroke={group.color}
+      strokeOpacity={dimmed ? 0.25 : highlighted ? 1 : 0.85}
+      strokeWidth={highlighted ? 2.4 : 1.7}
+      strokeDasharray={group.external ? '6 4' : undefined}
+      strokeLinejoin="round"
+      className="stp-diagram__fade"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onPointerMove={onPointerMove}
+    />
+  );
+};
+
+/** The group's name on a tab beside its outline, flat in screen space like every other label. */
+const SecurityTab = ({
+  group,
+  tile,
+  dimmed,
+  onPointerEnter,
+  onPointerLeave,
+  onPointerMove
+}: {
+  group: IsoSecurityGroup;
+  tile: IsoTilePoint;
+  dimmed: boolean;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onPointerMove: (e: ReactPointerEvent) => void;
+}) => {
+  const { x, y } = t2s(tile.x, tile.y);
+  const text = truncate(group.name, 32);
+  const width = text.length * 6.2 + 14;
+  return (
+    <g
+      data-iso-kind="security-group-tab"
+      data-iso-id={group.id}
+      opacity={dimmed ? 0.25 : 1}
+      className="stp-diagram__fade"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onPointerMove={onPointerMove}
+    >
+      <rect
+        x={x - width / 2}
+        y={y - 8}
+        width={width}
+        height={16}
+        rx={4}
+        fill="rgba(9, 11, 17, 0.9)"
+        stroke={group.color}
+        strokeWidth={1.2}
+        strokeDasharray={group.external ? '3 2' : undefined}
+      />
+      <text
+        x={x}
+        y={y + 0.5}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={group.color}
+        fontSize={10}
+        fontFamily={FONT}
+        fontWeight={700}
+      >
+        {text}
+      </text>
+    </g>
+  );
+};
+
+/** An arrowhead drawn at the end of a screen-space path, so each rule keeps its own colour without a marker per colour. */
+const arrowHead = (points: { x: number; y: number }[]) => {
+  const tip = points[points.length - 1];
+  const previous = points[points.length - 2];
+  const dx = tip.x - previous.x;
+  const dy = tip.y - previous.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const back = { x: tip.x - ux * 10, y: tip.y - uy * 10 };
+  return pts(
+    tip,
+    { x: back.x - uy * 5, y: back.y + ux * 5 },
+    { x: tip.x - ux * 7, y: tip.y - uy * 7 },
+    { x: back.x + uy * 5, y: back.y - ux * 5 }
+  );
+};
+
+const SecurityRuleArrow = ({
+  rule,
+  dimmed,
+  highlighted,
+  onPointerEnter,
+  onPointerLeave,
+  onPointerMove
+}: {
+  rule: IsoSecurityRule;
+  dimmed: boolean;
+  highlighted: boolean;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onPointerMove: (e: ReactPointerEvent) => void;
+}) => {
+  const points = trimRouteAtTarget({ points: rule.route.points });
+  const path = buildPath({ route: { ...rule.route, points } });
+  const screen = tilePointsToScreen({ points });
+  if (screen.length < 2) return null;
+  return (
+    <g
+      data-iso-kind="security-rule"
+      data-iso-id={rule.id}
+      data-iso-source={rule.source}
+      opacity={dimmed ? 0.15 : 1}
+      className="stp-diagram__fade"
+    >
+      <path
+        d={path}
+        fill="none"
+        stroke={rule.color}
+        strokeWidth={highlighted ? 3.2 : 2.4}
+        strokeOpacity={highlighted ? 1 : 0.85}
+        strokeLinecap="round"
+      />
+      <polygon points={arrowHead(screen)} fill={rule.color} />
+      {!rule.from && <circle cx={screen[0].x} cy={screen[0].y} r={2.6} fill={rule.color} />}
+      <path
+        d={path}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onPointerMove={onPointerMove}
+      />
+    </g>
+  );
+};
+
+const SecurityRuleChip = ({ rule, dimmed }: { rule: IsoSecurityRule; dimmed: boolean }) => {
+  if (!rule.label) return null;
+  const point = t2s(rule.route.labelTile.x, rule.route.labelTile.y);
+  const fontSize = 10;
+  const chipWidth = rule.label.length * fontSize * 0.62 + 12;
+  const chipHeight = fontSize + 8;
+  return (
+    <g
+      data-iso-kind="security-rule-label"
+      data-iso-id={rule.id}
+      opacity={dimmed ? 0.15 : 1}
+      className="stp-diagram__fade stp-diagram__chip"
+    >
+      <rect
+        x={point.x - chipWidth / 2}
+        y={point.y - chipHeight / 2}
+        width={chipWidth}
+        height={chipHeight}
+        rx={chipHeight / 2}
+        fill="rgba(9, 11, 17, 0.9)"
+        stroke={rule.color}
+        strokeOpacity={0.7}
+        strokeWidth={1}
+      />
+      <text
+        x={point.x}
+        y={point.y + 0.5}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={rule.source === 'group' ? '#E6EAF0' : rule.color}
+        fontSize={fontSize}
+        fontFamily={FONT}
+        fontWeight={600}
+      >
+        {rule.label}
+      </text>
+    </g>
+  );
+};
+
+const SECURITY_RULE_SUBTITLES: Record<IsoSecurityRule['source'], string> = {
+  group: 'Allowed by a security group rule',
+  internet: 'Open to the internet',
+  address: 'Allowed from an address range'
+};
+
 // ── Main renderer ──
 
 const MIN_ZOOM = 0.3;
@@ -533,6 +784,8 @@ type TooltipContent = {
   summary?: string | undefined;
   details?: string | undefined;
   note?: string | undefined;
+  /** What the host reports about the resource, worst first. */
+  status?: Array<{ tone: DiagramStatusTone; text: string; detail?: string | undefined }> | undefined;
 };
 
 /** Pointer position in viewport coordinates: the tooltip is rendered outside the diagram's box. */
@@ -565,7 +818,27 @@ export type DiagramViewProps = {
   onOpenResource?: ((resourceName: string) => void) | undefined;
   /** Whether `onOpenResource` can open this resource; without it, every declared resource can be opened. */
   canOpenResource?: ((resourceName: string) => boolean) | undefined;
+  /**
+   * What a deployed stage reports about its resources, by declared resource name: a pill under the name, a ring in the
+   * worst tone, a group's summary and every status with its link in the side panel. Passing it at all, even empty,
+   * reserves room for the pill under every declared resource, so pass it from the first render while statuses load.
+   * Statuses never move a node.
+   */
+  statuses?: DiagramStatuses | undefined;
+  /**
+   * Follows a status link inside the host, e.g. with its router, instead of a full page load. Clicks with a modifier key
+   * still open the link the browser's way.
+   */
+  onNavigate?: ((href: string) => void) | undefined;
+  /**
+   * Short host messages about the whole picture rather than one resource, such as a deploy that will replace what is
+   * drawn or an incident no resource is tied to. They sit under the toolbar inside the frame, so one appearing or
+   * going away never resizes the drawing.
+   */
+  notices?: readonly DiagramNotice[] | undefined;
 };
+
+export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
 
 export type IsoRendererProps = DiagramViewProps & {
   scene: IsoScene;
@@ -573,6 +846,10 @@ export type IsoRendererProps = DiagramViewProps & {
   height?: CSSProperties['height'] | undefined;
   /** Expands or collapses a role group. Without it, groups have no expand control. */
   onToggleGroup?: ((groupId: string) => void) | undefined;
+  /** Controls placed first in the toolbar, such as the view switcher. */
+  toolbar?: ReactNode;
+  /** A line about the current view, such as the Security view's legend, shown where the usage hint otherwise is. */
+  viewNote?: ReactNode;
 };
 
 /** How far the pointer moves before a press becomes a drag instead of a click, in screen pixels. */
@@ -605,7 +882,12 @@ export function IsoRenderer({
   initialZoom,
   onOpenResource,
   canOpenResource,
-  onToggleGroup
+  statuses,
+  onNavigate,
+  notices,
+  onToggleGroup,
+  toolbar,
+  viewNote
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -619,10 +901,14 @@ export function IsoRenderer({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [hoveredConnectorId, setHoveredConnectorId] = useState<string | null>(null);
+  const [hoveredSecurityGroupId, setHoveredSecurityGroupId] = useState<string | null>(null);
+  const [hoveredRuleId, setHoveredRuleId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /** Whether the toolbar's "need attention" chip is on: it dims everything that does not report a problem. */
+  const [showAttention, setShowAttention] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const panelHeadingRef = useRef<HTMLHeadingElement>(null);
   /** The element that had focus when the panel opened; closing the panel returns focus there. */
@@ -661,6 +947,25 @@ export function IsoRenderer({
   }, [tooltip]);
 
   const { minX, minY, svgW, svgH } = useMemo(() => {
+    // A scene with a frame fits the whole picture, whichever view shows part of it, so switching views moves nothing.
+    if (scene.frame) {
+      const { frame } = scene;
+      const merged = expandBounds({
+        bounds: mergeBounds({
+          bounds: [
+            ...frame.nodeTiles.map((tile) => getNodeScreenBounds({ tile } as IsoNode)),
+            ...frame.points.map((point) => pointBounds(point)),
+            ...frame.chips.map(({ tile, text }) => {
+              const half = (text.length * 10 * 0.7) / 2;
+              const screen = t2s(tile.x, tile.y);
+              return { minX: screen.x - half, maxX: screen.x + half, minY: screen.y - 10, maxY: screen.y + 10 };
+            })
+          ]
+        }),
+        padding: 80
+      });
+      return { minX: merged.minX, minY: merged.minY, svgW: merged.maxX - merged.minX, svgH: merged.maxY - merged.minY };
+    }
     const nodeBounds = scene.nodes.map((node) => getNodeScreenBounds(node));
     const rectangleBounds = scene.rectangles.map((rectangle) => {
       const corners = [
@@ -731,18 +1036,26 @@ export function IsoRenderer({
       map.get(connector.from)?.add(connector.to);
       map.get(connector.to)?.add(connector.from);
     }
+    for (const rule of scene.securityRules ?? []) {
+      if (!rule.from) continue;
+      if (!map.has(rule.from)) map.set(rule.from, new Set());
+      if (!map.has(rule.to)) map.set(rule.to, new Set());
+      map.get(rule.from)?.add(rule.to);
+      map.get(rule.to)?.add(rule.from);
+    }
     return map;
-  }, [scene.connectors]);
+  }, [scene.connectors, scene.securityRules]);
 
   // Reset the view only when the node composition changes (resource added/removed/renamed),
   // not on every re-layout while the user edits resource properties.
   const nodesKey = useMemo(
     () =>
+      scene.frame?.key ??
       scene.nodes
         .map((n) => n.id)
         .sort()
         .join('\n'),
-    [scene.nodes]
+    [scene.frame, scene.nodes]
   );
   useEffect(() => {
     setView(home);
@@ -755,6 +1068,8 @@ export function IsoRenderer({
     setHoveredNodeId(null);
     setHoveredZoneId(null);
     setHoveredConnectorId(null);
+    setHoveredSecurityGroupId(null);
+    setHoveredRuleId(null);
     setTooltip(null);
     // A selection survives a new scene while what it names is still there: a node, or a group expanded in place.
     setSelectedId((current) =>
@@ -942,32 +1257,141 @@ export function IsoRenderer({
   const matches = useMemo(() => findMatches({ scene, query }), [scene, query]);
   const isSearching = normalize(query).length > 0;
 
+  // Statuses are applied to the placed scene; nothing here feeds back into the layout.
+  const statusMap = useMemo(() => readStatuses(statuses), [statuses]);
+  const nodeStatuses = useMemo(
+    () => buildNodeStatuses({ nodes: scene.nodes, groups: scene.groups, statuses: statusMap }),
+    [scene, statusMap]
+  );
+  const attention = useMemo(() => {
+    const nodeIds = new Set([...nodeStatuses].filter(([, status]) => needsAttention(status.tone)).map(([id]) => id));
+    const tones: DiagramStatusTone[] = [...nodeStatuses.values()].map((status) => status.tone).filter(needsAttention);
+    return {
+      nodeIds,
+      resources: countResourcesNeedingAttention(nodeStatuses),
+      tone: tones.length > 0 ? tones.reduce(worseTone) : undefined
+    };
+  }, [nodeStatuses]);
+  const isShowingAttention = showAttention && attention.nodeIds.size > 0 && !isSearching;
+
   // Keyboard focus on a node focuses the graph the same way hovering it does.
   const focusNodeId = hoveredNodeId ?? focusedNodeId;
   const focusNeighbors = focusNodeId ? adjacency.get(focusNodeId) : null;
 
+  const hoveredRule = hoveredRuleId ? scene.securityRules?.find((rule) => rule.id === hoveredRuleId) : undefined;
+  // Hovering a security group focuses its members and whatever its rules connect them with.
+  const groupMembers = useMemo(
+    () => new Map((scene.securityGroups ?? []).map((group) => [group.id, new Set(group.memberNodeIds)])),
+    [scene.securityGroups]
+  );
+  /** The nodes a rule arrow concerns: everything in the groups at both ends. */
+  const ruleNodes = useCallback(
+    (rule: IsoSecurityRule) =>
+      new Set([
+        rule.to,
+        ...(rule.from ? [rule.from] : []),
+        ...(groupMembers.get(rule.toGroup) ?? []),
+        ...(rule.fromGroup ? (groupMembers.get(rule.fromGroup) ?? []) : [])
+      ]),
+    [groupMembers]
+  );
+  // Hovering a security group focuses its members and the groups its rules connect it with.
+  const hoveredGroupFocus = useMemo(() => {
+    if (!hoveredSecurityGroupId) return null;
+    const members = groupMembers.get(hoveredSecurityGroupId);
+    if (!members) return null;
+    const related = new Set(members);
+    for (const rule of scene.securityRules ?? []) {
+      if (rule.toGroup !== hoveredSecurityGroupId && rule.fromGroup !== hoveredSecurityGroupId) continue;
+      for (const nodeId of ruleNodes(rule)) related.add(nodeId);
+    }
+    return { groupId: hoveredSecurityGroupId, members, related };
+  }, [hoveredSecurityGroupId, groupMembers, scene.securityRules, ruleNodes]);
+  const hoveredRuleNodes = useMemo(() => (hoveredRule ? ruleNodes(hoveredRule) : null), [hoveredRule, ruleNodes]);
+
   const isNodeDimmed = (nodeId: string) => {
+    if (hoveredRuleNodes) return !hoveredRuleNodes.has(nodeId);
+    if (hoveredGroupFocus) return !hoveredGroupFocus.related.has(nodeId);
     if (hoveredConnector) return nodeId !== hoveredConnector.from && nodeId !== hoveredConnector.to;
     if (focusNodeId) return nodeId !== focusNodeId && !focusNeighbors?.has(nodeId);
     if (hoveredZoneFocus) return !hoveredZoneFocus.related.has(nodeId);
     if (isSearching) return !matches.has(nodeId);
+    if (isShowingAttention) return !attention.nodeIds.has(nodeId);
     return false;
   };
   const isConnectorDimmed = (connector: IsoConnector) => {
+    if (hoveredRule || hoveredGroupFocus) return true;
     if (hoveredConnectorId) return connector.id !== hoveredConnectorId;
     if (focusNodeId) return connector.from !== focusNodeId && connector.to !== focusNodeId;
     if (hoveredZoneFocus) {
       return !hoveredZoneFocus.members.has(connector.from) && !hoveredZoneFocus.members.has(connector.to);
     }
     if (isSearching) return !matches.has(connector.from) && !matches.has(connector.to);
+    if (isShowingAttention) return !attention.nodeIds.has(connector.from) && !attention.nodeIds.has(connector.to);
     return false;
   };
+
+  const isRuleDimmed = (rule: IsoSecurityRule) => {
+    if (hoveredRuleId) return rule.id !== hoveredRuleId;
+    if (hoveredGroupFocus)
+      return rule.toGroup !== hoveredGroupFocus.groupId && rule.fromGroup !== hoveredGroupFocus.groupId;
+    if (hoveredConnectorId) return true;
+    if (focusNodeId) return !ruleNodes(rule).has(focusNodeId);
+    if (hoveredZoneFocus)
+      return !hoveredZoneFocus.members.has(rule.to) && !hoveredZoneFocus.members.has(rule.from ?? '');
+    if (isSearching) return !matches.has(rule.to) && !matches.has(rule.from ?? '');
+    if (isShowingAttention) return ![...ruleNodes(rule)].some((nodeId) => attention.nodeIds.has(nodeId));
+    return false;
+  };
+  const isSecurityGroupDimmed = (group: IsoSecurityGroup) => {
+    if (hoveredSecurityGroupId) return group.id !== hoveredSecurityGroupId;
+    if (hoveredRule) return group.id !== hoveredRule.toGroup && group.id !== hoveredRule.fromGroup;
+    if (focusNodeId) return !group.memberNodeIds.includes(focusNodeId);
+    if (isSearching) return !group.memberNodeIds.some((id) => matches.has(id));
+    if (isShowingAttention) return !group.memberNodeIds.some((id) => attention.nodeIds.has(id));
+    return false;
+  };
+  const securityGroupHandlers = (group: IsoSecurityGroup) => ({
+    onPointerEnter: () => {
+      if (!isDragging) setHoveredSecurityGroupId(group.id);
+    },
+    onPointerLeave: () => {
+      setHoveredSecurityGroupId((current) => (current === group.id ? null : current));
+      setTooltip(null);
+    },
+    onPointerMove: (e: ReactPointerEvent) => {
+      if (isDragging) return;
+      e.stopPropagation();
+      moveTooltip(e, {
+        title: group.name,
+        subtitle: group.external ? 'Security group defined outside this stack' : 'Security group',
+        summary: group.summary,
+        details: group.details
+      });
+    }
+  });
+  // Larger outlines first, so a nested outline stays on top and can be hovered.
+  const outlines = (scene.securityGroups ?? [])
+    .flatMap((group) => group.outlines.map((outline, index) => ({ group, outline, index })))
+    .sort(
+      (a, b) =>
+        (b.outline.to.x - b.outline.from.x) * (b.outline.to.y - b.outline.from.y) -
+        (a.outline.to.x - a.outline.from.x) * (a.outline.to.y - a.outline.from.y)
+    );
 
   const selectedNode = selectedId ? nodeMap.get(selectedId) : undefined;
   const selectedGroup: IsoGroup | undefined = selectedId
     ? scene.groups.find((group) => group.id === (selectedNode?.groupId ?? selectedId))
     : undefined;
   const expandedGroups = scene.groups.filter((group) => group.expanded);
+  const isGroupSelected = Boolean(selectedGroup && (!selectedNode || selectedNode.id === selectedGroup.id));
+  // An expanded group has no node of its own, so its panel summarizes its members directly.
+  const selectedStatus =
+    isGroupSelected && selectedGroup
+      ? getGroupStatus({ group: selectedGroup, statuses: statusMap })
+      : selectedNode && !selectedNode.isImplicit
+        ? getResourceStatus({ resourceName: selectedNode.id, statuses: statusMap })
+        : undefined;
   const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
     if (nodeId === selectedId) return 'strong';
     if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
@@ -1106,6 +1530,16 @@ export function IsoRenderer({
             }}
           />
         ))}
+        {outlines.map(({ group, outline, index }) => (
+          <SecurityOutline
+            key={`${group.id}-${index}`}
+            group={group}
+            outline={outline}
+            dimmed={isSecurityGroupDimmed(group)}
+            highlighted={hoveredSecurityGroupId === group.id}
+            {...securityGroupHandlers(group)}
+          />
+        ))}
         {scene.connectors.map((c) => (
           <ConnSvg
             key={c.id}
@@ -1132,6 +1566,29 @@ export function IsoRenderer({
             }}
           />
         ))}
+        {(scene.securityRules ?? []).map((rule) => (
+          <SecurityRuleArrow
+            key={rule.id}
+            rule={rule}
+            dimmed={isRuleDimmed(rule)}
+            highlighted={hoveredRuleId === rule.id}
+            onPointerEnter={() => {
+              if (!isDragging) setHoveredRuleId(rule.id);
+            }}
+            onPointerLeave={() => {
+              setHoveredRuleId((current) => (current === rule.id ? null : current));
+              setTooltip(null);
+            }}
+            onPointerMove={(e) => {
+              if (isDragging) return;
+              moveTooltip(e, {
+                title: rule.title,
+                subtitle: SECURITY_RULE_SUBTITLES[rule.source],
+                details: rule.description
+              });
+            }}
+          />
+        ))}
         {sorted.map((n) => (
           <Fragment key={n.id}>
             <g
@@ -1139,8 +1596,14 @@ export function IsoRenderer({
               data-iso-id={n.id}
               role="button"
               tabIndex={0}
-              aria-label={[n.label, n.typeLabel].filter(Boolean).join(', ')}
-              opacity={isNodeDimmed(n.id) ? (isSearching && !focusNodeId && !hoveredConnector ? 0.2 : 0.35) : 1}
+              aria-label={[n.label, n.typeLabel, nodeStatuses.get(n.id)?.line].filter(Boolean).join(', ')}
+              opacity={
+                isNodeDimmed(n.id)
+                  ? (isSearching || isShowingAttention) && !focusNodeId && !hoveredConnector
+                    ? 0.2
+                    : 0.35
+                  : 1
+              }
               className="stp-diagram__fade stp-diagram__node"
               onPointerEnter={() => {
                 if (!isDragging) setHoveredNodeId(n.id);
@@ -1159,7 +1622,15 @@ export function IsoRenderer({
                     .join(' · '),
                   summary: n.summary,
                   details: n.details,
-                  note: n.accessNote
+                  note: n.accessNote,
+                  status: nodeStatuses
+                    .get(n.id)
+                    ?.entries.slice(0, 3)
+                    .map((entry) => ({
+                      tone: entry.tone,
+                      text: n.memberCount ? `${entry.resourceName}: ${entry.text}` : entry.text,
+                      detail: entry.detail
+                    }))
                 });
               }}
               onClick={() => {
@@ -1173,7 +1644,7 @@ export function IsoRenderer({
               onFocus={() => setFocusedNodeId(n.id)}
               onBlur={() => setFocusedNodeId((current) => (current === n.id ? null : current))}
             >
-              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} />
+              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} status={nodeStatuses.get(n.id)} />
             </g>
             {n.memberCount && onToggleGroup ? <GroupToggle node={n} onToggle={() => onToggleGroup(n.id)} /> : null}
           </Fragment>
@@ -1181,6 +1652,20 @@ export function IsoRenderer({
         {scene.connectors.map((c) => (
           <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c)} />
         ))}
+        {(scene.securityRules ?? []).map((rule) => (
+          <SecurityRuleChip key={`${rule.id}-label`} rule={rule} dimmed={isRuleDimmed(rule)} />
+        ))}
+        {outlines.map(({ group, outline, index }) =>
+          outline.tab ? (
+            <SecurityTab
+              key={`${group.id}-${index}-tab`}
+              group={group}
+              tile={outline.tab}
+              dimmed={isSecurityGroupDimmed(group)}
+              {...securityGroupHandlers(group)}
+            />
+          ) : null
+        )}
         {scene.labels.map((l) => (
           <ZoneTag key={l.id} label={l} />
         ))}
@@ -1197,16 +1682,36 @@ export function IsoRenderer({
               <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
               {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
             </div>
+            {tooltip.status && tooltip.status.length > 0 && (
+              <ul className="stp-diagram__tooltip-status">
+                {tooltip.status.map((status, index) => (
+                  <li key={index} data-tone={status.tone}>
+                    <ToneIconInline tone={status.tone} />
+                    <span>
+                      <strong>{status.text}</strong>
+                      {status.detail && <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
             {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
             {tooltip.note && <p className="stp-diagram__tooltip-note">{tooltip.note}</p>}
           </div>,
           document.body
         )}
-      {!tooltip && !selectedNode && !selectedGroup && (
-        <p className="stp-diagram__hint">Hover to learn what something does · click a resource for its connections</p>
-      )}
+      {viewNote
+        ? !tooltip && <div className="stp-diagram__view-note">{viewNote}</div>
+        : !tooltip &&
+          !selectedNode &&
+          !selectedGroup && (
+            <p className="stp-diagram__hint">
+              Hover to learn what something does · click a resource for its connections
+            </p>
+          )}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
+        {toolbar}
         <label className="stp-diagram__find">
           <BiSearch aria-hidden="true" size={15} />
           <input
@@ -1224,6 +1729,23 @@ export function IsoRenderer({
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}
           </p>
         )}
+        {attention.tone && (
+          <button
+            type="button"
+            className="stp-diagram__chip-button stp-diagram__attention"
+            data-tone={attention.tone}
+            aria-pressed={isShowingAttention}
+            title={isShowingAttention ? 'Show every resource' : 'Dim the resources that need no attention'}
+            onClick={() => setShowAttention(!isShowingAttention)}
+          >
+            <ToneIconInline tone={attention.tone} />
+            <span>
+              {attention.resources === 1
+                ? '1 resource needs attention'
+                : `${attention.resources} resources need attention`}
+            </span>
+          </button>
+        )}
         {onToggleGroup &&
           expandedGroups.map((group) => (
             <button
@@ -1237,6 +1759,20 @@ export function IsoRenderer({
               <span className="stp-diagram__chip-action">Collapse</span>
             </button>
           ))}
+        {notices && notices.length > 0 && (
+          <ul className="stp-diagram__notices">
+            {notices.map((notice) => (
+              <li key={notice.id} className="stp-diagram__notice" data-tone={notice.tone}>
+                {notice.tone === 'info' ? (
+                  <BiInfoCircle aria-hidden="true" size={14} className="stp-diagram__notice-info" />
+                ) : (
+                  <ToneIconInline tone={notice.tone} />
+                )}
+                <div>{notice.content}</div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {(selectedNode || selectedGroup) && (
         <div className="stp-diagram__overlay stp-diagram__panel-frame">
@@ -1258,6 +1794,9 @@ export function IsoRenderer({
             }
             onOpenResource={onOpenResource}
             canOpenResource={canOpenResource}
+            status={selectedStatus}
+            statuses={statusMap}
+            onNavigate={onNavigate}
           />
         </div>
       )}

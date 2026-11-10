@@ -79,7 +79,9 @@ const rulesOf = (model: SecurityGroupModel, groupId: string, direction: 'ingress
 describe('real templates', () => {
   test('cover every scenario the generator writes', () => {
     expect(fixtureNames).toEqual([
+      'alb-whitelisted-listeners',
       'batch-bastion-nat-instance',
+      'convex',
       'database-accessibility',
       'ec2-workload-kafka',
       'http-api-vpc-link',
@@ -246,6 +248,33 @@ describe('real templates', () => {
     expect(rulesOf(model, nlb.id, 'ingress')).toEqual(['tcp 5000-5000 from internet 0.0.0.0/0']);
     expect(ingressPeers(model, groupOf(model, 'tcpWeb', 'container-service').id)).toEqual([
       { kind: 'group', groupId: nlb.id }
+    ]);
+  });
+
+  test('Convex runs its backend and dashboard as two services of one owner, each with its own group and ports', () => {
+    const model = modelOf('convex');
+    const services = model.groups.filter(({ members }) => members.some(({ kind }) => kind === 'container-service'));
+    expect(services.map(({ members }) => members.map(({ logicalId, owner }) => `${owner?.name}:${logicalId}`))).toEqual(
+      [['app:AppBackendContainerWorkloadService'], ['app:AppDashboardContainerWorkloadService']]
+    );
+    const [backend, dashboard] = services;
+    const balancer = groupOf(model, 'app', 'load-balancer');
+    expect(rulesOf(model, backend.id, 'ingress')).toEqual([
+      'tcp 3210-3210 from group of app',
+      'tcp 3211-3211 from group of app'
+    ]);
+    expect(rulesOf(model, dashboard.id, 'ingress')).toEqual(['tcp 6791-6791 from group of app']);
+    expect(ingressPeers(model, dashboard.id)).toEqual([{ kind: 'group', groupId: balancer.id }]);
+    expect(rulesOf(model, groupOf(model, 'app', 'database').id, 'ingress')).toEqual([
+      'tcp 5432-5432 from group of app'
+    ]);
+  });
+
+  test('each listener of a load balancer admits only its own addresses, on its own port', () => {
+    const model = modelOf('alb-whitelisted-listeners');
+    expect(rulesOf(model, groupOf(model, 'edge', 'load-balancer').id, 'ingress')).toEqual([
+      'tcp 80-80 from cidr 203.0.113.10/32',
+      'tcp 8080-8080 from cidr 198.51.100.20/32'
     ]);
   });
 

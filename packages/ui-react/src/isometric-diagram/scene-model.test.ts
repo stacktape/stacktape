@@ -5,6 +5,8 @@ import { groupTopology } from './grouping.js';
 import { buildDiagramTopology } from './topology.js';
 import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fixture-scenes.js';
 
+const CONTAINERS = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
+
 describe('diagram scene model', () => {
   for (const fixture of getDiagramFixtures()) {
     test(`builds stable scene for ${fixture.id}`, () => {
@@ -55,7 +57,20 @@ describe('diagram scene model', () => {
           .toSorted((a, b) => a.id.localeCompare(b.id))
       ).toEqual(
         topology.edges
-          .map(({ id, from, to, semantic, label }) => ({ id, from, to, semantic, label }))
+          .map(({ id, from, to, semantic, label }) => ({
+            id,
+            from,
+            to,
+            semantic,
+            // The Network view names the VPC Link an HTTP API reaches a container through.
+            label:
+              label ??
+              (semantic === 'request' &&
+              topology.nodes.find((node) => node.id === from)?.resourceType === 'http-api-gateway' &&
+              CONTAINERS.has(topology.nodes.find((node) => node.id === to)?.resourceType ?? '')
+                ? 'VPC Link'
+                : undefined)
+          }))
           .toSorted((a, b) => a.id.localeCompare(b.id))
       );
       const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
