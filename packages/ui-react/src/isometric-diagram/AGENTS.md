@@ -18,6 +18,7 @@ StacktapeConfig -> topology.ts -> grouping.ts -> scene-builder.ts (+ layout/) ->
 - `IsoRenderer.tsx` owns projection, drawing, pan, zoom, focus, tooltips, selection and search; `DiagramPanel.tsx` is
   the side panel.
 - `IsometricDiagram.tsx` is the public component. It holds which groups are expanded.
+- `status.ts` checks a host's live statuses and summarizes them per drawn node; `status-marks.tsx` draws them.
 
 Keep those boundaries one-way. The renderer does not infer infrastructure; topology and layout do not calculate screen
 geometry. The layout reasons about flat text in projected units (`layout/projected-box.ts`), never in pixels.
@@ -55,6 +56,34 @@ inside the diagram's frame, so they work in any host, the website islands includ
 - Regional managed services such as SQS and SNS are not members of a fictional VPC zone.
 - Add edges only from actual directives or supported reference-bearing fields.
 - Implicit node IDs contain `--`; keep IDs deterministic so layout and view state stay stable.
+
+## Live status
+
+A host that knows how a deployed stage is doing passes `statuses`: per declared resource name, a list of
+`{ tone, text, detail?, href? }`. The diagram knows nothing about where they come from; Console builds them from open
+incidents, open errors and critical or high security findings (`StageDetails/diagram-status.ts`).
+
+- **Tones.** `critical` is broken now, `warning` needs attention, `ok` and `unknown` are informational. Only the first
+  two ring the node (solid red, dashed amber) and count in the toolbar's "N resources need attention" chip, which dims
+  everything else like search does. Text is always drawn too, and each tone has its own icon shape, so colour is never
+  the only signal.
+- **Checked at the boundary.** `readStatuses` drops statuses without text, reads an unknown tone as `unknown`, bounds
+  text and keeps only relative or http(s) links. Implicit nodes never carry a status, and names the scene does not draw
+  are ignored.
+- **On a node.** A pill under the name tag shows the worst status and "+N" for the rest; the count survives truncation.
+  A collapsed group takes its worst member's tone and says how many members share it ("2 of 18 failing", "1 of 4
+  flagged"). The tooltip lists the first statuses and the side panel lists all of them with their links; a group's panel
+  names the member of each, and its member list repeats each member's worst status.
+- **Nothing moves.** Statuses are applied to a scene that is already laid out. Passing `statuses` at all, even `{}`,
+  makes the scene builder reserve a pill's room (`STATUS_LINE_HEIGHT_PX`, at least `STATUS_MIN_WIDTH_PX` wide) under
+  every declared resource and group, so a host passes it from its first render while data loads. Without the prop the
+  layout is exactly as before (website islands, `/diagram-test`). The reservation spreads a stage diagram by roughly
+  5–25% in area.
+- **Links.** Links are anchors with an `href`; `onNavigate` lets a host follow a plain click with its router, while a
+  modified click opens a new tab.
+- **Notices.** What is about the whole picture (a deploy that will replace it, an incident no resource is tied to) goes
+  in `notices`, drawn under the toolbar inside the frame. A host must not put such messages above the diagram: one
+  appearing or going away would resize the frame and rescale every node.
 
 ## Security-group model
 
@@ -122,6 +151,8 @@ and its subnet tiers end up side by side, which turns ALB → service → databa
   first node it reaches.
 - **Zones are bands.** The edge zone and the VPC, with its public tier behind the private one, span the columns of their
   members. Members stay inside, and every other node in those columns stays above or below the band.
+- **Live status lines.** With `statusLines`, every name tag but an implicit node's is taller and at least as wide as a
+  status pill, and the layout keeps pills clear of bodies, chips, zone tags and each other like any name tag.
 - **Tall columns wrap** into sub-columns, because the default view fits the whole picture, whose size grows with tile
   width plus height. Columns of up to eight stay single, so a few data stores do not re-wrap when one more is added.
 - **Routes are orthogonal in tile space.** Long edges pass through shared waypoints, bundled by source or target and
@@ -175,8 +206,9 @@ Update topology, the category mapping and node appearance, explanations and at l
 semantic tests for nodes, edges, zones and routes over whole-SVG snapshots; `synthesis.test.ts` holds the
 synthesizer-checked rules for resource types and relations and `grouping.test.ts` the grouping rules.
 `layout/diagram-layout.test.ts` checks the layout rules over every fixture and the larger configs in `test-configs/`,
-each collapsed and with every group expanded. Console's `e2e/diagram-ui.spec.ts` (offline browser lane) drives the
-panel, expand and collapse, and search in Chromium. When layout spacing or routing changes, render the fixtures and
+each collapsed and with every group expanded, and the room for status pills; `status.test.tsx` holds the status rules.
+Console's `e2e/diagram-ui.spec.ts` (offline browser lane) drives the panel, expand and collapse, search, and the stage
+tab's live statuses (refreshed in place) in Chromium. When layout spacing or routing changes, render the fixtures and
 those configs and look at them at a 16:10 size; tests do not judge legibility.
 
 ```sh

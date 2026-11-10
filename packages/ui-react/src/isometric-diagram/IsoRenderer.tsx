@@ -7,7 +7,12 @@
  * the geometry — only the geometry itself is isometric.
  * Layout flows bottom-left (external) to top-right (data).
  */
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode
+} from 'react';
 import type {
   IsoConnector,
   IsoConnectorRoute,
@@ -18,9 +23,10 @@ import type {
   IsoScene,
   IsoTilePoint
 } from './scene.js';
+import type { DiagramStatuses, DiagramStatusTone, NodeStatus } from './status.js';
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BiExpand, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
+import { BiExpand, BiInfoCircle, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
 import { DiagramPanel } from './DiagramPanel.js';
 import {
   BADGE_HEIGHT_PX,
@@ -32,6 +38,16 @@ import {
 import { NodeBadges, NodeShape } from './node-shapes.js';
 import { pts, t2s, TH, TW } from './projection.js';
 import { EDGE_SEMANTIC_LABELS } from './resource-explanations.js';
+import { NodeStatusPill, NodeStatusRing, ToneIconInline } from './status-marks.js';
+import {
+  buildNodeStatuses,
+  countResourcesNeedingAttention,
+  getGroupStatus,
+  getResourceStatus,
+  needsAttention,
+  readStatuses,
+  worseTone
+} from './status.js';
 
 // Chrome colours come from `@stacktape/design-tokens`; the host loads the token CSS together with
 // `@stacktape/ui-react/isometric-diagram.css`. They are referenced as variables rather than
@@ -155,17 +171,21 @@ const NodeRing = ({ node, strong }: { node: IsoNode; strong: boolean }) => {
 const IsoNodeBlock = ({
   idPrefix,
   node,
-  ring
+  ring,
+  status
 }: {
   idPrefix: string;
   node: IsoNode;
   ring: 'strong' | 'soft' | null;
+  status: NodeStatus | undefined;
 }) => (
   <g>
+    {status && <NodeStatusRing node={node} tone={status.tone} halfWidth={HW} />}
     {ring && <NodeRing node={node} strong={ring === 'strong'} />}
     <NodeShape node={node} idBase={`${idPrefix}-n-${node.id}`} shadowFilterId={`${idPrefix}-iso-shadow-blur`} />
     <NodeBadges node={node} />
     <NodeNameTag node={node} />
+    {status && <NodeStatusPill node={node} status={status} tip={frontTip(node.tile.x, node.tile.y)} />}
   </g>
 );
 
@@ -533,6 +553,8 @@ type TooltipContent = {
   summary?: string | undefined;
   details?: string | undefined;
   note?: string | undefined;
+  /** What the host reports about the resource, worst first. */
+  status?: Array<{ tone: DiagramStatusTone; text: string; detail?: string | undefined }> | undefined;
 };
 
 /** Pointer position in viewport coordinates: the tooltip is rendered outside the diagram's box. */
@@ -565,7 +587,27 @@ export type DiagramViewProps = {
   onOpenResource?: ((resourceName: string) => void) | undefined;
   /** Whether `onOpenResource` can open this resource; without it, every declared resource can be opened. */
   canOpenResource?: ((resourceName: string) => boolean) | undefined;
+  /**
+   * What a deployed stage reports about its resources, by declared resource name: a pill under the name, a ring in the
+   * worst tone, a group's summary and every status with its link in the side panel. Passing it at all, even empty,
+   * reserves room for the pill under every declared resource, so pass it from the first render while statuses load.
+   * Statuses never move a node.
+   */
+  statuses?: DiagramStatuses | undefined;
+  /**
+   * Follows a status link inside the host, e.g. with its router, instead of a full page load. Clicks with a modifier key
+   * still open the link the browser's way.
+   */
+  onNavigate?: ((href: string) => void) | undefined;
+  /**
+   * Short host messages about the whole picture rather than one resource, such as a deploy that will replace what is
+   * drawn or an incident no resource is tied to. They sit under the toolbar inside the frame, so one appearing or
+   * going away never resizes the drawing.
+   */
+  notices?: readonly DiagramNotice[] | undefined;
 };
+
+export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
 
 export type IsoRendererProps = DiagramViewProps & {
   scene: IsoScene;
@@ -605,6 +647,9 @@ export function IsoRenderer({
   initialZoom,
   onOpenResource,
   canOpenResource,
+  statuses,
+  onNavigate,
+  notices,
   onToggleGroup
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
@@ -623,6 +668,8 @@ export function IsoRenderer({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /** Whether the toolbar's "need attention" chip is on: it dims everything that does not report a problem. */
+  const [showAttention, setShowAttention] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const panelHeadingRef = useRef<HTMLHeadingElement>(null);
   /** The element that had focus when the panel opened; closing the panel returns focus there. */
@@ -942,6 +989,23 @@ export function IsoRenderer({
   const matches = useMemo(() => findMatches({ scene, query }), [scene, query]);
   const isSearching = normalize(query).length > 0;
 
+  // Statuses are applied to the placed scene; nothing here feeds back into the layout.
+  const statusMap = useMemo(() => readStatuses(statuses), [statuses]);
+  const nodeStatuses = useMemo(
+    () => buildNodeStatuses({ nodes: scene.nodes, groups: scene.groups, statuses: statusMap }),
+    [scene, statusMap]
+  );
+  const attention = useMemo(() => {
+    const nodeIds = new Set([...nodeStatuses].filter(([, status]) => needsAttention(status.tone)).map(([id]) => id));
+    const tones: DiagramStatusTone[] = [...nodeStatuses.values()].map((status) => status.tone).filter(needsAttention);
+    return {
+      nodeIds,
+      resources: countResourcesNeedingAttention(nodeStatuses),
+      tone: tones.length > 0 ? tones.reduce(worseTone) : undefined
+    };
+  }, [nodeStatuses]);
+  const isShowingAttention = showAttention && attention.nodeIds.size > 0 && !isSearching;
+
   // Keyboard focus on a node focuses the graph the same way hovering it does.
   const focusNodeId = hoveredNodeId ?? focusedNodeId;
   const focusNeighbors = focusNodeId ? adjacency.get(focusNodeId) : null;
@@ -951,6 +1015,7 @@ export function IsoRenderer({
     if (focusNodeId) return nodeId !== focusNodeId && !focusNeighbors?.has(nodeId);
     if (hoveredZoneFocus) return !hoveredZoneFocus.related.has(nodeId);
     if (isSearching) return !matches.has(nodeId);
+    if (isShowingAttention) return !attention.nodeIds.has(nodeId);
     return false;
   };
   const isConnectorDimmed = (connector: IsoConnector) => {
@@ -960,6 +1025,7 @@ export function IsoRenderer({
       return !hoveredZoneFocus.members.has(connector.from) && !hoveredZoneFocus.members.has(connector.to);
     }
     if (isSearching) return !matches.has(connector.from) && !matches.has(connector.to);
+    if (isShowingAttention) return !attention.nodeIds.has(connector.from) && !attention.nodeIds.has(connector.to);
     return false;
   };
 
@@ -968,6 +1034,14 @@ export function IsoRenderer({
     ? scene.groups.find((group) => group.id === (selectedNode?.groupId ?? selectedId))
     : undefined;
   const expandedGroups = scene.groups.filter((group) => group.expanded);
+  const isGroupSelected = Boolean(selectedGroup && (!selectedNode || selectedNode.id === selectedGroup.id));
+  // An expanded group has no node of its own, so its panel summarizes its members directly.
+  const selectedStatus =
+    isGroupSelected && selectedGroup
+      ? getGroupStatus({ group: selectedGroup, statuses: statusMap })
+      : selectedNode && !selectedNode.isImplicit
+        ? getResourceStatus({ resourceName: selectedNode.id, statuses: statusMap })
+        : undefined;
   const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
     if (nodeId === selectedId) return 'strong';
     if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
@@ -1139,8 +1213,14 @@ export function IsoRenderer({
               data-iso-id={n.id}
               role="button"
               tabIndex={0}
-              aria-label={[n.label, n.typeLabel].filter(Boolean).join(', ')}
-              opacity={isNodeDimmed(n.id) ? (isSearching && !focusNodeId && !hoveredConnector ? 0.2 : 0.35) : 1}
+              aria-label={[n.label, n.typeLabel, nodeStatuses.get(n.id)?.line].filter(Boolean).join(', ')}
+              opacity={
+                isNodeDimmed(n.id)
+                  ? (isSearching || isShowingAttention) && !focusNodeId && !hoveredConnector
+                    ? 0.2
+                    : 0.35
+                  : 1
+              }
               className="stp-diagram__fade stp-diagram__node"
               onPointerEnter={() => {
                 if (!isDragging) setHoveredNodeId(n.id);
@@ -1159,7 +1239,15 @@ export function IsoRenderer({
                     .join(' · '),
                   summary: n.summary,
                   details: n.details,
-                  note: n.accessNote
+                  note: n.accessNote,
+                  status: nodeStatuses
+                    .get(n.id)
+                    ?.entries.slice(0, 3)
+                    .map((entry) => ({
+                      tone: entry.tone,
+                      text: n.memberCount ? `${entry.resourceName}: ${entry.text}` : entry.text,
+                      detail: entry.detail
+                    }))
                 });
               }}
               onClick={() => {
@@ -1173,7 +1261,7 @@ export function IsoRenderer({
               onFocus={() => setFocusedNodeId(n.id)}
               onBlur={() => setFocusedNodeId((current) => (current === n.id ? null : current))}
             >
-              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} />
+              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} status={nodeStatuses.get(n.id)} />
             </g>
             {n.memberCount && onToggleGroup ? <GroupToggle node={n} onToggle={() => onToggleGroup(n.id)} /> : null}
           </Fragment>
@@ -1197,6 +1285,19 @@ export function IsoRenderer({
               <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
               {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
             </div>
+            {tooltip.status && tooltip.status.length > 0 && (
+              <ul className="stp-diagram__tooltip-status">
+                {tooltip.status.map((status, index) => (
+                  <li key={index} data-tone={status.tone}>
+                    <ToneIconInline tone={status.tone} />
+                    <span>
+                      <strong>{status.text}</strong>
+                      {status.detail && <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
             {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
             {tooltip.note && <p className="stp-diagram__tooltip-note">{tooltip.note}</p>}
@@ -1224,6 +1325,23 @@ export function IsoRenderer({
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}
           </p>
         )}
+        {attention.tone && (
+          <button
+            type="button"
+            className="stp-diagram__chip-button stp-diagram__attention"
+            data-tone={attention.tone}
+            aria-pressed={isShowingAttention}
+            title={isShowingAttention ? 'Show every resource' : 'Dim the resources that need no attention'}
+            onClick={() => setShowAttention(!isShowingAttention)}
+          >
+            <ToneIconInline tone={attention.tone} />
+            <span>
+              {attention.resources === 1
+                ? '1 resource needs attention'
+                : `${attention.resources} resources need attention`}
+            </span>
+          </button>
+        )}
         {onToggleGroup &&
           expandedGroups.map((group) => (
             <button
@@ -1237,6 +1355,20 @@ export function IsoRenderer({
               <span className="stp-diagram__chip-action">Collapse</span>
             </button>
           ))}
+        {notices && notices.length > 0 && (
+          <ul className="stp-diagram__notices">
+            {notices.map((notice) => (
+              <li key={notice.id} className="stp-diagram__notice" data-tone={notice.tone}>
+                {notice.tone === 'info' ? (
+                  <BiInfoCircle aria-hidden="true" size={14} className="stp-diagram__notice-info" />
+                ) : (
+                  <ToneIconInline tone={notice.tone} />
+                )}
+                <div>{notice.content}</div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {(selectedNode || selectedGroup) && (
         <div className="stp-diagram__overlay stp-diagram__panel-frame">
@@ -1258,6 +1390,9 @@ export function IsoRenderer({
             }
             onOpenResource={onOpenResource}
             canOpenResource={canOpenResource}
+            status={selectedStatus}
+            statuses={statusMap}
+            onNavigate={onNavigate}
           />
         </div>
       )}

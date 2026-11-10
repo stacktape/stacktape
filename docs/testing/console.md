@@ -31,6 +31,7 @@ pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --issue-triage
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --incident-journey
+pnpm --filter @stacktape/console-api-app test:db --diagram-status
 pnpm --filter @stacktape/console-api-app test:db --alerts
 pnpm --filter @stacktape/console-api-app test:db --uptime
 pnpm --filter @stacktape/console-api-app test:db --secrets
