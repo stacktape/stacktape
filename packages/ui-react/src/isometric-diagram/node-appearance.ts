@@ -176,7 +176,16 @@ export const getReplicaBadgeText = ({
   return replicas.min > 1 ? `×${replicas.min}` : undefined;
 };
 
-/** Whether a node carries a badge above its shape: a replica range, a group's count or the `public` mark. */
+/**
+ * Whether a node carries a badge above its shape: a replica range, a group's count, the `public` mark or a load
+ * balancer's exposure (Network view only, but the layout keeps room for it in every view so nothing moves).
+ */
 export const hasBadge = (
-  node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic'> & { memberCount?: number | undefined }
-) => Boolean(node.isPublic || getReplicaBadgeText(node));
+  node: Pick<IsoNode, 'shape' | 'replicas' | 'isPublic' | 'exposure'> & { memberCount?: number | undefined }
+) => Boolean(node.isPublic || node.exposure || getReplicaBadgeText(node));
+
+/** The badge text of a load balancer's exposure. */
+export const EXPOSURE_BADGE_TEXT: Record<NonNullable<IsoNode['exposure']>, string> = {
+  internal: 'internal',
+  'internet-facing': 'internet-facing'
+};

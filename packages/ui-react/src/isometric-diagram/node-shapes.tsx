@@ -11,7 +11,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { ScreenPoint } from './projection.js';
 import type { IsoNode, IsoNodeCategory, IsoNodeGlyph } from './scene.js';
-import { BADGE_OFFSET_PX, getReplicaBadgeText, SHAPE_HEIGHT_PX } from './node-appearance.js';
+import { BADGE_OFFSET_PX, EXPOSURE_BADGE_TEXT, getReplicaBadgeText, SHAPE_HEIGHT_PX } from './node-appearance.js';
 import { lift, pts, round, t2s, TH, TW } from './projection.js';
 
 // AWS category colours, tuned so the top face, both side faces and a white glyph all stay distinct on the dark
@@ -877,6 +877,17 @@ export function NodeBadges({ node }: { node: IsoNode }) {
       {node.isPublic && (
         <g data-iso-kind="public-badge">
           <Pill x={center.x - 30} y={badgeY} text="public" fill="#C9363C" stroke="#F06A6F" />
+        </g>
+      )}
+      {node.exposure && !node.isPublic && (
+        <g data-iso-kind="exposure-badge" data-iso-exposure={node.exposure}>
+          <Pill
+            x={center.x - (node.exposure === 'internal' ? 22 : 34)}
+            y={badgeY}
+            text={EXPOSURE_BADGE_TEXT[node.exposure]}
+            fill={node.exposure === 'internal' ? '#0B0D12' : '#3A2A0C'}
+            stroke={node.exposure === 'internal' ? '#8E9AAB' : '#E8B03A'}
+          />
         </g>
       )}
     </>

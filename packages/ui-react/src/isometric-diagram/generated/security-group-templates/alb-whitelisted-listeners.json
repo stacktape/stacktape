@@ -1,0 +1,652 @@
+{
+  "description": "An application load balancer whose two listeners each admit one address: port 80 from 203.0.113.10/32 and port 8080 from 198.51.100.20/32.",
+  "config": "resources:\n  edge:\n    type: application-load-balancer\n    properties:\n      listeners:\n        - protocol: HTTP\n          port: 80\n          whitelistIps: [203.0.113.10/32]\n        - protocol: HTTP\n          port: 8080\n          whitelistIps: [198.51.100.20/32]\n  handler:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      events:\n        - type: application-load-balancer\n          properties:\n            loadBalancerName: edge\n            listenerPort: 80\n            priority: 1\n            paths: ['/*']\n",
+  "stacktapeResources": [
+    {
+      "name": "edge",
+      "type": "application-load-balancer",
+      "logicalIds": [
+        "EdgeDefaultDomainCustomResource",
+        "EdgeLbSecurityGroup",
+        "EdgeLoadBalancer",
+        "EdgePort8080Listener",
+        "EdgePort80Listener"
+      ]
+    },
+    {
+      "name": "handler",
+      "type": "function",
+      "logicalIds": [
+        "EdgePort80Priority1ListenerRule",
+        "HandlerEdgeTargetGroup",
+        "HandlerEdgeTargetGroupPermission",
+        "HandlerFunction",
+        "HandlerIssueDetectionSubscriptionFilter",
+        "HandlerLogGroup",
+        "HandlerRole"
+      ]
+    }
+  ],
+  "resources": {
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/security-fixture-alarm-notification-*"
+        }
+      }
+    },
+    "EdgeLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "IpAddressType": "ipv4",
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "EdgeLbSecurityGroup"
+          }
+        ],
+        "Subnets": [
+          {
+            "Ref": "StpPublicSubnet0"
+          },
+          {
+            "Ref": "StpPublicSubnet1"
+          },
+          {
+            "Ref": "StpPublicSubnet2"
+          }
+        ],
+        "Type": "application"
+      }
+    },
+    "EdgeLbSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Stacktape generated security group for redis cluster edge in stack security-fixture",
+        "GroupName": "security-fixture-edge-lb-sg",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "SecurityGroupIngress": [
+          {
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "203.0.113.10/32",
+            "IpProtocol": "tcp"
+          },
+          {
+            "FromPort": 8080,
+            "ToPort": 8080,
+            "CidrIp": "198.51.100.20/32",
+            "IpProtocol": "tcp"
+          }
+        ]
+      }
+    },
+    "EdgePort80Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            },
+            "Type": "fixed-response",
+            "Order": 1
+          }
+        ],
+        "Port": 80,
+        "Protocol": "HTTP",
+        "LoadBalancerArn": {
+          "Ref": "EdgeLoadBalancer"
+        }
+      }
+    },
+    "EdgePort8080Listener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "DefaultActions": [
+          {
+            "FixedResponseConfig": {
+              "StatusCode": "500",
+              "ContentType": "text/plain",
+              "MessageBody": "Internal server error. Please setup default load balancer action or appropriate rule"
+            },
+            "Type": "fixed-response",
+            "Order": 1
+          }
+        ],
+        "Port": 8080,
+        "Protocol": "HTTP",
+        "LoadBalancerArn": {
+          "Ref": "EdgeLoadBalancer"
+        }
+      }
+    },
+    "EdgeDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "defaultDomain": {
+          "domainName": "edge-security-fixture-6cf0050f9a50d2ac5c26.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": [
+                "EdgeLoadBalancer",
+                "DNSName"
+              ]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": [
+                "EdgeLoadBalancer",
+                "CanonicalHostedZoneID"
+              ]
+            }
+          },
+          "version": 2
+        }
+      }
+    },
+    "StpVpc": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/16",
+        "EnableDnsHostnames": true,
+        "EnableDnsSupport": true
+      }
+    },
+    "StpInternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {}
+    },
+    "StpVpcGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "InternetGatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      }
+    },
+    "StpPublicSubnet0": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.0.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            0,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet0RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute0": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet0SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet0RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet0"
+        }
+      }
+    },
+    "StpPublicSubnet1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.16.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            1,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet1RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute1": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet1SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet1RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet1"
+        }
+      }
+    },
+    "StpPublicSubnet2": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": "172.16.32.0/20",
+        "VpcId": {
+          "Ref": "StpVpc"
+        },
+        "MapPublicIpOnLaunch": true,
+        "AvailabilityZone": {
+          "Fn::Select": [
+            2,
+            {
+              "Fn::GetAZs": "eu-west-1"
+            }
+          ]
+        }
+      }
+    },
+    "StpPublicSubnet2RouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "StpVpc"
+        }
+      }
+    },
+    "StpInternetGatewayRoute2": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {
+          "Ref": "StpInternetGateway"
+        }
+      },
+      "DependsOn": [
+        "StpVpcGatewayAttachment"
+      ]
+    },
+    "StpPublicSubnet2SubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "StpPublicSubnet2RouteTable"
+        },
+        "SubnetId": {
+          "Ref": "StpPublicSubnet2"
+        }
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-stpService-CR",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "security-fixture",
+            "PROJECT_NAME": "security",
+            "STAGE": "fixture",
+            "GLOBALLY_UNIQUE_STACK_HASH": "7e618203",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "StacktapeServiceLambdaRole",
+        "StacktapeServiceLambdaLogGroup"
+      ]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": [
+                "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[{\"securityGroupId\":\"${sub0}\",\"attributionCfResourceLogicalName\":\"EdgeLoadBalancer\"}]}",
+                {
+                  "sub0": {
+                    "Ref": "EdgeLbSecurityGroup"
+                  }
+                }
+              ]
+            },
+            "Arn": {
+              "Fn::GetAtt": [
+                "StacktapeServiceLambdaCustomResourceFunction",
+                "Arn"
+              ]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "StpStpCustomTaggingScheduleRule",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "EdgePort80Priority1ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "Actions": [
+          {
+            "Type": "forward",
+            "Order": 1,
+            "TargetGroupArn": {
+              "Ref": "HandlerEdgeTargetGroup"
+            }
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/*"
+              ]
+            }
+          }
+        ],
+        "Priority": 1,
+        "ListenerArn": {
+          "Ref": "EdgePort80Listener"
+        }
+      }
+    },
+    "HandlerEdgeTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "TargetType": "lambda",
+        "Targets": [
+          {
+            "Id": {
+              "Fn::GetAtt": [
+                "HandlerFunction",
+                "Arn"
+              ]
+            }
+          }
+        ],
+        "Name": "security-fixture-edge-handler"
+      },
+      "DependsOn": [
+        "HandlerEdgeTargetGroupPermission"
+      ]
+    },
+    "HandlerEdgeTargetGroupPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "HandlerFunction",
+            "Arn"
+          ]
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "elasticloadbalancing.amazonaws.com",
+        "SourceArn": "arn:aws:elasticloadbalancing:eu-west-1:123456789999:targetgroup/security-fixture-edge-handler/*"
+      }
+    },
+    "HandlerRole": {
+      "Type": "AWS::IAM::Role"
+    },
+    "HandlerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-handler",
+        "RetentionInDays": 90
+      }
+    },
+    "StpIssueDetectionLogsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "logs.eu-west-1.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "HandlerIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/security-fixture-handler",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "StpIssueDetectionLogsPermission",
+        "HandlerLogGroup"
+      ]
+    },
+    "HandlerFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "security-fixture-handler",
+        "Architectures": [
+          "x86_64"
+        ],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-7e618203"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--experimental-require-module --experimental-detect-module"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "HandlerRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:artifact-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "security-fixture"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "security"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "fixture"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "7e618203"
+          }
+        ]
+      },
+      "DependsOn": [
+        "HandlerRole",
+        "HandlerLogGroup"
+      ]
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "StacktapeServiceLambdaCustomResourceFunction",
+            "Arn"
+          ]
+        },
+        "sensitiveData": []
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role"
+    }
+  }
+}

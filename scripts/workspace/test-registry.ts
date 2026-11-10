@@ -3022,9 +3022,11 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
       'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/link/Link.test.tsx',
       'packages/ui-react/src/monaco-editor/session.test.ts',
       'packages/ui-react/src/progress/Progress.test.tsx',
@@ -5327,6 +5329,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/IsometricDiagramView.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Diagram.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-view.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/useDiagramStatuses.ts',
       'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'
@@ -5341,9 +5344,11 @@ export const slices: readonly Slice[] = [
       'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
       'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
       'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
       'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/resource-icon/catalog.test.ts'
     ],
     lanes: [
