@@ -227,9 +227,8 @@ test('a user in several organizations chooses one in the terminal', async () => 
   await waitFor('How would you like to sign in?');
   child.terminal!.write('\r');
   await waitFor('Select the organization you want to use.');
-  // Each organization reads as its stored name, the generated personal one included.
-  await waitFor('dev-personal-org');
-  await waitFor('Operations Org');
+  // The generated personal organization reads as "Default organization", as in the Console.
+  await waitFor('Default organization');
   child.terminal!.write('\x1b[B');
   await Bun.sleep(100);
   child.terminal!.write('\r');

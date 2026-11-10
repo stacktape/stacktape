@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { isOpenableSignInAddress } from './sign-in';
+import { isOpenableSignInAddress, organizationLabel } from './sign-in';
+
+describe('organizationLabel', () => {
+  it('names the generated personal organization the way stacktape login and the Console do', () => {
+    expect(organizationLabel('jane-doe-personal-org')).toBe('Default organization');
+    expect(organizationLabel('Acme')).toBe('Acme');
+    expect(organizationLabel('personal-org-fans')).toBe('personal-org-fans');
+  });
+});
 
 describe('isOpenableSignInAddress', () => {
   const cases: Array<[string, boolean]> = [

@@ -36,9 +36,13 @@ export const commandLogin = async () => {
       name: userData.user.name
     });
 
+    const organizationName = userData.organization.name.endsWith('-personal-org')
+      ? 'Default organization'
+      : userData.organization.name;
+
     spinner.success({ text: 'Authenticated' });
     tuiManager.info(`User: ${userData.user.name}`);
-    tuiManager.info(`Organization: ${userData.organization.name}`);
+    tuiManager.info(`Organization: ${organizationName}`);
     tuiManager.info(
       `To create a new organization, run ${tuiManager.prettyCommand('org create --organization-name "Acme org"')}`
     );

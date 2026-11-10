@@ -3,7 +3,7 @@ import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { SessionError, type SignInRequest, type WizardSignIn, type WizardState } from '../session';
-import { isOpenableSignInAddress } from '../sign-in';
+import { isOpenableSignInAddress, organizationLabel } from '../sign-in';
 
 /**
  * Signing in to Stacktape, on the page that needs it.
@@ -211,7 +211,7 @@ export function SignInPanel({
                 {...(index === 0 ? { ref: firstOrganization } : {})}
               >
                 <span className="wizard-decision-option-label">
-                  {organization.name}
+                  {organizationLabel(organization.name)}
                   {busy === `organization-${organization.id}` ? ' (signing in…)' : ''}
                 </span>
               </button>
