@@ -19,6 +19,7 @@ import type { ResourceVisualCategory } from '../resource-icon/catalog.js';
  */
 export type IsoNodeShape =
   | 'function'
+  | 'deck'
   | 'container'
   | 'batch'
   | 'server'
@@ -99,6 +100,67 @@ export type IsoNode = {
   replicas?: { min: number; max: number } | undefined;
   /** Reachable from the internet by its accessibility mode; the renderer marks it in every view. */
   isPublic?: boolean | undefined;
+  /**
+   * The role group this node belongs to: its own id on a collapsed group's node, the group's id on each member drawn
+   * after the group was expanded. See `IsoScene.groups`.
+   */
+  groupId?: string | undefined;
+  /** On a collapsed group's node: how many resources it stands for. */
+  memberCount?: number | undefined;
+  /** Everything this node is connected to as drawn, for the side panel. */
+  connections: IsoNodeConnection[];
+  /** Routes an API or load balancer sends to its targets, in declaration order. */
+  routes?: IsoRoute[] | undefined;
+  /** Declared triggers whose sender is not drawn, e.g. "payments-queue · poll (not drawn)". */
+  undrawnTriggers?: string[] | undefined;
+};
+
+/**
+ * One end of a relation, seen from a node: what is at the other end and what travels along it. The other end is the
+ * node as drawn, so a collapsed member is reached through its group.
+ */
+export type IsoNodeConnection = {
+  direction: 'in' | 'out';
+  /** The connector's semantic, except that sign-in and authorizer checks are `auth` and only firewalls `security`. */
+  semantic: string;
+  /** The drawn node at the other end, or the group a collapsed member is drawn as. */
+  nodeId: string;
+  /** The other end's name: a resource name even when it is drawn inside a group. */
+  name: string;
+  /** What travels along it: "GET /orders", "poll", "18 routes", "used by 7 of 18". */
+  text?: string | undefined;
+};
+
+/** A route of an API or load balancer. */
+export type IsoRoute = {
+  method: string;
+  path: string;
+  /** The resource that serves it, and the drawn node to select for it. */
+  target: string;
+  targetNodeId: string;
+  authorizer?: string | undefined;
+};
+
+export type IsoGroupMember = {
+  id: string;
+  label: string;
+  typeLabel?: string | undefined;
+  /** What starts it: "GET /orders", "orderQueue · poll", "rate(1 hour)". */
+  triggers: string[];
+  connections: IsoNodeConnection[];
+};
+
+/**
+ * Resources that play one role, such as the functions behind one API, drawn as one node until the reader expands
+ * them. Groups are listed whether collapsed or expanded, so a view can offer to collapse one again.
+ */
+export type IsoGroup = {
+  id: string;
+  label: string;
+  /** "18 functions". */
+  typeLabel: string;
+  members: IsoGroupMember[];
+  expanded: boolean;
 };
 
 export type IsoConnectorRoute = {
@@ -111,6 +173,8 @@ export type IsoConnector = {
   from: string;
   to: string;
   label?: string | undefined;
+  /** On a connector that stands for several (into or out of a group): how many. */
+  count?: number | undefined;
   color?: string | undefined;
   semantic?: string | undefined;
   description?: string | undefined;
@@ -149,4 +213,5 @@ export type IsoScene = {
   connectors: IsoConnector[];
   rectangles: IsoRectangle[];
   labels: IsoLabel[];
+  groups: IsoGroup[];
 };

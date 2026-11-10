@@ -122,9 +122,11 @@ const SIDE_DEAD_BAND = 0.05;
 /**
  * A column wraps into sub-columns once it holds more nodes than this and than `sqrt(3 × tallest
  * column)`. The renderer fits the whole picture, whose size grows with the sum of its tile width and
- * height, so a tall fan-out is cheaper as a block than as one long diagonal.
+ * height, so a tall fan-out is cheaper as a block than as one long diagonal. Role groups keep most
+ * columns short, so a column of a few data stores stays one diagonal instead of re-wrapping whenever
+ * one more is added.
  */
-const MIN_ROWS_BEFORE_WRAPPING = 6;
+const MIN_ROWS_BEFORE_WRAPPING = 8;
 const WRAP_FACTOR = 3;
 /** Candidate chip positions along a route segment: about every quarter tile, at most 24. */
 const CHIP_SAMPLE_SPACING = 0.25;

@@ -1422,7 +1422,8 @@ a:hover .rm-arrow {
 }
 
 .rm-diagram .stp-diagram__controls,
-.rm-diagram .stp-diagram__hint {
+.rm-diagram .stp-diagram__hint,
+.rm-diagram .stp-diagram__find {
   display: none;
 }
 

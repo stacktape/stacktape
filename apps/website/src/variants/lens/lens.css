@@ -1311,7 +1311,8 @@
 }
 
 .ls-diagram .stp-diagram__controls,
-.ls-diagram .stp-diagram__hint {
+.ls-diagram .stp-diagram__hint,
+.ls-diagram .stp-diagram__find {
   display: none;
 }
 

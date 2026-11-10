@@ -11,15 +11,17 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import type {
   IsoConnector,
   IsoConnectorRoute,
+  IsoGroup,
   IsoLabel,
   IsoNode,
   IsoRectangle,
   IsoScene,
   IsoTilePoint
 } from './scene.js';
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BiExpand, BiMinus, BiPlus } from 'react-icons/bi';
+import { BiExpand, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
+import { DiagramPanel } from './DiagramPanel.js';
 import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
@@ -127,13 +129,85 @@ const NodeNameTag = ({ node }: { node: IsoNode }) => {
 
 // ── Node ──
 
-const IsoNodeBlock = ({ idPrefix, node }: { idPrefix: string; node: IsoNode }) => (
+/** A ring on the floor around a node that is selected, focused or matches the search. */
+const NodeRing = ({ node, strong }: { node: IsoNode; strong: boolean }) => {
+  const reach = HW + 0.16;
+  const { x, y } = node.tile;
+  return (
+    <polygon
+      data-iso-kind="node-ring"
+      points={pts(
+        t2s(x - reach, y - reach),
+        t2s(x + reach, y - reach),
+        t2s(x + reach, y + reach),
+        t2s(x - reach, y + reach)
+      )}
+      fill={BRAND}
+      fillOpacity={strong ? 0.16 : 0.08}
+      stroke={BRAND}
+      strokeOpacity={strong ? 0.95 : 0.6}
+      strokeWidth={strong ? 2 : 1.4}
+      strokeDasharray={strong ? undefined : '5 4'}
+    />
+  );
+};
+
+const IsoNodeBlock = ({
+  idPrefix,
+  node,
+  ring
+}: {
+  idPrefix: string;
+  node: IsoNode;
+  ring: 'strong' | 'soft' | null;
+}) => (
   <g>
+    {ring && <NodeRing node={node} strong={ring === 'strong'} />}
     <NodeShape node={node} idBase={`${idPrefix}-n-${node.id}`} shadowFilterId={`${idPrefix}-iso-shadow-blur`} />
     <NodeBadges node={node} />
     <NodeNameTag node={node} />
   </g>
 );
+
+/**
+ * The control on a collapsed group that draws its members one by one: a round "+" just off the deck's left corner, so
+ * it covers neither the glyph nor the count badge on the right.
+ */
+const GroupToggle = ({ node, onToggle }: { node: IsoNode; onToggle: () => void }) => {
+  const center = t2s(node.tile.x, node.tile.y);
+  const x = center.x - 46;
+  const y = center.y - SHAPE_HEIGHT_PX[node.shape] - 4;
+  return (
+    <g
+      data-iso-kind="group-toggle"
+      data-iso-id={node.id}
+      role="button"
+      tabIndex={0}
+      aria-label={`Show the ${node.typeLabel ?? 'members'} in ${node.label} one by one`}
+      className="stp-diagram__group-toggle"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      <title>Expand group</title>
+      <circle cx={x} cy={y} r={9.5} fill="#0B0D12" stroke="rgba(255,255,255,0.45)" strokeWidth={1.2} />
+      <path
+        d={`M ${x - 4.5} ${y} H ${x + 4.5} M ${x} ${y - 4.5} V ${y + 4.5}`}
+        stroke="#F1F4F8"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+};
 
 // ── Floor plane ──
 
@@ -359,7 +433,11 @@ const ConnSvg = ({
   if (!fn || !tn) return null;
 
   const path = buildPath({ route: { ...conn.route, points: trimRouteAtTarget({ points: conn.route.points }) } });
-  const style = getSemanticStyle(conn.semantic);
+  const baseStyle = getSemanticStyle(conn.semantic);
+  // A connector that stands for several gets a little heavier, never more than double.
+  const style = conn.count
+    ? { ...baseStyle, strokeWidth: baseStyle.strokeWidth * Math.min(2, 1 + Math.log2(conn.count) * 0.2) }
+    : baseStyle;
   const cc = conn.color || style.color;
 
   return (
@@ -480,12 +558,40 @@ export type DiagramViewProps = {
    * what the reader sees. Clamped to the same range as the zoom controls.
    */
   initialZoom?: number | undefined;
+  /**
+   * Opens a resource the configuration declares, by its name. When set, the side panel offers it as an action for
+   * declared resources (not for ones Stacktape creates implicitly, nor for groups). Console opens its resource dialog.
+   */
+  onOpenResource?: ((resourceName: string) => void) | undefined;
+  /** Whether `onOpenResource` can open this resource; without it, every declared resource can be opened. */
+  canOpenResource?: ((resourceName: string) => boolean) | undefined;
 };
 
 export type IsoRendererProps = DiagramViewProps & {
   scene: IsoScene;
   width?: CSSProperties['width'] | undefined;
   height?: CSSProperties['height'] | undefined;
+  /** Expands or collapses a role group. Without it, groups have no expand control. */
+  onToggleGroup?: ((groupId: string) => void) | undefined;
+};
+
+/** How far the pointer moves before a press becomes a drag instead of a click, in screen pixels. */
+const DRAG_THRESHOLD = 4;
+
+const normalize = (text: string) => text.trim().toLowerCase();
+
+/** The nodes a search matches: by name, and a group when one of its members matches. */
+const findMatches = ({ scene, query }: { scene: IsoScene; query: string }) => {
+  const needle = normalize(query);
+  const matches = new Set<string>();
+  if (!needle) return matches;
+  const groupsById = new Map(scene.groups.map((group) => [group.id, group]));
+  for (const node of scene.nodes) {
+    const group = node.memberCount ? groupsById.get(node.id) : undefined;
+    const names = [node.label, node.id, ...(group?.members.map((member) => member.label) ?? [])];
+    if (names.some((name) => name.toLowerCase().includes(needle))) matches.add(node.id);
+  }
+  return matches;
 };
 
 export function IsoRenderer({
@@ -496,7 +602,10 @@ export function IsoRenderer({
   ariaLabel = 'Architecture diagram',
   className,
   style,
-  initialZoom
+  initialZoom,
+  onOpenResource,
+  canOpenResource,
+  onToggleGroup
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -511,8 +620,24 @@ export function IsoRenderer({
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [hoveredConnectorId, setHoveredConnectorId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const panelHeadingRef = useRef<HTMLHeadingElement>(null);
+  /** The element that had focus when the panel opened; closing the panel returns focus there. */
+  const panelOpenerRef = useRef<Element | null>(null);
+  /** A press on the canvas: where it started, and whether it has turned into a drag. */
+  const press = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    panX: number;
+    panY: number;
+    dragged: boolean;
+  } | null>(null);
+  /** Set when a press ended as a drag, so the click that follows it does not select anything. */
+  const suppressClick = useRef(false);
 
   const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent) => {
     setTooltip({ x: e.clientX, y: e.clientY, ...content });
@@ -631,34 +756,74 @@ export function IsoRenderer({
     setHoveredZoneId(null);
     setHoveredConnectorId(null);
     setTooltip(null);
+    // A selection survives a new scene while what it names is still there: a node, or a group expanded in place.
+    setSelectedId((current) =>
+      current && (scene.nodes.some((node) => node.id === current) || scene.groups.some((group) => group.id === current))
+        ? current
+        : null
+    );
   }, [scene]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent) => {
       if (e.button !== 0 && e.pointerType === 'mouse') return;
-      containerRef.current?.setPointerCapture(e.pointerId);
-      setIsDragging(true);
-      dragStart.current = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
+      suppressClick.current = false;
+      press.current = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        panX: view.panX,
+        panY: view.panY,
+        dragged: false
+      };
     },
     [view.panX, view.panY]
   );
-  const onPointerMove = useCallback(
-    (e: ReactPointerEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStart.current.x;
-      const dy = e.clientY - dragStart.current.y;
-      if (dx !== 0 || dy !== 0) {
-        setTooltip(null);
+  const onPointerMove = useCallback((e: ReactPointerEvent) => {
+    const current = press.current;
+    if (!current || current.pointerId !== e.pointerId) return;
+    const dx = e.clientX - current.x;
+    const dy = e.clientY - current.y;
+    // A press becomes a drag only once it moves, so a click on a node still reaches the node.
+    if (!current.dragged) {
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      current.dragged = true;
+      containerRef.current?.setPointerCapture(e.pointerId);
+      setIsDragging(true);
+      setTooltip(null);
+    }
+    setView((previous) => ({ ...previous, panX: current.panX + dx, panY: current.panY + dy }));
+  }, []);
+  const onPointerUp = useCallback(() => {
+    suppressClick.current = Boolean(press.current?.dragged);
+    press.current = null;
+    setIsDragging(false);
+  }, []);
+
+  const selectNode = useCallback((nodeId: string) => {
+    if (typeof document !== 'undefined') panelOpenerRef.current = document.activeElement;
+    setSelectedId(nodeId);
+    setTooltip(null);
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setSelectedId(null);
+    const opener = panelOpenerRef.current;
+    panelOpenerRef.current = null;
+    const container = containerRef.current;
+    if (opener instanceof HTMLElement || opener instanceof SVGElement) {
+      if (container?.contains(opener)) {
+        opener.focus();
+        return;
       }
-      setView((current) => ({
-        ...current,
-        panX: dragStart.current.panX + dx,
-        panY: dragStart.current.panY + dy
-      }));
-    },
-    [isDragging]
-  );
-  const onPointerUp = useCallback(() => setIsDragging(false), []);
+    }
+    container?.focus();
+  }, []);
+
+  // Move focus into the panel when it opens or shows another node, so a keyboard reader lands on its heading.
+  useEffect(() => {
+    if (selectedId) panelHeadingRef.current?.focus({ preventScroll: true });
+  }, [selectedId]);
 
   // Wheel zoom must preventDefault so the surrounding page doesn't scroll. React attaches
   // wheel listeners passively, so register a non-passive listener manually.
@@ -667,6 +832,8 @@ export function IsoRenderer({
     if (!container) return undefined;
 
     const onWheel = (e: WheelEvent) => {
+      // The panel scrolls its own content.
+      if (e.target instanceof Element && e.target.closest('.stp-diagram__panel')) return;
       e.preventDefault();
       const rect = container.getBoundingClientRect();
       const zoomFactor = e.deltaY > 0 ? 0.93 : 1.07;
@@ -700,6 +867,13 @@ export function IsoRenderer({
 
   const onKeyDown = useCallback(
     (e: ReactKeyboardEvent) => {
+      // Typing in the search box or reading the panel must not pan or zoom.
+      if (e.target instanceof Element && e.target.closest('.stp-diagram__panel, .stp-diagram__toolbar')) return;
+      if (e.key === 'Escape') {
+        if (selectedId) closePanel();
+        else if (query) setQuery('');
+        return;
+      }
       const panStep = 40;
       const panByKey: Record<string, { dx: number; dy: number }> = {
         ArrowLeft: { dx: panStep, dy: 0 },
@@ -720,7 +894,7 @@ export function IsoRenderer({
         resetView();
       }
     },
-    [zoomBy, resetView]
+    [zoomBy, resetView, selectedId, closePanel, query]
   );
 
   // Painter's algorithm: with flipped Y, higher (x+y) = further from viewer → render first.
@@ -748,7 +922,6 @@ export function IsoRenderer({
     };
   }, [scene]);
 
-  const hoveredNeighbors = hoveredNodeId ? adjacency.get(hoveredNodeId) : null;
   const hoveredConnector = hoveredConnectorId
     ? scene.connectors.find((connector) => connector.id === hoveredConnectorId)
     : null;
@@ -766,19 +939,50 @@ export function IsoRenderer({
     return { members, related };
   }, [hoveredZoneId, scene.rectangles, adjacency]);
 
+  const matches = useMemo(() => findMatches({ scene, query }), [scene, query]);
+  const isSearching = normalize(query).length > 0;
+
+  // Keyboard focus on a node focuses the graph the same way hovering it does.
+  const focusNodeId = hoveredNodeId ?? focusedNodeId;
+  const focusNeighbors = focusNodeId ? adjacency.get(focusNodeId) : null;
+
   const isNodeDimmed = (nodeId: string) => {
     if (hoveredConnector) return nodeId !== hoveredConnector.from && nodeId !== hoveredConnector.to;
-    if (hoveredNodeId) return nodeId !== hoveredNodeId && !hoveredNeighbors?.has(nodeId);
+    if (focusNodeId) return nodeId !== focusNodeId && !focusNeighbors?.has(nodeId);
     if (hoveredZoneFocus) return !hoveredZoneFocus.related.has(nodeId);
+    if (isSearching) return !matches.has(nodeId);
     return false;
   };
   const isConnectorDimmed = (connector: IsoConnector) => {
     if (hoveredConnectorId) return connector.id !== hoveredConnectorId;
-    if (hoveredNodeId) return connector.from !== hoveredNodeId && connector.to !== hoveredNodeId;
+    if (focusNodeId) return connector.from !== focusNodeId && connector.to !== focusNodeId;
     if (hoveredZoneFocus) {
       return !hoveredZoneFocus.members.has(connector.from) && !hoveredZoneFocus.members.has(connector.to);
     }
+    if (isSearching) return !matches.has(connector.from) && !matches.has(connector.to);
     return false;
+  };
+
+  const selectedNode = selectedId ? nodeMap.get(selectedId) : undefined;
+  const selectedGroup: IsoGroup | undefined = selectedId
+    ? scene.groups.find((group) => group.id === (selectedNode?.groupId ?? selectedId))
+    : undefined;
+  const expandedGroups = scene.groups.filter((group) => group.expanded);
+  const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
+    if (nodeId === selectedId) return 'strong';
+    if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
+    return null;
+  };
+
+  const onSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      setQuery('');
+    } else if (event.key === 'Enter') {
+      // Opens the first match, in drawing order from the front.
+      const first = scene.nodes.find((node) => matches.has(node.id));
+      if (first) selectNode(first.id);
+    }
   };
 
   return (
@@ -788,12 +992,24 @@ export function IsoRenderer({
       // The labelled section is focusable because arrow keys pan it and +, -, 0 control zoom.
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={0}
-      className={className ? `stp-diagram ${className}` : 'stp-diagram'}
+      className={['stp-diagram', selectedNode || selectedGroup ? 'stp-diagram--panel-open' : null, className]
+        .filter(Boolean)
+        .join(' ')}
       style={{ width, height, ...style }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onClick={(e) => {
+        // A click on empty canvas closes the panel; a drag that ends there does not.
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          return;
+        }
+        if (!selectedId || !(e.target instanceof Element)) return;
+        if (e.target.closest('[data-iso-kind="node"], [data-iso-kind="group-toggle"], .stp-diagram__overlay')) return;
+        setSelectedId(null);
+      }}
       // The tooltip lives outside this element now, so leaving the diagram has to dismiss it here
       // as well: a shape's own leave event can be missed when the pointer exits quickly.
       onPointerLeave={() => setTooltip(null)}
@@ -801,7 +1017,7 @@ export function IsoRenderer({
     >
       <svg
         viewBox={`${minX} ${minY} ${svgW} ${svgH}`}
-        role="img"
+        role="group"
         aria-label={ariaLabel}
         className="stp-diagram__canvas"
         style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
@@ -909,7 +1125,7 @@ export function IsoRenderer({
             onPointerMove={(e) => {
               if (isDragging || !c.description) return;
               moveTooltip(e, {
-                title: `${c.from} → ${c.to}`,
+                title: `${nodeMap.get(c.from)?.label ?? c.from} → ${nodeMap.get(c.to)?.label ?? c.to}`,
                 subtitle: EDGE_SEMANTIC_LABELS[c.semantic || 'request'],
                 details: c.description
               });
@@ -917,35 +1133,50 @@ export function IsoRenderer({
           />
         ))}
         {sorted.map((n) => (
-          <g
-            key={n.id}
-            data-iso-kind="node"
-            data-iso-id={n.id}
-            opacity={isNodeDimmed(n.id) ? 0.35 : 1}
-            className="stp-diagram__fade"
-            onPointerEnter={() => {
-              if (!isDragging) setHoveredNodeId(n.id);
-            }}
-            onPointerLeave={() => {
-              setHoveredNodeId((current) => (current === n.id ? null : current));
-              setTooltip(null);
-            }}
-            onPointerMove={(e) => {
-              if (isDragging) return;
-              e.stopPropagation();
-              moveTooltip(e, {
-                title: n.label,
-                subtitle: [n.typeName || n.typeLabel || n.resourceType, n.isImplicit ? 'created automatically' : null]
-                  .filter(Boolean)
-                  .join(' · '),
-                summary: n.summary,
-                details: n.details,
-                note: n.accessNote
-              });
-            }}
-          >
-            <IsoNodeBlock idPrefix={idPrefix} node={n} />
-          </g>
+          <Fragment key={n.id}>
+            <g
+              data-iso-kind="node"
+              data-iso-id={n.id}
+              role="button"
+              tabIndex={0}
+              aria-label={[n.label, n.typeLabel].filter(Boolean).join(', ')}
+              opacity={isNodeDimmed(n.id) ? (isSearching && !focusNodeId && !hoveredConnector ? 0.2 : 0.35) : 1}
+              className="stp-diagram__fade stp-diagram__node"
+              onPointerEnter={() => {
+                if (!isDragging) setHoveredNodeId(n.id);
+              }}
+              onPointerLeave={() => {
+                setHoveredNodeId((current) => (current === n.id ? null : current));
+                setTooltip(null);
+              }}
+              onPointerMove={(e) => {
+                if (isDragging) return;
+                e.stopPropagation();
+                moveTooltip(e, {
+                  title: n.label,
+                  subtitle: [n.typeName || n.typeLabel || n.resourceType, n.isImplicit ? 'created automatically' : null]
+                    .filter(Boolean)
+                    .join(' · '),
+                  summary: n.summary,
+                  details: n.details,
+                  note: n.accessNote
+                });
+              }}
+              onClick={() => {
+                if (!suppressClick.current) selectNode(n.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                selectNode(n.id);
+              }}
+              onFocus={() => setFocusedNodeId(n.id)}
+              onBlur={() => setFocusedNodeId((current) => (current === n.id ? null : current))}
+            >
+              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} />
+            </g>
+            {n.memberCount && onToggleGroup ? <GroupToggle node={n} onToggle={() => onToggleGroup(n.id)} /> : null}
+          </Fragment>
         ))}
         {scene.connectors.map((c) => (
           <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c)} />
@@ -972,8 +1203,65 @@ export function IsoRenderer({
           </div>,
           document.body
         )}
-      {!tooltip && <p className="stp-diagram__hint">Hover a resource, pipe, or boundary to learn what it does</p>}
-      <div className="stp-diagram__controls" onPointerDown={(e) => e.stopPropagation()}>
+      {!tooltip && !selectedNode && !selectedGroup && (
+        <p className="stp-diagram__hint">Hover to learn what something does · click a resource for its connections</p>
+      )}
+      <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
+        <label className="stp-diagram__find">
+          <BiSearch aria-hidden="true" size={15} />
+          <input
+            type="search"
+            value={query}
+            placeholder="Find resource"
+            aria-label="Find resource"
+            spellCheck={false}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onSearchKeyDown}
+          />
+        </label>
+        {isSearching && (
+          <p className="stp-diagram__find-count" aria-live="polite">
+            {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}
+          </p>
+        )}
+        {onToggleGroup &&
+          expandedGroups.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              className="stp-diagram__chip-button"
+              aria-label={`Collapse ${group.label} into one node`}
+              onClick={() => onToggleGroup(group.id)}
+            >
+              <span>{group.label}</span>
+              <span className="stp-diagram__chip-action">Collapse</span>
+            </button>
+          ))}
+      </div>
+      {(selectedNode || selectedGroup) && (
+        <div className="stp-diagram__overlay stp-diagram__panel-frame">
+          <DiagramPanel
+            node={selectedNode}
+            group={selectedGroup}
+            headingRef={panelHeadingRef}
+            canSelect={(nodeId) => nodeMap.has(nodeId)}
+            onSelect={(nodeId) => setSelectedId(nodeId)}
+            onClose={closePanel}
+            onToggleGroup={onToggleGroup}
+            onShowMember={
+              onToggleGroup
+                ? (groupId, memberId) => {
+                    if (!nodeMap.has(memberId)) onToggleGroup(groupId);
+                    setSelectedId(memberId);
+                  }
+                : undefined
+            }
+            onOpenResource={onOpenResource}
+            canOpenResource={canOpenResource}
+          />
+        </div>
+      )}
+      <div className="stp-diagram__controls stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         <button
           type="button"
           aria-label="Zoom in"

@@ -1197,7 +1197,8 @@
 }
 
 .hr-diagram .stp-diagram__controls,
-.hr-diagram .stp-diagram__hint {
+.hr-diagram .stp-diagram__hint,
+.hr-diagram .stp-diagram__find {
   display: none;
 }
 

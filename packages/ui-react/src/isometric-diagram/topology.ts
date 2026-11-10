@@ -35,6 +35,24 @@ export type TopologyNode = {
   // Resource-specific reachability note appended to the type description in tooltips
   // (e.g. which accessibility mode a database uses and what that means).
   accessNote?: string | undefined;
+  /** Set on a role group's node (see `grouping.ts`): the resources it stands for, in declaration order. */
+  memberIds?: string[] | undefined;
+  /**
+   * Triggers a function or batch job declares whose sender is not drawn: an external queue, topic or stream given by
+   * ARN, an existing MSK or self-managed Kafka topic, a CloudWatch alarm or log group, a resource the config lacks.
+   */
+  undrawnTriggers?: UndrawnTrigger[] | undefined;
+};
+
+/** A declared trigger with no node to draw it from. `key` identifies its sender, so grouping can tell senders apart. */
+export type UndrawnTrigger = {
+  key: string;
+  /** The sender's name as far as the config says it, e.g. a queue name taken from its ARN. */
+  name: string;
+  /** The sender's resource type, or the event type when there is none. */
+  type: string;
+  /** How the panel lists it: "payments-queue · poll". */
+  text: string;
 };
 
 export type TopologyEdge = {
@@ -46,11 +64,29 @@ export type TopologyEdge = {
   // Plain-English explanation of the communication (sync/async, push/pull, what is
   // configured) shown in the hover tooltip.
   description?: string | undefined;
+  /** On a connector merged by grouping: how many it stands for, and a short count such as "used by 7 of 18". */
+  count?: number | undefined;
+  summary?: string | undefined;
+};
+
+/**
+ * One configured trigger of a workload: an API route, a queue subscription, a schedule. A function behind two routes of
+ * one API has one edge from that API and two triggers. The side panel lists them, and grouping counts routes with them.
+ */
+export type TopologyTrigger = {
+  from: string;
+  to: string;
+  semantic: EdgeSemantic;
+  /** What starts the target, as its config says it: "GET /orders", "rate(1 hour)", "poll", "Query.user". */
+  summary: string;
+  /** A request route on an API or load balancer, for the source's route table. */
+  route?: { method: string; path: string; authorizer?: string | undefined } | undefined;
 };
 
 export type DiagramTopology = {
   nodes: TopologyNode[];
   edges: TopologyEdge[];
+  triggers: TopologyTrigger[];
   hasVpc: boolean;
   hasPublicIngress: boolean;
 };
@@ -473,6 +509,110 @@ const extractResourceParamReferences = ({ value }: { value: unknown }): string[]
   return Array.from(references);
 };
 
+// ── Declared triggers ──
+
+const lastArnPart = (arn: string) => arn.split(/[:/]/).findLast(Boolean) ?? arn;
+
+/** A stable string for any value, so an unknown trigger type still gets a deterministic identity. */
+const stableKey = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(stableKey).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${key}:${stableKey((value as Record<string, unknown>)[key])}`)
+      .join(',')}}`;
+  }
+  return String(value);
+};
+
+/**
+ * Who sends one declared event, whether or not the diagram can draw it: the node it comes from when the config names a
+ * resource (`sourceId`), and otherwise a key that identifies the external sender. Every event type of a function or
+ * batch job is covered; an unknown type is identified by its whole configuration.
+ */
+const describeDeclaredTrigger = (event: any): UndrawnTrigger & { sourceId?: string | undefined } => {
+  const props = event?.properties ?? {};
+  const type: string = typeof event?.type === 'string' ? event.type : 'unknown';
+  const named = (sourceId: unknown, sourceType: string, text: string) => {
+    const name = typeof sourceId === 'string' ? sourceId : '?';
+    return { key: `${type}:${name}`, sourceId: name, name, type: sourceType, text: `${name} · ${text}` };
+  };
+  const byArn = (arn: unknown, sourceType: string, verb: string, name?: string) => {
+    const value = typeof arn === 'string' ? arn : stableKey(arn);
+    const label = name ?? lastArnPart(value);
+    return { key: `${type}:${value}`, name: label, type: sourceType, text: `${label} · ${verb}` };
+  };
+  const referenced = (value: unknown) => extractResourceParamReferences({ value })[0];
+
+  switch (type) {
+    case 'http-api-gateway':
+      return named(props.httpApiGatewayName, 'http-api-gateway', `${props.method ?? 'ANY'} ${props.path ?? '/'}`);
+    case 'websocket-api-gateway':
+      return named(props.websocketApiGatewayName, 'websocket-api-gateway', `route ${props.routeKey ?? '$default'}`);
+    case 'appsync-api':
+      return named(props.appsyncApiName, 'appsync-api', props.field ?? 'resolver');
+    case 'application-load-balancer':
+    case 'network-load-balancer':
+      return named(
+        getLoadBalancerName(props),
+        type,
+        joinList(props.paths) ?? `port ${props.listenerPort ?? 'default'}`
+      );
+    case 'sqs':
+      return props.sqsQueueName
+        ? named(props.sqsQueueName, 'sqs-queue', 'poll')
+        : byArn(props.sqsQueueArn, 'sqs-queue', 'poll');
+    case 'sns':
+      return props.snsTopicName
+        ? named(props.snsTopicName, 'sns-topic', 'push')
+        : byArn(props.snsTopicArn, 'sns-topic', 'push');
+    case 'kinesis-stream':
+      return props.kinesisStreamName
+        ? named(props.kinesisStreamName, 'kinesis-stream', 'stream')
+        : byArn(props.streamArn, 'kinesis-stream', 'stream');
+    case 'dynamo-db-stream': {
+      const table = referenced(props.streamArn);
+      if (table) return named(table, 'dynamo-db-table', 'stream');
+      const name = typeof props.streamArn === 'string' ? props.streamArn.match(/table\/([^/]+)/)?.[1] : undefined;
+      return byArn(props.streamArn, 'dynamo-db-table', 'stream', name);
+    }
+    case 's3': {
+      const bucket = referenced(props.bucketArn);
+      return bucket ? named(bucket, 'bucket', 'trigger') : byArn(props.bucketArn, 'bucket', 'trigger');
+    }
+    case 'schedule':
+      return {
+        key: 'schedule',
+        sourceId: SCHEDULE_NODE_ID,
+        name: 'Schedule',
+        type: 'schedule',
+        text: typeof props.scheduleRate === 'string' ? props.scheduleRate : 'schedule'
+      };
+    case 'event-bus':
+      if (props.eventBusName) return named(props.eventBusName, 'event-bus', 'event');
+      return props.useDefaultBus
+        ? { key: 'event-bus:default', name: 'default event bus', type: 'event-bus', text: 'default event bus · event' }
+        : byArn(props.eventBusArn, 'event-bus', 'event');
+    case 'kafka-topic': {
+      if (props.kafkaClusterName)
+        return named(props.kafkaClusterName, 'kafka-cluster', `topic ${props.topicName ?? '?'}`);
+      const custom = props.customKafkaConfiguration;
+      const topic = custom?.topicName ?? props.topicName ?? '?';
+      const cluster = props.mskClusterArn ?? stableKey(custom?.bootstrapServers);
+      return { key: `${type}:${cluster}:${topic}`, name: topic, type: 'kafka-cluster', text: `Kafka topic ${topic}` };
+    }
+    case 'cloudwatch-alarm':
+      return byArn(props.alarmName, 'cloudwatch-alarm', 'alarm', String(props.alarmName ?? '?'));
+    case 'cloudwatch-log': {
+      const logGroup =
+        typeof props.logGroupArn === 'string' ? props.logGroupArn.match(/log-group:([^:]+)/)?.[1] : undefined;
+      return byArn(props.logGroupArn, 'cloudwatch-log', 'log events', logGroup);
+    }
+    default:
+      return { key: `${type}:${stableKey(props)}`, name: type, type, text: `${type} trigger` };
+  }
+};
+
 // ── Graph builder helpers ──
 
 const addNode = ({ nodeMap, node }: { nodeMap: Map<string, TopologyNode>; node: TopologyNode }) => {
@@ -512,7 +652,34 @@ const addEdge = ({
   }
 };
 
-type GraphMaps = { edgeMap: Map<string, TopologyEdge>; nodeMap: Map<string, TopologyNode> };
+type GraphMaps = {
+  edgeMap: Map<string, TopologyEdge>;
+  nodeMap: Map<string, TopologyNode>;
+  triggers: TopologyTrigger[];
+};
+
+const addTrigger = ({ nodeMap, triggers, trigger }: GraphMaps & { trigger: TopologyTrigger }) => {
+  if (!nodeMap.has(trigger.from) || !nodeMap.has(trigger.to) || trigger.from === trigger.to) return;
+  const duplicate = triggers.some(
+    (existing) =>
+      existing.from === trigger.from &&
+      existing.to === trigger.to &&
+      existing.semantic === trigger.semantic &&
+      existing.summary === trigger.summary
+  );
+  if (!duplicate) triggers.push(trigger);
+};
+
+/** The name of the user pool or function that checks a route's callers, or IAM. */
+const getAuthorizerName = (authorizer: any): string | undefined => {
+  if (authorizer?.type === 'cognito') return authorizer.properties?.userPoolName ?? 'Cognito';
+  if (authorizer?.type === 'lambda') return authorizer.properties?.functionName ?? 'Lambda';
+  if (authorizer?.type === 'aws-iam') return 'IAM';
+  return undefined;
+};
+
+const joinList = (value: unknown) =>
+  Array.isArray(value) && value.length > 0 ? value.filter((item) => typeof item === 'string').join(', ') : undefined;
 
 type EventTargetKind = 'function' | 'batch-job' | 'container';
 
@@ -527,6 +694,7 @@ const getBatchSuffix = (targetKind: EventTargetKind) =>
 const addScheduleEdge = ({
   edgeMap,
   nodeMap,
+  triggers,
   nodeId,
   event,
   targetKind
@@ -558,6 +726,17 @@ const addScheduleEdge = ({
     semantic: 'event',
     description: `EventBridge starts the target on a fixed schedule (${scheduleRate || 'see config'}). Asynchronous — nothing waits for the run to finish.${getBatchSuffix(targetKind)}`
   });
+  addTrigger({
+    edgeMap,
+    nodeMap,
+    triggers,
+    trigger: {
+      from: SCHEDULE_NODE_ID,
+      to: nodeId,
+      semantic: 'event',
+      summary: typeof scheduleRate === 'string' ? scheduleRate : 'schedule'
+    }
+  });
 };
 
 /**
@@ -567,6 +746,7 @@ const addScheduleEdge = ({
 const addAuthorizerEdges = ({
   edgeMap,
   nodeMap,
+  triggers,
   gatewayId,
   authorizer
 }: GraphMaps & { gatewayId: string; authorizer: any }) => {
@@ -593,12 +773,19 @@ const addAuthorizerEdges = ({
       description:
         'Before a protected route runs, the gateway calls this function with the request details and admits the request only if the function allows it.'
     });
+    addTrigger({
+      edgeMap,
+      nodeMap,
+      triggers,
+      trigger: { from: gatewayId, to: authorizer.properties.functionName, semantic: 'security', summary: 'authorizer' }
+    });
   }
 };
 
 const addEventEdges = ({
   edgeMap,
   nodeMap,
+  triggers,
   nodeId,
   events,
   requestLabel,
@@ -611,6 +798,8 @@ const addEventEdges = ({
 }) => {
   if (!Array.isArray(events)) return;
   const batchSuffix = getBatchSuffix(targetKind);
+  const graph: GraphMaps = { edgeMap, nodeMap, triggers };
+  const trigger = (value: TopologyTrigger) => addTrigger({ ...graph, trigger: value });
 
   for (const event of events) {
     if (event.type === 'http-api-gateway' && event.properties?.httpApiGatewayName) {
@@ -627,10 +816,18 @@ const addEventEdges = ({
             : `Synchronous invocation: for matching routes, the gateway invokes the target and returns its response to the caller.${batchSuffix}`
       });
       addAuthorizerEdges({
-        edgeMap,
-        nodeMap,
+        ...graph,
         gatewayId: event.properties.httpApiGatewayName,
         authorizer: event.properties.authorizer
+      });
+      const method = event.properties.method === '*' || !event.properties.method ? 'ANY' : event.properties.method;
+      const path = event.properties.path ?? '/';
+      trigger({
+        from: event.properties.httpApiGatewayName,
+        to: nodeId,
+        semantic: 'request',
+        summary: `${method} ${path}`,
+        route: { method, path, authorizer: getAuthorizerName(event.properties.authorizer) }
       });
     }
 
@@ -644,6 +841,12 @@ const addEventEdges = ({
         semantic: 'request',
         description: `The gateway keeps each client connection open and invokes the function for the ${event.properties.routeKey ?? 'configured'} route; the function can reply or push messages back through the connection.`
       });
+      trigger({
+        from: gatewayId,
+        to: nodeId,
+        semantic: 'request',
+        summary: `route ${typeof event.properties.routeKey === 'string' ? event.properties.routeKey : '$default'}`
+      });
       if (event.properties.authorizer?.type === 'lambda' && event.properties.authorizer.properties?.functionName) {
         addEdge({
           edgeMap,
@@ -654,6 +857,12 @@ const addEventEdges = ({
           semantic: 'security',
           description:
             'When a client opens a connection, the gateway calls this function and accepts the connection only if the function allows it.'
+        });
+        trigger({
+          from: gatewayId,
+          to: event.properties.authorizer.properties.functionName,
+          semantic: 'security',
+          summary: 'authorizer'
         });
       }
     }
@@ -669,6 +878,12 @@ const addEventEdges = ({
         description:
           'Synchronous resolver: AppSync invokes the function to resolve this GraphQL field and returns its result in the query response.'
       });
+      trigger({
+        from: event.properties.appsyncApiName,
+        to: nodeId,
+        semantic: 'request',
+        summary: typeof event.properties.field === 'string' ? event.properties.field : 'resolver'
+      });
     }
 
     if (event.type === 'application-load-balancer' || event.type === 'network-load-balancer') {
@@ -683,6 +898,24 @@ const addEventEdges = ({
           semantic: 'request',
           description: `Synchronous forwarding: the load balancer routes matching requests to this target and returns its response.${batchSuffix}`
         });
+        if (event.type === 'network-load-balancer') {
+          trigger({
+            from: loadBalancerName,
+            to: nodeId,
+            semantic: 'request',
+            summary: event.properties.listenerPort ? `port ${event.properties.listenerPort}` : 'TCP'
+          });
+        } else {
+          const method = joinList(event.properties.methods) ?? 'ANY';
+          const path = joinList(event.properties.paths) ?? '/*';
+          trigger({
+            from: loadBalancerName,
+            to: nodeId,
+            semantic: 'request',
+            summary: `${method} ${path}`,
+            route: { method, path }
+          });
+        }
       }
     }
 
@@ -696,6 +929,7 @@ const addEventEdges = ({
         semantic: 'event',
         description: `Asynchronous, pull-based: the Lambda service polls the queue and invokes the target with batches of messages. Failed batches are retried.${batchSuffix}`
       });
+      trigger({ from: event.properties.sqsQueueName, to: nodeId, semantic: 'event', summary: 'poll' });
     }
 
     if (event.type === 'sns' && event.properties?.snsTopicName) {
@@ -708,6 +942,7 @@ const addEventEdges = ({
         semantic: 'event',
         description: `Asynchronous, push-based: the topic delivers each published message to this subscriber immediately (fan-out to all subscribers).${batchSuffix}`
       });
+      trigger({ from: event.properties.snsTopicName, to: nodeId, semantic: 'event', summary: 'push' });
     }
 
     if (event.type === 'kinesis-stream' && event.properties?.kinesisStreamName) {
@@ -720,6 +955,7 @@ const addEventEdges = ({
         semantic: 'event',
         description: `Asynchronous stream consumption: the target reads records from the stream in order, in batches.${batchSuffix}`
       });
+      trigger({ from: event.properties.kinesisStreamName, to: nodeId, semantic: 'event', summary: 'stream' });
     }
 
     if (event.type === 'kafka-topic' && event.properties?.kafkaClusterName) {
@@ -731,6 +967,12 @@ const addEventEdges = ({
         label: 'stream',
         semantic: 'event',
         description: `Asynchronous stream consumption: the Lambda service reads the ${event.properties.topicName ?? 'configured'} topic and invokes the function with batches of records.`
+      });
+      trigger({
+        from: event.properties.kafkaClusterName,
+        to: nodeId,
+        semantic: 'event',
+        summary: event.properties.topicName ? `topic ${event.properties.topicName}` : 'stream'
       });
     }
 
@@ -748,6 +990,7 @@ const addEventEdges = ({
           semantic: 'event',
           description: `Asynchronous change data capture: every table change is streamed to the target in order.${batchSuffix}`
         });
+        trigger({ from: tableId, to: nodeId, semantic: 'event', summary: 'stream' });
       }
     }
 
@@ -760,6 +1003,13 @@ const addEventEdges = ({
         label: 'event',
         semantic: 'event',
         description: `Asynchronous event routing: events matching this target’s rule are delivered to it by the bus.${batchSuffix}`
+      });
+      const detailTypes = joinList(event.properties.eventPattern?.['detail-type']);
+      trigger({
+        from: event.properties.eventBusName,
+        to: nodeId,
+        semantic: 'event',
+        summary: detailTypes ? `event ${detailTypes}` : 'event'
       });
     }
 
@@ -774,11 +1024,17 @@ const addEventEdges = ({
           semantic: 'event',
           description: `Asynchronous trigger: bucket events (uploads, deletions) invoke the target with details of the affected object.${batchSuffix}`
         });
+        trigger({
+          from: bucketId,
+          to: nodeId,
+          semantic: 'event',
+          summary: typeof event.properties.s3EventType === 'string' ? event.properties.s3EventType : 'trigger'
+        });
       }
     }
 
     if (event.type === 'schedule') {
-      addScheduleEdge({ edgeMap, nodeMap, nodeId, event, targetKind });
+      addScheduleEdge({ ...graph, nodeId, event, targetKind });
     }
   }
 };
@@ -846,6 +1102,7 @@ const CDN_ORIGIN_FIELDS: Record<string, string> = {
 const addCdnInFront = ({
   edgeMap,
   nodeMap,
+  triggers,
   owner,
   originId,
   cdn
@@ -895,11 +1152,23 @@ const addCdnInFront = ({
         semantic: 'request',
         description: `Requests matching ${rewrite.path ?? 'this route'} are forwarded to this origin instead of the default one.`
       });
+      addTrigger({
+        edgeMap,
+        nodeMap,
+        triggers,
+        trigger: {
+          from: cdnId,
+          to: target,
+          semantic: 'request',
+          summary: rewrite.path ?? 'route rewrite',
+          route: typeof rewrite.path === 'string' ? { method: 'ANY', path: rewrite.path } : undefined
+        }
+      });
     }
-    addEdgeFunctionEdges({ edgeMap, nodeMap, cdnId, edgeFunctions: rewrite?.edgeFunctions });
+    addEdgeFunctionEdges({ edgeMap, nodeMap, triggers, cdnId, edgeFunctions: rewrite?.edgeFunctions });
   }
-  addEdgeFunctionEdges({ edgeMap, nodeMap, cdnId, edgeFunctions: cdn.edgeFunctions });
-  addFirewallEdge({ edgeMap, nodeMap, firewallName: cdn.useFirewall, protectedId: cdnId });
+  addEdgeFunctionEdges({ edgeMap, nodeMap, triggers, cdnId, edgeFunctions: cdn.edgeFunctions });
+  addFirewallEdge({ edgeMap, nodeMap, triggers, firewallName: cdn.useFirewall, protectedId: cdnId });
 };
 
 // Per-service implicit ingress created by web-service `loadBalancing`. In v4 every
@@ -1041,7 +1310,8 @@ export const buildDiagramTopology = ({
   const resources = parsedConfig.resources as Record<string, any>;
   const nodeMap = new Map<string, TopologyNode>();
   const edgeMap = new Map<string, TopologyEdge>();
-  const graph: GraphMaps = { edgeMap, nodeMap };
+  const triggers: TopologyTrigger[] = [];
+  const graph: GraphMaps = { edgeMap, nodeMap, triggers };
 
   const resourceEntries = Object.entries(resources).filter(([, resource]) => resource?.type);
   const customResourceInstances = new Map<string, number>();
@@ -1363,6 +1633,10 @@ export const buildDiagramTopology = ({
         semantic: 'request',
         description: 'A direct public HTTPS endpoint that synchronously invokes the function and returns its response.'
       });
+      addTrigger({
+        ...graph,
+        trigger: { from: 'user', to: node.id, semantic: 'request', summary: 'Function URL' }
+      });
     }
 
     // ── AppSync: sign-in through a user pool ──
@@ -1411,6 +1685,15 @@ export const buildDiagramTopology = ({
           semantic: 'request',
           description:
             'Synchronous tool call: when an agent calls this MCP tool, the gateway invokes the function and returns its result.'
+        });
+        addTrigger({
+          ...graph,
+          trigger: {
+            from: node.id,
+            to: tool.function,
+            semantic: 'request',
+            summary: `tool ${typeof tool.name === 'string' ? tool.name : tool.function}`
+          }
         });
       }
     }
@@ -1508,10 +1791,21 @@ export const buildDiagramTopology = ({
     }
   }
 
-  // Phase 6: Finalize
+  // Phase 6: Declared triggers the diagram cannot draw. Grouping tells functions apart by them, and the panel lists them.
+  for (const node of userNodes) {
+    if (node.resourceType !== 'function' && node.resourceType !== 'batch-job') continue;
+    const events = getField(resources[node.id], 'events');
+    const undrawn = (Array.isArray(events) ? events : [])
+      .map(describeDeclaredTrigger)
+      .filter(({ sourceId }) => !sourceId || !nodeMap.has(sourceId))
+      .map(({ key, name, type, text }) => ({ key, name, type, text: `${text} (not drawn)` }));
+    if (undrawn.length > 0) nodeMap.set(node.id, { ...node, undrawnTriggers: undrawn });
+  }
+
+  // Phase 7: Finalize
   const nodes = Array.from(nodeMap.values());
   const edges = Array.from(edgeMap.values());
   const hasVpc = nodes.some((node) => node.subnet !== null);
 
-  return { nodes, edges, hasVpc, hasPublicIngress };
+  return { nodes, edges, triggers, hasVpc, hasPublicIngress };
 };
