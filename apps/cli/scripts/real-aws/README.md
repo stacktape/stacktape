@@ -140,8 +140,8 @@ web service whose health check needs the table its release command creates, a wo
 from outside what ran and which release serves: a first deploy, a skipped command, a migration on the fast path, failing
 commands on both paths, a failure after the command, `stacktape rollback`, concurrent deploys that wait for each other,
 a deploy right after a killed one on both a regular and a code-swap stack (it waits for the lock and for the killed
-deploy's command), a timeout, adding and removing the setting, `--skipReleaseCommand`, and a deploy that races a stack
-delete.
+deploy's command), a code-swap repair cancelled with Ctrl+C and repaired again by the next deploy, a timeout, adding and
+removing the setting, `--skipReleaseCommand`, and a deploy that races a stack delete.
 
 The `lock` stack (`_test-stacks/stack-lock`, one function) covers the stack lock in about 20 minutes: racing first
 deploys of a new stage, fast and CloudFormation deploys, a rollback and a delete that wait for a running deploy, Ctrl+C
