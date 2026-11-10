@@ -593,6 +593,8 @@
 
   .stp-ui-tabs__indicator {
     position: absolute;
+    top: 0;
+    left: 0;
     z-index: 0;
     box-sizing: border-box;
     border: var(--stp-tab-indicator-border, 1px solid transparent);
@@ -606,14 +608,13 @@
     );
     pointer-events: none;
     /* An easing without overshoot: the indicator slides and stops inside the bar instead of springing past its
-       ends. */
+       ends. It moves by transform; only its own size changes layout. Its first place is taken without motion. */
     transition:
-      left 250ms cubic-bezier(0.2, 0, 0, 1),
-      top 250ms cubic-bezier(0.2, 0, 0, 1),
-      width 250ms cubic-bezier(0.2, 0, 0, 1),
-      height 250ms cubic-bezier(0.2, 0, 0, 1),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing-out),
+      width var(--stp-motion-duration-base) var(--stp-motion-easing-out),
+      height var(--stp-motion-duration-base) var(--stp-motion-easing-out),
       opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
-    will-change: left, top, width, height;
+    will-change: transform;
   }
 
   .stp-ui-tab {
@@ -1378,6 +1379,7 @@
     overflow: hidden;
     background: var(--stp-dialog-overlay, rgba(12, 16, 16, 0.78));
     backdrop-filter: blur(8px);
+    animation: stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out);
   }
 
   /* A column: the body scrolls and the action row stays pinned under it, so a dialog taller than
@@ -1399,6 +1401,9 @@
     background: var(--stp-dialog-background, var(--stp-surface-modal));
     color: var(--stp-text-primary);
     box-shadow: var(--stp-dialog-shadow, 0 24px 64px rgba(0, 0, 0, 0.5));
+    /* A dialog fades in as the page behind it dims. Opacity only: what measures the dialog as it opens (a list placed
+       under its field, a test) sees its final size and place. */
+    animation: stp-ui-fade-in var(--stp-motion-duration-base) var(--stp-motion-easing-out);
   }
 
   .stp-ui-dialog__backdrop {
@@ -1662,6 +1667,8 @@
     border-radius: 999px;
     color: var(--stp-linear-loader-color);
     opacity: 0;
+    /* It comes and goes quietly rather than blinking. */
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
   .stp-ui-linear-loader::before,
@@ -1699,7 +1706,9 @@
     }
 
     .stp-ui-switch__thumb,
-    .stp-ui-linear-loader::after {
+    .stp-ui-linear-loader::after,
+    .stp-ui-dialog__overlay,
+    .stp-ui-dialog {
       animation: none;
     }
   }
@@ -1722,6 +1731,12 @@
 @keyframes stp-ui-switch-busy {
   50% {
     opacity: 0.6;
+  }
+}
+
+@keyframes stp-ui-fade-in {
+  from {
+    opacity: 0;
   }
 }
 

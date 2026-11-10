@@ -37,11 +37,13 @@ type IndicatorGeometry = {
   height: number;
   left: number;
   ready: boolean;
+  /** Whether the indicator glides to this place. Its first place is taken at once, so a page opens without motion. */
+  moves: boolean;
   top: number;
   width: number;
 };
 
-const hiddenIndicator: IndicatorGeometry = { height: 0, left: 0, ready: false, top: 0, width: 0 };
+const hiddenIndicator: IndicatorGeometry = { height: 0, left: 0, ready: false, moves: false, top: 0, width: 0 };
 
 /**
  * The selected surface that slides to the active item: the one Tabs draws, for navigation lists that are not tabs
@@ -77,21 +79,20 @@ export function SlidingIndicator({
     }
     const containerBox = container.getBoundingClientRect();
     const targetBox = target.getBoundingClientRect();
-    const next: IndicatorGeometry = {
+    const next = {
       height: targetBox.height,
       left: targetBox.left - containerBox.left - container.clientLeft + container.scrollLeft,
-      ready: true,
       top: targetBox.top - containerBox.top - container.clientTop + container.scrollTop,
       width: targetBox.width
     };
     setIndicator((current) =>
+      current.ready &&
       current.height === next.height &&
       current.left === next.left &&
-      current.ready === next.ready &&
       current.top === next.top &&
       current.width === next.width
         ? current
-        : next
+        : { ...next, ready: true, moves: current.ready }
     );
   }, [activeKey, containerRef]);
 
@@ -123,10 +124,10 @@ export function SlidingIndicator({
       style={{
         ...style,
         height: indicator.height,
-        left: indicator.left,
+        width: indicator.width,
         opacity: indicator.ready ? 1 : 0,
-        top: indicator.top,
-        width: indicator.width
+        transform: `translate(${indicator.left}px, ${indicator.top}px)`,
+        ...(!indicator.moves && { transition: 'none' })
       }}
     />
   );

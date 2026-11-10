@@ -36,6 +36,7 @@
   --stp-motion-duration-fast: 150ms;
   --stp-motion-duration-base: 250ms;
   --stp-motion-easing: ease;
+  --stp-motion-easing-out: cubic-bezier(0.2, 0, 0, 1);
   --stp-space-4: 4px;
   --stp-space-8: 8px;
   --stp-space-12: 12px;
