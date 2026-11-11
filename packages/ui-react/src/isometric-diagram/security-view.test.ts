@@ -1,12 +1,13 @@
 import type { ProjectedBox } from './layout/projected-box.js';
-import type { IsoScene, IsoSecurityRule, IsoTilePoint } from './scene.js';
+import type { IsoScene } from './scene.js';
 import type { DiagramLayers } from './views.js';
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { findRoleGroups } from './grouping.js';
-import { BODY_SHAPES, nodeShapes } from './layout/diagram-layout.js';
+import { nodeShapes } from './layout/diagram-layout.js';
 import { boxOverlapArea, projectTile, shiftBox } from './layout/projected-box.js';
+import { ACCESS_TAG_HEIGHT_PX, getAccessTagWidthPx } from './node-appearance.js';
 import { buildDiagramModel, diagramFrame, measureChip, selectDiagramView } from './scene-builder.js';
 import { buildSecurityGroupModel } from './security-groups.js';
 import { buildDiagramTopology } from './topology.js';
@@ -22,12 +23,13 @@ const templateNames = readdirSync(TEMPLATES)
   .map((file) => file.replace(/\.json$/, ''))
   .sort();
 
+const INFRASTRUCTURE: DiagramLayers = { infrastructure: true, access: false };
 const ACCESS: DiagramLayers = { infrastructure: false, access: true };
-const COMBINATIONS = [NO_LAYERS, { infrastructure: true, access: false }, ACCESS, ALL_LAYERS];
+const COMBINATIONS = [NO_LAYERS, INFRASTRUCTURE, ACCESS, ALL_LAYERS];
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`${name}.json`, TEMPLATES), 'utf8'));
 
-const securityScene = ({
+const accessScene = ({
   name,
   layers = ALL_LAYERS,
   expand = false
@@ -45,216 +47,177 @@ const securityScene = ({
   return { model, scene: selectDiagramView({ model, layers, security: buildSecurityGroupModel(fixture) }) };
 };
 
-const groupOn = (scene: IsoScene, name: string) => {
-  const group = scene.securityGroups?.find((candidate) => candidate.name === name);
-  if (!group)
-    throw new Error(`No group ${name}: ${scene.securityGroups?.map((candidate) => candidate.name).join(', ')}`);
-  return group;
+/** Every tag in the scene as "reach: text", by node. */
+const tagsOf = (scene: IsoScene) =>
+  Object.fromEntries(
+    scene.nodes.flatMap((node) => (node.access ? [[node.id, `${node.access.reach}: ${node.access.text}`]] : []))
+  );
+
+const nodeOf = (scene: IsoScene, nodeId: string) => {
+  const node = scene.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) throw new Error(`No node ${nodeId}: ${scene.nodes.map((candidate) => candidate.id).join(', ')}`);
+  return node;
 };
 
-const rulesInto = (scene: IsoScene, to: string) =>
-  (scene.securityRules ?? [])
-    .filter((rule) => rule.to === to)
-    .map(({ from, source, label }) => ({ from, source, label }))
-    .sort((a, b) => `${a.source}${a.label}`.localeCompare(`${b.source}${b.label}`));
-
 const inboundOf = (scene: IsoScene, nodeId: string) =>
-  scene.nodes.find((node) => node.id === nodeId)?.securityGroups?.flatMap((group) => group.inbound) ?? [];
+  nodeOf(scene, nodeId).securityGroups?.flatMap((group) => group.inbound) ?? [];
 
-type Outline = { from: IsoTilePoint; to: IsoTilePoint };
-const inside = (inner: Outline, outer: Outline) =>
-  inner.from.x > outer.from.x && inner.from.y > outer.from.y && inner.to.x < outer.to.x && inner.to.y < outer.to.y;
+const groupNamesOf = (scene: IsoScene, nodeId: string) =>
+  nodeOf(scene, nodeId).securityGroups?.map((group) => group.name) ?? [];
 
-const footprintOf = (tile: IsoTilePoint) => ({
-  x0: tile.x - 0.66,
-  x1: tile.x + 0.66,
-  y0: tile.y - 0.66,
-  y1: tile.y + 0.66
-});
-
-/** Whether an axis-aligned route segment passes through a footprint. */
-const crosses = (start: IsoTilePoint, end: IsoTilePoint, box: ReturnType<typeof footprintOf>) =>
-  Math.max(start.x, end.x) > box.x0 + 1e-6 &&
-  Math.min(start.x, end.x) < box.x1 - 1e-6 &&
-  Math.max(start.y, end.y) > box.y0 + 1e-6 &&
-  Math.min(start.y, end.y) < box.y1 - 1e-6;
-
-describe('security view of real templates', () => {
-  test('database accessibility: the internet, the VPC, a CIDR and a connecting service', () => {
-    const { scene } = securityScene({ name: 'database-accessibility' });
-
-    expect(rulesInto(scene, 'publicDb')).toEqual([
-      { from: undefined, source: 'internet', label: '0.0.0.0/0 · TCP 5432' }
-    ]);
-    expect(rulesInto(scene, 'vpcDb')).toEqual([{ from: undefined, source: 'address', label: 'whole VPC · TCP 5432' }]);
-    expect(rulesInto(scene, 'scopedDb')).toEqual([
-      { from: undefined, source: 'address', label: '203.0.113.10/32 · TCP 5432' },
-      { from: 'web', source: 'group', label: 'TCP 5432' }
-    ]);
-    // The rule follows the service's connectTo connector and takes its place.
-    expect(scene.connectors.some((edge) => edge.from === 'web' && edge.to === 'scopedDb')).toBe(false);
-
-    // A VPC Link's rule gets its own arrow: users reach the API endpoint, not the link, so the HTTPS connector stays.
-    expect(rulesInto(scene, 'web--gw')).toEqual([
-      { from: undefined, source: 'internet', label: '0.0.0.0/0 · TCP 3000' }
-    ]);
-    expect(scene.connectors.some((edge) => edge.from === 'user' && edge.to === 'web--gw')).toBe(true);
-    expect(rulesInto(scene, 'web')).toEqual([{ from: 'web--gw', source: 'group', label: 'TCP 3000' }]);
+describe('tags of real templates', () => {
+  test('database accessibility: the internet, the VPC, an address and a connecting service', () => {
+    const { scene } = accessScene({ name: 'database-accessibility' });
+    expect(tagsOf(scene)).toEqual({
+      publicDb: 'exposed: Open to the internet',
+      vpcDb: 'limited: Anything in the VPC',
+      scopedDb: 'limited: Only web + 203.0.113.10',
+      web: 'limited: Only web GW',
+      // The gateway's VPC Link group says who the link lets in, not who reaches the gateway: the user's connector does.
+      'web--gw': 'public: Public'
+    });
+    // A function in the VPC carries a group that lets nothing in, so it gets no tag.
+    expect(groupNamesOf(scene, 'reports')).toEqual(['VPC functions SG']);
+    expect(nodeOf(scene, 'reports').access).toBeUndefined();
+    expect(nodeOf(scene, 'scopedDb').access?.sources).toEqual(['web']);
 
     expect(inboundOf(scene, 'scopedDb')).toEqual(['Allows TCP 5432 from web', 'Allows TCP 5432 from 203.0.113.10/32']);
-    expect(scene.nodes.find((node) => node.id === 'scopedDb')?.securityGroups?.[0]?.outbound).toEqual([
+    expect(nodeOf(scene, 'scopedDb').securityGroups?.[0]?.outbound).toEqual([
       'Allows all outbound traffic (the AWS default)'
     ]);
     expect(inboundOf(scene, 'publicDb')).toEqual(['Allows TCP 5432 from the internet (0.0.0.0/0)']);
     expect(inboundOf(scene, 'vpcDb')).toEqual(['Allows TCP 5432 from the whole VPC (172.16.0.0/16)']);
-    expect(groupOn(scene, 'VPC functions SG').memberNodeIds).toEqual(['reports']);
-    expect(groupOn(scene, 'web VPC Link SG').memberNodeIds).toEqual(['web--gw']);
+    expect(groupNamesOf(scene, 'web--gw')).toEqual(['web VPC Link SG']);
   });
 
-  test('load balancers: the internet reaches them on the user’s connector, and they reach their service', () => {
-    const { scene } = securityScene({ name: 'http-api-vpc-link' });
-    expect(rulesInto(scene, 'albWeb--alb')).toEqual([
-      { from: 'user', source: 'internet', label: '0.0.0.0/0 · TCP 80, 443' }
-    ]);
-    expect(rulesInto(scene, 'albWeb')).toEqual([{ from: 'albWeb--alb', source: 'group', label: 'TCP 3000' }]);
-    expect(rulesInto(scene, 'tcpWeb')).toEqual([{ from: 'tcpWeb--nlb', source: 'group', label: 'TCP 5000' }]);
-    expect(rulesInto(scene, 'app')).toEqual([{ from: 'api', source: 'group', label: 'TCP 8080' }]);
-    expect(groupOn(scene, 'albWeb LB SG').memberNodeIds).toEqual(['albWeb--alb']);
+  test('load balancers are public and their services admit only them', () => {
+    const { scene } = accessScene({ name: 'http-api-vpc-link' });
+    expect(tagsOf(scene)).toEqual({
+      api: 'public: Public',
+      app: 'limited: Only api',
+      'albWeb--alb': 'public: Public',
+      albWeb: 'limited: Only albWeb ALB',
+      'tcpWeb--nlb': 'public: Public',
+      tcpWeb: 'limited: Only tcpWeb NLB'
+    });
     expect(inboundOf(scene, 'albWeb')).toEqual(['Allows TCP 3000 from albWeb ALB']);
   });
 
-  test('shared network: a node in two groups gets two outlines, one inside the other', () => {
-    const { scene } = securityScene({ name: 'shared-network-stage' });
-    const outlinesAround = (nodeId: string) =>
-      (scene.securityGroups ?? [])
-        .filter((group) => group.memberNodeIds.includes(nodeId))
-        .flatMap((group) => group.outlines)
-        .filter((outline) => {
-          const tile = scene.nodes.find((node) => node.id === nodeId)?.tile as IsoTilePoint;
-          return outline.from.x < tile.x && tile.x < outline.to.x && outline.from.y < tile.y && tile.y < outline.to.y;
-        });
-    const around = outlinesAround('api');
-    expect(around).toHaveLength(2);
-    const [a, b] = around;
-    expect(inside(a, b) || inside(b, a)).toBe(true);
+  test('without the Infrastructure layer, a service drawn with its load balancer is public itself', () => {
+    const { scene } = accessScene({ name: 'http-api-vpc-link', layers: ACCESS });
+    expect(tagsOf(scene)).toEqual({
+      api: 'public: Public',
+      app: 'limited: Only api',
+      albWeb: 'public: Public',
+      tcpWeb: 'public: Public'
+    });
+    expect(groupNamesOf(scene, 'albWeb')).toEqual(['albWeb SG', 'albWeb LB SG']);
+  });
 
-    // The load balancer admits the stage's group: one arrow from that group's outline, routed because no member has a
-    // connector to the balancer.
-    const intoBalancer = (scene.securityRules ?? []).filter((rule) => rule.toGroup === 'InternalLbLbSecurityGroup');
-    expect(intoBalancer.map(({ fromGroup, source, label }) => ({ fromGroup, source, label }))).toEqual([
-      { fromGroup: 'StpStageNetworkSecurityGroup', source: 'group', label: 'TCP 80, 443' }
-    ]);
-    const [arrow] = intoBalancer;
-    const stage = groupOn(scene, 'Stage network SG');
-    const start = arrow.route.points[0];
-    const onBoundary = stage.outlines.some(
-      (outline) =>
-        start.x >= outline.from.x - 1e-3 &&
-        start.x <= outline.to.x + 1e-3 &&
-        start.y >= outline.from.y - 1e-3 &&
-        start.y <= outline.to.y + 1e-3 &&
-        [outline.from.x, outline.to.x].some((x) => Math.abs(start.x - x) < 1e-3) !==
-          [outline.from.y, outline.to.y].some((y) => Math.abs(start.y - y) < 1e-3)
-    );
-    expect(onBoundary).toBe(true);
-    expect(rulesInto(scene, 'orders')).toEqual([{ from: 'api', source: 'group', label: 'TCP 5432' }]);
+  test('shared network: a group several resources carry lets the others in, not the node itself', () => {
+    const { scene } = accessScene({ name: 'shared-network-stage' });
+    expect(tagsOf(scene)).toEqual({ orders: 'limited: Only api', internalLb: 'limited: Only api, cron' });
+    expect(nodeOf(scene, 'internalLb').access?.sources).toEqual(['api', 'cron']);
     expect(inboundOf(scene, 'internalLb')).toEqual(['Allows TCP 80, 443 from internalLb, api, cron']);
+    expect(groupNamesOf(scene, 'api')).toHaveLength(2);
   });
 
-  test('a group defined outside the stack is marked, and its rules are not guessed', () => {
-    const { scene } = securityScene({ name: 'shared-network-no-access' });
-    const external = groupOn(scene, 'external sg-0noaccess');
-    expect(external.external).toBe(true);
-    expect(external.memberNodeIds).toEqual(['cron']);
-    expect(scene.nodes.find((node) => node.id === 'cron')?.securityGroups).toEqual([
-      expect.objectContaining({ external: true, inbound: [], outbound: [] })
+  test('a group defined outside the stack is listed, and its rules are not guessed', () => {
+    const { scene } = accessScene({ name: 'shared-network-no-access' });
+    expect(nodeOf(scene, 'cron').securityGroups).toEqual([
+      { id: expect.any(String), name: 'external sg-0noaccess', external: true, inbound: [], outbound: [] }
     ]);
+    expect(nodeOf(scene, 'cron').access).toBeUndefined();
   });
 
-  test('private network: an EFS mount and an internal load balancer', () => {
-    const { scene } = securityScene({ name: 'private-network' });
-    expect(rulesInto(scene, 'files')).toEqual([{ from: 'worker', source: 'group', label: 'TCP 2049' }]);
-    expect(rulesInto(scene, 'cache')).toEqual([{ from: 'worker', source: 'group', label: 'TCP 6379' }]);
-    expect(rulesInto(scene, 'internalApi--alb')).toEqual([
-      { from: undefined, source: 'address', label: 'whole VPC · TCP 3000' }
-    ]);
+  test('private network: a file system, a cache and an internal load balancer', () => {
+    const { scene } = accessScene({ name: 'private-network' });
+    expect(tagsOf(scene)).toEqual({
+      files: 'limited: Only worker',
+      cache: 'limited: Only worker',
+      'internalApi--alb': 'limited: Anything in the VPC',
+      internalApi: 'limited: Only internalApi ALB'
+    });
+    // A worker lets nothing in.
+    expect(nodeOf(scene, 'worker').access).toBeUndefined();
   });
 
-  test('a collapsed role group carries its members’ groups; expanded, members drawn together share an outline', () => {
-    const collapsed = securityScene({ name: 'lambda-vpc' }).scene;
+  test('a collapsed role group is named as one source; expanded, its members are', () => {
+    const collapsed = accessScene({ name: 'lambda-vpc' }).scene;
     const deck = collapsed.nodes.find((node) => node.memberCount)?.id as string;
-    expect(groupOn(collapsed, 'VPC functions SG → cache').memberNodeIds).toEqual([deck]);
-    expect(groupOn(collapsed, 'VPC functions SG').memberNodeIds).toEqual([deck]);
-    expect(rulesInto(collapsed, 'cache')).toEqual([{ from: deck, source: 'group', label: 'TCP 6379' }]);
+    expect(tagsOf(collapsed)).toEqual({
+      searchDomain: 'limited: Anything in the VPC',
+      cache: 'limited: Only Functions'
+    });
+    expect(nodeOf(collapsed, 'cache').access?.sources).toEqual([deck]);
+    expect(groupNamesOf(collapsed, deck)).toEqual(['VPC functions SG → cache', 'VPC functions SG']);
 
-    const expanded = securityScene({ name: 'lambda-vpc', expand: true }).scene;
-    const shared = groupOn(expanded, 'VPC functions SG → cache');
-    expect(shared.memberNodeIds).toEqual(['search', 'indexer']);
-    expect(shared.outlines).toHaveLength(1);
-    // One arrow for the group, not one per function; it follows the first member's connector.
-    expect(rulesInto(expanded, 'cache')).toEqual([{ from: 'search', source: 'group', label: 'TCP 6379' }]);
-    expect(expanded.connectors.some((edge) => edge.from === 'indexer' && edge.to === 'cache')).toBe(true);
+    const expanded = accessScene({ name: 'lambda-vpc', expand: true }).scene;
+    expect(tagsOf(expanded).cache).toBe('limited: Only search, indexer');
   });
 
-  test('batch jobs join their compute environment’s group; the NAT instance shows with the Infrastructure layer', () => {
-    const plain = securityScene({ name: 'batch-bastion-nat-instance', layers: ACCESS }).scene;
-    expect(groupOn(plain, 'Batch instances SG').memberNodeIds).toEqual(['importer']);
-    expect(plain.securityGroups?.some((group) => group.name === 'NAT instances SG')).toBe(false);
-    expect(rulesInto(plain, 'db')).toEqual([
-      { from: 'agent', source: 'group', label: 'TCP 5432' },
-      { from: 'importer', source: 'group', label: 'TCP 5432' }
-    ]);
+  test('batch jobs join their compute environment’s group; a NAT instance gets no tag', () => {
+    const plain = accessScene({ name: 'batch-bastion-nat-instance', layers: ACCESS }).scene;
+    expect(groupNamesOf(plain, 'importer')).toContain('Batch instances SG');
+    expect(tagsOf(plain)).toEqual({ db: 'limited: Only importer, agent' });
 
-    const withNetwork = securityScene({
-      name: 'batch-bastion-nat-instance',
-      layers: ALL_LAYERS
-    }).scene;
-    expect(groupOn(withNetwork, 'NAT instances SG').memberNodeIds).toEqual(['nat-gateway']);
-    expect(rulesInto(withNetwork, 'nat-gateway')).toEqual([
-      { from: undefined, source: 'address', label: 'whole VPC · all traffic' }
-    ]);
+    const withNetwork = accessScene({ name: 'batch-bastion-nat-instance' }).scene;
+    expect(groupNamesOf(withNetwork, 'nat-gateway')).toEqual(['NAT instances SG']);
+    expect(tagsOf(withNetwork)).toEqual({ db: 'limited: Only importer, agent' });
   });
 
-  test('Convex: the dashboard carries its own group, apart from the backend’s', () => {
-    const { scene } = securityScene({ name: 'convex' });
-    expect(groupOn(scene, 'app dashboard SG').memberNodeIds).toEqual(['app--dashboard']);
-    expect(groupOn(scene, 'app SG').memberNodeIds).toEqual(['app']);
+  test('Convex: each part has its own tag; drawn as one node, the service is public and not an open database', () => {
+    const { scene } = accessScene({ name: 'convex' });
+    expect(tagsOf(scene)).toEqual({
+      'app--alb': 'public: Public',
+      app: 'limited: Only app ALB',
+      'app--dashboard': 'limited: Only app ALB',
+      'app--db': 'limited: Only app'
+    });
     expect(inboundOf(scene, 'app--dashboard')).toEqual(['Allows TCP 6791 from app ALB']);
     expect(inboundOf(scene, 'app')).toEqual(['Allows TCP 3210, 3211 from app ALB']);
-    expect(rulesInto(scene, 'app--dashboard')).toEqual([{ from: 'app--alb', source: 'group', label: 'TCP 6791' }]);
-    expect(rulesInto(scene, 'app')).toEqual([{ from: 'app--alb', source: 'group', label: 'TCP 3210, 3211' }]);
-    expect(rulesInto(scene, 'app--db')).toEqual([{ from: 'app', source: 'group', label: 'TCP 5432' }]);
-    expect(rulesInto(scene, 'app--alb')).toEqual([
-      { from: 'user', source: 'internet', label: '0.0.0.0/0 · TCP 3210, 3211, 6791' }
-    ]);
+
+    expect(tagsOf(accessScene({ name: 'convex', layers: ACCESS }).scene)).toEqual({ app: 'public: Public' });
   });
 
-  test('each whitelisted address gets its own arrow with its own port', () => {
-    const { scene } = securityScene({ name: 'alb-whitelisted-listeners' });
-    const into = (scene.securityRules ?? []).filter((rule) => rule.to === 'edge');
-    expect(into.map(({ source, label }) => ({ source, label }))).toEqual([
-      { source: 'address', label: '198.51.100.20/32 · TCP 8080' },
-      { source: 'address', label: '203.0.113.10/32 · TCP 80' }
-    ]);
-    expect(new Set(into.map(({ id }) => id)).size).toBe(2);
+  test('whitelisted addresses are counted on the tag and listed with their ports in the panel', () => {
+    const { scene } = accessScene({ name: 'alb-whitelisted-listeners' });
+    // The user's connector reaches the load balancer, but its rules admit two addresses only.
+    expect(tagsOf(scene)).toEqual({ edge: 'limited: Only 2 IP addresses' });
     expect(inboundOf(scene, 'edge')).toEqual([
       'Allows TCP 80 from 203.0.113.10/32',
       'Allows TCP 8080 from 198.51.100.20/32'
     ]);
   });
-
-  test('without the Infrastructure layer, a load balancer’s group moves onto its service', () => {
-    const { scene } = securityScene({
-      name: 'http-api-vpc-link',
-      layers: ACCESS
-    });
-    expect(groupOn(scene, 'albWeb LB SG').memberNodeIds).toEqual(['albWeb']);
-    // The load balancer's rule into its own service would point at itself, so it is not drawn.
-    expect(rulesInto(scene, 'albWeb')).toEqual([
-      { from: 'user', source: 'internet', label: '0.0.0.0/0 · TCP 80, 443' }
-    ]);
-  });
 });
+
+describe('the layer only adds tags', () => {
+  for (const name of templateNames) {
+    test(`${name}: nodes, connectors and zones are the picture without the layer`, () => {
+      for (const expand of [false, true]) {
+        for (const infrastructure of [false, true]) {
+          const withLayer = accessScene({ name, expand, layers: { infrastructure, access: true } }).scene;
+          const without = accessScene({ name, expand, layers: { infrastructure, access: false } }).scene;
+          expect(withLayer.connectors).toEqual(without.connectors);
+          expect(withLayer.rectangles).toEqual(without.rectangles);
+          expect(withLayer.labels).toEqual(without.labels);
+          expect(withLayer.nodes.map(({ access: _access, securityGroups: _groups, ...node }) => node)).toEqual(
+            without.nodes
+          );
+          expect(without.nodes.some((node) => node.access || node.securityGroups)).toBe(false);
+        }
+      }
+    });
+  }
+});
+
+const tagBox = (text: string, tile: { x: number; y: number }): ProjectedBox => {
+  const { u, v } = projectTile(tile);
+  // A little inside the pill: touching edges are fine, covering is not.
+  const halfWidth = (getAccessTagWidthPx(text) / 2 / 40) * 0.9;
+  const halfHeight = (ACCESS_TAG_HEIGHT_PX / 2 / 20) * 0.9;
+  return { u0: u - halfWidth, u1: u + halfWidth, v0: v - halfHeight, v1: v + halfHeight };
+};
 
 describe('legibility over every template', () => {
   for (const name of templateNames) {
@@ -265,64 +228,48 @@ describe('legibility over every template', () => {
       [true, ACCESS]
     ] as const) {
       const variant = `${expand ? ' (expanded)' : ''}${layers.infrastructure ? '' : ' (without infrastructure)'}`;
-      test(`${name}${variant}: outlines hold their members, arrows avoid other nodes, text avoids bodies`, () => {
-        const { model, scene } = securityScene({ name, expand, layers });
-        const tiles = new Map(scene.nodes.map((node) => [node.id, node.tile]));
+      test(`${name}${variant}: a tag covers no other node, name, chip or tag, and stays by its node`, () => {
+        const { model, scene } = accessScene({ name, expand, layers });
+        const tagged = scene.nodes.filter((node) => node.access);
+        const tags = tagged.map((node) => ({
+          nodeId: node.id,
+          box: tagBox(node.access?.text ?? '', node.access?.tile ?? node.tile)
+        }));
 
-        for (const group of scene.securityGroups ?? []) {
-          for (const member of group.memberNodeIds) {
-            const box = footprintOf(tiles.get(member) as IsoTilePoint);
-            expect(
-              group.outlines.some(
-                (outline) =>
-                  outline.from.x < box.x0 && outline.to.x > box.x1 && outline.from.y < box.y0 && outline.to.y > box.y1
-              )
-            ).toBe(true);
-          }
-        }
-
-        const routed = (rule: IsoSecurityRule) =>
-          !scene.connectors.some((edge) => edge.route.points === rule.route.points) && rule.from;
-        for (const rule of scene.securityRules ?? []) {
-          expect(tiles.has(rule.to)).toBe(true);
-          if (rule.from) expect(tiles.has(rule.from)).toBe(true);
-          if (!routed(rule)) continue;
-          const points = rule.route.points;
+        for (const tag of tags) {
           for (const node of scene.nodes) {
-            if (node.id === rule.from || node.id === rule.to) continue;
-            const box = footprintOf(node.tile);
-            for (let index = 0; index + 1 < points.length; index++) {
-              expect(crosses(points[index], points[index + 1], box)).toBe(false);
+            if (node.id === tag.nodeId) continue;
+            const layoutNode = model.layoutNodes.get(node.id);
+            if (!layoutNode) continue;
+            const { u, v } = projectTile(node.tile);
+            for (const shape of nodeShapes(layoutNode)) {
+              expect(boxOverlapArea({ a: tag.box, b: shiftBox({ box: shape, u, v }) })).toBeLessThan(0.05);
             }
           }
+          for (const connector of scene.connectors) {
+            if (!connector.label) continue;
+            const size = measureChip(connector.label);
+            const { u, v } = projectTile(connector.route.labelTile);
+            const chip = {
+              u0: u - size.halfWidth,
+              u1: u + size.halfWidth,
+              v0: v - size.halfHeight,
+              v1: v + size.halfHeight
+            };
+            expect(boxOverlapArea({ a: tag.box, b: chip })).toBeLessThan(0.05);
+          }
+          for (const other of tags) {
+            if (other !== tag) expect(boxOverlapArea({ a: tag.box, b: other.box })).toBe(0);
+          }
         }
 
-        const bodies: ProjectedBox[] = scene.nodes.flatMap((node) => {
-          const layoutNode = model.layoutNodes.get(node.id);
-          if (!layoutNode) return [];
-          const { u, v } = projectTile(node.tile);
-          return nodeShapes(layoutNode)
-            .slice(0, BODY_SHAPES)
-            .map((box) => shiftBox({ box, u, v }));
-        });
-        const textBoxes = [
-          ...(scene.securityRules ?? []).map((rule) => {
-            const size = measureChip(rule.label);
-            const { u, v } = projectTile(rule.route.labelTile);
-            return { u0: u - size.halfWidth * 0.8, u1: u + size.halfWidth * 0.8, v0: v - 0.35, v1: v + 0.35 };
-          }),
-          ...(scene.securityGroups ?? []).flatMap((group) =>
-            group.outlines.flatMap((outline) => {
-              if (!outline.tab) return [];
-              const { u, v } = projectTile(outline.tab);
-              const half = (group.name.length * 6.2 + 14) / 2 / 40;
-              return [{ u0: u - half * 0.8, u1: u + half * 0.8, v0: v - 0.3, v1: v + 0.3 }];
-            })
-          )
-        ];
-        // A crowded spot may let a chip graze a body's corner, never cover it.
-        for (const text of textBoxes) {
-          for (const body of bodies) expect(boxOverlapArea({ a: text, b: body })).toBeLessThan(0.1);
+        // A tag belongs to the node under it: never farther than a few rows above, or a body's width to the side.
+        for (const node of tagged) {
+          const home = projectTile(node.tile);
+          const tag = projectTile(node.access?.tile ?? node.tile);
+          expect(tag.v).toBeGreaterThan(home.v);
+          expect(tag.v - home.v).toBeLessThan(6);
+          expect(Math.abs(tag.u - home.u)).toBeLessThan(3);
         }
       });
     }
@@ -378,41 +325,130 @@ const syntheticTemplate = ({
   };
 };
 
-describe('bounded work', () => {
-  test('a group admitting many addresses draws a few arrows and one more that names no ports', () => {
-    const cidrs = ['198.51.100.1/32', '198.51.100.2/32', '198.51.100.3/32', '198.51.100.4/32', '198.51.100.5/32'];
-    const { config, input } = syntheticTemplate({
-      functions: 1,
-      groups: [
-        {
-          id: 'Target',
-          members: () => true,
-          ingress: cidrs.map((cidr, index) => ({
-            IpProtocol: 'tcp',
-            FromPort: 8000 + index,
-            ToPort: 8000 + index,
-            CidrIp: cidr
-          }))
-        }
-      ]
-    });
-    const model = buildDiagramModel({ parsedConfig: config as never });
-    const scene = selectDiagramView({
-      model: model!,
-      layers: ALL_LAYERS,
-      security: buildSecurityGroupModel(input)
-    });
-    expect((scene.securityRules ?? []).map(({ label }) => label)).toEqual([
-      '198.51.100.1/32 · TCP 8000',
-      '198.51.100.2/32 · TCP 8001',
-      '198.51.100.3/32 · TCP 8002',
-      '2 more address ranges'
-    ]);
-    expect(scene.securityRules?.at(-1)?.description).toContain('allows TCP 8003 from 198.51.100.4/32');
-    expect(scene.securityRules?.at(-1)?.description).toContain('allows TCP 8004 from 198.51.100.5/32');
+/** The tag of the one function a synthetic template gives these ingress rules. */
+const tagFor = (ingress: Array<Record<string, unknown>>) => {
+  const { config, input } = syntheticTemplate({
+    functions: 1,
+    groups: [{ id: 'Target', members: () => true, ingress }]
+  });
+  const model = buildDiagramModel({ parsedConfig: config as never });
+  const scene = selectDiagramView({ model: model!, layers: ALL_LAYERS, security: buildSecurityGroupModel(input) });
+  const { access } = nodeOf(scene, 'fn0');
+  return access ? `${access.reach}: ${access.text}` : undefined;
+};
+
+const tcp = (port: number, source: Record<string, unknown>) => ({
+  IpProtocol: 'tcp',
+  FromPort: port,
+  ToPort: port,
+  ...source
+});
+
+describe('what the internet can reach', () => {
+  test('an application port is public; an admin port, or every port, is a finding', () => {
+    expect(tagFor([tcp(443, { CidrIp: '0.0.0.0/0' })])).toBe('public: Public');
+    expect(tagFor([tcp(443, { CidrIp: '0.0.0.0/0' }), tcp(22, { CidrIpv6: '::/0' })])).toBe(
+      'exposed: SSH open to the internet'
+    );
+    expect(tagFor([tcp(3389, { CidrIp: '0.0.0.0/0' })])).toBe('exposed: Remote desktop open to the internet');
+    expect(tagFor([{ IpProtocol: '-1', CidrIp: '0.0.0.0/0' }])).toBe('exposed: All ports open to the internet');
+    expect(tagFor([{ IpProtocol: 'tcp', FromPort: 0, ToPort: 65535, CidrIp: '0.0.0.0/0' }])).toBe(
+      'exposed: All ports open to the internet'
+    );
+    // A range that happens to hold an admin port.
+    expect(tagFor([{ IpProtocol: 'tcp', FromPort: 20, ToPort: 25, CidrIp: '0.0.0.0/0' }])).toBe(
+      'exposed: SSH open to the internet'
+    );
+    // UDP 22 is not SSH.
+    expect(tagFor([{ IpProtocol: 'udp', FromPort: 22, ToPort: 22, CidrIp: '0.0.0.0/0' }])).toBe('public: Public');
   });
 
-  test('300 functions in two groups, one rule between them: one arrow, and every view in well under two seconds', () => {
+  test('an admin port open to one address is not a finding', () => {
+    expect(tagFor([tcp(22, { CidrIp: '203.0.113.10/32' })])).toBe('limited: Only 203.0.113.10');
+  });
+
+  test('ping from the internet is not a way in', () => {
+    expect(tagFor([{ IpProtocol: 'icmp', FromPort: -1, ToPort: -1, CidrIp: '0.0.0.0/0' }])).toBeUndefined();
+    expect(
+      tagFor([
+        { IpProtocol: 'icmp', FromPort: -1, ToPort: -1, CidrIp: '0.0.0.0/0' },
+        tcp(443, { CidrIp: '10.9.0.0/16' })
+      ])
+    ).toBe('limited: Only 1 IP range');
+  });
+
+  test('a load balancer with an admin port open is a finding, and losing the rule clears it', () => {
+    const withRule = (rules: Array<Record<string, unknown>>) => {
+      const fixture = structuredClone(load('http-api-vpc-link'));
+      const group = fixture.resources.AlbWebLbSecurityGroup.Properties;
+      group.SecurityGroupIngress = rules.length > 0 ? [...group.SecurityGroupIngress, ...rules] : [];
+      const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+      return selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
+    };
+    expect(tagsOf(withRule([tcp(22, { CidrIpv6: '::/0' })]))['albWeb--alb']).toBe('exposed: SSH open to the internet');
+    // With no rule left nothing reaches the balancer, though the picture still draws the user's connector to it.
+    const closed = withRule([]);
+    expect(inboundOf(closed, 'albWeb--alb')).toEqual([]);
+    expect(tagsOf(closed)['albWeb--alb']).toBeUndefined();
+    // The HTTP API has no group of its own, so the connector is what says it is public.
+    expect(tagsOf(closed).api).toBe('public: Public');
+  });
+});
+
+describe('words that fit a tag', () => {
+  test('one address is named, several are counted, and ranges are called ranges', () => {
+    expect(tagFor([tcp(443, { CidrIp: '203.0.113.10/32' })])).toBe('limited: Only 203.0.113.10');
+    expect(tagFor([tcp(443, { CidrIp: '203.0.113.10/32' }), tcp(8080, { CidrIp: '203.0.113.11/32' })])).toBe(
+      'limited: Only 2 IP addresses'
+    );
+    expect(tagFor([tcp(443, { CidrIp: '203.0.113.0/24' })])).toBe('limited: Only 1 IP range');
+    expect(tagFor([tcp(443, { CidrIp: '203.0.113.0/24' }), tcp(443, { CidrIp: '198.51.100.7/32' })])).toBe(
+      'limited: Only 2 IP ranges'
+    );
+    expect(tagFor([tcp(443, { SourcePrefixListId: 'pl-0123456789' })])).toBe('limited: Only 1 IP range');
+  });
+
+  test('more than two resources, or names too long for a tag, are counted', () => {
+    const scene = (names: number, tail: Array<Record<string, unknown>> = []) => {
+      const { config, input } = syntheticTemplate({
+        functions: names + 1,
+        groups: [
+          ...Array.from({ length: names }, (_, index) => ({
+            id: `Caller${index}`,
+            members: (member: number) => member === index,
+            ingress: []
+          })),
+          {
+            id: 'Target',
+            members: (member: number) => member === names,
+            ingress: [
+              ...Array.from({ length: names }, (_, index) =>
+                tcp(443, { SourceSecurityGroupId: { Ref: `Caller${index}` } })
+              ),
+              ...tail
+            ]
+          }
+        ]
+      });
+      const topology = buildDiagramTopology({ parsedConfig: config as never });
+      const expandedGroups = new Set(findRoleGroups({ topology: topology! }).map((group) => group.id));
+      const model = buildDiagramModel({ parsedConfig: config as never, expandedGroups })!;
+      return selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(input) });
+    };
+    expect(tagsOf(scene(2)).fn2).toBe('limited: Only fn0, fn1');
+    expect(tagsOf(scene(3)).fn3).toBe('limited: Only 3 resources');
+    // Naming the address as well would not fit, so both are counted.
+    expect(tagsOf(scene(3, [tcp(443, { CidrIp: '203.0.113.10/32' })])).fn3).toBe(
+      'limited: Only 3 resources + 1 IP address'
+    );
+    for (const text of Object.values(tagsOf(scene(3, [tcp(443, { CidrIp: '203.0.113.0/24' })])))) {
+      expect(text.replace(/^\w+: /, '').length).toBeLessThanOrEqual(30);
+    }
+  });
+});
+
+describe('bounded work', () => {
+  test('300 functions in two groups, one rule between them: every picture in well under two seconds', () => {
     const { config, input } = syntheticTemplate({
       functions: 300,
       groups: [
@@ -436,83 +472,30 @@ describe('bounded work', () => {
     const elapsed = performance.now() - started;
 
     expect(frame?.nodeTiles).toHaveLength(300);
-    const securityScene300 = scenes[3];
-    expect(securityScene300.nodes).toHaveLength(300);
-    expect(
-      securityScene300.securityRules?.map(({ fromGroup, toGroup, label }) => ({ fromGroup, toGroup, label }))
-    ).toEqual([{ fromGroup: 'Callers', toGroup: 'Callees', label: 'TCP 443' }]);
-    for (const group of securityScene300.securityGroups ?? []) {
-      expect(group.memberNodeIds).toHaveLength(150);
-      expect(group.outlines.filter((outline) => outline.tab).length).toBeLessThanOrEqual(3);
-    }
+    const everything = scenes[3];
+    expect(everything.nodes).toHaveLength(300);
+    const tagged = everything.nodes.filter((node) => node.access);
+    expect(tagged).toHaveLength(150);
+    expect(new Set(tagged.map((node) => node.access?.text))).toEqual(new Set(['Only 150 resources']));
     expect(elapsed).toBeLessThan(2000);
   });
 });
 
-/** The http-api-vpc-link template with an IPv6 rule beside the IPv4 ones on the ALB's group, or with neither. */
-const loadBalancerTemplate = ({ ipv6, internet }: { ipv6: boolean; internet: boolean }) => {
-  const fixture = structuredClone(load('http-api-vpc-link'));
-  const group = fixture.resources.AlbWebLbSecurityGroup.Properties;
-  const ingress = [
-    ...group.SecurityGroupIngress,
-    ...(ipv6 ? [{ IpProtocol: 'tcp', FromPort: 22, ToPort: 22, CidrIpv6: '::/0' }] : [])
-  ];
-  group.SecurityGroupIngress = internet
-    ? ingress
-    : ingress.filter((rule: Record<string, unknown>) => !rule.CidrIp && !rule.CidrIpv6);
-  return fixture;
-};
-
-const ids = (scene: IsoScene) => (scene.securityRules ?? []).map(({ id }) => id);
-
-const intoBalancer = (scene: IsoScene) =>
-  (scene.securityRules ?? []).filter((rule) => rule.toGroup === 'AlbWebLbSecurityGroup');
-
-describe('arrow identity', () => {
+describe('the frame', () => {
   for (const name of templateNames) {
-    test(`${name}: every arrow, chip and outline has its own ID whichever layers are on`, () => {
-      for (const expand of [false, true]) {
-        for (const layers of COMBINATIONS) {
-          const { scene } = securityScene({ name, expand, layers });
-          expect(new Set(ids(scene)).size).toBe(ids(scene).length);
-          expect(new Set(scene.connectors.map(({ id }) => id)).size).toBe(scene.connectors.length);
-          const groups = (scene.securityGroups ?? []).map(({ id }) => id);
-          expect(new Set(groups).size).toBe(groups.length);
+    test(`${name}: holds every tag, with or without the Infrastructure layer`, () => {
+      const fixture = load(name);
+      const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+      const security = buildSecurityGroupModel(fixture);
+      const chips = new Set(
+        (diagramFrame({ model, security })?.chips ?? []).map(({ tile, text }) => `${text}@${tile.x},${tile.y}`)
+      );
+      for (const layers of [ACCESS, ALL_LAYERS]) {
+        for (const node of selectDiagramView({ model, layers, security }).nodes) {
+          if (node.access)
+            expect(chips.has(`${node.access.text}@${node.access.tile.x},${node.access.tile.y}`)).toBe(true);
         }
       }
     });
   }
-
-  test('IPv4 and IPv6 internet rules into one load balancer are two arrows with their own IDs and ports', () => {
-    const fixture = loadBalancerTemplate({ ipv6: true, internet: true });
-    const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
-    const scene = selectDiagramView({
-      model,
-      layers: ALL_LAYERS,
-      security: buildSecurityGroupModel(fixture)
-    });
-    const internet = (scene.securityRules ?? []).filter(
-      (rule) => rule.source === 'internet' && rule.toGroup === 'AlbWebLbSecurityGroup'
-    );
-    expect(internet.map(({ id, from, label }) => ({ id, from, label }))).toEqual([
-      // The first follows the user's connector; the second gets its own arrow instead of a second line on that path.
-      { id: 'sg-rule-AlbWebLbSecurityGroup<-internet:::/0', from: undefined, label: '::/0 · TCP 22' },
-      { id: 'sg-rule-AlbWebLbSecurityGroup<-internet:0.0.0.0/0', from: 'user', label: '0.0.0.0/0 · TCP 80, 443' }
-    ]);
-  });
-
-  test('a template that drops its internet rules drops their arrows and gives the user’s connector back', () => {
-    const before = loadBalancerTemplate({ ipv6: true, internet: true });
-    const after = loadBalancerTemplate({ ipv6: true, internet: false });
-    const model = buildDiagramModel({ parsedConfig: parse(before.config) })!;
-    const sceneOf = (fixture: typeof before) =>
-      selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
-    const first = sceneOf(before);
-    const second = sceneOf(after);
-    expect(intoBalancer(first)).toHaveLength(2);
-    expect(intoBalancer(second)).toEqual([]);
-    expect(ids(second).every((id) => ids(first).includes(id))).toBe(true);
-    expect(second.connectors.some((edge) => edge.from === 'user' && edge.to === 'albWeb--alb')).toBe(true);
-    expect(inboundOf(second, 'albWeb--alb')).toEqual([]);
-  });
 });

@@ -52,7 +52,7 @@ export type IsometricDiagramProps = DiagramViewProps & {
   /** The layers the reader can switch, in order. With none, the diagram has no layer switches. */
   layerChoices?: readonly DiagramLayer[] | undefined;
   /**
-   * The deployed stage, for the Access layer's security groups. Untrusted: anything unreadable is skipped. Omit it
+   * The deployed stage, for the Access layer's tags. Untrusted: anything unreadable is skipped. Omit it
    * where there is no deployed stage, and the Access layer is not offered. Pass `null` for a deployed stage whose
    * template could not be read, and the layer is offered disabled, saying so.
    */
@@ -88,13 +88,22 @@ export const readDiagramDeployment = (deployment: unknown): SecurityModelInput |
 
 const ACCESS_UNREADABLE = 'The deployed template could not be read, so access rules cannot be shown';
 
-function AccessLegend() {
+/** Exposed resources the Access layer's note names before it counts the rest. */
+const MAX_NAMED_EXPOSED = 3;
+
+/** What the Access layer's tags mean, led by what a reader must not miss: anything risky the internet can reach. */
+function AccessNote({ exposed }: { exposed: string[] }) {
+  const more = exposed.length - MAX_NAMED_EXPOSED;
   return (
     <p>
-      <span className="stp-diagram__legend-outline" aria-hidden="true" /> Security group ·{' '}
-      <span className="stp-diagram__legend-arrow" aria-hidden="true" /> traffic its rules allow ·{' '}
-      <span className="stp-diagram__legend-arrow stp-diagram__legend-arrow--internet" aria-hidden="true" /> open to the
-      internet
+      {exposed.length > 0 && (
+        <>
+          <strong className="stp-diagram__note-alert">Open to the internet:</strong>{' '}
+          {exposed.slice(0, MAX_NAMED_EXPOSED).join(', ')}
+          {more > 0 ? ` and ${more} more` : ''}.{' '}
+        </>
+      )}
+      Tags say who can connect. Select a resource for its ports and rules.
     </p>
   );
 }
@@ -114,7 +123,7 @@ function AccessLegend() {
  * layers to it in any combination, so switching one moves nothing. A layer the stage has nothing for is not offered.
  * Functions and batch jobs that play the same role are drawn as one group until the reader expands it. Clicking a node
  * opens a side panel with its connections; pass `onOpenResource` to offer opening a declared resource in the host, and
- * `deployment` for the Access layer's security groups. Pass `statuses` to show what a deployed stage reports about its
+ * `deployment` for the Access layer's tags. Pass `statuses` to show what a deployed stage reports about its
  * resources, whichever layers are on: a pill under the name, a ring in the worst tone, a group's summary and every
  * status with its link in the panel.
  *
@@ -249,7 +258,13 @@ export function IsometricDiagram({
           />
         ) : undefined
       }
-      viewNote={showAccess ? <AccessLegend /> : undefined}
+      viewNote={
+        showAccess ? (
+          <AccessNote
+            exposed={scene.nodes.filter((node) => node.access?.reach === 'exposed').map((node) => node.label)}
+          />
+        ) : undefined
+      }
     />
   );
 }

@@ -21,7 +21,7 @@ import type { DiagramTopology, TopologyEdge, TopologyNode } from './topology.js'
 import type { ConnectorMembership, DiagramLayers, ViewMembership } from './views.js';
 import { groupTopology } from './grouping.js';
 import { layoutDiagram } from './layout/diagram-layout.js';
-import { addSecurityLayer } from './security-view.js';
+import { addAccessLayer } from './security-view.js';
 import { ALL_LAYERS, classifyNodes, selectView } from './views.js';
 import {
   BADGE_HEIGHT_PX,
@@ -358,10 +358,8 @@ export type DiagramModel = {
   /** The topology before grouping, whose node IDs security-group members map to. */
   base: DiagramTopology;
   grouped: GroupedTopology;
-  /** What each node occupies on screen, for placing the Access layer's text clear of it. */
+  /** What each node occupies on screen, for placing the Access layer's tags clear of it. */
   layoutNodes: Map<string, LayoutNode>;
-  /** The tile x of every column, left to right. */
-  columnXs: number[];
 };
 
 export const buildDiagramModel = ({
@@ -415,17 +413,13 @@ export const buildDiagramModel = ({
     membership: { nodes: classifyNodes(topology.nodes), connectors: connectorMembership },
     base,
     grouped: topology,
-    layoutNodes: new Map(layoutInput.nodes.map((node) => [node.id, node])),
-    columnXs: [...new Set([...layout.nodes.values()].map((tile) => tile.x))].sort((a, b) => a - b)
+    layoutNodes: new Map(layoutInput.nodes.map((node) => [node.id, node]))
   };
 };
 
-/** Flow is context under the Access layer: drawn faintly so security groups, firewalls and access stand out. */
-const MUTED_UNDER_ACCESS = new Set(['request', 'event', 'egress']);
-
 /**
  * The scene one combination of layers shows. `security` is the deployed stage's security-group model, which the Access
- * layer draws; without it that layer adds nothing.
+ * layer reads; without it that layer adds nothing.
  */
 export const selectDiagramView = ({
   model,
@@ -442,19 +436,12 @@ export const selectDiagramView = ({
     infrastructure: layers.infrastructure
   });
   if (!layers.access || !security) return selection.scene;
-  const scene: IsoScene = {
-    ...selection.scene,
-    connectors: selection.scene.connectors.map((connector) =>
-      MUTED_UNDER_ACCESS.has(connector.semantic ?? '') ? { ...connector, muted: true } : connector
-    )
-  };
-  return addSecurityLayer({
-    scene,
+  return addAccessLayer({
+    scene: selection.scene,
     resolve: selection.resolve,
     base: model.base,
     collapsedInto: model.grouped.collapsedInto,
     layoutNodes: model.layoutNodes,
-    columnXs: model.columnXs,
     security,
     measureChip
   });
@@ -472,6 +459,8 @@ export const diagramFrame = ({
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene['frame'] => {
   const scene = selectDiagramView({ model, layers: ALL_LAYERS, security });
+  // Tags sit above their nodes and can differ without the Infrastructure layer, whose nodes then fold into others.
+  const tagged = [scene, selectDiagramView({ model, layers: { infrastructure: false, access: true }, security })];
   return {
     key: model.scene.nodes
       .map((node) => node.id)
@@ -485,24 +474,14 @@ export const diagramFrame = ({
         { x: rect.from.x, y: rect.to.y },
         { x: rect.to.x, y: rect.from.y }
       ]),
-      ...scene.connectors.flatMap((connector) => connector.route.points),
-      ...(scene.securityRules ?? []).flatMap((rule) => rule.route.points),
-      ...(scene.securityGroups ?? []).flatMap((group) =>
-        group.outlines.flatMap((outline) => [
-          outline.from,
-          outline.to,
-          { x: outline.from.x, y: outline.to.y },
-          { x: outline.to.x, y: outline.from.y }
-        ])
-      )
+      ...scene.connectors.flatMap((connector) => connector.route.points)
     ],
     chips: [
       ...scene.connectors.flatMap((connector) =>
         connector.label ? [{ tile: connector.route.labelTile, text: connector.label }] : []
       ),
-      ...(scene.securityRules ?? []).map((rule) => ({ tile: rule.route.labelTile, text: rule.label })),
-      ...(scene.securityGroups ?? []).flatMap((group) =>
-        group.outlines.flatMap((outline) => (outline.tab ? [{ tile: outline.tab, text: group.name }] : []))
+      ...tagged.flatMap((view) =>
+        view.nodes.flatMap((node) => (node.access ? [{ tile: node.access.tile, text: node.access.text }] : []))
       )
     ]
   };

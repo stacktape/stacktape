@@ -117,6 +117,27 @@ export const SHAPE_HEIGHT_PX: Record<IsoNodeShape, number> = {
 export const BADGE_OFFSET_PX = 10;
 export const BADGE_HEIGHT_PX = 17;
 
+/** A replica or count badge sits this far right of its node's centre. */
+export const REPLICA_BADGE_SHIFT_PX = 34;
+
+/**
+ * The Access layer's tag: a 19 px pill whose centre sits a little higher above the shape than a badge would, so it
+ * clears the shape's top face.
+ */
+export const ACCESS_TAG_HEIGHT_PX = 19;
+export const ACCESS_TAG_RISE_PX = BADGE_OFFSET_PX + 9;
+/** The icon and padding before a tag's text, and the padding after it. */
+export const ACCESS_TAG_TEXT_START_PX = 21;
+const ACCESS_TAG_TEXT_END_PX = 10;
+
+/** A tag's width for its 10.5 px bold text: capitals and digits are wider than the rest, spaces and dots narrower. */
+export const getAccessTagWidthPx = (text: string) => {
+  let width = ACCESS_TAG_TEXT_START_PX + ACCESS_TAG_TEXT_END_PX;
+  for (const char of text)
+    width += char === ' ' || char === '.' || char === ',' ? 3.2 : /[A-Z0-9+]/.test(char) ? 6.9 : 5.7;
+  return width;
+};
+
 /** Name tags show at most this many characters of the name and of the muted type line. */
 export const NAME_MAX_CHARS = 20;
 export const TYPE_MAX_CHARS = 32;

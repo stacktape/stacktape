@@ -199,20 +199,20 @@ describe('access layer', () => {
     }
   });
 
-  test('draws the deployed stage’s groups and fades the request flow behind them', () => {
+  test('tags the deployed stage’s resources and leaves the rest of the picture as it was', () => {
     const fixture = JSON.parse(readFileSync(new URL('database-accessibility.json', templateDirectory), 'utf8'));
     const model = buildDiagramModel({ parsedConfig: parse(fixture.config) });
     const security = buildSecurityGroupModel(fixture);
     for (const layers of [ACCESS, ALL_LAYERS]) {
       const scene = selectDiagramView({ model: model!, layers, security });
-      expect(scene.securityGroups?.length).toBeGreaterThan(0);
-      for (const edge of scene.connectors.filter((candidate) => candidate.semantic === 'request')) {
-        expect(edge.muted).toBe(true);
-      }
-      for (const edge of scene.connectors.filter((candidate) => candidate.semantic === 'dependency')) {
-        expect(edge.muted).toBeFalsy();
-      }
-      // The VPC is the Infrastructure layer's, with or without access rules over it.
+      const plain = selectDiagramView({ model: model!, layers: { ...layers, access: false }, security });
+      expect(scene.nodes.find((node) => node.id === 'publicDb')?.access).toMatchObject({
+        reach: 'exposed',
+        text: 'Open to the internet'
+      });
+      expect(plain.nodes.some((node) => node.access)).toBe(false);
+      expect(scene.connectors).toEqual(plain.connectors);
+      // The VPC is the Infrastructure layer's, with or without tags over it.
       expect(scene.rectangles.length > 0).toBe(layers.infrastructure);
     }
   });
