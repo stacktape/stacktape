@@ -46,7 +46,7 @@ module.exports = {
       to: {
         path: '^apps/console/api/',
         pathNot:
-          '^apps/console/api/src/(integrations/git/repository-url|organizations/personal-organization|deployments/(operation-description|failure-explanations)|budgets/money|aws/relay-codec)\\.ts$'
+          '^apps/console/api/src/(integrations/git/repository-url|organizations/personal-organization|deployments/(operation-description|failure-explanations)|budgets/money|aws/relay-codec|aws/browser-capabilities)\\.ts$'
       }
     },
     {
