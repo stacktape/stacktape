@@ -1509,25 +1509,39 @@
   .stp-ui-tooltip {
     box-sizing: border-box;
     width: max-content;
-    padding: 16px 20px;
     overflow-wrap: anywhere;
     border: 1px solid var(--stp-tooltip-border, var(--stp-border-subtle));
     border-radius: var(--stp-tooltip-radius, var(--stp-radius-large));
     background: var(--stp-tooltip-background, var(--stp-surface-modal));
     color: var(--stp-text-primary);
     box-shadow: var(--stp-tooltip-shadow, 0 12px 28px rgba(0, 0, 0, 0.45));
-    font-size: 0.85rem;
-    line-height: 1.6;
     text-align: left;
+  }
+
+  /* A label is one short line: padding that would suit a paragraph made "Copy" a large box. */
+  .stp-ui-tooltip--label {
+    padding: 6px 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .stp-ui-tooltip--help {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    line-height: 1.55;
   }
 
   .stp-ui-tooltip__headline {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
 
   .stp-ui-tooltip__content > :first-child {
     margin-top: 0;
+  }
+
+  .stp-ui-tooltip__content > * + * {
+    margin-top: 6px;
   }
 
   .stp-ui-tooltip__content > :last-child {
