@@ -2107,6 +2107,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-problems.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/stage-health-summary.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deploy-progress.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deployed-urls.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/pages/SecretsPage/secret-usage.test.ts',
@@ -2913,6 +2914,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Cdn/cdn-paths.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/stage-health-summary.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deploy-progress.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deployed-urls.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
@@ -5592,6 +5594,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/AwsResources/aws-resource-properties.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Database/sql-format.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/resource-problems.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deployed-urls.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
       'packages/stack-info/src/selectors.test.ts'
