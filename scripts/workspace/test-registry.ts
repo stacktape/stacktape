@@ -2081,6 +2081,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/src/pages/DeployNewProject/starter-projects.test.ts',
       'apps/console/ui/src/pages/DeployNewProject/agent-prompt.test.ts',
+      'apps/console/ui/src/pages/CostsAndUsagePage/cost-month.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
@@ -6217,6 +6218,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Logs/log-line.test.ts',
       'apps/console/ui/src/components/Logs/stack-frame-link.test.ts',
       'apps/console/ui/src/utils/page-title.test.ts',
+      'apps/console/ui/src/pages/CostsAndUsagePage/cost-month.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/config-links.test.ts',
       'apps/console/ui/src/components/Logs/newest-lines.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
