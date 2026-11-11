@@ -9,7 +9,7 @@ import { DIAGRAM_LAYER_NAMES } from './views.js';
 const LAYER_HINTS: Record<DiagramLayer, string> = {
   infrastructure:
     'What Stacktape creates under your configuration: gateways, load balancers, CDNs, the VPC, its subnets and NAT',
-  access: 'Who can reach what: the security groups of the deployed stage and the traffic their rules allow'
+  access: 'Who can connect to each resource of the deployed stage, and anything open to the internet'
 };
 
 export type LayerChoice = {

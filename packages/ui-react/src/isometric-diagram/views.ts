@@ -8,8 +8,8 @@
  * - Infrastructure: what Stacktape creates under the configuration (per-service gateways and load balancers, CDNs, an
  *   SSR site's server function and assets bucket, Convex's parts), the VPC with its subnet tiers and the edge network,
  *   the NAT and outbound traffic, load balancer exposure and VPC Links.
- * - Access: who can reach what. The security groups of a deployed stage and the traffic their rules allow, with the
- *   request and event flow drawn faintly behind them.
+ * - Access: who can connect to each resource of a deployed stage, as one tag above it (`security-view.ts`). It
+ *   changes nothing else in the picture.
  *
  * A Stacktape-created node that is hidden folds into the resource that owns it: the per-service gateway of a web
  * service folds into the service, so the user's connector runs through the gateway's empty spot into the service. A

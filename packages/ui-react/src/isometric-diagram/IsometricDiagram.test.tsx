@@ -104,7 +104,7 @@ describe('layers', () => {
 
     const markup = markupOf({ deployment: deployed.deployment }, parse(deployed.yaml));
     expect(switches(markup).map((match) => match[1])).toEqual(['Infrastructure', 'Access']);
-    expect(markup).not.toContain('data-iso-kind="security-group"');
+    expect(markup).not.toContain('data-iso-kind="access-tag"');
 
     // Deployed, but nothing in a VPC: the template has no security groups to show.
     const serverless = parseFixtureConfig({ fixture: getFixtureById({ id: 'serverless-routes' }) });
@@ -119,11 +119,11 @@ describe('layers', () => {
       expect(access).toContain('disabled=""');
       expect(access).not.toContain('checked');
       expect(markup).toContain('The deployed template could not be read');
-      expect(markup).not.toContain('data-iso-kind="security-group"');
+      expect(markup).not.toContain('data-iso-kind="access-tag"');
     }
   });
 
-  test('draws a deployed stage’s security groups from its template', () => {
+  test('tags a deployed stage’s resources from its template and names what is open to the internet', () => {
     const markup = quiet(() =>
       renderToStaticMarkup(
         <IsometricDiagram
@@ -133,10 +133,14 @@ describe('layers', () => {
         />
       )
     );
-    expect(markup).toContain('data-iso-kind="security-group"');
-    expect(markup).toContain('data-iso-source="internet"');
-    expect(markup).toContain('0.0.0.0/0 · TCP 5432');
-    expect(markup).toContain('open to the internet');
+    expect(markup).toContain('data-iso-reach="exposed"');
+    expect(markup).toContain('Anything in the VPC');
+    expect(markup).toContain('Only web + 203.0.113.10');
+    // The tag takes the place of the `public` mark, and the note under the picture names the finding.
+    expect(markup).not.toContain('data-iso-kind="public-badge"');
+    expect(markup).toMatch(/Open to the internet:<\/strong>\s*publicDb\./);
+    // A reader who does not see the tag still hears it.
+    expect(markup).toContain('aria-label="publicDb, Postgres, Open to the internet"');
   });
 
   test('a host that offers no layers gets no switches', () => {

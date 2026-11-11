@@ -15,8 +15,8 @@ StacktapeConfig -> topology.ts -> grouping.ts -> scene-builder.ts (+ layout/) ->
   (`buildDiagramModel`) and selects what the layers show from it (`selectDiagramView`).
 - `views.ts` is the layer model: the Infrastructure and Access layers, and which nodes, connectors and zones the picture
   shows with and without them.
-- `security-view.ts` draws the Access layer: a deployed stage's security groups from `security-groups.ts`, as outlines,
-  rule arrows and the panel's words.
+- `security-view.ts` is the Access layer: from a deployed stage's security groups (`security-groups.ts`) it works out
+  who can connect to each resource, as one tag above it and the panel's words.
 - `layout/` is the layout engine. It knows nodes with a size, edges and nested zones, not AWS.
 - `scene-details.ts` builds what the side panel says: connections as drawn, an API's routes, a group's members.
 - `scene.ts` is the tile-space contract. It has no SVG geometry, CSS or interaction state.
@@ -106,7 +106,7 @@ incidents, open errors and critical or high security findings (`StageDetails/dia
 
 `security-groups.ts` derives a deployed stage's security groups from its CloudFormation template, not from the config:
 accessibility modes, shared function groups, the shared network's stage group and group handovers are all decided by
-synthesis. The Access layer draws it (see "Layers" below).
+synthesis. The Access layer reads it (see "Layers" below).
 
 - **Input.** The template's `Resources` as parsed JSON or YAML (untrusted), and each Stacktape resource with the logical
   IDs it owns (in Console, `getUserResourcesFromStackInfoMap` and the keys of `cloudformationChildResources`).
@@ -146,10 +146,10 @@ layout fixed, a preset is only a saved combination of checkboxes.
   gateways and load balancers, CDNs, an SSR site's server function and assets bucket, Convex's parts), the VPC, subnet
   tiers and edge zone, the NAT and outbound connectors, load balancer exposure badges (`internal`/`internet-facing`) and
   the "VPC Link" label on an HTTP API's connector into a container.
-- **Access** is who can reach what: a deployed stage's security groups and the traffic their rules allow (below). It
-  draws request, event and egress connectors faintly and keeps firewalls, authorizers and `connectTo` (IAM) access at
-  full strength. Stacktape puts databases in public subnets and protects them with security groups, so the two layers
-  together are the truthful answer to "is my database reachable": never make them exclusive.
+- **Access** is who can connect to each resource of a deployed stage: one tag above the resource (below). It adds
+  nothing else and changes nothing in the picture. Stacktape puts databases in public subnets and protects them with
+  security groups, so the two layers together are the truthful answer to "is my database reachable": never make them
+  exclusive.
 
 The layout runs once, on every node, connector and zone, and a layer only shows or hides things. A node therefore keeps
 its exact tile whichever layers are on, and the renderer fits the frame of the whole picture (`IsoScene.frame`), so
@@ -166,45 +166,67 @@ across all four for every fixture, test config and template config, collapsed an
   hidden node with no owner (the NAT) drops its connectors. The schedule node and any implicit node that is `isPublic`
   are in every picture: a public data store keeps its badge whatever is hidden.
 - **Room for every layer is reserved in every picture:** the layout gives load balancers badge room and reserves the
-  "VPC Link" chip, so nothing moves when the Infrastructure layer shows them.
+  "VPC Link" chip, so nothing moves when the Infrastructure layer shows them. Access tags are not known to the layout
+  (they come from the deployed template, which loads later); they are placed afterwards, in free room above their nodes.
 - **Toolbar.** The layer checkboxes come first, then Find, the "need attention" chip and collapse chips; host `notices`
-  take their own row under them. The Access layer's legend (`viewNote`) replaces the usage hint at the bottom left.
+  take their own row under them. The Access layer's note (`viewNote`) replaces the usage hint at the bottom left.
 
-### Security groups
+### Access tags
 
 `security-view.ts` reads the model from `security-groups.ts`; it never infers rules from the config.
 
+The layer answers one question per resource, "who can connect to this?", in resource terms. An earlier version drew
+security groups as coloured outlines with port-labelled arrows between them and from address ranges; readers had to
+learn three notations to get one answer, so do not bring outlines, rule arrows or ports back onto the canvas. Security
+groups, ports and protocols are how AWS enforces the answer and belong in the side panel.
+
+- **One tag per node,** above it (`IsoNode.access`), with a globe when the internet can reach the node and a padlock
+  when it cannot:
+  - `exposed`, red: "Open to the internet" on a data store (database, Redis, OpenSearch, Kafka, EFS), or "SSH open to
+    the internet", "Remote desktop open to the internet", "All ports open to the internet" on anything. Red means only
+    this. The group the internet's rule is on decides whether a data store is behind it: Convex drawn as one node is
+    public through its load balancer, not an open database.
+  - `public`, neutral: "Public" on an entry point meant to be reached: a load balancer, a gateway, a service with a
+    public port. Where no security group decides, whatever the user's request connector reaches is public too: an HTTP
+    API, a CDN, a function URL, or a service drawn with its gateway. A node whose own group admits nothing, or two
+    addresses, is not public because a connector reaches it.
+  - `limited`, quiet: "Anything in the VPC", "Only web", "Only web + 203.0.113.10", "Only 2 IP addresses", "Only 3
+    resources". At most two resources are named and the text stays within 30 characters; past that it counts.
+  - `unknown`, quiet with a question mark: "Rules outside this stack" on a node that carries a group the template only
+    refers to. Its rules are not in the template, so "Only web" would be a guess. What the template does show still
+    counts: an internet rule on another of its groups makes it `exposed` or `public`.
+  - No tag: nothing can connect in (a worker, a function in the VPC), or the group says nothing about the node (a NAT
+    instance; an HTTP API's VPC Link, whose group is about the link, not the gateway). ICMP alone is not a way in.
 - **Members map to drawn nodes** by the logical ID that carries the group first, then by owner and member kind. A
   resource that nests several resources of one kind needs the logical ID: Convex runs its backend and dashboard as two
   container services owned by `app`, and `AppDashboardContainerWorkloadService` is `app--dashboard` (stems in
   `NESTED_PART_STEMS`). By kind, a web service's load balancer is `<name>--alb` or `--nlb`, its VPC Link `<name>--gw`,
   an SSR site's function `<name>--server`, a NAT instance `nat-gateway`. Then through grouping (a collapsed member is
-  its group's deck) and, without the Infrastructure layer, its folding. VPC endpoints and compute environments have no
-  node and are listed in the group's tooltip.
-- **Outlines** are chamfered floor rectangles in the group's colour (dashed grey for an external group). Members that
-  are neighbours with nothing between them share one outline (found on a grid, so hundreds of members stay cheap);
-  others get one each. The largest three outlines of a group carry its name tab. A node in several groups gets nested
-  outlines: one that holds another sits farther out, and outlines that only share members sit at different distances.
-- **Arrows go from group to group,** never from member to member: one per source and target group, labelled with its
-  ports ("TCP 5432") in the source group's colour and starting at the source group's outline. It follows the first
-  connector between members of the two groups and replaces it; otherwise it joins the closest pair and is routed along
-  the gutters next to them and a free lane between. Ports that only some conditions allow say so ("TCP 80 if Prod").
-  Work is bounded by groups and rules (`MAX_GROUP_ARROWS`), not members: two groups of 150 functions and one rule are
-  one arrow, and every combination of layers takes milliseconds.
-- **Address ranges** (internet, VPC, CIDR, prefix list, or a group with nothing drawn) get a short arrow into the
-  group's largest outline: red for `0.0.0.0/0`/`::/0`, amber otherwise. Each address gets its own arrow, never one label
-  for several, which would lend one address another's ports. Past three per group, one more arrow says "N more address
-  ranges" without ports; its tooltip and the panel list each. Only a load balancer's first internet rule (IPv4 before
-  IPv6) follows the user's connector, because that is what users reach; a VPC Link's does not. Every arrow's ID names
-  its source and target (`sg-rule-<group><-internet:::/0`), so no two share one and an arrow leaves with its rule when
-  the template changes. Self-references and egress rules are not drawn; the panel lists them.
-- **Words.** Each node's panel lists its groups with inbound and outbound rules in plain words ("Allows TCP 5432 from
-  web", "Allows all outbound traffic (the AWS default)"), naming member resources rather than group IDs. Group names are
-  short: the owner ("db SG", "albWeb LB SG", "web VPC Link SG"), the nested part it belongs to ("app dashboard SG"), or
-  what a stack-wide group is for ("VPC functions SG", "Stage network SG"); groups that would share a name say what they
-  reach ("VPC functions SG → cache").
-- **Text placement.** Rule chips and tabs are placed clear of node bodies, name tags and other chips, on the line when
-  it has room and just beside it otherwise. `security-view.test.ts` checks them against every template.
+  its group's deck) and, without the Infrastructure layer, its folding: a service drawn with its load balancer carries
+  both groups, so it is "Public" itself. A source that resolves to the node itself is not a source.
+- **Never more than the template says.** These statements are about security, so each errs towards what is certain. A
+  service drawn with its gateway is "Public" whatever else its own group admits. CloudFormation conditions have no
+  values in the template, so a conditional rule counts as present (the tag may name more than is allowed in, never
+  less), but a rule in one branch of a condition never applies to a member attached in the other. Only TCP, UDP and
+  "all" can be "All ports open"; GRE or ESP from the internet is "Public".
+- **Sources** are named as drawn: a collapsed role group by its name ("Only Functions"), its members once expanded. A
+  group several resources carry lets the others in, not the node itself. A group with nothing drawn is named as a group.
+  `access.sources` are the drawn nodes, which focusing the node keeps lit whether or not a connector joins them.
+- **Placement.** A tag sits straight above its node. Where another node, a name, a badge, a connector chip, a zone's
+  name or another tag is in the way it slides along the node's top or rises a row, and where nothing above is free it
+  goes under the node's name. It never goes farther, where it would read as a neighbour's tag. The frame includes the
+  tags of both pictures (with and without Infrastructure), so they are never cut off. `security-view.test.ts` checks
+  every template for overlaps.
+- **Under the tag.** The `public` mark and a load balancer's exposure badge give way to the tag, which says more about
+  the same thing. The node's accessible name and tooltip carry the tag's text. The note at the bottom left names what is
+  `exposed`, so a reader does not have to scan for red.
+- **Words in the panel.** "Who can connect" repeats the tag, then lists the node's groups with inbound and outbound
+  rules in plain words ("Allows TCP 5432 from web", "Allows all outbound traffic (the AWS default)"), naming member
+  resources rather than group IDs. Group names are short: the owner ("db SG", "albWeb LB SG", "web VPC Link SG"), the
+  nested part it belongs to ("app dashboard SG"), or what a stack-wide group is for ("VPC functions SG", "Stage network
+  SG"); groups that would share a name say what they reach ("VPC functions SG → cache"). A group defined outside the
+  stack is listed without rules, which are not in the template.
+- **Bounded work.** Tags follow groups and rules, not members: 300 functions in two groups take milliseconds.
 
 ## Role groups
 
@@ -315,4 +337,4 @@ Use Console's `/diagram-test` route to check tooltips, zoom, drag, keyboard cont
 layers, internal ingress, SSR expansion and NAT placement in a browser; the `serverless-routes` fixture has groups and
 the "Deployed: …" fixtures have security groups. When the Access layer's drawing changes, render the template configs
 with their deployment with and without the Infrastructure layer and look at them; the legibility test catches overlaps,
-not confusing arrows.
+not confusing wording.

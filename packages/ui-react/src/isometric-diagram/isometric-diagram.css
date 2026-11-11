@@ -503,27 +503,8 @@
     font-size: 11px;
   }
 
-  .stp-diagram__legend-outline,
-  .stp-diagram__legend-arrow {
-    display: inline-block;
-    vertical-align: middle;
-  }
-
-  .stp-diagram__legend-outline {
-    width: 14px;
-    height: 9px;
-    border: 1.5px solid #5b9cff;
-    border-radius: 2px;
-  }
-
-  .stp-diagram__legend-arrow {
-    width: 16px;
-    height: 0;
-    border-top: 2.4px solid #5b9cff;
-  }
-
-  .stp-diagram__legend-arrow--internet {
-    border-top-color: #f0545a;
+  .stp-diagram__note-alert {
+    color: #f58a8e;
   }
 
   /* ── Side panel ──────────────────────────────────────────────────────────────────────────────
@@ -799,12 +780,14 @@
     overflow-wrap: anywhere;
   }
 
-  .stp-diagram__panel-swatch {
-    flex-shrink: 0;
-    width: 12px;
-    height: 9px;
-    border-width: 2px;
-    border-radius: 2px;
+  .stp-diagram__panel-access {
+    margin: 0;
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-access[data-reach='exposed'] {
+    color: #f58a8e;
   }
 
   .stp-diagram__panel-rule-heading {

@@ -4,7 +4,15 @@
  * renderer (select another node, expand or collapse a group) or to the host (`onOpenResource`).
  */
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from 'react';
-import type { IsoGroup, IsoGroupMember, IsoNode, IsoNodeConnection, IsoNodeSecurityGroup, IsoRoute } from './scene.js';
+import type {
+  IsoGroup,
+  IsoGroupMember,
+  IsoNode,
+  IsoNodeAccess,
+  IsoNodeConnection,
+  IsoNodeSecurityGroup,
+  IsoRoute
+} from './scene.js';
 import type { DiagramResourceStatus, DiagramStatusEntry, NodeStatus } from './status.js';
 import { useId } from 'react';
 import { BiX } from 'react-icons/bi';
@@ -339,7 +347,9 @@ export function DiagramPanel({
           </section>
         )}
 
-        {node?.securityGroups && node.securityGroups.length > 0 && <SecurityGroupList groups={node.securityGroups} />}
+        {node && (node.access || (node.securityGroups?.length ?? 0) > 0) && (
+          <NetworkAccess access={node.access} groups={node.securityGroups ?? []} />
+        )}
 
         {node && (
           <ConnectionList connections={node.connections} canSelect={canSelect} onSelect={onSelect} selfId={node.id} />
@@ -398,22 +408,26 @@ function RouteTable({
   );
 }
 
-/** A node's security groups with what each allows, in plain words. */
-function SecurityGroupList({ groups }: { groups: IsoNodeSecurityGroup[] }) {
+/**
+ * Who can connect to a node in the deployed stage: the Access layer's answer first, then the security groups that
+ * enforce it with what each allows, in plain words.
+ */
+function NetworkAccess({ access, groups }: { access: IsoNodeAccess | undefined; groups: IsoNodeSecurityGroup[] }) {
   return (
-    <section className="stp-diagram__panel-section">
-      <h3 className="stp-diagram__panel-section-title">Security groups ({groups.length})</h3>
+    <section className="stp-diagram__panel-section" data-diagram-section="access">
+      <h3 className="stp-diagram__panel-section-title">Who can connect</h3>
+      {access && (
+        <p className="stp-diagram__panel-access" data-reach={access.reach}>
+          {access.text}
+        </p>
+      )}
+      {groups.length === 0 && (
+        <p className="stp-diagram__panel-muted">AWS serves it to the internet itself; no security group is involved.</p>
+      )}
       <ul className="stp-diagram__panel-list stp-diagram__panel-groups">
         {groups.map((group) => (
           <li key={group.id} className="stp-diagram__panel-group">
-            <p className="stp-diagram__panel-group-name">
-              <span
-                aria-hidden="true"
-                className="stp-diagram__panel-swatch"
-                style={{ borderColor: group.color, borderStyle: group.external ? 'dashed' : 'solid' }}
-              />
-              {group.name}
-            </p>
+            <p className="stp-diagram__panel-group-name">{group.name}</p>
             {group.external ? (
               <p className="stp-diagram__panel-muted">Defined outside this stack; its rules are not in the template.</p>
             ) : (
