@@ -12,7 +12,7 @@
  */
 import type { LayoutNode } from './layout/diagram-layout.js';
 import type { ProjectedBox } from './layout/projected-box.js';
-import type { IsoNode, IsoNodeAccess, IsoNodeSecurityGroup, IsoScene, IsoTilePoint } from './scene.js';
+import type { IsoLabel, IsoNode, IsoNodeAccess, IsoNodeSecurityGroup, IsoScene, IsoTilePoint } from './scene.js';
 import type {
   SecurityGroup,
   SecurityGroupMember,
@@ -267,10 +267,20 @@ const coversPort = (rule: SecurityGroupRule, port: number) =>
   (rule.protocol === 'tcp' || rule.protocol === 'all') &&
   (rule.ports === 'all' || (rule.ports !== 'unknown' && rule.ports.from <= port && port <= rule.ports.to));
 
+/** Only TCP and UDP have ports: a rule for another protocol (GRE, ESP) opens none, whatever its port fields say. */
 const coversAllPorts = (rule: SecurityGroupRule) =>
   rule.protocol === 'all' ||
-  rule.ports === 'all' ||
-  (rule.ports !== 'unknown' && rule.ports.to - rule.ports.from >= ALL_PORTS_SPAN);
+  ((rule.protocol === 'tcp' || rule.protocol === 'udp') &&
+    (rule.ports === 'all' || (rule.ports !== 'unknown' && rule.ports.to - rule.ports.from >= ALL_PORTS_SPAN)));
+
+/**
+ * Whether these CloudFormation conditions can hold together. Their values are not in the template, so a conditional
+ * rule counts as present; but a rule in one branch of a condition never applies to a member in the other.
+ */
+const canHoldTogether = (...conditions: SecurityModelConditions[]) => {
+  const all = new Set(conditions.flat());
+  return ![...all].some((condition) => !condition.startsWith('!') && all.has(`!${condition}`));
+};
 
 /** One address rather than a range: "203.0.113.10" reads better than "1 IP range". */
 const singleAddress = (range: string) => /^(.+)\/(32|128)$/.exec(range)?.[1];
@@ -354,6 +364,8 @@ export const addAccessLayer = ({
   /** What carries the group on each drawn node, e.g. its load balancer. */
   const memberKinds = new Map<string, Set<SecurityGroupMember['kind']>>();
   const groupResources = new Map<string, string[]>();
+  /** The conditions under which each drawn node carries each group, one entry per member. */
+  const attachments = new Map<string, SecurityModelConditions[]>();
   for (const group of security.groups) {
     const nodes = new Set<string>();
     const resources = new Set<string>();
@@ -367,6 +379,7 @@ export const addAccessLayer = ({
       const kinds = memberKinds.get(`${group.id}|${drawn}`) ?? new Set();
       kinds.add(member.kind);
       memberKinds.set(`${group.id}|${drawn}`, kinds);
+      attachments.set(`${group.id}|${drawn}`, [...(attachments.get(`${group.id}|${drawn}`) ?? []), member.conditions]);
     }
     groupNodes.set(group.id, [...nodes]);
     groupResources.set(group.id, [...resources]);
@@ -448,8 +461,15 @@ export const addAccessLayer = ({
     const resources = new Set<string>();
     const sources = new Set<string>();
     for (const groupId of groupIds) {
+      const groupConditions = groupById.get(groupId)?.conditions ?? [];
+      const carried = attachments.get(`${groupId}|${nodeId}`) ?? [];
       for (const rule of rulesByGroup.get(groupId) ?? []) {
         if (rule.direction !== 'ingress' || !opensConnections(rule)) continue;
+        // The ways this node can carry the group while the rule exists.
+        const applies = carried
+          .map((conditions) => conditions.concat(groupConditions, rule.conditions))
+          .filter((conditions) => canHoldTogether(conditions));
+        if (applies.length === 0) continue;
         const { peer } = rule;
         switch (peer.kind) {
           case 'internet':
@@ -475,8 +495,13 @@ export const addAccessLayer = ({
               resources.add(groupById.get(peer.groupId)?.kind === 'external' ? name : name.replace(/ SG$/, ''));
             }
             if (drawn.includes(nodeId) && !groupIds.includes(peer.groupId)) inbound.throughOwnPart = true;
+            const peerConditions = groupById.get(peer.groupId)?.conditions ?? [];
             for (const source of drawn) {
               if (source === nodeId) continue;
+              const carries = (attachments.get(`${peer.groupId}|${source}`) ?? []).some((conditions) =>
+                applies.some((own) => canHoldTogether(own, conditions, peerConditions))
+              );
+              if (!carries) continue;
               sources.add(source);
               resources.add(labelOf(source));
             }
@@ -496,6 +521,8 @@ export const addAccessLayer = ({
   for (const [nodeId, groupIds] of tagGroups) {
     const inbound = inboundOf(nodeId, groupIds);
     if (!inbound.throughOwnPart) closed.add(nodeId);
+    // A group defined outside the stack may admit anyone: with one, "only" would be a guess.
+    const outside = groupIds.some((groupId) => groupById.get(groupId)?.kind === 'external');
     if (inbound.internet.length > 0) {
       // The group the internet's rule is on decides: a service drawn with its database (Convex without the
       // Infrastructure layer) is public through its load balancer, and its database is still closed.
@@ -503,6 +530,8 @@ export const addAccessLayer = ({
         [...(memberKinds.get(`${rule.groupId}|${nodeId}`) ?? [])].some((kind) => DATA_KINDS.has(kind))
       );
       words.set(nodeId, { ...describeInternet({ internet: inbound.internet, holdsData }), sources: inbound.sources });
+    } else if (outside) {
+      words.set(nodeId, { reach: 'unknown', text: 'Rules outside this stack', sources: inbound.sources });
     } else if (inbound.wholeVpc || inbound.ranges.length > 0 || inbound.resources.length > 0) {
       words.set(nodeId, { reach: 'limited', text: describeLimited(inbound), sources: inbound.sources });
     }
@@ -511,8 +540,11 @@ export const addAccessLayer = ({
   // function URL, or a service drawn with its gateway.
   for (const connector of scene.connectors) {
     if (connector.from !== 'user' || connector.semantic !== 'request') continue;
-    if (words.has(connector.to) || closed.has(connector.to) || !visible.has(connector.to)) continue;
-    words.set(connector.to, { reach: 'public', text: 'Public', sources: [] });
+    if (closed.has(connector.to) || !visible.has(connector.to)) continue;
+    // A service drawn with its gateway is as public as the gateway, whatever else its own group admits.
+    const known = words.get(connector.to);
+    if (known?.reach === 'exposed' || known?.reach === 'public') continue;
+    words.set(connector.to, { reach: 'public', text: 'Public', sources: known?.sources ?? [] });
   }
 
   // ── Where each tag sits: above its node, clear of other nodes, their names, badges and connector chips ──
@@ -530,6 +562,7 @@ export const addAccessLayer = ({
   for (const connector of scene.connectors) {
     if (connector.label) others.insert(boxAround(projectTile(connector.route.labelTile), measureChip(connector.label)));
   }
+  for (const label of scene.labels) others.insert(zoneLabelBox(label));
 
   const access = new Map<string, IsoNodeAccess>();
   for (const node of scene.nodes) {
@@ -542,16 +575,30 @@ export const addAccessLayer = ({
     const { u, v } = projectTile(node.tile);
     const home = { u, v: v + (SHAPE_HEIGHT_PX[node.shape] + ACCESS_TAG_RISE_PX) / V_PX };
     const own = ownShapes.get(node.id) ?? [];
-    // Straight above the node first; where a neighbour is in the way, slid along the node's top or lifted a row.
+    // Straight above the node first; where a neighbour is in the way, slid along the node's top or lifted a row; and
+    // where nothing above is free, under the node's name. Never farther, so a tag is never read as a neighbour's.
     const slide = Math.max(0, size.halfWidth - BODY_HALF_WIDTH);
+    const layoutNode = layoutNodes.get(node.id);
+    const rows = [
+      { v: home.v, cost: 0 },
+      { v: home.v + 2 * size.halfHeight + 0.1, cost: 0.5 },
+      ...(layoutNode
+        ? [
+            {
+              v: v - (layoutNode.width + layoutNode.depth) / 2 - layoutNode.tag.height - size.halfHeight - 0.1,
+              cost: 0.8
+            }
+          ]
+        : [])
+    ];
     let best: { u: number; v: number; cost: number } | undefined;
-    for (const row of [0, 1, 2]) {
+    for (const row of rows) {
       for (const shift of [0, -0.5, 0.5, -1, 1]) {
-        const candidate = { u: home.u + shift * slide, v: home.v + row * (2 * size.halfHeight + 0.1) };
+        const candidate = { u: home.u + shift * slide, v: row.v };
         const box = boxAround(candidate, size);
         const crowding =
           others.overlapArea(box) - own.reduce((sum, shape) => sum + boxOverlapArea({ a: box, b: shape }), 0);
-        const cost = Math.max(0, crowding) * 1000 + Math.abs(shift) * 0.2 + row * 0.5;
+        const cost = Math.max(0, crowding) * 1000 + Math.abs(shift) * 0.2 + row.cost;
         if (!best || cost < best.cost - EPSILON) best = { ...candidate, cost };
       }
     }
@@ -568,6 +615,22 @@ export const addAccessLayer = ({
         ? Object.assign({}, node, { securityGroups: nodeGroups.get(node.id), access: access.get(node.id) })
         : node
     )
+  };
+};
+
+/**
+ * A zone's name, which runs along one of its edges: from its start `axis` tiles towards -y or +x, about 0.62 of its
+ * font size a character.
+ */
+const zoneLabelBox = (label: IsoLabel): ProjectedBox => {
+  const tiles = (label.text.length * (label.fontSize ?? 12) * 0.62) / Math.hypot(U_PX, V_PX);
+  const start = projectTile(label.tile);
+  const end = { u: start.u + tiles, v: start.v + (label.axis === 'y' ? -tiles : tiles) };
+  return {
+    u0: Math.min(start.u, end.u),
+    u1: Math.max(start.u, end.u),
+    v0: Math.min(start.v, end.v) - 0.4,
+    v1: Math.max(start.v, end.v) + 0.4
   };
 };
 

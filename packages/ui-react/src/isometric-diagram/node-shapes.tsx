@@ -869,10 +869,14 @@ const Pill = ({
 const ACCESS_TAG_STYLE = {
   exposed: { fill: '#C9363C', stroke: '#F06A6F', text: '#FFFFFF' },
   public: { fill: '#10202B', stroke: '#6FB6D9', text: '#DDF1FB' },
-  limited: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' }
+  limited: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' },
+  unknown: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' }
 } as const;
 
-/** The Access layer's tag: a globe when the internet can reach the node, a padlock when it cannot, then who can. */
+/**
+ * The Access layer's tag: a globe when the internet can reach the node, a padlock when it cannot, a question mark when
+ * the template cannot say, then who can.
+ */
 const AccessTag = ({ access }: { access: IsoNodeAccess }) => {
   const style = ACCESS_TAG_STYLE[access.reach];
   const { x, y } = t2s(access.tile.x, access.tile.y);
@@ -891,7 +895,23 @@ const AccessTag = ({ access }: { access: IsoNodeAccess }) => {
         stroke={style.stroke}
         strokeWidth={1.2}
       />
-      {access.reach === 'limited' ? (
+      {access.reach === 'unknown' ? (
+        <g data-iso-kind="access-icon-unknown">
+          <circle cx={iconX} cy={y} r={4.6} stroke={style.text} strokeWidth={1.1} fill="none" />
+          <text
+            x={iconX}
+            y={y + 0.5}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={style.text}
+            fontFamily={FONT}
+            fontSize={7.5}
+            fontWeight={700}
+          >
+            ?
+          </text>
+        </g>
+      ) : access.reach === 'limited' ? (
         <g data-iso-kind="access-icon-padlock">
           <path
             d={`M${iconX - 2.6} ${y - 1} v-2.2 a2.6 2.6 0 0 1 5.2 0 v2.2`}

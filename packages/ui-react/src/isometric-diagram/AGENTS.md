@@ -192,6 +192,9 @@ groups, ports and protocols are how AWS enforces the answer and belong in the si
     addresses, is not public because a connector reaches it.
   - `limited`, quiet: "Anything in the VPC", "Only web", "Only web + 203.0.113.10", "Only 2 IP addresses", "Only 3
     resources". At most two resources are named and the text stays within 30 characters; past that it counts.
+  - `unknown`, quiet with a question mark: "Rules outside this stack" on a node that carries a group the template only
+    refers to. Its rules are not in the template, so "Only web" would be a guess. What the template does show still
+    counts: an internet rule on another of its groups makes it `exposed` or `public`.
   - No tag: nothing can connect in (a worker, a function in the VPC), or the group says nothing about the node (a NAT
     instance; an HTTP API's VPC Link, whose group is about the link, not the gateway). ICMP alone is not a way in.
 - **Members map to drawn nodes** by the logical ID that carries the group first, then by owner and member kind. A
@@ -201,12 +204,19 @@ groups, ports and protocols are how AWS enforces the answer and belong in the si
   an SSR site's function `<name>--server`, a NAT instance `nat-gateway`. Then through grouping (a collapsed member is
   its group's deck) and, without the Infrastructure layer, its folding: a service drawn with its load balancer carries
   both groups, so it is "Public" itself. A source that resolves to the node itself is not a source.
+- **Never more than the template says.** These statements are about security, so each errs towards what is certain. A
+  service drawn with its gateway is "Public" whatever else its own group admits. CloudFormation conditions have no
+  values in the template, so a conditional rule counts as present (the tag may name more than is allowed in, never
+  less), but a rule in one branch of a condition never applies to a member attached in the other. Only TCP, UDP and
+  "all" can be "All ports open"; GRE or ESP from the internet is "Public".
 - **Sources** are named as drawn: a collapsed role group by its name ("Only Functions"), its members once expanded. A
   group several resources carry lets the others in, not the node itself. A group with nothing drawn is named as a group.
   `access.sources` are the drawn nodes, which focusing the node keeps lit whether or not a connector joins them.
-- **Placement.** A tag sits straight above its node. Where another node, a name, a badge, a connector chip or another
-  tag is in the way it slides along the node's top or rises a row. The frame includes the tags of both pictures (with
-  and without Infrastructure), so they are never cut off. `security-view.test.ts` checks every template for overlaps.
+- **Placement.** A tag sits straight above its node. Where another node, a name, a badge, a connector chip, a zone's
+  name or another tag is in the way it slides along the node's top or rises a row, and where nothing above is free it
+  goes under the node's name. It never goes farther, where it would read as a neighbour's tag. The frame includes the
+  tags of both pictures (with and without Infrastructure), so they are never cut off. `security-view.test.ts` checks
+  every template for overlaps.
 - **Under the tag.** The `public` mark and a load balancer's exposure badge give way to the tag, which says more about
   the same thing. The node's accessible name and tooltip carry the tag's text. The note at the bottom left names what is
   `exposed`, so a reader does not have to scan for red.

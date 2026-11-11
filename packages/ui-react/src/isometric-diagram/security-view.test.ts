@@ -127,7 +127,8 @@ describe('tags of real templates', () => {
     expect(nodeOf(scene, 'cron').securityGroups).toEqual([
       { id: expect.any(String), name: 'external sg-0noaccess', external: true, inbound: [], outbound: [] }
     ]);
-    expect(nodeOf(scene, 'cron').access).toBeUndefined();
+    // What the group admits is unknown, so the tag says that rather than nothing.
+    expect(tagsOf(scene).cron).toBe('unknown: Rules outside this stack');
   });
 
   test('private network: a file system, a cache and an internal load balancer', () => {
@@ -263,12 +264,11 @@ describe('legibility over every template', () => {
           }
         }
 
-        // A tag belongs to the node under it: never farther than a few rows above, or a body's width to the side.
+        // A tag stays by its node: just above it, or under its name, and never a body's width to the side.
         for (const node of tagged) {
           const home = projectTile(node.tile);
           const tag = projectTile(node.access?.tile ?? node.tile);
-          expect(tag.v).toBeGreaterThan(home.v);
-          expect(tag.v - home.v).toBeLessThan(6);
+          expect(Math.abs(tag.v - home.v)).toBeLessThan(5);
           expect(Math.abs(tag.u - home.u)).toBeLessThan(3);
         }
       });
@@ -392,6 +392,71 @@ describe('what the internet can reach', () => {
     expect(tagsOf(closed)['albWeb--alb']).toBeUndefined();
     // The HTTP API has no group of its own, so the connector is what says it is public.
     expect(tagsOf(closed).api).toBe('public: Public');
+  });
+});
+
+/** The database-accessibility template after `change`, drawn with these layers. */
+const changedDatabases = (change: (resources: Record<string, any>) => void, layers: DiagramLayers = ALL_LAYERS) => {
+  const fixture = structuredClone(load('database-accessibility'));
+  change(fixture.resources);
+  const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+  return selectDiagramView({ model, layers, security: buildSecurityGroupModel(fixture) });
+};
+
+describe('tags never claim more than the template says', () => {
+  test('a service drawn with its public gateway is public, whatever else its own group admits', () => {
+    const admitOffice = (resources: Record<string, any>) =>
+      resources.WebSecurityGroup.Properties.SecurityGroupIngress.push(tcp(3000, { CidrIp: '203.0.113.10/32' }));
+    expect(tagsOf(changedDatabases(admitOffice)).web).toBe('limited: Only web GW + 203.0.113.10');
+    // Without the Infrastructure layer the gateway is part of the node, and the internet reaches the gateway.
+    expect(tagsOf(changedDatabases(admitOffice, ACCESS)).web).toBe('public: Public');
+  });
+
+  test('a group defined outside the stack beside a known one rules out "only"', () => {
+    const scene = changedDatabases((resources) =>
+      resources.ScopedDbDbInstance.Properties.VPCSecurityGroups.push('sg-0outside')
+    );
+    expect(tagsOf(scene).scopedDb).toBe('unknown: Rules outside this stack');
+    expect(groupNamesOf(scene, 'scopedDb')).toEqual(['scopedDb SG', 'external sg-0outside']);
+    // What the template does show still counts: a database it opens to the internet is open.
+    const open = changedDatabases((resources) =>
+      resources.PublicDbDbInstance.Properties.VPCSecurityGroups.push('sg-0outside')
+    );
+    expect(tagsOf(open).publicDb).toBe('exposed: Open to the internet');
+  });
+
+  test('a rule in one branch of a condition does not apply to a member in the other', () => {
+    const branches = (ruleBranch: 'same' | 'other') => {
+      const open = tcp(443, { CidrIp: '0.0.0.0/0' });
+      const { config, input } = syntheticTemplate({
+        functions: 1,
+        groups: [
+          { id: 'Closed', members: () => false, ingress: [tcp(443, { CidrIp: '10.9.0.0/16' })] },
+          { id: 'Open', members: () => false, ingress: [] }
+        ]
+      });
+      const resources = input.resources as Record<string, any>;
+      resources.Open.Properties.SecurityGroupIngress = {
+        'Fn::If': ['UseOpen', ruleBranch === 'same' ? [open] : [], ruleBranch === 'same' ? [] : [open]]
+      };
+      resources.Fn0Function.Properties.VpcConfig.SecurityGroupIds = {
+        'Fn::If': ['UseOpen', [{ Ref: 'Open' }], [{ Ref: 'Closed' }]]
+      };
+      const model = buildDiagramModel({ parsedConfig: config as never })!;
+      const scene = selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(input) });
+      return tagsOf(scene).fn0;
+    };
+    // The function carries Open only when UseOpen holds, and Open admits the internet only when it does not.
+    expect(branches('other')).toBe('limited: Only 1 IP range');
+    // In the same branch the rule can apply. The condition's value is not in the template, so it counts.
+    expect(branches('same')).toBe('public: Public');
+  });
+
+  test('a protocol without ports open to the internet is not "all ports"', () => {
+    expect(tagFor([{ IpProtocol: '47', CidrIp: '0.0.0.0/0' }])).toBe('public: Public');
+    expect(tagFor([{ IpProtocol: 'udp', FromPort: 0, ToPort: 65535, CidrIp: '0.0.0.0/0' }])).toBe(
+      'exposed: All ports open to the internet'
+    );
   });
 });
 

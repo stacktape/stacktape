@@ -124,10 +124,11 @@ export type IsoNode = {
 /**
  * Who the deployed stage lets connect to a node, as the Access layer's tag above it. `exposed` is a data store or an
  * admin port open to the internet; `public` an entry point meant to be reached from it; `limited` everything the
- * internet cannot reach.
+ * internet cannot reach; `unknown` a node with a security group defined outside the stack, whose rules the template
+ * does not hold.
  */
 export type IsoNodeAccess = {
-  reach: 'exposed' | 'public' | 'limited';
+  reach: 'exposed' | 'public' | 'limited' | 'unknown';
   /** "Open to the internet", "Public", "Anything in the VPC", "Only web + 203.0.113.10". */
   text: string;
   /** The tag's centre, placed clear of other nodes, their names and connector chips. */
