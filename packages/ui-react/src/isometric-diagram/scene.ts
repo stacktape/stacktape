@@ -104,6 +104,8 @@ export type IsoNode = {
   exposure?: 'internal' | 'internet-facing' | undefined;
   /** The security groups this node carries in the deployed stage, under the Access layer. */
   securityGroups?: IsoNodeSecurityGroup[] | undefined;
+  /** Who can connect to this node over the network, under the Access layer: one tag above it. */
+  access?: IsoNodeAccess | undefined;
   /**
    * The role group this node belongs to: its own id on a collapsed group's node, the group's id on each member drawn
    * after the group was expanded. See `IsoScene.groups`.
@@ -117,6 +119,16 @@ export type IsoNode = {
   routes?: IsoRoute[] | undefined;
   /** Declared triggers whose sender is not drawn, e.g. "payments-queue · poll (not drawn)". */
   undrawnTriggers?: string[] | undefined;
+};
+
+/**
+ * Who a deployed stage's rules let connect to a node, in a few words. `exposed` is a data store or an admin port open to
+ * the internet; `public` an entry point meant to be reached from it; `limited` everything the internet cannot reach.
+ */
+export type IsoNodeAccess = {
+  reach: 'exposed' | 'public' | 'limited';
+  /** "Open to the internet", "Public", "Anything in the VPC", "Only web + 1 IP address". */
+  text: string;
 };
 
 /**

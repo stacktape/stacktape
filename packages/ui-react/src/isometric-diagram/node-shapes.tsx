@@ -10,7 +10,7 @@
  */
 import type { ReactElement, ReactNode } from 'react';
 import type { ScreenPoint } from './projection.js';
-import type { IsoNode, IsoNodeCategory, IsoNodeGlyph } from './scene.js';
+import type { IsoNode, IsoNodeCategory, IsoNodeGlyph, IsoNodeAccess } from './scene.js';
 import { BADGE_OFFSET_PX, EXPOSURE_BADGE_TEXT, getReplicaBadgeText, SHAPE_HEIGHT_PX } from './node-appearance.js';
 import { lift, pts, round, t2s, TH, TW } from './projection.js';
 
@@ -856,6 +856,72 @@ const Pill = ({
   );
 };
 
+const ACCESS_TAG_STYLE = {
+  exposed: { fill: '#C9363C', stroke: '#F06A6F', text: '#FFFFFF' },
+  public: { fill: '#10202B', stroke: '#6FB6D9', text: '#DDF1FB' },
+  limited: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' }
+} as const;
+
+/** The Access layer's tag: a globe when the internet can reach the node, a padlock when it cannot, then who can. */
+const AccessTag = ({
+  x,
+  y,
+  access,
+  anchor
+}: {
+  x: number;
+  y: number;
+  access: IsoNodeAccess;
+  anchor: 'middle' | 'end';
+}) => {
+  const style = ACCESS_TAG_STYLE[access.reach];
+  const textWidth = [...access.text].reduce(
+    (sum, char) => sum + (char === ' ' || char === '.' || char === ',' ? 3.2 : /[A-Z0-9+]/.test(char) ? 6.9 : 5.7),
+    0
+  );
+  const width = textWidth + 31;
+  const left = anchor === 'middle' ? x - width / 2 : x - width;
+  const iconX = left + 12;
+  return (
+    <g data-iso-kind="access-tag" data-iso-reach={access.reach}>
+      <rect
+        x={left}
+        y={y - 9.5}
+        width={width}
+        height={19}
+        rx={9.5}
+        fill={style.fill}
+        stroke={style.stroke}
+        strokeWidth={1.2}
+      />
+      {access.reach === 'limited' ? (
+        <g stroke={style.text} strokeWidth={1.3} fill="none" strokeLinecap="round">
+          <path d={`M${iconX - 2.6} ${y - 1} v-2.2 a2.6 2.6 0 0 1 5.2 0 v2.2`} />
+          <rect x={iconX - 4} y={y - 1} width={8} height={6} rx={1.4} fill={style.text} stroke="none" />
+        </g>
+      ) : (
+        <g stroke={style.text} strokeWidth={1.1} fill="none">
+          <circle cx={iconX} cy={y} r={4.6} />
+          <ellipse cx={iconX} cy={y} rx={2} ry={4.6} />
+          <path d={`M${iconX - 4.6} ${y} h9.2`} />
+        </g>
+      )}
+      <text
+        x={left + 21}
+        y={y + 0.5}
+        textAnchor="start"
+        dominantBaseline="central"
+        fill={style.text}
+        fontFamily={FONT}
+        fontSize={10.5}
+        fontWeight={700}
+      >
+        {access.text}
+      </text>
+    </g>
+  );
+};
+
 export function NodeBadges({ node }: { node: IsoNode }) {
   const center = t2s(node.tile.x, node.tile.y);
   const badgeY = center.y - SHAPE_HEIGHT_PX[node.shape] - BADGE_OFFSET_PX;
@@ -874,12 +940,20 @@ export function NodeBadges({ node }: { node: IsoNode }) {
           </g>
         )
       )}
-      {node.isPublic && (
+      {node.access && (
+        <AccessTag
+          x={replicaText ? center.x + 14 : center.x}
+          y={badgeY - 9}
+          access={node.access}
+          anchor={replicaText ? 'end' : 'middle'}
+        />
+      )}
+      {node.isPublic && !node.access && (
         <g data-iso-kind="public-badge">
           <Pill x={center.x - 30} y={badgeY} text="public" fill="#C9363C" stroke="#F06A6F" />
         </g>
       )}
-      {node.exposure && !node.isPublic && (
+      {node.exposure && !node.isPublic && !node.access && (
         <g data-iso-kind="exposure-badge" data-iso-exposure={node.exposure}>
           <Pill
             x={center.x - (node.exposure === 'internal' ? 22 : 34)}
