@@ -49,7 +49,10 @@ export type SecurityRuleCategory = (typeof SECURITY_RULE_CATEGORIES)[number];
 
 export type SecurityRuleDefinition = {
   title: string;
-  /** One or two sentences a developer without a security background can act on. */
+  /**
+   * What the problem lets happen, in one or two sentences a developer without a security background understands. The
+   * finding's own message says where the problem is and its remediation how to fix it, so this repeats neither.
+   */
   description: string;
   category: SecurityRuleCategory;
   kind: Exclude<SecurityFindingKind, 'VULNERABILITY'>;
@@ -76,7 +79,7 @@ export const SECURITY_RULES = {
   'database-reachable-from-internet': {
     title: 'Database reachable from the internet',
     description:
-      'The database accepts connections from any internet address. Anyone who learns the endpoint can attempt to log in. Put it in the VPC so only your workloads can reach it.',
+      'Anyone who learns the endpoint can try to log in, so its password is the only thing between the internet and your data.',
     category: 'network-exposure',
     kind: 'POSTURE',
     defaultSeverity: 'HIGH',
@@ -85,8 +88,7 @@ export const SECURITY_RULES = {
   },
   'database-deletion-protection-disabled': {
     title: 'Production database without deletion protection',
-    description:
-      'A production database can be deleted by a single command or a mistaken stack change. Deletion protection makes removal a deliberate two-step action.',
+    description: 'A single command or a mistaken change to the stack can delete the production database and its data.',
     category: 'data-protection',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM',
@@ -95,8 +97,7 @@ export const SECURITY_RULES = {
   },
   'database-backups-disabled': {
     title: 'Production data store without backups',
-    description:
-      'Data in this store cannot be recovered after corruption, a bad migration or an accidental delete. Enable automated backups or point-in-time recovery.',
+    description: 'Data in this store cannot be recovered after corruption, a bad migration or an accidental delete.',
     category: 'data-protection',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM',
@@ -105,8 +106,7 @@ export const SECURITY_RULES = {
   },
   'load-balancer-without-firewall': {
     title: 'Public load balancer without a web application firewall',
-    description:
-      'Requests reach the application without any filtering of common attack patterns, bad bots or floods. Attach a web-app-firewall resource with useFirewall.',
+    description: 'Requests reach the application without any filtering of common attack patterns, bad bots or floods.',
     category: 'network-exposure',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM',
@@ -116,7 +116,7 @@ export const SECURITY_RULES = {
   'bucket-publicly-accessible': {
     title: 'Bucket readable or writable by anyone',
     description:
-      'Every object in the bucket can be read, or even written, by anyone on the internet. Use private accessibility unless the bucket intentionally serves public files.',
+      'Anyone who finds or guesses the address of a file can download it, including files that were never meant to be public.',
     category: 'network-exposure',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM'
@@ -124,7 +124,7 @@ export const SECURITY_RULES = {
   'iam-statement-allows-any-action': {
     title: 'IAM statement allows every action',
     description:
-      'A role statement grants every AWS action, so a bug or a compromised dependency in that workload can do anything in the account. Grant the specific actions the code uses.',
+      'A bug or a compromised dependency in that workload can do anything in the AWS account, such as delete databases or create users.',
     category: 'identity-and-access',
     kind: 'POSTURE',
     defaultSeverity: 'HIGH'
@@ -132,15 +132,14 @@ export const SECURITY_RULES = {
   'iam-statement-wildcard-service-on-any-resource': {
     title: 'IAM statement grants a whole service on every resource',
     description:
-      'A role statement allows all actions of an AWS service on every resource in the account, for example s3:* on *. Narrow it to the actions and resources the workload needs.',
+      'A bug or a compromised dependency in that workload can use the whole service on every resource in the account, for example read or delete any bucket.',
     category: 'identity-and-access',
     kind: 'POSTURE',
     defaultSeverity: 'MEDIUM'
   },
   'stack-termination-protection-disabled': {
     title: 'Production stack without termination protection',
-    description:
-      'The whole production stack can be deleted in one step. Termination protection requires disabling it and redeploying before deletion succeeds.',
+    description: 'One mistaken delete command removes every production resource, including the ones that hold data.',
     category: 'data-protection',
     kind: 'POSTURE',
     defaultSeverity: 'LOW',
@@ -149,8 +148,7 @@ export const SECURITY_RULES = {
   },
   'container-single-instance-in-production': {
     title: 'Production container service runs a single instance',
-    description:
-      'One failing instance takes the service down and every deployment causes a short outage. Run at least two instances for production services.',
+    description: 'One failing instance takes the service down, and every deploy causes a short outage.',
     category: 'resilience',
     kind: 'POSTURE',
     defaultSeverity: 'LOW',
@@ -160,7 +158,7 @@ export const SECURITY_RULES = {
   'queue-without-dead-letter-queue': {
     title: 'Queue without a dead-letter queue',
     description:
-      'Messages that keep failing are dropped silently after their retention period. A dead-letter queue keeps them for inspection and replay.',
+      'Messages that keep failing are dropped silently after their retention period, with no way to inspect or replay them.',
     category: 'resilience',
     kind: 'POSTURE',
     defaultSeverity: 'LOW',
@@ -170,7 +168,7 @@ export const SECURITY_RULES = {
   'secret-in-environment-variable': {
     title: 'Secret stored as a plain environment variable',
     description:
-      'A value that looks like a credential is written directly into the configuration, so it lives in Git history and in every deployment. Move it to $Secret() and rotate the credential, because a committed secret stays valid until it is revoked.',
+      'The value is in your Git history and in every deployment, and stays valid until it is revoked, so anyone who can read either can use it.',
     category: 'secrets',
     kind: 'SECRET',
     defaultSeverity: 'CRITICAL'
