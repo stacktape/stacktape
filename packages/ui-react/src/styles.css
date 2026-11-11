@@ -475,7 +475,9 @@
     --stp-ui-button-shadow-hover: var(--stp-button-plain-shadow-hover, inset 0 0 0 100px rgba(255, 255, 255, 0.07));
     --stp-ui-button-shadow-active: var(--stp-button-plain-shadow-active, inset 0 0 0 100px rgba(255, 255, 255, 0.12));
 
-    padding: 0 4px;
+    /* Text-tight by default. An application whose plain buttons stand as controls in their own right (a toolbar, an
+     * action slot) gives them a button's padding, so the hover wash reads as a button and not as a highlight. */
+    padding: 0 var(--stp-button-plain-padding-x, 4px);
   }
 
   /* ── Icon-only shape ──────────────────────────────────────────────────────────────────────────
