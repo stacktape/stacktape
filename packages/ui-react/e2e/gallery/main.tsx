@@ -4,6 +4,7 @@ import { Button } from '../../src/button/Button.tsx';
 import { Dialog } from '../../src/dialog/Dialog.tsx';
 import { Select } from '../../src/select/Select.tsx';
 import { Switch } from '../../src/switch/Switch.tsx';
+import { Tabs } from '../../src/tabs/Tabs.tsx';
 import { TextField } from '../../src/text-field/TextField.tsx';
 import { Tooltip } from '../../src/tooltip/Tooltip.tsx';
 import '../../src/styles.css';
@@ -19,6 +20,7 @@ function Gallery() {
   const [enabled, setEnabled] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [innerOpen, setInnerOpen] = useState(false);
+  const [section, setSection] = useState('overview');
 
   return (
     <main>
@@ -71,6 +73,18 @@ function Gallery() {
         <Button variant="secondary">Apply</Button>
         <Switch checked={enabled} label="Scanning" onCheckedChange={setEnabled} />
       </section>
+      <Tabs
+        activation="manual"
+        ariaLabel="Sections"
+        onValueChange={setSection}
+        tabs={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'logs', label: 'Logs' },
+          { value: 'metrics', label: 'Metrics', href: '#metrics' }
+        ]}
+        value={section}
+      />
+      <output aria-label="Shown section">{section}</output>
       <Dialog
         open={tallOpen}
         onOpenChange={setTallOpen}

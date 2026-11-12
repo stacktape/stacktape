@@ -68,3 +68,30 @@ test('a picker and a field wear the focus mark when the keyboard reaches them, a
   await control.click();
   await expect.poll(() => outline(control)).toBe('none');
 });
+
+test('tabs with manual activation move focus with the arrows and open a tab with Enter or Space', async ({ page }) => {
+  await page.goto('/');
+  const list = page.getByRole('tablist', { name: 'Sections' });
+  const shown = page.getByRole('status', { name: 'Shown section' });
+  await list.getByRole('tab', { name: 'Overview' }).focus();
+
+  await page.keyboard.press('ArrowRight');
+  await expect(list.getByRole('tab', { name: 'Logs' })).toBeFocused();
+  await expect(shown).toHaveText('overview');
+  await page.keyboard.press('Enter');
+  await expect(shown).toHaveText('logs');
+  await expect(list.getByRole('tab', { name: 'Logs' })).toHaveAttribute('aria-selected', 'true');
+
+  // A tab drawn as a link opens with Space as well.
+  await page.keyboard.press('End');
+  await expect(list.getByRole('tab', { name: 'Metrics' })).toBeFocused();
+  await expect(shown).toHaveText('logs');
+  await page.keyboard.press(' ');
+  await expect(shown).toHaveText('metrics');
+
+  // Leaving the list and coming back lands on the selected tab.
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  await expect(list.getByRole('tab', { name: 'Metrics' })).toBeFocused();
+});

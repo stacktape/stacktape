@@ -85,7 +85,7 @@
 
   /* One hover for every variant: the same lift, the same thin highlight along the top edge. What
    * differs per variant is only how bright that highlight has to be to read on its own fill. */
-  .stp-ui-button:hover:not(:disabled)::before {
+  .stp-ui-button:hover:not(:disabled, [aria-disabled='true'])::before {
     background: var(--stp-ui-button-surface-hover, var(--stp-ui-button-surface));
     box-shadow: var(--stp-ui-button-shadow-hover, var(--stp-ui-button-shadow));
   }
@@ -93,7 +93,7 @@
   /* Pressing settles the control back onto the page rather than moving it. Nothing here scales: a
    * control that shrinks under the cursor was the one interaction both consumers disliked, and it
    * was also the only thing in this package that animated geometry. */
-  .stp-ui-button:active:not(:disabled)::before {
+  .stp-ui-button:active:not(:disabled, [aria-disabled='true'])::before {
     box-shadow: var(--stp-ui-button-shadow-active, var(--stp-ui-button-shadow));
   }
 
@@ -104,7 +104,9 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
-  .stp-ui-button:disabled {
+  /* `aria-disabled`: unavailable but still focusable, so the keyboard reaches the reason it is unavailable. */
+  .stp-ui-button:disabled,
+  .stp-ui-button[aria-disabled='true'] {
     cursor: default;
     opacity: 0.6;
   }
@@ -1732,6 +1734,24 @@
     .stp-ui-dialog__overlay,
     .stp-ui-dialog {
       animation: none;
+    }
+  }
+
+  /* Windows Contrast themes replace colours with system colours and drop shadows. A switch is a filled track and knob,
+   * so it draws them with system colours instead of disappearing; the checked knob takes the selection colour. */
+  @media (forced-colors: active) {
+    .stp-ui-switch {
+      border: 1px solid ButtonText;
+    }
+
+    .stp-ui-switch__thumb {
+      top: 2px;
+      left: 2px;
+      background: ButtonText;
+    }
+
+    .stp-ui-switch--checked .stp-ui-switch__thumb {
+      background: Highlight;
     }
   }
 }
