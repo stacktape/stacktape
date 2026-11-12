@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { BiCheck, BiX } from 'react-icons/bi';
 import { Alert } from '@stacktape/ui-react/alert';
 import { ButtonLink } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import type { DeployModel } from '../deploy-model';
-import { CopyableCommand } from './CopyableCommand';
+import { TerminalLine } from './TerminalLine';
 import { FailureExplanationText } from './FailureExplanation';
 import { Row } from './RowList';
 
@@ -102,12 +103,6 @@ export function DeployProgress({
     <div className="flex flex-col gap-6">
       {finished && (
         <section aria-label="Live" className="wizard-live">
-          <p className="wizard-live-status">
-            <span aria-hidden className="wizard-live-dot" />
-            <span>
-              Live <span className="text-[var(--stp-text-subtle)]">· {where}</span>
-            </span>
-          </p>
           {urls.length > 0 ? (
             <ul className="wizard-live-urls">
               {urls.map(({ resourceName, url }) => (
@@ -180,7 +175,11 @@ export function DeployProgress({
             {model.phases.map((phase) => (
               <li className={`wizard-phase is-${phase.status}`} key={phase.id}>
                 <span className="wizard-phase-marker" aria-hidden>
-                  {phase.status === 'done' ? '✓' : phase.status === 'failed' ? '✕' : ''}
+                  {phase.status === 'done' ? (
+                    <BiCheck size={13} />
+                  ) : phase.status === 'failed' ? (
+                    <BiX size={13} />
+                  ) : null}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
@@ -309,7 +308,7 @@ export function DeployProgress({
             description="The same command, with the full output in front of you. Nothing in the wizard needs to be redone."
             title="Try again from your terminal"
           >
-            <CopyableCommand command={commandLine} />
+            <TerminalLine command={commandLine} />
           </Row>
         </ul>
       )}

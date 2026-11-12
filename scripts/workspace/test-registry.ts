@@ -3794,7 +3794,9 @@ export const lanes: readonly Lane[] = [
       'src/deploy-model.spec.ts',
       'src/gaps.spec.ts',
       'src/sign-in.spec.ts',
-      'src/target-copy.spec.ts'
+      'src/stations.spec.ts',
+      'src/target-copy.spec.ts',
+      'src/components/TerminalLine.spec.ts'
     ],
     tier: 'pr',
     level: 'focused',
@@ -3804,7 +3806,9 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/deploy-model.spec.ts',
       'apps/init-ui/src/gaps.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
-      'apps/init-ui/src/target-copy.spec.ts'
+      'apps/init-ui/src/stations.spec.ts',
+      'apps/init-ui/src/target-copy.spec.ts',
+      'apps/init-ui/src/components/TerminalLine.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -4110,7 +4114,9 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/deploy-model.spec.ts',
       'apps/init-ui/src/gaps.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
+      'apps/init-ui/src/stations.spec.ts',
       'apps/init-ui/src/target-copy.spec.ts',
+      'apps/init-ui/src/components/TerminalLine.spec.ts',
       'apps/init-ui/src/steps/ReviewStep.spec.ts',
       'apps/init-ui/e2e/wizard.spec.ts'
     ],

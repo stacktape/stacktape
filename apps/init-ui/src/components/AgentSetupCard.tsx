@@ -1,7 +1,7 @@
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import type { WizardState } from '../session';
-import { CopyableCommand } from './CopyableCommand';
+import { TerminalLine } from './TerminalLine';
 import { Row } from './RowList';
 
 /**
@@ -60,7 +60,7 @@ export function AgentSetupCard({
             {detail}
           </Alert>
           <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">Or run the same setup in a terminal:</p>
-          <CopyableCommand command={command} />
+          <TerminalLine command={command} />
         </div>
       )}
     </Row>

@@ -15,6 +15,30 @@
 @import '@stacktape/design-tokens/css';
 @import '@stacktape/ui-react/styles.css';
 
+/* Self-hosted variable Montserrat (OFL, see fonts/OFL.txt), the Console's typeface, split into Latin and Latin
+ * Extended like the Console's copy: the page works offline, and Latin Extended loads only for text that needs it. */
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/montserrat-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/montserrat-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -26,9 +50,10 @@
     margin: 0;
     background: var(--stp-surface-page, #161c1c);
     color: var(--stp-text-primary);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-size: 15px;
-    line-height: 1.55;
+    font-family: Montserrat, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: var(--stp-font-weight-body);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     /* A single, very soft light from the top of the page. It gives the sections something to sit on
      * without any of them needing a border. */
@@ -42,236 +67,304 @@
     outline: none;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
-
   /* Tabbing into a field selects its value; the browser's own bright blue is in no palette. */
   ::selection {
     background: color-mix(in srgb, var(--stp-color-brand) 32%, transparent);
     color: var(--stp-text-primary);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
   }
 }
 
 @layer components {
   /* ── The page ──────────────────────────────────────────────────────────────────────────────── */
 
+  /* One column, centred: the header, the path, and the step the run is on. */
   .wizard-shell {
-    max-width: 1080px;
+    max-width: 856px;
     margin: 0 auto;
-    padding: 72px 28px 140px;
+    padding: 56px 28px 120px;
   }
 
   .wizard-masthead {
     max-width: var(--wizard-measure);
-    margin-bottom: 56px;
+    margin-bottom: 36px;
   }
 
-  .wizard-step-label {
+  /* Which project, and where it is on disk: the one thing to check before anything reads it. */
+  .wizard-project {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
     margin: 0;
-    font-size: 0.76rem;
-    font-weight: 600;
-    color: var(--stp-color-brand);
+    color: var(--stp-text-subtle);
+    font-size: var(--stp-font-size-body);
+  }
+
+  .wizard-project-name {
+    color: var(--stp-text-secondary);
+    font-weight: var(--stp-font-weight-label);
   }
 
   .wizard-title {
-    margin: 10px 0 0;
-    font-size: 2.1rem;
-    font-weight: 660;
-    line-height: 1.15;
-    letter-spacing: -0.02em;
+    margin: 6px 0 0;
+    color: var(--stp-text-headline);
+    font-size: 1.75rem;
+    font-weight: var(--stp-font-weight-display);
+    line-height: 1.25;
   }
 
   .wizard-lede {
-    margin: 12px 0 0;
+    margin: 10px 0 0;
     max-width: var(--wizard-measure);
     color: var(--stp-text-muted);
   }
 
-  /* Rail and flow. The rail is 168px because the labels are one word and a summary; wider and it
-   * starts competing with the content it is supposed to be indexing. */
-  .wizard-page {
+  /* The step the run is on arrives under the path; a step opened again sits between them, set apart by a hairline. */
+  .wizard-step {
+    animation: wizard-step-in var(--stp-motion-duration-slow, 420ms) var(--stp-motion-easing) both;
+  }
+
+  .wizard-reopened {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    animation: wizard-expand var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  @keyframes wizard-step-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ── The path ──────────────────────────────────────────────────────────────────────────────── */
+
+  /* Four stations on one line, drawn as the Console draws a first deploy. */
+  .wizard-path {
     display: grid;
-    grid-template-columns: 168px minmax(0, 1fr);
-    gap: 56px;
-    align-items: start;
-  }
-
-  .wizard-flow {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  /* ── The guide rail ────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-rail {
-    position: sticky;
-    top: 72px;
-  }
-
-  .wizard-rail ol {
-    display: flex;
-    flex-direction: column;
-    margin: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0 0 44px;
     padding: 0;
     list-style: none;
   }
 
-  .wizard-rail-step a,
-  .wizard-rail-entry {
+  .wizard-station {
+    --station-accent: var(--stp-text-secondary);
     position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 9px 0 22px;
-    color: var(--stp-text-subtle);
-    font-size: 0.92rem;
-    text-decoration: none;
-    transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 0 10px;
+    text-align: center;
   }
 
-  /* Not reached yet: readable, but quieter than the steps behind you. */
-  .wizard-rail-step.is-todo .wizard-rail-entry {
-    color: var(--stp-text-subtle);
-  }
-
-  .wizard-rail-step.is-todo .wizard-rail-marker {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  /* The connector, drawn from each marker to the next. Stops at the last step rather than trailing
-   * off into nothing, which would imply a fifth band. */
-  .wizard-rail-step:not(:last-child) a::before,
-  .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
+  /* The line to the next station: dashed ahead of the run, filled once the run has passed it. */
+  .wizard-station:not(:last-child)::after {
     content: '';
     position: absolute;
-    left: 6px;
-    top: 26px;
-    bottom: 4px;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.1);
+    top: 25px;
+    left: calc(50% + 36px);
+    right: calc(-50% + 36px);
+    height: 2px;
+    background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.16) 50%, transparent 50%);
+    background-size: 8px 2px;
   }
 
-  .wizard-rail-marker {
+  .wizard-station.is-linked::after {
+    background: var(--stp-interactive-primary);
+  }
+
+  .wizard-station-node {
+    position: relative;
     display: grid;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 6px;
     place-items: center;
-    width: 13px;
-    height: 13px;
-    margin-top: 5px;
-    flex: none;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14);
-    font-size: 0.55rem;
-    font-weight: 800;
-    line-height: 1;
-    color: var(--stp-surface-page, #161c1c);
-    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
-  /* Finished: a check on the brand colour. Upcoming: a quiet grey dot. Current: a solid dot and a bold
-   * label, with no glow or scale. */
-  .wizard-rail-step.is-done .wizard-rail-marker {
-    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
+  .wizard-station-rings {
+    position: absolute;
+    inset: 0;
   }
 
-  .wizard-rail-step.is-done a {
+  .wizard-station-ring {
+    fill: none;
+    stroke: var(--station-accent);
+    stroke-width: 1.5;
+  }
+
+  .wizard-station.is-done .wizard-station-ring {
+    opacity: 0.55;
+  }
+
+  .wizard-station.is-pending .wizard-station-ring {
+    stroke: rgba(255, 255, 255, 0.22);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+  }
+
+  .wizard-station.is-failed {
+    --station-accent: var(--stp-status-error);
+  }
+
+  /* A quarter arc running round the ring: the station that is working right now. */
+  .wizard-station-arc {
+    fill: none;
+    stroke: var(--stp-color-brand);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 36 145;
+    transform-origin: 26px 26px;
+    animation: wizard-spin 1.4s linear infinite;
+  }
+
+  .wizard-station-icon {
+    position: relative;
+    color: var(--stp-text-primary);
+  }
+
+  .wizard-station.is-pending .wizard-station-icon {
+    color: var(--stp-text-subtle);
+  }
+
+  .wizard-station.is-failed .wizard-station-icon {
+    color: var(--stp-status-error);
+  }
+
+  .wizard-station-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--stp-interactive-primary);
+    box-shadow: 0 0 0 3px var(--stp-surface-page);
+    color: white;
+  }
+
+  .wizard-station.is-failed .wizard-station-badge {
+    background: var(--stp-status-error);
+  }
+
+  .wizard-station-title {
+    color: var(--stp-text-primary);
+    font-size: var(--stp-font-size-heading);
+    font-weight: var(--stp-font-weight-label);
+  }
+
+  .wizard-station.is-pending .wizard-station-title {
     color: var(--stp-text-muted);
   }
 
-  /* The band you are reading, which is not always the band the run is on — you can scroll back. */
-  .wizard-rail-step.is-current a {
-    color: var(--stp-text-primary);
-    font-weight: 600;
+  .wizard-station-note {
+    max-width: 22ch;
+    color: var(--stp-text-subtle);
+    font-size: var(--stp-font-size-body);
+    line-height: 1.45;
   }
 
-  .wizard-rail-step.is-current .wizard-rail-marker {
-    background: var(--stp-color-brand);
+  .wizard-station-action {
+    margin-top: 2px;
   }
 
-  .wizard-rail-step a[href]:hover {
-    color: var(--stp-text-primary);
+  /* Before anything runs, a light walks the path and wakes each station in turn, then they rest together. */
+  .wizard-path.is-walkthrough .wizard-station {
+    --walk-delay: calc(var(--station-index) * 0.9s);
   }
 
-  .wizard-rail-step a:focus-visible {
-    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
-    outline-offset: 2px;
-    border-radius: var(--stp-radius-small);
+  .wizard-path.is-walkthrough .wizard-station-ring {
+    animation: wizard-walk-ring 9s var(--walk-delay) ease-out infinite;
   }
 
-  /* ── Sections ──────────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-section {
-    padding: 0 0 64px;
-    scroll-margin-top: 64px;
-    animation: wizard-section-in var(--stp-motion-duration-slow, 420ms) var(--stp-motion-easing) both;
+  .wizard-path.is-walkthrough .wizard-station-icon,
+  .wizard-path.is-walkthrough .wizard-station-title {
+    animation: wizard-walk-text 9s var(--walk-delay) ease-out infinite;
   }
 
-  /* Behind you: still readable, still scrollable to, visibly not the thing to look at. */
-  .wizard-section.is-muted {
-    opacity: 0.58;
-    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  .wizard-path.is-walkthrough .wizard-station:not(:last-child)::after {
+    background-image:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.16) 50%, transparent 50%),
+      linear-gradient(var(--stp-text-subtle), var(--stp-text-subtle));
+    background-size:
+      8px 2px,
+      0% 2px;
+    background-repeat: repeat, no-repeat;
+    animation: wizard-walk-line 9s var(--walk-delay) ease-out infinite;
   }
 
-  .wizard-section.is-muted:hover,
-  .wizard-section.is-muted:focus-within {
-    opacity: 1;
+  @keyframes wizard-walk-ring {
+    0%,
+    1% {
+      stroke: rgba(255, 255, 255, 0.22);
+    }
+    6%,
+    55% {
+      stroke: var(--stp-text-muted);
+    }
+    70%,
+    100% {
+      stroke: rgba(255, 255, 255, 0.22);
+    }
   }
 
-  /* A finished band: its name, what came of it, and a way back in, on one row. The bands behind you
-   * stack tightly so the one you are on starts near the top of the screen. */
-  .wizard-section.is-collapsed {
-    padding-bottom: 20px;
+  @keyframes wizard-walk-text {
+    0%,
+    1% {
+      color: var(--stp-text-subtle);
+    }
+    6%,
+    55% {
+      color: var(--stp-text-primary);
+    }
+    70%,
+    100% {
+      color: var(--stp-text-subtle);
+    }
   }
 
-  .wizard-section.is-collapsed.is-expanded {
-    padding-bottom: 56px;
+  @keyframes wizard-walk-line {
+    0% {
+      background-size:
+        8px 2px,
+        0% 2px;
+      opacity: 1;
+    }
+    10%,
+    55% {
+      background-size:
+        8px 2px,
+        100% 2px;
+      opacity: 1;
+    }
+    70% {
+      background-size:
+        8px 2px,
+        100% 2px;
+      opacity: 0.4;
+    }
+    100% {
+      background-size:
+        8px 2px,
+        0% 2px;
+      opacity: 1;
+    }
   }
 
-  /* The band you are on starts a little apart from the recap lines above it. */
-  .wizard-section.is-collapsed + .wizard-section:not(.is-collapsed) {
-    padding-top: 12px;
-  }
-
-  .wizard-section-summary {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  /* The mark a finished step wears in the rail, so the recap lines and the rail read as one list. */
-  .wizard-section-check {
-    display: grid;
-    place-items: center;
-    width: 13px;
-    height: 13px;
-    margin-top: 5px;
-    flex: none;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
-    color: var(--stp-surface-page, #161c1c);
-    font-size: 0.55rem;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
-  .wizard-section-summary-text {
-    display: flex;
-    min-width: 0;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 16px;
-  }
-
-  .wizard-section-reopened {
-    margin-top: 24px;
+  @keyframes wizard-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   /* Said once, above a review that cannot be changed right now, instead of disabling it silently. */
@@ -283,72 +376,16 @@
 
   .wizard-section-heading {
     margin: 0 0 8px;
-    font-size: 1.08rem;
-    font-weight: 620;
+    font-size: 1.05rem;
+    font-weight: var(--stp-font-weight-label);
   }
 
-  .wizard-recap {
+  /* Small print under an action: how it works, what is recorded. */
+  .wizard-fine-print {
     margin: 0;
-    color: var(--stp-text-muted);
-  }
-
-  .wizard-recap strong {
-    color: var(--stp-text-primary);
-    font-weight: 600;
-  }
-
-  @keyframes wizard-section-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  /* ── The first screen ──────────────────────────────────────────────────────────────────────── */
-
-  .wizard-promises {
-    counter-reset: promise;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 0;
-    padding: 0;
     max-width: var(--wizard-measure);
-    list-style: none;
-    color: var(--stp-text-muted);
-  }
-
-  .wizard-promises li {
-    position: relative;
-    padding-left: 34px;
-    font-size: 0.95rem;
-  }
-
-  .wizard-promises li::before {
-    counter-increment: promise;
-    content: counter(promise);
-    position: absolute;
-    left: 0;
-    top: 1px;
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    color: var(--stp-color-brand);
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .wizard-promises strong {
-    color: var(--stp-text-primary);
-    font-weight: 600;
+    color: var(--stp-text-subtle);
+    font-size: var(--stp-font-size-body);
   }
 
   /* ── Reading ───────────────────────────────────────────────────────────────────────────────── */
@@ -524,7 +561,6 @@
 
   .wizard-question-lede {
     margin: 2px 0 0;
-    max-width: var(--wizard-measure);
     font-size: 0.9rem;
     color: var(--stp-text-muted);
   }
@@ -539,10 +575,6 @@
     align-self: center;
     min-width: 104px;
     text-align: right;
-  }
-
-  .wizard-choice-rows .stp-ui-selection-card__description {
-    max-width: 60ch;
   }
 
   /* A small heading for a group of controls, where the group's name is otherwise only in the tree. */
@@ -632,7 +664,6 @@
     margin: 0;
     padding: 0 0 0 18px;
     list-style: disc;
-    max-width: var(--wizard-measure);
     color: var(--stp-text-muted);
     font-size: 0.9rem;
   }
@@ -662,6 +693,11 @@
   .wizard-setting-where {
     color: var(--stp-text-subtle);
     overflow-wrap: anywhere;
+  }
+
+  /* A notice of several lines keeps its icon beside its title, not halfway down the text. */
+  .stp-ui-alert {
+    align-items: flex-start;
   }
 
   /* ── Shared surfaces ───────────────────────────────────────────────────────────────────────── */
@@ -697,11 +733,16 @@
     font-size: 0.85rem;
     cursor: pointer;
     text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.35);
     text-underline-offset: 3px;
+    transition:
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      text-decoration-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
   .wizard-disclosure:hover:not(:disabled) {
     color: var(--stp-text-primary);
+    text-decoration-color: currentcolor;
   }
 
   .wizard-disclosure:disabled {
@@ -744,13 +785,14 @@
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 16px;
-    padding-top: 16px;
+  }
+
+  .wizard-target-divider {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .wizard-target-note {
     margin: -6px 0 0;
-    max-width: var(--wizard-measure);
     color: var(--stp-text-subtle);
     font-size: 0.82rem;
   }
@@ -809,7 +851,6 @@
 
   .wizard-row-text {
     margin: 2px 0 0;
-    max-width: 60ch;
     color: var(--stp-text-muted);
     font-size: 0.9rem;
   }
@@ -933,12 +974,15 @@
     vertical-align: -2px;
   }
 
+  /* Finished marks as the path's badges draw them: white on the deep brand colour. */
   .wizard-check-mark.is-passed {
-    background: var(--stp-color-brand);
+    background: var(--stp-interactive-primary);
+    color: white;
   }
 
   .wizard-check-mark.is-failed {
     background: var(--stp-status-error);
+    color: white;
   }
 
   .wizard-check-mark.is-inconclusive,
@@ -989,7 +1033,11 @@
     font-size: 0.85rem;
   }
 
+  /* As tall as the Stage field beside them, with each value on the field's centre line. */
   .wizard-facts dd {
+    display: flex;
+    min-height: 35px;
+    align-items: center;
     margin: 0;
     color: var(--stp-text-primary);
     font-size: 0.92rem;
@@ -1018,32 +1066,72 @@
       0 0 0 3px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
   }
 
+  /* A command to run, as the Console's terminal line draws one. */
   .wizard-command {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 12px 12px 12px 16px;
-    border-radius: var(--stp-radius-large);
+    gap: 8px;
+    padding: 6px 4px 6px 12px;
+    border-radius: 10px;
     background: rgba(0, 0, 0, 0.28);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
 
-  /* Wrapped rather than scrolled: a long deploy command clipped at the Copy button hid its region,
-   * which is the part someone checks before running it. */
   .wizard-command code {
+    display: grid;
+    flex: 1;
     min-width: 0;
-    padding-top: 7px;
+    gap: 2px;
+    padding: 4px 0;
     font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 0.86rem;
-    line-height: 1.6;
+    line-height: 1.4;
     color: var(--stp-text-primary);
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
   }
 
-  .wizard-command .stp-ui-button {
-    flex-shrink: 0;
+  /* A wrapped command continues under its first argument, not under the prompt. */
+  .wizard-command-line {
+    display: flex;
+    min-width: 0;
+  }
+
+  .wizard-command-prompt {
+    flex: none;
+    margin: 0 8px 0 5px;
+    color: var(--stp-text-muted);
+    user-select: none;
+  }
+
+  /* A flag and its value form one box, so a long command wraps between options and never inside one. */
+  .wizard-command-group {
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .wizard-command-program {
+    color: var(--stp-text-secondary);
+    font-weight: 700;
+  }
+
+  .wizard-command-flag {
+    color: var(--stp-text-subtle);
+    font-weight: 700;
+  }
+
+  .wizard-command-copy {
+    flex: none;
+    align-self: flex-start;
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .wizard-command-copy[data-copy-state='copied'] {
+    color: var(--stp-status-success);
+  }
+
+  .wizard-command-copy[data-copy-state='failed'] {
+    color: var(--stp-status-error);
   }
 
   /* What a failed deploy or try-out printed: monospace, in a well, line breaks kept. */
@@ -1105,13 +1193,15 @@
   }
 
   .wizard-phase.is-done .wizard-phase-marker {
-    background: var(--stp-color-brand);
+    background: var(--stp-interactive-primary);
     box-shadow: none;
+    color: white;
   }
 
   .wizard-phase.is-failed .wizard-phase-marker {
     background: var(--stp-status-error);
     box-shadow: none;
+    color: white;
   }
 
   /* The running phase breathes rather than spins: one moving thing on the screen, not five. */
@@ -1214,43 +1304,22 @@
     }
 
     .wizard-title {
-      font-size: 1.7rem;
+      font-size: 1.5rem;
     }
 
-    /* A 168px rail beside content is not a layout on a phone, it is two columns of nothing. It
-     * becomes a row of dots above the flow, which still says where you are. */
-    .wizard-page {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 28px;
-    }
-
-    .wizard-rail {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      padding: 10px 0;
-      background: var(--stp-surface-page, #161c1c);
-    }
-
-    .wizard-rail ol {
-      flex-direction: row;
-      gap: 18px;
-    }
-
-    .wizard-rail-step a,
-    .wizard-rail-entry {
-      padding: 0;
-    }
-
-    .wizard-rail-step:not(:last-child) a::before,
-    .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
+    /* Four notes side by side do not fit a phone; the stations and their names still say where the run is. */
+    .wizard-station-note {
       display: none;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .wizard-section,
-    .wizard-decision-options {
+    .wizard-step,
+    .wizard-reopened,
+    .wizard-decision-options,
+    .wizard-station-arc,
+    .wizard-path.is-walkthrough *,
+    .wizard-path.is-walkthrough .wizard-station::after {
       animation: none;
     }
 

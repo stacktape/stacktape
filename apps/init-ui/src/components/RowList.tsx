@@ -1,3 +1,4 @@
+import { BiCheck } from 'react-icons/bi';
 import type { ReactNode } from 'react';
 
 /**
@@ -61,7 +62,7 @@ export function Row({
         {isDone && (
           <div className="wizard-row-action wizard-row-done">
             <span aria-hidden className="wizard-check-mark is-passed">
-              ✓
+              <BiCheck size={13} />
             </span>
             Done
           </div>
