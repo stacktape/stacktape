@@ -1,5 +1,5 @@
 import type { ProjectedBox } from './layout/projected-box.js';
-import type { IsoScene } from './scene.js';
+import type { IsoNode, IsoScene } from './scene.js';
 import type { DiagramLayers } from './views.js';
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -72,13 +72,26 @@ describe('tags of real templates', () => {
       publicDb: 'exposed: Open to the internet',
       vpcDb: 'limited: Anything in the VPC',
       scopedDb: 'limited: Only web + 203.0.113.10',
-      web: 'limited: Only web GW',
+      // Only the gateway connects to the service, and the gateway is public, so the service is public through it.
+      web: 'public: Public via web GW',
       // The gateway's VPC Link group says who the link lets in, not who reaches the gateway: the user's connector does.
       'web--gw': 'public: Public'
     });
-    // A function in the VPC carries a group that lets nothing in, so it gets no tag.
+    // A function in the VPC carries a group that lets nothing in. AWS starts a function, so that says nothing about
+    // who can use it: no tag, and the tooltip says why.
     expect(groupNamesOf(scene, 'reports')).toEqual(['VPC functions SG']);
     expect(nodeOf(scene, 'reports').access).toBeUndefined();
+    expect(nodeOf(scene, 'reports').untaggedNote).toBe(
+      'Nothing connects to it directly. AWS starts it, and AWS permissions (IAM) decide who can.'
+    );
+    expect(nodeOf(scene, 'web').access?.detail).toBe('Anyone on the internet can reach it through web GW.');
+    expect(nodeOf(scene, 'publicDb').access?.detail).toBe(
+      'Anyone on the internet can connect to it. Only its credentials protect the data.'
+    );
+    expect(nodeOf(scene, 'vpcDb').access?.detail).toBe(
+      'Anything inside the VPC can connect to it. The internet cannot.'
+    );
+    expect(nodeOf(scene, 'scopedDb').access?.detail).toBe('Only web and 203.0.113.10 can connect to it.');
     expect(nodeOf(scene, 'scopedDb').access?.sources).toEqual(['web']);
 
     expect(inboundOf(scene, 'scopedDb')).toEqual(['Allows TCP 5432 from web', 'Allows TCP 5432 from 203.0.113.10/32']);
@@ -90,24 +103,27 @@ describe('tags of real templates', () => {
     expect(groupNamesOf(scene, 'web--gw')).toEqual(['web VPC Link SG']);
   });
 
-  test('load balancers are public and their services admit only them', () => {
+  test('load balancers are public, and so are the services they forward to', () => {
     const { scene } = accessScene({ name: 'http-api-vpc-link' });
     expect(tagsOf(scene)).toEqual({
       api: 'public: Public',
-      app: 'limited: Only api',
+      app: 'public: Public via api',
       'albWeb--alb': 'public: Public',
-      albWeb: 'limited: Only albWeb ALB',
+      albWeb: 'public: Public via albWeb ALB',
       'tcpWeb--nlb': 'public: Public',
-      tcpWeb: 'limited: Only tcpWeb NLB'
+      tcpWeb: 'public: Public via tcpWeb NLB'
     });
+    // Focusing the service still lights what connects to it.
+    expect(nodeOf(scene, 'albWeb').access?.sources).toEqual(['albWeb--alb']);
     expect(inboundOf(scene, 'albWeb')).toEqual(['Allows TCP 3000 from albWeb ALB']);
   });
 
   test('without the Infrastructure layer, a service drawn with its load balancer is public itself', () => {
     const { scene } = accessScene({ name: 'http-api-vpc-link', layers: ACCESS });
+    // Every service is public in both pictures; only the words for how change with what is drawn.
     expect(tagsOf(scene)).toEqual({
       api: 'public: Public',
-      app: 'limited: Only api',
+      app: 'public: Public via api',
       albWeb: 'public: Public',
       tcpWeb: 'public: Public'
     });
@@ -125,10 +141,17 @@ describe('tags of real templates', () => {
   test('a group defined outside the stack is listed, and its rules are not guessed', () => {
     const { scene } = accessScene({ name: 'shared-network-no-access' });
     expect(nodeOf(scene, 'cron').securityGroups).toEqual([
-      { id: expect.any(String), name: 'external sg-0noaccess', external: true, inbound: [], outbound: [] }
+      {
+        id: 'external:sg-0noaccess',
+        name: 'external sg-0noaccess',
+        external: true,
+        decides: true,
+        inbound: [],
+        outbound: []
+      }
     ]);
     // What the group admits is unknown, so the tag says that rather than nothing.
-    expect(tagsOf(scene).cron).toBe('unknown: Rules outside this stack');
+    expect(tagsOf(scene).cron).toBe('unknown: Access unknown');
   });
 
   test('private network: a file system, a cache and an internal load balancer', () => {
@@ -137,10 +160,14 @@ describe('tags of real templates', () => {
       files: 'limited: Only worker',
       cache: 'limited: Only worker',
       'internalApi--alb': 'limited: Anything in the VPC',
-      internalApi: 'limited: Only internalApi ALB'
+      // The load balancer is internal, so what it forwards to is not public.
+      internalApi: 'limited: Only internalApi ALB',
+      // A worker listens for nothing, and the tag says so.
+      worker: 'closed: No inbound access'
     });
-    // A worker lets nothing in.
-    expect(nodeOf(scene, 'worker').access).toBeUndefined();
+    expect(nodeOf(scene, 'worker').access?.detail).toBe(
+      'Nothing can connect to it. No security group rule lets a connection in.'
+    );
   });
 
   test('a collapsed role group is named as one source; expanded, its members are', () => {
@@ -160,19 +187,31 @@ describe('tags of real templates', () => {
   test('batch jobs join their compute environment’s group; a NAT instance gets no tag', () => {
     const plain = accessScene({ name: 'batch-bastion-nat-instance', layers: ACCESS }).scene;
     expect(groupNamesOf(plain, 'importer')).toContain('Batch instances SG');
-    expect(tagsOf(plain)).toEqual({ db: 'limited: Only importer, agent' });
+    // The bastion and the worker listen for connections and admit none. A batch job and an agent runtime are started
+    // by AWS, so they get no tag.
+    const tags = {
+      db: 'limited: Only importer, agent',
+      jumpHost: 'closed: No inbound access',
+      privateWorker: 'closed: No inbound access'
+    };
+    expect(tagsOf(plain)).toEqual(tags);
+    expect(nodeOf(plain, 'importer').untaggedNote).toContain('AWS starts it');
+    expect(nodeOf(plain, 'agent').untaggedNote).toContain('AWS starts it');
 
     const withNetwork = accessScene({ name: 'batch-bastion-nat-instance' }).scene;
     expect(groupNamesOf(withNetwork, 'nat-gateway')).toEqual(['NAT instances SG']);
-    expect(tagsOf(withNetwork)).toEqual({ db: 'limited: Only importer, agent' });
+    expect(tagsOf(withNetwork)).toEqual(tags);
+    // Its group is plumbing: it decides nothing about who reaches the node, and the layer says nothing about it.
+    expect(nodeOf(withNetwork, 'nat-gateway').securityGroups?.[0]?.decides).toBe(false);
+    expect(nodeOf(withNetwork, 'nat-gateway').untaggedNote).toBeUndefined();
   });
 
   test('Convex: each part has its own tag; drawn as one node, the service is public and not an open database', () => {
     const { scene } = accessScene({ name: 'convex' });
     expect(tagsOf(scene)).toEqual({
       'app--alb': 'public: Public',
-      app: 'limited: Only app ALB',
-      'app--dashboard': 'limited: Only app ALB',
+      app: 'public: Public via app ALB',
+      'app--dashboard': 'public: Public via app ALB',
       'app--db': 'limited: Only app'
     });
     expect(inboundOf(scene, 'app--dashboard')).toEqual(['Allows TCP 6791 from app ALB']);
@@ -185,12 +224,17 @@ describe('tags of real templates', () => {
     const { scene } = accessScene({ name: 'alb-whitelisted-listeners' });
     // The user's connector reaches the load balancer, but its rules admit two addresses only.
     expect(tagsOf(scene)).toEqual({ edge: 'limited: Only 2 IP addresses' });
+    expect(nodeOf(scene, 'edge').access?.detail).toBe('Only 2 IP addresses can connect to it.');
     expect(inboundOf(scene, 'edge')).toEqual([
       'Allows TCP 80 from 203.0.113.10/32',
       'Allows TCP 8080 from 198.51.100.20/32'
     ]);
   });
 });
+
+/** A node as it is without the Access layer. */
+const withoutLayerFields = ({ access: _access, securityGroups: _groups, untaggedNote: _note, ...node }: IsoNode) =>
+  node;
 
 describe('the layer only adds tags', () => {
   for (const name of templateNames) {
@@ -202,9 +246,7 @@ describe('the layer only adds tags', () => {
           expect(withLayer.connectors).toEqual(without.connectors);
           expect(withLayer.rectangles).toEqual(without.rectangles);
           expect(withLayer.labels).toEqual(without.labels);
-          expect(withLayer.nodes.map(({ access: _access, securityGroups: _groups, ...node }) => node)).toEqual(
-            without.nodes
-          );
+          expect(withLayer.nodes.map(withoutLayerFields)).toEqual(without.nodes);
           expect(without.nodes.some((node) => node.access || node.securityGroups)).toBe(false);
         }
       }
@@ -389,7 +431,9 @@ describe('what the internet can reach', () => {
     // With no rule left nothing reaches the balancer, though the picture still draws the user's connector to it.
     const closed = withRule([]);
     expect(inboundOf(closed, 'albWeb--alb')).toEqual([]);
-    expect(tagsOf(closed)['albWeb--alb']).toBeUndefined();
+    expect(tagsOf(closed)['albWeb--alb']).toBe('closed: No inbound access');
+    // And what it forwards to is no longer public.
+    expect(tagsOf(closed).albWeb).toBe('limited: Only albWeb ALB');
     // The HTTP API has no group of its own, so the connector is what says it is public.
     expect(tagsOf(closed).api).toBe('public: Public');
   });
@@ -403,26 +447,141 @@ const changedDatabases = (change: (resources: Record<string, any>) => void, laye
   return selectDiagramView({ model, layers, security: buildSecurityGroupModel(fixture) });
 };
 
+/** What the config of one resource of this type is told to change to close it. */
+const fixes = (type: string, properties: Record<string, unknown> = {}) =>
+  buildDiagramTopology({ parsedConfig: { resources: { store: { type, properties } } } as never })?.nodes.find(
+    (node) => node.id === 'store'
+  )?.accessFix;
+
 describe('tags never claim more than the template says', () => {
   test('a service drawn with its public gateway is public, whatever else its own group admits', () => {
     const admitOffice = (resources: Record<string, any>) =>
       resources.WebSecurityGroup.Properties.SecurityGroupIngress.push(tcp(3000, { CidrIp: '203.0.113.10/32' }));
-    expect(tagsOf(changedDatabases(admitOffice)).web).toBe('limited: Only web GW + 203.0.113.10');
+    // An "Only web GW + 203.0.113.10" here would hide that the gateway lets the whole internet in.
+    expect(tagsOf(changedDatabases(admitOffice)).web).toBe('public: Public via web GW');
     // Without the Infrastructure layer the gateway is part of the node, and the internet reaches the gateway.
     expect(tagsOf(changedDatabases(admitOffice, ACCESS)).web).toBe('public: Public');
+  });
+
+  test('a service is public through a load balancer only while the internet reaches that load balancer', () => {
+    const whitelisted = accessScene({ name: 'alb-whitelisted-listeners' }).scene;
+    expect(tagsOf(whitelisted).edge).toBe('limited: Only 2 IP addresses');
+    for (const node of whitelisted.nodes) expect(node.access?.reach).not.toBe('public');
+    // An internal load balancer is not a way in from the internet either.
+    expect(tagsOf(accessScene({ name: 'private-network' }).scene).internalApi).toBe('limited: Only internalApi ALB');
+  });
+
+  test('"no inbound access" is said only of what listens for connections', () => {
+    for (const name of templateNames) {
+      const fixture = load(name);
+      const { scene } = accessScene({ name, expand: true });
+      for (const node of scene.nodes) {
+        if (node.access?.reach !== 'closed') continue;
+        const type = parse(fixture.config).resources[node.id.split('--')[0]]?.type;
+        expect(['function', 'batch-job', 'agentcore-runtime', 'nextjs-web']).not.toContain(type);
+        expect(node.securityGroups?.some((group) => group.decides)).toBe(true);
+      }
+    }
   });
 
   test('a group defined outside the stack beside a known one rules out "only"', () => {
     const scene = changedDatabases((resources) =>
       resources.ScopedDbDbInstance.Properties.VPCSecurityGroups.push('sg-0outside')
     );
-    expect(tagsOf(scene).scopedDb).toBe('unknown: Rules outside this stack');
+    expect(tagsOf(scene).scopedDb).toBe('unknown: Access unknown');
     expect(groupNamesOf(scene, 'scopedDb')).toEqual(['scopedDb SG', 'external sg-0outside']);
     // What the template does show still counts: a database it opens to the internet is open.
     const open = changedDatabases((resources) =>
       resources.PublicDbDbInstance.Properties.VPCSecurityGroups.push('sg-0outside')
     );
     expect(tagsOf(open).publicDb).toBe('exposed: Open to the internet');
+  });
+
+  test('a gateway is a way in only to what the picture draws it forwarding to', () => {
+    // The database's group lets the gateway's VPC Link in, but no route of the gateway targets the database.
+    const scene = changedDatabases((resources) => {
+      resources.ScopedDbSecurityGroup.Properties.SecurityGroupIngress = [
+        tcp(5432, { SourceSecurityGroupId: { Ref: 'WebVpcLinkSecurityGroup' } })
+      ];
+    });
+    expect(tagsOf(scene).scopedDb).toBe('limited: Only web GW');
+    expect(tagsOf(scene).web).toBe('public: Public via web GW');
+  });
+
+  test('a service is not public through a load balancer that is public only when the service does not admit it', () => {
+    const withBranches = (targetBranch: 'same' | 'other') => {
+      const fixture = structuredClone(load('http-api-vpc-link'));
+      const balancer = fixture.resources.AlbWebLbSecurityGroup.Properties;
+      balancer.SecurityGroupIngress = { 'Fn::If': ['Public', balancer.SecurityGroupIngress, []] };
+      const service = fixture.resources.AlbWebSecurityGroup.Properties;
+      service.SecurityGroupIngress = {
+        'Fn::If':
+          targetBranch === 'same'
+            ? ['Public', service.SecurityGroupIngress, []]
+            : ['Public', [], service.SecurityGroupIngress]
+      };
+      const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+      return tagsOf(selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) }));
+    };
+    expect(withBranches('same').albWeb).toBe('public: Public via albWeb ALB');
+    // The balancer admits the internet only when Public holds, and the service admits the balancer only when it
+    // does not: no value of the condition lets the internet through to the service.
+    expect(withBranches('other')['albWeb--alb']).toBe('public: Public');
+    expect(withBranches('other').albWeb).toBe('limited: Only albWeb ALB');
+  });
+
+  test('a service whose group admits only itself is not called closed', () => {
+    const fixture = structuredClone(load('private-network'));
+    fixture.resources.WorkerSelfIngress = {
+      Type: 'AWS::EC2::SecurityGroupIngress',
+      Properties: {
+        GroupId: { Ref: 'WorkerSecurityGroup' },
+        SourceSecurityGroupId: { Ref: 'WorkerSecurityGroup' },
+        ...tcp(3000, {})
+      }
+    };
+    const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+    const scene = selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
+    expect(tagsOf(scene).worker).toBe('limited: Only itself');
+    expect(nodeOf(scene, 'worker').access?.detail).toBe(
+      'Only its own tasks or nodes can connect to each other. Nothing else can connect to it.'
+    );
+  });
+
+  test('an address range set at deploy time may be the internet, so access is unknown', () => {
+    const scene = changedDatabases((resources) => {
+      resources.ScopedDbSecurityGroup.Properties.SecurityGroupIngress = [tcp(5432, { CidrIp: { Ref: 'AllowedCidr' } })];
+      resources.PublicDbSecurityGroup.Properties.SecurityGroupIngress = [];
+    });
+    expect(tagsOf(scene).scopedDb).toBe('unknown: Access unknown');
+    expect(nodeOf(scene, 'scopedDb').access?.detail).toContain('a value set at deploy time');
+    // Nothing is known to be open, and the picture must not say that nothing is.
+    expect(scene.nodes.some((node) => node.access?.reach === 'exposed')).toBe(false);
+    expect(tagsOf(scene).publicDb).toBe('closed: No inbound access');
+  });
+
+  test('only what AWS permissions protect is said to be protected by them', () => {
+    const fixture = load('database-accessibility');
+    const parsedConfig = parse(fixture.config);
+    parsedConfig.resources.files = { type: 'bucket' };
+    parsedConfig.resources.kv = { type: 'upstash-redis', properties: {} };
+    parsedConfig.resources.users = { type: 'user-auth-pool' };
+    const model = buildDiagramModel({ parsedConfig })!;
+    const scene = selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
+    expect(nodeOf(scene, 'files').untaggedNote).toContain('AWS permissions (IAM) decide who can use it');
+    // Upstash is protected by its own password, and a user pool's sign-in is public: neither is IAM's.
+    expect(nodeOf(scene, 'kv').untaggedNote).toBeUndefined();
+    expect(nodeOf(scene, 'kv').accessNote).toBe(
+      'Reached over the internet. Its password or token protects it, not a security group.'
+    );
+    expect(nodeOf(scene, 'users').untaggedNote).toBeUndefined();
+  });
+
+  test('the config fix is offered only where the setting can be changed in place', () => {
+    expect(fixes('relational-database')).toContain('accessibility.accessibilityMode');
+    expect(fixes('relational-database', { accessibility: { accessibilityMode: 'vpc' } })).toBeUndefined();
+    // An OpenSearch domain cannot move between the internet and the VPC after it is created.
+    expect(fixes('open-search-domain')).toBeUndefined();
   });
 
   test('a rule in one branch of a condition does not apply to a member in the other', () => {
@@ -461,6 +620,45 @@ describe('tags never claim more than the template says', () => {
 });
 
 describe('words that fit a tag', () => {
+  test('a tag is at least as wide as its text is in the browser', () => {
+    // The 10.5 px bold text of each tag, measured in Chromium with Montserrat loaded.
+    const measured: Record<string, number> = {
+      'Public via web GW': 109,
+      'Anything in the VPC': 119,
+      'Only web + 203.0.113.10': 130,
+      'Open to the internet': 121,
+      'No inbound access': 112,
+      'Access unknown': 100,
+      'Only 2 IP addresses': 114,
+      'Public via tcpWeb NLB': 134,
+      'Remote desktop open to the internet': 219,
+      'Only mmmmmm, WWWWWW': 186
+    };
+    // 31 px of every tag are its icon and padding.
+    for (const [text, width] of Object.entries(measured)) {
+      expect(getAccessTagWidthPx(text) - 31).toBeGreaterThanOrEqual(width);
+    }
+  });
+
+  test('a forwarder with a long name is called by what it is', () => {
+    const fixture = structuredClone(load('http-api-vpc-link'));
+    fixture.config = fixture.config.replaceAll('albWeb', 'customerOrdersBackofficeWeb');
+    fixture.resources = JSON.parse(
+      JSON.stringify(fixture.resources).replaceAll('AlbWeb', 'CustomerOrdersBackofficeWeb')
+    );
+    fixture.stacktapeResources = JSON.parse(
+      JSON.stringify(fixture.stacktapeResources)
+        .replaceAll('albWeb', 'customerOrdersBackofficeWeb')
+        .replaceAll('AlbWeb', 'CustomerOrdersBackofficeWeb')
+    );
+    const model = buildDiagramModel({ parsedConfig: parse(fixture.config) })!;
+    const scene = selectDiagramView({ model, layers: ALL_LAYERS, security: buildSecurityGroupModel(fixture) });
+    const { access } = nodeOf(scene, 'customerOrdersBackofficeWeb');
+    expect(access?.text).toBe('Public via its load balancer');
+    // The sentence has room for the name.
+    expect(access?.detail).toBe('Anyone on the internet can reach it through customerOrdersBackofficeWeb ALB.');
+  });
+
   test('one address is named, several are counted, and ranges are called ranges', () => {
     expect(tagFor([tcp(443, { CidrIp: '203.0.113.10/32' })])).toBe('limited: Only 203.0.113.10');
     expect(tagFor([tcp(443, { CidrIp: '203.0.113.10/32' }), tcp(8080, { CidrIp: '203.0.113.11/32' })])).toBe(

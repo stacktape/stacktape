@@ -130,11 +130,22 @@ export const ACCESS_TAG_RISE_PX = BADGE_OFFSET_PX + 9;
 export const ACCESS_TAG_TEXT_START_PX = 21;
 const ACCESS_TAG_TEXT_END_PX = 10;
 
-/** A tag's width for its 10.5 px bold text: capitals and digits are wider than the rest, spaces and dots narrower. */
+/**
+ * Character widths of the tag's 10.5 px bold Montserrat, measured in Chromium and rounded up a little, by class. A
+ * fallback font is narrower, so the text always fits.
+ */
+const TAG_CHAR_WIDTHS: Array<[RegExp, number]> = [
+  [/[ijl .,:]/, 3.3],
+  [/[frt1I\-/]/, 4.9],
+  [/[mwMW]/, 12.4],
+  [/[bdghnpqu4A-DGHKN-RUVX]/, 8.6]
+];
+const TAG_CHAR_WIDTH = 7.1;
+
+/** A tag's width for its text. */
 export const getAccessTagWidthPx = (text: string) => {
   let width = ACCESS_TAG_TEXT_START_PX + ACCESS_TAG_TEXT_END_PX;
-  for (const char of text)
-    width += char === ' ' || char === '.' || char === ',' ? 3.2 : /[A-Z0-9+]/.test(char) ? 6.9 : 5.7;
+  for (const char of text) width += TAG_CHAR_WIDTHS.find(([chars]) => chars.test(char))?.[1] ?? TAG_CHAR_WIDTH;
   return width;
 };
 

@@ -287,8 +287,9 @@ const buildSceneNodes = ({
       resourceType: node.resourceType,
       typeName: explanation?.name,
       summary: explanation?.summary,
-      details: explanation?.details,
+      facts: explanation?.facts,
       accessNote: node.accessNote,
+      accessFix: node.accessFix,
       typeLabel: node.typeLabel,
       tile: placement,
       isImplicit: node.implicit,
@@ -328,7 +329,7 @@ const buildRectanglesAndLabels = ({ topology, layout }: { topology: DiagramTopol
       borderColor: def.borderColor,
       label: explanation?.name ?? def.id,
       summary: explanation?.summary,
-      details: explanation?.details,
+      facts: explanation?.facts,
       memberNodeIds: membersOf(def.id)
     });
     // The layout lays the name along one of the zone's edges, inside it where nothing covers that spot.

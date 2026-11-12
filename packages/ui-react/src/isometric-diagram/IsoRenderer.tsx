@@ -556,8 +556,13 @@ type TooltipContent = {
   title: string;
   subtitle?: string | undefined;
   summary?: string | undefined;
+  /** Short sentences shown one per line. */
+  facts?: string[] | undefined;
+  /** One paragraph, for a connector. */
   details?: string | undefined;
   note?: string | undefined;
+  /** The note is something the reader must not miss. */
+  noteAlert?: boolean | undefined;
   /** What the host reports about the resource, worst first. */
   status?: Array<{ tone: DiagramStatusTone; text: string; detail?: string | undefined }> | undefined;
 };
@@ -1215,7 +1220,7 @@ export function IsoRenderer({
                 title: r.label,
                 subtitle: r.id === 'zone-edge' ? 'Global edge network' : 'Network boundary',
                 summary: r.summary,
-                details: r.details
+                facts: r.facts
               });
             }}
           />
@@ -1280,8 +1285,9 @@ export function IsoRenderer({
                     .filter(Boolean)
                     .join(' · '),
                   summary: n.summary,
-                  details: n.details,
-                  note: n.access ? `Who can connect: ${n.access.text}` : n.accessNote,
+                  facts: n.facts,
+                  note: n.access?.detail ?? n.accessNote ?? n.untaggedNote,
+                  noteAlert: n.access?.reach === 'exposed',
                   status: nodeStatuses
                     .get(n.id)
                     ?.entries.slice(0, 3)
@@ -1341,8 +1347,19 @@ export function IsoRenderer({
               </ul>
             )}
             {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
+            {tooltip.facts && tooltip.facts.length > 0 && (
+              <ul className="stp-diagram__tooltip-facts">
+                {tooltip.facts.map((fact) => (
+                  <li key={fact}>{fact}</li>
+                ))}
+              </ul>
+            )}
             {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
-            {tooltip.note && <p className="stp-diagram__tooltip-note">{tooltip.note}</p>}
+            {tooltip.note && (
+              <p className="stp-diagram__tooltip-note" data-alert={tooltip.noteAlert || undefined}>
+                {tooltip.note}
+              </p>
+            )}
           </div>,
           document.body
         )}
