@@ -24,7 +24,7 @@ their own.
 | Role | Can do | Reaches |
 |------|--------|---------|
 | Owner | Everything, including deleting the organization, billing and appointing other Owners | Every project and every connected AWS account |
-| Admin | Everything except deleting the organization | Every project and every connected AWS account |
+| Admin | Everything except deleting the organization, setting up single sign-on and changing Owners | Every project and every connected AWS account |
 | Developer | Deploy, delete non-production stages, manage secrets and parameters | Only the projects and AWS accounts chosen for them |
 | Viewer | Read projects, deployments, logs, incidents and members | Only the projects and AWS accounts chosen for them |
 
@@ -81,11 +81,12 @@ once. Organization keys cannot create organizations or connect AI subscriptions,
 
 ## Requiring two-factor sign-in
 
-Owners and Admins can require two-factor sign-in with **Require** in the Two-factor sign-in row. The confirmation lists
-the members who sign in with a password only. After that, those members see only a screen that sends them to
-[Account Settings](/stacktape-console/account-settings) to add an authenticator app; the rest of the organization opens
-again as soon as they do. Signing in with Google counts as two-factor. API keys, including the CLI and CI, keep
-working.
+Owners and Admins can require two-factor sign-in with **Require** in the Two-factor sign-in row. Members must then sign
+in with a passkey, Google, GitHub, single sign-on, or a password with an authenticator app; a password alone is not
+enough. The confirmation lists the members who sign in with a password only. After that, those members see only a
+screen that sends them to [Account Settings](/stacktape-console/account-settings) to add an authenticator app or a
+passkey; the rest of the organization opens again as soon as they sign in that way. API keys, including the CLI and CI,
+keep working.
 
 You need two-factor sign-in on your own account before you can require it.
 

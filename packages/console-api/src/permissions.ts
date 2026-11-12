@@ -113,9 +113,10 @@ export const getRoleLevel = (role: ConsoleRole): number =>
 export const ASSIGNABLE_ROLES = ['OWNER', 'ADMIN', 'DEVELOPER', 'VIEWER'] as const satisfies readonly ConsoleRole[];
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
+/** What each role can do, as the role menus say it. Keep it true to `ROLE_PERMISSIONS` and the Owner-only checks. */
 export const ROLE_DESCRIPTIONS: Record<AssignableRole, string> = {
-  OWNER: 'Full control. Can delete the organization, manage billing and transfer ownership.',
-  ADMIN: 'Everything except deleting the organization. Can manage members, AWS accounts and settings.',
-  DEVELOPER: 'Can deploy, delete non-production stages, and manage secrets and configuration.',
-  VIEWER: 'Read-only. Can view projects, deployments, logs and costs.'
+  OWNER: 'Everything. Only Owners delete the organization, set up single sign-on and make others Owners.',
+  ADMIN: 'Everything except deleting the organization, single sign-on and changing Owners.',
+  DEVELOPER: 'Deploys, rolls back and deletes non-production stages. Manages secrets and incidents.',
+  VIEWER: 'Read-only: projects, deploys, logs, metrics and incidents.'
 };
