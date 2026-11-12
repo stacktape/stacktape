@@ -1,5 +1,7 @@
 import { codeSwapRollbackComplete } from '@domain-services/code-swap/runtime';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { holdStackLock } from '@domain-services/stack-operation-lock';
 import { stpErrors } from '@errors';
 import { configManager } from '@domain-services/config-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -23,6 +25,7 @@ type RollbackExecutionOperation = {
   deploymentArtifacts: Pick<
     RollbackOperation['deploymentArtifacts'],
     | 'availablePreviousVersions'
+    | 'ensureNoReleaseSinceStart'
     | 'prepareRollbackTemplate'
     | 'restoreBucketSyncFromManifest'
     | 'tagRestoredFunctions'
@@ -191,6 +194,14 @@ export const executeRollbackOperation = async ({
     return listAvailableVersions({ deploymentArtifacts, stack, tui });
   }
 
+  // The rollback took the lock when it started, before it read the stack. This shares it.
+  const lock = await holdStackLock({
+    bucketName: deploymentArtifactManager.deploymentBucketName,
+    operation: 'rollback'
+  });
+  // A safety net: the lock was taken before the versions below were read, so nothing should have changed.
+  await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'rollback' });
+
   const currentVersion = stack.lastVersion;
   const targetVersion = resolveTargetVersion({ args, deploymentArtifacts, stack });
 
@@ -209,6 +220,11 @@ export const executeRollbackOperation = async ({
   for (const warning of warnings) {
     tui.warn(warning);
   }
+  if (configManager.config && configManager.releaseCommands.length) {
+    tui.warn(
+      'A rollback does not run or reverse release commands. The database schema stays as it is, so the old code must work with it.'
+    );
+  }
 
   // Prepare rollback template: download old template, patch version output, re-upload
   progress.setPhase('DEPLOY');
@@ -221,6 +237,8 @@ export const executeRollbackOperation = async ({
     text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
   });
 
+  // Preparing copies artifacts and can take long. A paused rollback that lost the lock must not overwrite the newer one.
+  await lock.confirm();
   try {
     codeSwapBeginMutation();
     await stack.deployStackForRollback(templateUrl);
@@ -246,6 +264,8 @@ export const executeRollbackOperation = async ({
     );
   }
 
+  // Held through the bucket restore. A failure releases it when the command ends.
+  await lock.release();
   tui.info(`Rollback to ${targetVersion} complete. New deployment version: ${newVersion}`);
 
   return null;

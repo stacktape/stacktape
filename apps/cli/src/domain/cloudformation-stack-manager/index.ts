@@ -301,7 +301,8 @@ class StackManager {
     commandModifiesStack,
     commandRequiresDeployedStack,
     parentEventType,
-    whileLoadingResourceDetails
+    whileLoadingResourceDetails,
+    takeStackLock
   }: {
     stackName: string;
     commandModifiesStack: boolean;
@@ -313,6 +314,14 @@ class StackManager {
      * It runs while those load.
      */
     whileLoadingResourceDetails?: () => Promise<unknown>;
+    /**
+     * Takes the stack's lock once the stack exists and CloudFormation is done with it, before anything else about it is
+     * read. Says whether another operation may have changed the stack since it was read, and lets go of the lock when
+     * the stack turns out to be going away.
+     */
+    takeStackLock?: (
+      onWaiting: (message: string) => void
+    ) => Promise<{ stackMayHaveChanged: boolean; abandon: () => void } | undefined>;
   }) => {
     await operationReporter.startEvent({
       eventType: 'FETCH_STACK_DATA',
@@ -338,13 +347,27 @@ class StackManager {
       throw fetchedDetails.reason;
     }
     const instanceId = parentEventType ? 'Stack data' : undefined;
-    const { stackDetails } = await this.waitForStackToBeReadyForOperation({
-      stackDetails: fetchedDetails.value,
-      commandModifiesStack,
-      commandRequiresDeployedStack,
-      progressLogger: operationReporter,
-      eventContext: { parentEventType, instanceId }
-    });
+    const waitUntilReady = (details: StackDetails) =>
+      this.waitForStackToBeReadyForOperation({
+        stackDetails: details,
+        commandModifiesStack,
+        commandRequiresDeployedStack,
+        progressLogger: operationReporter,
+        eventContext: { parentEventType, instanceId }
+      });
+    let { stackDetails } = await waitUntilReady(fetchedDetails.value);
+    const lock = stackDetails
+      ? await takeStackLock?.((description) =>
+          operationReporter.updateEvent({ eventType: 'FETCH_STACK_DATA', description, parentEventType, instanceId })
+        )
+      : undefined;
+    if (lock?.stackMayHaveChanged) {
+      const current = await awsSdkManager.cloudFormation.getDetails(stackName);
+      // A delete that held the lock leaves a stack that is going away. The command then works as on a new stack, which
+      // takes the lock again when it needs it.
+      if (!current || current.StackStatus?.startsWith('DELETE_')) lock.abandon();
+      ({ stackDetails } = await waitUntilReady(current));
+    }
     const stackResources =
       stackDetails === fetchedDetails.value && listedResources.status === 'fulfilled'
         ? listedResources.value
@@ -792,18 +815,25 @@ class StackManager {
     }
     if (commandModifiesStack) {
       // wait for stack to be stable
+      const announced = new Set<string>();
       while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
         const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
+        // `delete` can return while AWS still removes resources that cost nothing.
+        const description =
+          stackDetails?.StackStatus === StackStatus.DELETE_IN_PROGRESS
+            ? `Waiting for AWS to finish the earlier delete of this stack before ${publicCommandName(globalStateManager.command)}`
+            : `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`;
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          // `delete` can return while AWS still removes resources that cost nothing.
-          description:
-            stackDetails?.StackStatus === StackStatus.DELETE_IN_PROGRESS
-              ? `Waiting for AWS to finish the earlier delete of this stack before ${publicCommandName(globalStateManager.command)}`
-              : `Waiting for stack to be ready for ${publicCommandName(globalStateManager.command)} (current state: ${humanStatus})`,
+          description,
           parentEventType: eventContext?.parentEventType,
           instanceId: eventContext?.instanceId
         });
+        // Only an interactive terminal shows the description. A CI log that shows nothing while it waits looks hung.
+        if (!announced.has(description)) {
+          announced.add(description);
+          tuiManager.info(`${description}.`);
+        }
         await wait(4000);
         stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
       }
@@ -982,7 +1012,6 @@ class StackManager {
       })
     });
     const { skipped } = updateResult;
-    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack(
         'update',
@@ -1043,7 +1072,6 @@ class StackManager {
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
-    if (!skipped) codeSwapIntegration.teardownAccepted(stackParams.StackName);
     if (!skipped) {
       const result = await this.monitorStack('update', stackName, (progress) => {
         operationReporter.updateEvent({
@@ -1068,13 +1096,22 @@ class StackManager {
   /**
    * Deletes the stack. `beforeDelete` is work that must finish before CloudFormation starts, such as emptying the
    * buckets and the image repository. It runs alongside the steps below, which start slow AWS-side work early.
+   * `beforeDeleteRequest` runs last before the request, and its failure stops the delete. `onDeleteRequested` runs once
+   * CloudFormation has accepted the delete; a failure there doesn't stop the delete.
    * With `finishInBackground`, it returns once only resources that cost nothing remain (see `background-delete.ts`);
    * the result then lists them in `deletionContinuesInBackground`.
    */
   deleteStack = async ({
     beforeDelete,
+    beforeDeleteRequest,
+    onDeleteRequested,
     finishInBackground = false
-  }: { beforeDelete?: () => Promise<unknown>; finishInBackground?: boolean } = {}) => {
+  }: {
+    beforeDelete?: () => Promise<unknown>;
+    beforeDeleteRequest?: () => Promise<unknown>;
+    onDeleteRequested?: () => Promise<unknown>;
+    finishInBackground?: boolean;
+  } = {}) => {
     await operationReporter.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
@@ -1149,12 +1186,13 @@ class StackManager {
       );
     }
     try {
+      await beforeDeleteRequest?.();
       await awsSdkManager.cloudFormation.delete(this.#stackName, { roleArn, express: deleteMode === 'EXPRESS' });
     } catch (err) {
       deleteRequested = false;
       throw err;
     }
-    codeSwapIntegration.teardownAccepted(this.#stackName);
+    await onDeleteRequested?.().catch((err) => tuiManager.debug(`A step after the delete request failed: ${err}`));
     // The template CloudFormation is deleting, read once the delete has started: a deploy between loading the stack and
     // the DeleteStack request may have changed a DeletionPolicy.
     let deletedTemplate: Promise<CloudFormationTemplate> | undefined;

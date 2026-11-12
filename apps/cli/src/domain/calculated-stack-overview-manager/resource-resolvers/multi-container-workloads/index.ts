@@ -67,6 +67,14 @@ import {
 } from '@domain-services/config-manager/utils/container-tracing';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
+import { resolveReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
+import {
+  RELEASE_COMMAND_LOG_NAME,
+  getEcsReleaseTaskDefinition,
+  getReleaseCommandCustomResource,
+  getReleaseCommandLogGroupName,
+  getReleaseImageContainerName
+} from './release-command';
 
 /**
  * A fixed instance count leaves target-tracking policies nothing to do. Each one still takes ~12 s to create after the
@@ -533,31 +541,77 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   getTaskDefinitionTemplateOverrideFns({ resource: definition }).forEach((fn) => {
     templateManager.addFinalTemplateOverrideFn(fn);
   });
+  // A dev stack runs its services on the developer's machine, and the developer runs migrations there.
+  const release =
+    calculatedStackOverviewManager.context.command === 'dev' ? undefined : resolveReleaseCommand(definition);
+  if (release) {
+    const { stackName } = calculatedStackOverviewManager.context;
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, RELEASE_COMMAND_LOG_NAME),
+      resource: getEcsLogGroup({
+        workloadName: definition.name,
+        stackName,
+        containerName: RELEASE_COMMAND_LOG_NAME,
+        retentionDays: defaultLogRetentionDays.containerWorkload
+      }),
+      nameChain
+    });
+    calculatedStackOverviewManager.addStacktapeResourceLink({
+      linkName: 'logs-release-command',
+      nameChain,
+      linkValue: cfEvaluatedLinks.logGroup(getReleaseCommandLogGroupName(definition.name, stackName))
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
+      resource: getEcsReleaseTaskDefinition({ workload: definition, release }),
+      nameChain
+    });
+    getTaskDefinitionTemplateOverrideFns({
+      resource: definition,
+      taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
+      imageContainerNameOf: (containerName) => getReleaseImageContainerName({ release, containerName })
+    }).forEach((fn) => templateManager.addFinalTemplateOverrideFn(fn));
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.releaseCommandCustomResource(definition.name),
+      resource: getReleaseCommandCustomResource({ workload: definition, release }),
+      nameChain
+    });
+  }
 };
 
 export const getTaskDefinitionTemplateOverrideFns = ({
   resource,
-  hotSwapDeploy
+  hotSwapDeploy,
+  taskDefinitionLogicalName = cfLogicalNames.ecsTaskDefinition(resource.name),
+  imageContainerNameOf = (containerName) => containerName
 }: {
   resource: StpContainerWorkload;
   hotSwapDeploy?: boolean;
+  taskDefinitionLogicalName?: string;
+  /** The container whose image a container runs, when it's not its own. */
+  imageContainerNameOf?: (containerName: string) => string;
 }): TemplateManager['templateOverrideFunctions'][number][] => {
   return [
     async (template) => {
-      const templateResourceProps = template.Resources[cfLogicalNames.ecsTaskDefinition(resource.name)]
+      const templateResourceProps = template.Resources[taskDefinitionLogicalName]
         .Properties as TaskDefinitionProperties;
       (templateResourceProps.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
         const imageUrl = deploymentArtifactManager.getImageUploadInfoForJob({
           jobName: getJobName({
             workloadName: resource.name,
             workloadType: resource.configParentResourceType,
-            containerName: containerDef.Name as string
+            containerName: imageContainerNameOf(containerDef.Name as string)
           })
         })?.imageTagWithUrl;
         if (imageUrl) {
           containerDef.Image = imageUrl;
         }
-        if (hotSwapDeploy && containerDef.LogConfiguration) {
+        // The release command's log configuration names its own log group, whichever way it deploys.
+        if (
+          hotSwapDeploy &&
+          containerDef.LogConfiguration &&
+          taskDefinitionLogicalName === cfLogicalNames.ecsTaskDefinition(resource.name)
+        ) {
           // we also substitute log group name with actual name; containers without awslogs
           // (disabled logging) have nothing to substitute
           (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] =
@@ -571,7 +625,7 @@ export const getTaskDefinitionTemplateOverrideFns = ({
     },
     // @note we can't set this upfront, because the parameters are only known after entire template has been resolved
     async (template) => {
-      const templateResourceProps = template.Resources[cfLogicalNames.ecsTaskDefinition(resource.name)]
+      const templateResourceProps = template.Resources[taskDefinitionLogicalName]
         .Properties as TaskDefinitionProperties;
 
       const variablesToInject = getResolvedConnectToEnvironmentVariables({

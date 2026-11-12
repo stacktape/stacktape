@@ -339,4 +339,4 @@ Standard RDS engines (Postgres, MySQL, MariaDB) expose core parameters: host, po
 
 ### Can I use $ResourceParam in hooks and scripts?
 
-Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs — the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into an `afterDeploy` migration script.
+Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs — the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into a seeding script. A service's [`releaseCommand`](/deployment-and-lifecycle/release-commands) gets the service's own environment variables.

@@ -103,3 +103,20 @@ test('every changed service swaps when all prepared', async () => {
     'pending'
   ]);
 });
+
+test('a swap that lost the stack lock stops every service instead of sending them to images', async () => {
+  const lost = new Error('Another operation took over this stack.');
+  const services = { api: service('prepared'), reporting: service('refused') };
+  services.reporting.runtime.codeSwapSwap = async () => {
+    throw lost;
+  };
+  const outcome = prepareCodeSwapServices(
+    new Map(Object.entries(services).map(([name, item]) => [name, item.runtime])),
+    ['api', 'reporting'].map(update),
+    () => false,
+    () => lost
+  );
+  await expect(outcome).rejects.toBe(lost);
+  expect(services.api.events).toEqual([]);
+  expect([services.api.mode(), services.reporting.mode()]).toEqual(['pending', 'pending']);
+});

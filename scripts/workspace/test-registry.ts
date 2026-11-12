@@ -158,9 +158,9 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/code-swap/smoke.ts',
-      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
-      'apps/cli/scripts/code-swap/supervisor/longlived_test.go',
-      'apps/cli/scripts/code-swap/supervisor/process_test.go'
+      'apps/cli/supervisor/archive_test.go',
+      'apps/cli/supervisor/longlived_test.go',
+      'apps/cli/supervisor/process_test.go'
     ],
     requires: ['docker'],
     release: 'affected-external-contract',
@@ -995,6 +995,17 @@ export const lanes: readonly Lane[] = [
       'A code-only container deploy behind an ALB and an HTTP API finishes once the new release serves, with no failed request during the rollout, reports a per-phase timeline, and deletion leaves nothing.'
   },
   {
+    id: 'release-command-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=release-command-serving'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/release-command-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; and a hook running a command on its own stack fails instead of waiting. A deploy after a killed one waits for its still-running command.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -1500,6 +1511,7 @@ export const lanes: readonly Lane[] = [
       'src/services/scoped-account-settings.test.ts',
       'src/services/config-redaction.test.ts',
       'src/services/container-tasks.test.ts',
+      'src/services/secret-usage.test.ts',
       'src/aws/context.test.ts',
       'src/utils/connected-aws-account.test.ts',
       'infrastructure/console-connection/connection-template.test.ts'
@@ -1518,6 +1530,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/scoped-account-settings.test.ts',
       'apps/console/api/src/services/config-redaction.test.ts',
       'apps/console/api/src/services/container-tasks.test.ts',
+      'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/api/infrastructure/console-connection/connection-template.test.ts'
@@ -1959,6 +1972,18 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-incidents']
   },
   {
+    id: 'console-database-diagram-status',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--diagram-status'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/diagram-status-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Alarm and error reports through HTTP become the resources a stage diagram marks, within project and organization access.',
+    selections: ['console-database-diagram-status']
+  },
+  {
     id: 'console-database-incident-agent',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--incident-agent'],
     level: 'api-db',
@@ -2085,7 +2110,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/CostsAndUsagePage/cost-month.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/queue-verdict.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Objects/bucket-cors.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Invoke/test-events.test.ts',
@@ -2111,6 +2135,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/stage-health-summary.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deploy-progress.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/deployed-urls.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/pages/SecretsPage/secret-usage.test.ts',
@@ -2163,6 +2188,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/console/ui/src/services/request-errors.test.ts',
       'apps/console/ui/src/services/plan-change.test.ts',
+      'apps/console/ui/src/services/queryClient.test.ts',
+      'apps/console/ui/src/finished-operations.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-polling.test.ts',
+      'apps/console/ui/src/pages/AwsAccountsPage/pending-connection-poll.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
@@ -2439,6 +2468,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
@@ -2771,6 +2801,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/setup-dev-provider-parameters.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/aws/browser-access.test.ts',
+      'apps/console/api/src/aws/scoped-reads.test.ts',
+      'apps/console/api/src/services/scoped-account-settings.test.ts',
+      'apps/console/api/src/services/config-redaction.test.ts',
+      'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
@@ -2850,6 +2884,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/authenticated.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/git-provider-writes-live.spec.ts',
@@ -2905,7 +2940,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/e2e-credentials.test.ts',
-      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/queue-verdict.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Objects/bucket-cors.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Invoke/test-events.test.ts',
@@ -3007,6 +3041,7 @@ export const lanes: readonly Lane[] = [
       'packages/config-inference/src/compose/engine-versions.spec.ts',
       'packages/config-inference/src/compose/env-wiring.spec.ts',
       'packages/config-inference/src/compose/preferences.spec.ts',
+      'packages/config-inference/src/compose/required-secrets.spec.ts',
       'packages/config-inference/src/compose/schedule.spec.ts',
       'packages/config-inference/src/compose/schema-conformance.spec.ts',
       'packages/config-inference/src/facts/apply-answer.spec.ts',
@@ -3096,8 +3131,16 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/icon-button/IconButton.test.tsx',
       'packages/ui-react/src/install-platform/detectInstallPlatform.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/grouping.test.ts',
+      'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
+      'packages/ui-react/src/isometric-diagram/resource-explanations.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
+      'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
+      'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/link/Link.test.tsx',
       'packages/ui-react/src/monaco-editor/session.test.ts',
       'packages/ui-react/src/progress/Progress.test.tsx',
@@ -3708,6 +3751,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
       'apps/console/ui/e2e/feedback-tool.spec.ts',
@@ -3847,7 +3891,6 @@ export const lanes: readonly Lane[] = [
       'src/deploy-commands.spec.ts',
       'src/deploy-model.spec.ts',
       'src/gaps.spec.ts',
-      'src/required-secrets.spec.ts',
       'src/sign-in.spec.ts',
       'src/target-copy.spec.ts'
     ],
@@ -3858,7 +3901,6 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
       'apps/init-ui/src/gaps.spec.ts',
-      'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/target-copy.spec.ts'
     ],
@@ -3876,13 +3918,15 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/packaging/src/artifact/code-swap.ts',
       'apps/cli/scripts/code-swap/**',
+      'apps/cli/scripts/build-supervisor.ts',
+      'apps/cli/supervisor/**',
       'apps/cli/src/domain/code-swap/**'
     ],
     tests: [
       'packages/packaging/src/artifact/code-swap.test.ts',
       'apps/cli/scripts/code-swap/smoke.ts',
-      'apps/cli/scripts/code-swap/supervisor/archive_test.go',
-      'apps/cli/scripts/code-swap/supervisor/process_test.go',
+      'apps/cli/supervisor/archive_test.go',
+      'apps/cli/supervisor/process_test.go',
       'apps/cli/scripts/code-swap/build-cli.spec.ts',
       'apps/cli/scripts/code-swap/analyze.spec.ts',
       'apps/cli/scripts/code-swap/transport.spec.ts',
@@ -3890,9 +3934,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/code-swap/ecs-budget.spec.ts',
       'apps/cli/scripts/code-swap/lifecycle.spec.ts',
       'apps/cli/src/domain/code-swap/runtime.spec.ts',
-      'apps/cli/scripts/code-swap/supervisor/lifecycle_test.go',
-      'apps/cli/scripts/code-swap/supervisor/phase3_test.go',
-      'apps/cli/scripts/code-swap/supervisor/overhead_test.go'
+      'apps/cli/supervisor/lifecycle_test.go',
+      'apps/cli/supervisor/supervision_test.go',
+      'apps/cli/supervisor/overhead_test.go'
     ],
     lanes: [
       'code-swap-artifacts',
@@ -4055,6 +4099,7 @@ export const slices: readonly Slice[] = [
       'packages/config-inference/src/compose/engine-versions.spec.ts',
       'packages/config-inference/src/compose/env-wiring.spec.ts',
       'packages/config-inference/src/compose/preferences.spec.ts',
+      'packages/config-inference/src/compose/required-secrets.spec.ts',
       'packages/config-inference/src/compose/schedule.spec.ts',
       'packages/config-inference/src/compose/schema-conformance.spec.ts',
       'packages/config-inference/src/facts/apply-answer.spec.ts',
@@ -4163,7 +4208,6 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
       'apps/init-ui/src/gaps.spec.ts',
-      'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/target-copy.spec.ts',
       'apps/init-ui/src/steps/ReviewStep.spec.ts',
@@ -4416,7 +4460,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/_utils/cw-deployment.ts',
       'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
-      'apps/cli/_test-stacks/container-fast-deploy/**'
+      'apps/cli/_test-stacks/container-fast-deploy/**',
+      'apps/cli/src/domain/release-command/**',
+      'apps/cli/src/domain/stack-operation-lock/**',
+      'apps/cli/src/aws/ecs-release-task.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/release-command.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command.ts',
+      'apps/cli/scripts/real-aws/release-command-canary.ts',
+      'apps/cli/_test-stacks/release-command/**',
+      'apps/cli/_test-stacks/release-command-variants/**',
+      'apps/cli/_test-stacks/release-command-extras/**',
+      'apps/cli/_test-stacks/stack-lock/**'
     ],
     tests: [
       'apps/cli/src/domain/cloudformation-stack-manager/progress-plan.spec.ts',
@@ -4446,7 +4500,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/kept-image.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-transition.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/shared-layer-compatibility.test.ts',
-      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts'
+      'apps/cli/scripts/real-aws/container-fast-deploy-canary.ts',
+      'apps/cli/scripts/real-aws/release-command-canary.ts',
+      'apps/cli/src/aws/ecs-release-task.spec.ts',
+      'apps/cli/src/domain/release-command/hash-path.spec.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/release-command.spec.ts',
+      'apps/cli/src/domain/stack-operation-lock/lock.spec.ts',
+      'apps/cli/src/domain/stack-operation-lock/index.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/release-since-start.spec.ts',
+      'apps/cli/tests/synthesis-families/release-command.spec.ts'
     ],
     lanes: [
       'deployment-rules',
@@ -4459,7 +4521,8 @@ export const slices: readonly Slice[] = [
       'console-database-cli-console',
       'live-aws',
       'cli-test-real-aws-alias-canary',
-      'container-fast-deploy-live'
+      'container-fast-deploy-live',
+      'release-command-live'
     ],
     contributors: ['S03', 'S46']
   },
@@ -5378,15 +5441,39 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/ui-react/src/isometric-diagram/**',
       'apps/console/ui/src/components/IsometricDiagramView.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/Diagram.tsx',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-layers.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/useDiagramStatuses.ts',
+      'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'
     ],
     tests: [
+      'apps/cli/tests/synthesis-families/security-group-fixtures.spec.ts',
+      'apps/console/api/scripts/diagram-status-database.test.ts',
+      'apps/console/ui/e2e/diagram-ui.spec.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
+      'packages/ui-react/src/isometric-diagram/grouping.test.ts',
+      'packages/ui-react/src/isometric-diagram/layout/diagram-layout.test.ts',
+      'packages/ui-react/src/isometric-diagram/resource-explanations.test.ts',
       'packages/ui-react/src/isometric-diagram/scene-model.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-groups.test.ts',
+      'packages/ui-react/src/isometric-diagram/security-view.test.ts',
+      'packages/ui-react/src/isometric-diagram/status.test.tsx',
       'packages/ui-react/src/isometric-diagram/svg-structure.test.tsx',
+      'packages/ui-react/src/isometric-diagram/synthesis.test.ts',
+      'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/resource-icon/catalog.test.ts'
     ],
-    lanes: ['ui-react-test', 'console-browser-offline', 'shared-ui-browser']
+    lanes: [
+      'ui-react-test',
+      'synthesis-families',
+      'console-ui',
+      'console-database-diagram-status',
+      'console-browser-offline',
+      'shared-ui-browser'
+    ]
   },
   {
     id: 'S42',
@@ -5478,6 +5565,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/audit-coverage-database.test.ts',
       'apps/console/ui/e2e/isolated-audit-log.test.ts',
       'apps/console/ui/src/pages/AuditLogPage/audit-log-format.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-polling.test.ts',
       'apps/console/api/scripts/console-member-scope-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
@@ -5541,6 +5629,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/scoped-account-settings.test.ts',
       'apps/console/api/src/services/config-redaction.test.ts',
       'apps/console/api/src/services/container-tasks.test.ts',
+      'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
@@ -5548,6 +5637,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
+      'apps/console/ui/src/pages/AwsAccountsPage/pending-connection-poll.test.ts',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/api/src/services/aws-scope-usage.test.ts'
     ],
@@ -5600,7 +5690,6 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-resource-types.test.ts',
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-groups.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Overview/queue-verdict.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Objects/bucket-cors.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Invoke/test-events.test.ts',
@@ -6493,6 +6582,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/Router.tsx',
       'apps/console/ui/src/RouteErrorBoundary.tsx',
       'apps/console/ui/src/services/queryClient.ts',
+      'apps/console/ui/src/finished-operations.ts',
+      'apps/console/ui/src/route-prefetch.ts',
       'apps/console/ui/src/services/request-errors.ts',
       'packages/ui-react/src/select/**',
       'packages/ui-react/src/tabs/**'
@@ -6504,7 +6595,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
       'apps/console/ui/e2e/isolated-errors.test.ts',
-      'apps/console/ui/src/services/request-errors.test.ts'
+      'apps/console/ui/src/services/request-errors.test.ts',
+      'apps/console/ui/src/services/queryClient.test.ts',
+      'apps/console/ui/src/finished-operations.test.ts'
     ],
     lanes: [
       'console-ui',

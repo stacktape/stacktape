@@ -1,4 +1,6 @@
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { holdStackLock } from '@domain-services/stack-operation-lock';
 import { createDevNetworkAws, getDevNetworkName } from '@domain-services/dev-network';
 import { releaseStackLeases } from '@domain-services/dev-network/leases';
 import { createStageHolderStore, getStageHolderParameterName } from '@domain-services/dev-network/holders';
@@ -150,6 +152,7 @@ type DeleteExecutionOperation = {
   deploymentArtifacts: {
     artifactStoreIsStackResource: boolean;
     deleteAllArtifacts: () => Promise<unknown>;
+    deleteAllObjects: () => Promise<unknown>;
     deleteArtifactStore: () => Promise<unknown>;
   };
   /** The template CloudFormation would delete. */
@@ -160,6 +163,8 @@ type DeleteExecutionOperation = {
   stack: {
     deleteStack: (options: {
       beforeDelete: () => Promise<unknown>;
+      beforeDeleteRequest: () => Promise<unknown>;
+      onDeleteRequested: () => Promise<unknown>;
       finishInBackground: boolean;
     }) => Promise<{ deletionContinuesInBackground?: PendingDelete[] } | undefined>;
     existingStackDetails: { EnableTerminationProtection?: boolean; StackStatus?: string };
@@ -173,6 +178,8 @@ type DeleteExecutionOperation = {
   awsAccountId: string;
   /** Return once only resources that cost nothing remain; see `background-delete.ts`. */
   finishInBackground: boolean;
+  /** Takes the stack's lock, so that the delete cannot overlap a deploy or a rollback. */
+  holdLock?: () => Promise<{ confirm: () => Promise<void>; detach: () => void } | undefined>;
 };
 
 export const commandDelete = async () => {
@@ -222,6 +229,11 @@ export const commandDelete = async () => {
     edgeFunctions: awsSdkManager.edgeFunctions,
     // A dev stage releases its relay ports and secrets once its stack is gone, so its delete waits for the end.
     finishInBackground: !wasDevStack,
+    // A stack whose deployment bucket is already gone has no deploy to overlap with: a deploy starts by uploading to it.
+    holdLock: async () =>
+      (await awsSdkManager.s3.bucketExists({ bucketName: deploymentArtifactManager.deploymentBucketName }))
+        ? holdStackLock({ bucketName: deploymentArtifactManager.deploymentBucketName, operation: 'delete' })
+        : undefined,
     lifecycle,
     notification,
     progress,
@@ -289,6 +301,7 @@ export const executeDeleteOperation = async ({
   deployedTemplate,
   edgeFunctions,
   finishInBackground,
+  holdLock,
   lifecycle,
   notification,
   progress,
@@ -333,13 +346,27 @@ export const executeDeleteOperation = async ({
     await lifecycle.registerHooks(config.hooks);
     await lifecycle.processHooks({ captureType: 'START' });
   }
+  const lock = await holdLock?.();
   codeSwapBeginMutation();
   // Read before the deletion, which empties the stack's resource list.
   const artifactStoreIsStackResource = deploymentArtifacts.artifactStoreIsStackResource;
   // CloudFormation cannot delete a bucket or repository that still has content, so emptying them finishes first. It
   // overlaps the ECS scale-down and the CloudFront disable that the stack delete starts.
   const deleteResult = await stack.deleteStack({
-    beforeDelete: deploymentArtifacts.deleteAllArtifacts,
+    // Emptying the bucket keeps the lock, so a deploy cannot start until CloudFormation has accepted the delete. From
+    // then on a deploy sees the stack being deleted.
+    beforeDelete: async () => {
+      await lock?.confirm();
+      await deploymentArtifacts.deleteAllArtifacts();
+    },
+    // Emptying can take long, and a paused machine could have lost the lock to an operation that now uses the stack.
+    beforeDeleteRequest: async () => {
+      await lock?.confirm();
+    },
+    onDeleteRequested: async () => {
+      lock?.detach();
+      await deploymentArtifacts.deleteAllObjects();
+    },
     finishInBackground
   });
   // The deployment bucket and image repository of a stack `deploy` created are not stack resources.

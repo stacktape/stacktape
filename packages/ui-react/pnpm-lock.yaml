@@ -29,9 +29,6 @@ importers:
 
   .:
     dependencies:
-      '@isoflow/isopacks':
-        specifier: ^0.0.10
-        version: 0.0.10
       '@stacktape/config':
         specifier: workspace:*
         version: link:../config
@@ -187,9 +184,6 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
-
-  '@isoflow/isopacks@0.0.10':
-    resolution: {integrity: sha512-pR5vj2A83mPBCxgswD+tE8+/ftXmesv5Qy6sgNAuYxiyDw7Dng1zA1QnRKgxdvgsGH9qTDwak+53KzJuHeVTNg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -876,8 +870,6 @@ snapshots:
       '@floating-ui/utils': 0.2.12
 
   '@floating-ui/utils@0.2.12': {}
-
-  '@isoflow/isopacks@0.0.10': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

@@ -109,6 +109,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Gradual Deployments](/deployment-and-lifecycle/gradual-deployments) - source: apps/docs/content/deployment-and-lifecycle/gradual-deployments.mdx
 - [Multi-Region Deployments](/deployment-and-lifecycle/multi-region-deployments) - source: apps/docs/content/deployment-and-lifecycle/multi-region-deployments.mdx
 - [Previewing Changes](/deployment-and-lifecycle/previewing-changes) - source: apps/docs/content/deployment-and-lifecycle/previewing-changes.mdx
+- [Release commands](/deployment-and-lifecycle/release-commands) - source: apps/docs/content/deployment-and-lifecycle/release-commands.mdx
 - [Rollbacks](/deployment-and-lifecycle/rollbacks) - source: apps/docs/content/deployment-and-lifecycle/rollbacks.mdx
 - [CI/CD](/getting-started/ci-cd) - source: apps/docs/content/getting-started/ci-cd.mdx
 - [Configure Your Stack](/getting-started/configure-your-stack) - source: apps/docs/content/getting-started/configure-your-stack.mdx

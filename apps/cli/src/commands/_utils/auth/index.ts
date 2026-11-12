@@ -125,7 +125,7 @@ const exchangeForApiKey = async (sessionToken: string): Promise<AuthResult> => {
   const chosen = await tuiManager.promptSelect({
     message: 'Select the organization you want to use.',
     options: exchange.options.map((option) => ({
-      label: option.name.endsWith('-personal-org') ? 'Personal' : option.name,
+      label: option.name.endsWith('-personal-org') ? 'Default organization' : option.name,
       value: option.id
     }))
   });

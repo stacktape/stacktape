@@ -365,7 +365,9 @@ If the combined project name and stage name produces a stack name that exceeds C
 
 ### Concurrent deploys to the same stage
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage simultaneously, one fails because the stack is in an `UPDATE_IN_PROGRESS` state. Use CI concurrency controls (GitHub Actions `concurrency` groups, GitLab resource groups) to prevent parallel deploys to the same stage.
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. If the killed job was running a [release command](/deployment-and-lifecycle/release-commands), the waiting deploy also waits for that command to finish. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
+
+The first deploy of a new stage is the exception: until the stage exists, it has nowhere to keep the lock. If two first deploys of the same stage run at once, the second stops without changing anything; run it again.
 
 ## FAQ
 
@@ -389,6 +391,6 @@ By default, the stack keeps what the failed deployment created or updated and st
 
 Run the deploy command once per region with the same stage name but different `--region` values. Each region creates an independent stack. You can run these as parallel jobs in your CI pipeline. See [multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and considerations.
 
-### Why does one of two concurrent deploys to the same stage fail?
+### What happens when two deploys to the same stage run at once?
 
-Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage at once, one fails because the stack is already in an `UPDATE_IN_PROGRESS` state. Prevent this with CI concurrency controls — a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. The second deploy waits for the first to finish and then deploys on top of its result. A killed run blocks the next one for at most two minutes. To control the order of runs, use a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.

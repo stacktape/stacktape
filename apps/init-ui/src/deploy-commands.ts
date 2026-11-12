@@ -32,3 +32,7 @@ export const stackCommand = (action: 'deploy' | 'delete' | 'stack recover', targ
   ]
     .map(quoteArgument)
     .join(' ');
+
+/** The command that creates one secret. The value is prompted for, so it never lands in shell history. */
+export const secretCommand = (name: string, region: string, awsAccount?: string): string =>
+  `stacktape secret set ${name} --region ${region}${awsAccount === undefined ? '' : ` --aws-account ${quoteArgument(awsAccount)}`}`;

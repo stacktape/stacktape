@@ -16,7 +16,7 @@ export const releaseRecordSchema = z.strictObject({
   HistoryVersion: z.string().nullable(),
   Attempt: z.string().nullable(),
   Phase: z.enum(['prepare', 'commit', 'abort']),
-  // The phase 0–3 supervisor fields remain on the wire during the benchmark transition.
+  // The bundle the supervisor acts on while it serves; a newly started task uses Committed instead.
   Revision: z.string().optional(),
   Key: z.string().optional(),
   Sha256: z.string().optional(),

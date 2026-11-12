@@ -439,6 +439,12 @@ export const awsResourceNames = {
   },
   // max 255 chars
   // https://docs.aws.amazon.com/cli/latest/reference/ecs/register-task-definition.html
+  ecsReleaseTaskDefinitionFamily(workloadName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${workloadName}-release`,
+      lengthLimit: 255
+    });
+  },
   ecsTaskDefinitionFamily(workloadName: string, stackName: string) {
     return buildResourceName({
       proposedResourceName: `${stackName}-${workloadName}-task-definition`,

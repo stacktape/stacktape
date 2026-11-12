@@ -3,12 +3,23 @@ import { isStackCreatedByDev } from '../dev/dev-stack-safety';
 import { codeSwapBeginMutation, codeSwapOperation } from '@domain-services/code-swap/lifecycle-hooks';
 import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/runtime';
 import {
+  applyReleaseCommandPlan,
+  decideReleaseImages,
+  planReleaseCommands,
+  recordCompletedReleaseCommands,
+  runReleaseCommandsDirectly,
+  startReleaseCommandLogs,
+  waitForEarlierReleaseCommands
+} from '@domain-services/release-command';
+import { holdStackLock, releaseHeldStackLock } from '@domain-services/stack-operation-lock';
+import { registerReleaseTaskDefinition, releaseCommandClusterOf } from '../_utils/cw-deployment';
+import {
   recordSecurityReport,
   deleteUndeployedStage
 } from '@application-services/stacktape-trpc-api-manager/operation-recording';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { createHash } from 'node:crypto';
-import { CliError, type ExpectedError } from '@utils/errors';
+import { CliError, ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -113,18 +124,7 @@ export const commandDeploy = async () => {
       hints: 'Run the remote-runner deploy manually after reviewing its target and implications.'
     });
   }
-  if (runner === 'ec2') {
-    if (globalStateManager.args.recoverOperation) {
-      throw new CliError({
-        category: 'DEPLOYMENT',
-        code: 'CODE_SWAP_RECOVERY_LOCAL_RUNNER_REQUIRED',
-        message: 'Recover the code-swap operation with the local runner.',
-        hints:
-          'Stop the previous invocation, wait for its AWS changes to finish, then run again with --runner local and --recover-operation.'
-      });
-    }
-    return deployWithEc2Runner();
-  }
+  if (runner === 'ec2') return deployWithEc2Runner();
   return deployLocally(initTargetExpectation);
 };
 
@@ -320,6 +320,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       // Not after Ctrl+C, which leaves the creation running, or when monitoring failed and the outcome is unknown.
       const endCreation =
         !interrupted && stack.rollsBackOnFailure && (err as ExpectedError | undefined)?.type !== 'STACK_MONITORING';
+      // Releasing writes to the bucket, so it has to finish before the bucket is emptied.
+      await releaseHeldStackLock();
       await deploymentArtifacts.deleteArtifactStoreOfFailedFirstDeploy(stackContext.stackName, { endCreation });
     });
   }
@@ -328,14 +330,27 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (config.allContainersRequiringPackaging.length || config.agentCoreRuntimesRequiringPackaging.length) {
     deploymentArtifacts.loginToEcr().catch(() => {});
   }
+  const { jobsToSkip: releaseImagesToSkip } = await decideReleaseImages({
+    stackExists: !createsStack,
+    bucketName: deploymentArtifacts.deploymentBucketName
+  });
   const [{ packagedWorkloads, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
+      excludeImageJobs: releaseImagesToSkip,
       calculatedStackOverview,
       packaging,
       prepareTemplateForDeploy,
       template,
       tui,
-      networkReady: stageNetwork.ready
+      networkReady: stageNetwork.ready,
+      applyDeployDecisions: async (finalTemplate) => {
+        await planReleaseCommands({
+          skip: !!(args as { skipReleaseCommand?: boolean }).skipReleaseCommand,
+          stackExists: !createsStack,
+          bucketName: deploymentArtifacts.deploymentBucketName
+        });
+        applyReleaseCommandPlan(finalTemplate);
+      }
     }),
     // @note this can take a long time, so we do it in parallel with other stack activities
     cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
@@ -446,6 +461,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await artifactStoreCreation;
 
   progress.setPhase('UPLOAD');
+  // A deploy of an existing stack took the lock when it started, before it read the stack, and this shares it. A new
+  // stack's bucket exists only now, so its lock is taken here, before the upload: a stack delete empties the bucket
+  // under this lock, and nothing may appear in it meanwhile.
+  const lock = await holdStackLock({ bucketName: deploymentArtifacts.deploymentBucketName, operation: 'deploy' });
+  // Another first deploy may have created the stack meanwhile. For an existing stack, this is a safety net.
+  await deploymentArtifacts.ensureNoReleaseSinceStart({ operation: 'deploy', createsStack });
   const sharedLayerPublication = fastDeployPlan ? createSharedLayerPublication(fastDeployPlan) : undefined;
   try {
     await deploymentArtifacts.uploadAllArtifacts({
@@ -510,6 +531,16 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   progress.setPhase('DEPLOY');
+  if (await waitForEarlierReleaseCommands({ fastDeployment: !!fastDeployPlan, clusterOf: releaseCommandClusterOf })) {
+    await lock.confirm();
+  }
+  // Before anything changes: a failed command leaves every workload on its current code.
+  if (fastDeployPlan) {
+    await runReleaseCommandsDirectly({ registerTaskDefinition: registerReleaseTaskDefinition });
+  }
+  const releaseCommandLogs = fastDeployPlan ? undefined : await startReleaseCommandLogs();
+  // A long command, or a paused machine, can outlast the lock. An operation that lost it must not overwrite the newer one.
+  await lock.confirm();
   codeSwapBeginMutation();
   try {
     if (fastDeployPlan) {
@@ -518,7 +549,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
         recordRelease: createsRelease,
         deploymentArtifacts,
         progress,
-        layerVersions: sharedLayerPublication?.wait()
+        layerVersions: sharedLayerPublication?.wait(),
+        confirmLock: lock.confirm
       });
     } else {
       await performFullDeploy({ deploymentArtifacts, stack, tui });
@@ -530,6 +562,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   } finally {
     // The stage stack now imports the shared stacks it uses, which keeps them.
     stopMarkingSharedNetworkUsed();
+    await releaseCommandLogs?.stop();
   }
   // Recorded while the post-deploy steps run; nothing below depends on it. It never throws. A failing post-deploy step
   // still lets it finish before the command exits.
@@ -602,6 +635,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
   await obsoleteArtifactDeletion;
+  await recordCompletedReleaseCommands({ bucketName: deploymentArtifacts.deploymentBucketName });
 
   // Sent while the remaining reporting runs; the command waits for it before it returns.
   notification.queueDeploymentNotification({
@@ -689,6 +723,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await Promise.all([syncUptimeChecks(), reportSecurityFindings(), sourceMapActivation]);
   await notification.waitForQueuedEvents();
   await codeSwapComplete(createsRelease);
+  // Held through the steps after the rollout, which still write to the bucket and the stack's websites. A failure
+  // releases it when the command ends.
+  await lock.release();
 
   return {
     stackInfo: detailedStackInfoSensitive,
@@ -704,15 +741,21 @@ export const prepareArtifactsForStackDeployment = async ({
   prepareTemplateForDeploy,
   template,
   tui,
-  networkReady
+  networkReady,
+  applyDeployDecisions,
+  excludeImageJobs
 }: Pick<DeployOperation, 'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'> & {
   /** The shared network the stage runs in, created or upgraded while the workloads build. */
   networkReady?: Promise<void>;
+  applyDeployDecisions?: NonNullable<
+    Parameters<DeployOperation['prepareTemplateForDeploy']>[0]
+  >['applyDeployDecisions'];
+  excludeImageJobs?: string[];
 }): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
 }> => {
-  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true, excludeImageJobs });
   await networkReady;
   await resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
@@ -722,7 +765,7 @@ export const prepareArtifactsForStackDeployment = async ({
   }
 
   await calculatedStackOverview.populateStackMetadata();
-  await prepareTemplateForDeploy();
+  await prepareTemplateForDeploy({ applyDeployDecisions });
 
   const cfTemplateDiff = template.getOldTemplateDiff();
   return { packagedWorkloads, cfTemplateDiff };

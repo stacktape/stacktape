@@ -1537,7 +1537,8 @@
 }
 
 .sh-diagram .stp-diagram__controls,
-.sh-diagram .stp-diagram__hint {
+.sh-diagram .stp-diagram__hint,
+.sh-diagram .stp-diagram__find {
   display: none;
 }
 

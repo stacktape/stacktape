@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runSchema, type BenchmarkRun } from './benchmark-run';
+import { runSchema, type CodeSwapRun } from './code-swap-run';
 import { unsupportedReason } from './eligibility';
 
-export const getCodeSwapRuns = async (): Promise<BenchmarkRun[]> => {
+export const getCodeSwapRuns = async (): Promise<CodeSwapRun[]> => {
   const path = process.env.STP_CODE_SWAP_BENCH_RUN;
   if (path) return [runSchema.parse(JSON.parse(await readFile(path, 'utf8')))];
   const { configManager } = await import('../config-manager');
@@ -35,11 +35,8 @@ export const getCodeSwapRuns = async (): Promise<BenchmarkRun[]> => {
         ? runSchema.shape.table.parse((oldTable.Properties as Record<string, unknown>)?.TableName)
         : `${global.targetStack.stackName}-code-swap`,
       mode: 'swap',
-      phase3: true,
-      phase4: true,
       optOut: !enabled || Boolean(unsupported),
-      supervisor:
-        process.env.STP_CODE_SWAP_BENCH_SUPERVISOR ?? join(fsPaths.helperLambdasDir(), 'stacktape-supervisor'),
+      supervisor: process.env.STP_SUPERVISOR_PATH ?? join(fsPaths.helperLambdasDir(), 'stacktape-supervisor'),
       result: process.env.STP_CODE_SWAP_BENCH_RESULT ?? '',
       memory: workload?.resources.memory ?? 1024,
       count: workload?.scaling.minInstances ?? 1

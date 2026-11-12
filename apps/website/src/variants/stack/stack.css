@@ -1397,7 +1397,8 @@
 }
 
 .st-diagram .stp-diagram__controls,
-.st-diagram .stp-diagram__hint {
+.st-diagram .stp-diagram__hint,
+.st-diagram .stp-diagram__find {
   display: none;
 }
 

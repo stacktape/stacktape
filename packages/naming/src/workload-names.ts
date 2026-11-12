@@ -10,6 +10,12 @@ export const getJobNameForMultiContainerWorkload = (workloadName: string, contai
 
 export const getSimpleServiceDefaultContainerName = () => 'service-container';
 
+/**
+ * The image a release command runs in when the service's own image can't run it: a `js-bundle` image holds only the
+ * bundled code, not the migration tool or the migration files.
+ */
+export const RELEASE_IMAGE_CONTAINER_NAME = 'stp-release-image';
+
 export const getLocalInvokeContainerName = (jobName: string) => {
   return `invoke-local-${jobName}`;
 };

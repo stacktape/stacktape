@@ -37,7 +37,7 @@ export const commandLogin = async () => {
     });
 
     const organizationName = userData.organization.name.endsWith('-personal-org')
-      ? 'Personal'
+      ? 'Default organization'
       : userData.organization.name;
 
     spinner.success({ text: 'Authenticated' });

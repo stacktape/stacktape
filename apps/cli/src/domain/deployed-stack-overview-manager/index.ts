@@ -37,7 +37,9 @@ import {
   getTriggerOfUnchangedDeploymentScript,
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
-  isImageOnlyTaskDefinitionChange
+  isImageOnlyTaskDefinitionChange,
+  isOnlyBlueGreenOrderChange,
+  isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 import { sharedLayerNumberOf } from '@domain-services/deployment-artifact-manager/shared-layers';
@@ -321,6 +323,7 @@ class DeployedStackOverviewManager {
     if (change.isRemoval) return `${cfLogicalName} is removed`;
     const changed = `${cfLogicalName} changed`;
     if (change.resourceTypeChanged) return changed;
+    if (isOnlyBlueGreenOrderChange(change)) return undefined;
     const isPartOf = (workloads: { resource: StackInfoMapResource }[]) =>
       workloads.some(({ resource }) => cfLogicalName in resource.cloudformationChildResources);
     switch (change.resourceType as KnownCloudFormationResourceType) {
@@ -337,6 +340,8 @@ class DeployedStackOverviewManager {
           ? undefined
           : changed;
       case 'AWS::CloudFormation::CustomResource': {
+        // A fast deployment runs a due release command itself.
+        if (isOnlyReleaseCommandRunChange(change)) return undefined;
         const publishedFunction = (change.newValue?.Properties as Record<string, any> | undefined)?.publishLambdaVersion
           ?.functionName?.Ref;
         if (publishedFunction) return `${publishedFunction} is invoked through an alias`;

@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
 import { buildIsometricScene } from './scene-builder.js';
+import { groupTopology } from './grouping.js';
 import { buildDiagramTopology } from './topology.js';
 import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fixture-scenes.js';
+
+const CONTAINERS = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
 describe('diagram scene model', () => {
   for (const fixture of getDiagramFixtures()) {
@@ -38,11 +41,13 @@ describe('diagram scene model', () => {
     test(`preserves topology, routes and subnet membership through the scene pipeline for ${fixture.id}`, () => {
       const config = parseFixtureConfig({ fixture });
       const before = structuredClone(config);
-      const topology = buildDiagramTopology({ parsedConfig: config });
+      const base = buildDiagramTopology({ parsedConfig: config });
       const scene = buildIsometricScene({ parsedConfig: config });
-      expect(topology).not.toBeNull();
+      expect(base).not.toBeNull();
       expect(scene).not.toBeNull();
-      if (!topology || !scene) throw new Error('Representative fixture must produce a topology and scene');
+      if (!base || !scene) throw new Error('Representative fixture must produce a topology and scene');
+      // The scene draws the topology after grouping, with every group collapsed.
+      const topology = groupTopology({ topology: base });
       expect(config).toEqual(before);
       expect(buildIsometricScene({ parsedConfig: config })).toEqual(scene);
       expect(scene.nodes.map(({ id }) => id).toSorted()).toEqual(topology.nodes.map(({ id }) => id).toSorted());
@@ -52,7 +57,20 @@ describe('diagram scene model', () => {
           .toSorted((a, b) => a.id.localeCompare(b.id))
       ).toEqual(
         topology.edges
-          .map(({ id, from, to, semantic, label }) => ({ id, from, to, semantic, label }))
+          .map(({ id, from, to, semantic, label }) => ({
+            id,
+            from,
+            to,
+            semantic,
+            // The Infrastructure layer names the VPC Link an HTTP API reaches a container through.
+            label:
+              label ??
+              (semantic === 'request' &&
+              topology.nodes.find((node) => node.id === from)?.resourceType === 'http-api-gateway' &&
+              CONTAINERS.has(topology.nodes.find((node) => node.id === to)?.resourceType ?? '')
+                ? 'VPC Link'
+                : undefined)
+          }))
           .toSorted((a, b) => a.id.localeCompare(b.id))
       );
       const nodes = new Map(scene.nodes.map((node) => [node.id, node]));

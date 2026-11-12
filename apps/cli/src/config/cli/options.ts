@@ -138,15 +138,13 @@ export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Val
 ---
 If \`true\`, includes sensitive values in the output of commands such as \`status\`, \`deploy\`, and \`param get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
 
-export const recoverOperation = z
-  .string()
-  .describe(
-    'Recover the named code-swap invocation after stopping it and settling its AWS changes. Repairs interrupted swaps with an image deploy.'
-  );
-
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
 If \`true\`, deploys every change through CloudFormation. By default, when only the code of \`functions\` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.`);
+
+export const skipReleaseCommand = z.boolean().describe(`#### Skip Release Command
+---
+If \`true\`, this deploy does not run the \`releaseCommand\` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it.`);
 
 export const disableLayerOptimization = z.boolean().describe(`#### Disable Layer Optimization
 ---
@@ -584,6 +582,7 @@ export const argAliases = {
   newVersion: 'nv',
   projectDirectory: 'pd',
   fullDeploy: 'fd',
+  skipReleaseCommand: 'src',
   apiKey: 'ak',
   awsAccount: 'aa',
   initializeProjectTo: 'ipt',
@@ -675,8 +674,8 @@ export const allCliArgsSchema = z.object({
   newVersion: newVersion.optional(),
   projectDirectory: projectDirectory.optional(),
   initializeProjectTo: initializeProjectTo.optional(),
-  recoverOperation: recoverOperation.optional(),
   fullDeploy: fullDeploy.optional(),
+  skipReleaseCommand: skipReleaseCommand.optional(),
   runner: deployRunner.optional(),
   disableLayerOptimization: disableLayerOptimization.optional(),
   apiKey: apiKey.optional(),

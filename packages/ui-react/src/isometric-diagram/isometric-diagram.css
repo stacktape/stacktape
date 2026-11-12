@@ -58,6 +58,11 @@
     /* Above the 1000 tier the fullscreen editor and the dialog overlay share, so a diagram shown
      * inside either still puts its tooltip on top rather than relying on document order. */
     z-index: 1100;
+    /* Its parts are spaced by the gap, not by margins: a host page's own reset of paragraph margins is outside this
+     * layer and would win over them. */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     max-width: 360px;
     padding: 14px 18px;
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -102,26 +107,204 @@
   }
 
   .stp-diagram__tooltip-summary {
-    margin-top: 7px;
     font-size: 13.5px;
     line-height: 1.55;
     color: var(--stp-text-primary);
   }
 
   .stp-diagram__tooltip-details {
-    margin-top: 7px;
     font-size: 13px;
     line-height: 1.6;
     color: var(--stp-text-subtle);
   }
 
+  /* Short sentences, one per line, each led by a dot so the eye finds where one ends. */
+  .stp-diagram__tooltip-facts,
+  .stp-diagram__panel .stp-diagram__panel-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__tooltip-facts li,
+  .stp-diagram__panel-facts li {
+    position: relative;
+    padding-left: 13px;
+  }
+
+  .stp-diagram__tooltip-facts li::before,
+  .stp-diagram__panel-facts li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 0.62em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
   .stp-diagram__tooltip-note {
-    margin-top: 9px;
     padding-left: 10px;
     border-left: 2px solid var(--stp-color-brand);
     font-size: 13px;
     line-height: 1.55;
     color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__tooltip-note[data-alert] {
+    border-left-color: #f06a6f;
+    color: #f58a8e;
+  }
+
+  /* What the host reports about the hovered resource, before what it is: tone icon, short text, then the detail. */
+  .stp-diagram__tooltip-status {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .stp-diagram__tooltip-status li {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .stp-diagram__tooltip-status-detail {
+    color: var(--stp-text-subtle);
+  }
+
+  /* ── Live status ─────────────────────────────────────────────────────────────────────────── */
+  .stp-diagram__tone-icon {
+    flex-shrink: 0;
+    align-self: center;
+    overflow: visible;
+  }
+
+  .stp-diagram__attention[data-tone='critical'] {
+    border-color: rgba(240, 86, 92, 0.55);
+  }
+
+  .stp-diagram__attention[data-tone='warning'] {
+    border-color: rgba(242, 169, 59, 0.55);
+  }
+
+  .stp-diagram__attention[aria-pressed='true'] {
+    background: rgba(32, 36, 46, 0.95);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+
+  /* Host notices about the whole picture: a row of their own under the toolbar's controls. */
+  .stp-diagram__notices {
+    display: flex;
+    flex-direction: column;
+    flex-basis: 100%;
+    gap: 6px;
+    max-width: 560px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .stp-diagram__notice {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-left-width: 3px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.86);
+    color: var(--stp-text-primary);
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .stp-diagram__notice[data-tone='critical'] {
+    border-left-color: #f0565c;
+  }
+
+  .stp-diagram__notice[data-tone='warning'] {
+    border-left-color: #f2a93b;
+  }
+
+  .stp-diagram__notice[data-tone='info'] {
+    border-left-color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__notice-info {
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__status-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 7px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-left-width: 3px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .stp-diagram__status-item[data-tone='critical'] {
+    border-left-color: #f0565c;
+  }
+
+  .stp-diagram__status-item[data-tone='warning'] {
+    border-left-color: #f2a93b;
+  }
+
+  .stp-diagram__status-item[data-tone='ok'] {
+    border-left-color: #3dc98a;
+  }
+
+  .stp-diagram__status-icon {
+    display: flex;
+    padding-top: 3px;
+  }
+
+  .stp-diagram__status-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .stp-diagram__status-text {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__member-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .stp-diagram__member-status[data-tone='critical'] {
+    color: #ffc2c4;
+  }
+
+  .stp-diagram__member-status[data-tone='warning'] {
+    color: #ffdda6;
   }
 
   /* ── Hint and view controls ──────────────────────────────────────────────────────────────── */
@@ -130,6 +313,7 @@
     left: 12px;
     bottom: 12px;
     margin: 0;
+    font-family: Montserrat, Inter, sans-serif;
     font-size: 12px;
     color: var(--stp-text-subtle);
     pointer-events: none;
@@ -168,6 +352,553 @@
   .stp-diagram__control:focus-visible {
     outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
     outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  /* ── Nodes and group controls ────────────────────────────────────────────────────────────── */
+  .stp-diagram__node,
+  .stp-diagram__group-toggle {
+    cursor: pointer;
+    outline: none;
+  }
+
+  .stp-diagram__group-toggle:hover circle,
+  .stp-diagram__group-toggle:focus-visible circle {
+    stroke: var(--stp-color-brand);
+    stroke-width: 2.2;
+  }
+
+  /* ── Find and expanded groups ────────────────────────────────────────────────────────────── */
+  .stp-diagram__toolbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-family: Montserrat, Inter, sans-serif;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 24px);
+  }
+
+  .stp-diagram--panel-open .stp-diagram__toolbar {
+    max-width: calc(100% - var(--stp-diagram-panel-width) - 36px);
+  }
+
+  .stp-diagram__find {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__find:focus-within {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 70%, transparent);
+  }
+
+  .stp-diagram__find input {
+    width: 150px;
+    border: 0;
+    background: transparent;
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .stp-diagram__find input::placeholder {
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__find-count {
+    margin: 0;
+    font-size: 12px;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__chip-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(9, 11, 17, 0.78);
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .stp-diagram__chip-button:hover {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+  }
+
+  .stp-diagram__chip-action {
+    color: var(--stp-color-brand);
+    font-weight: 600;
+  }
+
+  /* ── Layers ──────────────────────────────────────────────────────────────────────────────────
+   * One checkbox per layer the picture can add, in one frame the height of the find box. */
+  .stp-diagram__layers {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 32px;
+    padding: 2px 2px 2px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+  }
+
+  .stp-diagram__layers-title {
+    margin-right: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__layer {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 100%;
+    padding: 0 10px 0 8px;
+    border-radius: calc(var(--stp-radius-medium) - 2px);
+    color: var(--stp-text-subtle);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__layer input {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--stp-color-brand);
+    cursor: inherit;
+  }
+
+  .stp-diagram__layer:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__layer[data-checked] {
+    background: color-mix(in srgb, var(--stp-color-brand) 20%, transparent);
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__layer[data-disabled] {
+    color: var(--stp-text-subtle);
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .stp-diagram__layer-note {
+    font-size: 11px;
+    font-weight: 500;
+    font-style: italic;
+  }
+
+  .stp-diagram__layer:has(input:focus-visible) {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: -2px;
+  }
+
+  /* A line about what is shown, where the usage hint otherwise is. */
+  .stp-diagram__view-note {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    max-width: min(700px, calc(100% - 80px));
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(9, 11, 17, 0.78);
+    font-family: Montserrat, Inter, sans-serif;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--stp-text-subtle);
+    pointer-events: none;
+  }
+
+  .stp-diagram--panel-open .stp-diagram__view-note {
+    max-width: calc(100% - var(--stp-diagram-panel-width) - 84px);
+  }
+
+  .stp-diagram__view-note p {
+    margin: 0;
+  }
+
+  .stp-diagram__view-note code {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 11px;
+  }
+
+  .stp-diagram__note-alert {
+    color: #f58a8e;
+  }
+
+  .stp-diagram__note-ok {
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  /* What the tags' icons mean: one short phrase per icon. */
+  .stp-diagram__note-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    margin-top: 4px;
+    font-size: 11.5px;
+  }
+
+  .stp-diagram__view-note .stp-diagram__note-legend {
+    margin-top: 4px;
+  }
+
+  .stp-diagram__note-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .stp-diagram__note-icon {
+    flex: none;
+    color: var(--stp-text-primary);
+  }
+
+  /* ── Side panel ──────────────────────────────────────────────────────────────────────────────
+   * Inside the diagram's frame, so it works wherever the diagram is embedded; it scrolls on its own. */
+  .stp-diagram {
+    --stp-diagram-panel-width: min(380px, calc(100% - 24px));
+  }
+
+  .stp-diagram__panel-frame {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: var(--stp-diagram-panel-width);
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+  }
+
+  .stp-diagram__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: var(--stp-surface-input);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    font-family: Montserrat, Inter, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--stp-text-primary);
+    pointer-events: auto;
+    user-select: text;
+  }
+
+  .stp-diagram__panel p,
+  .stp-diagram__panel h2,
+  .stp-diagram__panel h3,
+  .stp-diagram__panel ul {
+    margin: 0;
+    padding: 0;
+  }
+
+  .stp-diagram__panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 10px 18px;
+  }
+
+  .stp-diagram__panel-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    outline: none;
+  }
+
+  .stp-diagram__panel-subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__panel-close {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--stp-radius-medium);
+    background: transparent;
+    color: var(--stp-text-subtle);
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-close:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 18px 12px;
+  }
+
+  .stp-diagram__panel-button {
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-button:hover {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+  }
+
+  .stp-diagram__panel-button--primary {
+    border-color: color-mix(in srgb, var(--stp-color-brand) 55%, transparent);
+    background: color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
+  }
+
+  .stp-diagram__panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    padding: 0 18px 18px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .stp-diagram__panel-summary {
+    font-size: 13.5px;
+  }
+
+  .stp-diagram__panel .stp-diagram__panel-note {
+    padding-left: 10px;
+    border-left: 2px solid var(--stp-color-brand);
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .stp-diagram__panel-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+  }
+
+  .stp-diagram__panel-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+  }
+
+  .stp-diagram__panel-member {
+    padding: 7px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .stp-diagram__panel-member-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .stp-diagram__panel-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.25);
+    text-underline-offset: 3px;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-link:hover {
+    color: var(--stp-color-brand);
+    text-decoration-color: currentColor;
+  }
+
+  .stp-diagram__panel-mini-action {
+    flex-shrink: 0;
+    padding: 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--stp-color-brand);
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .stp-diagram__panel-muted {
+    font-size: 12px;
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-code {
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-routes {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .stp-diagram__panel-routes th {
+    padding: 0 8px 4px 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-routes td {
+    padding: 4px 8px 4px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    vertical-align: top;
+  }
+
+  /* Paths may break anywhere; resource names only where they must. */
+  .stp-diagram__panel-routes .stp-diagram__panel-link {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .stp-diagram__panel-groups {
+    gap: 10px;
+  }
+
+  .stp-diagram__panel-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .stp-diagram__panel-group-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-diagram__panel-access {
+    margin: 0;
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-access[data-reach='exposed'] {
+    color: #f58a8e;
+  }
+
+  /* The security groups behind the answer, one click away. */
+  .stp-diagram__panel-fold > summary {
+    width: fit-content;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-fold > summary:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-fold[open] > summary {
+    margin-bottom: 8px;
+  }
+
+  .stp-diagram__panel-rule-heading {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel .stp-diagram__panel-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 16px;
+    font-size: 12.5px;
+    list-style: disc;
+  }
+
+  .stp-diagram__panel button:focus-visible,
+  .stp-diagram__chip-button:focus-visible,
+  .stp-diagram__find:focus-within {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  /* The zoom controls step aside while the panel is open. */
+  .stp-diagram--panel-open .stp-diagram__controls {
+    right: calc(var(--stp-diagram-panel-width) + 24px);
   }
 
   /* ── Empty state ─────────────────────────────────────────────────────────────────────────── */

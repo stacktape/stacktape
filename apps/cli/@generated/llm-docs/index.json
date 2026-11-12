@@ -8178,6 +8178,33 @@
       ]
     },
     {
+      "id": "config-reference:ReleaseCommand",
+      "title": "ReleaseCommand API Reference",
+      "route": "/config-reference/helpers",
+      "sourcePath": "packages/config/src/shared.ts",
+      "outputPath": "config-reference/helpers/releasecommand.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "ReleaseCommand"
+      ],
+      "tags": [
+        "config-reference",
+        "ReleaseCommand",
+        "command",
+        "container",
+        "runWhenChanged",
+        "timeout"
+      ],
+      "chunks": [
+        "config-reference:ReleaseCommand#releasecommand-api-reference",
+        "config-reference:ReleaseCommand#typescript-definition",
+        "config-reference:ReleaseCommand#property-command",
+        "config-reference:ReleaseCommand#property-container",
+        "config-reference:ReleaseCommand#property-runwhenchanged",
+        "config-reference:ReleaseCommand#property-timeout"
+      ]
+    },
+    {
       "id": "config-reference:SecretEnvironmentVar",
       "title": "SecretEnvironmentVar API Reference",
       "route": "/config-reference/helpers",
@@ -9639,6 +9666,7 @@
         "deployment",
         "enableRemoteSessions",
         "iamRoleStatements",
+        "releaseCommand",
         "scaling",
         "tracing",
         "usePrivateSubnetsWithNAT",
@@ -9665,6 +9693,7 @@
         "config-reference:ContainerWorkloadProps#property-iamrolestatements",
         "config-reference:ContainerWorkloadProps#example-1-yaml-6",
         "config-reference:ContainerWorkloadProps#example-2-typescript-6",
+        "config-reference:ContainerWorkloadProps#property-releasecommand",
         "config-reference:ContainerWorkloadProps#property-scaling",
         "config-reference:ContainerWorkloadProps#example-1-yaml-7",
         "config-reference:ContainerWorkloadProps#example-2-typescript-7",
@@ -10518,6 +10547,7 @@
         "logging",
         "port",
         "protocol",
+        "releaseCommand",
         "scaling",
         "secrets",
         "sideContainers",
@@ -10563,23 +10593,26 @@
         "config-reference:PrivateServiceProps#property-protocol",
         "config-reference:PrivateServiceProps#example-1-yaml-11",
         "config-reference:PrivateServiceProps#example-2-typescript-11",
-        "config-reference:PrivateServiceProps#property-scaling",
+        "config-reference:PrivateServiceProps#property-releasecommand",
         "config-reference:PrivateServiceProps#example-1-yaml-12",
         "config-reference:PrivateServiceProps#example-2-typescript-12",
+        "config-reference:PrivateServiceProps#property-scaling",
+        "config-reference:PrivateServiceProps#example-1-yaml-13",
+        "config-reference:PrivateServiceProps#example-2-typescript-13",
         "config-reference:PrivateServiceProps#property-secrets",
         "config-reference:PrivateServiceProps#property-sidecontainers",
         "config-reference:PrivateServiceProps#property-stoptimeout",
-        "config-reference:PrivateServiceProps#example-1-yaml-13",
-        "config-reference:PrivateServiceProps#example-2-typescript-13",
-        "config-reference:PrivateServiceProps#property-tracing",
         "config-reference:PrivateServiceProps#example-1-yaml-14",
         "config-reference:PrivateServiceProps#example-2-typescript-14",
-        "config-reference:PrivateServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:PrivateServiceProps#property-tracing",
         "config-reference:PrivateServiceProps#example-1-yaml-15",
         "config-reference:PrivateServiceProps#example-2-typescript-15",
-        "config-reference:PrivateServiceProps#property-volumemounts",
+        "config-reference:PrivateServiceProps#property-useprivatesubnetswithnat",
         "config-reference:PrivateServiceProps#example-1-yaml-16",
-        "config-reference:PrivateServiceProps#example-2-typescript-16"
+        "config-reference:PrivateServiceProps#example-2-typescript-16",
+        "config-reference:PrivateServiceProps#property-volumemounts",
+        "config-reference:PrivateServiceProps#example-1-yaml-17",
+        "config-reference:PrivateServiceProps#example-2-typescript-17"
       ]
     },
     {
@@ -15026,6 +15059,7 @@
         "loadBalancing",
         "logging",
         "port",
+        "releaseCommand",
         "scaling",
         "secrets",
         "sideContainers",
@@ -15088,26 +15122,29 @@
         "config-reference:WebServiceProps#property-port",
         "config-reference:WebServiceProps#example-1-yaml-16",
         "config-reference:WebServiceProps#example-2-typescript-16",
-        "config-reference:WebServiceProps#property-scaling",
+        "config-reference:WebServiceProps#property-releasecommand",
         "config-reference:WebServiceProps#example-1-yaml-17",
         "config-reference:WebServiceProps#example-2-typescript-17",
+        "config-reference:WebServiceProps#property-scaling",
+        "config-reference:WebServiceProps#example-1-yaml-18",
+        "config-reference:WebServiceProps#example-2-typescript-18",
         "config-reference:WebServiceProps#property-secrets",
         "config-reference:WebServiceProps#property-sidecontainers",
         "config-reference:WebServiceProps#property-stoptimeout",
-        "config-reference:WebServiceProps#example-1-yaml-18",
-        "config-reference:WebServiceProps#example-2-typescript-18",
-        "config-reference:WebServiceProps#property-tracing",
         "config-reference:WebServiceProps#example-1-yaml-19",
         "config-reference:WebServiceProps#example-2-typescript-19",
-        "config-reference:WebServiceProps#property-usefirewall",
+        "config-reference:WebServiceProps#property-tracing",
         "config-reference:WebServiceProps#example-1-yaml-20",
         "config-reference:WebServiceProps#example-2-typescript-20",
-        "config-reference:WebServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:WebServiceProps#property-usefirewall",
         "config-reference:WebServiceProps#example-1-yaml-21",
         "config-reference:WebServiceProps#example-2-typescript-21",
-        "config-reference:WebServiceProps#property-volumemounts",
+        "config-reference:WebServiceProps#property-useprivatesubnetswithnat",
         "config-reference:WebServiceProps#example-1-yaml-22",
-        "config-reference:WebServiceProps#example-2-typescript-22"
+        "config-reference:WebServiceProps#example-2-typescript-22",
+        "config-reference:WebServiceProps#property-volumemounts",
+        "config-reference:WebServiceProps#example-1-yaml-23",
+        "config-reference:WebServiceProps#example-2-typescript-23"
       ]
     },
     {
@@ -15240,6 +15277,7 @@
         "iamRoleStatements",
         "internalHealthCheck",
         "logging",
+        "releaseCommand",
         "scaling",
         "secrets",
         "sideContainers",
@@ -15276,23 +15314,26 @@
         "config-reference:WorkerServiceProps#property-logging",
         "config-reference:WorkerServiceProps#example-1-yaml-8",
         "config-reference:WorkerServiceProps#example-2-typescript-8",
-        "config-reference:WorkerServiceProps#property-scaling",
+        "config-reference:WorkerServiceProps#property-releasecommand",
         "config-reference:WorkerServiceProps#example-1-yaml-9",
         "config-reference:WorkerServiceProps#example-2-typescript-9",
+        "config-reference:WorkerServiceProps#property-scaling",
+        "config-reference:WorkerServiceProps#example-1-yaml-10",
+        "config-reference:WorkerServiceProps#example-2-typescript-10",
         "config-reference:WorkerServiceProps#property-secrets",
         "config-reference:WorkerServiceProps#property-sidecontainers",
         "config-reference:WorkerServiceProps#property-stoptimeout",
-        "config-reference:WorkerServiceProps#example-1-yaml-10",
-        "config-reference:WorkerServiceProps#example-2-typescript-10",
-        "config-reference:WorkerServiceProps#property-tracing",
         "config-reference:WorkerServiceProps#example-1-yaml-11",
         "config-reference:WorkerServiceProps#example-2-typescript-11",
-        "config-reference:WorkerServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:WorkerServiceProps#property-tracing",
         "config-reference:WorkerServiceProps#example-1-yaml-12",
         "config-reference:WorkerServiceProps#example-2-typescript-12",
-        "config-reference:WorkerServiceProps#property-volumemounts",
+        "config-reference:WorkerServiceProps#property-useprivatesubnetswithnat",
         "config-reference:WorkerServiceProps#example-1-yaml-13",
-        "config-reference:WorkerServiceProps#example-2-typescript-13"
+        "config-reference:WorkerServiceProps#example-2-typescript-13",
+        "config-reference:WorkerServiceProps#property-volumemounts",
+        "config-reference:WorkerServiceProps#example-1-yaml-14",
+        "config-reference:WorkerServiceProps#example-2-typescript-14"
       ]
     },
     {
@@ -15368,7 +15409,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#where-does-the-deployment-build-run",
         "page:/ci-cd-and-gitops/custom-ci-cd#what-happens-when-a-deploy-fails-in-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-deploy-to-multiple-aws-regions-from-ci",
-        "page:/ci-cd-and-gitops/custom-ci-cd#why-does-one-of-two-concurrent-deploys-to-the-same-stage-fail"
+        "page:/ci-cd-and-gitops/custom-ci-cd#what-happens-when-two-deploys-to-the-same-stage-run-at-once"
       ]
     },
     {
@@ -17512,7 +17553,7 @@
         "page:/configuration/hooks-and-scripts#environment-variables-in-scripts",
         "page:/configuration/hooks-and-scripts#deployment-scripts",
         "page:/configuration/hooks-and-scripts#faq",
-        "page:/configuration/hooks-and-scripts#how-do-i-run-a-database-migration-after-deploy",
+        "page:/configuration/hooks-and-scripts#how-do-i-run-a-database-migration-on-deploy",
         "page:/configuration/hooks-and-scripts#can-i-run-multiple-scripts-in-a-single-hook",
         "page:/configuration/hooks-and-scripts#what-happens-if-my-afterdeploy-hook-fails",
         "page:/configuration/hooks-and-scripts#when-should-i-use-hooks-vs-deployment-scripts",
@@ -17901,6 +17942,7 @@
         "page:/deployment-and-lifecycle/deploying-stacks#package-and-prepare-template",
         "page:/deployment-and-lifecycle/deploying-stacks#upload",
         "page:/deployment-and-lifecycle/deploying-stacks#deploy",
+        "page:/deployment-and-lifecycle/deploying-stacks#release-commands",
         "page:/deployment-and-lifecycle/deploying-stacks#post-deploy",
         "page:/deployment-and-lifecycle/deploying-stacks#running-a-deployment",
         "page:/deployment-and-lifecycle/deploying-stacks#key-options",
@@ -18137,6 +18179,31 @@
         "page:/deployment-and-lifecycle/previewing-changes#what-s-the-difference-between-diff-and-terraform-plan",
         "page:/deployment-and-lifecycle/previewing-changes#does-diff-validate-my-configuration",
         "page:/deployment-and-lifecycle/previewing-changes#when-should-i-use-diff-vs-just-deploying"
+      ]
+    },
+    {
+      "id": "page:/deployment-and-lifecycle/release-commands",
+      "title": "Release commands",
+      "route": "/deployment-and-lifecycle/release-commands",
+      "sourcePath": "apps/docs/content/deployment-and-lifecycle/release-commands.mdx",
+      "outputPath": "pages/deployment-and-lifecycle/release-commands.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "deployment-and-lifecycle",
+        "release-commands"
+      ],
+      "chunks": [
+        "page:/deployment-and-lifecycle/release-commands#release-commands",
+        "page:/deployment-and-lifecycle/release-commands#what-your-commands-must-allow",
+        "page:/deployment-and-lifecycle/release-commands#running-it-only-when-something-changed",
+        "page:/deployment-and-lifecycle/release-commands#how-it-affects-deploy-time",
+        "page:/deployment-and-lifecycle/release-commands#options",
+        "page:/deployment-and-lifecycle/release-commands#several-commands",
+        "page:/deployment-and-lifecycle/release-commands#js-bundle-services",
+        "page:/deployment-and-lifecycle/release-commands#skipping-and-interrupting",
+        "page:/deployment-and-lifecycle/release-commands#logs",
+        "page:/deployment-and-lifecycle/release-commands#when-to-use-something-else"
       ]
     },
     {

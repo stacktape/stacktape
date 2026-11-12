@@ -2,29 +2,14 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { resolveRegionValue } from '@application-services/global-state-manager/invocation-target';
-import { runInit, type MachineRegionSource } from 'src/init/run-init';
+import { describeRegionChoice, regionForNewConfig, runInit, type MachineRegionSource } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initUsingStarterProject } from './using-starter-project';
 import { createWizardSignInDependencies } from './wizard-sign-in';
 
 export const commandInit = async () => {
-  // Handle --starterId flag (starter project mode)
-  if (globalStateManager.args.starterId || globalStateManager.args.starterProject) {
-    return initUsingStarterProject();
-  }
-
-  const projectDirectory = globalStateManager.args.projectDirectory;
-  const repositoryRoot = projectDirectory
-    ? isAbsolute(projectDirectory)
-      ? projectDirectory
-      : join(process.cwd(), projectDirectory)
-    : process.cwd();
-
   const args = globalStateManager.args;
-  // Agent mode speaks JSONL to another program, so a browser would be pointless there whatever the
-  // user asked for.
-  const headless = args.headless === true || isAgentMode();
 
   // The region later commands would use on this machine, in the CLI's order. `AWS_REGION`, which the AWS SDKs read,
   // counts too: init used it before Stacktape deploys looked at the config.
@@ -42,6 +27,25 @@ export const commandInit = async () => {
         : resolvedRegion?.source === 'profile'
           ? { kind: 'aws-profile', profile: globalStateManager.awsProfileName }
           : undefined;
+
+  if (args.starterId || args.starterProject) {
+    const region = regionForNewConfig(machineRegion);
+    return initUsingStarterProject({
+      region,
+      regionChoice: describeRegionChoice(region, machineRegion, machineRegionSource)
+    });
+  }
+
+  const projectDirectory = globalStateManager.args.projectDirectory;
+  const repositoryRoot = projectDirectory
+    ? isAbsolute(projectDirectory)
+      ? projectDirectory
+      : join(process.cwd(), projectDirectory)
+    : process.cwd();
+
+  // Agent mode speaks JSONL to another program, so a browser would be pointless there whatever the
+  // user asked for.
+  const headless = args.headless === true || isAgentMode();
 
   const outcome = await runInit({
     repositoryRoot,

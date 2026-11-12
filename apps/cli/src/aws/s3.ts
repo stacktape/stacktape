@@ -283,6 +283,54 @@ export class AwsS3 {
     return streamToString(response.Body as Readable);
   };
 
+  /** The object and its ETag, or undefined when the key does not exist. */
+  getObjectIfExists = async ({
+    bucketName,
+    s3Key
+  }: {
+    bucketName: string;
+    s3Key: string;
+  }): Promise<{ etag: string; body: string } | undefined> => {
+    try {
+      const response = await this.#createClient().send(new GetObjectCommand({ Bucket: bucketName, Key: s3Key }));
+      return { etag: response.ETag as string, body: await streamToString(response.Body as Readable) };
+    } catch (error) {
+      if ((error as { name?: string }).name === 'NoSuchKey') return undefined;
+      return this.#getErrorHandler(`Failed to get object from bucket ${bucketName}. S3 key: ${s3Key}.`)(error as Error);
+    }
+  };
+
+  /** Returns the new ETag, or undefined when the condition doesn't hold or another conditional write is in progress. */
+  putObjectConditionally = async ({
+    bucketName,
+    s3Key,
+    body,
+    condition
+  }: {
+    bucketName: string;
+    s3Key: string;
+    body: string;
+    condition: { ifNoneMatch: '*' } | { ifMatch: string };
+  }): Promise<string | undefined> => {
+    try {
+      const response = await this.#createClient().send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: body,
+          ContentType: 'application/json',
+          ...('ifNoneMatch' in condition ? { IfNoneMatch: condition.ifNoneMatch } : { IfMatch: condition.ifMatch })
+        })
+      );
+      return response.ETag;
+    } catch (error) {
+      const { name, $metadata } = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+      // 412: the condition doesn't hold. 409: a concurrent conditional write. 404: `IfMatch` on a deleted object.
+      if (name === 'PreconditionFailed' || [404, 409, 412].includes($metadata?.httpStatusCode ?? 0)) return undefined;
+      return this.#getErrorHandler(`Failed to put object to bucket ${bucketName}. S3 key: ${s3Key}.`)(error as Error);
+    }
+  };
+
   /** With `onlyIfMissing`, the write fails with `PreconditionFailed` when the key already exists. */
   putObject = async ({
     bucketName,
@@ -496,17 +544,19 @@ export class AwsS3 {
     return Promise.resolve();
   };
 
-  listObjects = async (bucketName: string, injectedS3Client?: S3Client) => {
+  listObjects = async (bucketName: string, injectedS3Client?: S3Client, { prefix }: { prefix?: string } = {}) => {
     let result: _Object[] = [];
     const errorHandler = this.#getErrorHandler(`Failed to list all objects in bucket ${bucketName}.`);
     let { Contents, NextContinuationToken } = await (injectedS3Client || this.#createClient())
-      .send(new ListObjectsV2Command({ Bucket: bucketName }))
+      .send(new ListObjectsV2Command({ Bucket: bucketName, Prefix: prefix }))
       .catch(errorHandler);
 
     if (Contents) result = result.concat(Contents);
     while (NextContinuationToken) {
       ({ Contents, NextContinuationToken } = await (injectedS3Client || this.#createClient())
-        .send(new ListObjectsV2Command({ Bucket: bucketName, ContinuationToken: NextContinuationToken }))
+        .send(
+          new ListObjectsV2Command({ Bucket: bucketName, Prefix: prefix, ContinuationToken: NextContinuationToken })
+        )
         .catch(errorHandler));
       if (Contents) result = result.concat(Contents);
     }

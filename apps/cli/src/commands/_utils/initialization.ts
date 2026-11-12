@@ -10,6 +10,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { takeStackLockAtStart, type StackLockOperation } from '@domain-services/stack-operation-lock';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -245,7 +246,8 @@ export const initializeStackOperationLifecycle = async ({
   requiresControlPlane = true,
   requiresSubscription,
   beforeConfigInit,
-  skipRawConfigForTarget = false
+  skipRawConfigForTarget = false,
+  stackLockOperation
 }: {
   commandModifiesStack?: boolean;
   commandRequiresDeployedStack?: boolean;
@@ -259,6 +261,8 @@ export const initializeStackOperationLifecycle = async ({
   beforeConfigInit?: (stackContext: StackContext) => Promise<void>;
   /** The caller already supplied an authoritative project name, so target resolution need not execute config first. */
   skipRawConfigForTarget?: boolean;
+  /** The command holds the stack's lock from its start. */
+  stackLockOperation?: StackLockOperation;
 }) => {
   const getHeaderAction = () => {
     const command = globalStateManager.command;
@@ -344,6 +348,7 @@ export const initializeStackOperationLifecycle = async ({
       commandModifiesStack,
       commandRequiresDeployedStack,
       parentEventType: 'LOAD_METADATA_FROM_AWS',
+      takeStackLock: stackLockOperation && takeStackLockAtStart(stackLockOperation),
       whileLoadingResourceDetails: () =>
         Promise.all([
           templateManager
@@ -483,7 +488,8 @@ export const initializeDeployOperation = async ({
     loadGlobalConfig: true,
     requiresSubscription: true,
     beforeConfigInit,
-    skipRawConfigForTarget
+    skipRawConfigForTarget,
+    stackLockOperation: 'deploy'
   })),
   application: applicationManager,
   budget: budgetManager,
@@ -725,10 +731,13 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
 
 export const initializeStackServicesForWorkingWithDeployedStack = async ({
   commandModifiesStack,
-  commandRequiresConfig
+  commandRequiresConfig,
+  stackLockOperation
 }: {
   commandModifiesStack: boolean;
   commandRequiresConfig: boolean;
+  /** The command holds the stack's lock from its start. */
+  stackLockOperation?: StackLockOperation;
 }) => {
   await loadUserCredentials();
   await recordStackOperationStart();
@@ -755,7 +764,8 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await stackManager.init({
     stackName,
     commandModifiesStack,
-    commandRequiresDeployedStack: true
+    commandRequiresDeployedStack: true,
+    takeStackLock: stackLockOperation && takeStackLockAtStart(stackLockOperation)
   });
 
   await Promise.all([
@@ -803,7 +813,8 @@ export const initializeDeleteOperation = async () => {
 
   const operation = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: true,
-    commandRequiresConfig: false
+    commandRequiresConfig: false,
+    stackLockOperation: 'delete'
   });
 
   tuiManager.showCommandHeader({
@@ -831,7 +842,9 @@ export const initializeDeleteOperation = async () => {
 export const initializeRollbackOperation = async () => ({
   ...(await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: true,
-    commandRequiresConfig: false
+    commandRequiresConfig: false,
+    // Listing the versions changes nothing, so it neither waits for nor blocks another operation.
+    stackLockOperation: globalStateManager.args.listVersions ? undefined : 'rollback'
   })),
   deployedStackOverview: deployedStackOverviewManager,
   deploymentArtifacts: deploymentArtifactManager,

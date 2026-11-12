@@ -143,6 +143,7 @@ describe('the existing-deployment probe', () => {
       type: 'web-service',
       properties: {
         packaging: { type: 'buildpack', properties: { startCommand: 'node src/index.js' } },
+        releaseCommand: 'node migrate.js',
         connectTo: ['mainDatabase'],
         environment: [
           {
@@ -150,12 +151,6 @@ describe('the existing-deployment probe', () => {
             value: "$ResourceParam('mainDatabase', 'connectionString')"
           }
         ]
-      }
-    });
-    expect(composed.config.scripts?.migrateDatabase).toMatchObject({
-      properties: {
-        executeCommand: 'node migrate.js',
-        connectTo: ['mainDatabase']
       }
     });
   });

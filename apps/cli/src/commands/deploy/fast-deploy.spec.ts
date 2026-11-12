@@ -155,6 +155,69 @@ describe('a fast deployment with shared layers', () => {
     expect(steps.some(({ step }) => step === 'function:mixed')).toBe(true);
   });
 
+  test('changes no function that waited for its layers when another operation took over the stack meanwhile', async () => {
+    steps.length = 0;
+    let confirmations = 0;
+    const plan = {
+      functions: [lambda('api', [1]), lambda('report', [1])],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    const failure = await performFastDeploy({
+      plan,
+      recordRelease: false,
+      progress,
+      deploymentArtifacts: {},
+      confirmLock: async () => {
+        confirmations += 1;
+        throw new Error('Another operation took over this stack.');
+      }
+    } as never).catch((error: Error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(steps.map(({ step }) => step)).toEqual(['layers:1']);
+    expect(confirmations).toBe(1);
+  });
+
+  test('a function still preparing its transition checks the lock again, after layer-only functions switched', async () => {
+    steps.length = 0;
+    let releasePreparation!: () => void;
+    preparationBarrier = new Promise((resolve) => {
+      releasePreparation = resolve;
+    });
+    let confirmations = 0;
+    const plan = {
+      functions: [
+        { ...lambda('mixed', [1]), codeChanged: true },
+        { ...lambda('layer-only', [1]), codeChanged: false }
+      ],
+      services: [],
+      layers: [{ layerNumber: 1 }]
+    } as unknown as FastDeployPlan;
+    onFunctionUpdate = (name) => {
+      // Another operation takes the stack over while the mixed edit still prepares.
+      if (name === 'layer-only') releasePreparation();
+    };
+    try {
+      const failure = await performFastDeploy({
+        plan,
+        recordRelease: false,
+        progress,
+        deploymentArtifacts: {},
+        confirmLock: async () => {
+          confirmations += 1;
+          if (confirmations > 1) throw new Error('Another operation took over this stack.');
+        }
+      } as never).catch((error: Error) => error);
+      expect(failure).toBeInstanceOf(Error);
+    } finally {
+      preparationBarrier = undefined;
+      onFunctionUpdate = undefined;
+    }
+    expect(steps.some(({ step }) => step === 'function:layer-only')).toBe(true);
+    expect(steps.some(({ step }) => step === 'function:mixed')).toBe(false);
+    expect(confirmations).toBe(2);
+  });
+
   test('changes no function when a layer cannot be published, and says so', async () => {
     steps.length = 0;
     failLayerPublication = true;

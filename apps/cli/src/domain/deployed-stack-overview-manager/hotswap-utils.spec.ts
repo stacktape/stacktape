@@ -6,7 +6,9 @@ import {
   compareEcsTaskDefinitions,
   isCodeOnlyFunctionChange,
   isContentOnlyLayerChange,
-  isImageOnlyTaskDefinitionChange
+  isImageOnlyTaskDefinitionChange,
+  isOnlyBlueGreenOrderChange,
+  isOnlyReleaseCommandRunChange
 } from './hotswap-utils';
 
 const change = (
@@ -95,6 +97,35 @@ describe('functions', () => {
         change(fn('api/v1-a.zip', 'a'), fn('api/v2-b.zip', 'b'), { after: { DeletionPolicy: 'Retain' } })
       )
     ).toBe(false);
+  });
+});
+
+describe('release commands', () => {
+  const command = (run: unknown, extra: Record<string, unknown> = {}) => ({
+    ServiceToken: 'token',
+    releaseCommand: { cluster: 'c', containerName: 'app', run, ...extra }
+  });
+
+  test('a changed `run` alone does not force a full deployment', () => {
+    expect(isOnlyReleaseCommandRunChange(change(command('if-target-changed'), command({ attemptId: 'a' })))).toBe(true);
+    expect(isOnlyReleaseCommandRunChange(change(command({ attemptId: 'a' }), command('if-target-changed')))).toBe(true);
+  });
+
+  test('any other change to the resource does', () => {
+    expect(
+      isOnlyReleaseCommandRunChange(
+        change(command('if-target-changed'), command('if-target-changed', { timeoutSeconds: 20 }))
+      )
+    ).toBe(false);
+    expect(
+      isOnlyReleaseCommandRunChange(
+        change(command('if-target-changed'), command({ attemptId: 'a' }), { after: { DependsOn: ['Other'] } })
+      )
+    ).toBe(false);
+  });
+
+  test('another custom resource is not a release command', () => {
+    expect(isOnlyReleaseCommandRunChange(change({ ServiceToken: 'a' }, { ServiceToken: 'b' }))).toBe(false);
   });
 });
 
@@ -189,6 +220,26 @@ describe('shared chunk layers', () => {
     expect(isContentOnlyLayerChange(diff.resources.changes.StpSharedChunkLayer1LayerVersion!)).toBe(true);
     expect(isCodeOnlyFunctionChange(diff.resources.changes.ApiFunction!)).toBe(true);
   });
+});
+
+test.each([
+  ['the blue/green service', 'Stacktape::ECSBlueGreenV1::Service', {}, true],
+  ['the deployment group', 'AWS::CodeDeploy::DeploymentGroup', {}, true],
+  ['the service with a changed property', 'Stacktape::ECSBlueGreenV1::Service', { DesiredCount: 2 }, false],
+  ['another resource', 'AWS::ECS::Service', {}, false]
+])('a swapped DependsOn on %s', (_, Type, properties, fast) => {
+  expect(
+    isOnlyBlueGreenOrderChange(
+      change(
+        { DesiredCount: 1 },
+        { DesiredCount: 1, ...properties },
+        {
+          before: { Type, DependsOn: [] },
+          after: { Type, DependsOn: ['Other'] }
+        }
+      )
+    )
+  ).toBe(fast);
 });
 
 test('ECS container ordering does not turn an image-only update into a task configuration change', () => {

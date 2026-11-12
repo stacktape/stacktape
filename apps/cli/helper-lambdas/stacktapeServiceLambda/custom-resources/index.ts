@@ -17,6 +17,7 @@ import { forceDeleteAsg } from './resolvers/force-delete-asg';
 import { instanceProfile } from './resolvers/instance-profile';
 import { openSearch } from './resolvers/open-search';
 import { publishLambdaVersion } from './resolvers/publish-lambda-version';
+import { releaseCommand } from './resolvers/release-command';
 import { s3Events } from './resolvers/s3-event';
 import { scriptFunction } from './resolvers/script-function';
 import { sensitiveData } from './resolvers/sensitive-data';
@@ -61,7 +62,8 @@ const resolversMap: {
   sqsQueuePolicy,
   eventsRule,
   uptimeMonitoring,
-  transactionSearch
+  transactionSearch,
+  releaseCommand
 };
 
 const handler: CloudFormationCustomResourceHandler = async (event, context) => {
@@ -69,7 +71,11 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
   let data: { [dataKey: string]: string } = {};
   let physicalResourceId: string;
   let chainInvocation = false;
-  const { attempt = 1 } = event as CloudFormationCustomResourceUpdateEvent & { attempt?: number };
+  let chainState: Record<string, unknown> | undefined;
+  const { attempt = 1, chainState: previousChainState } = event as CloudFormationCustomResourceUpdateEvent & {
+    attempt?: number;
+    chainState?: Record<string, unknown>;
+  };
   try {
     const currentResourceProperties = event.ResourceProperties as StpServiceCustomResourceProperties;
     const previousResourceProperties = (event as CloudFormationCustomResourceUpdateEvent)
@@ -108,12 +114,13 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
       throw new Error(`Missing current properties for Stacktape custom-resource resolver "${resolverName}".`);
     }
 
-    ({ data, physicalResourceId, chainInvocation } = await resolver(
+    ({ data, physicalResourceId, chainInvocation, chainState } = await resolver(
       currentResolverProperties,
       previousResourceProperties?.[resolverName],
       event.RequestType,
       (event as CloudFormationCustomResourceUpdateEvent).PhysicalResourceId,
-      context
+      context,
+      { requestId: event.RequestId, chainState: previousChainState }
     ));
 
     if (chainInvocation) {
@@ -123,10 +130,14 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
         throw new Error('Creation of custom resource timed out. No more chaining possible.');
       }
       const awsSdkManager = await getAwsSdkManager();
-      const payload: CloudFormationCustomResourceUpdateEvent & { attempt: number } = {
+      const payload: CloudFormationCustomResourceUpdateEvent & {
+        attempt: number;
+        chainState?: Record<string, unknown>;
+      } = {
         ...(event as CloudFormationCustomResourceUpdateEvent),
         PhysicalResourceId: physicalResourceId || (event as CloudFormationCustomResourceUpdateEvent).PhysicalResourceId,
-        attempt: attempt + 1
+        attempt: attempt + 1,
+        chainState
       };
       await awsSdkManager.lambda.invoke({
         lambdaResourceName: context.functionName,

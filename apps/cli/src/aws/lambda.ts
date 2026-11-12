@@ -222,7 +222,8 @@ export class AwsLambda {
       .catch(errorHandler);
     return {
       ...response,
-      Payload: toUtf8(response.Payload)
+      // An asynchronous invocation returns no payload.
+      Payload: response.Payload ? toUtf8(response.Payload) : ''
     };
   };
 

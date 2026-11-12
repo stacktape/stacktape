@@ -36,7 +36,7 @@ import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-vers
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
 import { NO_SCHEDULE } from '../facts/apply-answer';
 import { composeLocalScripts } from './local-scripts';
-import { composeMigrationHooks } from './migrations';
+import { composeMigrationHooks, type ComposedReleaseCommand } from './migrations';
 import { monorepoPackaging } from './monorepo';
 import { normalizeScheduleExpression } from './schedule';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
@@ -1391,7 +1391,7 @@ export const composeConfig = ({
     };
     provenance[bastionResourceName] = {
       reason:
-        'Your database has no public address, so this small keyless jump box provides encrypted access for migrations and local tools.',
+        'Your database has no public address, so this small keyless jump box provides encrypted access for local database tools.',
       evidence: facts.dependencies
         .filter((dependency) => {
           const resourceName = dependencyResourceNames.get(dependency.name);
@@ -1478,7 +1478,22 @@ export const composeConfig = ({
     projectName,
     serviceResourceNames,
     privateDatabaseResourceNames,
-    ...(bastionResourceName === undefined ? {} : { bastionResourceName })
+    ...(bastionResourceName === undefined ? {} : { bastionResourceName }),
+    releaseCommandTargetOf: (service) => {
+      const { resourceType } = classifyService(service);
+      if (resourceType !== 'web-service' && resourceType !== 'private-service' && resourceType !== 'worker-service') {
+        return undefined;
+      }
+      const siblingDockerfile =
+        service.dockerfile === undefined
+          ? facts.services.find((candidate) => candidate.dockerfile !== undefined && candidate.path === service.path)
+          : undefined;
+      return {
+        packagingType: packagingFor(service, facts.packageManager, siblingDockerfile).type as string,
+        buildRoot: service.buildRoot ?? service.path,
+        servicePath: service.path
+      };
+    }
   });
   gaps.push(...migrationHooks.gaps);
 
@@ -1824,7 +1839,10 @@ export const composeConfig = ({
       profile,
       packageManager: facts.packageManager,
       requiresVpc,
-      ...(siblingDockerfile === undefined ? {} : { siblingDockerfile })
+      ...(siblingDockerfile === undefined ? {} : { siblingDockerfile }),
+      ...(migrationHooks.releaseCommands.has(service.name)
+        ? { releaseCommand: migrationHooks.releaseCommands.get(service.name)! }
+        : {})
     });
     if (service.functionIamStatements !== undefined && resources[name]!.type === 'function') {
       const { statements, droppedAllow } = iamStatementsFor(service.functionIamStatements, dependencyResourceNames);
@@ -2238,7 +2256,8 @@ const buildServiceResource = ({
   profile,
   packageManager,
   requiresVpc,
-  siblingDockerfile
+  siblingDockerfile,
+  releaseCommand
 }: {
   resourceType: ServiceResourceType;
   service: ServiceFact;
@@ -2259,6 +2278,7 @@ const buildServiceResource = ({
   requiresVpc: boolean;
   /** Another process of the same source directory that ships a Dockerfile; this one reuses it. */
   siblingDockerfile?: Pick<ServiceFact, 'dockerfile' | 'buildRoot' | 'path'> | undefined;
+  releaseCommand?: ComposedReleaseCommand;
 }): ComposedResource => {
   const shared = {
     ...(environment.length > 0 ? { environment } : {}),
@@ -2542,6 +2562,7 @@ const buildServiceResource = ({
     type: resourceType,
     properties: {
       packaging,
+      ...(releaseCommand === undefined ? {} : { releaseCommand }),
       ...(healthCheck === undefined ? {} : { internalHealthCheck: healthCheck }),
       // Stacktape routes a service's traffic to the port in $PORT, 3000 unless set. An app listening on a fixed port
       // would deploy green and never receive a request, so the port it listens on is written whenever it differs.

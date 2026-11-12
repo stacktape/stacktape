@@ -1,0 +1,443 @@
+resources:
+  api:
+    type: http-api-gateway
+
+  listOrders:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/listOrders.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders
+            method: GET
+      connectTo:
+        - ordersTable
+
+  getOrder:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/getOrder.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders/{id}
+            method: GET
+      connectTo:
+        - ordersTable
+
+  createOrder:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/createOrder.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders
+            method: POST
+      connectTo:
+        - ordersTable
+        - orderQueue
+
+  cancelOrder:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/cancelOrder.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /orders/{id}/cancel
+            method: POST
+      connectTo:
+        - ordersTable
+        - orderEvents
+
+  listProducts:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/listProducts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products
+            method: GET
+      connectTo:
+        - productsTable
+
+  getProduct:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/getProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products/{id}
+            method: GET
+      connectTo:
+        - productsTable
+
+  createProduct:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/createProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products
+            method: POST
+      connectTo:
+        - productsTable
+        - mediaBucket
+
+  updateProduct:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/updateProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products/{id}
+            method: PUT
+      connectTo:
+        - productsTable
+
+  deleteProduct:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/deleteProduct.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /products/{id}
+            method: DELETE
+      connectTo:
+        - productsTable
+
+  searchProducts:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/searchProducts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /search
+            method: GET
+      connectTo:
+        - productsTable
+
+  getCart:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/getCart.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /cart
+            method: GET
+      connectTo:
+        - cartsTable
+
+  updateCart:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/updateCart.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /cart
+            method: PUT
+      connectTo:
+        - cartsTable
+
+  checkout:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/checkout.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /checkout
+            method: POST
+      connectTo:
+        - cartsTable
+        - ordersTable
+        - orderQueue
+
+  getProfile:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/getProfile.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /me
+            method: GET
+      connectTo:
+        - usersTable
+
+  updateProfile:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/updateProfile.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /me
+            method: PUT
+      connectTo:
+        - usersTable
+
+  uploadUrl:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/uploadUrl.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /uploads
+            method: POST
+      connectTo:
+        - mediaBucket
+
+  stripeWebhook:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/stripeWebhook.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /webhooks/stripe
+            method: POST
+      connectTo:
+        - ordersTable
+        - orderEvents
+
+  healthcheck:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/healthcheck.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /health
+            method: GET
+
+  processOrder:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/processOrder.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: orderQueue
+      connectTo:
+        - ordersTable
+        - orderEvents
+
+  sendEmail:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/sendEmail.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: orderEvents
+      connectTo:
+        - usersTable
+
+  updateInventory:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/updateInventory.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicName: orderEvents
+      connectTo:
+        - productsTable
+
+  resizeImage:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/resizeImage.ts
+      events:
+        - type: s3
+          properties:
+            bucketArn: $ResourceParam('mediaBucket', 'arn')
+            s3EventType: 's3:ObjectCreated:*'
+      connectTo:
+        - mediaBucket
+
+  nightlyReport:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/nightlyReport.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 2 * * ? *)
+      connectTo:
+        - ordersTable
+        - mediaBucket
+
+  cleanupCarts:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/cleanupCarts.ts
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hour)
+      connectTo:
+        - cartsTable
+
+  ordersStream:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/ordersStream.ts
+      events:
+        - type: dynamo-db-stream
+          properties:
+            streamArn: $ResourceParam('ordersTable', 'streamArn')
+      connectTo:
+        - searchIndex
+
+  ordersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  productsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  cartsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  usersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: S
+
+  orderQueue:
+    type: sqs-queue
+
+  orderEvents:
+    type: sns-topic
+
+  mediaBucket:
+    type: bucket
+
+  searchIndex:
+    type: open-search-domain
+
+  auth:
+    type: user-auth-pool

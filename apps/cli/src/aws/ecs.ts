@@ -293,6 +293,8 @@ export class AwsEcs {
     return service;
   };
 
+  client = () => this.#createClient();
+
   registerTaskDefinition = async ({
     cloudformationEcsTaskDefinition
   }: {

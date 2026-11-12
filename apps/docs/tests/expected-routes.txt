@@ -91,6 +91,7 @@
 /deployment-and-lifecycle/gradual-deployments
 /deployment-and-lifecycle/multi-region-deployments
 /deployment-and-lifecycle/previewing-changes
+/deployment-and-lifecycle/release-commands
 /deployment-and-lifecycle/rollbacks
 /getting-started/ci-cd
 /getting-started/configure-your-stack

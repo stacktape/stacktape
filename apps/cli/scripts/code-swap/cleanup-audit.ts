@@ -22,7 +22,6 @@ const main = async () => {
       resources: z.array(
         z.object({
           name: z.string().regex(/^v4swap-/),
-          phase3: z.boolean().optional(),
           inventory: z.array(z.object({ type: z.string(), id: z.string() })).optional()
         })
       )
@@ -57,47 +56,44 @@ const main = async () => {
       } while (nextToken);
     }
     let capacity: unknown;
-    if (owned.phase3) {
-      const functionName = `${owned.name}-capacity`;
-      const functionAbsent = await absent(() => lambda.send(new GetFunctionCommand({ FunctionName: functionName })));
-      const mappings =
-        (await lambda.send(new ListEventSourceMappingsCommand({ FunctionName: functionName }))).EventSourceMappings ??
-        [];
-      const inventory = (owned.inventory ?? []).filter((item) => item.id.includes('SwapCapacity'));
-      const roles = await Promise.all(
-        inventory
-          .filter((item) => item.type === 'AWS::IAM::Role')
-          .map(async (item) => ({
-            name: item.id,
-            absent: await absent(() => iam.send(new GetRoleCommand({ RoleName: item.id })))
-          }))
-      );
-      const rules = await Promise.all(
-        inventory
-          .filter((item) => item.type === 'AWS::Events::Rule')
-          .map(async (item) => ({
-            name: item.id,
-            absent: await absent(() => events.send(new DescribeRuleCommand({ Name: item.id })))
-          }))
-      );
-      const alarmNames = inventory.filter((item) => item.type === 'AWS::CloudWatch::Alarm').map((item) => item.id);
-      const alarms = alarmNames.length
-        ? ((await cloudwatch.send(new DescribeAlarmsCommand({ AlarmNames: alarmNames }))).MetricAlarms ?? [])
-        : [];
-      capacity = {
-        functionAbsent,
-        streamMappingsAbsent: !mappings.length,
-        roles,
-        rules,
-        alarmsAbsent: !alarms.length,
-        verified:
-          functionAbsent &&
-          !mappings.length &&
-          roles.every((role) => role.absent) &&
-          rules.every((rule) => rule.absent) &&
-          !alarms.length
-      };
-    }
+    const functionName = `${owned.name}-capacity`;
+    const functionAbsent = await absent(() => lambda.send(new GetFunctionCommand({ FunctionName: functionName })));
+    const mappings =
+      (await lambda.send(new ListEventSourceMappingsCommand({ FunctionName: functionName }))).EventSourceMappings ?? [];
+    const inventory = (owned.inventory ?? []).filter((item) => item.id.includes('SwapCapacity'));
+    const roles = await Promise.all(
+      inventory
+        .filter((item) => item.type === 'AWS::IAM::Role')
+        .map(async (item) => ({
+          name: item.id,
+          absent: await absent(() => iam.send(new GetRoleCommand({ RoleName: item.id })))
+        }))
+    );
+    const rules = await Promise.all(
+      inventory
+        .filter((item) => item.type === 'AWS::Events::Rule')
+        .map(async (item) => ({
+          name: item.id,
+          absent: await absent(() => events.send(new DescribeRuleCommand({ Name: item.id })))
+        }))
+    );
+    const alarmNames = inventory.filter((item) => item.type === 'AWS::CloudWatch::Alarm').map((item) => item.id);
+    const alarms = alarmNames.length
+      ? ((await cloudwatch.send(new DescribeAlarmsCommand({ AlarmNames: alarmNames }))).MetricAlarms ?? [])
+      : [];
+    capacity = {
+      functionAbsent,
+      streamMappingsAbsent: !mappings.length,
+      roles,
+      rules,
+      alarmsAbsent: !alarms.length,
+      verified:
+        functionAbsent &&
+        !mappings.length &&
+        roles.every((role) => role.absent) &&
+        rules.every((rule) => rule.absent) &&
+        !alarms.length
+    };
     audit.push({
       name: owned.name,
       remainingTaskDefinitions: remaining,

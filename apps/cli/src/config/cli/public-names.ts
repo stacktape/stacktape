@@ -57,7 +57,7 @@ export const shortFlags: Readonly<Record<string, string>> = {
   outFile: 'o',
   version: 'v'
 };
-const hiddenArgs = new Set(['agent', 'agentPort', 'agentChild', 'ui', 'outputFormat', 'recoverOperation']);
+const hiddenArgs = new Set(['agent', 'agentPort', 'agentChild', 'ui', 'outputFormat']);
 /** Hidden options that a command documents because they are part of what it does. */
 const argsShownFor: Readonly<Record<string, readonly string[]>> = {
   dev: ['agent', 'agentPort'],

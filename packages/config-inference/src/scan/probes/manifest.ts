@@ -729,6 +729,7 @@ export const manifestProbe: Probe = {
           serviceName: consumerName,
           tool: tool.tool,
           command: tool.command,
+          ...(manifest.runtimeDependencies[tool.package] === undefined ? { toolIsDevDependency: true } : {}),
           // A `start` or `prestart` script that migrates runs it on every start. Otherwise when migrations run is not
           // written in a manifest, and `unknown` puts it in front of the user rather than inventing a deployment hook.
           runsAt: [manifest.scripts.prestart, manifest.scripts.start].some(

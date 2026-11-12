@@ -57,6 +57,8 @@ export default function DiagramIsland({ config, ariaLabel }: Props) {
       <IsometricDiagram
         animateConnectors={animate}
         config={config as unknown as StacktapeConfig}
+        // The marketing pages show the application picture only, with no layer switches.
+        layerChoices={[]}
         ariaLabel={ariaLabel}
         /* Takes up the margin a full fit leaves around the scene, without cropping the edge nodes. */
         initialZoom={1.12}

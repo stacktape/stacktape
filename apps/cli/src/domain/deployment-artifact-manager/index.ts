@@ -1,4 +1,5 @@
 import { codeSwapIntegration } from '@domain-services/code-swap/integration';
+import { STACK_LOCK_S3_KEY } from '@domain-services/stack-operation-lock/lock';
 import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
 import { needsCloudMapDrain } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/cloud-map-drain';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -356,6 +357,62 @@ class DeploymentArtifactManager {
         .at(0) ?? null
     );
   }
+
+  /**
+   * Stops an operation that read the stack before another operation changed it. Its plan and release number date from
+   * then, so continuing would overwrite the newer release. Run it after taking the stack lock, which keeps the stack as
+   * it is from then on.
+   */
+  ensureNoReleaseSinceStart = async ({
+    operation,
+    createsStack = false
+  }: {
+    operation: 'deploy' | 'rollback';
+    /** The operation found no stack when it started and plans to create it. */
+    createsStack?: boolean;
+  }) => {
+    const { stackName } = globalStateManager.targetStack;
+    if (createsStack) {
+      if (await awsSdkManager.cloudFormation.getDetails(stackName)) {
+        throw new ExpectedError(
+          'STACK',
+          `Another operation created stack ${stackName} while this ${operation} was preparing, so it stopped without changing anything.`,
+          `Run the ${operation} again, so it starts from the current release.`
+        );
+      }
+      return;
+    }
+    const [currentStack, markers] = await Promise.all([
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.s3.listObjects(this.deploymentBucketName, undefined, { prefix: `${FAST_RELEASE_MARKER_NAME}/` })
+    ]);
+    if (!currentStack || currentStack.StackStatus?.startsWith('DELETE_')) {
+      throw new ExpectedError(
+        'STACK',
+        `Stack ${stackName} is being deleted, so this ${operation} stopped without changing anything.`,
+        `Wait for the delete to finish and run the ${operation} again.`
+      );
+    }
+    const versionOutput = outputNames.deploymentVersion();
+    const deployedVersion = currentStack.stackOutput[versionOutput] || null;
+    const latestFastRelease =
+      markers
+        .map(({ Key }) => parseBucketObjectS3Key(Key))
+        .filter((parsed) => parsed?.name === FAST_RELEASE_MARKER_NAME)
+        .map(({ version }) => version)
+        .toSorted((a, b) => getNumericVersion(b) - getNumericVersion(a))
+        .at(0) ?? null;
+    if (
+      deployedVersion !== (stackManager.lastDeploymentStackOutput[versionOutput] || null) ||
+      latestFastRelease !== this.latestRecordedRelease
+    ) {
+      throw new ExpectedError(
+        'STACK',
+        `Another operation changed stack ${stackName} while this ${operation} was preparing, so it stopped without changing anything.`,
+        `Run the ${operation} again, so it starts from the current release.`
+      );
+    }
+  };
 
   getImageUrlForJob = ({ tag }: { tag: string }) => {
     return getEcrImageUrl(this.repositoryUrl, tag);
@@ -1036,7 +1093,7 @@ class DeploymentArtifactManager {
 
     const [deletedImages, deletedObjects] = await Promise.all([
       this.deleteAllImages(),
-      this.deleteAllObjects(),
+      this.deleteAllObjects({ keepStackLock: true }),
       ...emptyBucketsPromises
       // this.emptyAllAutoSyncedUserBuckets()
     ]);
@@ -1050,11 +1107,15 @@ class DeploymentArtifactManager {
    * Empties the whole deployment bucket. CloudFormation cannot delete a bucket that still holds anything, and not
    * everything stored there is an artifact (bucket-sync manifests, the cleanup-failure record), so no key is kept.
    * Listing versions also covers an unversioned bucket, whose objects list with the version "null".
+   *
+   * `keepStackLock` is for a stack delete, which removes the lock with a second call once CloudFormation accepted it.
    */
-  deleteAllObjects = async () => {
+  deleteAllObjects = async ({ keepStackLock = false }: { keepStackLock?: boolean } = {}) => {
     let versions: ObjectIdentifier[];
     try {
-      versions = (await awsSdkManager.s3.listObjectVersions(this.deploymentBucketName)) as ObjectIdentifier[];
+      versions = ((await awsSdkManager.s3.listObjectVersions(this.deploymentBucketName)) as ObjectIdentifier[]).filter(
+        ({ Key }) => !keepStackLock || Key !== STACK_LOCK_S3_KEY
+      );
     } catch (err) {
       if (`${err}`.includes('NoSuchBucket')) return this.previousObjects;
       throw err;
@@ -1495,6 +1556,9 @@ class DeploymentArtifactManager {
     this.#restoredFunctionTags = [];
     for (const [logicalId, resource] of Object.entries(template.Resources)) {
       const properties = (resource.Properties ?? {}) as Record<string, any>;
+      // An old command must never run against a newer database. For a sync-style command, applying older project
+      // config can delete fields and their content.
+      if (properties.releaseCommand) properties.releaseCommand.run = 'never';
       if (resource.Type === 'AWS::Lambda::Function' && properties.Code) {
         const identityKeys = [tagNames.codeDigest(), tagNames.artifactDigest(), tagNames.sharedLayers()];
         const tags = ((properties.Tags ?? []) as { Key: string; Value: string }[])

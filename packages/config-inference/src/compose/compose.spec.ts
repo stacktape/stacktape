@@ -1481,6 +1481,15 @@ describe('pinning the declared runtime version', () => {
   });
 });
 
+const migration = (overrides: Record<string, unknown> = {}) => ({
+  serviceName: 'web',
+  tool: 'prisma',
+  command: 'npx prisma migrate deploy',
+  runsAt: 'ci' as const,
+  evidence: [],
+  ...overrides
+});
+
 describe('composing detected migrations into deploy hooks', () => {
   const database = {
     name: 'mainDatabase',
@@ -1503,20 +1512,107 @@ describe('composing detected migrations into deploy hooks', () => {
     ]
   });
 
-  it('tunnels the documented script-plus-hook pattern into a private database', () => {
+  it('runs a container service migration as its release command, with no script or hook', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [webWithDatabaseUrl], dependencies: [database], migrations: [migration()] })
+    });
+
+    expect(config.resources.web?.properties.releaseCommand).toBe('npx prisma migrate deploy');
+    expect(config.scripts).toBeUndefined();
+    expect(config.hooks).toBeUndefined();
+  });
+
+  it('skips the command while the folder a tool reads its migrations from stays the same', () => {
     const { config } = composeConfig({
       facts: facts({
         services: [webWithDatabaseUrl],
         dependencies: [database],
-        migrations: [
-          {
-            serviceName: 'web',
-            tool: 'prisma',
-            command: 'npx prisma migrate deploy',
-            runsAt: 'ci',
-            evidence: []
-          }
-        ]
+        migrations: [migration({ migrationsPath: 'prisma/migrations' })]
+      })
+    });
+
+    expect(config.resources.web?.properties.releaseCommand).toEqual({
+      command: 'npx prisma migrate deploy',
+      runWhenChanged: ['prisma/migrations']
+    });
+  });
+
+  it('runs a tool from the service directory in a monorepo image', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ ...webWithDatabaseUrl, path: 'apps/api', buildRoot: '.' })],
+        dependencies: [database],
+        migrations: [migration()]
+      })
+    });
+
+    expect(config.resources.web?.properties.releaseCommand).toBe('cd apps/api && npx prisma migrate deploy');
+  });
+
+  it('runs a release command on a js-bundle service, which gets a full-project image for it', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ ...webWithDatabaseUrl, containerEntrypoint: 'src/server.ts' })],
+        dependencies: [database],
+        migrations: [migration({ toolIsDevDependency: true })]
+      })
+    });
+
+    expect(config.resources.web?.properties.packaging).toMatchObject({ type: 'js-bundle' });
+    expect(config.resources.web?.properties.releaseCommand).toBe('npx prisma migrate deploy');
+    expect(config.scripts).toBeUndefined();
+  });
+
+  it('migrates once when a web service and a worker share a database and a tool', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          webWithDatabaseUrl,
+          service({ name: 'jobs', processType: 'procfile:worker', environmentVariables: [] })
+        ],
+        dependencies: [{ ...database, consumedBy: ['web', 'jobs'] }],
+        migrations: [migration(), migration({ serviceName: 'jobs' })]
+      })
+    });
+
+    const commands = Object.values(config.resources)
+      .map((resource) => resource.properties.releaseCommand)
+      .filter(Boolean);
+    expect(commands).toEqual(['npx prisma migrate deploy']);
+  });
+
+  it('keeps the script for a project Dockerfile that may leave out a dev-only tool', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ ...webWithDatabaseUrl, dockerfile: 'Dockerfile' })],
+        dependencies: [database],
+        migrations: [migration({ toolIsDevDependency: true })]
+      })
+    });
+
+    expect(config.resources.web?.properties.releaseCommand).toBeUndefined();
+    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+  });
+
+  it('keeps the script for a published image, which has no source to migrate from', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ ...webWithDatabaseUrl, containerImage: 'nginx:1' })],
+        dependencies: [database],
+        migrations: [migration()]
+      })
+    });
+
+    expect(config.resources.web?.properties.releaseCommand).toBeUndefined();
+    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+  });
+
+  it('tunnels the documented script-plus-hook pattern into a private database', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ ...webWithDatabaseUrl, dockerfile: 'Dockerfile' })],
+        dependencies: [database],
+        migrations: [migration({ toolIsDevDependency: true })]
       })
     });
 
@@ -1544,6 +1640,7 @@ describe('composing detected migrations into deploy hooks', () => {
       facts: facts({
         services: [
           service({
+            dockerfile: 'Dockerfile',
             environmentVariables: [
               {
                 name: 'POSTGRES_PASSWORD',
@@ -1556,15 +1653,7 @@ describe('composing detected migrations into deploy hooks', () => {
           })
         ],
         dependencies: [database],
-        migrations: [
-          {
-            serviceName: 'web',
-            tool: 'alembic',
-            command: 'alembic upgrade head',
-            runsAt: 'ci',
-            evidence: []
-          }
-        ]
+        migrations: [migration({ tool: 'alembic', command: 'alembic upgrade head', toolIsDevDependency: true })]
       })
     });
 
@@ -1621,7 +1710,7 @@ describe('composing detected migrations into deploy hooks', () => {
   it('leaves the build free of the migration this deploy now owns', () => {
     // Caught on the first real-AWS lane run with Nixpacks: its Procfile provider ran `release:` during
     // the image build, against a database that does not exist at build time. Railpack reads only the
-    // start command from a Procfile, so the afterDeploy hook is the one place the migration runs.
+    // start command from a Procfile, so the release command is the one place the migration runs.
     const { config } = composeConfig({
       facts: facts({
         services: [service({ environmentVariables: [] })],
@@ -1638,7 +1727,7 @@ describe('composing detected migrations into deploy hooks', () => {
       })
     });
 
-    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+    expect(config.resources.web?.properties.releaseCommand).toBe('node migrate.js');
     expect(config.resources.web?.properties.packaging).toEqual({
       type: 'buildpack',
       properties: { sourceDirectoryPath: '.', startCommand: 'npm run start' }
@@ -1677,8 +1766,10 @@ describe('composing detected migrations into deploy hooks', () => {
       });
 
     // The recommendation stands in for the user until they change it.
-    expect(withTiming({}).config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
-    // A changed mind removes the hook entirely — the decision is real, not cosmetic.
-    expect(withTiming({ 'migration-timing:web': 'manual' }).config.scripts).toBeUndefined();
+    expect(withTiming({}).config.resources.web?.properties.releaseCommand).toBe('npx prisma migrate deploy');
+    // A changed mind removes it entirely — the decision is real, not cosmetic.
+    expect(
+      withTiming({ 'migration-timing:web': 'manual' }).config.resources.web?.properties.releaseCommand
+    ).toBeUndefined();
   });
 });

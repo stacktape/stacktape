@@ -2079,6 +2079,15 @@
           "boolean"
         ],
         "flag": "show-secrets"
+      },
+      {
+        "name": "skipReleaseCommand",
+        "description": "#### Skip Release Command\n---\nIf `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "skip-release-command"
       }
     ]
   },

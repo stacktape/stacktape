@@ -3,6 +3,8 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { orderReleaseCommands } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/release-command';
+import { tuiManager } from '@application-services/tui-manager';
 import { stampLambdaVersionPublishers } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/functions/versioned-configuration';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -189,6 +191,27 @@ const getStacktapeSynthesizedLogicalNames = () =>
       .flatMap(([, resource]) => Object.keys(getCloudformationChildResources({ resource })))
   );
 
+/** After overrides and transforms, which can add references that the order has to respect. */
+const orderReleaseCommandsInTemplate = () => {
+  if (calculatedStackOverviewManager.context.command === 'dev') return;
+  const releases = configManager.releaseCommands;
+  const { notHeldBack } = orderReleaseCommands({
+    template: templateManager.template,
+    releaseCommands: releases.map(({ workload }) => cfLogicalNames.releaseCommandCustomResource(workload.name)),
+    heldBack: [
+      ...configManager.allContainerWorkloads.map(({ name, deployment }) =>
+        cfLogicalNames.ecsService(name, !!deployment)
+      ),
+      ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName)
+    ]
+  });
+  if (notHeldBack.length) {
+    tuiManager.warn(
+      `${notHeldBack.join(', ')} can get new code before the release command finishes, because the command refers to ${notHeldBack.length === 1 ? 'it' : 'them'}.`
+    );
+  }
+};
+
 export const finalizeTemplate = async () => {
   // Everything below mutates the template in place, so each pass has to start from the same pre-finalization state.
   templateManager.beginFinalization();
@@ -270,6 +293,7 @@ export const finalizeTemplate = async () => {
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
   });
+  orderReleaseCommandsInTemplate();
   deriveAuroraInstanceAddressesForNewFunctions({
     template: templateManager.template,
     deployedTemplate: templateManager.oldTemplate
@@ -368,10 +392,16 @@ const useDistributionInputsPreparedDuringBuild = async () => {
   });
 };
 
-export const prepareTemplateForDeploy = async () => {
+export const prepareTemplateForDeploy = async ({
+  applyDeployDecisions
+}: {
+  /** Decisions only a real deploy can make, such as whether a release command is due. */
+  applyDeployDecisions?: (template: CloudFormationTemplate) => void | Promise<void>;
+} = {}) => {
   await finalizeTemplate();
   createNewResourcesThroughServiceLambda();
   await useDistributionInputsPreparedDuringBuild();
+  await applyDeployDecisions?.(templateManager.template);
   assertNoUnresolvedPlaceholders(templateManager.getTemplate());
 
   await Promise.all([

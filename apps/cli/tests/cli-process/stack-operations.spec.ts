@@ -42,6 +42,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { stringifyToYaml } from '@utils/yaml';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
+import { STACK_LOCK_S3_KEY } from '../../src/domain/stack-operation-lock/lock';
 import { startAwsFake, outputsFromTemplate, type AwsFake, type FakeStackState } from './aws-fake';
 import { startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
 
@@ -466,6 +467,39 @@ describe('delete', () => {
     expect(aws.unexpectedRequests).toEqual([]);
   });
 
+  test('a delete started while a deploy holds the stack waits for it, then deletes', async () => {
+    const startedAtMs = Date.now();
+    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'), {
+      [STACK_LOCK_S3_KEY]: JSON.stringify({
+        invocationId: 'ci-deploy',
+        operation: 'deploy',
+        renewedAtMs: startedAtMs,
+        startedAtMs
+      })
+    });
+    const deleting = runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
+    // The delete reads the stack, then takes the lock. A busy machine can take longer than any fixed pause to start it.
+    for (const deadline = Date.now() + 60_000; !aws.reads.includes('DescribeStacks') && Date.now() < deadline;) {
+      await Bun.sleep(100);
+    }
+    await Bun.sleep(3000);
+    // Nothing changes the stack while the deploy holds it.
+    expect(aws.mutations).toEqual([]);
+    await bucket.put(
+      deploymentBucketName,
+      STACK_LOCK_S3_KEY,
+      JSON.stringify({ released: true, releasedAtMs: Date.now() })
+    );
+    const run = await deleting;
+
+    expect(printable(run)).toBe('');
+    expect(run.exitCode).toBe(0);
+    expect(JSON.stringify(run.records)).toContain(
+      'Waiting for another deploy of this stack to finish (invocation ci-deploy'
+    );
+    expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
+  });
+
   test('a non-interactive delete without explicit confirmation stops before touching the stack', async () => {
     const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'));
     const run = await runCli({ args: ['delete'], controlPlane, aws, bucket });
@@ -487,8 +521,9 @@ describe('delete', () => {
     const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
     expect(printable(run)).toBe('');
     expect(run.exitCode).toBe(0);
-    // Observe real S3 state before the emulator's CloudFormation provider removes the buckets.
-    expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [], customer: [] }]);
+    // Observe real S3 state before the emulator's CloudFormation provider removes the buckets. Only the stack's lock
+    // stays until CloudFormation accepts the delete, so no deploy can start in between.
+    expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [STACK_LOCK_S3_KEY], customer: [] }]);
     expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
     expect(aws.mutations[0].parameters.StackName).toBe(stackName);
     expect(aws.unexpectedRequests).toEqual([]);
@@ -582,7 +617,8 @@ describe('rollback', () => {
     expect(run.exitCode).not.toBe(0);
     expect(printable(run)).toMatch(/v000001/);
     expect(aws.mutations).toEqual([]);
-    expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
+    // The rollback takes the stack lock before it reads or writes anything, and leaves it released.
+    expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002'), STACK_LOCK_S3_KEY]);
   });
 
   for (const desiredCount of [0, 1]) {

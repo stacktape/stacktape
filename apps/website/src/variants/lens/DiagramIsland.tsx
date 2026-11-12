@@ -79,6 +79,8 @@ export default function DiagramIsland({ config, ariaLabel }: Props) {
         <IsometricDiagram
           animateConnectors={animate}
           config={config as unknown as StacktapeConfig}
+          // The marketing pages show the application picture only, with no layer switches.
+          layerChoices={[]}
           ariaLabel={ariaLabel}
           style={{ width: '100%', height: '100%' }}
         />
