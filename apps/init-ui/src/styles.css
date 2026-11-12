@@ -269,7 +269,7 @@
 
   .wizard-station-note {
     max-width: 22ch;
-    color: var(--stp-text-subtle);
+    color: var(--stp-text-muted);
     font-size: var(--stp-font-size-body);
     line-height: 1.45;
   }

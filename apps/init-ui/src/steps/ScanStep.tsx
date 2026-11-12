@@ -16,22 +16,14 @@ export function ScanStep({ state, startedAt }: { state: WizardState; startedAt: 
     return () => clearInterval(timer);
   }, [startedAt]);
 
-  const filesRead = state.timeline.filter(
-    (entry) => entry.kind === 'tool' && entry.label.startsWith('read_file ')
-  ).length;
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
 
   return (
     <div className="flex flex-col gap-3">
-      {/* House copy only: the agent's own prose never becomes a headline. The feed shows what it is actually doing. */}
-      <p className="m-0 flex flex-wrap items-baseline gap-x-2">
-        <span className="font-semibold">
-          {filesRead === 0 ? 'Reading your project' : `${filesRead} ${filesRead === 1 ? 'file' : 'files'} read so far`}
-        </span>
-        <span className="text-[var(--stp-text-subtle)]">
-          {agent === undefined || agent.id === 'none' ? 'without an agent' : `by ${agent.label}`} · on this machine
-          {elapsed < 1 ? '' : ` · ${elapsed}s`}
-        </span>
+      {/* The page title says what is happening; this line says who does it, where, and for how long. */}
+      <p className="wizard-fine-print">
+        {agent === undefined || agent.id === 'none' ? 'Without an agent' : `By ${agent.label}`}, on this machine
+        {elapsed < 1 ? '' : ` · ${elapsed}s`}
       </p>
       <ScanFeed state={state} />
     </div>
