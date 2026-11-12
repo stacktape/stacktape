@@ -3608,6 +3608,7 @@ export interface IdentityProvider {
    *   return { resources: { userPool } };
    * });
    * ```
+   * @sensitive
    */
   clientSecret: string;
   /**

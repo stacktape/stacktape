@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import {
   CONFIG_SCHEMA_PATH,
   LLM_DOCS_FOLDER_PATH,
+  SENSITIVE_CONFIG_FIELDS_PATH,
   STARTER_PROJECTS_METADATA_FOLDER_NAME
 } from 'src/config/project-paths';
 import { logSuccess } from '@scripts/support/logging';
@@ -26,6 +27,7 @@ export const generateCommittedArtifacts = async () => {
 export const checkCommittedArtifacts = async () => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), 'stacktape-committed-artifacts-'));
   const configSchemaPath = join(temporaryDirectory, 'config-schema.json');
+  const sensitiveFieldsPath = join(temporaryDirectory, 'sensitive-fields.json');
   const schemaDirectory = join(temporaryDirectory, 'schemas');
   const zodSchemaPath = join(schemaDirectory, 'validate-config-zod.ts');
   const enhancedConfigSchemaPath = join(schemaDirectory, 'enhanced-config-schema.json');
@@ -36,6 +38,7 @@ export const checkCommittedArtifacts = async () => {
     const generator = await getJsonSchemaGenerator();
     const schema = await generateSchemas({
       configSchemaPath,
+      sensitiveFieldsPath,
       jsonSchemaGenerator: generator,
       zodSchemaPath
     });
@@ -48,6 +51,12 @@ export const checkCommittedArtifacts = async () => {
         actualPath: CONFIG_SCHEMA_PATH,
         expectedPath: configSchemaPath,
         label: 'Stacktape config JSON schema',
+        fixCommand: FIX_COMMAND
+      }),
+      assertGeneratedFileCurrent({
+        actualPath: SENSITIVE_CONFIG_FIELDS_PATH,
+        expectedPath: sensitiveFieldsPath,
+        label: 'Sensitive config fields',
         fixCommand: FIX_COMMAND
       }),
       assertGeneratedDirectoryCurrent({

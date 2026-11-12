@@ -20,6 +20,12 @@ conversion. CLI-resolved configuration and command/runtime state stay in the CLI
 `generated/config-schema.json` has the same owner and is exported as `@stacktape/config/config-schema.json`. The CLI
 generator derives it from this model; applications consume the package export rather than copying it.
 
+Mark a field whose value is a credential (a password, token, API key, credential-bearing URL or header map) with a
+`@sensitive` JSDoc tag. The generator lists those fields in `generated/sensitive-fields.json`, and the Console hides
+their values from members who may not view secrets. A credential field's type must be inline or a primitive: the tag is
+lost on a property whose type is a named reference such as `Record<string, string>`. `tests/sensitive-fields.test.ts`
+fails when a tag does not reach the schema or a property named like a credential is neither marked nor reviewed.
+
 ## JSDoc is product content
 
 JSDoc under `src` becomes schema descriptions, editor hovers, documentation and published npm declarations. Treat it as
