@@ -181,7 +181,8 @@ learn three notations to get one answer, so do not bring outlines, rule arrows o
 groups, ports and protocols are how AWS enforces the answer and belong in the side panel.
 
 - **One tag per node,** above it (`IsoNode.access`), with a globe when the internet can reach the node and a padlock
-  when it cannot:
+  when it cannot. The icon means the same whichever other layer is on, and the note under the picture says what each
+  icon means, so a padlock is not read as "secure":
   - `exposed`, red: "Open to the internet" on a data store (database, Redis, OpenSearch, Kafka, EFS), or "SSH open to
     the internet", "Remote desktop open to the internet", "All ports open to the internet" on anything. Red means only
     this. The group the internet's rule is on decides whether a data store is behind it: Convex drawn as one node is
@@ -190,13 +191,32 @@ groups, ports and protocols are how AWS enforces the answer and belong in the si
     public port. Where no security group decides, whatever the user's request connector reaches is public too: an HTTP
     API, a CDN, a function URL, or a service drawn with its gateway. A node whose own group admits nothing, or two
     addresses, is not public because a connector reaches it.
+  - `public` through a forwarder: "Public via web GW" on what a public gateway or load balancer may connect to
+    (`FORWARDING_TYPES`), also through a chain of them. Its own group admits only the forwarder, but "Only web GW" with
+    a padlock told readers the service was private, and the same service read "Public" once the Infrastructure layer was
+    off. Three things must hold: the picture draws the forwarder sending requests to the node (a rule that only lets a
+    gateway's group in forwards nothing), the node's rules let the forwarder in, and they do so under CloudFormation
+    conditions the forwarder is public under. A forwarder the internet cannot reach (internal, or open to two addresses)
+    passes nothing on. A name too long for the tag becomes "Public via its load balancer".
   - `limited`, quiet: "Anything in the VPC", "Only web", "Only web + 203.0.113.10", "Only 2 IP addresses", "Only 3
     resources". At most two resources are named and the text stays within 30 characters; past that it counts.
-  - `unknown`, quiet with a question mark: "Rules outside this stack" on a node that carries a group the template only
-    refers to. Its rules are not in the template, so "Only web" would be a guess. What the template does show still
-    counts: an internet rule on another of its groups makes it `exposed` or `public`.
-  - No tag: nothing can connect in (a worker, a function in the VPC), or the group says nothing about the node (a NAT
-    instance; an HTTP API's VPC Link, whose group is about the link, not the gateway). ICMP alone is not a way in.
+  - `closed`, quiet: "No inbound access" on what listens for connections and admits none (`LISTENING_KINDS`: a worker
+    service, a bastion, a database, a load balancer). ICMP alone is not a way in. A group that admits only its own
+    members is "Only itself", not closed: the service's tasks can reach each other.
+  - `unknown`, quiet with a question mark: "Access unknown" on a node that carries a group the template only refers to,
+    or a rule whose address range is a value set at deploy time. Either may admit the internet, so "Only web" or "Only 1
+    IP range" would be a guess, and so would the note's all-clear. What the template does show still counts: an internet
+    rule on another of its groups makes it `exposed` or `public`.
+  - No tag: a security group does not decide who can use the node. Either it has none (a bucket, a queue, a function
+    outside the VPC), or AWS starts it and nothing connects to it (a function in the VPC, a batch job, an agent
+    runtime), or its group is plumbing (a NAT instance; an HTTP API's VPC Link, whose group is about the link, not the
+    gateway). "No inbound access" on a function would contradict the connector from the API that calls it. The first two
+    get `untaggedNote`, a sentence for the tooltip and the panel that says why there is no tag. Readers took a missing
+    tag for "not checked". The sentence about AWS permissions is only for types they do protect
+    (`AWS_PERMISSION_TYPES`): an Upstash database is protected by its own password and a user pool's sign-in is public,
+    so those get no sentence rather than a false one.
+- **A sentence beside the tag.** `access.detail` says the tag in full ("Only web and 203.0.113.10 can connect to it.").
+  The tooltip and the panel show it, red for `exposed`.
 - **Members map to drawn nodes** by the logical ID that carries the group first, then by owner and member kind. A
   resource that nests several resources of one kind needs the logical ID: Convex runs its backend and dashboard as two
   container services owned by `app`, and `AppDashboardContainerWorkloadService` is `app--dashboard` (stems in
@@ -218,15 +238,43 @@ groups, ports and protocols are how AWS enforces the answer and belong in the si
   tags of both pictures (with and without Infrastructure), so they are never cut off. `security-view.test.ts` checks
   every template for overlaps.
 - **Under the tag.** The `public` mark and a load balancer's exposure badge give way to the tag, which says more about
-  the same thing. The node's accessible name and tooltip carry the tag's text. The note at the bottom left names what is
-  `exposed`, so a reader does not have to scan for red.
-- **Words in the panel.** "Who can connect" repeats the tag, then lists the node's groups with inbound and outbound
-  rules in plain words ("Allows TCP 5432 from web", "Allows all outbound traffic (the AWS default)"), naming member
-  resources rather than group IDs. Group names are short: the owner ("db SG", "albWeb LB SG", "web VPC Link SG"), the
+  the same thing. The node's accessible name carries the tag's text. A tag's width comes from character widths measured
+  in Chromium with Montserrat (`getAccessTagWidthPx`); `security-view.test.ts` holds the measurements.
+- **The note under the picture** gives a verdict for the whole stage, then the legend. The verdict names what is
+  `exposed`, or what is `unknown`, or says "No security group opens a data store or an admin port to the internet." That
+  is all the layer can vouch for: a database outside the VPC (MongoDB Atlas, Upstash, DSQL) has no security group, so
+  never shorten it to "nothing is open".
+- **Words in the panel.** "Who can connect" gives the sentence, then the inbound rules of the groups that decide
+  (`IsoNodeSecurityGroup.decides`) in plain words ("Allows TCP 5432 from web"), naming member resources rather than
+  group IDs. A relational database its config opens to the internet also gets what to change (`accessFix`); an
+  OpenSearch domain does not, because it cannot move between the internet and the VPC after it is created. Every group,
+  with inbound and outbound rules, is folded under "Security group": most readers never need it, and a list of outbound
+  defaults buried the answer. With a tag, the config's own reachability note (`accessNote`) is left out, because it
+  would say the same thing twice. Group names are short: the owner ("db SG", "albWeb LB SG", "web VPC Link SG"), the
   nested part it belongs to ("app dashboard SG"), or what a stack-wide group is for ("VPC functions SG", "Stage network
   SG"); groups that would share a name say what they reach ("VPC functions SG → cache"). A group defined outside the
   stack is listed without rules, which are not in the template.
 - **Bounded work.** Tags follow groups and rules, not members: 300 functions in two groups take milliseconds.
+
+## Words
+
+The reader is a backend or full-stack developer with little infrastructure experience (the business documents' persona
+1). They hover a node to learn what it is and what it means for their app. The owner found the earlier paragraphs hard
+to follow: they joined several ideas with dashes and semicolons and leaned on "synchronous", "asynchronous", "invokes"
+and "fan-out".
+
+- **A tooltip is one sentence, then at most three one-line facts,** then one highlighted line about access when there is
+  one. `resource-explanations.ts` holds the rules for the sentence and the facts, and `resource-explanations.test.ts`
+  holds the ones a test can check: lengths, no jargon list, no dash or semicolon joining two ideas. The same rules cover
+  connector descriptions and access notes in `topology.ts`.
+- **Say what happens, not what it is called.** "The caller waits for the answer", not "synchronous". "AWS takes messages
+  off the queue in batches and calls the target", not "asynchronous, pull-based". Name the AWS product only where the
+  reader needs it to act.
+- **Keep the facts that change what the developer expects or does:** how the thing is called, whether the caller waits,
+  how it scales, what is billed, a limit. Leave out what is true of every managed service.
+- **The side panel shows the same sentence and facts,** so write once in `resource-explanations.ts`.
+- **A host page's reset wins over this stylesheet's margins,** because the stylesheet is in a cascade layer. Space the
+  tooltip's parts with the flex gap, not with margins on paragraphs.
 
 ## Role groups
 

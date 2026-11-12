@@ -84,10 +84,14 @@ export type IsoNode = {
   typeLabel?: string | undefined;
   /** One-sentence lead for the tooltip. */
   summary?: string | undefined;
-  /** Longer explanation paragraph. */
-  details?: string | undefined;
-  /** Reachability note (accessibility mode etc.) rendered as a highlighted line. */
+  /** Up to three short sentences more, shown one per line. */
+  facts?: string[] | undefined;
+  /** Reachability note from the config (accessibility mode etc.), rendered as a highlighted line. */
   accessNote?: string | undefined;
+  /** What to change in the config to close a data store that is open to the internet. */
+  accessFix?: string | undefined;
+  /** With the Access layer on, why the node has no tag: security groups do not apply to it, or AWS starts it. */
+  untaggedNote?: string | undefined;
   tile: IsoTilePoint;
   isImplicit?: boolean | undefined;
   shape: IsoNodeShape;
@@ -123,14 +127,16 @@ export type IsoNode = {
 
 /**
  * Who the deployed stage lets connect to a node, as the Access layer's tag above it. `exposed` is a data store or an
- * admin port open to the internet; `public` an entry point meant to be reached from it; `limited` everything the
- * internet cannot reach; `unknown` a node with a security group defined outside the stack, whose rules the template
- * does not hold.
+ * admin port open to the internet; `public` an entry point meant to be reached from it, or what such an entry point
+ * forwards to; `limited` what only the VPC, named resources or address ranges reach; `closed` what nothing reaches;
+ * `unknown` a node with a security group defined outside the stack, whose rules the template does not hold.
  */
 export type IsoNodeAccess = {
-  reach: 'exposed' | 'public' | 'limited' | 'unknown';
-  /** "Open to the internet", "Public", "Anything in the VPC", "Only web + 203.0.113.10". */
+  reach: 'exposed' | 'public' | 'limited' | 'closed' | 'unknown';
+  /** "Open to the internet", "Public", "Public via api", "Anything in the VPC", "Only web + 203.0.113.10". */
   text: string;
+  /** The same answer as a sentence, for the tooltip and the panel: "Only web and 203.0.113.10 can connect to it." */
+  detail: string;
   /** The tag's centre, placed clear of other nodes, their names and connector chips. */
   tile: IsoTilePoint;
   /** The drawn nodes its rules let connect, which focusing the node keeps lit. */
@@ -209,6 +215,11 @@ export type IsoNodeSecurityGroup = {
   name: string;
   /** Defined outside this stack: its rules are not in the template. */
   external: boolean;
+  /**
+   * Whether its rules decide who reaches the node. False for a group the node only carries for plumbing, such as the
+   * VPC Link of a service's gateway.
+   */
+  decides: boolean;
   /** "Allows TCP 5432 from api, worker". */
   inbound: string[];
   outbound: string[];
@@ -234,7 +245,7 @@ export type IsoRectangle = {
   borderColor: string;
   label?: string | undefined;
   summary?: string | undefined;
-  details?: string | undefined;
+  facts?: string[] | undefined;
   memberNodeIds?: string[] | undefined;
 };
 

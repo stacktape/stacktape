@@ -190,7 +190,7 @@ test('MongoDB Atlas reachability comes from the provider-level accessibility, wh
   // A cluster-level setting is not what the CLI reads; the project-level one restricts the access list to the VPC.
   const peered = atlas('providerConfig:\n  mongoDbAtlas:\n    accessibility: { accessibilityMode: vpc }\n');
   expect(peered.isPublic).toBeUndefined();
-  expect(peered.accessNote).toBe('Reachable only through a private connection from the VPC.');
+  expect(peered.accessNote).toBe('Only your VPC can connect, over a private connection.');
 });
 
 describe('relations', () => {

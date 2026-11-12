@@ -8,6 +8,7 @@ import type { DiagramLayer, DiagramLayers } from './views.js';
 import { useCallback, useMemo, useState } from 'react';
 import { IsoRenderer } from './IsoRenderer.js';
 import { LayerControls } from './LayerControls.js';
+import { AccessIcon } from './node-shapes.js';
 import { buildDiagramModel, diagramFrame, selectDiagramView } from './scene-builder.js';
 import { buildSecurityGroupModel } from './security-groups.js';
 import { DIAGRAM_LAYERS, hasInfrastructure, isDiagramLayer, NO_LAYERS } from './views.js';
@@ -91,20 +92,50 @@ const ACCESS_UNREADABLE = 'The deployed template could not be read, so access ru
 /** Exposed resources the Access layer's note names before it counts the rest. */
 const MAX_NAMED_EXPOSED = 3;
 
-/** What the Access layer's tags mean, led by what a reader must not miss: anything risky the internet can reach. */
-function AccessNote({ exposed }: { exposed: string[] }) {
-  const more = exposed.length - MAX_NAMED_EXPOSED;
+const nameSome = (names: string[]) => {
+  const more = names.length - MAX_NAMED_EXPOSED;
+  return `${names.slice(0, MAX_NAMED_EXPOSED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
+};
+
+const LegendIcon = ({ reach }: { reach: 'public' | 'limited' }) => (
+  <svg className="stp-diagram__note-icon" width={12} height={12} viewBox="-6 -6 12 12" aria-hidden>
+    <AccessIcon reach={reach} x={0} y={0} color="currentColor" />
+  </svg>
+);
+
+/**
+ * The Access layer's verdict for the whole stage, led by what a reader must not miss, and what the tags' icons mean.
+ * The verdict is only about what security groups show: a database outside the VPC has none.
+ */
+function AccessNote({ exposed, unknown }: { exposed: string[]; unknown: string[] }) {
   return (
-    <p>
-      {exposed.length > 0 && (
-        <>
-          <strong className="stp-diagram__note-alert">Open to the internet:</strong>{' '}
-          {exposed.slice(0, MAX_NAMED_EXPOSED).join(', ')}
-          {more > 0 ? ` and ${more} more` : ''}.{' '}
-        </>
-      )}
-      Tags say who can connect. Select a resource for its ports and rules.
-    </p>
+    <>
+      <p data-diagram-note="verdict">
+        {exposed.length > 0 ? (
+          <>
+            <strong className="stp-diagram__note-alert">Open to the internet:</strong> {nameSome(exposed)}.
+          </>
+        ) : unknown.length > 0 ? (
+          <>
+            <strong>Access unknown:</strong> {nameSome(unknown)}. The deployed template does not say who can connect.
+          </>
+        ) : (
+          <strong className="stp-diagram__note-ok">
+            No security group opens a data store or an admin port to the internet.
+          </strong>
+        )}{' '}
+        Click a resource for its ports and rules.
+      </p>
+      <p className="stp-diagram__note-legend" data-diagram-note="legend">
+        <span>
+          <LegendIcon reach="public" /> the internet can reach it
+        </span>
+        <span>
+          <LegendIcon reach="limited" /> the internet cannot
+        </span>
+        <span>no tag: not decided by a security group</span>
+      </p>
+    </>
   );
 }
 
@@ -262,6 +293,7 @@ export function IsometricDiagram({
         showAccess ? (
           <AccessNote
             exposed={scene.nodes.filter((node) => node.access?.reach === 'exposed').map((node) => node.label)}
+            unknown={scene.nodes.filter((node) => node.access?.reach === 'unknown').map((node) => node.label)}
           />
         ) : undefined
       }
