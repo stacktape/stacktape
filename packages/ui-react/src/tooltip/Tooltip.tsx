@@ -1,7 +1,9 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { TippyProps } from '@tippyjs/react';
+import type { Plugin } from 'tippy.js';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import { openLayer } from '../layer/layer';
 
 export type TooltipPlacement = TippyProps['placement'];
 
@@ -29,7 +31,31 @@ const DEFAULTS: Record<TooltipVariant, { placement: NonNullable<TooltipPlacement
     help: { placement: 'bottom-start', maxWidth: 360, delay: 0 }
   };
 
-/** A portal-backed tooltip. Hover content is transient; click content may be interactive. */
+/** A shown tooltip is the innermost layer: Escape hides it and nothing under it, without moving the pointer (WCAG 1.4.13). */
+const closesWithEscape: Plugin = {
+  fn(instance) {
+    let removeLayer: (() => void) | undefined;
+    const remove = () => {
+      removeLayer?.();
+      removeLayer = undefined;
+    };
+    return {
+      onShow() {
+        remove();
+        removeLayer = openLayer('hint', () => instance.hide());
+      },
+      onHide: remove,
+      onDestroy: remove
+    };
+  }
+};
+const plugins = [closesWithEscape];
+
+/**
+ * A portal-backed tooltip. It opens when the pointer is over its trigger or keyboard focus is inside it (`focusin`, so a
+ * wrapper around a button works), and Escape hides it. A help tooltip and a click tooltip stay open while the pointer
+ * moves onto them, so a long explanation can be read and selected.
+ */
 export function Tooltip({
   children,
   content,
@@ -45,12 +71,15 @@ export function Tooltip({
     <Tippy
       animation={false}
       appendTo={() => document.body}
+      // Tippy marks an interactive tooltip's trigger as expanded; a help tooltip is read, not a menu that opens.
+      aria={{ expanded: false }}
       delay={[defaults.delay, 0]}
       disabled={disabled}
-      interactive={trigger === 'click'}
+      interactive={trigger === 'click' || variant === 'help'}
       maxWidth={500}
       offset={[0, 8]}
       placement={placement ?? defaults.placement}
+      plugins={plugins}
       render={(attributes) => (
         <div
           {...attributes}
@@ -61,7 +90,7 @@ export function Tooltip({
           <div className="stp-ui-tooltip__content">{content}</div>
         </div>
       )}
-      trigger={trigger === 'hover' ? 'mouseenter focus' : 'click'}
+      trigger={trigger === 'hover' ? 'mouseenter focusin' : 'click'}
       zIndex={10002}
     >
       {children}

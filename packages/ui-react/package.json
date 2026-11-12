@@ -59,6 +59,10 @@
       "types": "./dist/linear-loader/LinearLoader.d.ts",
       "default": "./dist/linear-loader/LinearLoader.js"
     },
+    "./layer": {
+      "types": "./dist/layer/layer.d.ts",
+      "default": "./dist/layer/layer.js"
+    },
     "./link": {
       "types": "./dist/link/Link.d.ts",
       "default": "./dist/link/Link.js"

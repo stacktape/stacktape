@@ -29,6 +29,12 @@ export type TabsProps<Value extends TabValue> = {
   width?: 'fill' | 'fit';
   size?: 'small' | 'medium';
   disabled?: boolean;
+  /**
+   * `automatic` (the default) selects a tab as the arrow keys reach it, for small switches whose views are already
+   * there. `manual`: the arrows only move focus, and Enter or Space selects, for tabs that open a view that loads (a
+   * resource's or a stage's tabs), so arrowing to the fourth tab does not load the three on the way (WAI-ARIA tabs).
+   */
+  activation?: 'automatic' | 'manual';
 };
 
 const classes = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ');
@@ -152,7 +158,8 @@ export function Tabs<const Value extends TabValue>({
   orientation = 'horizontal',
   width = 'fill',
   size = 'medium',
-  disabled = false
+  disabled = false,
+  activation = 'automatic'
 }: TabsProps<Value>) {
   const generatedId = useId();
   const tabsId = id ?? `stacktape-tabs-${generatedId}`;
@@ -160,20 +167,25 @@ export function Tabs<const Value extends TabValue>({
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeIndex = tabs.findIndex((tab) => tab.value === value);
   const hasSlidingIndicator = appearance !== 'underline' && activeIndex >= 0;
+  // With manual activation, the tab the arrows reached (until focus leaves the list) is the list's one Tab stop.
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const tabStopIndex =
+    focusedIndex !== null && focusedIndex < tabs.length ? focusedIndex : activeIndex >= 0 ? activeIndex : 0;
 
   useLayoutEffect(() => {
     buttonRefs.current.length = tabs.length;
   }, [tabs.length]);
 
-  const selectAndFocus = (index: number) => {
+  const moveTo = (index: number, step: 1 | -1) => {
     if (tabs.length === 0) return;
 
     for (let offset = 0; offset < tabs.length; offset += 1) {
-      const candidateIndex = (index + offset + tabs.length) % tabs.length;
+      const candidateIndex = (index + step * offset + tabs.length) % tabs.length;
       const candidate = tabs[candidateIndex];
       if (candidate && !candidate.disabled) {
         buttonRefs.current[candidateIndex]?.focus();
-        onValueChange?.(candidate.value);
+        if (activation === 'manual') setFocusedIndex(candidateIndex);
+        else onValueChange?.(candidate.value);
         return;
       }
     }
@@ -182,16 +194,24 @@ export function Tabs<const Value extends TabValue>({
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
     const previousKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
     const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+    const tab = tabs[index];
 
+    // A tab drawn as a link selects with Space too, as a tab button does.
+    if (event.key === ' ' && tab?.href) {
+      event.preventDefault();
+      onValueChange?.(tab.value);
+      return;
+    }
     if (![previousKey, nextKey, 'Home', 'End'].includes(event.key)) return;
 
     event.preventDefault();
     if (event.key === 'Home') {
-      selectAndFocus(0);
+      moveTo(0, 1);
     } else if (event.key === 'End') {
-      selectAndFocus(tabs.length - 1);
+      moveTo(tabs.length - 1, -1);
     } else {
-      selectAndFocus(index + (event.key === nextKey ? 1 : -1));
+      const step = event.key === nextKey ? 1 : -1;
+      moveTo(index + step, step);
     }
   };
 
@@ -214,6 +234,9 @@ export function Tabs<const Value extends TabValue>({
         aria-label={ariaLabel}
         aria-orientation={orientation}
         className="stp-ui-tabs__list"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedIndex(null);
+        }}
         ref={listRef}
         role="tablist"
       >
@@ -232,7 +255,7 @@ export function Tabs<const Value extends TabValue>({
               buttonRefs.current[index] = element;
             },
             role: 'tab',
-            tabIndex: isActive || (activeIndex < 0 && index === 0) ? 0 : -1,
+            tabIndex: index === tabStopIndex ? 0 : -1,
             title: tab.title
           };
           const content = (

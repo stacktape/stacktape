@@ -4,7 +4,9 @@ import { Button } from '../../src/button/Button.tsx';
 import { Dialog } from '../../src/dialog/Dialog.tsx';
 import { Select } from '../../src/select/Select.tsx';
 import { Switch } from '../../src/switch/Switch.tsx';
+import { Tabs } from '../../src/tabs/Tabs.tsx';
 import { TextField } from '../../src/text-field/TextField.tsx';
+import { Tooltip } from '../../src/tooltip/Tooltip.tsx';
 import '../../src/styles.css';
 // Loaded after the shared stylesheet on purpose: the layer order must not depend on load order.
 import './host-reset.css';
@@ -16,6 +18,9 @@ function Gallery() {
   const [unavailableCount, setUnavailableCount] = useState(0);
   const [tallOpen, setTallOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const [section, setSection] = useState('overview');
 
   return (
     <main>
@@ -29,6 +34,12 @@ function Gallery() {
       <Button variant="secondary" onClick={() => setTallOpen(true)}>
         Open tall dialog
       </Button>
+      <Button variant="secondary" onClick={() => setPickerOpen(true)}>
+        Open dialog with a picker
+      </Button>
+      <Tooltip content="Explains the example">
+        <button type="button">Example with a tooltip</button>
+      </Tooltip>
       <output aria-label="Close callback count">{closeCount}</output>
       <output aria-label="Unavailable action count">{unavailableCount}</output>
       <Dialog
@@ -62,6 +73,18 @@ function Gallery() {
         <Button variant="secondary">Apply</Button>
         <Switch checked={enabled} label="Scanning" onCheckedChange={setEnabled} />
       </section>
+      <Tabs
+        activation="manual"
+        ariaLabel="Sections"
+        onValueChange={setSection}
+        tabs={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'logs', label: 'Logs' },
+          { value: 'metrics', label: 'Metrics', href: '#metrics' }
+        ]}
+        value={section}
+      />
+      <output aria-label="Shown section">{section}</output>
       <Dialog
         open={tallOpen}
         onOpenChange={setTallOpen}
@@ -75,6 +98,30 @@ function Gallery() {
         {Array.from({ length: 30 }, (_, index) => (
           <p key={index}>Line {index + 1} of a form taller than the window.</p>
         ))}
+      </Dialog>
+      <Dialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title="Dialog with a picker"
+        actions={
+          <Button variant="secondary" onClick={() => setInnerOpen(true)}>
+            Open second dialog
+          </Button>
+        }
+      >
+        <TextField label="Addresses" multiline />
+        <Select
+          label="Role"
+          name="role"
+          options={[
+            { label: 'Developer', value: 'developer' },
+            { label: 'Viewer', value: 'viewer' }
+          ]}
+        />
+      </Dialog>
+      <Dialog open={innerOpen} onOpenChange={setInnerOpen} title="Second dialog">
+        <Button variant="secondary">First action</Button>
+        <Button variant="secondary">Second action</Button>
       </Dialog>
       <Dialog open={protectedOpen} onOpenChange={setProtectedOpen} title="Protected dialog" closeOnOverlayClick={false}>
         <p>Clicking outside this dialog leaves it open.</p>

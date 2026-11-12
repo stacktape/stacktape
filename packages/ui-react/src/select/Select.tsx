@@ -1,4 +1,4 @@
-import type { ComponentProps, CSSProperties, ReactNode, Ref } from 'react';
+import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode, Ref } from 'react';
 import type {
   ActionMeta,
   ControlProps,
@@ -13,6 +13,7 @@ import type {
 import ReactSelect, { components, createFilter } from 'react-select';
 import { createContext, useContext, useMemo } from 'react';
 import { BiCheck } from 'react-icons/bi';
+import { useKeyboardFocus } from '../focus/keyboard-focus';
 import { Tooltip } from '../tooltip/Tooltip';
 
 export type SelectInputActionMeta = InputActionMeta;
@@ -166,6 +167,16 @@ function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Valu
 }
 
 /**
+ * Escape while the list is open closes only the list: it must not reach a dialog around the select, which would close and
+ * lose what was typed into it (see `layer.ts`). `aria-expanded` is read before react-select closes the list.
+ */
+const keepEscapeForOpenList = (event: KeyboardEvent<HTMLDivElement>) => {
+  if (event.key === 'Escape' && (event.target as HTMLElement).getAttribute('aria-expanded') === 'true') {
+    event.stopPropagation();
+  }
+};
+
+/**
  * The shared enhanced select. It owns react-select integration, keyboard/menu behavior and visual
  * recipes; form-library controllers and product-specific option construction stay in consumers.
  */
@@ -230,6 +241,7 @@ export function Select<Value>({
     () => ({ breakOptionWord, inlineLabel, leading, optionHeight }),
     [breakOptionWord, inlineLabel, leading, optionHeight]
   );
+  const keyboardFocus = useKeyboardFocus();
   const styles = useMemo(
     () =>
       createStyles<Value>({
@@ -237,14 +249,29 @@ export function Select<Value>({
         cursor,
         hasLeading: !!leading || !!inlineLabel,
         hideDropdownIndicator,
+        isKeyboardFocused: keyboardFocus.isKeyboardFocused,
         multiple,
         searchable
       }),
-    [controlHeight, cursor, leading, inlineLabel, hideDropdownIndicator, multiple, searchable]
+    [
+      controlHeight,
+      cursor,
+      leading,
+      inlineLabel,
+      hideDropdownIndicator,
+      keyboardFocus.isKeyboardFocused,
+      multiple,
+      searchable
+    ]
   );
 
   const select = (
-    <div className={['stp-ui-select', className].filter(Boolean).join(' ')} style={{ width, ...style }}>
+    <div
+      className={['stp-ui-select', className].filter(Boolean).join(' ')}
+      onBlur={keyboardFocus.onBlur}
+      onFocus={keyboardFocus.onFocus}
+      style={{ width, ...style }}
+    >
       {!hideLabel && (label || labelAddon || labelEnd) ? (
         <div className="stp-ui-select__label-row">
           <label className="stp-ui-select__label" htmlFor={`${name}-input`}>
@@ -289,6 +316,7 @@ export function Select<Value>({
           {...(onInputChange === undefined ? {} : { onInputChange })}
           {...(onMenuClose === undefined ? {} : { onMenuClose })}
           {...(onMenuOpen === undefined ? {} : { onMenuOpen })}
+          onKeyDown={keepEscapeForOpenList}
           options={options}
           placeholder={placeholder}
           {...(inputRef === undefined ? {} : { ref: inputRef })}
@@ -345,6 +373,7 @@ function createStyles<Value>({
   cursor,
   hasLeading,
   hideDropdownIndicator,
+  isKeyboardFocused,
   multiple,
   searchable
 }: {
@@ -352,6 +381,7 @@ function createStyles<Value>({
   cursor: CSSProperties['cursor'];
   hasLeading: boolean;
   hideDropdownIndicator: boolean;
+  isKeyboardFocused: boolean;
   multiple: boolean;
   searchable: boolean;
 }): StylesConfig<SelectOption<Value>, boolean> {
@@ -394,6 +424,13 @@ function createStyles<Value>({
           ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
           : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
       cursor: state.isDisabled ? 'not-allowed' : cursor,
+      // Keyboard focus wears the one focus mark every control has (react-select's base removes outlines), while the list
+      // is closed: an open list already shows where the keyboard is. A click keeps the quieter ring below.
+      outline:
+        isKeyboardFocused && state.isFocused && !state.menuIsOpen
+          ? 'var(--stp-focus-outline-width) solid var(--stp-color-brand)'
+          : 0,
+      outlineOffset: 'var(--stp-focus-outline-offset)',
       // The same disabled look as `TextField`.
       opacity: state.isDisabled ? 0.6 : 1,
       transition:
