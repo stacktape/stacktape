@@ -7,7 +7,7 @@
     "which has no ambient globals and does not skip library checks."
   ],
   "extends": "../tsconfig.json",
-  "include": ["config-import.test.ts"],
+  "include": ["config-import.test.ts", "sensitive-fields.test.ts"],
   "compilerOptions": {
     "types": ["bun"],
     "skipLibCheck": true

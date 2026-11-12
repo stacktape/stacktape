@@ -65,6 +65,7 @@ export const CONFIG_AUTHORING_PACKAGE_SRC_PATH = join(
 export const RESOLVED_CONFIG_TYPES_PATH = join(CLI_PACKAGE_ROOT, 'src', 'domain', 'config-manager', 'resolved-types');
 
 export const CONFIG_SCHEMA_PATH = join(CONFIG_PACKAGE_PATH, 'generated', 'config-schema.json');
+export const SENSITIVE_CONFIG_FIELDS_PATH = join(CONFIG_PACKAGE_PATH, 'generated', 'sensitive-fields.json');
 
 export const INSTALL_SCRIPTS_PATH = join(CLI_PACKAGE_ROOT, 'scripts', 'install-scripts');
 export const COMPLETIONS_SCRIPTS_PATH = join(CLI_PACKAGE_ROOT, 'scripts', 'completions');

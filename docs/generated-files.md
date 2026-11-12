@@ -49,7 +49,7 @@ source of truth; a separate manifest would duplicate paths and task names and co
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `@stacktape/cloudformation`                | `packages/cloudformation/generated/**`                                                                         |
 | `@stacktape/cli`                           | `apps/cli/starter-projects-metadata.json`, `apps/cli/@generated/schemas/**`, `apps/cli/@generated/llm-docs/**` |
-| `@stacktape/cli` (cross-package exception) | `packages/config/generated/config-schema.json`                                                                 |
+| `@stacktape/cli` (cross-package exception) | `packages/config/generated/config-schema.json`, `packages/config/generated/sensitive-fields.json`              |
 | `@stacktape/design-tokens`                 | `packages/design-tokens/generated/tokens.css`                                                                  |
 
 The config-schema exception is explicit: its model belongs to `@stacktape/config`, but the current schema compiler also
