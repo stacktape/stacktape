@@ -95,3 +95,17 @@ test('tabs with manual activation move focus with the arrows and open a tab with
   await page.keyboard.press('Shift+Tab');
   await expect(list.getByRole('tab', { name: 'Metrics' })).toBeFocused();
 });
+
+test('a dialog whose text scrolls can be scrolled from the keyboard', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open tall dialog' }).click();
+  const region = page.getByRole('region', { name: 'Tall dialog' });
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(region).toBeFocused();
+  await page.keyboard.press('PageDown');
+  await expect.poll(() => region.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('dialog', { name: 'Tall dialog' }).getByRole('button', { name: 'Save' })).toBeFocused();
+});

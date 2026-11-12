@@ -1451,6 +1451,11 @@
       radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.5), transparent) bottom / 100% 12px no-repeat scroll;
   }
 
+  .stp-ui-dialog__body:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: calc(-1 * var(--stp-focus-outline-width));
+  }
+
   .stp-ui-dialog__body:has(+ .stp-ui-dialog__actions) {
     padding-bottom: 4px;
   }

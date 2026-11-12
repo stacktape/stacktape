@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiX } from 'react-icons/bi';
 import { useLayer } from '../layer/layer';
@@ -62,6 +62,21 @@ export function Dialog({
   });
   const isInnermostRef = useRef(isInnermost);
   isInnermostRef.current = isInnermost;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // A body that scrolls with no control inside it (a long text to read) takes a Tab stop of its own, so the keyboard
+  // can scroll it too.
+  const [isScrollRegion, setIsScrollRegion] = useState(false);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!open || !body || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () =>
+      setIsScrollRegion(body.scrollHeight > body.clientHeight + 1 && !body.querySelector(focusableSelector));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    for (const child of body.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -146,7 +161,16 @@ export function Dialog({
         <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
           <BiX aria-hidden="true" size={22} />
         </button>
-        <div className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')} style={bodyStyle}>
+        <div
+          className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')}
+          ref={bodyRef}
+          style={bodyStyle}
+          {...(isScrollRegion && {
+            tabIndex: 0,
+            role: 'region',
+            ...(title ? { 'aria-labelledby': titleId } : { 'aria-label': ariaLabel })
+          })}
+        >
           {/* `div`s, not `header` and `footer`: a dialog adds no second banner or content-info landmark to the page. */}
           {title ? (
             <div className="stp-ui-dialog__header">
