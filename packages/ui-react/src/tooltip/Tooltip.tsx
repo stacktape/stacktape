@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { TippyProps } from '@tippyjs/react';
-import type { Plugin } from 'tippy.js';
+import type { Instance as TippyInstance, Plugin } from 'tippy.js';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
 import { openLayer } from '../layer/layer';
@@ -31,7 +31,13 @@ const DEFAULTS: Record<TooltipVariant, { placement: NonNullable<TooltipPlacement
     help: { placement: 'bottom-start', maxWidth: 360, delay: 0 }
   };
 
-/** A shown tooltip is the innermost layer: Escape hides it and nothing under it, without moving the pointer (WCAG 1.4.13). */
+/** Tooltips whose latest trigger was focus moving into them, rather than the pointer. */
+const openedByFocus = new WeakSet<TippyInstance>();
+
+/**
+ * A shown tooltip is the innermost layer: Escape hides it and nothing under it, without moving the pointer (WCAG 1.4.13).
+ * The layer opens when the tooltip is mounted, so a show that is cancelled leaves no layer that would swallow Escape.
+ */
 const closesWithEscape: Plugin = {
   fn(instance) {
     let removeLayer: (() => void) | undefined;
@@ -40,7 +46,11 @@ const closesWithEscape: Plugin = {
       removeLayer = undefined;
     };
     return {
-      onShow() {
+      onTrigger(_, event) {
+        if (event.type === 'focusin') openedByFocus.add(instance);
+        else openedByFocus.delete(instance);
+      },
+      onMount() {
         remove();
         removeLayer = openLayer('hint', () => instance.hide());
       },
@@ -50,6 +60,13 @@ const closesWithEscape: Plugin = {
   }
 };
 const plugins = [closesWithEscape];
+
+/**
+ * Focus opens a tooltip only when it came from the keyboard. A menu row or a closing dialog gives focus back to its
+ * trigger by script after a click; a label popping up there would stay until the next click.
+ */
+const showsForThisFocus = (instance: TippyInstance) =>
+  !openedByFocus.has(instance) || !!document.activeElement?.matches(':focus-visible');
 
 /**
  * A portal-backed tooltip. It opens when the pointer is over its trigger or keyboard focus is inside it (`focusin`, so a
@@ -78,6 +95,7 @@ export function Tooltip({
       interactive={trigger === 'click' || variant === 'help'}
       maxWidth={500}
       offset={[0, 8]}
+      onShow={(instance) => (showsForThisFocus(instance) ? undefined : false)}
       placement={placement ?? defaults.placement}
       plugins={plugins}
       render={(attributes) => (
