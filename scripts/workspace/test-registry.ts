@@ -2182,7 +2182,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/ui/src/pages/SecurityPage/exposure-labels.test.ts',
       'apps/console/ui/src/pages/GuardrailsPage/guardrail-impact.test.ts',
+      'apps/console/ui/src/pages/RunnersPage/runner-metrics.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
@@ -5780,6 +5782,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
       'apps/console/api/src/services/runners/setup-commands.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
+      'apps/console/ui/src/pages/RunnersPage/runner-metrics.test.ts',
       'apps/console/ui/e2e/runners-live.spec.ts',
       'apps/console/ui/e2e/runners.spec.ts',
       'apps/console/api/scripts/qualify-ec2-runner.ts'
@@ -6247,6 +6250,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/ui/src/pages/SecurityPage/exposure-labels.test.ts',
       'apps/console/ui/src/pages/GuardrailsPage/guardrail-impact.test.ts',
       'apps/console/api/scripts/security-settings-database.test.ts'
     ],
