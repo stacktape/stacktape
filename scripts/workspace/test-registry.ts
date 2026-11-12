@@ -5634,7 +5634,6 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/config-redaction.test.ts',
       'apps/console/api/src/services/container-tasks.test.ts',
       'apps/console/api/src/services/stack-resources-cache.test.ts',
-      'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
