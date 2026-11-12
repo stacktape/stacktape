@@ -150,3 +150,19 @@ test('a tooltip opens on keyboard focus, and Escape hides it and nothing else', 
   await expect(tooltip).toBeHidden();
   await expect(trigger).toBeFocused();
 });
+
+test('focus given back by script after a click opens no tooltip; focus from the keyboard does', async ({ page }) => {
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Example with a tooltip' });
+  const tooltip = page.getByText('Explains the example');
+  await page.getByRole('button', { name: "Give focus to the tooltip's button" }).click();
+  await expect(trigger).toBeFocused();
+  // Longer than the label's delay: a mouse user who closed a menu sees no label pop up beside its trigger.
+  await page.waitForTimeout(600);
+  await expect(tooltip).toBeHidden();
+  // Moving focus by keyboard shows it.
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(trigger).toBeFocused();
+  await expect(tooltip).toBeVisible();
+});

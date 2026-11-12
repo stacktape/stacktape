@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button } from '../../src/button/Button.tsx';
 import { Dialog } from '../../src/dialog/Dialog.tsx';
@@ -14,6 +14,7 @@ import './host-reset.css';
 function Gallery() {
   const [open, setOpen] = useState(false);
   const [protectedOpen, setProtectedOpen] = useState(false);
+  const tooltipTrigger = useRef<HTMLButtonElement>(null);
   const [closeCount, setCloseCount] = useState(0);
   const [unavailableCount, setUnavailableCount] = useState(0);
   const [tallOpen, setTallOpen] = useState(false);
@@ -38,8 +39,14 @@ function Gallery() {
         Open dialog with a picker
       </Button>
       <Tooltip content="Explains the example">
-        <button type="button">Example with a tooltip</button>
+        <button ref={tooltipTrigger} type="button">
+          Example with a tooltip
+        </button>
       </Tooltip>
+      {/* What a menu row or a closing dialog does after a click: it gives focus back to its trigger by script. */}
+      <Button variant="secondary" onClick={() => tooltipTrigger.current?.focus()}>
+        Give focus to the tooltip's button
+      </Button>
       <output aria-label="Close callback count">{closeCount}</output>
       <output aria-label="Unavailable action count">{unavailableCount}</output>
       <Dialog
