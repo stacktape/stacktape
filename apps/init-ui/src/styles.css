@@ -15,8 +15,9 @@
 @import '@stacktape/design-tokens/css';
 @import '@stacktape/ui-react/styles.css';
 
-/* Self-hosted variable Montserrat (OFL, see fonts/OFL.txt), the Console's typeface, split into Latin and Latin
- * Extended like the Console's copy: the page works offline, and Latin Extended loads only for text that needs it. */
+/* Self-hosted variable Montserrat, the Console's typeface (OFL; the licence ships beside it from public/assets), split
+ * into Latin and Latin Extended like the Console's copy: the page works offline, and Latin Extended loads only for text
+ * that needs it. */
 @font-face {
   font-family: Montserrat;
   font-style: normal;
