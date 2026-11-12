@@ -47,3 +47,25 @@ test('a tab with an address is a real link and keeps its tab role', () => {
   expect(markup).toContain('href="/logs"');
   expect(markup).toContain('role="tab"');
 });
+
+test('separates and labels groups of tabs without adding tab stops', () => {
+  const markup = renderToStaticMarkup(
+    <Tabs
+      ariaLabel="How to run the CLI"
+      tabs={[
+        { value: 'npx', label: 'npm', group: '' },
+        { value: 'bun', label: 'bun', group: '' },
+        { value: 'macos', label: 'macOS', group: 'No Node.js' },
+        { value: 'linux', label: 'Linux', group: 'No Node.js' }
+      ]}
+      value="npx"
+    />
+  );
+
+  expect(markup.match(/stp-ui-tabs__divider/g)).toHaveLength(1);
+  // The kind that needs no name has none; the other is named once, before its first tab.
+  expect(markup.match(/class="stp-ui-tabs__group"/g)).toHaveLength(1);
+  expect(markup.indexOf('stp-ui-tabs__divider')).toBeGreaterThan(markup.indexOf('>bun<'));
+  expect(markup.indexOf('No Node.js')).toBeLessThan(markup.indexOf('>macOS<'));
+  expect(markup.match(/role="tab"/g)).toHaveLength(4);
+});
