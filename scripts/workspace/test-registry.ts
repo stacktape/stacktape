@@ -5895,6 +5895,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts',
       'apps/console/api/src/issues/source-maps.test.ts',
+      'apps/console/api/src/issues/stack-frames.test.ts',
       'apps/console/api/src/issues/stored-stack-trace.test.ts'
     ],
     lanes: [
