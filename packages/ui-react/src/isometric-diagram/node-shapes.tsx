@@ -870,8 +870,63 @@ const ACCESS_TAG_STYLE = {
   exposed: { fill: '#C9363C', stroke: '#F06A6F', text: '#FFFFFF' },
   public: { fill: '#10202B', stroke: '#6FB6D9', text: '#DDF1FB' },
   limited: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' },
+  closed: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' },
   unknown: { fill: '#0B0D12', stroke: '#566173', text: '#C3CCD8' }
 } as const;
+
+/** The icon that leads a tag: a globe, a padlock or a question mark, centred on (x, y). */
+export const AccessIcon = ({
+  reach,
+  x,
+  y,
+  color
+}: {
+  reach: IsoNodeAccess['reach'];
+  x: number;
+  y: number;
+  color: string;
+}) => {
+  if (reach === 'unknown') {
+    return (
+      <g data-iso-kind="access-icon-unknown">
+        <circle cx={x} cy={y} r={4.6} stroke={color} strokeWidth={1.1} fill="none" />
+        <text
+          x={x}
+          y={y + 0.5}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={color}
+          fontFamily={FONT}
+          fontSize={7.5}
+          fontWeight={700}
+        >
+          ?
+        </text>
+      </g>
+    );
+  }
+  if (reach === 'limited' || reach === 'closed') {
+    return (
+      <g data-iso-kind="access-icon-padlock">
+        <path
+          d={`M${x - 2.6} ${y - 1} v-2.2 a2.6 2.6 0 0 1 5.2 0 v2.2`}
+          stroke={color}
+          strokeWidth={1.3}
+          fill="none"
+          strokeLinecap="round"
+        />
+        <rect x={x - 4} y={y - 1} width={8} height={6} rx={1.4} fill={color} />
+      </g>
+    );
+  }
+  return (
+    <g data-iso-kind="access-icon-globe" stroke={color} strokeWidth={1.1} fill="none">
+      <circle cx={x} cy={y} r={4.6} />
+      <ellipse cx={x} cy={y} rx={2} ry={4.6} />
+      <path d={`M${x - 4.6} ${y} h9.2`} />
+    </g>
+  );
+};
 
 /**
  * The Access layer's tag: a globe when the internet can reach the node, a padlock when it cannot, a question mark when
@@ -895,40 +950,7 @@ const AccessTag = ({ access }: { access: IsoNodeAccess }) => {
         stroke={style.stroke}
         strokeWidth={1.2}
       />
-      {access.reach === 'unknown' ? (
-        <g data-iso-kind="access-icon-unknown">
-          <circle cx={iconX} cy={y} r={4.6} stroke={style.text} strokeWidth={1.1} fill="none" />
-          <text
-            x={iconX}
-            y={y + 0.5}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill={style.text}
-            fontFamily={FONT}
-            fontSize={7.5}
-            fontWeight={700}
-          >
-            ?
-          </text>
-        </g>
-      ) : access.reach === 'limited' ? (
-        <g data-iso-kind="access-icon-padlock">
-          <path
-            d={`M${iconX - 2.6} ${y - 1} v-2.2 a2.6 2.6 0 0 1 5.2 0 v2.2`}
-            stroke={style.text}
-            strokeWidth={1.3}
-            fill="none"
-            strokeLinecap="round"
-          />
-          <rect x={iconX - 4} y={y - 1} width={8} height={6} rx={1.4} fill={style.text} />
-        </g>
-      ) : (
-        <g data-iso-kind="access-icon-globe" stroke={style.text} strokeWidth={1.1} fill="none">
-          <circle cx={iconX} cy={y} r={4.6} />
-          <ellipse cx={iconX} cy={y} rx={2} ry={4.6} />
-          <path d={`M${iconX - 4.6} ${y} h9.2`} />
-        </g>
-      )}
+      <AccessIcon reach={access.reach} x={iconX} y={y} color={style.text} />
       <text
         x={left + ACCESS_TAG_TEXT_START_PX}
         y={y + 0.5}

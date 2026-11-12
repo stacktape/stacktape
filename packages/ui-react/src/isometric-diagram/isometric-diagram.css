@@ -58,6 +58,11 @@
     /* Above the 1000 tier the fullscreen editor and the dialog overlay share, so a diagram shown
      * inside either still puts its tooltip on top rather than relying on document order. */
     z-index: 1100;
+    /* Its parts are spaced by the gap, not by margins: a host page's own reset of paragraph margins is outside this
+     * layer and would win over them. */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     max-width: 360px;
     padding: 14px 18px;
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -102,21 +107,51 @@
   }
 
   .stp-diagram__tooltip-summary {
-    margin-top: 7px;
     font-size: 13.5px;
     line-height: 1.55;
     color: var(--stp-text-primary);
   }
 
   .stp-diagram__tooltip-details {
-    margin-top: 7px;
     font-size: 13px;
     line-height: 1.6;
     color: var(--stp-text-subtle);
   }
 
+  /* Short sentences, one per line, each led by a dot so the eye finds where one ends. */
+  .stp-diagram__tooltip-facts,
+  .stp-diagram__panel .stp-diagram__panel-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__tooltip-facts li,
+  .stp-diagram__panel-facts li {
+    position: relative;
+    padding-left: 13px;
+  }
+
+  .stp-diagram__tooltip-facts li::before,
+  .stp-diagram__panel-facts li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 0.62em;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
   .stp-diagram__tooltip-note {
-    margin-top: 9px;
     padding-left: 10px;
     border-left: 2px solid var(--stp-color-brand);
     font-size: 13px;
@@ -124,12 +159,17 @@
     color: var(--stp-text-subtle);
   }
 
+  .stp-diagram__tooltip-note[data-alert] {
+    border-left-color: #f06a6f;
+    color: #f58a8e;
+  }
+
   /* What the host reports about the hovered resource, before what it is: tone icon, short text, then the detail. */
   .stp-diagram__tooltip-status {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    margin: 9px 0 0;
+    margin: 0;
     padding: 0;
     list-style: none;
     font-size: 12.5px;
@@ -478,7 +518,7 @@
     position: absolute;
     left: 12px;
     bottom: 12px;
-    max-width: min(560px, calc(100% - 80px));
+    max-width: min(700px, calc(100% - 80px));
     padding: 7px 11px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: var(--stp-radius-medium);
@@ -505,6 +545,36 @@
 
   .stp-diagram__note-alert {
     color: #f58a8e;
+  }
+
+  .stp-diagram__note-ok {
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  /* What the tags' icons mean: one short phrase per icon. */
+  .stp-diagram__note-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    margin-top: 4px;
+    font-size: 11.5px;
+  }
+
+  .stp-diagram__view-note .stp-diagram__note-legend {
+    margin-top: 4px;
+  }
+
+  .stp-diagram__note-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .stp-diagram__note-icon {
+    flex: none;
+    color: var(--stp-text-primary);
   }
 
   /* ── Side panel ──────────────────────────────────────────────────────────────────────────────
@@ -635,11 +705,7 @@
     font-size: 13.5px;
   }
 
-  .stp-diagram__panel-details {
-    color: var(--stp-text-subtle);
-  }
-
-  .stp-diagram__panel-note {
+  .stp-diagram__panel .stp-diagram__panel-note {
     padding-left: 10px;
     border-left: 2px solid var(--stp-color-brand);
     color: var(--stp-text-subtle);
@@ -788,6 +854,23 @@
 
   .stp-diagram__panel-access[data-reach='exposed'] {
     color: #f58a8e;
+  }
+
+  /* The security groups behind the answer, one click away. */
+  .stp-diagram__panel-fold > summary {
+    width: fit-content;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__panel-fold > summary:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__panel-fold[open] > summary {
+    margin-bottom: 8px;
   }
 
   .stp-diagram__panel-rule-heading {

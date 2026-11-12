@@ -229,6 +229,8 @@ export const scriptDeviceAuthorization = (
   api: LoopbackConsole,
   { answers, interval = 0.05, expiresIn = 120 }: { answers: DevicePollAnswer[]; interval?: number; expiresIn?: number }
 ) => {
+  // When each poll arrived, on the monotonic clock: tests compare the time between polls, and the wall clock can step
+  // back by seconds on a loaded machine.
   const polls: number[] = [];
   api.onAuth('/device/code', (body) => {
     const clientId = (body as { client_id?: unknown } | null)?.client_id;
@@ -255,7 +257,7 @@ export const scriptDeviceAuthorization = (
       return { status: 400, body: { error: 'invalid_request' } };
     }
     const answer = answers[Math.min(polls.length, answers.length - 1)];
-    polls.push(Date.now());
+    polls.push(performance.now());
     if (answer === 'approve') {
       return { status: 200, body: { access_token: LOOPBACK_SESSION_TOKEN, token_type: 'Bearer', expires_in: 300 } };
     }
