@@ -306,8 +306,20 @@ export function DiagramPanel({
           </section>
         )}
         {node?.summary && <p className="stp-diagram__panel-summary">{node.summary}</p>}
-        {node?.details && <p className="stp-diagram__panel-details">{node.details}</p>}
-        {node?.accessNote && <p className="stp-diagram__panel-note">{node.accessNote}</p>}
+        {node?.facts && node.facts.length > 0 && (
+          <ul className="stp-diagram__panel-facts">
+            {node.facts.map((fact) => (
+              <li key={fact}>{fact}</li>
+            ))}
+          </ul>
+        )}
+        {/* With a tag, the deployed stage's own answer is in "Who can connect": the config's note would repeat it. */}
+        {node && !node.access && (node.accessNote ?? node.untaggedNote) && (
+          <p className="stp-diagram__panel-note">
+            {node.accessNote ?? node.untaggedNote}
+            {node.accessNote && node.accessFix ? ` ${node.accessFix}` : ''}
+          </p>
+        )}
 
         {isGroupSelected && group && (
           <section className="stp-diagram__panel-section">
@@ -348,7 +360,7 @@ export function DiagramPanel({
         )}
 
         {node && (node.access || (node.securityGroups?.length ?? 0) > 0) && (
-          <NetworkAccess access={node.access} groups={node.securityGroups ?? []} />
+          <NetworkAccess access={node.access} groups={node.securityGroups ?? []} fix={node.accessFix} />
         )}
 
         {node && (
@@ -409,21 +421,54 @@ function RouteTable({
 }
 
 /**
- * Who can connect to a node in the deployed stage: the Access layer's answer first, then the security groups that
- * enforce it with what each allows, in plain words.
+ * Who can connect to a node in the deployed stage: the Access layer's answer as a sentence, then the ports it is
+ * allowed in on. The security groups that enforce it, with everything each allows, are one click further.
  */
-function NetworkAccess({ access, groups }: { access: IsoNodeAccess | undefined; groups: IsoNodeSecurityGroup[] }) {
+function NetworkAccess({
+  access,
+  groups,
+  fix
+}: {
+  access: IsoNodeAccess | undefined;
+  groups: IsoNodeSecurityGroup[];
+  /** What to change in the config when the node is open to the internet. */
+  fix?: string | undefined;
+}) {
+  const deciding = groups.filter((group) => group.decides && !group.external);
+  const allowed = [...new Set(deciding.flatMap((group) => group.inbound))];
   return (
     <section className="stp-diagram__panel-section" data-diagram-section="access">
       <h3 className="stp-diagram__panel-section-title">Who can connect</h3>
       {access && (
         <p className="stp-diagram__panel-access" data-reach={access.reach}>
-          {access.text}
+          {access.detail}
         </p>
       )}
       {groups.length === 0 && (
-        <p className="stp-diagram__panel-muted">AWS serves it to the internet itself; no security group is involved.</p>
+        <p className="stp-diagram__panel-muted">AWS serves it to the internet itself. No security group is involved.</p>
       )}
+      {allowed.length > 0 && (
+        <ul className="stp-diagram__panel-rules" data-diagram-list="allowed">
+          {allowed.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {fix && access?.reach === 'exposed' && (
+        <p className="stp-diagram__panel-muted" data-diagram-text="fix">
+          {fix}
+        </p>
+      )}
+      {groups.length > 0 && <SecurityGroupList groups={groups} />}
+    </section>
+  );
+}
+
+/** Every security group the node carries, with all it allows in and out. Folded: most readers never need it. */
+function SecurityGroupList({ groups }: { groups: IsoNodeSecurityGroup[] }) {
+  return (
+    <details className="stp-diagram__panel-fold">
+      <summary>{groups.length === 1 ? 'Security group' : `Security groups (${groups.length})`}</summary>
       <ul className="stp-diagram__panel-list stp-diagram__panel-groups">
         {groups.map((group) => (
           <li key={group.id} className="stp-diagram__panel-group">
@@ -457,6 +502,6 @@ function NetworkAccess({ access, groups }: { access: IsoNodeAccess | undefined; 
           </li>
         ))}
       </ul>
-    </section>
+    </details>
   );
 }

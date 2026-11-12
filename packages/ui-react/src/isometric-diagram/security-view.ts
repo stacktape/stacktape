@@ -4,9 +4,13 @@
  *
  * Everything comes from the deployed stage's template (`security-groups.ts`), never from the config. The picture is
  * the one the layout already placed and nothing in it changes: the layer only adds tags. A tag answers one question,
- * "who can connect to this?", in resource terms: the internet, the VPC, named resources, address ranges. Security
- * groups, ports and protocols are how AWS enforces the answer, so they stay in the side panel. Red is kept for what a
- * reader must not miss: a data store or an admin port the internet can reach.
+ * "who can connect to this?", in resource terms: the internet, the VPC, named resources, address ranges, nothing.
+ * Security groups, ports and protocols are how AWS enforces the answer, so they stay in the side panel. Red is kept for
+ * what a reader must not miss: a data store or an admin port the internet can reach.
+ *
+ * A globe always means the internet can reach the node and a padlock that it cannot, whichever other layer is on: a
+ * service behind a public gateway is "Public" when the gateway is drawn as part of it and "Public via web GW" when the
+ * gateway is drawn beside it.
  *
  * The work is bounded by groups and rules, not by members: a group of 150 functions drawn as one node gets one tag.
  */
@@ -59,6 +63,57 @@ const DATA_KINDS: ReadonlySet<SecurityGroupMember['kind']> = new Set([
  * API's VPC Link is the gateway's way into the VPC, not a way in to the gateway.
  */
 const PASS_THROUGH_KINDS: ReadonlySet<SecurityGroupMember['kind']> = new Set(['nat-instance', 'vpc-link']);
+
+/**
+ * Members that listen for connections, so "nothing can connect" is worth saying. A function, a batch job and an agent
+ * runtime are started by AWS and never connected to, so the absence of a rule in says nothing about who can use them.
+ */
+const LISTENING_KINDS: ReadonlySet<SecurityGroupMember['kind']> = new Set([
+  'container-service',
+  'ec2-instances',
+  'database',
+  'redis',
+  'opensearch',
+  'kafka',
+  'load-balancer',
+  'efs-mount-target'
+]);
+
+const STARTED_BY_AWS_KINDS: ReadonlySet<SecurityGroupMember['kind']> = new Set([
+  'function',
+  'batch-compute-environment',
+  'batch-job',
+  'agentcore-runtime'
+]);
+
+/** What forwards the internet's requests on: whatever a public one of these may connect to is public through it. */
+const FORWARDING_TYPES: Record<string, string> = {
+  'http-api-gateway': 'gateway',
+  'application-load-balancer': 'load balancer',
+  'network-load-balancer': 'load balancer'
+};
+
+/**
+ * Resources with no security group that are used through AWS's own API, so AWS permissions decide who can. Not the
+ * rest: an Upstash database is protected by its own password, and a user pool's sign-in pages are public.
+ */
+const AWS_PERMISSION_TYPES: ReadonlySet<string> = new Set([
+  'function',
+  'dynamo-db-table',
+  'bucket',
+  'sqs-queue',
+  'sns-topic',
+  'event-bus',
+  'kinesis-stream',
+  'state-machine',
+  'email-sender',
+  'deployment-script',
+  'custom-resource-definition'
+]);
+
+/** What the tooltip and the panel say of a node the layer gives no tag. */
+const NO_GROUP_NOTE = 'Security groups do not apply to it. AWS permissions (IAM) decide who can use it.';
+const STARTED_BY_AWS_NOTE = 'Nothing connects to it directly. AWS starts it, and AWS permissions (IAM) decide who can.';
 
 /** Ports that administer a machine. Open to the internet, they are a finding whatever the machine is. */
 const ADMIN_PORTS: ReadonlyArray<{ port: number; name: string }> = [
@@ -258,6 +313,27 @@ type Inbound = {
    * the Infrastructure layer: whatever reaches that part reaches the node.
    */
   throughOwnPart: boolean;
+  /** A rule admits the node's own group: its tasks or nodes can connect to each other. */
+  self: boolean;
+  /** A rule's address range is a value set at deploy time, which the template does not hold. It may be anything. */
+  unresolved: boolean;
+  /** The conditions under which the internet is let in, one entry per way. */
+  internetWhen: SecurityModelConditions[];
+  /** The conditions under which each drawn source is let in. */
+  sourceWhen: Map<string, SecurityModelConditions[]>;
+};
+
+/** Every pair of condition sets, one from each list, that can hold together, as one set each. */
+const holdingTogether = (first: SecurityModelConditions[], second: SecurityModelConditions[]) => {
+  const joint = new Map<string, SecurityModelConditions>();
+  for (const a of first) {
+    for (const b of second) {
+      if (!canHoldTogether(a, b)) continue;
+      const merged = [...new Set([...a, ...b])].sort();
+      joint.set(merged.join(','), merged);
+    }
+  }
+  return [...joint.values()];
 };
 
 /** ICMP lets the internet ping a resource, not connect to it. */
@@ -285,12 +361,32 @@ const canHoldTogether = (...conditions: SecurityModelConditions[]) => {
 /** One address rather than a range: "203.0.113.10" reads better than "1 IP range". */
 const singleAddress = (range: string) => /^(.+)\/(32|128)$/.exec(range)?.[1];
 
+const PUBLIC = { reach: 'public' as const, text: 'Public', detail: 'Anyone on the internet can reach it.' };
+
 const describeInternet = ({ internet, holdsData }: { internet: SecurityGroupRule[]; holdsData: boolean }) => {
-  if (holdsData) return { reach: 'exposed' as const, text: 'Open to the internet' };
-  if (internet.some(coversAllPorts)) return { reach: 'exposed' as const, text: 'All ports open to the internet' };
+  if (holdsData) {
+    return {
+      reach: 'exposed' as const,
+      text: 'Open to the internet',
+      detail: 'Anyone on the internet can connect to it. Only its credentials protect the data.'
+    };
+  }
+  if (internet.some(coversAllPorts)) {
+    return {
+      reach: 'exposed' as const,
+      text: 'All ports open to the internet',
+      detail: 'Anyone on the internet can connect to it on any port.'
+    };
+  }
   const admin = ADMIN_PORTS.find(({ port }) => internet.some((rule) => coversPort(rule, port)));
-  if (admin) return { reach: 'exposed' as const, text: `${admin.name} open to the internet` };
-  return { reach: 'public' as const, text: 'Public' };
+  if (admin) {
+    return {
+      reach: 'exposed' as const,
+      text: `${admin.name} open to the internet`,
+      detail: `Anyone on the internet can try to sign in over ${admin.name}.`
+    };
+  }
+  return PUBLIC;
 };
 
 const countRanges = (ranges: readonly string[]) =>
@@ -300,15 +396,49 @@ const countRanges = (ranges: readonly string[]) =>
 
 const joinSources = (parts: Array<string | undefined>) => parts.filter(Boolean).join(' + ');
 
+/** "web", "web and worker", "web, worker and 203.0.113.10". */
+const listInWords = (parts: Array<string | undefined>) => {
+  const items = parts.filter((part): part is string => Boolean(part));
+  return items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+};
+
 const describeLimited = ({ wholeVpc, ranges, resources }: Inbound) => {
   const countedRanges = ranges.length === 0 ? undefined : countRanges(ranges);
   const rangeText = ranges.length === 1 ? (singleAddress(ranges[0]) ?? countedRanges) : countedRanges;
   // Whatever else is allowed in, the VPC already holds it; only addresses outside it are worth adding.
-  if (wholeVpc) return joinSources(['Anything in the VPC', rangeText]);
+  if (wholeVpc) {
+    return {
+      text: joinSources(['Anything in the VPC', rangeText]),
+      detail: rangeText
+        ? `Anything inside the VPC can connect to it, and so can ${rangeText}.`
+        : 'Anything inside the VPC can connect to it. The internet cannot.'
+    };
+  }
   const countedResources = resources.length === 0 ? undefined : plural(resources.length, 'resource');
-  const named = resources.length <= MAX_NAMED_RESOURCES ? resources.join(', ') || undefined : countedResources;
-  const text = `Only ${joinSources([named, rangeText])}`;
-  return text.length <= TAG_MAX_CHARS ? text : `Only ${joinSources([countedResources, countedRanges])}`;
+  const namesResources = resources.length <= MAX_NAMED_RESOURCES;
+  const text = `Only ${joinSources([namesResources ? resources.join(', ') : countedResources, rangeText])}`;
+  if (text.length <= TAG_MAX_CHARS) {
+    const who = listInWords([...(namesResources ? resources : [countedResources]), rangeText]);
+    return { text, detail: `Only ${who} can connect to it.` };
+  }
+  return {
+    text: `Only ${joinSources([countedResources, countedRanges])}`,
+    detail: `Only ${listInWords([countedResources, countedRanges])} can connect to it.`
+  };
+};
+
+/** A node a public gateway or load balancer forwards to: as public as what forwards to it. */
+const describeForwarded = (forwarders: ReadonlyArray<{ label: string; type: string }>) => {
+  const labels = forwarders.map(({ label }) => label);
+  const named = `Public via ${labels.join(', ')}`;
+  const [only] = forwarders;
+  const counted =
+    forwarders.length === 1 ? `Public via its ${only.type}` : `Public via ${forwarders.length} entry points`;
+  return {
+    reach: 'public' as const,
+    text: named.length <= TAG_MAX_CHARS ? named : counted,
+    detail: `Anyone on the internet can reach it through ${listInWords(labels)}.`
+  };
 };
 
 // ── Placement ──
@@ -431,7 +561,7 @@ export const addAccessLayer = ({
   const nodeGroups = new Map<string, IsoNodeSecurityGroup[]>();
   const tagGroups = new Map<string, string[]>();
   for (const group of security.groups) {
-    const entry: IsoNodeSecurityGroup = {
+    const entry = {
       id: group.id,
       name: names.get(group.id) ?? group.id,
       external: group.kind === 'external',
@@ -439,11 +569,10 @@ export const addAccessLayer = ({
       outbound: describeRules(group.id, 'egress')
     };
     for (const nodeId of groupNodes.get(group.id) ?? []) {
-      nodeGroups.set(nodeId, [...(nodeGroups.get(nodeId) ?? []), entry]);
       const kinds = memberKinds.get(`${group.id}|${nodeId}`) ?? new Set();
-      if ([...kinds].some((kind) => !PASS_THROUGH_KINDS.has(kind))) {
-        tagGroups.set(nodeId, [...(tagGroups.get(nodeId) ?? []), group.id]);
-      }
+      const decides = [...kinds].some((kind) => !PASS_THROUGH_KINDS.has(kind));
+      nodeGroups.set(nodeId, [...(nodeGroups.get(nodeId) ?? []), { ...entry, decides }]);
+      if (decides) tagGroups.set(nodeId, [...(tagGroups.get(nodeId) ?? []), group.id]);
     }
   }
 
@@ -455,7 +584,11 @@ export const addAccessLayer = ({
       ranges: [],
       resources: [],
       sources: [],
-      throughOwnPart: false
+      throughOwnPart: false,
+      self: false,
+      unresolved: false,
+      internetWhen: [],
+      sourceWhen: new Map()
     };
     const ranges = new Set<string>();
     const resources = new Set<string>();
@@ -474,6 +607,7 @@ export const addAccessLayer = ({
         switch (peer.kind) {
           case 'internet':
             inbound.internet.push(rule);
+            inbound.internetWhen.push(...applies);
             break;
           case 'vpc':
             inbound.wholeVpc = true;
@@ -485,7 +619,7 @@ export const addAccessLayer = ({
             ranges.add(peer.prefixListId);
             break;
           case 'unresolved':
-            ranges.add(`unresolved:${peer.reference}`);
+            inbound.unresolved = true;
             break;
           default: {
             const drawn = groupNodes.get(peer.groupId) ?? [];
@@ -497,13 +631,18 @@ export const addAccessLayer = ({
             if (drawn.includes(nodeId) && !groupIds.includes(peer.groupId)) inbound.throughOwnPart = true;
             const peerConditions = groupById.get(peer.groupId)?.conditions ?? [];
             for (const source of drawn) {
-              if (source === nodeId) continue;
-              const carries = (attachments.get(`${peer.groupId}|${source}`) ?? []).some((conditions) =>
-                applies.some((own) => canHoldTogether(own, conditions, peerConditions))
+              if (source === nodeId) {
+                if (groupIds.includes(peer.groupId)) inbound.self = true;
+                continue;
+              }
+              const sourceCarries = (attachments.get(`${peer.groupId}|${source}`) ?? []).map((conditions) =>
+                conditions.concat(peerConditions)
               );
-              if (!carries) continue;
+              const when = holdingTogether(applies, sourceCarries);
+              if (when.length === 0) continue;
               sources.add(source);
               resources.add(labelOf(source));
+              inbound.sourceWhen.set(source, [...(inbound.sourceWhen.get(source) ?? []), ...when]);
             }
           }
         }
@@ -518,9 +657,18 @@ export const addAccessLayer = ({
   const words = new Map<string, Omit<IsoNodeAccess, 'tile'>>();
   /** Nodes whose own groups decide who connects: with no rule in, nothing does, whatever the picture's connectors say. */
   const closed = new Set<string>();
+  /** Among them, the nodes that listen for connections and that no rule lets anything reach. */
+  const unreachable = new Set<string>();
+  const inbounds = new Map<string, Inbound>();
+  /** The conditions under which the internet reaches each public node. One empty entry: always. */
+  const publicWhen = new Map<string, SecurityModelConditions[]>();
   for (const [nodeId, groupIds] of tagGroups) {
     const inbound = inboundOf(nodeId, groupIds);
+    inbounds.set(nodeId, inbound);
     if (!inbound.throughOwnPart) closed.add(nodeId);
+    const listens = groupIds.some((groupId) =>
+      [...(memberKinds.get(`${groupId}|${nodeId}`) ?? [])].some((kind) => LISTENING_KINDS.has(kind))
+    );
     // A group defined outside the stack may admit anyone: with one, "only" would be a guess.
     const outside = groupIds.some((groupId) => groupById.get(groupId)?.kind === 'external');
     if (inbound.internet.length > 0) {
@@ -530,10 +678,29 @@ export const addAccessLayer = ({
         [...(memberKinds.get(`${rule.groupId}|${nodeId}`) ?? [])].some((kind) => DATA_KINDS.has(kind))
       );
       words.set(nodeId, { ...describeInternet({ internet: inbound.internet, holdsData }), sources: inbound.sources });
-    } else if (outside) {
-      words.set(nodeId, { reach: 'unknown', text: 'Rules outside this stack', sources: inbound.sources });
+      publicWhen.set(nodeId, inbound.internetWhen);
+    } else if (outside || inbound.unresolved) {
+      // Either may admit anyone, the internet included: "only" would be a guess, and so would a verdict that nothing
+      // is open.
+      words.set(nodeId, {
+        reach: 'unknown',
+        text: 'Access unknown',
+        detail: outside
+          ? 'It uses a security group defined outside this stack. Those rules are not in the deployed template, so this picture cannot tell who can connect.'
+          : 'One of its rules takes its address range from a value set at deploy time. The deployed template does not hold that value, so this picture cannot tell who can connect.',
+        sources: inbound.sources
+      });
     } else if (inbound.wholeVpc || inbound.ranges.length > 0 || inbound.resources.length > 0) {
-      words.set(nodeId, { reach: 'limited', text: describeLimited(inbound), sources: inbound.sources });
+      words.set(nodeId, { reach: 'limited', ...describeLimited(inbound), sources: inbound.sources });
+    } else if (listens && inbound.self) {
+      words.set(nodeId, {
+        reach: 'limited',
+        text: 'Only itself',
+        detail: 'Only its own tasks or nodes can connect to each other. Nothing else can connect to it.',
+        sources: []
+      });
+    } else if (listens && !inbound.throughOwnPart) {
+      unreachable.add(nodeId);
     }
   }
   // What the picture already shows the internet reaching where no security group decides it: an HTTP API, a CDN, a
@@ -544,7 +711,48 @@ export const addAccessLayer = ({
     // A service drawn with its gateway is as public as the gateway, whatever else its own group admits.
     const known = words.get(connector.to);
     if (known?.reach === 'exposed' || known?.reach === 'public') continue;
-    words.set(connector.to, { reach: 'public', text: 'Public', sources: known?.sources ?? [] });
+    words.set(connector.to, { ...PUBLIC, sources: known?.sources ?? [] });
+    publicWhen.set(connector.to, [[]]);
+  }
+  // What a public gateway or load balancer forwards to is public too, through it. Three things must hold: the picture
+  // draws the forwarder sending requests to the node (a rule that merely lets a gateway's group in forwards nothing),
+  // the node's rules let the forwarder in, and that happens under conditions the forwarder is public under. Repeated,
+  // because a gateway can forward to a load balancer that forwards to a service.
+  const forwards = new Set(
+    scene.connectors
+      .filter((connector) => connector.semantic === 'request')
+      .map((connector) => `${connector.from}|${connector.to}`)
+  );
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const [nodeId, tag] of words) {
+      if (tag.reach !== 'limited' && tag.reach !== 'unknown') continue;
+      const when: SecurityModelConditions[] = [];
+      const forwarders = tag.sources.flatMap((source) => {
+        const type = FORWARDING_TYPES[visible.get(source)?.resourceType ?? ''];
+        if (!type || !forwards.has(`${source}|${nodeId}`)) return [];
+        const through = holdingTogether(
+          publicWhen.get(source) ?? [],
+          inbounds.get(nodeId)?.sourceWhen.get(source) ?? []
+        );
+        if (through.length === 0) return [];
+        when.push(...through);
+        return [{ label: labelOf(source), type }];
+      });
+      if (forwarders.length === 0) continue;
+      words.set(nodeId, { ...describeForwarded(forwarders), sources: tag.sources });
+      publicWhen.set(nodeId, when);
+      changed = true;
+    }
+  }
+  for (const nodeId of unreachable) {
+    if (words.has(nodeId)) continue;
+    words.set(nodeId, {
+      reach: 'closed',
+      text: 'No inbound access',
+      detail: 'Nothing can connect to it. No security group rule lets a connection in.',
+      sources: []
+    });
   }
 
   // ── Where each tag sits: above its node, clear of other nodes, their names, badges and connector chips ──
@@ -608,13 +816,28 @@ export const addAccessLayer = ({
     access.set(node.id, { ...tag, tile: { x: round(tile.x), y: round(tile.y) } });
   }
 
+  // A node without a tag still gets an answer in its tooltip and panel: why the layer has nothing to say about it.
+  const untaggedNote = (node: IsoNode) => {
+    if (access.has(node.id) || node.accessNote || node.resourceType === 'user') return undefined;
+    if (!nodeGroups.has(node.id)) return AWS_PERMISSION_TYPES.has(node.resourceType ?? '') ? NO_GROUP_NOTE : undefined;
+    const startedByAws = (tagGroups.get(node.id) ?? []).some((groupId) =>
+      [...(memberKinds.get(`${groupId}|${node.id}`) ?? [])].some((kind) => STARTED_BY_AWS_KINDS.has(kind))
+    );
+    return startedByAws ? STARTED_BY_AWS_NOTE : undefined;
+  };
+
   return {
     ...scene,
-    nodes: scene.nodes.map((node) =>
-      nodeGroups.has(node.id) || access.has(node.id)
-        ? Object.assign({}, node, { securityGroups: nodeGroups.get(node.id), access: access.get(node.id) })
-        : node
-    )
+    nodes: scene.nodes.map((node) => {
+      const note = untaggedNote(node);
+      return nodeGroups.has(node.id) || access.has(node.id) || note
+        ? Object.assign({}, node, {
+            securityGroups: nodeGroups.get(node.id),
+            access: access.get(node.id),
+            untaggedNote: note
+          })
+        : node;
+    })
   };
 };
 

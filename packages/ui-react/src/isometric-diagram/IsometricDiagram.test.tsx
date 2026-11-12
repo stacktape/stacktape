@@ -139,8 +139,47 @@ describe('layers', () => {
     // The tag takes the place of the `public` mark, and the note under the picture names the finding.
     expect(markup).not.toContain('data-iso-kind="public-badge"');
     expect(markup).toMatch(/Open to the internet:<\/strong>\s*publicDb\./);
+    // What the icons mean is on the picture, so a padlock is not read as "secure".
+    expect(markup).toContain('the internet can reach it');
+    expect(markup).toContain('the internet cannot');
     // A reader who does not see the tag still hears it.
     expect(markup).toContain('aria-label="publicDb, Postgres, Open to the internet"');
+  });
+
+  test('says so when no security group opens a data store or an admin port to the internet', () => {
+    const closed = diagramDeploymentFixtures.find((fixture) => fixture.id === 'deployed-private-network')!;
+    const markup = quiet(() =>
+      renderToStaticMarkup(
+        <IsometricDiagram
+          config={parse(closed.yaml)}
+          deployment={closed.deployment}
+          defaultLayers={{ infrastructure: false, access: true }}
+        />
+      )
+    );
+    expect(markup).toContain('No security group opens a data store or an admin port to the internet.');
+    expect(markup).not.toContain('Open to the internet:');
+    // A worker listens for nothing, and its tag says so.
+    expect(markup).toContain('No inbound access');
+  });
+
+  test('gives no all-clear when a rule’s address range is not in the template', () => {
+    const closed = diagramDeploymentFixtures.find((fixture) => fixture.id === 'deployed-private-network')!;
+    const deployment = structuredClone(closed.deployment) as { template: { Resources: Record<string, any> } };
+    deployment.template.Resources.CacheSecurityGroup.Properties.SecurityGroupIngress = [
+      { IpProtocol: 'tcp', FromPort: 6379, ToPort: 6379, CidrIp: { Ref: 'AllowedCidr' } }
+    ];
+    const markup = quiet(() =>
+      renderToStaticMarkup(
+        <IsometricDiagram
+          config={parse(closed.yaml)}
+          deployment={deployment as never}
+          defaultLayers={{ infrastructure: false, access: true }}
+        />
+      )
+    );
+    expect(markup).toMatch(/Access unknown:<\/strong>\s*cache\./);
+    expect(markup).not.toContain('No security group opens');
   });
 
   test('a host that offers no layers gets no switches', () => {
