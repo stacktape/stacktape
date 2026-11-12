@@ -2121,6 +2121,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/IssuesPage/issue-presentation.test.ts',
+      'apps/console/ui/src/pages/IncidentsPage/incidents-presentation.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
@@ -2944,6 +2945,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/IssuesPage/issue-presentation.test.ts',
+      'apps/console/ui/src/pages/IncidentsPage/incidents-presentation.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
@@ -5908,6 +5910,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts',
       'apps/console/api/src/issues/source-maps.test.ts',
+      'apps/console/api/src/issues/stack-frames.test.ts',
       'apps/console/api/src/issues/stored-stack-trace.test.ts'
     ],
     lanes: [
@@ -6236,6 +6239,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Logs/newest-lines.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/IssuesPage/issue-presentation.test.ts',
+      'apps/console/ui/src/pages/IncidentsPage/incidents-presentation.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
