@@ -1,28 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { CopyableCommand } from './components/CopyableCommand';
-import { GuideRail } from './components/GuideRail';
-import { Section } from './components/Section';
+import { StepPath } from './components/StepPath';
+import { TerminalLine } from './components/TerminalLine';
 import { connect, SessionError, type Session, type WizardState } from './session';
+import { stationsFor } from './stations';
 import { DeployStep } from './steps/DeployStep';
-import { ScanStep } from './steps/ScanStep';
+import { ScanFeed, ScanStep } from './steps/ScanStep';
 import { StartStep } from './steps/StartStep';
 import { ReviewStep } from './steps/ReviewStep';
-import { stepsFor } from './steps';
 
 /**
- * The wizard: one page, read top to bottom.
+ * The wizard: a path across the top, and under it the one step the run is on.
  *
- * It used to be a stepper, and the difference matters. A stepper asks you to complete a stage before
- * it will show you the next one, which is the right shape for a form and the wrong shape for this —
- * because almost nothing here actually needs your input. The pipeline decides, and the page reports.
- * So: one document that grows downwards as the run progresses, with a rail that says where you are
- * rather than what you are permitted to see.
- *
- * Nothing blocks. There is exactly one moment where the wizard waits for a person — the button that
- * starts reading — and one where it must, before spending money.
+ * The path says where the run is and what is still to come; a finished step leaves its result on its station, with a
+ * way back into it where there is something to look at again. Nothing blocks: there is exactly one moment where the
+ * wizard waits for a person, the button that starts reading, and one where it must, before spending money.
  */
 export function App() {
   const [session, setSession] = useState<Session | undefined>();
@@ -33,14 +27,26 @@ export function App() {
   const [connectionState, setConnectionState] = useState<'connected' | 'reconnecting'>('connected');
   const [busy, setBusy] = useState<string | undefined>();
   const [startedAt, setStartedAt] = useState<number>(() => Date.now());
-  /** The saved review, opened again from its summary line. */
-  const [reviewOpen, setReviewOpen] = useState(false);
+  /** A finished step opened again from its station. */
+  const [opened, setOpened] = useState<'analyze' | 'review' | undefined>();
   const deploymentStatus = state?.deployment?.status;
+  const current = state === undefined ? undefined : stationsFor(state).find((station) => station.status !== 'done');
+  // The step on screen, and for a deploy its outcome: each change replaces the content under the path.
+  const view = `${state?.phase}-${state?.configFile === undefined}-${deploymentStatus}`;
+  const shownView = useRef(view);
 
-  // A deploy that starts puts the review back to its one line, so the progress is what is on screen.
+  // A deploy that starts closes a step opened again, so the progress is what is on screen.
   useEffect(() => {
-    if (deploymentStatus === 'running') setReviewOpen(false);
+    if (deploymentStatus === 'running') setOpened(undefined);
   }, [deploymentStatus]);
+
+  // New content starts at the top, under the path, wherever the button that led to it was.
+  useEffect(() => {
+    if (shownView.current === view) return;
+    shownView.current = view;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  }, [view]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -64,16 +70,12 @@ export function App() {
   if (failure !== undefined) {
     return (
       <main className="wizard-shell">
-        <div className="wizard-masthead flex flex-col gap-6">
-          <div>
-            <p className="wizard-step-label">Session ended</p>
-            <h1 className="wizard-title">This wizard is no longer running</h1>
-            <p className="wizard-lede">{failure}</p>
-          </div>
-          <div className="max-w-[420px]">
-            <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">In your project’s directory, run:</p>
-            <CopyableCommand command="stacktape init" />
-          </div>
+        <header className="wizard-masthead">
+          <h1 className="wizard-title">This wizard is no longer running</h1>
+          <p className="wizard-lede">{failure}</p>
+        </header>
+        <div className="max-w-[480px]">
+          <TerminalLine command="stacktape init" />
         </div>
       </main>
     );
@@ -88,11 +90,10 @@ export function App() {
     );
   }
 
-  const steps = stepsFor(state);
-  const isActive = (id: string) => steps.find((step) => step.id === id)?.status === 'active';
-  const isReached = (id: string) => steps.find((step) => step.id === id)?.status !== 'todo';
+  const stations = stationsFor(state);
   const lede = ledeFor(state);
   const deploying = deploymentStatus === 'running' || deploymentStatus === 'repairing';
+  const lock = deploying ? 'deploying' : connectionState === 'reconnecting' ? 'disconnected' : undefined;
 
   const run = async (label: string, action: () => Promise<unknown>, whenItFails: string) => {
     setBusy(label);
@@ -106,200 +107,157 @@ export function App() {
     }
   };
 
+  const start = (agentId: string, modelId: string, label = 'start') => {
+    setStartedAt(Date.now());
+    void run(label, () => session.start(agentId, modelId), 'That analysis could not be started.');
+  };
+
+  /** The way back into a finished step, under its station. */
+  const reopen = (id: 'analyze' | 'review', show: string, hide: string) => (
+    <button
+      aria-expanded={opened === id}
+      className="wizard-disclosure wizard-station-action"
+      onClick={() => setOpened(opened === id ? undefined : id)}
+      type="button"
+    >
+      {opened === id ? hide : show}
+    </button>
+  );
+  const stationDone = (id: string) => stations.find((station) => station.id === id)?.status === 'done';
+
+  const review = (
+    <ReviewStep
+      busy={busy}
+      lock={lock}
+      onChangeDecision={(id, value) =>
+        void run(id, () => session.answer(id, value), 'That change could not be applied.')
+      }
+      onChangePreference={(change) =>
+        void run(
+          `preference-${change.key}`,
+          () => session.setPreference(change),
+          'That infrastructure choice could not be applied.'
+        )
+      }
+      onRegionChange={(region) =>
+        void run('region', () => session.setRegion(region), 'That region could not be chosen.')
+      }
+      onRestart={(agentId) => start(agentId, 'default')}
+      onWrite={(format) => void run('write', () => session.write(format), 'The file could not be written.')}
+      state={state}
+    />
+  );
+
   return (
     <main className="wizard-shell">
       <header className="wizard-masthead">
-        <p className="wizard-step-label">{state.projectName}</p>
+        <p className="wizard-project">
+          <span className="wizard-project-name">{state.projectName}</span>
+          {state.repositoryPath !== undefined && <span className="wizard-code">{state.repositoryPath}</span>}
+        </p>
         <h1 className="wizard-title">{headingFor(state)}</h1>
         {lede !== '' && <p className="wizard-lede">{lede}</p>}
       </header>
 
-      <div className="wizard-page">
-        <GuideRail openedIds={reviewOpen ? ['review'] : []} steps={steps} />
+      <StepPath
+        actions={{
+          ...(stationDone('analyze') && state.timeline.length > 0
+            ? { analyze: reopen('analyze', 'Show what it opened', 'Hide what it opened') }
+            : {}),
+          ...(stationDone('review') ? { review: reopen('review', 'Show the review', 'Hide the review') } : {})
+        }}
+        stations={stations}
+        walkthrough={state.phase === 'ready'}
+      />
 
-        <div className="wizard-flow">
-          {actionFailure !== undefined && (
-            <Alert className="mb-6" tone="danger" title="That action did not finish">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="m-0">{actionFailure} Everything already shown below is still here.</p>
-                <Button onClick={() => setActionFailure(undefined)} variant="plain">
-                  Dismiss
+      {actionFailure !== undefined && (
+        <Alert className="mb-6" tone="danger" title="That action did not finish">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="m-0">{actionFailure} Everything already shown below is still here.</p>
+            <Button onClick={() => setActionFailure(undefined)} variant="plain">
+              Dismiss
+            </Button>
+          </div>
+        </Alert>
+      )}
+
+      {connectionState === 'reconnecting' && (
+        <Alert className="mb-6" tone="warning" title="Lost the connection to stacktape init">
+          If <span className="wizard-code">stacktape init</span> is still running in your terminal, this page reconnects
+          by itself. If you stopped it, run it again: a file you already saved stays in your project.
+        </Alert>
+      )}
+
+      {opened !== undefined && (
+        <section aria-label={opened === 'analyze' ? 'What it opened' : 'Review'} className="wizard-reopened">
+          {opened === 'analyze' ? <ScanFeed state={state} /> : review}
+        </section>
+      )}
+
+      {/* A finished deploy stays on its step: its outcome is the Deploy step's last state. */}
+      <section aria-label={current?.title ?? 'Deploy'} className="wizard-step" key={current?.id ?? 'deploy'}>
+        {state.phase === 'ready' ? (
+          <StartStep isBusy={busy === 'start'} onStart={(agentId, modelId) => start(agentId, modelId)} state={state} />
+        ) : state.phase === 'analysing' ? (
+          <ScanStep startedAt={startedAt} state={state} />
+        ) : state.phase === 'failed' ? (
+          <div className="flex flex-col gap-4">
+            <Alert tone="danger" title="What stopped it">
+              {state.error ?? 'The agent stopped before it produced anything.'} Nothing was changed, and nothing you
+              picked is lost.
+            </Alert>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                isLoading={busy === 'start'}
+                onClick={() => start(state.choice?.agentId ?? 'none', state.choice?.modelId ?? 'default')}
+                variant="primary"
+              >
+                Try again
+              </Button>
+              {state.choice !== undefined && state.choice.agentId !== 'none' && (
+                <Button
+                  isLoading={busy === 'start-plain'}
+                  onClick={() => start('none', 'default', 'start-plain')}
+                  variant="secondary"
+                >
+                  Analyze without an agent
                 </Button>
-              </div>
-            </Alert>
-          )}
-
-          {connectionState === 'reconnecting' && (
-            <Alert className="mb-6" tone="warning" title="Lost the connection to stacktape init">
-              If <span className="wizard-code">stacktape init</span> is still running in your terminal, this page
-              reconnects by itself. If you stopped it, run it again: a file you already saved stays in your project.
-            </Alert>
-          )}
-
-          <Section
-            id="start"
-            isActive={isActive('start')}
-            isMuted={!isActive('start')}
-            label="Start"
-            {...(isActive('start')
-              ? {}
-              : { summary: <StartStep isBusy={false} isDone onStart={() => {}} state={state} /> })}
-          >
-            {isActive('start') && (
-              <StartStep
-                isBusy={busy === 'start'}
-                isDone={false}
-                onStart={(agentId, modelId) => {
-                  setStartedAt(Date.now());
-                  void run('start', () => session.start(agentId, modelId), 'That analysis could not be started.');
-                }}
-                state={state}
-              />
-            )}
-          </Section>
-
-          {isReached('read') && (
-            <Section
-              id="read"
-              isActive={isActive('read')}
-              isMuted={!isActive('read')}
-              label="Analyze"
-              {...(isActive('read') ? {} : { summary: <ScanStep isDone startedAt={startedAt} state={state} /> })}
-            >
-              {!isActive('read') ? undefined : state.phase === 'failed' ? (
-                <div className="flex flex-col gap-4">
-                  <Alert tone="danger" title="What stopped it">
-                    {state.error ?? 'The agent stopped before it produced anything.'} Nothing was changed, and nothing
-                    you picked is lost.
-                  </Alert>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      isLoading={busy === 'start'}
-                      onClick={() => {
-                        setStartedAt(Date.now());
-                        void run(
-                          'start',
-                          () => session.start(state.choice?.agentId ?? 'none', state.choice?.modelId ?? 'default'),
-                          'That analysis could not be started.'
-                        );
-                      }}
-                      variant="primary"
-                    >
-                      Try again
-                    </Button>
-                    {state.choice !== undefined && state.choice.agentId !== 'none' && (
-                      <Button
-                        isLoading={busy === 'start-plain'}
-                        onClick={() => {
-                          setStartedAt(Date.now());
-                          void run(
-                            'start-plain',
-                            () => session.start('none', 'default'),
-                            'That analysis could not be started.'
-                          );
-                        }}
-                        variant="secondary"
-                      >
-                        Analyze without an agent
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <ScanStep isDone={false} startedAt={startedAt} state={state} />
               )}
-            </Section>
-          )}
-
-          {isReached('review') && (
-            <Section
-              id="review"
-              isActive={isActive('review')}
-              isExpanded={reviewOpen}
-              isMuted={!isActive('review')}
-              label="Review"
-              onToggle={() => setReviewOpen(!reviewOpen)}
-              hideLabel="Hide the review"
-              toggleLabel="Show the review"
-              {...(isActive('review') ? {} : { summary: <ReviewSummary state={state} /> })}
-            >
-              <ReviewStep
-                busy={busy}
-                lock={deploying ? 'deploying' : connectionState === 'reconnecting' ? 'disconnected' : undefined}
-                onChangeDecision={(id, value) =>
-                  void run(id, () => session.answer(id, value), 'That change could not be applied.')
-                }
-                onChangePreference={(change) =>
-                  void run(
-                    `preference-${change.key}`,
-                    () => session.setPreference(change),
-                    'That infrastructure choice could not be applied.'
-                  )
-                }
-                onRestart={(agentId) => {
-                  setStartedAt(Date.now());
-                  void run('start', () => session.start(agentId, 'default'), 'That analysis could not be started.');
-                }}
-                onRegionChange={(region) =>
-                  void run('region', () => session.setRegion(region), 'That region could not be chosen.')
-                }
-                onWrite={(format) => void run('write', () => session.write(format), 'The file could not be written.')}
-                state={state}
-              />
-            </Section>
-          )}
-
-          {isReached('deploy') && (
-            <Section id="deploy" isActive={isActive('deploy')} label="Deploy" scrollKey={deploymentStatus ?? 'ready'}>
-              <DeployStep
-                isBusy={
-                  busy === 'deploy' ||
-                  busy === 'pipeline' ||
-                  busy === 'recheck' ||
-                  busy === 'verify' ||
-                  busy === 'coding-agent'
-                    ? busy
-                    : undefined
-                }
-                onDeploy={(stage, region, expected) =>
-                  void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
-                }
-                onDismissVerification={() =>
-                  void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
-                }
-                onPipeline={(stage, region) =>
-                  void run('pipeline', () => session.pipeline(stage, region), 'The pipeline could not be written.')
-                }
-                onConnectCodingAgent={() =>
-                  void run(
-                    'coding-agent',
-                    () => session.connectCodingAgent(),
-                    'The coding agent could not be connected.'
-                  )
-                }
-                onRecheck={() => void run('recheck', () => session.recheck(), 'Could not re-check the sign-ins.')}
-                onSignIn={(request) => session.signIn(request)}
-                onVerify={() => void run('verify', () => session.verify(), 'The local try-out could not be started.')}
-                state={state}
-              />
-            </Section>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
+        ) : state.configFile === undefined ? (
+          review
+        ) : (
+          <DeployStep
+            isBusy={
+              busy === 'deploy' ||
+              busy === 'pipeline' ||
+              busy === 'recheck' ||
+              busy === 'verify' ||
+              busy === 'coding-agent'
+                ? busy
+                : undefined
+            }
+            onConnectCodingAgent={() =>
+              void run('coding-agent', () => session.connectCodingAgent(), 'The coding agent could not be connected.')
+            }
+            onDeploy={(stage, region, expected) =>
+              void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
+            }
+            onDismissVerification={() =>
+              void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
+            }
+            onPipeline={(stage, region) =>
+              void run('pipeline', () => session.pipeline(stage, region), 'The pipeline could not be written.')
+            }
+            onRecheck={() => void run('recheck', () => session.recheck(), 'Could not re-check the sign-ins.')}
+            onSignIn={(request) => session.signIn(request)}
+            onVerify={() => void run('verify', () => session.verify(), 'The local try-out could not be started.')}
+            state={state}
+          />
+        )}
+      </section>
     </main>
-  );
-}
-
-/** The saved review in one line: what was written and what it holds. */
-function ReviewSummary({ state }: { state: WizardState }) {
-  const count = Object.keys(state.composition?.resources ?? {}).length;
-  const price = state.composition?.price?.monthly;
-  return (
-    <p className="wizard-recap">
-      Saved <strong>{state.configFile?.filename ?? 'the configuration'}</strong> with{' '}
-      {count === 1 ? 'one resource' : `${count} resources`}
-      {price === undefined ? '' : `, about ${price}`}.
-    </p>
   );
 }
 
@@ -321,7 +279,7 @@ const headingFor = (state: WizardState): string => {
 
 const ledeFor = (state: WizardState): string => {
   if (state.phase === 'ready') {
-    return 'We read your code on this machine, work out the AWS setup it needs, and hand you one file. Nothing is created on AWS and nothing is billed until you confirm the deploy.';
+    return 'Stacktape reads this project, works out the AWS setup it needs and writes it to one file you can read and change.';
   }
   if (state.phase === 'reviewing' && state.configFile === undefined && !nothingFound(state)) {
     return 'Everything here came from your own code. Change a choice and the file and the price follow.';

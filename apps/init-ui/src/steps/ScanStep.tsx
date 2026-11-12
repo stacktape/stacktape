@@ -1,85 +1,49 @@
 import { useEffect, useRef, useState } from 'react';
-import { Spinner } from '@stacktape/ui-react/spinner';
 import type { WizardState } from '../session';
 
 /**
  * The wait, made legible.
  *
- * A minute of nothing is the difference between a tool that is working and a tool that is broken, so
- * this shows every file the agent opens as it opens it. That is also the honest answer to "what is it
- * doing with my code" — the list is the complete set of reads, not a summary of them.
- *
- * Once the reading is over the same band has to stop pretending. A spinner and a counting clock above
- * a finished run say the tool is stuck; and "Files only" finishes so fast, and so silently, that this
- * was the *usual* reading of the page rather than an edge case.
+ * A minute of nothing is the difference between a tool that is working and a tool that is broken, so this shows every
+ * file the agent opens as it opens it. That is also the honest answer to "what is it doing with my code": the list is
+ * the complete set of reads, not a summary of them. The path above turns while this runs, so nothing here spins too.
  */
-export function ScanStep({ state, startedAt, isDone }: { state: WizardState; startedAt: number; isDone: boolean }) {
+export function ScanStep({ state, startedAt }: { state: WizardState; startedAt: number }) {
   const [elapsed, setElapsed] = useState(0);
-  const [showFeed, setShowFeed] = useState(false);
-  const feed = useRef<HTMLOListElement>(null);
 
   useEffect(() => {
-    // Stopping the interval also freezes the number, which is what makes it a duration rather than a
-    // clock: whatever it read when the run ended is how long the run took.
-    if (isDone) return;
     const timer = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
     return () => clearInterval(timer);
-  }, [startedAt, isDone]);
+  }, [startedAt]);
 
-  // Newest last, so the feed reads in the order things happened; scrolled for the same reason.
+  const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* The page title says what is happening; this line says who does it, where, and for how long. */}
+      <p className="wizard-fine-print">
+        {agent === undefined || agent.id === 'none' ? 'Without an agent' : `By ${agent.label}`}, on this machine
+        {elapsed < 1 ? '' : ` · ${elapsed}s`}
+      </p>
+      <ScanFeed state={state} />
+    </div>
+  );
+}
+
+/** Every file and search the agent made, newest last and scrolled to, in the order they happened. */
+export function ScanFeed({ state }: { state: WizardState }) {
+  const feed = useRef<HTMLOListElement>(null);
   useEffect(() => {
     feed.current?.scrollTo({ top: feed.current.scrollHeight });
   }, [state.timeline.length]);
 
-  const filesRead = state.timeline.filter(
-    (entry) => entry.kind === 'tool' && entry.label.startsWith('read_file ')
-  ).length;
-
-  if (isDone) {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <p className="wizard-recap">
-            {filesRead === 0
-              ? 'Read straight from your project files, without an agent.'
-              : `Opened ${filesRead} ${filesRead === 1 ? 'file' : 'files'}${elapsed > 0 ? ` in ${elapsed}s` : ''}, all on this machine.`}
-          </p>
-          {state.timeline.length > 0 && (
-            <button className="wizard-disclosure" onClick={() => setShowFeed(!showFeed)} type="button">
-              {showFeed ? 'Hide what it opened' : 'Show what it opened'}
-            </button>
-          )}
-        </div>
-        {showFeed && <ol className="wizard-feed">{state.timeline.map(renderEntry)}</ol>}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Spinner />
-        <div>
-          {/* House copy only: the agent's own prose never becomes a headline. The feed below shows
-              what it is actually doing. */}
-          <p className="m-0 font-medium">
-            {filesRead === 0
-              ? 'Reading your project…'
-              : `${filesRead} ${filesRead === 1 ? 'file' : 'files'} read so far`}
-          </p>
-          <p className="m-0 text-[0.85rem] text-[var(--stp-text-subtle)]">
-            {elapsed < 1 ? 'Just started' : `${elapsed}s`} · everything happens on this machine
-          </p>
-        </div>
-      </div>
-
-      <ol className="wizard-feed" ref={feed}>
-        {state.timeline.length === 0 && (
-          <li className="wizard-code text-[var(--stp-text-subtle)]">waiting for the first file…</li>
-        )}
-        {state.timeline.map(renderEntry)}
-      </ol>
-    </div>
+    <ol className="wizard-feed" ref={feed}>
+      {state.timeline.length === 0 && (
+        <li className="wizard-code text-[var(--stp-text-subtle)]">waiting for the first file…</li>
+      )}
+      {state.timeline.map(renderEntry)}
+    </ol>
   );
 }
 
@@ -101,7 +65,7 @@ export const describeEntry = (label: string): string => {
     case 'grep':
       return `Searched for ${subject}`;
     case 'get_project_brief':
-      return 'Read what the scan found';
+      return 'Read the project summary';
     case 'submit_facts':
       return 'Reported its findings';
     default:

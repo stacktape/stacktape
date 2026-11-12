@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { BiCheck, BiX } from 'react-icons/bi';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
@@ -6,7 +7,7 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { buildDeployModel, type DeployEvent } from '../deploy-model';
-import { CopyableCommand } from '../components/CopyableCommand';
+import { TerminalLine } from '../components/TerminalLine';
 import { DeployProgress } from '../components/DeployProgress';
 import { AgentSetupCard } from '../components/AgentSetupCard';
 import { FailureExplanationText } from '../components/FailureExplanation';
@@ -224,7 +225,7 @@ export function DeployStep({
                     <p className="wizard-lede mb-3">
                       Rolls the stack back to the version that worked before this deploy.
                     </p>
-                    <CopyableCommand command={stackCommand('stack recover', target)} />
+                    <TerminalLine command={stackCommand('stack recover', target)} />
                   </section>
                 )}
               </div>
@@ -253,7 +254,7 @@ export function DeployStep({
                 description="Edit your code, then run the same deploy. It updates the stack in place."
                 title="Ship a change"
               >
-                <CopyableCommand command={redeployCommand} />
+                <TerminalLine command={redeployCommand} />
               </Row>
               <PipelineCard
                 isBusy={isBusy === 'pipeline'}
@@ -286,7 +287,7 @@ export function DeployStep({
                     {hasDatabase ? ', including the database and its data' : ''}. Your code and{' '}
                     <span className="wizard-code">{file.filename}</span> stay.
                   </p>
-                  <CopyableCommand command={deleteCommand} />
+                  <TerminalLine command={deleteCommand} />
                 </div>
               )}
             </section>
@@ -388,8 +389,65 @@ export function DeployStep({
 
   return (
     <div className="flex flex-col gap-8">
-      <section aria-label="Where it deploys">
-        <h3 className="wizard-section-heading">Where it deploys</h3>
+      {file.existingPath !== undefined && (
+        <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
+          Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy uses{' '}
+          <span className="wizard-code">{file.filename}</span>.
+        </p>
+      )}
+
+      {account?.signedIn === false && (
+        <section>
+          <h3 className="wizard-section-heading">Sign in or create an account to deploy</h3>
+          <p className="wizard-lede mb-4">
+            Deploying goes through Stacktape, so it needs an account. A free one is enough. The file you saved stays as
+            it is either way.
+          </p>
+          <SignInPanel
+            isRechecking={isBusy === 'recheck'}
+            onRecheck={onRecheck}
+            onSignIn={onSignIn}
+            signIn={state.signIn}
+          />
+        </section>
+      )}
+
+      {(secrets.length > 0 || gaps.length > 0 || unsetNames.length > 0) && (
+        <RowList label="Before you deploy">
+          {secrets.length > 0 && (
+            <Row
+              description={
+                <>
+                  Create {secrets.length === 1 ? 'this secret' : `these ${secrets.length} secrets`} in{' '}
+                  <span className="wizard-code">{region}</span>. Each command asks for the value; the deploy stops if
+                  one is missing.
+                </>
+              }
+              title={secrets.length === 1 ? 'One secret only you have' : `${secrets.length} secrets only you have`}
+            >
+              <TerminalLine command={secrets.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')} />
+            </Row>
+          )}
+          {(gaps.length > 0 || unsetNames.length > 0) && (
+            <Row title="Check these first">
+              <GapList gaps={gaps}>
+                {unsetNames.length > 0 && (
+                  <li>
+                    Nothing sets {listNames(unsetNames)} yet. Add the ones your app needs under{' '}
+                    <span className="wizard-code">environment</span> in{' '}
+                    <span className="wizard-code">{file.filename}</span>; the deploy uses the file as it is on disk.
+                  </li>
+                )}
+              </GapList>
+            </Row>
+          )}
+        </RowList>
+      )}
+
+      {/* The plan and the one action that carries it out, on one surface: what is created, where, for how
+          much, then the button. The read-only check comes first and names the exact account and stack. */}
+      <section aria-label="What the deploy does">
+        <h3 className="wizard-section-heading">What the deploy does</h3>
         <div className="wizard-target">
           <dl className="wizard-facts">
             <div>
@@ -429,6 +487,20 @@ export function DeployStep({
                 ) : (
                   <span className="text-[var(--stp-text-muted)]">Not signed in</span>
                 )}
+              </dd>
+            </div>
+            <div>
+              <dt>Stage</dt>
+              <dd>
+                <TextField
+                  aria-label="Stage"
+                  maxLength={12}
+                  name="stage"
+                  onChange={(changed) => setStage(changed.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  reserveMessageSpace={false}
+                  rootClassName="w-[160px]"
+                  value={stage}
+                />
               </dd>
             </div>
           </dl>
@@ -475,96 +547,24 @@ export function DeployStep({
               </Button>
             </Alert>
           )}
-          <div className="wizard-target-fields">
-            {declaredRegion === undefined ? (
+          {declaredRegion === undefined && (
+            <div className="wizard-target-fields">
               <RegionPicker onChange={setRegion} value={region} />
-            ) : (
-              <p className="wizard-target-note">
-                Region <span className="wizard-code">{declaredRegion}</span>, declared in{' '}
-                <span className="wizard-code">{file?.filename}</span>. Change{' '}
-                <span className="wizard-code">region</span> there to deploy elsewhere.
-              </p>
-            )}
-            <TextField
-              label="Stage"
-              maxLength={12}
-              name="stage"
-              onChange={(changed) => setStage(changed.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-              reserveMessageSpace={false}
-              rootClassName="w-[200px]"
-              value={stage}
-            />
-          </div>
+            </div>
+          )}
           <p className="wizard-target-note">
-            {declaredRegion === undefined ? 'Pick the region closest to your users. ' : ''}A stage is one environment of
-            the app, such as dev or production.
+            {declaredRegion === undefined ? (
+              'Pick the region closest to your users. '
+            ) : (
+              <>
+                Region <span className="wizard-code">{declaredRegion}</span>, declared in{' '}
+                <span className="wizard-code">{file.filename}</span>.{' '}
+              </>
+            )}
+            A stage is one environment of the app, such as dev or production.
           </p>
-        </div>
-      </section>
-
-      {file.existingPath !== undefined && (
-        <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
-          Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy uses{' '}
-          <span className="wizard-code">{file.filename}</span>.
-        </p>
-      )}
-
-      {account?.signedIn === false && (
-        <section>
-          <h3 className="wizard-section-heading">Sign in or create an account to deploy</h3>
-          <p className="wizard-lede mb-4">
-            Deploying goes through Stacktape, so it needs an account. A free one is enough. The file you saved stays as
-            it is either way.
-          </p>
-          <SignInPanel
-            isRechecking={isBusy === 'recheck'}
-            onRecheck={onRecheck}
-            onSignIn={onSignIn}
-            signIn={state.signIn}
-          />
-        </section>
-      )}
-
-      {(secrets.length > 0 || gaps.length > 0 || unsetNames.length > 0) && (
-        <RowList label="Before you deploy">
-          {secrets.length > 0 && (
-            <Row
-              description={
-                <>
-                  Create {secrets.length === 1 ? 'this secret' : `these ${secrets.length} secrets`} in{' '}
-                  <span className="wizard-code">{region}</span>. Each command asks for the value; the deploy stops if
-                  one is missing.
-                </>
-              }
-              title={secrets.length === 1 ? 'One secret only you have' : `${secrets.length} secrets only you have`}
-            >
-              <CopyableCommand
-                command={secrets.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')}
-              />
-            </Row>
-          )}
-          {(gaps.length > 0 || unsetNames.length > 0) && (
-            <Row title="Check these first">
-              <GapList gaps={gaps}>
-                {unsetNames.length > 0 && (
-                  <li>
-                    Nothing sets {listNames(unsetNames)} yet. Add the ones your app needs under{' '}
-                    <span className="wizard-code">environment</span> in{' '}
-                    <span className="wizard-code">{file.filename}</span>; the deploy uses the file as it is on disk.
-                  </li>
-                )}
-              </GapList>
-            </Row>
-          )}
-        </RowList>
-      )}
-
-      {/* The plan and the one action that carries it out, on one surface: what is created, where, for how
-          much, then the button. The read-only check comes first and names the exact account and stack. */}
-      <section aria-label="What the deploy does">
-        <h3 className="wizard-section-heading">What the deploy does</h3>
-        <div className="wizard-target">
-          <p className="m-0 max-w-[var(--wizard-measure)] text-[var(--stp-text-muted)]">
+          <div className="wizard-target-divider" />
+          <p className="m-0 text-[var(--stp-text-muted)]">
             {checkedTarget?.status === 'updateable'
               ? 'Updates the stack (the group of AWS resources in your file) that already exists in your own account'
               : 'Creates one stack (the group of AWS resources in your file) in your own account'}
@@ -646,7 +646,7 @@ export function DeployStep({
             description="The same deploy from a terminal. It creates the stack when absent and updates it when present, and shows the account and target before you confirm."
             title="Run it from your terminal instead"
           >
-            <CopyableCommand
+            <TerminalLine
               command={stackCommand('deploy', {
                 configPath: file.filename,
                 projectName: state.projectName,
@@ -708,7 +708,13 @@ function VerificationResult({
           <li className="wizard-check" key={entry.serviceName}>
             <span className="wizard-check-head">
               <span aria-hidden className={`wizard-check-mark is-${entry.status}`}>
-                {entry.status === 'passed' ? '✓' : entry.status === 'failed' ? '✕' : '–'}
+                {entry.status === 'passed' ? (
+                  <BiCheck size={13} />
+                ) : entry.status === 'failed' ? (
+                  <BiX size={13} />
+                ) : (
+                  '–'
+                )}
               </span>
               <span className="font-medium">
                 {entry.serviceName}
@@ -787,7 +793,7 @@ function BlockedTargetAlert({
         {copy.body}
       </Alert>
       {copy.fix !== undefined && (
-        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', command)} />
+        <TerminalLine command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', command)} />
       )}
     </div>
   );

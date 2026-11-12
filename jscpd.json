@@ -6,6 +6,7 @@
     "**/*.iam.json",
     "**/*.identity.json",
     "**/*.svg",
+    "**/*OFL.txt",
     "**/@generated/**",
     "**/coverage/**",
     "**/dist/**",

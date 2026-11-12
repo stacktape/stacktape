@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import { isValidElement } from 'react';
+import { withCode } from './components/GapList';
 import { gapsToList } from './gaps';
 
 describe('gapsToList', () => {
@@ -19,5 +21,28 @@ describe('gapsToList', () => {
   it('keeps a specific instruction attached to a tool', () => {
     const gaps = [{ subject: 'cloudflare-workers', message: 'This project uses Cloudflare Workers runtime APIs…' }];
     expect(gapsToList(gaps, [{ tool: 'cloudflare-workers' }])).toEqual(gaps);
+  });
+});
+
+describe('a note with quoted commands and names', () => {
+  it('shows each quoted part as code, without its quotes', () => {
+    const parts = withCode(
+      'app depends on Drizzle Kit, but nothing we found runs "npx drizzle-kit migrate". Set "app" up.'
+    );
+    expect(
+      parts.map((part) => (isValidElement<{ children: string }>(part) ? `<${part.props.children}>` : part))
+    ).toEqual([
+      'app depends on Drizzle Kit, but nothing we found runs ',
+      '<npx drizzle-kit migrate>',
+      '. Set ',
+      '<app>',
+      ' up.'
+    ]);
+  });
+
+  it('leaves a note without quotes as it is', () => {
+    expect(withCode('These app settings have values in deployment files: DOMAIN.')).toEqual([
+      'These app settings have values in deployment files: DOMAIN.'
+    ]);
   });
 });

@@ -18,8 +18,10 @@
     "@stacktape/console-api": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
+    "morphicons": "2.0.0",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-icons": "^5.7.0"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
