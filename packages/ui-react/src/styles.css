@@ -1165,6 +1165,12 @@
     );
   }
 
+  /* Keyboard focus wears the one focus mark every control has; a click keeps the quiet field look above. */
+  .stp-ui-text-field__surface--keyboard-focus {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
   .stp-ui-text-field__surface:has(.stp-ui-text-field__control:disabled) {
     cursor: not-allowed;
     opacity: 0.6;

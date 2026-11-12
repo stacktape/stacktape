@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { BiX } from 'react-icons/bi';
+import { useLayer } from '../layer/layer';
 
 export type DialogProps = {
   open: boolean;
@@ -30,6 +31,8 @@ const focusableSelector =
 /**
  * A modal dialog with focus containment, focus restoration, Escape handling and scroll locking.
  * Product-specific forms and confirmation flows compose this primitive instead of reimplementing it.
+ * It is a `modal` layer: Escape closes it only when nothing opened inside or above it (a picker's list, a menu, a
+ * second dialog) is open, and a dialog under another one leaves Tab to the one on top.
  */
 export function Dialog({
   actions,
@@ -53,6 +56,12 @@ export function Dialog({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const callbacksRef = useRef({ onClose, onOpenChange });
   callbacksRef.current = { onClose, onOpenChange };
+  const isInnermost = useLayer(open, 'modal', () => {
+    callbacksRef.current.onClose?.();
+    callbacksRef.current.onOpenChange(false);
+  });
+  const isInnermostRef = useRef(isInnermost);
+  isInnermostRef.current = isInnermost;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -71,13 +80,7 @@ export function Dialog({
       (dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__body :is(${fieldSelector})`) ?? dialog)?.focus();
     });
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        callbacksRef.current.onClose?.();
-        callbacksRef.current.onOpenChange(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || !isInnermostRef.current()) return;
 
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -140,17 +143,18 @@ export function Dialog({
           <BiX aria-hidden="true" size={22} />
         </button>
         <div className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')} style={bodyStyle}>
+          {/* `div`s, not `header` and `footer`: a dialog adds no second banner or content-info landmark to the page. */}
           {title ? (
-            <header className="stp-ui-dialog__header">
+            <div className="stp-ui-dialog__header">
               <h2 className="stp-ui-dialog__title" id={titleId}>
                 {title}
               </h2>
               {subtitle ? <p className="stp-ui-dialog__subtitle">{subtitle}</p> : null}
-            </header>
+            </div>
           ) : null}
           {children}
         </div>
-        {actions ? <footer className="stp-ui-dialog__actions">{actions}</footer> : null}
+        {actions ? <div className="stp-ui-dialog__actions">{actions}</div> : null}
       </dialog>
     </div>,
     document.body

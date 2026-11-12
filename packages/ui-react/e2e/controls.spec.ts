@@ -1,5 +1,8 @@
 import { expect } from '@playwright/test';
+import type { Locator } from '@playwright/test';
 import { test } from './fixtures.ts';
+
+const outline = (locator: Locator) => locator.evaluate((element) => getComputedStyle(element).outlineStyle);
 
 test('a host element reset in the base layer does not erase the switch track', async ({ page }) => {
   await page.goto('/');
@@ -39,4 +42,29 @@ test('a dialog taller than the window keeps its actions on screen', async ({ pag
   await page.getByRole('button', { name: 'Open tall dialog' }).click();
   const save = page.getByRole('dialog', { name: 'Tall dialog' }).getByRole('button', { name: 'Save' });
   await expect(save).toBeInViewport({ ratio: 1 });
+});
+
+test('a picker and a field wear the focus mark when the keyboard reaches them, and stay quiet when clicked', async ({
+  page
+}) => {
+  await page.goto('/');
+  const row = page.getByRole('region', { name: 'Control row' });
+  const control = row.locator('.stp-select__control');
+  const surface = row.locator('.stp-ui-text-field__surface');
+
+  await row.getByRole('textbox', { name: 'Search' }).click();
+  await expect.poll(() => outline(surface)).toBe('none');
+  await page.keyboard.press('Tab');
+  await expect(row.getByRole('combobox', { name: 'Region' })).toBeFocused();
+  await expect.poll(() => outline(control)).toBe('solid');
+  // The open list shows where the keyboard is; the mark returns when it closes.
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(() => outline(control)).toBe('none');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => outline(control)).toBe('solid');
+
+  await page.keyboard.press('Shift+Tab');
+  await expect.poll(() => outline(surface)).toBe('solid');
+  await control.click();
+  await expect.poll(() => outline(control)).toBe('none');
 });
