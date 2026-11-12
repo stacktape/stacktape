@@ -2162,6 +2162,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/console/ui/src/services/request-errors.test.ts',
+      'apps/console/ui/src/services/plan-change.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
@@ -6366,6 +6367,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/src/services/plan-change.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
     lanes: [
