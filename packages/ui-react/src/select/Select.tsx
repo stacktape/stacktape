@@ -475,7 +475,9 @@ function createStyles<Value>({
       border: 'var(--stp-menu-border)',
       borderRadius: 'var(--stp-menu-radius)',
       background: 'var(--stp-menu-background)',
-      boxShadow: 'var(--stp-menu-shadow)'
+      boxShadow: 'var(--stp-menu-shadow)',
+      // It fades in like every other menu. Opacity only, so what places or measures the menu sees its final size.
+      animation: 'stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out)'
     }),
     menuList: (base) => ({ ...base, padding: 0, color: 'var(--stp-text-primary)' }),
     // The menu may be wider than its control, but never past the window's right edge.
