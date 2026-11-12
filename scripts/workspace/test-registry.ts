@@ -2142,6 +2142,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/console/ui/src/services/request-errors.test.ts',
+      'apps/console/ui/src/services/queryClient.test.ts',
+      'apps/console/ui/src/finished-operations.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-polling.test.ts',
+      'apps/console/ui/src/pages/AwsAccountsPage/pending-connection-poll.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
@@ -5465,6 +5469,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/audit-coverage-database.test.ts',
       'apps/console/ui/e2e/isolated-audit-log.test.ts',
       'apps/console/ui/src/pages/AuditLogPage/audit-log-format.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-polling.test.ts',
       'apps/console/api/scripts/console-member-scope-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
@@ -5532,6 +5537,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
+      'apps/console/ui/src/pages/AwsAccountsPage/pending-connection-poll.test.ts',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/api/src/services/aws-scope-usage.test.ts'
     ],
@@ -6421,6 +6427,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/Router.tsx',
       'apps/console/ui/src/RouteErrorBoundary.tsx',
       'apps/console/ui/src/services/queryClient.ts',
+      'apps/console/ui/src/finished-operations.ts',
+      'apps/console/ui/src/route-prefetch.ts',
       'apps/console/ui/src/services/request-errors.ts',
       'packages/ui-react/src/select/**',
       'packages/ui-react/src/tabs/**'
@@ -6432,7 +6440,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-shell.test.ts',
       'apps/console/ui/e2e/isolated-errors.test.ts',
-      'apps/console/ui/src/services/request-errors.test.ts'
+      'apps/console/ui/src/services/request-errors.test.ts',
+      'apps/console/ui/src/services/queryClient.test.ts',
+      'apps/console/ui/src/finished-operations.test.ts'
     ],
     lanes: [
       'console-ui',
