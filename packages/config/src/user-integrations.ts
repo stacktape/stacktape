@@ -139,6 +139,7 @@ export interface SlackIntegrationProps {
    *   return { resources: { workerFunction } };
    * });
    * ```
+   * @sensitive
    */
   accessToken: string;
 }
@@ -280,6 +281,7 @@ export interface MsTeamsIntegrationProps {
    *   return { resources: { apiFunction } };
    * });
    * ```
+   * @sensitive
    */
   webhookUrl: string;
 }
@@ -507,6 +509,7 @@ export interface DiscordIntegrationProps {
    *   return { resources: { ingestFunction } };
    * });
    * ```
+   * @sensitive
    */
   webhookUrl: string;
 }
@@ -586,6 +589,7 @@ export interface WebhookIntegrationProps {
    *   return { resources: { schedulerFunction } };
    * });
    * ```
+   * @sensitive
    */
   url: string;
   /**
@@ -657,6 +661,7 @@ export interface WebhookIntegrationProps {
    *   return { resources: { schedulerFunction } };
    * });
    * ```
+   * @sensitive
    */
   secret?: string;
   /**
@@ -733,8 +738,9 @@ export interface WebhookIntegrationProps {
    *   return { resources: { schedulerFunction } };
    * });
    * ```
+   * @sensitive
    */
-  headers?: Record<string, string>;
+  headers?: { [header: string]: string };
 }
 
 

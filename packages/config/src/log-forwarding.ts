@@ -382,6 +382,7 @@ export interface HttpEndpointLogForwardingProps {
    *   return { resources: { apiFunction } };
    * });
    * ```
+   * @sensitive
    */
   accessKey?: string;
 }
@@ -559,6 +560,7 @@ export interface DatadogLogForwardingProps {
    *   return { resources: { apiFunction } };
    * });
    * ```
+   * @sensitive
    */
   apiKey: string;
   /**

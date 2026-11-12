@@ -957,6 +957,7 @@ export interface RelationalDatabaseCredentials {
  *   return { resources: { mainDatabase } };
  * });
  * ```
+   * @sensitive
    */
   masterUserPassword: string;
 }

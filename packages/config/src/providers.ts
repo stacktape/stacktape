@@ -96,6 +96,7 @@ export interface MongoDbAtlasProvider {
    *   };
    * });
    * ```
+   * @sensitive
    */
   privateKey?: string;
   /**
@@ -297,6 +298,7 @@ export interface UpstashProvider {
    *   };
    * });
    * ```
+   * @sensitive
    */
   apiKey: string;
 }

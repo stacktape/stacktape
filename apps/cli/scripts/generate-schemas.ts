@@ -1,4 +1,4 @@
-import { CONFIG_SCHEMA_PATH } from 'src/config/project-paths';
+import { CONFIG_SCHEMA_PATH, SENSITIVE_CONFIG_FIELDS_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { mkdir, writeJSON } from 'fs-extra';
 import { dirname } from 'node:path';
@@ -7,13 +7,16 @@ import { generateConfigSchema, getJsonSchemaGenerator } from './code-generation/
 import { generateZodSchema, ZOD_SCHEMA_OUTPUT_PATH } from './code-generation/generate-zod-schema';
 import { type ConfigJsonSchema, restoreImportedConfigTypes } from './code-generation/config-schema-overrides';
 import { stripExampleMarkersInSchema } from './code-generation/strip-example-markers';
+import { extractSensitiveFields } from './code-generation/sensitive-fields';
 
 export const generateSchemas = async ({
   configSchemaPath = CONFIG_SCHEMA_PATH,
+  sensitiveFieldsPath = SENSITIVE_CONFIG_FIELDS_PATH,
   jsonSchemaGenerator,
   zodSchemaPath = ZOD_SCHEMA_OUTPUT_PATH
 }: {
   configSchemaPath?: string;
+  sensitiveFieldsPath?: string;
   jsonSchemaGenerator?: JsonSchemaGenerator;
   zodSchemaPath?: string;
 } = {}) => {
@@ -32,7 +35,9 @@ export const generateSchemas = async ({
   // Embedded examples are authored with focus markers (# stp-focus) and escaped `*\/`. Strip both from
   // the published descriptions (clean editor hover) and record focus ranges as `x-stp-focus` (web docs).
   stripExampleMarkersInSchema(jsonSchema);
+  const sensitiveFields = extractSensitiveFields(jsonSchema);
   await writeJSON(configSchemaPath, jsonSchema);
+  await writeJSON(sensitiveFieldsPath, sensitiveFields, { spaces: 2 });
 
   await generateZodSchema(jsonSchema, zodSchemaPath);
 

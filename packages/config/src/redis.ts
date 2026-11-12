@@ -131,6 +131,7 @@ export interface RedisProps {
    *   return { resources: { cache } };
    * });
    * ```
+   * @sensitive
    */
   defaultUserPassword: string;
   /**
