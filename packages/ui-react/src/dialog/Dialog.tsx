@@ -101,7 +101,11 @@ export function Dialog({
       ) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (
+        !event.shiftKey &&
+        // Focus outside the dialog (dropped to the page, say) comes back to its first control, not the page behind it.
+        (document.activeElement === last || !dialog.contains(document.activeElement))
+      ) {
         event.preventDefault();
         first.focus();
       }

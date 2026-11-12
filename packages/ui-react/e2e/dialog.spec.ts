@@ -125,6 +125,11 @@ test('Escape closes only the innermost of two dialogs, and Tab stays in the one 
   await page.keyboard.press('Tab');
   await expect(inner.getByRole('button', { name: 'Close dialog' })).toBeFocused();
 
+  // Focus that dropped out of the dialog comes back to it, not to the page behind.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press('Tab');
+  await expect(inner.getByRole('button', { name: 'Close dialog' })).toBeFocused();
+
   await page.keyboard.press('Escape');
   await expect(inner).toHaveCount(0);
   await expect(outer).toBeVisible();
