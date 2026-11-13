@@ -1508,6 +1508,8 @@ export const lanes: readonly Lane[] = [
       'src/aws/scoped-reads.test.ts',
       'src/services/scoped-account-settings.test.ts',
       'src/services/config-access.test.ts',
+      'src/services/diagram-projection.test.ts',
+      'src/services/uptime-access.test.ts',
       'src/services/container-environment.test.ts',
       'src/services/secret-usage.test.ts',
       'src/aws/context.test.ts',
@@ -1525,6 +1527,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/scoped-reads.test.ts',
       'apps/console/api/src/services/scoped-account-settings.test.ts',
       'apps/console/api/src/services/config-access.test.ts',
+      'apps/console/api/src/services/diagram-projection.test.ts',
+      'apps/console/api/src/services/uptime-access.test.ts',
       'apps/console/api/src/services/container-environment.test.ts',
       'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
@@ -2754,6 +2758,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/scoped-reads.test.ts',
       'apps/console/api/src/services/scoped-account-settings.test.ts',
       'apps/console/api/src/services/config-access.test.ts',
+      'apps/console/api/src/services/diagram-projection.test.ts',
+      'apps/console/api/src/services/uptime-access.test.ts',
       'apps/console/api/src/services/container-environment.test.ts',
       'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
@@ -5353,12 +5359,14 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-layers.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/useDiagramStatuses.ts',
+      'apps/console/api/src/services/diagram-projection.ts',
       'apps/cli/tests/synthesis-families/security-group-fixtures.ts',
       'packages/ui-react/src/resource-icon/catalog.ts'
     ],
     tests: [
       'apps/cli/tests/synthesis-families/security-group-fixtures.spec.ts',
       'apps/console/api/scripts/diagram-status-database.test.ts',
+      'apps/console/api/src/services/diagram-projection.test.ts',
       'apps/console/ui/e2e/diagram-ui.spec.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/diagram-status.test.ts',
       'packages/ui-react/src/isometric-diagram/IsometricDiagram.test.tsx',
@@ -5377,11 +5385,15 @@ export const slices: readonly Slice[] = [
     lanes: [
       'ui-react-test',
       'synthesis-families',
+      'console-api',
       'console-ui',
       'console-database-diagram-status',
+      'console-browser-isolated',
       'console-browser-offline',
       'shared-ui-browser'
-    ]
+    ],
+    // The Viewer's diagram is checked by S45's config-refusal browser test.
+    contributors: ['S45']
   },
   {
     id: 'S42',
@@ -6253,6 +6265,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/uptimeProber/**',
       'apps/console/api/src/services/uptime-ingestion.ts',
       'apps/console/api/src/services/uptime-stored-state.ts',
+      'apps/console/api/src/services/uptime-access.ts',
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.ts',
       'apps/console/api/src/services/alarm-event-counts.ts',
@@ -6261,6 +6274,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/uptime-database.test.ts',
       'apps/console/api/src/services/uptime-stored-state.test.ts',
+      'apps/console/api/src/services/uptime-access.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
       'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts',
@@ -6280,9 +6294,10 @@ export const slices: readonly Slice[] = [
       'console-ui',
       'console-ui-2',
       'console-ui-3',
-      'console-database-incident-journey'
+      'console-database-incident-journey',
+      'console-database-console-access'
     ],
-    contributors: ['S56']
+    contributors: ['S56', 'S45']
   },
   {
     id: 'S66',
