@@ -45,6 +45,12 @@ untrusted and read at the boundary. Omit it where there is no deployed stage, an
 `deployment-fixtures.ts` exports three configurations with their synthesized templates for Console's `/diagram-test` and
 offline browser test.
 
+Console members who may not view secrets never receive the config or template. Console's API gives them a document of
+the same shape holding only the fields `topology.ts` and `security-groups.ts` read, from an allow-list
+(`apps/console/api/src/services/diagram-projection.ts` in the private Console). A field the diagram starts reading
+reaches them only once that list names it; its test compares the topology drawn from both documents on this folder's
+fixtures.
+
 `onOpenResource(resourceName)` is optional. When a host passes it, the side panel offers to open declared resources
 (never implicit ones or groups); `canOpenResource` narrows that to the ones the host can show. Console opens its
 resource dialog through the stage's `selectedResourceName` search parameter. The panel, search and group controls sit
