@@ -69,7 +69,67 @@ const splitWords = (value: string) =>
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
+/**
+ * What each resource type is called wherever it is listed: short, in sentence case, in the words a developer uses rather
+ * than the AWS service behind it, so labels side by side read as one set.
+ */
+const RESOURCE_TYPE_NAMES: Record<(typeof STACKTAPE_RESOURCE_TYPES)[number], string> = {
+  function: 'Function',
+  'hosting-bucket': 'Website',
+  'web-service': 'Web service',
+  'application-load-balancer': 'Load balancer',
+  'appsync-api': 'AppSync API',
+  bucket: 'Bucket',
+  'user-auth-pool': 'User pool',
+  'http-api-gateway': 'HTTP API',
+  'websocket-api-gateway': 'WebSocket API',
+  'astro-web': 'Astro app',
+  'aws-cdk-construct': 'AWS CDK construct',
+  bastion: 'Bastion (jump host)',
+  'batch-job': 'Batch job',
+  'multi-container-workload': 'Multi-container service',
+  'relational-database': 'SQL database',
+  convex: 'Convex',
+  'custom-resource-definition': 'Custom resource definition',
+  'custom-resource-instance': 'Custom resource',
+  'deployment-script': 'Deployment script',
+  'dynamo-db-table': 'DynamoDB table',
+  'dsql-database': 'DSQL database',
+  'email-sender': 'Email sender',
+  'edge-lambda-function': 'Edge function',
+  'efs-filesystem': 'EFS file system',
+  'event-bus': 'Event bus',
+  'kinesis-stream': 'Kinesis stream',
+  'kafka-cluster': 'Kafka cluster',
+  'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
+  'network-load-balancer': 'Network load balancer',
+  'nextjs-web': 'Next.js app',
+  'nuxt-web': 'Nuxt app',
+  'open-search-domain': 'OpenSearch (Elastic)',
+  'private-service': 'Private service',
+  redis: 'Redis',
+  'remix-web': 'Remix app',
+  'sns-topic': 'SNS topic',
+  'solidstart-web': 'SolidStart app',
+  'sqs-queue': 'SQS queue',
+  'state-machine': 'State machine',
+  'sveltekit-web': 'SvelteKit app',
+  'synthetic-test': 'Synthetic test',
+  'tanstack-web': 'TanStack app',
+  'upstash-redis': 'Upstash Redis',
+  'uptime-check': 'Uptime check',
+  'web-app-firewall': 'Web app firewall',
+  'worker-service': 'Worker service',
+  'agentcore-runtime': 'AgentCore runtime',
+  'agentcore-memory': 'AgentCore memory',
+  'agentcore-gateway': 'AgentCore gateway',
+  'agentcore-browser': 'AgentCore browser',
+  'agentcore-code-interpreter': 'AgentCore code interpreter'
+};
+
 export const getPrettyResourceName = (resourceName: string) => {
+  const named = RESOURCE_TYPE_NAMES[resourceName as keyof typeof RESOURCE_TYPE_NAMES];
+  if (named) return named;
   return splitWords(resourceName)
     .replaceAll(' Db', 'Db')
     .replace('Agentcore', 'AgentCore')
