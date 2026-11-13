@@ -55,7 +55,6 @@
     "./remix-web": "./src/remix-web.ts",
     "./resource-types": "./src/resource-types.ts",
     "./schema-inspection": "./src/schema-inspection.ts",
-    "./sensitive-fields.json": "./generated/sensitive-fields.json",
     "./shared": "./src/shared.ts",
     "./sns-topic": "./src/sns-topic.ts",
     "./solidstart-web": "./src/solidstart-web.ts",

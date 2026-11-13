@@ -7,7 +7,6 @@ import { readJson } from 'fs-extra';
 import { compile as compileJsonSchemaToTypescript } from 'json-schema-to-typescript';
 import * as ts from 'typescript';
 import { buildGenerator, getProgramFromFiles } from 'typescript-json-schema';
-import { SENSITIVE_KEYWORD } from './sensitive-fields';
 
 /**
  * File-system enumeration order differs between operating systems. TypeScript assigns internal type IDs while
@@ -70,13 +69,10 @@ export const getJsonSchemaGenerator = async (rootDir = process.cwd()) => {
   // been diagnostic-clean in this program. It must not hide a broken configuration model, so the package is
   // checked separately above. The check uses its own program on purpose: requesting diagnostics from the
   // generator's program reorders the unions it emits.
-  // `@sensitive` marks a field whose value is a credential; it becomes the schema keyword `sensitive`
-  // (`sensitive-fields.ts`).
   return buildGenerator(tsProgram, {
     required: true,
     ignoreErrors: true,
-    noExtraProps: true,
-    validationKeywords: [SENSITIVE_KEYWORD]
+    noExtraProps: true
   });
 };
 

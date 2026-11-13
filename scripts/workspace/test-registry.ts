@@ -1509,7 +1509,7 @@ export const lanes: readonly Lane[] = [
       'src/aws/production-writes.test.ts',
       'src/aws/resource-actions.test.ts',
       'src/services/scoped-account-settings.test.ts',
-      'src/services/config-redaction.test.ts',
+      'src/services/config-access.test.ts',
       'src/services/container-tasks.test.ts',
       'src/services/stack-resources-cache.test.ts',
       'src/services/secret-usage.test.ts',
@@ -1529,7 +1529,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/production-writes.test.ts',
       'apps/console/api/src/aws/resource-actions.test.ts',
       'apps/console/api/src/services/scoped-account-settings.test.ts',
-      'apps/console/api/src/services/config-redaction.test.ts',
+      'apps/console/api/src/services/config-access.test.ts',
       'apps/console/api/src/services/container-tasks.test.ts',
       'apps/console/api/src/services/stack-resources-cache.test.ts',
       'apps/console/api/src/services/secret-usage.test.ts',
@@ -2351,7 +2351,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-resource-actions.test.ts',
       'apps/console/ui/e2e/isolated-resource-types.test.ts',
       'apps/console/ui/e2e/isolated-errors.test.ts',
-      'apps/console/ui/e2e/isolated-audit-log.test.ts'
+      'apps/console/ui/e2e/isolated-audit-log.test.ts',
+      'apps/console/ui/e2e/isolated-config-refusal.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2812,7 +2813,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/scoped-reads.test.ts',
       'apps/console/api/src/services/scoped-account-settings.test.ts',
-      'apps/console/api/src/services/config-redaction.test.ts',
+      'apps/console/api/src/services/config-access.test.ts',
       'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
@@ -3065,7 +3066,6 @@ export const lanes: readonly Lane[] = [
       'packages/config/tests/aws-regions.test.ts',
       'packages/config/tests/config-import.test.ts',
       'packages/config/tests/leaf-capabilities.test.ts',
-      'packages/config/tests/sensitive-fields.test.ts',
       'packages/console-api/src/api-key.test.ts',
       'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
@@ -3991,8 +3991,7 @@ export const slices: readonly Slice[] = [
       'packages/config/tests/aws-regions.test.ts',
       'packages/config/tests/config-import.acceptance.ts',
       'packages/config/tests/config-import.test.ts',
-      'packages/config/tests/leaf-capabilities.test.ts',
-      'packages/config/tests/sensitive-fields.test.ts'
+      'packages/config/tests/leaf-capabilities.test.ts'
     ],
     lanes: [
       'synthesis',
@@ -5628,7 +5627,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/aws/access-cache.ts',
       'apps/console/ui/src/aws/s3-commands.ts',
       'apps/console/ui/src/aws/s3.ts',
-      'apps/console/ui/src/components/AwsRegionSelect/region-catalog.ts'
+      'apps/console/ui/src/components/AwsRegionSelect/region-catalog.ts',
+      'apps/console/ui/src/pages/ProjectsPage/StageDetails/ConfigRefused.tsx'
     ],
     tests: [
       'apps/console/api/infrastructure/console-connection/connection-template.test.ts',
@@ -5640,13 +5640,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/aws/production-writes.test.ts',
       'apps/console/api/src/aws/resource-actions.test.ts',
       'apps/console/api/src/services/scoped-account-settings.test.ts',
-      'apps/console/api/src/services/config-redaction.test.ts',
+      'apps/console/api/src/services/config-access.test.ts',
       'apps/console/api/src/services/container-tasks.test.ts',
       'apps/console/api/src/services/stack-resources-cache.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
       'apps/console/ui/e2e/isolated-integrations.test.ts',
+      'apps/console/ui/e2e/isolated-config-refusal.test.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
@@ -5664,6 +5665,7 @@ export const slices: readonly Slice[] = [
       'console-database-console-access',
       'console-database-insights',
       'console-browser-admin',
+      'console-browser-isolated',
       'console-browser-offline',
       'console-ui-test-e2e-admin'
     ],

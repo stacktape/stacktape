@@ -1306,7 +1306,6 @@ export interface MongoDbAdminUserCredentials {
    *   return { resources: { securedDb, api } };
    * });
    * ```
-   * @sensitive
    */
   password: string;
 }
