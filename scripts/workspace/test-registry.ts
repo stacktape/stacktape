@@ -2195,6 +2195,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/finished-operations.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-polling.test.ts',
       'apps/console/ui/src/pages/AwsAccountsPage/pending-connection-poll.test.ts',
+      'apps/console/ui/src/pages/GitIntegrations/git-connections.test.ts',
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
@@ -5900,6 +5901,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/git-provider-oauth.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
+      'apps/console/ui/src/pages/GitIntegrations/git-connections.test.ts',
       'apps/console/api/scripts/run-db-integration.ts'
     ],
     lanes: [
