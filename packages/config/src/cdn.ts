@@ -2780,7 +2780,6 @@ export interface CdnCustomRequestHeader {
  *   return { resources: { api } };
  * });
  * ```
-   * @sensitive
    */
   value: string;
 }
