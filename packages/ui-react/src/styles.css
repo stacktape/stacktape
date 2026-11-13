@@ -647,6 +647,28 @@
     transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
+  /* Groups in one row of tabs: a hairline between them and a quiet label before each. */
+  .stp-ui-tabs__divider {
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 4px;
+    background: var(--stp-border-subtle);
+  }
+
+  /* Grouped tabs carry a label and a divider in the same row, so each tab keeps a little less room around its word. */
+  .stp-ui-tabs.stp-ui-tabs--grouped {
+    --stp-tab-padding-x: 6px;
+  }
+
+  .stp-ui-tabs__group {
+    flex-shrink: 0;
+    padding: 0 2px;
+    color: var(--stp-text-subtle, var(--stp-text-muted));
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
   .stp-ui-tabs--vertical .stp-ui-tab {
     width: 100%;
     height: auto;

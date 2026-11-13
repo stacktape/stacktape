@@ -1,5 +1,5 @@
 import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 export type TabValue = string | number;
 
@@ -14,6 +14,12 @@ export type Tab<Value extends TabValue = TabValue> = {
   panelId?: string;
   /** The address this tab opens. It makes the tab a real link, so it can open in a new tab; a plain click still selects. */
   href?: string;
+  /**
+   * Tabs of two kinds in one row ("npm pnpm bun" and "macOS Linux Windows") name their kind here: a divider separates
+   * the groups and a small muted label leads each one that names itself, so the row does not read as six of one kind.
+   * An empty name groups without a label, for the kind that needs none.
+   */
+  group?: string;
 };
 
 export type TabsProps<Value extends TabValue> = {
@@ -226,6 +232,7 @@ export function Tabs<const Value extends TabValue>({
         `stp-ui-tabs--${width}`,
         `stp-ui-tabs--${size}`,
         disabled && 'stp-ui-tabs--disabled',
+        tabs.some((tab) => tab.group !== undefined) && 'stp-ui-tabs--grouped',
         className
       )}
       style={style}
@@ -275,32 +282,46 @@ export function Tabs<const Value extends TabValue>({
             </>
           );
 
-          return tab.href && !isDisabled ? (
-            <a
-              {...shared}
-              key={tab.value}
-              href={tab.href}
-              draggable={false}
-              onClick={(event) => {
-                // A modified click belongs to the browser: Ctrl or middle click opens a new tab.
-                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
-                event.preventDefault();
-                onValueChange?.(tab.value);
-              }}
-            >
-              {content}
-            </a>
-          ) : (
-            <button
-              {...shared}
-              key={tab.value}
-              disabled={isDisabled}
-              onClick={() => onValueChange?.(tab.value)}
-              type="button"
-            >
-              {content}
-            </button>
+          const startsGroup = tab.group !== undefined && index > 0 && tab.group !== tabs[index - 1]?.group;
+          const groupStart = (startsGroup || (index === 0 && tab.group)) && (
+            <Fragment key={`group-${tab.group}`}>
+              {startsGroup && <span aria-hidden="true" className="stp-ui-tabs__divider" />}
+              {tab.group && (
+                <span aria-hidden="true" className="stp-ui-tabs__group">
+                  {tab.group}
+                </span>
+              )}
+            </Fragment>
           );
+
+          const control =
+            tab.href && !isDisabled ? (
+              <a
+                {...shared}
+                key={tab.value}
+                href={tab.href}
+                draggable={false}
+                onClick={(event) => {
+                  // A modified click belongs to the browser: Ctrl or middle click opens a new tab.
+                  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                  event.preventDefault();
+                  onValueChange?.(tab.value);
+                }}
+              >
+                {content}
+              </a>
+            ) : (
+              <button
+                {...shared}
+                key={tab.value}
+                disabled={isDisabled}
+                onClick={() => onValueChange?.(tab.value)}
+                type="button"
+              >
+                {content}
+              </button>
+            );
+          return groupStart ? [groupStart, control] : control;
         })}
         {hasSlidingIndicator ? (
           <SlidingIndicator
