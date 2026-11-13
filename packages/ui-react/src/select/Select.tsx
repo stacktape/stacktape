@@ -79,6 +79,11 @@ export type SelectProps<Value> = {
   onMenuOpen?: () => void;
   onMenuClose?: () => void;
   closeMenuOnSelect?: boolean;
+  /**
+   * False draws the placeholder instead of a chip per chosen option, for a long multiple choice that the page reads
+   * back elsewhere; the menu still marks every chosen option.
+   */
+  controlShouldRenderValue?: boolean;
   hideSelectedOptions?: boolean;
   tabSelectsValue?: boolean;
   blurInputOnSelect?: boolean;
@@ -195,6 +200,7 @@ export function Select<Value>({
   hideDropdownIndicator = false,
   hideLabel = false,
   hideSelectedOptions,
+  controlShouldRenderValue,
   inputRef,
   inputValue,
   inlineLabel,
@@ -294,6 +300,7 @@ export function Select<Value>({
           {...(defaultValue === undefined ? {} : { defaultValue })}
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}
+          {...(controlShouldRenderValue === undefined ? {} : { controlShouldRenderValue })}
           inputId={`${name}-input`}
           // A select whose visible label is hidden (a page header's account picker) still announces its name.
           {...(hideLabel && typeof label === 'string' ? { 'aria-label': label } : {})}
