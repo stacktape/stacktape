@@ -1239,8 +1239,9 @@
     text-align: left;
   }
 
-  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
-  .stp-ui-text-field__message-slot:has(.stp-ui-text-field__message--neutral) {
+  /* A message under a field keeps 8px of room below it, so an error never touches the next label or button. What
+   * follows the field moves down by that much when an error appears. */
+  .stp-ui-text-field__message-slot:has(.stp-ui-text-field__message) {
     padding-bottom: 8px;
   }
 
@@ -1369,8 +1370,9 @@
     text-align: left;
   }
 
-  /* Lasting help text ends with the room a field leaves below it. An error keeps the reserved height, so nothing moves. */
-  .stp-ui-select__message-slot:has(.stp-ui-select__message--neutral) {
+  /* A message under a field keeps 8px of room below it, so an error never touches the next label or button. What
+   * follows the field moves down by that much when an error appears. */
+  .stp-ui-select__message-slot:has(.stp-ui-select__message) {
     padding-bottom: 8px;
   }
 

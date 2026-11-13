@@ -72,10 +72,12 @@ describe('configuration schema inspection', () => {
     ['EmailSender', 'Email sender'],
     ['open-search-domain', 'OpenSearch (Elastic)'],
     ['AwsCdkConstruct', 'AWS CDK Construct'],
-    ['sqs-queue', 'SQS Queue'],
-    ['sns-topic', 'SNS Topic'],
-    ['application-load-balancer', 'Load Balancer'],
-    ['bastion', 'Bastion (Jump Host)']
+    ['sqs-queue', 'SQS queue'],
+    ['sns-topic', 'SNS topic'],
+    ['application-load-balancer', 'Load balancer'],
+    ['multi-container-workload', 'Multi-container service'],
+    ['event-bus', 'Event bus'],
+    ['bastion', 'Bastion (jump host)']
   ])('preserves the pretty name for %s', (resourceName, expected) => {
     expect(getPrettyResourceName(resourceName)).toBe(expected);
   });
