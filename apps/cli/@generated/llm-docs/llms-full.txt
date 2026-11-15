@@ -10465,7 +10465,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
+To run database migrations, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
 
 ### Lifecycle events
 
@@ -10531,7 +10531,9 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ### How do I run a database migration on deploy?
 
-On a container service, set [`releaseCommand`](/deployment-and-lifecycle/release-commands). In a stack with only functions, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
+Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service, a function or a server-rendered site. It runs inside the VPC before any workload gets the new code. On a function or site it builds an image of the project, which needs Docker on the machine that deploys.
+
+Without Docker, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 
@@ -14232,7 +14234,7 @@ Database migrations are the most common automation use case. Stacktape supports 
 - **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
 - **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
-Use a release command when the stack has a container service. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
+Use a [release command](/deployment-and-lifecycle/release-commands) when you can: it runs before any workload gets the new code. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
 
 ### Build before deploy
 
@@ -15304,7 +15306,7 @@ Use `diff` for production stages, stages with stateful resources (databases, que
 Source: `apps/docs/content/deployment-and-lifecycle/release-commands.mdx`
 Route: `/deployment-and-lifecycle/release-commands`
 
-Set `releaseCommand` on a service to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
+Set `releaseCommand` on a service, a function or a server-rendered site to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
 
 ```yaml configExample="complete"
 resources:
@@ -15367,6 +15369,7 @@ The command also runs when the environment variables or secrets of the service c
 | The command does not run | None |
 | Fast deployment, the command runs | About 15 to 30 seconds for the task to start, plus the command |
 | Full deployment, the command runs | The same, inside the CloudFormation update |
+| A function or site, the command runs | The image build, the task start and the command, inside a CloudFormation update |
 
 A code-only deploy stays a [fast deployment](/deployment-and-lifecycle/deploying-stacks), and it runs the command before it updates any service. With [code swap](/deployment-and-lifecycle/code-swap), the command runs from the new image and the swap follows.
 
@@ -15377,13 +15380,53 @@ A code-only deploy stays a [fast deployment](/deployment-and-lifecycle/deploying
 | `command` | | The shell command. It runs through `/bin/sh -c` in place of the image's entry point. If the image needs its entry point, call it in the command. An image without a shell cannot run a release command. |
 | `runWhenChanged` | | Files or directories that decide whether the command runs. |
 | `timeout` | `3300` | Seconds the command can run, up to 3300. After that, the task stops and the deploy fails. |
-| `container` | The main container | The container to run in. Required for a [multi-container workload](/resources/compute/multi-container-workload) with several containers. |
+| `container` | The main container | The container to run in. Required for a [multi-container workload](/resources/compute/multi-container-workload) with several containers. Not allowed on a function or site. |
 
 Containers that the chosen container depends on run too, but only the chosen container decides when the task ends. Load balancers, health checks and scaling don't apply to the task.
 
 ## Several commands
 
 Each service can have its own release command. They run one at a time, in the order of the resources in your config. Every container service and function waits until all of them finished. If the command refers to a workload, for example through an environment variable, that workload has to exist first and can get new code before the command finishes. The deploy prints a warning that names it.
+
+## Functions and server-rendered sites
+
+A [function](/resources/compute/lambda-function) and a server-rendered site, such as [`nextjs-web`](/resources/frontend/nextjs), take `releaseCommand` too. Their packages hold only bundled code, so Stacktape builds an image of the whole project and runs the command from the project root in a one-off ECS task. The task gets the resource's environment variables and its access to the resources in `connectTo`, and it runs in the stack's VPC, so it reaches a database with no public address.
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database-password')
+      engine:
+        type: postgres
+        properties:
+          version: '17.7'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      connectTo:
+        - database
+      releaseCommand:
+        command: npx prisma migrate deploy
+        runWhenChanged:
+          - prisma/migrations
+```
+
+Three things differ from a service:
+
+- **Building the image needs Docker** on the machine that deploys, each time the command is due. Set `runWhenChanged`: without it, each change of the project builds the image and runs the command.
+- **A deploy that runs the command goes through CloudFormation.** A deploy that skips it stays a fast deployment.
+- **The task has 1 vCPU and 2 GB of memory**, whatever the function has. Nothing runs between deploys, so it costs only the seconds the command takes.
+
+If the machine that deploys has no Docker, run the migration from an [`afterDeploy` hook](/configuration/hooks-and-scripts) instead.
 
 ## `js-bundle` services
 
@@ -15401,7 +15444,7 @@ The output appears in the deploy output, prefixed with the service name. It is a
 
 ## When to use something else
 
-Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy. A stack with only functions has no container image to run a release command in, so use a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks) or a hook there.
+Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.
 
 ---
 
@@ -30285,6 +30328,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logging` | no | `LambdaFunctionLogging` | - |
 | `memory` | no | `number` | - |
 | `provisionedConcurrency` | no | `number` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `reservedConcurrency` | no | `number` | - |
 | `runtime` | no | `string: "dotnet10" \| "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java21" \| "java25" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.14" \| "python3.8" \| "python3.9" \| "ruby3.3" \| "ruby3.4" \| "ruby4.0"` | - |
 | `storage` | no | `number` | `512` |
@@ -35801,6 +35845,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `AstroWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -36161,6 +36206,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `NextjsServerLambdaProperties` | - |
 | `streamingEnabled` | no | `boolean` | `false` |
 | `useEdgeLambda` | no | `boolean` | `false` |
@@ -36472,6 +36518,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -36741,6 +36788,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -37043,6 +37091,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -37583,6 +37632,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -37860,6 +37910,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |
 
@@ -59481,7 +59532,7 @@ Resource type: `astro-web`
 ## TypeScript definition
 
 ```typescript
-import type { AstroWebDevConfig, AstroWebServerLambdaConfig, DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
+import type { AstroWebDevConfig, AstroWebServerLambdaConfig, DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
 
 type AstroWebProps = {
   /** Directory containing your `astro.config.mjs`. For monorepos, point to the Astro workspace. */
@@ -59502,11 +59553,18 @@ type AstroWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: AstroWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: AstroWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type AstroWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -59946,6 +60004,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 
@@ -86249,7 +86330,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, ReleaseCommand, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -86284,6 +86365,8 @@ type LambdaFunctionProps = {
   memory?: number;
   /** Eliminates cold starts by keeping function instances warm and ready. */
   provisionedConcurrency?: number;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: LambdaFunctionReleaseCommand;
   /** Cap the maximum number of concurrent instances for this function. */
   reservedConcurrency?: number;
   /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */
@@ -86323,6 +86406,10 @@ type LambdaFunctionEvents =
   | AppSyncApiIntegration
   | WebSocketApiIntegration
   | EventBusIntegration;
+
+type LambdaFunctionReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 
 type LambdaFunctionTracing =
   | TracingOptions
@@ -87185,6 +87272,59 @@ export default defineConfig(() => {
   const storeApi = new HttpApiGateway({});
   return { resources: { checkoutApi, storeApi } };
 });
+```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. A function's package holds only its bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this function's environment variables and its
+access to the resources in `connectTo`. The deploy waits for the task, prints its logs, and stops if the command
+fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each code change builds the image and runs the command.
+Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '17.7'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      connectTo:
+        - mainDb
+      releaseCommand:
+        command: npx prisma migrate deploy
+        runWhenChanged:
+          - prisma/migrations
 ```
 
 ## Property: `reservedConcurrency`
@@ -103006,7 +103146,7 @@ Resource type: `nextjs-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
 
 type NextjsWebProps = {
   /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */
@@ -103027,6 +103167,8 @@ type NextjsWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: NextjsWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: NextjsServerLambdaProperties;
   /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */
@@ -103038,6 +103180,11 @@ type NextjsWebProps = {
   /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */
   warmServerInstances?: number;
 };
+
+/** Union choices used by the properties above. */
+type NextjsWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -103465,6 +103612,29 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
+
 ## Property: `serverLambda`
 
 - Required: no
@@ -103824,7 +103994,7 @@ Resource type: `nuxt-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type NuxtWebProps = {
   /** Directory containing your `nuxt.config.ts`. For monorepos, point to the Nuxt workspace. */
@@ -103845,11 +104015,18 @@ type NuxtWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: NuxtWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type NuxtWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -104301,6 +104478,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 
@@ -112698,7 +112898,7 @@ Resource type: `remix-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type RemixWebProps = {
   /** Directory containing your `vite.config.ts` (or `remix.config.js`). For monorepos, point to the Remix workspace. */
@@ -112719,11 +112919,18 @@ type RemixWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: RemixWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type RemixWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -113207,6 +113414,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 
@@ -114155,7 +114385,7 @@ Resource type: `solidstart-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type SolidStartWebProps = {
   /** Directory containing your `app.config.ts`. For monorepos, point to the SolidStart workspace. */
@@ -114176,11 +114406,18 @@ type SolidStartWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: SolidStartWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type SolidStartWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -114628,6 +114865,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 
@@ -118504,7 +118764,7 @@ Resource type: `sveltekit-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type SvelteKitWebProps = {
   /** Directory containing your `svelte.config.js`. For monorepos, point to the SvelteKit workspace. */
@@ -118525,11 +118785,18 @@ type SvelteKitWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: SvelteKitWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type SvelteKitWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -119007,6 +119274,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 
@@ -119682,7 +119972,7 @@ Resource type: `tanstack-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type TanStackWebProps = {
   /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */
@@ -119703,11 +119993,18 @@ type TanStackWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: TanStackWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type TanStackWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -120159,6 +120456,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 

@@ -7,7 +7,7 @@ seoDescription: 'Run a migration or any other command once on each deploy, in yo
 
 # Release commands
 
-Set `releaseCommand` on a service to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
+Set `releaseCommand` on a service, a function or a server-rendered site to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
 
 ```yaml configExample="complete"
 resources:
@@ -70,6 +70,7 @@ The command also runs when the environment variables or secrets of the service c
 | The command does not run | None |
 | Fast deployment, the command runs | About 15 to 30 seconds for the task to start, plus the command |
 | Full deployment, the command runs | The same, inside the CloudFormation update |
+| A function or site, the command runs | The image build, the task start and the command, inside a CloudFormation update |
 
 A code-only deploy stays a [fast deployment](/deployment-and-lifecycle/deploying-stacks), and it runs the command before it updates any service. With [code swap](/deployment-and-lifecycle/code-swap), the command runs from the new image and the swap follows.
 
@@ -80,13 +81,53 @@ A code-only deploy stays a [fast deployment](/deployment-and-lifecycle/deploying
 | `command` | | The shell command. It runs through `/bin/sh -c` in place of the image's entry point. If the image needs its entry point, call it in the command. An image without a shell cannot run a release command. |
 | `runWhenChanged` | | Files or directories that decide whether the command runs. |
 | `timeout` | `3300` | Seconds the command can run, up to 3300. After that, the task stops and the deploy fails. |
-| `container` | The main container | The container to run in. Required for a [multi-container workload](/resources/compute/multi-container-workload) with several containers. |
+| `container` | The main container | The container to run in. Required for a [multi-container workload](/resources/compute/multi-container-workload) with several containers. Not allowed on a function or site. |
 
 Containers that the chosen container depends on run too, but only the chosen container decides when the task ends. Load balancers, health checks and scaling don't apply to the task.
 
 ## Several commands
 
 Each service can have its own release command. They run one at a time, in the order of the resources in your config. Every container service and function waits until all of them finished. If the command refers to a workload, for example through an environment variable, that workload has to exist first and can get new code before the command finishes. The deploy prints a warning that names it.
+
+## Functions and server-rendered sites
+
+A [function](/resources/compute/lambda-function) and a server-rendered site, such as [`nextjs-web`](/resources/frontend/nextjs), take `releaseCommand` too. Their packages hold only bundled code, so Stacktape builds an image of the whole project and runs the command from the project root in a one-off ECS task. The task gets the resource's environment variables and its access to the resources in `connectTo`, and it runs in the stack's VPC, so it reaches a database with no public address.
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database-password')
+      engine:
+        type: postgres
+        properties:
+          version: '17.7'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      connectTo:
+        - database
+      releaseCommand:
+        command: npx prisma migrate deploy
+        runWhenChanged:
+          - prisma/migrations
+```
+
+Three things differ from a service:
+
+- **Building the image needs Docker** on the machine that deploys, each time the command is due. Set `runWhenChanged`: without it, each change of the project builds the image and runs the command.
+- **A deploy that runs the command goes through CloudFormation.** A deploy that skips it stays a fast deployment.
+- **The task has 1 vCPU and 2 GB of memory**, whatever the function has. Nothing runs between deploys, so it costs only the seconds the command takes.
+
+If the machine that deploys has no Docker, run the migration from an [`afterDeploy` hook](/configuration/hooks-and-scripts) instead.
 
 ## `js-bundle` services
 
@@ -104,4 +145,4 @@ The output appears in the deploy output, prefixed with the service name. It is a
 
 ## When to use something else
 
-Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy. A stack with only functions has no container image to run a release command in, so use a [deployment script](/deployment-and-lifecycle/deployment-scripts-and-hooks) or a hook there.
+Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.

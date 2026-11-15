@@ -5,6 +5,7 @@ import { codeSwapComplete, codeSwapUseImage } from '@domain-services/code-swap/r
 import {
   applyReleaseCommandPlan,
   decideReleaseImages,
+  findReleaseCommandReasonForFullDeployment,
   planReleaseCommands,
   recordCompletedReleaseCommands,
   runReleaseCommandsDirectly,
@@ -372,6 +373,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     const reason =
       stack.reasonToContinueFailedStack ??
       stack.findChangedStackSetting() ??
+      findReleaseCommandReasonForFullDeployment() ??
       deployedStackOverview.findReasonForFullDeployment({
         cfTemplateDiff,
         builtImageRepositoryUrl: deploymentArtifacts.repositoryUrl

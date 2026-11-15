@@ -151,10 +151,15 @@ leaves the finished deployment live and unlocked. A second copy of the project p
 `beforeDeploy` hook that sleeps holds the lock long enough for the second command to find it held. Every command's full
 output is kept in `<owner>-logs` next to the state file.
 
+The `function` stack (`_test-stacks/release-command-function`, a function in the VPC and a private Postgres database)
+covers a function's release command: a first deploy where the function answers only when its tables exist, a code change
+that skips the command and its image on the fast path, a migration that builds the image and runs through CloudFormation
+before the new code, and a failing command that leaves the old code serving.
+
 It uses the alias canary's guardrails and environment contract with the `STP_AWS_RELEASE_CANARY_` prefix. The stacks run
 in parallel and a full run takes about an hour, which is the `database` stack.
-`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. The canary builds the CLI's development
-artifacts once before its first command, so concurrent commands don't rebuild them in the same folder.
+`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock|function` runs one stack. The canary builds the CLI's
+development artifacts once before its first command, so concurrent commands don't rebuild them in the same folder.
 `STP_AWS_RELEASE_CANARY_LONG=1` adds a wait past the 15-minute Lambda limit to the `variants` stack, which finishes
 early enough to absorb it.
 

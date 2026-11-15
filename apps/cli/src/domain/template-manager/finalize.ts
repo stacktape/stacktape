@@ -202,7 +202,12 @@ const orderReleaseCommandsInTemplate = () => {
       ...configManager.allContainerWorkloads.map(({ name, deployment }) =>
         cfLogicalNames.ecsService(name, !!deployment)
       ),
-      ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName)
+      ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName),
+      // An edge function gets its code through a custom resource, and CloudFront serves the new version from then on.
+      ...[
+        ...configManager.edgeLambdaFunctions,
+        ...configManager.allNextjsLambdaFunctions.filter(({ type }) => (type as string) === 'edge-lambda-function')
+      ].map(({ name }) => cfLogicalNames.customResourceEdgeLambda(name))
     ]
   });
   if (notHeldBack.length) {

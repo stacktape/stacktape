@@ -67,7 +67,10 @@ import {
 } from '@domain-services/config-manager/utils/container-tracing';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
-import { resolveReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
+import {
+  resolveReleaseCommand,
+  type ResolvedReleaseCommand
+} from '@domain-services/config-manager/utils/release-commands';
 import {
   RELEASE_COMMAND_LOG_NAME,
   getEcsReleaseTaskDefinition,
@@ -109,19 +112,116 @@ export const resolveContainerWorkloads = () => {
   }
 };
 
+/** The role ECS starts tasks with, shared by every task definition of the stack. */
+const ensureEcsExecutionRole = () => {
+  if (templateManager.getCfResourceFromTemplate(cfLogicalNames.ecsExecutionRole())) return;
+  const { prebuiltImageRepositoryCredentialsSecretArns } = configManager;
+  const containerSecretValueFroms = configManager.allContainerWorkloads.flatMap(({ containers }) =>
+    containers.flatMap(({ secrets }) => (secrets || []).map(({ valueFrom }) => valueFrom))
+  );
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.ecsExecutionRole(),
+    resource: getEcsExecutionRole(prebuiltImageRepositoryCredentialsSecretArns, containerSecretValueFroms),
+    nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+  });
+};
+
+/** The log group, task definition and custom resource of a workload's release command. */
+const addReleaseCommandResources = ({
+  definition,
+  release
+}: {
+  definition: StpContainerWorkload;
+  release: ResolvedReleaseCommand;
+}) => {
+  const { nameChain } = definition;
+  const { stackName } = calculatedStackOverviewManager.context;
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, RELEASE_COMMAND_LOG_NAME),
+    resource: getEcsLogGroup({
+      workloadName: definition.name,
+      stackName,
+      containerName: RELEASE_COMMAND_LOG_NAME,
+      retentionDays: defaultLogRetentionDays.containerWorkload
+    }),
+    nameChain
+  });
+  calculatedStackOverviewManager.addStacktapeResourceLink({
+    linkName: 'logs-release-command',
+    nameChain,
+    linkValue: cfEvaluatedLinks.logGroup(getReleaseCommandLogGroupName(definition.name, stackName))
+  });
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
+    resource: getEcsReleaseTaskDefinition({ workload: definition, release }),
+    nameChain
+  });
+  getTaskDefinitionTemplateOverrideFns({
+    resource: definition,
+    taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
+    imageContainerNameOf: (containerName) => getReleaseImageContainerName({ release, containerName })
+  }).forEach((fn) => templateManager.addFinalTemplateOverrideFn(fn));
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.releaseCommandCustomResource(definition.name),
+    resource: getReleaseCommandCustomResource({ workload: definition, release }),
+    nameChain
+  });
+};
+
+/**
+ * What the release command of a function runs in: a cluster, a security group, a role with the function's access, and
+ * the task definition. There is no service, so nothing runs between deploys.
+ */
+export const resolveReleaseTaskWorkloads = () => {
+  configManager.releaseTaskWorkloads.forEach((definition) => {
+    const release = resolveReleaseCommand(definition);
+    if (!release) return;
+    const { nameChain } = definition;
+    ensureEcsExecutionRole();
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.ecsCluster(definition.name),
+      resource: getEcsCluster({ workload: definition }),
+      nameChain
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.workloadSecurityGroup(definition.name),
+      resource: getEcsServiceSecurityGroup({ workload: definition }),
+      nameChain
+    });
+    const { accessToResourcesRequiringRoleChanges, accessToAtlasMongoClusterResources, accessToAwsServices } =
+      resolveConnectToList({
+        activeConfig: configManager,
+        stpResourceNameOfReferencer: definition.name,
+        stpResourceTypeOfReferencer: definition.type,
+        connectTo: definition.connectTo
+      });
+    const roleCfLogicalName = cfLogicalNames.ecsTaskRole(definition.name);
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: roleCfLogicalName,
+      resource: getEcsTaskRole({
+        workloadName: definition.name,
+        iamRoleStatements: definition.iamRoleStatements || [],
+        accessToResourcesRequiringRoleChanges,
+        accessToAwsServices,
+        enableRemoteSessions: false,
+        mountedEfsFilesystems: []
+      }),
+      nameChain
+    });
+    if (accessToAtlasMongoClusterResources?.length) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.atlasMongoUserAssociatedWithRole(definition.name),
+        nameChain,
+        resource: getAtlasMongoRoleAssociatedUserResource({ accessToAtlasMongoClusterResources, roleCfLogicalName })
+      });
+    }
+    addReleaseCommandResources({ definition, release });
+  });
+};
+
 export const resolveContainerWorkload = ({ definition }: { definition: StpContainerWorkload }) => {
   // these resources are shared between all ECS based container workloads
-  if (!templateManager.getCfResourceFromTemplate(cfLogicalNames.ecsExecutionRole())) {
-    const { prebuiltImageRepositoryCredentialsSecretArns } = configManager;
-    const containerSecretValueFroms = configManager.allContainerWorkloads.flatMap(({ containers }) =>
-      containers.flatMap(({ secrets }) => (secrets || []).map(({ valueFrom }) => valueFrom))
-    );
-    calculatedStackOverviewManager.addCfChildResource({
-      cfLogicalName: cfLogicalNames.ecsExecutionRole(),
-      resource: getEcsExecutionRole(prebuiltImageRepositoryCredentialsSecretArns, containerSecretValueFroms),
-      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
-    });
-  }
+  ensureEcsExecutionRole();
   if (!templateManager.getCfResourceFromTemplate(cfLogicalNames.ecsAutoScalingRole())) {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.ecsAutoScalingRole(),
@@ -544,39 +644,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   // A dev stack runs its services on the developer's machine, and the developer runs migrations there.
   const release =
     calculatedStackOverviewManager.context.command === 'dev' ? undefined : resolveReleaseCommand(definition);
-  if (release) {
-    const { stackName } = calculatedStackOverviewManager.context;
-    calculatedStackOverviewManager.addCfChildResource({
-      cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, RELEASE_COMMAND_LOG_NAME),
-      resource: getEcsLogGroup({
-        workloadName: definition.name,
-        stackName,
-        containerName: RELEASE_COMMAND_LOG_NAME,
-        retentionDays: defaultLogRetentionDays.containerWorkload
-      }),
-      nameChain
-    });
-    calculatedStackOverviewManager.addStacktapeResourceLink({
-      linkName: 'logs-release-command',
-      nameChain,
-      linkValue: cfEvaluatedLinks.logGroup(getReleaseCommandLogGroupName(definition.name, stackName))
-    });
-    calculatedStackOverviewManager.addCfChildResource({
-      cfLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
-      resource: getEcsReleaseTaskDefinition({ workload: definition, release }),
-      nameChain
-    });
-    getTaskDefinitionTemplateOverrideFns({
-      resource: definition,
-      taskDefinitionLogicalName: cfLogicalNames.ecsReleaseTaskDefinition(definition.name),
-      imageContainerNameOf: (containerName) => getReleaseImageContainerName({ release, containerName })
-    }).forEach((fn) => templateManager.addFinalTemplateOverrideFn(fn));
-    calculatedStackOverviewManager.addCfChildResource({
-      cfLogicalName: cfLogicalNames.releaseCommandCustomResource(definition.name),
-      resource: getReleaseCommandCustomResource({ workload: definition, release }),
-      nameChain
-    });
-  }
+  if (release) addReleaseCommandResources({ definition, release });
 };
 
 export const getTaskDefinitionTemplateOverrideFns = ({

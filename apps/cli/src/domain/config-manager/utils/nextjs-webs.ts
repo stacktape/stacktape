@@ -108,6 +108,8 @@ export const buildNextjsWebNestedResources = ({
     cdn: customCdnConfiguration,
     overrides: _overrides,
     streamingEnabled,
+    // Runs in a task of its own; see `ConfigManager.releaseTaskWorkloads`.
+    releaseCommand: _releaseCommand,
     ...restProps
   } = nextjsWeb;
   // eslint-disable-next-line

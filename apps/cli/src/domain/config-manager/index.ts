@@ -77,6 +77,11 @@ import { buildConvexNestedResources, getConvexSecretName } from './utils/convex'
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import { resolveReleaseCommand } from './utils/release-commands';
 import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
+
+/** The last part of the name of the task that runs the release command of a function or a server-rendered site. */
+const RELEASE_TASK_IDENTIFIER = 'releaseTask';
+/** A migration tool that compiles TypeScript first needs more than the smallest task. */
+const RELEASE_TASK_RESOURCES = { cpu: 1, memory: 2048 } as const;
 import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
@@ -1780,9 +1785,52 @@ export class ConfigManager {
   }
 
   /** In the order they run: the order of the resources in the config. */
+  /**
+   * The tasks that run the release commands of functions and server-rendered sites. Their packages hold only bundled
+   * code, so the command runs in an image of the whole project, with the resource's environment and connections. It
+   * runs in the stack's VPC whether or not the function does, which is where a database without a public address is.
+   */
+  get releaseTaskWorkloads(): StpContainerWorkload[] {
+    if (this.deploymentContext.command === 'dev') return [];
+    return [
+      ...this.functions,
+      ...this.nextjsWebs,
+      ...this.astroWebs,
+      ...this.nuxtWebs,
+      ...this.sveltekitWebs,
+      ...this.solidstartWebs,
+      ...this.tanstackWebs,
+      ...this.remixWebs
+    ]
+      .filter(({ releaseCommand }) => releaseCommand !== undefined)
+      .map(({ name, nameChain, releaseCommand, connectTo, iamRoleStatements, environment }) => ({
+        name: getStpNameForResource({ nameChain: [name, RELEASE_TASK_IDENTIFIER] }),
+        // Its resources belong to the function or site.
+        nameChain,
+        type: 'multi-container-workload',
+        configParentResourceType: 'multi-container-workload',
+        releaseTaskOf: name,
+        releaseCommand,
+        connectTo,
+        iamRoleStatements,
+        resources: RELEASE_TASK_RESOURCES,
+        // It has no service. The type asks every container workload for a range.
+        scaling: { minInstances: 1, maxInstances: 1 },
+        containers: [
+          {
+            name: RELEASE_IMAGE_CONTAINER_NAME,
+            // The command replaces the start command. The buildpack still needs one to accept the project.
+            packaging: { type: 'buildpack', properties: { sourceDirectoryPath: '.', startCommand: 'true' } },
+            environment,
+            essential: true
+          }
+        ]
+      }));
+  }
+
   get releaseCommands() {
     const resourceOrder = Object.keys(this.config.resources ?? {});
-    return this.allContainerWorkloads
+    return [...this.allContainerWorkloads, ...this.releaseTaskWorkloads]
       .map(resolveReleaseCommand)
       .filter((release) => release !== undefined)
       .sort(
@@ -1860,7 +1908,7 @@ export class ConfigManager {
   }
 
   get allContainerWorkloadContainers(): EnrichedCwContainerProps[] {
-    return this.allContainerWorkloads
+    return [...this.allContainerWorkloads, ...this.releaseTaskWorkloads]
       .map((workload) => {
         const { name, configParentResourceType, containers, resources } = workload;
         return [...containers, ...this.#releaseImageContainersOf(workload)].map((container) => {
@@ -2374,6 +2422,7 @@ export class ConfigManager {
   get allResourcesRequiringVpc() {
     return [
       ...this.allContainerWorkloads,
+      ...this.releaseTaskWorkloads,
       ...(this.batchJobsInDevNetwork ? [] : this.batchJobs),
       ...this.allApplicationLoadBalancers,
       ...this.atlasMongoClusters,

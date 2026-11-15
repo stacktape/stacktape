@@ -341,6 +341,18 @@ const validateResourceNameUniqueness = ({ configManager }: { configManager: Conf
       message: `Resource names must be unique. Duplicates: ${duplicates.map((name) => `\`${name}\``).join(', ')}.`
     });
   }
+  // The task that runs a function's or site's release command gets a name of its own, and with it AWS resource names.
+  for (const { name: taskName, releaseTaskOf } of configManager.releaseTaskWorkloads) {
+    const taken = resourceNames.find((name) => name.toLowerCase() === taskName.toLowerCase());
+    if (taken) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_RESOURCE_NAME_RESERVED',
+        message: `Resource name \`${taken}\` is the name Stacktape gives the release command task of \`${releaseTaskOf}\`.`,
+        hints: `Rename \`${taken}\`.`
+      });
+    }
+  }
 };
 
 const validateResourceNames = ({ configManager }: { configManager: ConfigManager }) => {

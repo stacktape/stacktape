@@ -292,5 +292,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `fileOptions` | no | `Array<DirectoryUploadFilter>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `serverLambda` | no | `SsrWebServerLambdaConfig` | - |
 | `useFirewall` | no | `string` | - |

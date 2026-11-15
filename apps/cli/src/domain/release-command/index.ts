@@ -129,7 +129,9 @@ export const decideReleaseImages = async ({
   for (const release of configManager.releaseCommands.filter(usesReleaseImage)) {
     if (!release.runWhenChanged.length) {
       tuiManager.warn(
-        `${release.workload.nameChain[0]} uses js-bundle packaging, so each code change builds a second image for its release command and runs the command. Set \`runWhenChanged\` to do that only when your migrations change.`
+        release.workload.releaseTaskOf
+          ? `${release.workload.nameChain[0]} has no container image, so each change of the project builds an image for its release command and runs the command. Set \`runWhenChanged\` to do that only when your migrations change.`
+          : `${release.workload.nameChain[0]} uses js-bundle packaging, so each code change builds a second image for its release command and runs the command. Set \`runWhenChanged\` to do that only when your migrations change.`
       );
       continue;
     }
@@ -162,6 +164,17 @@ export const planReleaseCommands = async ({
 };
 
 export const dueReleaseCommands = () => plan.filter(({ due }) => due);
+
+/**
+ * Why this deploy can't be a fast one. The release command of a function or a server-rendered site runs through
+ * CloudFormation only: its task has no service whose deployed network and task definition a fast deployment could start
+ * it from.
+ */
+export const findReleaseCommandReasonForFullDeployment = () => {
+  const owner = dueReleaseCommands().find(({ release }) => release.workload.releaseTaskOf)?.release.workload
+    .releaseTaskOf;
+  return owner ? `the release command of ${owner} runs` : undefined;
+};
 
 const EARLIER_TASK_POLL_MS = 5000;
 

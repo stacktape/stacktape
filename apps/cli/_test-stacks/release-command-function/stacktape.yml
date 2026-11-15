@@ -1,0 +1,53 @@
+# Sample app for the function scenarios of `scripts/real-aws/release-command-canary.ts`.
+#
+# The function reads tables that only its release command creates, in a database with no public address. It answers
+# only when the command ran inside the VPC before the function got its code. `migrate.mjs` applies the files in
+# `migrations/` that it has not applied yet, and the canary adds files there and edits `src/app.mjs` between deploys.
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: local
+
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: canary-password-not-secret-1
+      engine:
+        type: postgres
+        properties:
+          version: '17.7'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: vpc
+
+  api:
+    type: http-api-gateway
+
+  app:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/app.mjs
+      memory: 256
+      timeout: 20
+      joinDefaultVpc: true
+      connectTo:
+        - database
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /
+            method: GET
+      releaseCommand:
+        command: node migrate.mjs
+        runWhenChanged:
+          - migrations

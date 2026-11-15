@@ -554,7 +554,9 @@ export const getStacktapeServiceLambdaReleaseCommandStatements = ({
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
   if (stackContext.command === 'dev') return [];
-  const workloads = activeConfig.allContainerWorkloads.filter(({ releaseCommand }) => releaseCommand !== undefined);
+  const workloads = [...activeConfig.allContainerWorkloads, ...activeConfig.releaseTaskWorkloads].filter(
+    ({ releaseCommand }) => releaseCommand !== undefined
+  );
   if (!workloads.length) return [];
   const { accountId, stackName, region } = stackContext;
   const ecsArn = (resource: string) =>
