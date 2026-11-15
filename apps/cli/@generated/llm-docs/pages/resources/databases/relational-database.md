@@ -36,7 +36,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -93,7 +93,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -134,7 +134,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new AuroraEnginePostgresql({
-      version: '16.11',
+      version: '16',
       instances: [{ instanceSize: 'db.r6g.large' }, { instanceSize: 'db.r6g.large' }]
     })
   });
@@ -165,7 +165,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new AuroraServerlessV2EnginePostgresql({
-      version: '16.11',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 16
     }),
@@ -281,7 +281,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -340,7 +340,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large',
         multiAz: true
@@ -379,7 +379,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -434,7 +434,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium'
       },
@@ -480,7 +480,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -531,7 +531,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }

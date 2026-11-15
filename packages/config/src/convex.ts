@@ -55,7 +55,7 @@ import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, Rds
  *         engine:
  *           type: postgres
  *           properties:
- *             version: '16.6'
+ *             version: '16'
  *             primaryInstance:
  *               instanceSize: db.t4g.small
  *       customDomains:
@@ -91,7 +91,7 @@ import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, Rds
  *       engine: {
  *         type: 'postgres',
  *         properties: {
- *           version: '16.6',
+ *           version: '16',
  *           primaryInstance: {
  *             instanceSize: 'db.t4g.small'
  *           }
@@ -146,7 +146,7 @@ export interface ConvexProps {
    *         engine:
    *           type: postgres
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             primaryInstance:
    *               instanceSize: db.t4g.small
    * ```
@@ -171,7 +171,7 @@ export interface ConvexProps {
    *       engine: {
    *         type: 'postgres',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           primaryInstance: {
    *             instanceSize: 'db.t4g.small'
    *           }
@@ -431,7 +431,7 @@ export interface ConvexProps {
    *         engine:
    *           type: aurora-postgresql-serverless-v2
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             minCapacity: 0.5
    *             maxCapacity: 4
    *         automatedBackupRetentionDays: 7
@@ -451,7 +451,7 @@ export interface ConvexProps {
    *       engine: {
    *         type: 'aurora-postgresql-serverless-v2',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           minCapacity: 0.5,
    *           maxCapacity: 4
    *         }
@@ -1442,7 +1442,7 @@ export interface ConvexDatabaseConfig {
    *         engine:
    *           type: postgres
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             primaryInstance:
    *               instanceSize: db.t4g.medium
    *               multiAz: true
@@ -1462,7 +1462,7 @@ export interface ConvexDatabaseConfig {
    *       engine: {
    *         type: 'postgres',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           primaryInstance: {
    *             instanceSize: 'db.t4g.medium',
    *             multiAz: true

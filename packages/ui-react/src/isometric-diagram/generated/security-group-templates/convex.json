@@ -459,7 +459,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "convex",
         "Engine": "postgres",
-        "EngineVersion": "16.6",
+        "EngineVersion": "16",
         "Port": "5432",
         "BackupRetentionPeriod": 1,
         "MasterUsername": "convex",

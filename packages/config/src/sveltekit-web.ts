@@ -108,7 +108,7 @@ export interface SvelteKitWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *       credentials:
@@ -138,7 +138,7 @@ export interface SvelteKitWebProps extends ResourceAccessProps {
    *   const database = new RelationalDatabase({
    *     engine: {
    *       type: 'postgres',
-   *       properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+   *       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
    *     },
    *     credentials: { masterUserPassword: $Secret('database.password') }
    *   });
@@ -230,7 +230,7 @@ export interface SvelteKitWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *       credentials:
@@ -259,7 +259,7 @@ export interface SvelteKitWebProps extends ResourceAccessProps {
    *   const database = new RelationalDatabase({
    *     engine: {
    *       type: 'postgres',
-   *       properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+   *       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
    *     },
    *     credentials: { masterUserPassword: $Secret('database.password') }
    *   });

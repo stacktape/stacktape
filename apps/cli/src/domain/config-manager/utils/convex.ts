@@ -366,7 +366,7 @@ export const buildConvexNestedResources = ({
     engine: convex.database?.engine ?? {
       type: 'postgres',
       properties: {
-        version: '16.6',
+        version: '16',
         // Postgres defaults the database name to the connecting user when the
         // URL has no path. Convex rejects URLs with a path. Naming the RDS
         // default db `convex` keeps both sides happy.

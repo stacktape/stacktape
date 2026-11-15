@@ -13,7 +13,7 @@ export default defineConfig(() => {
       masterUserPassword: $Secret('mainDatabase.password')
     },
     engine: new RdsEnginePostgres({
-      version: '18.1',
+      version: '18',
       primaryInstance: {
         instanceSize: 'db.t3.micro'
       }

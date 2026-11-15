@@ -51,7 +51,7 @@ n8n:
 
 Workflow data, credentials, and execution history are stored in a PostgreSQL database:
 
-- **Engine** — PostgreSQL 16.6 running on a `db.t3.micro` instance (1 vCPU, 1 GB RAM, free-tier eligible).
+- **Engine** — PostgreSQL 16 running on a `db.t3.micro` instance (1 vCPU, 1 GB RAM, free-tier eligible).
 - **Credentials** — the master password is stored using a
   [`$Secret`](https://docs.stacktape.com/configuration/directives/#secret) directive. On first deploy, it uses the
   default value `my_secret_password`. You should change it to a strong password using
@@ -66,7 +66,7 @@ database:
     engine:
       type: postgres
       properties:
-        version: "16.6"
+        version: "16"
         primaryInstance:
           instanceSize: db.t3.micro
 ```

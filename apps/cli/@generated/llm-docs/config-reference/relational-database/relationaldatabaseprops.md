@@ -61,7 +61,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -80,7 +80,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -120,7 +120,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 8
 ```
@@ -136,7 +136,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 8
     }
@@ -171,7 +171,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -188,7 +188,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -226,7 +226,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -256,7 +256,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -286,7 +286,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -303,7 +303,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -333,7 +333,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -350,7 +350,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -380,7 +380,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -397,7 +397,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -427,7 +427,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -444,7 +444,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -479,7 +479,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -499,7 +499,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -531,7 +531,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -548,7 +548,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }

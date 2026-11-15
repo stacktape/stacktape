@@ -161,7 +161,7 @@ describe('release command of a function', () => {
     type: 'relational-database',
     properties: {
       credentials: { masterUserPassword: 'not-a-real-password' },
-      engine: { type: 'postgres', properties: { version: '17.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+      engine: { type: 'postgres', properties: { version: '17', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
       accessibility: { accessibilityMode }
     }
   });

@@ -46,7 +46,7 @@ resources:
       engine:
         type: mysql
         properties:
-          version: '8.0.36'
+          version: '8.4'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -59,7 +59,7 @@ import { RelationalDatabase, RdsEngineMysql, LocalScript, $Secret, defineConfig 
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEngineMysql({ version: '8.0.36', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEngineMysql({ version: '8.4', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({ executeCommand: 'npm run migrate', connectTo: [db] });
 

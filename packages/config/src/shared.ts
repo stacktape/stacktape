@@ -371,7 +371,7 @@ export type StacktapeWorkloadDefinition =
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t3.micro
  *     # stp-focus
@@ -390,7 +390,7 @@ export type StacktapeWorkloadDefinition =
  *   const mainDb = new RelationalDatabase({
  *     credentials: { masterUserPassword: $Secret('db-password') },
  *     engine: new RdsEnginePostgres({
- *       version: '16.6',
+ *       version: '16',
  *       primaryInstance: { instanceSize: 'db.t3.micro' }
  *     }),
  *     // stp-focus
@@ -486,7 +486,7 @@ export interface Hooks {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -499,7 +499,7 @@ export interface Hooks {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const runMigrations = new LocalScript({ executeCommand: 'npx prisma migrate deploy', connectTo: [mainDb] });
    *
@@ -547,7 +547,7 @@ export interface Hooks {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -560,7 +560,7 @@ export interface Hooks {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const exportData = new LocalScript({ executeCommand: 'node ./scripts/export-data.js', connectTo: [mainDb] });
    *
@@ -1039,7 +1039,7 @@ export interface NamedScriptLifecycleHook extends LifecycleHookBase {
    *       engine:
    *         type: mysql
    *         properties:
-   *           version: '8.0.36'
+   *           version: '8.4'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1052,7 +1052,7 @@ export interface NamedScriptLifecycleHook extends LifecycleHookBase {
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEngineMysql({ version: '8.0.36', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEngineMysql({ version: '8.4', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrate = new LocalScript({ executeCommand: 'npm run migrate', connectTo: [db] });
    *
@@ -1127,7 +1127,7 @@ export interface LocalScriptWithBastionTunnelingProps extends LocalScriptProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1142,7 +1142,7 @@ export interface LocalScriptWithBastionTunnelingProps extends LocalScriptProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrateThroughTunnel = new LocalScriptWithBastionTunneling({
    *     // stp-focus
@@ -1213,7 +1213,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1228,7 +1228,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const runOnBastion = new BastionScript({
    *     // stp-focus
@@ -1280,7 +1280,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1295,7 +1295,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const pingDb = new BastionScript({
    *     bastionResource: 'jumpBox',
@@ -1349,7 +1349,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1364,7 +1364,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const dbMaintenance = new BastionScript({
    *     bastionResource: 'jumpBox',
@@ -1577,7 +1577,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1590,7 +1590,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const setup = new LocalScript({
    *     // stp-focus
@@ -1814,7 +1814,7 @@ export interface ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1827,7 +1827,7 @@ export interface ScriptEnvProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrate = new LocalScript({
    *     executeCommand: 'npx prisma migrate deploy',
@@ -2320,7 +2320,7 @@ export interface DeploymentConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.r6g.large
    * ```
@@ -2334,7 +2334,7 @@ export interface DeploymentConfig {
    *   const prodDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     deletionProtection: true,
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.r6g.large' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.r6g.large' } })
    *   });
    *
    *   return {
@@ -3960,7 +3960,7 @@ export interface ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *   uploads:
@@ -3976,7 +3976,7 @@ export interface ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const uploads = new Bucket({});
    *   const api = new WebService({
@@ -4172,7 +4172,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -4185,7 +4185,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const api = new WebService({
    *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),

@@ -4257,6 +4257,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/shared-network/placement.spec.ts',
       'apps/cli/src/domain/shared-network/janitor.spec.ts',
       'apps/cli/tests/synthesis-families/shared-network.spec.ts',
+      'apps/cli/tests/synthesis-families/database-versions.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],

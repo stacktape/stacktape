@@ -33,7 +33,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 500
@@ -52,7 +52,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 500
@@ -85,7 +85,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 1000
@@ -104,7 +104,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 1000

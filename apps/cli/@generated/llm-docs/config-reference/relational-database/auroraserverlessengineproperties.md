@@ -90,7 +90,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -107,7 +107,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }

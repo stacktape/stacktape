@@ -9691,7 +9691,7 @@ export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -9912,7 +9912,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -10091,7 +10091,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -10723,7 +10723,7 @@ export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -15318,7 +15318,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '17.6'
+          version: '17'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -15402,7 +15402,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '17.7'
+          version: '17'
           primaryInstance:
             instanceSize: db.t4g.micro
   api:
@@ -16897,7 +16897,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     })
   });
@@ -17832,7 +17832,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'st
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -17870,7 +17870,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'st
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -18396,7 +18396,7 @@ export default defineConfig(({ stage }) => {
         instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
         multiAz: stage === 'production'
       },
-      version: '18.1'
+      version: '18'
     }),
     credentials: {
       masterUserName: 'master-user',
@@ -19618,7 +19618,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -19632,7 +19632,7 @@ export default defineConfig(() => {
 ```
 
 
-In dev mode, this starts a PostgreSQL container using image tag `16.6`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
+In dev mode, this starts a PostgreSQL container using image tag `16`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
 
 ### MySQL and MariaDB
 
@@ -19649,7 +19649,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEngineMysql({
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -19771,7 +19771,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -20726,7 +20726,7 @@ export default defineConfig(() => {
       masterUserPassword: '$Secret(db-password)'
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
     alarms: [
@@ -34706,7 +34706,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -34763,7 +34763,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -34804,7 +34804,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new AuroraEnginePostgresql({
-      version: '16.11',
+      version: '16',
       instances: [{ instanceSize: 'db.r6g.large' }, { instanceSize: 'db.r6g.large' }]
     })
   });
@@ -34835,7 +34835,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new AuroraServerlessV2EnginePostgresql({
-      version: '16.11',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 16
     }),
@@ -34951,7 +34951,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -35010,7 +35010,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large',
         multiAz: true
@@ -35049,7 +35049,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -35104,7 +35104,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium'
       },
@@ -35150,7 +35150,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -35201,7 +35201,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -50172,7 +50172,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -50189,7 +50189,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -50282,7 +50282,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -50299,7 +50299,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -50386,7 +50386,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -50403,7 +50403,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -50610,7 +50610,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -50627,7 +50627,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -50738,7 +50738,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -50755,7 +50755,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -50962,7 +50962,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -50978,7 +50978,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -51456,7 +51456,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -51482,7 +51482,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -51670,7 +51670,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -51695,7 +51695,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -52189,7 +52189,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -52214,7 +52214,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -52533,7 +52533,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -52559,7 +52559,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -52733,7 +52733,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -52759,7 +52759,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -52941,7 +52941,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -52966,7 +52966,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -53283,7 +53283,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -53309,7 +53309,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -53444,7 +53444,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -53470,7 +53470,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -53614,7 +53614,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -53639,7 +53639,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -53969,7 +53969,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -53995,7 +53995,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54183,7 +54183,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54209,7 +54209,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54307,7 +54307,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54332,7 +54332,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54604,7 +54604,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54629,7 +54629,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54671,7 +54671,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54697,7 +54697,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54835,7 +54835,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54860,7 +54860,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -54902,7 +54902,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -54928,7 +54928,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55068,7 +55068,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55093,7 +55093,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55135,7 +55135,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55161,7 +55161,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55301,7 +55301,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55326,7 +55326,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55368,7 +55368,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55394,7 +55394,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55532,7 +55532,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55557,7 +55557,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55599,7 +55599,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55625,7 +55625,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55763,7 +55763,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55788,7 +55788,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -55830,7 +55830,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -55856,7 +55856,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -56000,7 +56000,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -56025,7 +56025,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -56347,7 +56347,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -56373,7 +56373,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -56495,7 +56495,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -56512,7 +56512,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -58962,7 +58962,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -58979,7 +58979,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -59403,7 +59403,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -59420,7 +59420,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -59753,7 +59753,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -59769,7 +59769,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -59867,7 +59867,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       credentials:
@@ -59894,7 +59894,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.6',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -60479,7 +60479,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -60496,7 +60496,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -60921,7 +60921,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.4'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -60940,7 +60940,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
-    engine: { type: 'postgres', properties: { version: '16.4', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
   const bastion = new Bastion({
@@ -61015,7 +61015,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.4'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -61037,7 +61037,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
-    engine: { type: 'postgres', properties: { version: '16.4', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
   const bastion = new Bastion({
@@ -61099,7 +61099,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -61116,7 +61116,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -61250,7 +61250,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -61265,7 +61265,7 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('dbPassword') },
     engine: {
       type: 'postgres',
-      properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } }
     }
   });
   const worker = new BatchJob({
@@ -61749,7 +61749,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -61765,7 +61765,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -62676,7 +62676,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -62693,7 +62693,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -69393,7 +69393,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -69410,7 +69410,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -70162,7 +70162,7 @@ resources:
         engine:
           type: postgres
           properties:
-            version: '16.6'
+            version: '16'
             primaryInstance:
               instanceSize: db.t4g.medium
               multiAz: true
@@ -70180,7 +70180,7 @@ export default defineConfig(() => {
       engine: {
         type: 'postgres',
         properties: {
-          version: '16.6',
+          version: '16',
           primaryInstance: {
             instanceSize: 'db.t4g.medium',
             multiAz: true
@@ -70479,7 +70479,7 @@ resources:
         engine:
           type: postgres
           properties:
-            version: '16.6'
+            version: '16'
             primaryInstance:
               instanceSize: db.t4g.small
 ```
@@ -70502,7 +70502,7 @@ export default defineConfig(() => {
       engine: {
         type: 'postgres',
         properties: {
-          version: '16.6',
+          version: '16',
           primaryInstance: {
             instanceSize: 'db.t4g.small'
           }
@@ -70766,7 +70766,7 @@ resources:
         engine:
           type: aurora-postgresql-serverless-v2
           properties:
-            version: '16.6'
+            version: '16'
             minCapacity: 0.5
             maxCapacity: 4
         automatedBackupRetentionDays: 7
@@ -70784,7 +70784,7 @@ export default defineConfig(() => {
       engine: {
         type: 'aurora-postgresql-serverless-v2',
         properties: {
-          version: '16.6',
+          version: '16',
           minCapacity: 0.5,
           maxCapacity: 4
         }
@@ -71219,7 +71219,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -71236,7 +71236,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -71422,7 +71422,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -71438,7 +71438,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -71818,7 +71818,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -71835,7 +71835,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -77674,7 +77674,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -77691,7 +77691,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -77902,7 +77902,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -77918,7 +77918,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -78066,7 +78066,7 @@ resources:
         properties:
           primaryInstance:
             instanceSize: db.t4g.micro
-          version: '16.2'
+          version: '16'
 ```
 
 ### Example 2 (typescript)
@@ -78079,7 +78079,7 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.2'
+      version: '16'
     })
   });
 
@@ -78350,7 +78350,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -78367,7 +78367,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -78978,7 +78978,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -78995,7 +78995,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -79922,7 +79922,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -79939,7 +79939,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -80459,7 +80459,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -80476,7 +80476,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -80833,7 +80833,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -80850,7 +80850,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -85973,7 +85973,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -85990,7 +85990,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -86690,7 +86690,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -86706,7 +86706,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -87068,7 +87068,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -87081,7 +87081,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const dbMigrator = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
@@ -87309,7 +87309,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '17.7'
+          version: '17'
           primaryInstance:
             instanceSize: db.t4g.micro
   api:
@@ -87365,7 +87365,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -87378,7 +87378,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const legacyDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const legacyDbWriter = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },
@@ -88619,7 +88619,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -88634,7 +88634,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const runOnBastion = new BastionScript({
     bastionResource: 'jumpBox',
@@ -88694,7 +88694,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -88707,7 +88707,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -88857,7 +88857,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -88872,7 +88872,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const pingDb = new BastionScript({
     bastionResource: 'jumpBox',
@@ -88923,7 +88923,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -88938,7 +88938,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const dbMaintenance = new BastionScript({
     bastionResource: 'jumpBox',
@@ -89441,7 +89441,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.r6g.large
 ```
@@ -89455,7 +89455,7 @@ export default defineConfig(() => {
   const prodDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     deletionProtection: true,
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.r6g.large' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.r6g.large' } })
   });
 
   return {
@@ -90196,7 +90196,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -90209,7 +90209,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const runMigrations = new LocalScript({ executeCommand: 'npx prisma migrate deploy', connectTo: [mainDb] });
 
@@ -90345,7 +90345,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -90358,7 +90358,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const exportData = new LocalScript({ executeCommand: 'node ./scripts/export-data.js', connectTo: [mainDb] });
 
@@ -90646,7 +90646,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -90659,7 +90659,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -90934,7 +90934,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -90947,7 +90947,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const setup = new LocalScript({
     executeScripts: ['scripts/migrate.ts', 'scripts/seed.ts'],
@@ -91189,7 +91189,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -91204,7 +91204,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrateThroughTunnel = new LocalScriptWithBastionTunneling({
     bastionResource: 'jumpBox',
@@ -91264,7 +91264,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -91277,7 +91277,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -91552,7 +91552,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -91565,7 +91565,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const setup = new LocalScript({
     executeScripts: ['scripts/migrate.ts', 'scripts/seed.ts'],
@@ -91688,7 +91688,7 @@ resources:
       engine:
         type: mysql
         properties:
-          version: '8.0.36'
+          version: '8.4'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -91701,7 +91701,7 @@ import { RelationalDatabase, RdsEngineMysql, LocalScript, $Secret, defineConfig 
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEngineMysql({ version: '8.0.36', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEngineMysql({ version: '8.4', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({ executeCommand: 'npm run migrate', connectTo: [db] });
 
@@ -92511,7 +92511,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -92524,7 +92524,7 @@ import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, de
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db.password') },
-    engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const app = new MultiContainerWorkload({
     containers: [
@@ -93816,7 +93816,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -93833,7 +93833,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -95423,7 +95423,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -95440,7 +95440,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -95969,7 +95969,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -95986,7 +95986,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -99406,7 +99406,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -99423,7 +99423,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -99685,7 +99685,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -99698,7 +99698,7 @@ import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, de
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db.password') },
-    engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const app = new MultiContainerWorkload({
     containers: [
@@ -100883,7 +100883,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -100899,7 +100899,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -102206,7 +102206,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -102223,7 +102223,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -102906,7 +102906,7 @@ resources:
         properties:
           primaryInstance:
             instanceSize: db.t4g.micro
-          version: '16.6'
+          version: '16'
   web:
     type: nextjs-web
     properties:
@@ -102929,7 +102929,7 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: {
         primaryInstance: { instanceSize: 'db.t4g.micro' },
-        version: '16.6'
+        version: '16'
       }
     }
   });
@@ -103105,7 +103105,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -103122,7 +103122,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -103379,7 +103379,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -103395,7 +103395,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -103471,7 +103471,7 @@ resources:
         properties:
           primaryInstance:
             instanceSize: db.t4g.micro
-          version: '16.6'
+          version: '16'
   web:
     type: nextjs-web
     properties:
@@ -103499,7 +103499,7 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: {
         primaryInstance: { instanceSize: 'db.t4g.micro' },
-        version: '16.6'
+        version: '16'
       }
     }
   });
@@ -103953,7 +103953,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -103970,7 +103970,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -104212,7 +104212,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -104228,7 +104228,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -104335,7 +104335,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
   web:
@@ -104361,7 +104361,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.6',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     }
@@ -105146,7 +105146,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -105163,7 +105163,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -106079,7 +106079,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -106096,7 +106096,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -106473,7 +106473,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -106489,7 +106489,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -106585,7 +106585,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -106598,7 +106598,7 @@ import { WebService, RelationalDatabase, RdsEnginePostgres, $ResourceParam, $Sec
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
@@ -107626,7 +107626,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -107643,7 +107643,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -109283,7 +109283,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         instances:
           - instanceSize: db.r6g.large
 ```
@@ -109299,7 +109299,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       instances: [
         { instanceSize: 'db.r6g.large' }
       ]
@@ -109327,7 +109327,7 @@ import type { AuroraEngineInstance } from 'stacktape';
 type AuroraEngineProperties = {
   /** Cluster instances. First = primary (writer), rest = read replicas. */
   instances: Array<AuroraEngineInstance>;
-  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
+  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */
   version: string;
   /** Name of the initial database. */
   dbName?: string;
@@ -109360,7 +109360,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         instances:
           - instanceSize: db.r6g.large
           - instanceSize: db.r6g.large
@@ -109377,7 +109377,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       instances: [
         { instanceSize: 'db.r6g.large' },
         { instanceSize: 'db.r6g.large' }
@@ -109394,7 +109394,14 @@ return { resources: { mainDatabase } };
 - Required: yes
 - Type: `string`
 
-Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).
+Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`.
+
+Name the release line unless you need one exact minor version. AWS then runs a current minor version of that line
+and applies new ones in the maintenance window. A full version pins the minor version, and AWS retires old minor
+versions, after which a new database can no longer be created with it. PostgreSQL, MySQL, MariaDB and Aurora accept
+a release line; Oracle and SQL Server need a full version.
+
+A database that is already deployed keeps the version it has when you switch its config to the release line.
 
 ### Example 1 (yaml)
 
@@ -109408,7 +109415,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '17'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -109424,7 +109431,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '17',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -109453,7 +109460,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         dbName: appdb
         instances:
           - instanceSize: db.r6g.large
@@ -109470,7 +109477,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       dbName: 'appdb',
       instances: [{ instanceSize: 'db.r6g.large' }]
     }
@@ -109500,7 +109507,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -109517,7 +109524,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -109546,7 +109553,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         port: 5433
         instances:
           - instanceSize: db.r6g.large
@@ -109563,7 +109570,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       port: 5433,
       instances: [{ instanceSize: 'db.r6g.large' }]
     }
@@ -109702,7 +109709,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -109719,7 +109726,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -109971,7 +109978,7 @@ Resource type: `relational-database`
 
 ```typescript
 type AuroraServerlessV2EngineProperties = {
-  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
+  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */
   version: string;
   /** Name of the initial database. */
   dbName?: string;
@@ -109991,7 +109998,14 @@ type AuroraServerlessV2EngineProperties = {
 - Required: yes
 - Type: `string`
 
-Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).
+Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`.
+
+Name the release line unless you need one exact minor version. AWS then runs a current minor version of that line
+and applies new ones in the maintenance window. A full version pins the minor version, and AWS retires old minor
+versions, after which a new database can no longer be created with it. PostgreSQL, MySQL, MariaDB and Aurora accept
+a release line; Oracle and SQL Server need a full version.
+
+A database that is already deployed keeps the version it has when you switch its config to the release line.
 
 ### Example 1 (yaml)
 
@@ -110005,7 +110019,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '17'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110021,7 +110035,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '17',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110050,7 +110064,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         dbName: appdb
         minCapacity: 0.5
         maxCapacity: 8
@@ -110067,7 +110081,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       dbName: 'appdb',
       minCapacity: 0.5,
       maxCapacity: 8
@@ -110098,7 +110112,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -110115,7 +110129,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -110145,7 +110159,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 16
 ```
@@ -110161,7 +110175,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 16
     }
@@ -110193,7 +110207,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 8
 ```
@@ -110209,7 +110223,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 8
     }
@@ -110242,7 +110256,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 16
         serverlessReadersCount: 2
@@ -110259,7 +110273,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 16,
       serverlessReadersCount: 2
@@ -110324,7 +110338,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110343,7 +110357,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110376,7 +110390,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110396,7 +110410,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110433,7 +110447,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110453,7 +110467,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110507,7 +110521,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110529,7 +110543,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110565,7 +110579,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110587,7 +110601,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110647,7 +110661,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110669,7 +110683,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110703,7 +110717,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110725,7 +110739,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110759,7 +110773,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110781,7 +110795,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110815,7 +110829,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110837,7 +110851,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110871,7 +110885,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -110893,7 +110907,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -110981,7 +110995,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.r6g.large
 ```
@@ -110997,7 +111011,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large'
       }
@@ -111030,7 +111044,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
           multiAz: true
@@ -111047,7 +111061,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium',
         multiAz: true
@@ -111076,7 +111090,7 @@ import type { RdsEnginePrimaryInstance, RdsEngineReadReplica, RdsEngineStorage }
 type RdsEngineProperties = {
   /** The primary (writer) instance. Handles all write operations. */
   primaryInstance: RdsEnginePrimaryInstance;
-  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
+  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */
   version: string;
   /** Name of the database created on initialization. For Oracle, this is the SID. Not applicable to SQL Server. */
   dbName?: string;
@@ -111110,7 +111124,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.r6g.large
           multiAz: true
@@ -111127,7 +111141,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large',
         multiAz: true
@@ -111144,7 +111158,14 @@ return { resources: { mainDatabase } };
 - Required: yes
 - Type: `string`
 
-Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).
+Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`.
+
+Name the release line unless you need one exact minor version. AWS then runs a current minor version of that line
+and applies new ones in the maintenance window. A full version pins the minor version, and AWS retires old minor
+versions, after which a new database can no longer be created with it. PostgreSQL, MySQL, MariaDB and Aurora accept
+a release line; Oracle and SQL Server need a full version.
+
+A database that is already deployed keeps the version it has when you switch its config to the release line.
 
 ### Example 1 (yaml)
 
@@ -111158,7 +111179,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '17'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -111174,7 +111195,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '17',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -111202,7 +111223,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         dbName: appdb
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -111219,7 +111240,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       dbName: 'appdb',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -111249,7 +111270,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -111266,7 +111287,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -111295,7 +111316,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         port: 5433
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -111312,7 +111333,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       port: 5433,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -111343,7 +111364,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.r6g.large
         readReplicas:
@@ -111362,7 +111383,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.r6g.large' },
       readReplicas: [
         { instanceSize: 'db.r6g.large' },
@@ -111394,7 +111415,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 50
           maxSize: 500
@@ -111413,7 +111434,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: { initialSize: 50, maxSize: 500 },
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -111470,7 +111491,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.r6g.large
 ```
@@ -111486,7 +111507,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large'
       }
@@ -111519,7 +111540,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
           multiAz: true
@@ -111536,7 +111557,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium',
         multiAz: true
@@ -111588,7 +111609,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 500
@@ -111607,7 +111628,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 500
@@ -111640,7 +111661,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 1000
@@ -111659,7 +111680,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 1000
@@ -111723,7 +111744,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -111740,7 +111761,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -111794,7 +111815,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -111813,7 +111834,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -111845,7 +111866,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -111864,7 +111885,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -111944,7 +111965,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -111963,7 +111984,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112001,7 +112022,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112024,7 +112045,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112161,7 +112182,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112180,7 +112201,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112213,7 +112234,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112233,7 +112254,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112310,7 +112331,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -112329,7 +112350,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -112369,7 +112390,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 8
 ```
@@ -112385,7 +112406,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 8
     }
@@ -112420,7 +112441,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -112437,7 +112458,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -112475,7 +112496,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112505,7 +112526,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112535,7 +112556,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112552,7 +112573,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112582,7 +112603,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112599,7 +112620,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112629,7 +112650,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -112646,7 +112667,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -112676,7 +112697,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112693,7 +112714,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112728,7 +112749,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112748,7 +112769,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112780,7 +112801,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -112797,7 +112818,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -112857,7 +112878,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -112874,7 +112895,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -113136,7 +113157,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -113152,7 +113173,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -113267,7 +113288,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
   web:
@@ -113294,7 +113315,7 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } }
     }
   });
   const web = new RemixWeb({
@@ -114076,7 +114097,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -114093,7 +114114,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -114344,7 +114365,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -114361,7 +114382,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -114610,7 +114631,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -114626,7 +114647,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -114732,7 +114753,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       credentials:
@@ -114754,7 +114775,7 @@ import { SolidStartWeb, RelationalDatabase, defineConfig, $ResourceParam, $Secre
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } },
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } },
     credentials: { masterUserPassword: $Secret('db-password') }
   });
   const web = new SolidStartWeb({
@@ -115015,7 +115036,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -115032,7 +115053,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -117238,7 +117259,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -117267,7 +117288,7 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('database.password') },
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' }
   });
@@ -117868,7 +117889,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -117885,7 +117906,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -118723,7 +118744,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -118740,7 +118761,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -119003,7 +119024,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -119019,7 +119040,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -119125,7 +119146,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
@@ -119153,7 +119174,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
     credentials: { masterUserPassword: $Secret('database.password') }
   });
@@ -119315,7 +119336,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
@@ -119342,7 +119363,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
     credentials: { masterUserPassword: $Secret('database.password') }
   });
@@ -119584,7 +119605,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -119601,7 +119622,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -119931,7 +119952,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -119948,7 +119969,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -120194,7 +120215,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -120210,7 +120231,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -120320,7 +120341,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
   web:
@@ -120344,7 +120365,7 @@ import { TanStackWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const web = new TanStackWeb({
     environment: [
@@ -120731,7 +120752,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -120748,7 +120769,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -120975,7 +120996,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -120992,7 +121013,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -123619,7 +123640,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -123636,7 +123657,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -128667,7 +128688,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -128684,7 +128705,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -129488,7 +129509,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -129505,7 +129526,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -130756,7 +130777,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -130772,7 +130793,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -131085,7 +131106,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -131098,7 +131119,7 @@ import { WebService, RelationalDatabase, RdsEnginePostgres, $ResourceParam, $Sec
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
@@ -131970,7 +131991,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -131987,7 +132008,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -132107,7 +132128,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -132124,7 +132145,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {
@@ -132381,7 +132402,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -132397,7 +132418,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -132493,7 +132514,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -132506,7 +132527,7 @@ import { WebService, RelationalDatabase, RdsEnginePostgres, $ResourceParam, $Sec
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),

@@ -38,7 +38,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.4'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -57,7 +57,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
-    engine: { type: 'postgres', properties: { version: '16.4', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
   const bastion = new Bastion({
@@ -132,7 +132,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.4'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -154,7 +154,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
-    engine: { type: 'postgres', properties: { version: '16.4', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
   const bastion = new Bastion({

@@ -32,7 +32,7 @@ mainDatabase:
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         instances:
           - instanceSize: db.r6g.large
 ```
@@ -48,7 +48,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       instances: [
         { instanceSize: 'db.r6g.large' }
       ]

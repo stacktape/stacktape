@@ -28,7 +28,7 @@ type Instance = {
 const POSTGRES_DB = {
   type: 'relational-database',
   properties: {
-    engine: { type: 'postgres', properties: { version: '15.14', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+    engine: { type: 'postgres', properties: { version: '15', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     credentials: { masterUserName: 'postgres' }
   }
 };

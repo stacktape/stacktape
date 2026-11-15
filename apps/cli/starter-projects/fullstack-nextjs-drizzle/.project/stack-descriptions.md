@@ -5,7 +5,7 @@ static assets, and CloudFront CDN for global edge caching. You pay only for the 
 
 ## database (relational-database)
 
-A managed PostgreSQL 16.6 instance (AWS RDS `db.t3.micro`). Stacktape handles provisioning, networking, and security
+A managed PostgreSQL 16 instance (AWS RDS `db.t3.micro`). Stacktape handles provisioning, networking, and security
 groups. The database is accessible from the `web` resource via the `connectTo` configuration.
 
 ## migrateDb (local-script)

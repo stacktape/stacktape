@@ -166,7 +166,7 @@ export const getAuroraDbCluster = ({
         : undefined,
     EngineVersion: getEngineVersionForDb({
       engineType: resource.engine.type,
-      engineVersion: resource.engine.properties?.version,
+      engineVersion: getConfiguredEngineVersion(resource),
       instanceType: null
     }),
     PreferredMaintenanceWindow: getDbBackupAndMaintenanceWindow(resource).preferredMaintenanceWindow,
@@ -286,6 +286,51 @@ export const getDbInstanceParameterGroup = ({
     }).family,
     Parameters: Object.keys(parameters).length ? parameters : undefined
   });
+};
+
+/**
+ * How many leading parts of a version name a release line: `17` for PostgreSQL, `8.4` for MySQL. RDS accepts a line in
+ * place of a full version, runs the line's default minor version and upgrades it itself. A config that names the line
+ * therefore never points at a minor version that AWS retired, which the full versions in this CLI's list do in time.
+ * Checked on live AWS for these engines; Oracle and SQL Server take full versions only.
+ */
+const RELEASE_LINE_PARTS: Partial<Record<ReturnType<typeof normalizeEngineType>, number>> = {
+  postgres: 1,
+  'aurora-postgresql': 1,
+  mysql: 2,
+  mariadb: 2,
+  'aurora-mysql': 2
+};
+
+const isReleaseLine = ({
+  engineType,
+  version
+}: {
+  engineType: StpRelationalDatabase['engine']['type'];
+  version: string;
+}) =>
+  version.split('.').length === RELEASE_LINE_PARTS[normalizeEngineType(engineType)] &&
+  (versionJson.rds[engineType] ?? []).some((available: string) => available.startsWith(`${version}.`));
+
+const getDeployedEngineVersion = (resource: StpRelationalDatabase) =>
+  (
+    templateManager.oldTemplate?.Resources?.[
+      resource.engine.type.startsWith('aurora')
+        ? cfLogicalNames.auroraDbCluster(resource.name)
+        : cfLogicalNames.dbInstance(resource.name)
+    ]?.Properties as { EngineVersion?: string } | undefined
+  )?.EngineVersion;
+
+/**
+ * The version CloudFormation gets. A release line keeps the version that a deployed database of that line already has:
+ * switching a config from `16.6` to `16` then changes nothing, where sending `16` would make RDS move the running
+ * database to the line's default minor version during the deploy.
+ */
+const getConfiguredEngineVersion = (resource: StpRelationalDatabase) => {
+  const version = resource.engine.properties?.version;
+  if (!version || !isReleaseLine({ engineType: resource.engine.type, version })) return version;
+  const deployed = getDeployedEngineVersion(resource);
+  return deployed && (deployed === version || deployed.startsWith(`${version}.`)) ? deployed : version;
 };
 
 const getEngineVersionForDb = ({
@@ -408,6 +453,7 @@ const getEngineVersionConfigurationData = ({
 const engineVersionConfigurationData = [
   { family: 'aurora-mysql5.7', majorVersion: '5.7' },
   { family: 'aurora-mysql8.0', majorVersion: '8.0' },
+  { family: 'aurora-mysql8.4', majorVersion: '8.4' },
   { family: 'aurora-postgresql10', majorVersion: '10' },
   { family: 'aurora-postgresql11', majorVersion: '11' },
   { family: 'aurora-postgresql12', majorVersion: '12' },
@@ -415,11 +461,17 @@ const engineVersionConfigurationData = [
   { family: 'aurora-postgresql14', majorVersion: '14' },
   { family: 'aurora-postgresql15', majorVersion: '15' },
   { family: 'aurora-postgresql16', majorVersion: '16' },
+  { family: 'aurora-postgresql17', majorVersion: '17' },
+  { family: 'aurora-postgresql18', majorVersion: '18' },
   { family: 'mariadb10.2', majorVersion: '10.2' },
   { family: 'mariadb10.3', majorVersion: '10.3' },
   { family: 'mariadb10.4', majorVersion: '10.4' },
   { family: 'mariadb10.5', majorVersion: '10.5' },
   { family: 'mariadb10.6', majorVersion: '10.6' },
+  { family: 'mariadb10.11', majorVersion: '10.11' },
+  { family: 'mariadb11.4', majorVersion: '11.4' },
+  { family: 'mariadb11.8', majorVersion: '11.8' },
+  { family: 'mariadb12.3', majorVersion: '12.3' },
   { family: 'mysql5.6', majorVersion: '5.6' },
   { family: 'mysql5.7', majorVersion: '5.7' },
   { family: 'mysql8.0', majorVersion: '8.0' },
@@ -497,7 +549,7 @@ export const getBasicRdsInstance = ({
       replicaNum === undefined
         ? getEngineVersionForDb({
             engineType: resource.engine.type,
-            engineVersion: resource.engine.properties?.version,
+            engineVersion: getConfiguredEngineVersion(resource),
             instanceType: instanceSize
           })
         : undefined,
@@ -798,15 +850,11 @@ export const validateEngineVersion = ({ resource }: { resource: StpRelationalDat
     });
   }
 
-  const existingEngineVersion = (
-    templateManager.oldTemplate?.Resources?.[logicalNameOfExistingResource]?.Properties as
-      | { EngineVersion?: string }
-      | undefined
-  )?.EngineVersion;
-
+  // A database keeps the version it was deployed with, which this CLI's list may have dropped since.
   if (
-    resource.engine?.properties?.version !== existingEngineVersion &&
-    !availableVersions.includes(resource.engine?.properties?.version)
+    resource.engine.properties.version !== getDeployedEngineVersion(resource) &&
+    !availableVersions.includes(resource.engine.properties.version) &&
+    !isReleaseLine({ engineType: resource.engine.type, version: resource.engine.properties.version })
   ) {
     throw stpErrors.e111({
       databaseStpResourceName: resource.name,
