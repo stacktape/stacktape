@@ -71,7 +71,9 @@ const computeKey = async (release: ResolvedReleaseCommand) => {
         containerName
       })
     )?.digest;
-  return hash.update(String(digest)).digest('hex');
+  // Hashing a missing digest would give the same key on every deploy, and the command would silently stop running.
+  if (!digest) throw new Error(`The image of ${workload.nameChain[0]} has no digest to decide its release command by.`);
+  return hash.update(digest).digest('hex');
 };
 
 const stateKeyOf = (workloadName: string) => `${STATE_KEY_PREFIX}/${workloadName}.json`;

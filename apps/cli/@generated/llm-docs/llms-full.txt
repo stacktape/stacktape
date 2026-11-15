@@ -10465,7 +10465,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. A failed `afterDeploy` hook does not fail the deploy.
+To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
 
 ### Lifecycle events
 
@@ -10486,8 +10486,23 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 > **Info:** Delete hook behavior depends on how the delete command is invoked. See the <a href="/cli/delete">delete CLI reference</a> for details.
 
 
-> **Warning:** Post-deploy hooks (like database migrations) run after infrastructure changes are complete. If a script fails, re-run it manually with <code>stacktape script run</code>. Check the CLI output for error details.
+### When a hook fails
 
+A failed hook stops the command with an error, and the hooks listed after it don't run. A `beforeDeploy` failure therefore stops the deploy before anything changes.
+
+An `afterDeploy` hook runs after the deployment finished. When it fails, the stack stays deployed on the new version and nothing is rolled back, but `stacktape deploy` exits with an error, so a CI job fails. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run).
+
+Set `onFailure: continue` on a hook whose failure should not fail the command, such as a notification. The failure is then printed as a warning:
+
+```yaml
+hooks:
+  afterDeploy:
+    - scriptName: migrate
+    - scriptName: notifyTeam
+      onFailure: continue
+```
+
+A hook cannot roll a deployment back. To keep the old version when a check fails, run the check where it can stop the rollout: a [release command](/deployment-and-lifecycle/release-commands) runs before any workload gets the new code, and a [deployment script](/resources/advanced/deployment-scripts) with `deploymentConfig.autoRollback: true` rolls back the infrastructure changes of its deploy.
 
 ### Conditional execution
 
@@ -10524,7 +10539,7 @@ Yes. Each hook (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script 
 
 ### What happens if my afterDeploy hook fails?
 
-Your infrastructure is deployed and running, but the post-deploy task needs attention. Re-run the script with [`stacktape script run`](/cli/script-run) to address the issue. Check the CLI output for error details and confirm the fix before the next deployment.
+The stack stays deployed on the new version, and `stacktape deploy` exits with an error, so a CI job fails. Hooks listed after the failed one don't run. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run). To let a hook fail without failing the deploy, set `onFailure: continue` on it. See [When a hook fails](#when-a-hook-fails).
 
 ### When should I use hooks vs deployment scripts?
 
@@ -13722,7 +13737,7 @@ Hooks and deployment scripts serve different execution contexts. Choose based on
 |---|---|---|
 | **Runs on** | Your machine or CI runner | AWS Lambda |
 | **Triggered by** | CLI commands (deploy, delete, dev) | CloudFormation lifecycle (`after:deploy`, `before:delete`) |
-| **`after:deploy` failure** | — | CloudFormation rolls back the deployment |
+| **`after:deploy` failure** | The command fails; the deployment stays live | CloudFormation rolls back the deployment |
 | **`before:delete` failure** | — | Deletion continues |
 | **Max timeout** | — | 900 seconds (Lambda maximum) |
 | **VPC access** | Via bastion tunneling | Via `joinDefaultVpc` |
@@ -91493,6 +91508,8 @@ Route: `/config-reference/helpers`
 type NamedScriptLifecycleHook = {
   /** Script Name */
   scriptName: string;
+  /** What happens when the script fails. */
+  onFailure?: "continue" | "fail";
   /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */
   skipOnCI?: boolean;
   /** Skip this hook when running locally; only run in CI/CD. */
@@ -91556,6 +91573,61 @@ export default defineConfig(() => {
       ]
     },
     resources: { db }
+  };
+});
+```
+
+## Property: `onFailure`
+
+- Required: no
+- Type: `string: "continue" | "fail"`
+- Default: `fail`
+
+What happens when the script fails.
+
+`fail`: the command stops and exits with an error, and the hooks listed after this one don't run. When an
+`afterDeploy` hook fails, the deployment has already finished and stays live. The command still exits with an
+error, so a CI job fails.
+`continue`: the failure is printed as a warning and the command carries on.
+
+Use `continue` for work that must not fail a deploy, such as sending a notification.
+
+### Example 1 (yaml)
+
+```yaml
+scripts:
+  notifyTeam:
+    type: local-script
+    properties:
+      executeCommand: node ./scripts/notify-team.js
+hooks:
+  afterDeploy:
+    - scriptName: notifyTeam
+      onFailure: continue
+resources:
+  web:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const notifyTeam = new LocalScript({ executeCommand: 'node ./scripts/notify-team.js' });
+  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
+
+  return {
+    scripts: { notifyTeam },
+    hooks: {
+      afterDeploy: [
+        { scriptName: 'notifyTeam', onFailure: 'continue' }
+      ]
+    },
+    resources: { web }
   };
 });
 ```

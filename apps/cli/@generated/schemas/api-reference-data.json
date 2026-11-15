@@ -41887,6 +41887,33 @@
         ]
       },
       {
+        "name": "onFailure",
+        "required": false,
+        "shortDescription": "<p> What happens when the script fails.</p>",
+        "longDescription": "<ul>\n<li><code>fail</code>: the command stops and exits with an error, and the hooks listed after this one don&#39;t run. When an\n<code>afterDeploy</code> hook fails, the deployment has already finished and stays live. The command still exits with an\nerror, so a CI job fails.</li>\n<li><code>continue</code>: the failure is printed as a warning and the command carries on.</li>\n</ul>\n<p>Use <code>continue</code> for work that must not fail a deploy, such as sending a notification.</p>",
+        "defaultValue": "fail",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "continue",
+            "fail"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "scripts:\n  notifyTeam:\n    type: local-script\n    properties:\n      executeCommand: node ./scripts/notify-team.js\nhooks:\n  afterDeploy:\n    # [!code focus-start]\n    - scriptName: notifyTeam\n      onFailure: continue\n    # [!code focus-end]\nresources:\n  web:\n    type: hosting-bucket\n    properties:\n      uploadDirectoryPath: ./dist"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { HostingBucket, LocalScript, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const notifyTeam = new LocalScript({ executeCommand: 'node ./scripts/notify-team.js' });\n  const web = new HostingBucket({ uploadDirectoryPath: './dist' });\n\n  return {\n    scripts: { notifyTeam },\n    hooks: {\n      afterDeploy: [\n        // [!code focus-start]\n        { scriptName: 'notifyTeam', onFailure: 'continue' }\n        // [!code focus-end]\n      ]\n    },\n    resources: { web }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "skipOnCI",
         "required": false,
         "shortDescription": "<p> Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).</p>",
@@ -41935,9 +41962,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 2
+      "optionalCount": 3
     },
-    "typeDeclaration": "// [!code focus-start]\ntype NamedScriptLifecycleHook = {\n  /** Script Name */\n  scriptName: string;\n  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */\n  skipOnCI?: boolean;\n  /** Skip this hook when running locally; only run in CI/CD. */\n  skipOnLocal?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype NamedScriptLifecycleHook = {\n  /** Script Name */\n  scriptName: string;\n  /** What happens when the script fails. */\n  onFailure?: \"continue\" | \"fail\";\n  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */\n  skipOnCI?: boolean;\n  /** Skip this hook when running locally; only run in CI/CD. */\n  skipOnLocal?: boolean;\n};\n// [!code focus-end]"
   },
   "NatSettings": {
     "definitionName": "NatSettings",

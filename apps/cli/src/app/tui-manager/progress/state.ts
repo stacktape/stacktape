@@ -106,7 +106,7 @@ class TuiStateManager {
     operationSession.setPendingCompletion(params);
   }
 
-  commitPendingCompletion(options?: { hookFailureCount?: number }) {
+  commitPendingCompletion(options?: { failedHookName?: string }) {
     operationSession.commitPendingCompletion(options);
   }
 

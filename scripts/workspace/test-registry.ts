@@ -1408,7 +1408,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
-      'apps/cli/tests/ministack/domain-add.spec.ts'
+      'apps/cli/tests/ministack/domain-add.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
@@ -6598,6 +6599,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
@@ -6617,7 +6619,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
-    lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: [
+      'cli-operation-rules',
+      'cli-terminal-ownership',
+      'cli',
+      'cli-2',
+      'cli-3',
+      'cli-operations',
+      'ministack-deploy-2'
+    ]
   },
   {
     id: 'S75',
