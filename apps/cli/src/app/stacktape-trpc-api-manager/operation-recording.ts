@@ -50,11 +50,14 @@ export const recordStackOperationEnd = async ({
   error,
   stackName,
   logStreamName,
-  issuesEnabled
+  issuesEnabled,
+  hookFailure
 }: {
   success: boolean;
   interrupted: boolean;
   error?: Error;
+  /** The `afterDeploy` hook failure of a deploy that finished: the operation succeeded, the command did not. */
+  hookFailure?: Error;
   stackName?: string;
   logStreamName?: string;
   /** Whether a deploy wired Issues for its stack; omitted for other commands and when no configuration was loaded. */
@@ -66,6 +69,7 @@ export const recordStackOperationEnd = async ({
     success,
     interrupted,
     ...(issuesEnabled === undefined ? {} : { issuesEnabled }),
+    ...(hookFailure ? { hookFailure: scrubSensitiveText(stripAnsi(hookFailure.message || `${hookFailure}`)) } : {}),
     // The Console shows this to people: the message only, without the error category or terminal colours.
     description: error
       ? scrubSensitiveText(stripAnsi(error.message || `${error}`))

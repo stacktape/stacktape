@@ -85,7 +85,7 @@ class ApplicationManager {
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
     await tuiManager.stop();
     tuiManager.error(stacktapeError);
-    await this.cleanUp({ success: true });
+    await this.cleanUp({ success: true, hookFailure: stacktapeError });
     killPythonBridge();
     return getReturnableError(stacktapeError);
   };
@@ -222,11 +222,13 @@ class ApplicationManager {
   private cleanUp = async ({
     success,
     interrupted = false,
-    err
+    err,
+    hookFailure
   }: {
     success: boolean;
     interrupted?: boolean;
     err?: Error;
+    hookFailure?: Error;
   }) => {
     const { command, args } = globalStateManager;
     globalStateManager.stopCredentialRefresh();
@@ -235,7 +237,7 @@ class ApplicationManager {
       'cleanup:run',
       () =>
         Promise.allSettled([
-          ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
+          ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err, hookFailure })),
           shouldCleanTemp && deleteTempFolder()
         ]),
       { hooks: this.cleanUpHooks.length, deleteTemp: Boolean(shouldCleanTemp) }
