@@ -49,20 +49,33 @@ type IndicatorGeometry = {
   height: number;
   left: number;
   ready: boolean;
-  /** Whether the indicator glides to this place. Its first place is taken at once, so a page opens without motion. */
+  /**
+   * Whether the indicator glides to this place: only to another item. Its first place, and a new size of the same
+   * item (a count or a web font arriving after the first render), are taken at once, so a page opens without motion.
+   */
   moves: boolean;
+  /** The item it was placed for. */
+  placedFor: TabValue | null | undefined;
   top: number;
   width: number;
 };
 
-const hiddenIndicator: IndicatorGeometry = { height: 0, left: 0, ready: false, moves: false, top: 0, width: 0 };
+const hiddenIndicator: IndicatorGeometry = {
+  height: 0,
+  left: 0,
+  ready: false,
+  moves: false,
+  placedFor: undefined,
+  top: 0,
+  width: 0
+};
 
 /**
  * The selected surface that slides to the active item: the one Tabs draws, for navigation lists that are not tabs
  * (a project's stage list). Place it inside `container`, which must be positioned, after the items: their refs are
  * attached by the time it measures. It measures `getTarget()` against
  * the container (including its scroll offset) whenever `activeKey` changes or either element resizes, and animates
- * with the tab bar's timing and easing.
+ * with the tab bar's timing and easing when `activeKey` changes.
  */
 export function SlidingIndicator({
   containerRef,
@@ -104,7 +117,7 @@ export function SlidingIndicator({
       current.top === next.top &&
       current.width === next.width
         ? current
-        : { ...next, ready: true, moves: current.ready }
+        : { ...next, ready: true, moves: current.ready && current.placedFor !== activeKey, placedFor: activeKey }
     );
   }, [activeKey, containerRef]);
 
