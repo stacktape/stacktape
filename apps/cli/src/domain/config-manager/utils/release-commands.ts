@@ -39,8 +39,8 @@ export const resolveReleaseCommand = (workload: StpContainerWorkload): ResolvedR
     );
   }
 
-  if (workload.releaseTaskOfFunction && config.container) {
-    throw invalid(name, 'names a container, and a function has none.', 'Remove `container`.');
+  if (workload.releaseTaskOf && config.container) {
+    throw invalid(name, 'names a container, but it runs in a task of its own.', 'Remove `container`.');
   }
   const containerNames = workload.containers.map((container) => container.name);
   if (!config.container && containerNames.length > 1 && workload.type === 'multi-container-workload') {

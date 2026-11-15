@@ -241,10 +241,27 @@ describe('release command of a function', () => {
     );
   });
 
-  test('rejects a container name, which a function does not have', async () => {
+  test('runs for a server-rendered site before its functions get new code', async () => {
+    for (const type of ['nextjs-web', 'astro-web']) {
+      const template = await synthesize({
+        web: { type, properties: { appDirectory: './web', releaseCommand: 'npx prisma migrate deploy' } }
+      });
+      const customResource = cfLogicalNames.releaseCommandCustomResource('webReleaseTask');
+      expect(template.Resources[customResource]!.Properties!.releaseCommand.taskDefinition).toEqual({
+        Ref: cfLogicalNames.ecsReleaseTaskDefinition('webReleaseTask')
+      });
+      const functions = Object.entries(template.Resources).filter(
+        ([logicalId, { Type }]) => Type === 'AWS::Lambda::Function' && /^Web/.test(logicalId)
+      );
+      expect(functions.length).toBeGreaterThan(0);
+      for (const [logicalId] of functions) expect(dependsOn(template, logicalId)).toContain(customResource);
+    }
+  });
+
+  test('rejects a container name, because the task has one container', async () => {
     await expect(
       synthesize({ api: lambda({ releaseCommand: { command: 'migrate', container: 'main' } }) })
-    ).rejects.toThrow(/a function has none/);
+    ).rejects.toThrow(/runs in a task of its own/);
   });
 
   test('leaves a function without the setting untouched', async () => {

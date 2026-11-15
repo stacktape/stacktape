@@ -21,10 +21,10 @@ export type StpContainerWorkload = ContainerWorkload['properties'] & {
   codeSwap?: boolean;
   releaseCommand?: string | ReleaseCommand;
   /**
-   * The workload exists only to run the release command of this function: a task definition and what it needs, with
-   * no service. A function's package can't run a migration tool, so its command runs in an image of the whole project.
+   * The workload exists only to run the release command of this function or site: a task definition and what it needs,
+   * with no service. Their packages can't run a migration tool, so the command runs in an image of the whole project.
    */
-  releaseTaskOfFunction?: string;
+  releaseTaskOf?: string;
   name: string;
   type: ContainerWorkload['type'];
   configParentResourceType:

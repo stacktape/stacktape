@@ -132,7 +132,7 @@ const normalizeAndValidateServiceRegistriesForEcsApi = (input: UpdateServiceComm
 
 /** The cluster a release command's workload runs in, when the stack already has it. A function's task has no service. */
 export const releaseCommandClusterOf = ({ workload }: ResolvedReleaseCommand): string | undefined =>
-  workload.releaseTaskOfFunction
+  workload.releaseTaskOf
     ? stackManager.existingStackResources?.find(
         ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.ecsCluster(workload.name)
       )?.PhysicalResourceId

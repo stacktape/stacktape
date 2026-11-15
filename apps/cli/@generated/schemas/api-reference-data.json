@@ -6747,6 +6747,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -6791,9 +6866,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { AstroWebDevConfig, AstroWebServerLambdaConfig, DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype AstroWebProps = {\n  /** Directory containing your `astro.config.mjs`. For monorepos, point to the Astro workspace. */\n  appDirectory?: string;\n  /** Override the default `astro build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `astro dev`. */\n  dev?: AstroWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: AstroWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { AstroWebDevConfig, AstroWebServerLambdaConfig, DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype AstroWebProps = {\n  /** Directory containing your `astro.config.mjs`. For monorepos, point to the Astro workspace. */\n  appDirectory?: string;\n  /** Override the default `astro build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `astro dev`. */\n  dev?: AstroWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: AstroWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: AstroWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype AstroWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "AstroWebServerLambdaConfig": {
     "definitionName": "AstroWebServerLambdaConfig",
@@ -42704,6 +42779,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -42817,9 +42967,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 13
+      "optionalCount": 14
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NextjsWebProps = {\n  /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */\n  appDirectory: string;\n  /** Override the default `next build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `next dev`. */\n  dev?: unknown;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: NextjsServerLambdaProperties;\n  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */\n  streamingEnabled?: boolean;\n  /** Run SSR at CloudFront edge locations for lower latency worldwide. */\n  useEdgeLambda?: boolean;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */\n  warmServerInstances?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NextjsWebProps = {\n  /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */\n  appDirectory: string;\n  /** Override the default `next build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `next dev`. */\n  dev?: unknown;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: NextjsWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: NextjsServerLambdaProperties;\n  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */\n  streamingEnabled?: boolean;\n  /** Run SSR at CloudFront edge locations for lower latency worldwide. */\n  useEdgeLambda?: boolean;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */\n  warmServerInstances?: number;\n};\n\n/** Union choices used by the properties above. */\ntype NextjsWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "NonCurrentVersionClassTransition": {
     "definitionName": "NonCurrentVersionClassTransition",
@@ -43290,6 +43440,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -43334,9 +43559,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NuxtWebProps = {\n  /** Directory containing your `nuxt.config.ts`. For monorepos, point to the Nuxt workspace. */\n  appDirectory?: string;\n  /** Override the default `nuxt build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `nuxt dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NuxtWebProps = {\n  /** Directory containing your `nuxt.config.ts`. For monorepos, point to the Nuxt workspace. */\n  appDirectory?: string;\n  /** Override the default `nuxt build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `nuxt dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: NuxtWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype NuxtWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "OpenSearchAccessibility": {
     "definitionName": "OpenSearchAccessibility",
@@ -52024,6 +52249,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -52068,9 +52368,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype RemixWebProps = {\n  /** Directory containing your `vite.config.ts` (or `remix.config.js`). For monorepos, point to the Remix workspace. */\n  appDirectory?: string;\n  /** Override the default `remix vite:build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `remix vite:dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype RemixWebProps = {\n  /** Directory containing your `vite.config.ts` (or `remix.config.js`). For monorepos, point to the Remix workspace. */\n  appDirectory?: string;\n  /** Override the default `remix vite:build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `remix vite:dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: RemixWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype RemixWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "S3FilterRule": {
     "definitionName": "S3FilterRule",
@@ -54082,6 +54382,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -54126,9 +54501,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype SolidStartWebProps = {\n  /** Directory containing your `app.config.ts`. For monorepos, point to the SolidStart workspace. */\n  appDirectory?: string;\n  /** Override the default `vinxi build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype SolidStartWebProps = {\n  /** Directory containing your `app.config.ts`. For monorepos, point to the SolidStart workspace. */\n  appDirectory?: string;\n  /** Override the default `vinxi build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: SolidStartWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype SolidStartWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "SqsIntegration": {
     "definitionName": "SqsIntegration",
@@ -57835,6 +58210,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -57879,9 +58329,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype SvelteKitWebProps = {\n  /** Directory containing your `svelte.config.js`. For monorepos, point to the SvelteKit workspace. */\n  appDirectory?: string;\n  /** Override the default `vite build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vite dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype SvelteKitWebProps = {\n  /** Directory containing your `svelte.config.js`. For monorepos, point to the SvelteKit workspace. */\n  appDirectory?: string;\n  /** Override the default `vite build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vite dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: SvelteKitWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype SvelteKitWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "SyntheticApiTest": {
     "definitionName": "SyntheticApiTest",
@@ -58701,6 +59151,81 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. The site&#39;s server functions hold only bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this resource&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The command runs from the project root. The deploy waits for the task,\nprints its logs, and stops if the command fails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each change of the project builds the image and runs the\ncommand. Building the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
         "name": "serverLambda",
         "required": false,
         "shortDescription": "<p> Customize the SSR Lambda function (memory, timeout, VPC, logging).</p>",
@@ -58745,9 +59270,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype TanStackWebProps = {\n  /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */\n  appDirectory?: string;\n  /** Override the default `vinxi build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype TanStackWebProps = {\n  /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */\n  appDirectory?: string;\n  /** Override the default `vinxi build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: TanStackWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n\n/** Union choices used by the properties above. */\ntype TanStackWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "Task": {
     "definitionName": "Task",
