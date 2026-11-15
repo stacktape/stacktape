@@ -58,7 +58,14 @@ const ACCOUNT_PATTERNS: readonly RegExp[] = [
  * cancellation — treating it as one suppresses a legitimate repair.
  */
 const CANCELLATION_PATTERN = /cancelled|canceled|aborted|interrupt/i;
-const NEVER_REPAIR_CODES: ReadonlySet<string> = new Set(['INIT_STACK_EXPECTATION_MISMATCH']);
+/**
+ * A failed `afterDeploy` hook comes after a deployment that finished. A repair would rewrite the configuration of a
+ * stack that is live and deploy again under the approval for creating it.
+ */
+const NEVER_REPAIR_CODES: ReadonlySet<string> = new Set([
+  'INIT_STACK_EXPECTATION_MISMATCH',
+  'AFTER_DEPLOY_HOOK_FAILED'
+]);
 
 const MAX_ERRORS = 12;
 const MAX_OUTPUT = 40;
