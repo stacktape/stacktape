@@ -3,11 +3,12 @@ import type { RunCommandOptions } from '@application-services/global-state-manag
 import type { StacktapeCommand } from 'src/config/cli/types';
 import { announcementsManager } from '@application-services/announcements-manager';
 import { applicationManager } from '@application-services/application-manager';
-import { commandLifecycle } from '@application-services/command-lifecycle';
+import { commandLifecycle, type HookFailure } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
+import { CliError } from '@utils/errors';
 import { deleteTempFolder } from '@utils/temp-files';
 import { markTiming, startTiming } from '@utils/timings';
 import { initAgentMode } from './commands/_utils/agent-mode';
@@ -120,6 +121,7 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
   }
 
   let commandResult: any = null;
+  let completedCommandError: Error | undefined;
   try {
     await applicationManager.init();
     const isAgentInvocation = opts.args.agent || opts.args.agentPort !== undefined;
@@ -157,27 +159,58 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
     const endExecute = startTiming('command:execute', { command });
     commandResult = await executor();
     endExecute();
-    commandLifecycle.clearHookFailures();
-    const shouldContinueAfterHookFailure = globalStateManager.command === 'deploy';
-    await commandLifecycle.processHooks({
-      captureType: 'FINISH',
-      continueOnError: shouldContinueAfterHookFailure
-    });
-
-    if (shouldContinueAfterHookFailure && commandLifecycle.hookFailures.length) {
-      const count = commandLifecycle.hookFailures.length;
-      const hookMsg = `${count} after:deploy hook${count > 1 ? 's' : ''} failed`;
-      tuiManager.warn(`${hookMsg}. Deployment is complete, but post-deploy tasks need attention.`);
+    // A deployment that ran its hooks is finished and live. A failing `afterDeploy` hook therefore fails the command
+    // without reporting or cleaning up the deployment as failed.
+    let failedAfterDeployHook: HookFailure | undefined;
+    try {
+      await commandLifecycle.processHooks({ captureType: 'FINISH' });
+    } catch (error) {
+      if (globalStateManager.command !== 'deploy' || !commandLifecycle.failedHook) throw error;
+      failedAfterDeployHook = commandLifecycle.failedHook;
     }
 
-    // Commit pending completion, downgrading to failure if hooks failed
-    tuiManager.commitPendingCompletion({
-      hookFailureCount: commandLifecycle.hookFailures.length
-    });
+    tuiManager.commitPendingCompletion({ failedHookName: failedAfterDeployHook?.scriptName });
 
     const endFinalActions = startTiming('command:final-actions');
     await commandLifecycle.processFinalActions();
     endFinalActions();
+
+    const hookFailures = commandLifecycle.hookFailures.map(({ hookEvent, scriptName, error }) => ({
+      hookEvent,
+      scriptName,
+      message: error instanceof Error ? error.message : `${error}`
+    }));
+
+    if (failedAfterDeployHook) {
+      const { scriptName, error } = failedAfterDeployHook;
+      const returnableError = await applicationManager.failAfterCompletedCommand(
+        new CliError({
+          category: 'HOOK',
+          code: 'AFTER_DEPLOY_HOOK_FAILED',
+          message: `The deployment finished, but the afterDeploy hook ${scriptName} failed.\n${error instanceof Error ? error.message : `${error}`}`,
+          hints: [
+            'The stack is deployed and runs the new version. Nothing was rolled back, and hooks listed after this one did not run.',
+            `Fix the problem, then run the script again with \`stacktape ${publicCommandName('script:run')} --scriptName ${scriptName}\`.`,
+            'If a failure of this hook should not fail the deploy, set `onFailure: continue` on it.'
+          ],
+          cause: error
+        })
+      );
+      completedCommandError = returnableError;
+      const errorDetails = (returnableError as any).details || {};
+      tuiManager.emitJsonlResult({
+        ok: false,
+        code: errorDetails.code || 'AFTER_DEPLOY_HOOK_FAILED',
+        message: returnableError.message,
+        data: {
+          ...(commandResult !== undefined ? { result: commandResult } : {}),
+          failedHook: { hookEvent: 'afterDeploy', scriptName },
+          ...(hookFailures.length ? { hookFailures } : {}),
+          ...(errorDetails.hints ? { hints: errorDetails.hints } : {})
+        }
+      });
+      throw returnableError;
+    }
 
     tuiDebug('MAIN', 'success path — calling tuiManager.stop()');
     const endStopOutput = startTiming('command:stop-output');
@@ -193,21 +226,16 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
       ok: true,
       code: 'OK',
       message: `${publicCommandName(globalStateManager.command)} completed`,
-      ...((commandResult !== undefined || commandLifecycle.hookFailures.length) && {
+      ...((commandResult !== undefined || hookFailures.length) && {
         data: {
           ...(commandResult !== undefined ? { result: commandResult } : {}),
-          ...(commandLifecycle.hookFailures.length
-            ? {
-                hookFailures: commandLifecycle.hookFailures.map(({ hookEvent, error }) => ({
-                  hookEvent,
-                  message: error instanceof Error ? error.message : `${error}`
-                }))
-              }
-            : {})
+          ...(hookFailures.length ? { hookFailures } : {})
         }
       })
     });
   } catch (err) {
+    // Already reported: the command's own work succeeded.
+    if (completedCommandError && err === completedCommandError) throw err;
     markTiming('command:failed');
     tuiDebug('MAIN', 'catch block entered', {
       isInterrupted: applicationManager.isInterrupted,

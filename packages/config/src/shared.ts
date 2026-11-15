@@ -943,6 +943,65 @@ export interface LifecycleHookBase {
    * @default false
    */
   skipOnLocal?: boolean;
+  /**
+   * #### What happens when the script fails.
+   *
+   * ---
+   *
+   * - `fail`: the command stops and exits with an error, and the hooks listed after this one don't run. When an
+   *   `afterDeploy` hook fails, the deployment has already finished and stays live. The command still exits with an
+   *   error, so a CI job fails.
+   * - `continue`: the failure is printed as a warning and the command carries on.
+   *
+   * Use `continue` for work that must not fail a deploy, such as sending a notification.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * scripts:
+   *   notifyTeam:
+   *     type: local-script
+   *     properties:
+   *       executeCommand: node ./scripts/notify-team.js
+   * hooks:
+   *   afterDeploy:
+   *     # stp-focus
+   *     - scriptName: notifyTeam
+   *       onFailure: continue
+   *     # stp-end-focus
+   * resources:
+   *   web:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const notifyTeam = new LocalScript({ executeCommand: 'node ./scripts/notify-team.js' });
+   *   const web = new HostingBucket({ uploadDirectoryPath: './dist' });
+   *
+   *   return {
+   *     scripts: { notifyTeam },
+   *     hooks: {
+   *       afterDeploy: [
+   *         // stp-focus
+   *         { scriptName: 'notifyTeam', onFailure: 'continue' }
+   *         // stp-end-focus
+   *       ]
+   *     },
+   *     resources: { web }
+   *   };
+   * });
+   * ```
+   *
+   * @default "fail"
+   */
+  onFailure?: 'fail' | 'continue';
 }
 
 

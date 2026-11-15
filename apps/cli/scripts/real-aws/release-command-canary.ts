@@ -12,8 +12,9 @@
  * - `extras` (`_test-stacks/release-command-extras`): a Python service with code swap, including recovery from a killed
  *   deploy, a blue/green service, and a deploy that races a stack delete.
  * - `lock` (`_test-stacks/stack-lock`): one function, for the stack lock itself. Racing first deploys, deploys,
- *   a rollback and a delete that wait for each other, a cancelled wait, killed deploys taken over, and a hook that runs a
- *   command on the stack its deploy holds. A second copy of the project plays a second CI job.
+ *   a rollback and a delete that wait for each other, a cancelled wait, killed deploys taken over, a hook that runs a
+ *   command on the stack its deploy holds, and a failing `afterDeploy` hook. A second copy of the project plays a second
+ *   CI job.
  *
  * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
  * past the 15-minute Lambda limit to the `variants` stack, which ends well before the `database` stack without it.
@@ -1051,7 +1052,7 @@ const runLockScenarios = async (stack: CanaryStack, record: (scenario: Scenario)
       .join('\n\n');
   // A `beforeDeploy` hook runs while its deploy holds the lock. Sleeping in one holds the lock long enough for a second
   // command, whose start takes a few seconds, to find it held, however quick the deploy itself is.
-  const setHook = (command: string) =>
+  const setHook = (command: string, event = 'beforeDeploy', onFailure?: 'continue') =>
     stack.editConfig(
       (config) => `${config}
 scripts:
@@ -1061,8 +1062,8 @@ scripts:
       executeCommand: ${JSON.stringify(command)}
 
 hooks:
-  beforeDeploy:
-    - scriptName: canaryHook
+  ${event}:
+    - scriptName: canaryHook${onFailure ? `\n      onFailure: ${onFailure}` : ''}
 `
     );
   const removeHook = () => stack.editConfig((config) => `${config.slice(0, config.indexOf('\nscripts:\n'))}\n`);
@@ -1277,6 +1278,35 @@ hooks:
   await record({
     name: 'a hook that runs a command on its own stack fails right away instead of waiting forever',
     seconds: withHook.seconds
+  });
+
+  // A failed `afterDeploy` hook fails the command, which is what stops a CI job. The deployment before it is finished:
+  // the new release serves, the lock is free and the next deploy is an ordinary one. With `onFailure: continue` the
+  // failure is only a warning.
+  await setHook('exit 7', 'afterDeploy');
+  await stack.setRelease(APP_FILE, 'a8');
+  const failedAfter = await stack.deploy();
+  await removeHook();
+  assert(failedAfter.exitCode !== 0, 'a failed afterDeploy hook should fail the deploy.');
+  assert(
+    failedAfter.output.includes('AFTER_DEPLOY_HOOK_FAILED') &&
+      failedAfter.output.includes('The deployment finished, but the afterDeploy hook canaryHook failed.'),
+    `the deploy did not say that its afterDeploy hook failed:\n${failedAfter.output.slice(-2000)}`
+  );
+  await expectServed('failed afterDeploy hook', { release: 'a8', feature: 'five' });
+  assert(!(await stack.lockHolder()), 'the lock is still held after the deploy whose afterDeploy hook failed.');
+  await setHook('exit 7', 'afterDeploy', 'continue');
+  await stack.setRelease(APP_FILE, 'a8-continued');
+  const continuedAfter = await stack.deploy();
+  await removeHook();
+  assert(
+    continuedAfter.exitCode === 0,
+    `a failed hook with onFailure: continue failed the deploy:\n${continuedAfter.output.slice(-2000)}`
+  );
+  await expectServed('continued afterDeploy hook', { release: 'a8-continued', feature: 'five' });
+  await record({
+    name: 'a failed afterDeploy hook fails the command and leaves the finished deployment live and unlocked',
+    seconds: failedAfter.seconds
   });
 
   // A delete started during a deploy waits for it, then deletes the stack and its bucket.

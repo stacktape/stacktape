@@ -145,8 +145,9 @@ removing the setting, `--skipReleaseCommand`, and a deploy that races a stack de
 
 The `lock` stack (`_test-stacks/stack-lock`, one function) covers the stack lock in about 20 minutes: racing first
 deploys of a new stage, fast and CloudFormation deploys, a rollback and a delete that wait for a running deploy, Ctrl+C
-while waiting, deploys killed during CloudFormation and during a fast deploy and taken over after the lease, and a
-`beforeDeploy` hook that runs a command on its own stack. A second copy of the project plays a second CI job, and a
+while waiting, deploys killed during CloudFormation and during a fast deploy and taken over after the lease, a
+`beforeDeploy` hook that runs a command on its own stack, and a failing `afterDeploy` hook, which fails the command but
+leaves the finished deployment live and unlocked. A second copy of the project plays a second CI job, and a
 `beforeDeploy` hook that sleeps holds the lock long enough for the second command to find it held. Every command's full
 output is kept in `<owner>-logs` next to the state file.
 

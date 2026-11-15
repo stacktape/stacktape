@@ -75,6 +75,21 @@ class ApplicationManager {
     killPythonBridge();
   };
 
+  /**
+   * The command did its work, and a hook that runs after it failed. Nothing is undone, so cleanup runs as after a
+   * success: a failure cleanup would treat a finished deployment as an interrupted one. The error is printed, and the
+   * command still ends as failed.
+   */
+  failAfterCompletedCommand = async (err: unknown) => {
+    const stacktapeError = normalizeCliError(err);
+    await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
+    await tuiManager.stop();
+    tuiManager.error(stacktapeError);
+    await this.cleanUp({ success: true });
+    killPythonBridge();
+    return getReturnableError(stacktapeError);
+  };
+
   gracefullyHandleError = async (err: any) => {
     tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
     const stacktapeError = normalizeCliError(err);

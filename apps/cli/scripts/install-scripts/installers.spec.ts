@@ -131,7 +131,8 @@ chunk_size=$(( (size + chunks - 1) / chunks ))
 : > "$output"
 i=0
 while [ "$i" -lt "$chunks" ]; do
-  dd if="$source" bs="$chunk_size" skip="$i" count=1 2>/dev/null >> "$output"
+  # Not dd: the one in Ubuntu 26.04 (uutils 0.10) writes nothing for a small block size, which emptied the checksums.
+  tail -c "+$((i * chunk_size + 1))" "$source" | head -c "$chunk_size" >> "$output"
   i=$((i + 1))
   [ "$chunks" -eq 1 ] || sleep 0.01
 done

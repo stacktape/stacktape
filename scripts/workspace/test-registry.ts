@@ -1003,7 +1003,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network'],
     release: 'affected-external-contract',
     proves:
-      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; and a hook running a command on its own stack fails instead of waiting. A deploy after a killed one waits for its still-running command.'
+      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; a hook running a command on its own stack fails instead of waiting; and a failing afterDeploy hook fails the command while the finished deployment stays live and unlocked. A deploy after a killed one waits for its still-running command.'
   },
   {
     id: 'local-dev-live',
@@ -1408,7 +1408,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
-      'apps/cli/tests/ministack/domain-add.spec.ts'
+      'apps/cli/tests/ministack/domain-add.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
@@ -6598,6 +6599,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
@@ -6617,7 +6619,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
-    lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: [
+      'cli-operation-rules',
+      'cli-terminal-ownership',
+      'cli',
+      'cli-2',
+      'cli-3',
+      'cli-operations',
+      'ministack-deploy-2'
+    ]
   },
   {
     id: 'S75',

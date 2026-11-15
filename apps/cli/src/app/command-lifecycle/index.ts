@@ -11,8 +11,9 @@ import ci from 'ci-info';
 import type { HookableEvent } from 'src/config/cli/types';
 import type { Hooks, NamedScriptLifecycleHook } from '@stacktape/config/shared';
 
-type HookMap = { [lifecycleEvent: string]: ((args: ScriptFn) => unknown)[] };
-type HookFailure = { hookEvent: HookableEvent; error: unknown };
+type RegisteredHook = { scriptName: string; onFailure: 'fail' | 'continue'; run: (args: ScriptFn) => unknown };
+type HookMap = { [lifecycleEvent: string]: RegisteredHook[] };
+export type HookFailure = { hookEvent: HookableEvent; scriptName: string; error: unknown };
 
 const hookEventsRequiringFreshDirectiveResolve: (keyof Hooks)[] = ['afterDeploy'];
 const hookEventsRequiringDirectiveCleanup: (keyof Hooks)[] = ['beforeDeploy'];
@@ -25,19 +26,23 @@ class CommandLifecycle {
   private hookMap: HookMap = {};
   private finalActions: AnyFunction[] = [];
   private failures: HookFailure[] = [];
+  private failed: HookFailure | undefined;
 
   init = async () => {
     this.hookMap = {};
     this.finalActions = [];
     this.failures = [];
+    this.failed = undefined;
   };
 
+  /** Failures of hooks whose `onFailure` is `continue`. The command carried on after each. */
   get hookFailures(): readonly HookFailure[] {
     return this.failures;
   }
 
-  clearHookFailures() {
-    this.failures = [];
+  /** The hook that stopped the command: its `onFailure` is `fail`, the default. */
+  get failedHook(): HookFailure | undefined {
+    return this.failed;
   }
 
   addFinalAction(action: AnyFunction) {
@@ -51,7 +56,7 @@ class CommandLifecycle {
   getEligibleHookScripts(
     hooks: Hooks,
     scripts: (typeof configManager)['scripts']
-  ): (Script & { hookTrigger: string })[] {
+  ): (Script & Pick<NamedScriptLifecycleHook, 'scriptName' | 'onFailure'> & { hookTrigger: string })[] {
     const candidates = [
       ...(hooks[camelCase(`before-${globalStateManager.command}`) as keyof Hooks] || []).map((hook) => ({
         ...hook,
@@ -82,17 +87,19 @@ class CommandLifecycle {
       const trigger = definition.hookTrigger;
       const executable = getExecutableScriptFunction({ scriptDefinition: definition, hookTrigger: trigger });
       if (!this.hookMap[trigger]) this.hookMap[trigger] = [];
-      this.hookMap[trigger].push(executable);
+      this.hookMap[trigger].push({
+        scriptName: definition.scriptName,
+        onFailure: definition.onFailure ?? 'fail',
+        run: executable
+      });
     }
   }
 
-  async processHooks({
-    captureType,
-    continueOnError = false
-  }: {
-    captureType: 'START' | 'FINISH';
-    continueOnError?: boolean;
-  }) {
+  /**
+   * Runs the command's hooks in the order of the config. A failed hook stops the command, and the hooks after it don't
+   * run, unless its `onFailure` is `continue`.
+   */
+  async processHooks({ captureType }: { captureType: 'START' | 'FINISH' }) {
     const hookType = { START: 'before', FINISH: 'after' }[captureType] as HookType;
     const hookEvent = camelCase(`${hookType}-${globalStateManager.command}`) as HookableEvent;
 
@@ -100,16 +107,19 @@ class CommandLifecycle {
       await invalidateDirectiveResults();
     }
     const endTiming = startTiming(`hooks:${hookType}`, { hooks: this.hookMap[hookEvent]?.length ?? 0 });
-    for (const hook of this.hookMap[hookEvent] ?? []) {
+    for (const { scriptName, onFailure, run } of this.hookMap[hookEvent] ?? []) {
       try {
-        await hook({ hookType });
+        await run({ hookType });
       } catch (error) {
-        if (!continueOnError) throw error;
-        this.failures.push({ hookEvent, error });
+        if (onFailure !== 'continue') {
+          this.failed = { hookEvent, scriptName, error };
+          throw error;
+        }
+        this.failures.push({ hookEvent, scriptName, error });
         const fullMessage = error instanceof Error ? error.message : `${error}`;
         operationSession.message(
           'warn',
-          `Non-blocking ${hookEvent} hook failed: ${fullMessage.split('\n').find(Boolean) || 'Unknown hook failure'}`
+          `The ${hookEvent} hook ${scriptName} failed. The command continues, because the hook's onFailure is "continue": ${fullMessage.split('\n').find(Boolean) || 'Unknown hook failure'}`
         );
       }
     }

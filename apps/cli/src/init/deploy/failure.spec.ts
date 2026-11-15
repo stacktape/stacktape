@@ -101,6 +101,20 @@ describe('summarising a failed deploy', () => {
     ).toBe(false);
   });
 
+  it('does not repair a deployment that finished before its afterDeploy hook failed', () => {
+    expect(
+      summariseFailure({
+        events: [],
+        lines: ['npx prisma migrate deploy', 'Error: P3009 migrate found failed migrations'],
+        outcome: {
+          ok: false,
+          code: 'AFTER_DEPLOY_HOOK_FAILED',
+          message: 'The deployment finished, but the afterDeploy hook migrateDatabase failed.'
+        }
+      })?.worthRetrying
+    ).toBe(false);
+  });
+
   it('catches an account problem that only ever reached the output stream', () => {
     // The comment in the implementation says the interesting content lands in `output` — an SDK or
     // build step printing to stdout. The retryability judgement has to read the same stream.

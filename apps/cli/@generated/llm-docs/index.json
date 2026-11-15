@@ -8129,6 +8129,7 @@
         "config-reference",
         "NamedScriptLifecycleHook",
         "scriptName",
+        "onFailure",
         "skipOnCI",
         "skipOnLocal"
       ],
@@ -8138,12 +8139,15 @@
         "config-reference:NamedScriptLifecycleHook#property-scriptname",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml",
         "config-reference:NamedScriptLifecycleHook#example-2-typescript",
-        "config-reference:NamedScriptLifecycleHook#property-skiponci",
+        "config-reference:NamedScriptLifecycleHook#property-onfailure",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml-2",
         "config-reference:NamedScriptLifecycleHook#example-2-typescript-2",
-        "config-reference:NamedScriptLifecycleHook#property-skiponlocal",
+        "config-reference:NamedScriptLifecycleHook#property-skiponci",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml-3",
-        "config-reference:NamedScriptLifecycleHook#example-2-typescript-3"
+        "config-reference:NamedScriptLifecycleHook#example-2-typescript-3",
+        "config-reference:NamedScriptLifecycleHook#property-skiponlocal",
+        "config-reference:NamedScriptLifecycleHook#example-1-yaml-4",
+        "config-reference:NamedScriptLifecycleHook#example-2-typescript-4"
       ]
     },
     {
@@ -17549,6 +17553,7 @@
         "page:/configuration/hooks-and-scripts#running-scripts-manually",
         "page:/configuration/hooks-and-scripts#hooks",
         "page:/configuration/hooks-and-scripts#lifecycle-events",
+        "page:/configuration/hooks-and-scripts#when-a-hook-fails",
         "page:/configuration/hooks-and-scripts#conditional-execution",
         "page:/configuration/hooks-and-scripts#environment-variables-in-scripts",
         "page:/configuration/hooks-and-scripts#deployment-scripts",

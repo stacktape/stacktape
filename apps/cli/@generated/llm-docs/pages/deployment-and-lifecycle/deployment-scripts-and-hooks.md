@@ -10,7 +10,7 @@ Hooks and deployment scripts serve different execution contexts. Choose based on
 |---|---|---|
 | **Runs on** | Your machine or CI runner | AWS Lambda |
 | **Triggered by** | CLI commands (deploy, delete, dev) | CloudFormation lifecycle (`after:deploy`, `before:delete`) |
-| **`after:deploy` failure** | — | CloudFormation rolls back the deployment |
+| **`after:deploy` failure** | The command fails; the deployment stays live | CloudFormation rolls back the deployment |
 | **`before:delete` failure** | — | Deletion continues |
 | **Max timeout** | — | 900 seconds (Lambda maximum) |
 | **VPC access** | Via bastion tunneling | Via `joinDefaultVpc` |
