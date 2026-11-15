@@ -20,6 +20,11 @@ export type StpContainerWorkload = ContainerWorkload['properties'] & {
   /** Internal propagation of the web-service opt-in. */
   codeSwap?: boolean;
   releaseCommand?: string | ReleaseCommand;
+  /**
+   * The workload exists only to run the release command of this function: a task definition and what it needs, with
+   * no service. A function's package can't run a migration tool, so its command runs in an image of the whole project.
+   */
+  releaseTaskOfFunction?: string;
   name: string;
   type: ContainerWorkload['type'];
   configParentResourceType:

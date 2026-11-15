@@ -38396,6 +38396,87 @@
         ]
       },
       {
+        "name": "releaseCommand",
+        "required": false,
+        "shortDescription": "<p> Run a command once on each deploy, inside the VPC, before any workload gets the new code.</p>",
+        "longDescription": "<p>Use it for database migrations. A function&#39;s package holds only its bundled code, so Stacktape builds an image of\nthe whole project and runs the command in a one-off ECS task, with this function&#39;s environment variables and its\naccess to the resources in <code>connectTo</code>. The deploy waits for the task, prints its logs, and stops if the command\nfails, so the running version keeps serving.</p>\n<p>Set <code>runWhenChanged</code> to your migration folder. Without it, each code change builds the image and runs the command.\nBuilding the image needs Docker on the machine that deploys.</p>\n<p>The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible\nwith it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor <code>stacktape rollback</code>\nreverses what the command changed.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ReleaseCommand",
+              "typeName": "ReleaseCommand",
+              "shortDescription": "<p> A command that runs once on each deploy, before any workload gets the new code.</p>",
+              "properties": [
+                {
+                  "name": "command",
+                  "required": true,
+                  "shortDescription": "<p> The shell command to run, for example <code>npx prisma migrate deploy</code>.</p>",
+                  "longDescription": "<p>It runs through <code>/bin/sh -c</code> in place of the image&#39;s entry point. If the image needs its entry point, call it in the\ncommand. An image without a shell cannot run a release command.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "runWhenChanged",
+                  "required": false,
+                  "shortDescription": "<p> Run the command only when these files or directories changed.</p>",
+                  "longDescription": "<p>Paths are relative to the project root and must exist. A deploy that changes none of them skips the command and can\nstay on the fast path. Without this option, the command runs on each deploy that changes the image.</p>",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "timeout",
+                  "required": false,
+                  "shortDescription": "<p> How long the command can run, in seconds. The deploy fails and the task stops when it runs longer.</p>",
+                  "longDescription": "",
+                  "defaultValue": "3300",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  }
+                },
+                {
+                  "name": "container",
+                  "required": false,
+                  "shortDescription": "<p> The container to run the command in.</p>",
+                  "longDescription": "<p>Required for a <code>multi-container-workload</code> with several containers. On other services, it runs in the main container.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '17.6'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/api.ts\n      connectTo:\n        - mainDb\n      # [!code focus-start]\n      releaseCommand:\n        command: npx prisma migrate deploy\n        runWhenChanged:\n          - prisma/migrations\n      # [!code focus-end]"
+          }
+        ]
+      },
+      {
         "name": "reservedConcurrency",
         "required": false,
         "shortDescription": "<p> Cap the maximum number of concurrent instances for this function.</p>",
@@ -38937,9 +39018,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 23
+      "optionalCount": 24
     },
-    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Distributed tracing for this function. */\n  tracing?: LambdaFunctionTracing;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | JsBundleLambdaPackaging\n  | BuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionTracing =\n  | TracingOptions\n  | \"option-2\";\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, ReleaseCommand, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: LambdaFunctionReleaseCommand;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Distributed tracing for this function. */\n  tracing?: LambdaFunctionTracing;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | JsBundleLambdaPackaging\n  | BuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n\ntype LambdaFunctionTracing =\n  | TracingOptions\n  | \"option-2\";\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
   },
   "LambdaS3FilesMount": {
     "definitionName": "LambdaS3FilesMount",

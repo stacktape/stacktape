@@ -35,6 +35,7 @@ export const getConnectToReferencesForResource = ({
   [
     ...activeConfig.allLambdasToUpload,
     ...activeConfig.allContainerWorkloads,
+    ...activeConfig.releaseTaskWorkloads,
     ...activeConfig.batchJobs,
     ...activeConfig.agentCoreRuntimes
   ].forEach((scopingResource) => {
