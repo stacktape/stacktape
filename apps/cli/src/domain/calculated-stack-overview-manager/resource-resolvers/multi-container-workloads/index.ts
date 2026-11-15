@@ -67,7 +67,10 @@ import {
 } from '@domain-services/config-manager/utils/container-tracing';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
-import { resolveReleaseCommand, type ResolvedReleaseCommand } from '@domain-services/config-manager/utils/release-commands';
+import {
+  resolveReleaseCommand,
+  type ResolvedReleaseCommand
+} from '@domain-services/config-manager/utils/release-commands';
 import {
   RELEASE_COMMAND_LOG_NAME,
   getEcsReleaseTaskDefinition,

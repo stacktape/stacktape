@@ -198,7 +198,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
+To run database migrations, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
 
 ### Lifecycle events
 
@@ -264,7 +264,9 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ### How do I run a database migration on deploy?
 
-On a container service, set [`releaseCommand`](/deployment-and-lifecycle/release-commands). In a stack with only functions, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
+Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service, a function or a server-rendered site. It runs inside the VPC before any workload gets the new code. On a function or site it builds an image of the project, which needs Docker on the machine that deploys.
+
+Without Docker, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 

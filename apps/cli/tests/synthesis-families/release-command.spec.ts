@@ -171,7 +171,7 @@ describe('release command of a function', () => {
   });
   const task = 'apiReleaseTask';
 
-  test('runs in a task with the function\'s environment and connections, before any function', async () => {
+  test("runs in a task with the function's environment and connections, before any function", async () => {
     const template = await synthesize({
       db: database('scoping-workloads-in-vpc'),
       api: lambda({
@@ -221,14 +221,14 @@ describe('release command of a function', () => {
 
   test('creates the VPC it runs in for a stack that has none', async () => {
     const template = await synthesize({ api: lambda({ releaseCommand: 'node migrate.js' }) });
-    const { awsvpcConfiguration } = template.Resources[cfLogicalNames.releaseCommandCustomResource(task)]!.Properties!
-      .releaseCommand;
+    const { awsvpcConfiguration } =
+      template.Resources[cfLogicalNames.releaseCommandCustomResource(task)]!.Properties!.releaseCommand;
     expect(awsvpcConfiguration.assignPublicIp).toBe('ENABLED');
     expect(awsvpcConfiguration.subnets.length).toBeGreaterThan(0);
     for (const { Ref } of awsvpcConfiguration.subnets) expect(template.Resources[Ref]!.Type).toBe('AWS::EC2::Subnet');
   });
 
-  test('runs with services\' commands in config order', async () => {
+  test("runs with services' commands in config order", async () => {
     const template = await synthesize({
       web: service({ releaseCommand: 'first' }),
       api: lambda({ releaseCommand: 'second' })

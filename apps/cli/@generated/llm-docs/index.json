@@ -18222,6 +18222,7 @@
         "page:/deployment-and-lifecycle/release-commands#how-it-affects-deploy-time",
         "page:/deployment-and-lifecycle/release-commands#options",
         "page:/deployment-and-lifecycle/release-commands#several-commands",
+        "page:/deployment-and-lifecycle/release-commands#functions-and-server-rendered-sites",
         "page:/deployment-and-lifecycle/release-commands#js-bundle-services",
         "page:/deployment-and-lifecycle/release-commands#skipping-and-interrupting",
         "page:/deployment-and-lifecycle/release-commands#logs",
