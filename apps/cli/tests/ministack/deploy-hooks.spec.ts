@@ -102,6 +102,13 @@ process.exit(Number(exitCode));
       expect(await stackStatus()).toBe('CREATE_COMPLETE');
       expect(reportedEvents(project)).toContain('DEPLOY_SUCCEEDED');
       expect(reportedEvents(project)).not.toContain('DEPLOY_FAILED');
+      // The operation record says both: the release is live, and the command failed on a hook.
+      const recorded = project.controlPlane.calls
+        .filter(({ procedure }) => procedure === 'recordStackOperation')
+        .map(({ input }) => input as { inProgress?: boolean; success?: boolean; hookFailure?: string })
+        .findLast(({ inProgress }) => inProgress === false);
+      expect(recorded).toMatchObject({ success: true });
+      expect(recorded?.hookFailure).toContain('The deployment finished, but the afterDeploy hook failing failed.');
       const lock = await s3.send(new GetObjectCommand({ Bucket: project.deploymentBucket, Key: STACK_LOCK_S3_KEY }));
       expect(JSON.parse(await lock.Body!.transformToString())).toMatchObject({ released: true });
 
@@ -111,6 +118,13 @@ process.exit(Number(exitCode));
       });
       expect(continued.exitCode, continued.tail).toBe(0);
       expect(continued.result).toMatchObject({ ok: true });
+      expect(
+        project.controlPlane.calls
+          .filter(({ procedure }) => procedure === 'recordStackOperation')
+          .map(({ input }) => input as { inProgress?: boolean; success?: boolean; hookFailure?: string })
+          .findLast(({ inProgress }) => inProgress === false)
+      ).toEqual(expect.objectContaining({ success: true }));
+      expect(JSON.stringify(project.controlPlane.calls.at(-1))).not.toContain('hookFailure');
       expect(continued.result?.data?.hookFailures).toMatchObject([
         { hookEvent: 'beforeDeploy', scriptName: 'failing' },
         { hookEvent: 'afterDeploy', scriptName: 'failing' }

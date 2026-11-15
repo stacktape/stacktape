@@ -28,6 +28,12 @@ export const recordStackOperationInputSchema = z.object({
   success: z.boolean().optional().nullable(),
   description: z.string().optional().nullable(),
   /**
+   * Why an `afterDeploy` hook failed after this deploy finished. `success` stays true, because the new release is live
+   * and the Console reads `success` to know that. The command itself failed, which is what a Git provider status and a
+   * runner job report.
+   */
+  hookFailure: z.string().optional().nullable(),
+  /**
    * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
    * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
    * what a flag means. Stage names stay strings; other flags may contain arbitrary JSON values.

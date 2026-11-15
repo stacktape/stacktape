@@ -898,12 +898,13 @@ const recordStackOperationStart = async () => {
     await reportStackOperationStart();
     if (!isRemoteRunnerDeployInvocation()) {
       // stack operation end
-      applicationManager.registerCleanUpHook(async ({ success, interrupted, err }) => {
+      applicationManager.registerCleanUpHook(async ({ success, interrupted, err, hookFailure }) => {
         await recordStackOperationEnd({
           stackName: globalStateManager.targetStack?.stackName,
           success,
           interrupted,
           error: err,
+          hookFailure,
           // Tells the Console whether this deployment wired Issues for the stack, so it can show coverage.
           issuesEnabled:
             globalStateManager.command === 'deploy' ? configManager.errorTrackingEnabledForRecording : undefined
