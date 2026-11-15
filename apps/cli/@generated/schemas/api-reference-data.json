@@ -38547,7 +38547,7 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '17.6'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/api.ts\n      connectTo:\n        - mainDb\n      # [!code focus-start]\n      releaseCommand:\n        command: npx prisma migrate deploy\n        runWhenChanged:\n          - prisma/migrations\n      # [!code focus-end]"
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '17.7'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/api.ts\n      connectTo:\n        - mainDb\n      # [!code focus-start]\n      releaseCommand:\n        command: npx prisma migrate deploy\n        runWhenChanged:\n          - prisma/migrations\n      # [!code focus-end]"
           }
         ]
       },

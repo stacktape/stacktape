@@ -481,7 +481,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '17.6'
+   *           version: '17.7'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *   api:
