@@ -258,6 +258,27 @@ describe('release command of a function', () => {
     }
   });
 
+  test('holds back the edge function that serves a site', async () => {
+    const template = await synthesize({
+      web: {
+        type: 'nextjs-web',
+        properties: { appDirectory: './web', useEdgeLambda: true, releaseCommand: 'npx prisma migrate deploy' }
+      }
+    });
+    const customResource = cfLogicalNames.releaseCommandCustomResource('webReleaseTask');
+    const edgeFunctions = Object.keys(template.Resources).filter((logicalId) =>
+      /^WebServerEdgeFunction.*EdgeLambda/i.test(logicalId)
+    );
+    expect(edgeFunctions.length).toBeGreaterThan(0);
+    for (const logicalId of edgeFunctions) expect(dependsOn(template, logicalId)).toContain(customResource);
+  });
+
+  test('rejects a resource that has the name of the task', async () => {
+    await expect(
+      synthesize({ api: lambda({ releaseCommand: 'migrate' }), apiReleaseTask: service({}) })
+    ).rejects.toThrow(/release command task of `api`/);
+  });
+
   test('rejects a container name, because the task has one container', async () => {
     await expect(
       synthesize({ api: lambda({ releaseCommand: { command: 'migrate', container: 'main' } }) })
