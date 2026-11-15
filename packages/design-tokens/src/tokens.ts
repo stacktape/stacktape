@@ -90,7 +90,7 @@ export const designTokens = {
    */
   motion: {
     durationFast: '150ms',
-    durationBase: '250ms',
+    durationBase: '200ms',
     easing: 'ease',
     easingOut: 'cubic-bezier(0.2, 0, 0, 1)'
   },

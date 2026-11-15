@@ -34,7 +34,7 @@
   --stp-focus-outline-width: 2px;
   --stp-focus-outline-offset: 2px;
   --stp-motion-duration-fast: 150ms;
-  --stp-motion-duration-base: 250ms;
+  --stp-motion-duration-base: 200ms;
   --stp-motion-easing: ease;
   --stp-motion-easing-out: cubic-bezier(0.2, 0, 0, 1);
   --stp-space-4: 4px;
