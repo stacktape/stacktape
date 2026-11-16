@@ -54,6 +54,8 @@ This walkthrough covers the path from first login to viewing a deployed stage.
 
 Open **Activity** in the Organization group. The page lists Stacktape CLI operations across your organization, so you can see who ran deploys, deletes, scripts, bucket syncs and other recorded commands.
 
+For each recorded operation, the CLI sends the command, the project, stage, region and AWS account, the Git branch, commit and repository URL, the Stacktape version, timing and the result. It also sends the flags that name the target and change how the command runs, such as `--stage`, `--region`, `--config`, `--full`, `--auto-rollback`, `--no-cache`, `--target-version`, `--script-name`, `--resource-name` and `--bucket-id`. Flags whose value is free-form input are never sent: `--docker-args`, script `--env` values, commands, SDK inputs, secret values and API keys stay on your machine or CI runner.
+
 ### Managing secrets
 
 Open **Secrets** in the Configuration group to manage sensitive values stored in AWS Secrets Manager. Secrets created here can be referenced in your Stacktape configuration. The page requires the `secrets:view` permission. See [Secrets](/configuration/secrets).

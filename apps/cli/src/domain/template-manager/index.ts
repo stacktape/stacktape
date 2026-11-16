@@ -10,8 +10,8 @@ import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { CliError } from '@utils/errors';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
+import { resourceLimitExceededError, resourceLimitWarning } from './resource-limit';
 import { getInitialCfTemplate } from './utils';
 
 export class TemplateManager {
@@ -71,19 +71,10 @@ export class TemplateManager {
   };
 
   getTemplate = (): CloudFormationTemplate => {
-    const amountOfResources = Object.keys(this.template.Resources).length;
-    if (amountOfResources > 470) {
-      // @later-dodo: print options to solve this issue
-      tuiManager.warn(`Approaching CloudFormation 500-resource limit (used: ${amountOfResources}).`);
-    }
-    if (amountOfResources > 500) {
-      throw new CliError({
-        category: 'CLOUDFORMATION',
-        code: 'CLOUDFORMATION_RESOURCE_LIMIT_EXCEEDED',
-        message: `CloudFormation templates cannot contain more than 500 resources. This template contains ${amountOfResources}.`,
-        hints: 'Split the infrastructure across multiple stacks or remove resources that are no longer needed.'
-      });
-    }
+    const limitError = resourceLimitExceededError(this.template.Resources);
+    if (limitError) throw limitError;
+    const limitWarning = resourceLimitWarning(this.template.Resources);
+    if (limitWarning) tuiManager.warn(limitWarning);
     return serialize(this.template);
   };
 

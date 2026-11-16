@@ -8,6 +8,7 @@ import yaml from 'yaml';
 import { Scalar, YAMLMap, YAMLSeq } from 'yaml';
 import { stacktapeConfigSchema } from '../../../../@generated/schemas/validate-config-zod';
 import { STACKTAPE_RESOURCE_TYPES } from '@stacktape/config/resource-types';
+import { uptimeCheckCredentialChannelHint } from './uptime-checks';
 import { v3PackagingTypeHint, v3PropertyHint } from './v3-config-names';
 
 type FormattedError = {
@@ -229,7 +230,10 @@ const formatUnionMemberIssue = ({
         message: `Invalid type ${inlineCode(`"${unionType}"`)} at ${inlineCode(formatZodIssuePath(errorPath))}`
       };
       const v3Hint = v3PackagingTypeHint(unionType);
-      if (v3Hint) {
+      const uptimeChannelHint = uptimeCheckCredentialChannelHint({ config, path: errorPath, channelType: unionType });
+      if (uptimeChannelHint) {
+        result.hint = uptimeChannelHint;
+      } else if (v3Hint) {
         result.hint = v3Hint;
       } else if (validTypes.length) {
         const suggestion = findClosestMatch(unionType, validTypes);

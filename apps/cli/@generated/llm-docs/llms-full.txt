@@ -17429,7 +17429,7 @@ v4 turns on two features that send operational data to the Stacktape Console:
 - **[Error tracking](/observability/error-tracking)** subscribes the log group of every function and `js-bundle` container to Stacktape's error detector, which runs in your account. The detector sends each error's message, stack frames and log line to the Console, with known kinds of sensitive values, such as tokens, passwords and email addresses, masked. Your logs stay in your account.
 - **[Security scanning](/stacktape-console/security-scanning)** checks the stack's configuration and lists its dependencies during each deployment, and reports findings to the Console. It never blocks a deployment. The dependency list stays in your account's deployment bucket; the first scan downloads the Trivy scanner (about 50 MB) to the machine that deploys.
 
-Each subscription filter is a CloudFormation resource. A stack close to CloudFormation's limit of 500 resources per stack can exceed it; the CLI then stops before deploying. Turn error tracking off, or limit it to some stages, in `deploymentConfig`:
+Each subscription filter is a CloudFormation resource: one per function and per container, plus one shared permission. A stack close to CloudFormation's limit of 500 resources per stack can exceed it; the CLI then stops before deploying and says how many resources error tracking added. If your v3 stack has more than about 480 resources, decide before the first v4 deploy. Turn error tracking off, or limit it to some stages, in `deploymentConfig`:
 
 
 Example (YAML):
@@ -23694,7 +23694,30 @@ resources:
 
 Without `assertions`, a probe succeeds when the response status is 2xx or 3xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
 
-`notificationChannels` accepts inline channel definitions (Slack, MS Teams, Discord, email, webhook) or `console-channel` references to channels managed in the [Console](/observability/alert-channels). Without any channel, incidents still appear in the Console but nothing is delivered.
+`notificationChannels` accepts three kinds of destinations, none of which puts a credential in your configuration:
+
+- `console-channel`: a channel created on the Console's **Channels** page, referenced by name. Use it for Slack with your own bot token, Microsoft Teams, Discord and webhooks. See [alert channels](/observability/alert-channels).
+- `slack-app`: a channel of the Slack workspace connected through the Stacktape Slack app, such as `#alerts`.
+- `email`: a `sender` and a `recipient` address.
+
+Inline `slack`, `ms-teams`, `discord` and `webhook` channels, which [alarms](/observability/alarms) accept, are rejected on uptime checks. The Stacktape Console decides when a check is down and sends its notifications, so those channels would have to send their bot token or webhook URL to the Console. A `$Secret()` reference does not help: the Console cannot read secrets in your AWS account. Create the channel in the Console once and reference it instead:
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: on-call-slack
+        - type: slack-app
+          properties:
+            channel: '#alerts'
+```
+
+Without any channel, incidents still appear in the Console but nothing is delivered.
 
 Set `enabled: false` to pause a check without deleting its history.
 
@@ -23712,7 +23735,7 @@ Deleting the stack (or the check) removes the check's probing; the shared prober
 
 The probes run in your account, but the Console decides when a check is down, so it receives:
 
-- **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts. Reference a `console-channel` to keep those settings out of the stack configuration.
+- **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`: the `console-channel` name, the `slack-app` channel name and ID, or the email sender and recipient. No channel credential is sent, because uptime checks accept only channels without one.
 - **From every probe:** the project, stage, check name and region, up or down, the HTTP status, the total latency, the DNS, connect, TLS and time-to-first-byte timings, a failure reason of at most 500 characters, and the TLS certificate's expiry date.
 
 Response bodies are read only inside the prober to evaluate `body-contains` assertions and are not sent.
@@ -49494,6 +49517,8 @@ This walkthrough covers the path from first login to viewing a deployed stage.
 ### Viewing deployment activity
 
 Open **Activity** in the Organization group. The page lists Stacktape CLI operations across your organization, so you can see who ran deploys, deletes, scripts, bucket syncs and other recorded commands.
+
+For each recorded operation, the CLI sends the command, the project, stage, region and AWS account, the Git branch, commit and repository URL, the Stacktape version, timing and the result. It also sends the flags that name the target and change how the command runs, such as `--stage`, `--region`, `--config`, `--full`, `--auto-rollback`, `--no-cache`, `--target-version`, `--script-name`, `--resource-name` and `--bucket-id`. Flags whose value is free-form input are never sent: `--docker-args`, script `--env` values, commands, SDK inputs, secret values and API keys stay on your machine or CI runner.
 
 ### Managing secrets
 
@@ -122603,7 +122628,7 @@ Route: `/config-reference/uptime-checks`
 ## TypeScript definition
 
 ```typescript
-import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
+import type { BodyContainsAssertion, ConsoleChannelIntegration, EmailIntegration, SlackAppIntegration, StatusCodeAssertion, UptimeCheckEvaluation } from 'stacktape';
 
 type UptimeCheckProps = {
   /** The URL to monitor. */
@@ -122634,12 +122659,8 @@ type UptimeCheckAssertions =
   | BodyContainsAssertion;
 
 type UptimeCheckNotificationChannels =
-  | SlackIntegration
   | SlackAppIntegration
-  | MsTeamsIntegration
   | EmailIntegration
-  | DiscordIntegration
-  | WebhookIntegration
   | ConsoleChannelIntegration;
 ```
 
@@ -122938,21 +122959,19 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack-app | email | console-channel>`
 
 Where to send notifications when the check goes down or recovers.
 
-Accepts inline destinations (`slack`, `ms-teams`, `discord`, `email`, `webhook`) and references to
-channels configured in the Stacktape Console (`console-channel`). State changes always appear in the
-Console's monitoring history, even with no channels configured.
+The Stacktape Console decides when a check is down and delivers its notifications, so an uptime check accepts
+only destinations that hold no credentials: channels configured in the Console (`console-channel`), channels of
+the Slack workspace connected through the Stacktape Slack app (`slack-app`), and `email`. To notify a Slack bot,
+MS Teams, Discord or a webhook, create the channel in the Console and reference it with `console-channel`.
+State changes always appear in the Console's monitoring history, even with no channels configured.
 
 Choices:
-- `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
 - `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
-- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
-- `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)

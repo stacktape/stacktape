@@ -62,7 +62,30 @@ resources:
 
 Without `assertions`, a probe succeeds when the response status is 2xx or 3xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
 
-`notificationChannels` accepts inline channel definitions (Slack, MS Teams, Discord, email, webhook) or `console-channel` references to channels managed in the [Console](/observability/alert-channels). Without any channel, incidents still appear in the Console but nothing is delivered.
+`notificationChannels` accepts three kinds of destinations, none of which puts a credential in your configuration:
+
+- `console-channel`: a channel created on the Console's **Channels** page, referenced by name. Use it for Slack with your own bot token, Microsoft Teams, Discord and webhooks. See [alert channels](/observability/alert-channels).
+- `slack-app`: a channel of the Slack workspace connected through the Stacktape Slack app, such as `#alerts`.
+- `email`: a `sender` and a `recipient` address.
+
+Inline `slack`, `ms-teams`, `discord` and `webhook` channels, which [alarms](/observability/alarms) accept, are rejected on uptime checks. The Stacktape Console decides when a check is down and sends its notifications, so those channels would have to send their bot token or webhook URL to the Console. A `$Secret()` reference does not help: the Console cannot read secrets in your AWS account. Create the channel in the Console once and reference it instead:
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: on-call-slack
+        - type: slack-app
+          properties:
+            channel: '#alerts'
+```
+
+Without any channel, incidents still appear in the Console but nothing is delivered.
 
 Set `enabled: false` to pause a check without deleting its history.
 
@@ -80,7 +103,7 @@ Deleting the stack (or the check) removes the check's probing; the shared prober
 
 The probes run in your account, but the Console decides when a check is down, so it receives:
 
-- **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts. Reference a `console-channel` to keep those settings out of the stack configuration.
+- **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`: the `console-channel` name, the `slack-app` channel name and ID, or the email sender and recipient. No channel credential is sent, because uptime checks accept only channels without one.
 - **From every probe:** the project, stage, check name and region, up or down, the HTTP status, the total latency, the DNS, connect, TLS and time-to-first-byte timings, a failure reason of at most 500 characters, and the TLS certificate's expiry date.
 
 Response bodies are read only inside the prober to evaluate `body-contains` assertions and are not sent.
