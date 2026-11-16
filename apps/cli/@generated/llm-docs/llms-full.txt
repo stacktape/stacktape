@@ -118947,13 +118947,13 @@ import type { Operator } from 'stacktape';
 
 type Choice = {
   Choices: Array<Operator>;
-  Type: string;
+  Type: "Choice";
   Comment?: string;
   Default?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
 };
 ```
 
@@ -118965,7 +118965,7 @@ type Choice = {
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Choice"`
 
 ## Property: `Comment`
 
@@ -118985,7 +118985,7 @@ type Choice = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -118995,7 +118995,7 @@ type Choice = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ---
 
@@ -119010,19 +119010,19 @@ Resource type: `state-machine`
 
 ```typescript
 type Fail = {
-  Type: string;
+  Type: "Fail";
   Cause?: string;
   Comment?: string;
   Error?: string;
-  InputPath?: string;
-  OutputPath?: string;
+  InputPath?: string | null;
+  OutputPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Fail"`
 
 ## Property: `Cause`
 
@@ -119042,12 +119042,12 @@ type Fail = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ---
 
@@ -119203,18 +119203,19 @@ Resource type: `state-machine`
 ## TypeScript definition
 
 ```typescript
-import type { StpStateMachine } from 'stacktape';
+import type { StateMachineBranch } from 'stacktape';
 
 type Parallel = {
-  Branches: Array<StpStateMachine>;
-  Type: string;
+  /** The workflows that run in parallel. Each is a native Amazon States Language branch. */
+  Branches: Array<StateMachineBranch>;
+  Type: "Parallel";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
-  ResultPath?: string;
+  OutputPath?: string | null;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
 };
 ```
@@ -119222,12 +119223,14 @@ type Parallel = {
 ## Property: `Branches`
 
 - Required: yes
-- Type: `Array<StpStateMachine>`
+- Type: `Array<StateMachineBranch>`
+
+The workflows that run in parallel. Each is a native Amazon States Language branch.
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Parallel"`
 
 ## Property: `Catch`
 
@@ -119247,7 +119250,7 @@ type Parallel = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -119257,12 +119260,12 @@ type Parallel = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 
@@ -119282,22 +119285,22 @@ Resource type: `state-machine`
 
 ```typescript
 type Pass = {
-  Type: string;
+  Type: "Pass";
   Comment?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
   Result?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Pass"`
 
 ## Property: `Comment`
 
@@ -119312,7 +119315,7 @@ type Pass = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -119322,7 +119325,7 @@ type Pass = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -119337,7 +119340,7 @@ type Pass = {
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ---
 
@@ -119418,6 +119421,42 @@ export default defineConfig(() => {
   return { resources: { mainDb } };
 });
 ```
+
+---
+
+# StateMachineBranch API Reference
+
+Source: `packages/config/src/state-machines.ts`
+Route: `/config-reference/state-machine`
+
+A nested workflow: a `Parallel` branch or the workflow a `Map` state runs for each item.
+
+Resource type: `state-machine`
+
+## TypeScript definition
+
+```typescript
+type StateMachineBranch = {
+  StartAt: string;
+  States: unknown;
+  Comment?: string;
+};
+```
+
+## Property: `StartAt`
+
+- Required: yes
+- Type: `string`
+
+## Property: `States`
+
+- Required: yes
+- Type: `unknown`
+
+## Property: `Comment`
+
+- Required: no
+- Type: `string`
 
 ---
 
@@ -119778,6 +119817,49 @@ export default defineConfig(() => {
 
 ---
 
+# StateMachineItemProcessor API Reference
+
+Source: `packages/config/src/state-machines.ts`
+Route: `/config-reference/state-machine`
+
+Resource type: `state-machine`
+
+## TypeScript definition
+
+```typescript
+type StateMachineItemProcessor = {
+  StartAt: string;
+  States: unknown;
+  Comment?: string;
+  /** How the `Map` state runs its items: `INLINE`, or `DISTRIBUTED` with an `ExecutionType`. */
+  ProcessorConfig?: unknown;
+};
+```
+
+## Property: `StartAt`
+
+- Required: yes
+- Type: `string`
+
+## Property: `States`
+
+- Required: yes
+- Type: `unknown`
+
+## Property: `Comment`
+
+- Required: no
+- Type: `string`
+
+## Property: `ProcessorConfig`
+
+- Required: no
+- Type: `unknown`
+
+How the `Map` state runs its items: `INLINE`, or `DISTRIBUTED` with an `ExecutionType`.
+
+---
+
 # StateMachineMap API Reference
 
 Source: `packages/config/src/state-machines.ts`
@@ -119788,34 +119870,32 @@ Resource type: `state-machine`
 ## TypeScript definition
 
 ```typescript
-import type { StpStateMachine } from 'stacktape';
+import type { StateMachineBranch, StateMachineItemProcessor } from 'stacktape';
 
 type StateMachineMap = {
-  Iterator: StpStateMachine;
-  Type: string;
+  Type: "Map";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
-  InputPath?: string;
-  ItemsPath?: string;
+  InputPath?: string | null;
+  /** The workflow that runs for each item. */
+  ItemProcessor?: StateMachineItemProcessor;
+  ItemsPath?: string | null;
+  /** The workflow that runs for each item (the older name for `ItemProcessor`). */
+  Iterator?: StateMachineBranch;
   MaxConcurrency?: number;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
 };
 ```
 
-## Property: `Iterator`
-
-- Required: yes
-- Type: `StpStateMachine`
-
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Map"`
 
 ## Property: `Catch`
 
@@ -119835,12 +119915,26 @@ type StateMachineMap = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
+
+## Property: `ItemProcessor`
+
+- Required: no
+- Type: `StateMachineItemProcessor`
+
+The workflow that runs for each item.
 
 ## Property: `ItemsPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
+
+## Property: `Iterator`
+
+- Required: no
+- Type: `StateMachineBranch`
+
+The workflow that runs for each item (the older name for `ItemProcessor`).
 
 ## Property: `MaxConcurrency`
 
@@ -119855,7 +119949,7 @@ type StateMachineMap = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -119865,7 +119959,7 @@ type StateMachineMap = {
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 
@@ -119955,40 +120049,6 @@ export default defineConfig(() => {
 
 ---
 
-# StpStateMachine API Reference
-
-Source: `packages/config/src/state-machines.ts`
-Route: `/config-reference/state-machine`
-
-Resource type: `state-machine`
-
-## TypeScript definition
-
-```typescript
-type StpStateMachine = {
-  configParentResourceType: "state-machine";
-  name: string;
-  nameChain: Array<string>;
-};
-```
-
-## Property: `configParentResourceType`
-
-- Required: yes
-- Type: `string = "state-machine"`
-
-## Property: `name`
-
-- Required: yes
-- Type: `string`
-
-## Property: `nameChain`
-
-- Required: yes
-- Type: `Array<string>`
-
----
-
 # Succeed API Reference
 
 Source: `packages/config/src/state-machines.ts`
@@ -120000,7 +120060,7 @@ Resource type: `state-machine`
 
 ```typescript
 type Succeed = {
-  Type: string;
+  Type: "Succeed";
   Comment?: string;
 };
 ```
@@ -120008,7 +120068,7 @@ type Succeed = {
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Succeed"`
 
 ## Property: `Comment`
 
@@ -120029,16 +120089,16 @@ Resource type: `state-machine`
 ```typescript
 type Task = {
   Resource: TaskResource;
-  Type: string;
+  Type: "Task";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
   HeartbeatSeconds?: number;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
   TimeoutSeconds?: number;
 };
@@ -120061,7 +120121,7 @@ Choices:
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Task"`
 
 ## Property: `Catch`
 
@@ -120086,7 +120146,7 @@ Choices:
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -120096,7 +120156,7 @@ Choices:
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -120106,7 +120166,7 @@ Choices:
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 
@@ -120131,23 +120191,23 @@ Resource type: `state-machine`
 
 ```typescript
 type Wait = {
-  Type: string;
+  Type: "Wait";
   Comment?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Seconds?: number;
-  SecondsPath?: string;
+  SecondsPath?: string | null;
   Timestamp?: string;
-  TimestampPath?: string;
+  TimestampPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Wait"`
 
 ## Property: `Comment`
 
@@ -120162,7 +120222,7 @@ type Wait = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -120172,7 +120232,7 @@ type Wait = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Seconds`
 
@@ -120182,7 +120242,7 @@ type Wait = {
 ## Property: `SecondsPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Timestamp`
 
@@ -120192,7 +120252,7 @@ type Wait = {
 ## Property: `TimestampPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ---
 

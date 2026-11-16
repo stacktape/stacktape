@@ -5,34 +5,32 @@ Resource type: `state-machine`
 ## TypeScript definition
 
 ```typescript
-import type { StpStateMachine } from 'stacktape';
+import type { StateMachineBranch, StateMachineItemProcessor } from 'stacktape';
 
 type StateMachineMap = {
-  Iterator: StpStateMachine;
-  Type: string;
+  Type: "Map";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
-  InputPath?: string;
-  ItemsPath?: string;
+  InputPath?: string | null;
+  /** The workflow that runs for each item. */
+  ItemProcessor?: StateMachineItemProcessor;
+  ItemsPath?: string | null;
+  /** The workflow that runs for each item (the older name for `ItemProcessor`). */
+  Iterator?: StateMachineBranch;
   MaxConcurrency?: number;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
 };
 ```
 
-## Property: `Iterator`
-
-- Required: yes
-- Type: `StpStateMachine`
-
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Map"`
 
 ## Property: `Catch`
 
@@ -52,12 +50,26 @@ type StateMachineMap = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
+
+## Property: `ItemProcessor`
+
+- Required: no
+- Type: `StateMachineItemProcessor`
+
+The workflow that runs for each item.
 
 ## Property: `ItemsPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
+
+## Property: `Iterator`
+
+- Required: no
+- Type: `StateMachineBranch`
+
+The workflow that runs for each item (the older name for `ItemProcessor`).
 
 ## Property: `MaxConcurrency`
 
@@ -72,7 +84,7 @@ type StateMachineMap = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -82,7 +94,7 @@ type StateMachineMap = {
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 

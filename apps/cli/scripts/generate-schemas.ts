@@ -5,7 +5,11 @@ import { dirname } from 'node:path';
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { generateConfigSchema, getJsonSchemaGenerator } from './code-generation/utils';
 import { generateZodSchema, ZOD_SCHEMA_OUTPUT_PATH } from './code-generation/generate-zod-schema';
-import { type ConfigJsonSchema, restoreImportedConfigTypes } from './code-generation/config-schema-overrides';
+import {
+  type ConfigJsonSchema,
+  restoreImportedConfigTypes,
+  restoreNullableStatePaths
+} from './code-generation/config-schema-overrides';
 import { stripExampleMarkersInSchema } from './code-generation/strip-example-markers';
 
 export const generateSchemas = async ({
@@ -28,6 +32,7 @@ export const generateSchemas = async ({
 
   const jsonSchema = (await generateConfigSchema({ jsonSchemaGenerator: generator })) as ConfigJsonSchema;
   restoreImportedConfigTypes({ schema: jsonSchema });
+  restoreNullableStatePaths({ schema: jsonSchema });
 
   // Embedded examples are authored with focus markers (# stp-focus) and escaped `*\/`. Strip both from
   // the published descriptions (clean editor hover) and record focus ranges as `x-stp-focus` (web docs).

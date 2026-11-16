@@ -48,3 +48,32 @@ export const restoreImportedConfigTypes = ({ schema }: { schema: ConfigJsonSchem
     }
   ];
 };
+
+/** Amazon States Language states and the path fields in them that accept `null`. */
+const NULLABLE_STATE_PATHS: Record<string, string[]> = {
+  Choice: ['InputPath', 'OutputPath'],
+  Fail: ['InputPath', 'OutputPath'],
+  StateMachineMap: ['InputPath', 'OutputPath', 'ResultPath', 'ItemsPath'],
+  Parallel: ['InputPath', 'OutputPath', 'ResultPath'],
+  Pass: ['InputPath', 'OutputPath', 'ResultPath'],
+  Task: ['InputPath', 'OutputPath', 'ResultPath'],
+  Wait: ['InputPath', 'OutputPath', 'SecondsPath', 'TimestampPath']
+};
+
+/**
+ * The schema is generated without `strictNullChecks`, so `string | null` is emitted as `string`. Amazon States Language
+ * uses `null` in path fields to discard input or output, so restore it for those fields only.
+ */
+export const restoreNullableStatePaths = ({ schema }: { schema: ConfigJsonSchema }): void => {
+  for (const [definitionName, paths] of Object.entries(NULLABLE_STATE_PATHS)) {
+    for (const path of paths) {
+      const property = schema.definitions?.[definitionName]?.properties?.[path];
+      if (property?.type !== 'string') {
+        throw new Error(
+          `Cannot restore null: ${definitionName}.${path} is not a string property in the config schema.`
+        );
+      }
+      property.type = ['string', 'null'];
+    }
+  }
+};

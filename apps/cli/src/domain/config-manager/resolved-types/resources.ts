@@ -65,7 +65,7 @@ import type { StacktapeConfig } from '@stacktape/config';
 import type { AgentCoreRuntime } from '@stacktape/config/agentcore';
 import type { Convex } from '@stacktape/config/convex';
 import type { StacktapeWorkloadDefinition } from '@stacktape/config/shared';
-import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { StpStateMachine } from '@domain-services/config-manager/resolved-types/state-machines';
 
 export type StpResource = (
   | StpWorkloadDefinition

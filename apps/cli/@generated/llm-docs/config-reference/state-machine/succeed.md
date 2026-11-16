@@ -6,7 +6,7 @@ Resource type: `state-machine`
 
 ```typescript
 type Succeed = {
-  Type: string;
+  Type: "Succeed";
   Comment?: string;
 };
 ```
@@ -14,7 +14,7 @@ type Succeed = {
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Succeed"`
 
 ## Property: `Comment`
 

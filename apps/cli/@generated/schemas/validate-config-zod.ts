@@ -1038,131 +1038,130 @@ const __stacktapeSharedZod295 = __stacktapeSharedZod28.describe("#### Port the c
 const __stacktapeSharedZod296 = __stacktapeSharedZod11.describe("#### Disable slow query logging.").default(false)
 const __stacktapeSharedZod297 = z.enum(["json","text"]).optional().describe("#### Log format.")
 const __stacktapeSharedZod298 = __stacktapeSharedZod94.describe("#### How many days to keep logs.").default(30)
-const __stacktapeSharedZod299 = z.literal("state-machine")
-const __stacktapeSharedZod300 = __stacktapeSharedZod1.describe("").optional()
+const __stacktapeSharedZod299 = __stacktapeSharedZod1.describe("")
+const __stacktapeSharedZod300 = __stacktapeSharedZod299.optional()
 const __stacktapeSharedZod301 = __stacktapeSharedZod42.optional().describe("").optional()
-const __stacktapeSharedZod302 = z.array(__stacktapeSharedZod6)
-const __stacktapeSharedZod303 = __stacktapeSharedZod302.optional().describe("").optional()
-const __stacktapeSharedZod304 = __stacktapeSharedZod11.describe("").optional()
-const __stacktapeSharedZod305 = __stacktapeSharedZod28.describe("").optional()
-const __stacktapeSharedZod306 = z.object({
-  "name": __stacktapeSharedZod0,
-  "type": __stacktapeSharedZod299,
-  "configParentResourceType": __stacktapeSharedZod299,
-  "nameChain": __stacktapeSharedZod4 }).strict()
-
-const __stacktapeSharedZod307 = __stacktapeSharedZod8.describe("").optional()
-const __stacktapeSharedZod308 = z.array(z.object({
-  "ErrorEquals": __stacktapeSharedZod4,
-  "IntervalSeconds": __stacktapeSharedZod305,
-  "MaxAttempts": __stacktapeSharedZod305,
-  "BackoffRate": __stacktapeSharedZod305 }).catchall(__stacktapeSharedZod6)).optional().describe("").optional()
+const __stacktapeSharedZod302 = z.union([__stacktapeSharedZod299, z.null().optional().describe("")]).optional().describe("").optional()
+const __stacktapeSharedZod303 = z.array(__stacktapeSharedZod6)
+const __stacktapeSharedZod304 = __stacktapeSharedZod303.optional().describe("").optional()
+const __stacktapeSharedZod305 = __stacktapeSharedZod11.describe("").optional()
+const __stacktapeSharedZod306 = __stacktapeSharedZod28.describe("").optional()
+const __stacktapeSharedZod307 = z.object({
+  "Comment": __stacktapeSharedZod300,
+  "StartAt": __stacktapeSharedZod0,
+  "States": __stacktapeSharedZod7 }).catchall(__stacktapeSharedZod6)
+const __stacktapeSharedZod308 = __stacktapeSharedZod8.describe("").optional()
 const __stacktapeSharedZod309 = z.array(z.object({
   "ErrorEquals": __stacktapeSharedZod4,
+  "IntervalSeconds": __stacktapeSharedZod306,
+  "MaxAttempts": __stacktapeSharedZod306,
+  "BackoffRate": __stacktapeSharedZod306 }).catchall(__stacktapeSharedZod6)).optional().describe("").optional()
+const __stacktapeSharedZod310 = z.array(z.object({
+  "ErrorEquals": __stacktapeSharedZod4,
   "Next": __stacktapeSharedZod0 }).catchall(__stacktapeSharedZod6)).optional().describe("").optional()
-const __stacktapeSharedZod310 = z.enum(["Count","None"]).optional()
-const __stacktapeSharedZod311 = __stacktapeSharedZod24.describe("#### Evaluation order. Lower = evaluated first. Must be unique across all rules.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesKnownBadInputsRuleSet\n            vendorName: AWS\n            priority: 1\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0\n        }\n      },\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesKnownBadInputsRuleSet',\n          vendorName: 'AWS',\n          priority: 1\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```")
-const __stacktapeSharedZod312 = __stacktapeSharedZod11.describe("#### Disable CloudWatch metrics for this rule.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            disableMetrics: true\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          disableMetrics: true\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").default(false)
-const __stacktapeSharedZod313 = __stacktapeSharedZod11.describe("#### Save samples of requests matching this rule for inspection in the WAF console.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            sampledRequestsEnabled: true\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          sampledRequestsEnabled: true\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").default(false)
-const __stacktapeSharedZod314 = __stacktapeSharedZod5.describe("").optional()
-const __stacktapeSharedZod315 = z.object({
+const __stacktapeSharedZod311 = z.enum(["Count","None"]).optional()
+const __stacktapeSharedZod312 = __stacktapeSharedZod24.describe("#### Evaluation order. Lower = evaluated first. Must be unique across all rules.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesKnownBadInputsRuleSet\n            vendorName: AWS\n            priority: 1\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0\n        }\n      },\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesKnownBadInputsRuleSet',\n          vendorName: 'AWS',\n          priority: 1\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```")
+const __stacktapeSharedZod313 = __stacktapeSharedZod11.describe("#### Disable CloudWatch metrics for this rule.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            disableMetrics: true\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          disableMetrics: true\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").default(false)
+const __stacktapeSharedZod314 = __stacktapeSharedZod11.describe("#### Save samples of requests matching this rule for inspection in the WAF console.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            sampledRequestsEnabled: true\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          sampledRequestsEnabled: true\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").default(false)
+const __stacktapeSharedZod315 = __stacktapeSharedZod5.describe("").optional()
+const __stacktapeSharedZod316 = z.object({
   "discoveryUrl": __stacktapeSharedZod0,
-  "allowedAudience": __stacktapeSharedZod314,
-  "allowedClients": __stacktapeSharedZod314,
-  "allowedScopes": __stacktapeSharedZod314 }).strict()
+  "allowedAudience": __stacktapeSharedZod315,
+  "allowedClients": __stacktapeSharedZod315,
+  "allowedScopes": __stacktapeSharedZod315 }).strict()
 
-const __stacktapeSharedZod316 = __stacktapeSharedZod29.describe("").optional()
-const __stacktapeSharedZod317 = z.object({
+const __stacktapeSharedZod317 = __stacktapeSharedZod29.describe("").optional()
+const __stacktapeSharedZod318 = z.object({
   "Ref": __stacktapeSharedZod0 }).strict()
 
-const __stacktapeSharedZod318 = z.object({
+const __stacktapeSharedZod319 = z.object({
   "Condition": __stacktapeSharedZod0 }).strict()
 
-const __stacktapeSharedZod319 = z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod6])
-const __stacktapeSharedZod320 = z.object({ "Fn::Equals": __stacktapeSharedZod319 }).strict()
+const __stacktapeSharedZod320 = z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod6])
+const __stacktapeSharedZod321 = z.object({ "Fn::Equals": __stacktapeSharedZod320 }).strict()
 
-const __stacktapeSharedZod321 = z.union([__stacktapeSharedZod318, __stacktapeSharedZod6, __stacktapeSharedZod320, z.object({ "Fn::Not": z.tuple([__stacktapeSharedZod6]) }).strict()
-  , z.object({ "Fn::Or": __stacktapeSharedZod302 }).strict()
+const __stacktapeSharedZod322 = z.union([__stacktapeSharedZod319, __stacktapeSharedZod6, __stacktapeSharedZod321, z.object({ "Fn::Not": z.tuple([__stacktapeSharedZod6]) }).strict()
+  , z.object({ "Fn::Or": __stacktapeSharedZod303 }).strict()
 ])
-const __stacktapeSharedZod322 = z.array(__stacktapeSharedZod321)
-const __stacktapeSharedZod323 = z.object({ "Fn::And": __stacktapeSharedZod322 }).strict()
+const __stacktapeSharedZod323 = z.array(__stacktapeSharedZod322)
+const __stacktapeSharedZod324 = z.object({ "Fn::And": __stacktapeSharedZod323 }).strict()
 
-const __stacktapeSharedZod324 = z.object({ "Fn::Not": z.tuple([__stacktapeSharedZod321]) }).strict()
+const __stacktapeSharedZod325 = z.object({ "Fn::Not": z.tuple([__stacktapeSharedZod322]) }).strict()
 
-const __stacktapeSharedZod325 = z.object({ "Fn::Or": __stacktapeSharedZod322 }).strict()
+const __stacktapeSharedZod326 = z.object({ "Fn::Or": __stacktapeSharedZod323 }).strict()
 
-const __stacktapeSharedZod326 = z.object({ "Fn::FindInMap": z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod6,__stacktapeSharedZod6]) }).strict()
+const __stacktapeSharedZod327 = z.object({ "Fn::FindInMap": z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod6,__stacktapeSharedZod6]) }).strict()
 
-const __stacktapeSharedZod327 = z.object({ "Fn::GetAtt": __stacktapeSharedZod319 }).strict()
+const __stacktapeSharedZod328 = z.object({ "Fn::GetAtt": __stacktapeSharedZod320 }).strict()
 
-const __stacktapeSharedZod328 = z.object({ "Fn::GetAZs": __stacktapeSharedZod6 }).strict()
+const __stacktapeSharedZod329 = z.object({ "Fn::GetAZs": __stacktapeSharedZod6 }).strict()
 
-const __stacktapeSharedZod329 = z.object({ "Fn::ImportValue": __stacktapeSharedZod6 }).strict()
+const __stacktapeSharedZod330 = z.object({ "Fn::ImportValue": __stacktapeSharedZod6 }).strict()
 
-const __stacktapeSharedZod330 = z.object({ "Fn::Split": __stacktapeSharedZod319 }).strict()
+const __stacktapeSharedZod331 = z.object({ "Fn::Split": __stacktapeSharedZod320 }).strict()
 
-const __stacktapeSharedZod331 = z.object({ "Fn::If": z.tuple([__stacktapeSharedZod0,__stacktapeSharedZod6,__stacktapeSharedZod6]) }).strict()
+const __stacktapeSharedZod332 = z.object({ "Fn::If": z.tuple([__stacktapeSharedZod0,__stacktapeSharedZod6,__stacktapeSharedZod6]) }).strict()
 
-const __stacktapeSharedZod332 = z.object({ "Fn::Sub": z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod6, __stacktapeSharedZod326, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod330, __stacktapeSharedZod6, __stacktapeSharedZod331, z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod7]), __stacktapeSharedZod0]) }).strict()
+const __stacktapeSharedZod333 = z.object({ "Fn::Sub": z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod6, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod330, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod331, __stacktapeSharedZod6, __stacktapeSharedZod332, z.tuple([__stacktapeSharedZod6,__stacktapeSharedZod7]), __stacktapeSharedZod0]) }).strict()
 
-const __stacktapeSharedZod333 = z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod6, __stacktapeSharedZod326, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod330, __stacktapeSharedZod332, __stacktapeSharedZod331, z.union([__stacktapeSharedZod0, __stacktapeSharedZod24])]).describe("A value that CloudFormation may resolve while processing a template.")
-const __stacktapeSharedZod334 = z.object({ "Fn::Select": z.tuple([__stacktapeSharedZod333,z.union([__stacktapeSharedZod302, __stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod6, __stacktapeSharedZod326, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod330, __stacktapeSharedZod332, __stacktapeSharedZod331])]) }).strict()
+const __stacktapeSharedZod334 = z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod6, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod330, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod331, __stacktapeSharedZod333, __stacktapeSharedZod332, z.union([__stacktapeSharedZod0, __stacktapeSharedZod24])]).describe("A value that CloudFormation may resolve while processing a template.")
+const __stacktapeSharedZod335 = z.object({ "Fn::Select": z.tuple([__stacktapeSharedZod334,z.union([__stacktapeSharedZod303, __stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod6, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod330, __stacktapeSharedZod6, __stacktapeSharedZod6, __stacktapeSharedZod331, __stacktapeSharedZod333, __stacktapeSharedZod332])]) }).strict()
 
-const __stacktapeSharedZod335 = z.object({ "Fn::Join": z.tuple([__stacktapeSharedZod6,z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod6, __stacktapeSharedZod326, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod6, __stacktapeSharedZod334, __stacktapeSharedZod330, __stacktapeSharedZod332, __stacktapeSharedZod331, z.array(__stacktapeSharedZod333)]).describe("A list that CloudFormation may resolve as a whole or one item at a time.")]) }).strict()
+const __stacktapeSharedZod336 = z.object({ "Fn::Join": z.tuple([__stacktapeSharedZod6,z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod6, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod330, __stacktapeSharedZod6, __stacktapeSharedZod335, __stacktapeSharedZod331, __stacktapeSharedZod333, __stacktapeSharedZod332, z.array(__stacktapeSharedZod334)]).describe("A list that CloudFormation may resolve as a whole or one item at a time.")]) }).strict()
 
-const __stacktapeSharedZod336 = z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod6, __stacktapeSharedZod326, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod335, __stacktapeSharedZod334, __stacktapeSharedZod330, __stacktapeSharedZod332, __stacktapeSharedZod331, __stacktapeSharedZod0]).describe("A value that CloudFormation may resolve while processing a template.")
-const __stacktapeSharedZod337 = z.object({ "Fn::Base64": __stacktapeSharedZod336 }).strict()
+const __stacktapeSharedZod337 = z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod6, __stacktapeSharedZod327, __stacktapeSharedZod328, __stacktapeSharedZod329, __stacktapeSharedZod330, __stacktapeSharedZod336, __stacktapeSharedZod335, __stacktapeSharedZod331, __stacktapeSharedZod333, __stacktapeSharedZod332, __stacktapeSharedZod0]).describe("A value that CloudFormation may resolve while processing a template.")
+const __stacktapeSharedZod338 = z.object({ "Fn::Base64": __stacktapeSharedZod337 }).strict()
 
-const __stacktapeSharedZod338 = z.object({ "Fn::FindInMap": z.tuple([__stacktapeSharedZod336,__stacktapeSharedZod336,__stacktapeSharedZod336]) }).strict()
+const __stacktapeSharedZod339 = z.object({ "Fn::FindInMap": z.tuple([__stacktapeSharedZod337,__stacktapeSharedZod337,__stacktapeSharedZod337]) }).strict()
 
-const __stacktapeSharedZod339 = z.tuple([__stacktapeSharedZod336,__stacktapeSharedZod336])
-const __stacktapeSharedZod340 = z.object({ "Fn::GetAtt": __stacktapeSharedZod339 }).strict()
+const __stacktapeSharedZod340 = z.tuple([__stacktapeSharedZod337,__stacktapeSharedZod337])
+const __stacktapeSharedZod341 = z.object({ "Fn::GetAtt": __stacktapeSharedZod340 }).strict()
 
-const __stacktapeSharedZod341 = z.object({ "Fn::GetAZs": __stacktapeSharedZod336 }).strict()
+const __stacktapeSharedZod342 = z.object({ "Fn::GetAZs": __stacktapeSharedZod337 }).strict()
 
-const __stacktapeSharedZod342 = z.object({ "Fn::ImportValue": __stacktapeSharedZod336 }).strict()
+const __stacktapeSharedZod343 = z.object({ "Fn::ImportValue": __stacktapeSharedZod337 }).strict()
 
-const __stacktapeSharedZod343 = z.object({ "Fn::Split": __stacktapeSharedZod339 }).strict()
+const __stacktapeSharedZod344 = z.object({ "Fn::Split": __stacktapeSharedZod340 }).strict()
 
-const __stacktapeSharedZod344 = z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod337, __stacktapeSharedZod338, __stacktapeSharedZod340, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod335, __stacktapeSharedZod334, __stacktapeSharedZod343, __stacktapeSharedZod332, __stacktapeSharedZod331, __stacktapeSharedZod24]).optional().describe("").optional()
-const __stacktapeSharedZod345 = __stacktapeSharedZod336.optional()
-const __stacktapeSharedZod346 = z.object({
+const __stacktapeSharedZod345 = z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod338, __stacktapeSharedZod339, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod343, __stacktapeSharedZod336, __stacktapeSharedZod335, __stacktapeSharedZod344, __stacktapeSharedZod333, __stacktapeSharedZod332, __stacktapeSharedZod24]).optional().describe("").optional()
+const __stacktapeSharedZod346 = __stacktapeSharedZod337.optional()
+const __stacktapeSharedZod347 = z.object({
   "AutoScalingCreationPolicy": z.object({
-    "MinSuccessfulInstancesPercent": __stacktapeSharedZod344 }).strict()
+    "MinSuccessfulInstancesPercent": __stacktapeSharedZod345 }).strict()
   .optional().describe("").optional(),
   "ResourceSignal": z.object({
-    "Count": __stacktapeSharedZod344,
-    "Timeout": __stacktapeSharedZod345 }).strict()
+    "Count": __stacktapeSharedZod345,
+    "Timeout": __stacktapeSharedZod346 }).strict()
   .optional().describe("").optional() }).strict()
 .optional().describe("").optional()
-const __stacktapeSharedZod347 = z.enum(["Delete","Retain","RetainExceptOnCreate","Snapshot"]).optional().describe("").optional()
-const __stacktapeSharedZod348 = z.union([__stacktapeSharedZod4, __stacktapeSharedZod0]).optional().describe("").optional()
-const __stacktapeSharedZod349 = z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod337, __stacktapeSharedZod338, __stacktapeSharedZod340, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod335, __stacktapeSharedZod334, __stacktapeSharedZod343, __stacktapeSharedZod332, __stacktapeSharedZod331, __stacktapeSharedZod10]).optional().describe("").optional()
-const __stacktapeSharedZod350 = z.object({
+const __stacktapeSharedZod348 = z.enum(["Delete","Retain","RetainExceptOnCreate","Snapshot"]).optional().describe("").optional()
+const __stacktapeSharedZod349 = z.union([__stacktapeSharedZod4, __stacktapeSharedZod0]).optional().describe("").optional()
+const __stacktapeSharedZod350 = z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod338, __stacktapeSharedZod339, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod343, __stacktapeSharedZod336, __stacktapeSharedZod335, __stacktapeSharedZod344, __stacktapeSharedZod333, __stacktapeSharedZod332, __stacktapeSharedZod10]).optional().describe("").optional()
+const __stacktapeSharedZod351 = z.object({
   "AutoScalingReplacingUpdate": z.object({
-    "WillReplace": __stacktapeSharedZod349 }).strict()
+    "WillReplace": __stacktapeSharedZod350 }).strict()
   .optional().describe("").optional(),
   "AutoScalingRollingUpdate": z.object({
-    "MaxBatchSize": __stacktapeSharedZod344,
-    "MinInstancesInService": __stacktapeSharedZod344,
-    "MinSuccessfulInstancesPercent": __stacktapeSharedZod344,
-    "PauseTime": __stacktapeSharedZod345,
-    "SuspendProcesses": z.union([__stacktapeSharedZod317, __stacktapeSharedZod318, __stacktapeSharedZod323, __stacktapeSharedZod320, __stacktapeSharedZod324, __stacktapeSharedZod325, __stacktapeSharedZod337, __stacktapeSharedZod338, __stacktapeSharedZod340, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod335, __stacktapeSharedZod334, __stacktapeSharedZod343, __stacktapeSharedZod332, __stacktapeSharedZod331, z.array(__stacktapeSharedZod336)]).optional().describe("").optional(),
-    "WaitOnResourceSignals": __stacktapeSharedZod349 }).strict()
+    "MaxBatchSize": __stacktapeSharedZod345,
+    "MinInstancesInService": __stacktapeSharedZod345,
+    "MinSuccessfulInstancesPercent": __stacktapeSharedZod345,
+    "PauseTime": __stacktapeSharedZod346,
+    "SuspendProcesses": z.union([__stacktapeSharedZod318, __stacktapeSharedZod319, __stacktapeSharedZod324, __stacktapeSharedZod321, __stacktapeSharedZod325, __stacktapeSharedZod326, __stacktapeSharedZod338, __stacktapeSharedZod339, __stacktapeSharedZod341, __stacktapeSharedZod342, __stacktapeSharedZod343, __stacktapeSharedZod336, __stacktapeSharedZod335, __stacktapeSharedZod344, __stacktapeSharedZod333, __stacktapeSharedZod332, z.array(__stacktapeSharedZod337)]).optional().describe("").optional(),
+    "WaitOnResourceSignals": __stacktapeSharedZod350 }).strict()
   .optional().describe("").optional(),
   "AutoScalingScheduledAction": z.object({
-    "IgnoreUnmodifiedGroupSizeProperties": __stacktapeSharedZod349 }).strict()
+    "IgnoreUnmodifiedGroupSizeProperties": __stacktapeSharedZod350 }).strict()
   .optional().describe("").optional(),
   "CodeDeployLambdaAliasUpdate": z.object({
-    "AfterAllowTrafficHook": __stacktapeSharedZod336,
-    "ApplicationName": __stacktapeSharedZod336,
-    "BeforeAllowTrafficHook": __stacktapeSharedZod336,
-    "DeploymentGroupName": __stacktapeSharedZod336 }).strict()
+    "AfterAllowTrafficHook": __stacktapeSharedZod337,
+    "ApplicationName": __stacktapeSharedZod337,
+    "BeforeAllowTrafficHook": __stacktapeSharedZod337,
+    "DeploymentGroupName": __stacktapeSharedZod337 }).strict()
   .optional().describe("").optional(),
-  "EnableVersionUpgrade": __stacktapeSharedZod349,
-  "UseOnlineResharding": __stacktapeSharedZod349 }).strict()
+  "EnableVersionUpgrade": __stacktapeSharedZod350,
+  "UseOnlineResharding": __stacktapeSharedZod350 }).strict()
 .optional().describe("").optional()
-const __stacktapeSharedZod351 = z.enum(["Delete","Retain","Snapshot"]).optional().describe("").optional()
+const __stacktapeSharedZod352 = z.enum(["Delete","Retain","Snapshot"]).optional().describe("").optional()
 export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.object({
   "projectName": __stacktapeSharedZod1.describe("#### Project name\n\n---\n\nIdentifies the Stacktape project. Together with the selected stage, this determines the\nCloudFormation stack name: `{projectName}-{stage}`.\n\nMust contain only lowercase letters, numbers and dashes. The CLI's `--project` option overrides\nthis value for one command. The CLI reads it from the file without running the config, so it\nmust be a plain string: in TypeScript, declare it in the first argument of `defineConfig`.\n\n---\n\n**Example (YAML):**\n\n```yaml\nprojectName: my-web-app\nregion: eu-west-1\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => {\n  const api = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/server.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return { resources: { api } };\n});\n```").optional(),
   "region": __stacktapeSharedZod2.optional().describe("#### Region\n\n---\n\nAWS region this project deploys to. With `projectName` and `region` in the config, most commands\nneed only `--stage`. The CLI's `--region` option overrides this value for one command. Without it,\nthe region comes from `AWS_DEFAULT_REGION`, the machine-wide default or the AWS profile.\n\nThe CLI reads it from the file without running the config, so it must be a plain string: in\nTypeScript, declare it in the first argument of `defineConfig`.\n\n---\n\n**Example (YAML):**\n\n```yaml\nprojectName: my-web-app\nregion: eu-west-1\nresources:\n  uploads:\n    type: bucket\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { Bucket, defineConfig } from 'stacktape';\n\nexport default defineConfig({ projectName: 'my-web-app', region: 'eu-west-1' }, () => ({\n  resources: { uploads: new Bucket({}) }\n}));\n```").optional(),
@@ -2441,30 +2440,30 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
       .optional().describe("").optional(),
       "overrides": __stacktapeSharedZod85 }).strict()
     .describe("#### Message queue for decoupling services. Producers send messages, consumers process them at their own pace.\n\n---\n\nFully managed, serverless, pay-per-message. Use for background processing, task queues, or buffering between services."), z.object({
-      "type": __stacktapeSharedZod299,
+      "type": z.literal("state-machine"),
       "properties": z.object({
         "definition": z.object({
           "Comment": __stacktapeSharedZod1.describe("#### A human-readable description of the state machine.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  sendEmail:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/send-email.ts\n\n  notifyWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Sends a welcome email to newly registered users\n        StartAt: SendEmail\n        States:\n          SendEmail:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - SendEmailFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sendEmail = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/send-email.ts' })\n  });\n  const notifyWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Sends a welcome email to newly registered users',\n      StartAt: 'SendEmail',\n      States: {\n        SendEmail: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['SendEmailFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { sendEmail, notifyWorkflow } };\n});\n```").optional(),
           "StartAt": __stacktapeSharedZod0.describe("#### The name of the state to start the execution at.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  validateInput:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/validate-input.ts\n\n  ingestWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Validate incoming data before processing\n        StartAt: ValidateInput\n        States:\n          ValidateInput:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ValidateInputFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const validateInput = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/validate-input.ts' })\n  });\n  const ingestWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Validate incoming data before processing',\n      StartAt: 'ValidateInput',\n      States: {\n        ValidateInput: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ValidateInputFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { validateInput, ingestWorkflow } };\n});\n```"),
           "States": z.record(__stacktapeSharedZod0, z.union([z.object({
-              "Type": __stacktapeSharedZod0,
+              "Type": z.literal("Choice"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
               "Choices": z.array(z.object({
                 "Variable": __stacktapeSharedZod300,
                 "Next": __stacktapeSharedZod300,
-                "And": __stacktapeSharedZod303,
-                "Or": __stacktapeSharedZod303,
+                "And": __stacktapeSharedZod304,
+                "Or": __stacktapeSharedZod304,
                 "Not": __stacktapeSharedZod109,
-                "BooleanEquals": __stacktapeSharedZod304,
-                "NumericEquals": __stacktapeSharedZod305,
-                "NumericGreaterThan": __stacktapeSharedZod305,
-                "NumericGreaterThanEquals": __stacktapeSharedZod305,
-                "NumericLessThan": __stacktapeSharedZod305,
-                "NumericLessThanEquals": __stacktapeSharedZod305,
+                "BooleanEquals": __stacktapeSharedZod305,
+                "NumericEquals": __stacktapeSharedZod306,
+                "NumericGreaterThan": __stacktapeSharedZod306,
+                "NumericGreaterThanEquals": __stacktapeSharedZod306,
+                "NumericLessThan": __stacktapeSharedZod306,
+                "NumericLessThanEquals": __stacktapeSharedZod306,
                 "StringEquals": __stacktapeSharedZod300,
                 "StringGreaterThan": __stacktapeSharedZod300,
                 "StringGreaterThanEquals": __stacktapeSharedZod300,
@@ -2475,81 +2474,77 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
                 "TimestampGreaterThanEquals": __stacktapeSharedZod300,
                 "TimestampLessThan": __stacktapeSharedZod300,
                 "TimestampLessThanEquals": __stacktapeSharedZod300 }).catchall(__stacktapeSharedZod6)),
-              "Default": __stacktapeSharedZod300 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "Default": __stacktapeSharedZod300 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Fail"),
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
               "Cause": __stacktapeSharedZod300,
-              "Error": __stacktapeSharedZod300 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "Error": __stacktapeSharedZod300 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Map"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
-              "ResultPath": __stacktapeSharedZod300,
-              "ItemsPath": __stacktapeSharedZod300,
-              "MaxConcurrency": __stacktapeSharedZod305,
-              "Iterator": __stacktapeSharedZod306,
-              "Parameters": __stacktapeSharedZod307,
-              "Retry": __stacktapeSharedZod308,
-              "Catch": __stacktapeSharedZod309 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
+              "ResultPath": __stacktapeSharedZod302,
+              "ItemsPath": __stacktapeSharedZod302,
+              "MaxConcurrency": __stacktapeSharedZod306,
+              "Iterator": __stacktapeSharedZod307.optional().describe("#### The workflow that runs for each item (the older name for `ItemProcessor`).").optional(),
+              "ItemProcessor": z.object({
+                "ProcessorConfig": __stacktapeSharedZod8.describe("#### How the `Map` state runs its items: `INLINE`, or `DISTRIBUTED` with an `ExecutionType`.").optional(),
+                "Comment": __stacktapeSharedZod300,
+                "StartAt": __stacktapeSharedZod0,
+                "States": __stacktapeSharedZod7 }).catchall(__stacktapeSharedZod6).optional().describe("#### The workflow that runs for each item.").optional(),
+              "Parameters": __stacktapeSharedZod308,
+              "Retry": __stacktapeSharedZod309,
+              "Catch": __stacktapeSharedZod310 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Parallel"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
-              "ResultPath": __stacktapeSharedZod300,
-              "Branches": z.array(__stacktapeSharedZod306),
-              "Retry": __stacktapeSharedZod308,
-              "Catch": __stacktapeSharedZod309 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
+              "ResultPath": __stacktapeSharedZod302,
+              "Branches": z.array(__stacktapeSharedZod307.describe("#### A nested workflow: a `Parallel` branch or the workflow a `Map` state runs for each item.\n\n---\n\nWritten in Amazon States Language, like the top-level definition. Stacktape passes it to AWS unchanged.")).describe("#### The workflows that run in parallel. Each is a native Amazon States Language branch."),
+              "Retry": __stacktapeSharedZod309,
+              "Catch": __stacktapeSharedZod310 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Pass"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
-              "ResultPath": __stacktapeSharedZod300,
-              "Parameters": __stacktapeSharedZod307,
-              "Result": __stacktapeSharedZod204 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
-              "Comment": __stacktapeSharedZod300 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
+              "ResultPath": __stacktapeSharedZod302,
+              "Parameters": __stacktapeSharedZod308,
+              "Result": __stacktapeSharedZod204 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Succeed"),
+              "Comment": __stacktapeSharedZod300 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Task"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
               "Resource": z.union([__stacktapeSharedZod7, __stacktapeSharedZod0]),
-              "ResultPath": __stacktapeSharedZod300,
-              "Retry": __stacktapeSharedZod308,
-              "Catch": __stacktapeSharedZod309,
-              "TimeoutSeconds": __stacktapeSharedZod305,
-              "HeartbeatSeconds": __stacktapeSharedZod305,
-              "Parameters": __stacktapeSharedZod307 }).strict()
-            , z.object({
-              "Type": __stacktapeSharedZod0,
+              "ResultPath": __stacktapeSharedZod302,
+              "Retry": __stacktapeSharedZod309,
+              "Catch": __stacktapeSharedZod310,
+              "TimeoutSeconds": __stacktapeSharedZod306,
+              "HeartbeatSeconds": __stacktapeSharedZod306,
+              "Parameters": __stacktapeSharedZod308 }).catchall(__stacktapeSharedZod6), z.object({
+              "Type": z.literal("Wait"),
               "Next": __stacktapeSharedZod300,
               "End": __stacktapeSharedZod301,
               "Comment": __stacktapeSharedZod300,
-              "OutputPath": __stacktapeSharedZod300,
-              "InputPath": __stacktapeSharedZod300,
-              "Seconds": __stacktapeSharedZod305,
+              "OutputPath": __stacktapeSharedZod302,
+              "InputPath": __stacktapeSharedZod302,
+              "Seconds": __stacktapeSharedZod306,
               "Timestamp": __stacktapeSharedZod300,
-              "SecondsPath": __stacktapeSharedZod300,
-              "TimestampPath": __stacktapeSharedZod300 }).strict()
-          ])).describe("#### An object containing the states of the state machine.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  extract:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/extract.ts\n  transform:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/transform.ts\n\n  etlWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Two-step ETL pipeline\n        StartAt: Extract\n        States:\n          Extract:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ExtractFunction\n                - Arn\n            Next: Transform\n          Transform:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - TransformFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const extract = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/extract.ts' })\n  });\n  const transform = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/transform.ts' })\n  });\n  const etlWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Two-step ETL pipeline',\n      StartAt: 'Extract',\n      States: {\n        Extract: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ExtractFunction', 'Arn'] },\n          Next: 'Transform'\n        },\n        Transform: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['TransformFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { extract, transform, etlWorkflow } };\n});\n```"),
+              "SecondsPath": __stacktapeSharedZod302,
+              "TimestampPath": __stacktapeSharedZod302 }).catchall(__stacktapeSharedZod6)])).describe("#### An object containing the states of the state machine.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  extract:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/extract.ts\n  transform:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/transform.ts\n\n  etlWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Two-step ETL pipeline\n        StartAt: Extract\n        States:\n          Extract:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ExtractFunction\n                - Arn\n            Next: Transform\n          Transform:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - TransformFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const extract = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/extract.ts' })\n  });\n  const transform = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/transform.ts' })\n  });\n  const etlWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Two-step ETL pipeline',\n      StartAt: 'Extract',\n      States: {\n        Extract: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ExtractFunction', 'Arn'] },\n          Next: 'Transform'\n        },\n        Transform: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['TransformFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { extract, transform, etlWorkflow } };\n});\n```"),
           "Version": __stacktapeSharedZod1.describe("#### The version of the Amazon States Language.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  doWork:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/do-work.ts\n\n  versionedWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Pins the Amazon States Language version\n        Version: '1.0'\n        StartAt: DoWork\n        States:\n          DoWork:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - DoWorkFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const doWork = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/do-work.ts' })\n  });\n  const versionedWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Pins the Amazon States Language version',\n      Version: '1.0',\n      StartAt: 'DoWork',\n      States: {\n        DoWork: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['DoWorkFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { doWork, versionedWorkflow } };\n});\n```").optional(),
-          "TimeoutSeconds": __stacktapeSharedZod28.describe("#### The maximum time, in seconds, that a state machine can run.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  longTask:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/long-task.ts\n\n  boundedWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Fails the execution if it runs longer than 1 hour\n        StartAt: LongTask\n        TimeoutSeconds: 3600\n        States:\n          LongTask:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - LongTaskFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const longTask = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/long-task.ts' })\n  });\n  const boundedWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Fails the execution if it runs longer than 1 hour',\n      StartAt: 'LongTask',\n      TimeoutSeconds: 3600,\n      States: {\n        LongTask: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['LongTaskFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { longTask, boundedWorkflow } };\n});\n```").optional() }).strict()
-        .describe("#### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  chargeCard:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/charge-card.ts\n\n  paymentWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Charge the customer's card\n        StartAt: ChargeCard\n        States:\n          ChargeCard:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ChargeCardFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const chargeCard = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge-card.ts' })\n  });\n  const paymentWorkflow = new StateMachine({\n    definition: {\n      Comment: \"Charge the customer's card\",\n      StartAt: 'ChargeCard',\n      States: {\n        ChargeCard: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ChargeCardFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { chargeCard, paymentWorkflow } };\n});\n```") }).strict()
+          "TimeoutSeconds": __stacktapeSharedZod28.describe("#### The maximum time, in seconds, that a state machine can run.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  longTask:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/long-task.ts\n\n  boundedWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Fails the execution if it runs longer than 1 hour\n        StartAt: LongTask\n        TimeoutSeconds: 3600\n        States:\n          LongTask:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - LongTaskFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const longTask = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/long-task.ts' })\n  });\n  const boundedWorkflow = new StateMachine({\n    definition: {\n      Comment: 'Fails the execution if it runs longer than 1 hour',\n      StartAt: 'LongTask',\n      TimeoutSeconds: 3600,\n      States: {\n        LongTask: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['LongTaskFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { longTask, boundedWorkflow } };\n});\n```").optional() }).catchall(__stacktapeSharedZod6).describe("#### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  chargeCard:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/charge-card.ts\n\n  paymentWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        Comment: Charge the customer's card\n        StartAt: ChargeCard\n        States:\n          ChargeCard:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ChargeCardFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const chargeCard = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge-card.ts' })\n  });\n  const paymentWorkflow = new StateMachine({\n    definition: {\n      Comment: \"Charge the customer's card\",\n      StartAt: 'ChargeCard',\n      States: {\n        ChargeCard: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ChargeCardFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { chargeCard, paymentWorkflow } };\n});\n```") }).strict()
       ,
       "overrides": __stacktapeSharedZod85 }).strict()
     .describe("#### Visual workflow engine for orchestrating Lambda functions, API calls, and other AWS services.\n\n---\n\nDefine multi-step workflows with branching, retries, parallel execution, and error handling —\nall without writing orchestration code. Pay per state transition (~$0.025/1,000 transitions).\nDefined using [Amazon States Language (ASL)](https://states-language.net/spec.html).\n\n**Example (YAML):**\n\n```yaml\nresources:\n  processOrder:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: ./src/process-order.ts\n\n  orderWorkflow:\n    type: state-machine\n    properties:\n      definition:\n        StartAt: ProcessOrder\n        States:\n          ProcessOrder:\n            Type: Task\n            Resource:\n              Fn::GetAtt:\n                - ProcessOrderFunction\n                - Arn\n            End: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';\n\nexport default defineConfig(() => {\n  const processOrder = new LambdaFunction({\n    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' })\n  });\n  const orderWorkflow = new StateMachine({\n    definition: {\n      StartAt: 'ProcessOrder',\n      States: {\n        ProcessOrder: {\n          Type: 'Task',\n          Resource: { 'Fn::GetAtt': ['ProcessOrderFunction', 'Arn'] },\n          End: true\n        }\n      }\n    }\n  });\n  return { resources: { processOrder, orderWorkflow } };\n});\n```"), z.object({
@@ -2652,21 +2647,21 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
             "properties": z.object({
               "vendorName": __stacktapeSharedZod0.describe("#### Vendor name (e.g., `AWS` for AWS-managed rules).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```"),
               "excludedRules": __stacktapeSharedZod5.describe("#### Rules within this group to skip (by rule name). Useful for disabling false positives.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            excludedRules:\n              - SizeRestrictions_BODY\n              - GenericRFI_BODY\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          excludedRules: ['SizeRestrictions_BODY', 'GenericRFI_BODY']\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
-              "overrideAction": __stacktapeSharedZod310.describe("#### `None` = apply normally, `Count` = log matches without blocking (dry-run mode).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            overrideAction: Count\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          overrideAction: 'Count'\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
-              "priority": __stacktapeSharedZod311,
+              "overrideAction": __stacktapeSharedZod311.describe("#### `None` = apply normally, `Count` = log matches without blocking (dry-run mode).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n            overrideAction: Count\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0,\n          overrideAction: 'Count'\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
+              "priority": __stacktapeSharedZod312,
               "name": __stacktapeSharedZod0,
-              "disableMetrics": __stacktapeSharedZod312,
-              "sampledRequestsEnabled": __stacktapeSharedZod313 }).strict()
+              "disableMetrics": __stacktapeSharedZod313,
+              "sampledRequestsEnabled": __stacktapeSharedZod314 }).strict()
           }).strict()
           , z.object({
             "type": z.literal("custom-rule-group"),
             "properties": z.object({
               "arn": __stacktapeSharedZod0.describe("#### ARN of the custom WAF rule group.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: custom-rule-group\n          properties:\n            name: CompanyRuleGroup\n            arn: arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv\n            priority: 0\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'custom-rule-group',\n        properties: {\n          name: 'CompanyRuleGroup',\n          arn: 'arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv',\n          priority: 0\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```"),
-              "overrideAction": __stacktapeSharedZod310.describe("#### `None` = apply normally, `Count` = log matches without blocking (dry-run mode).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: custom-rule-group\n          properties:\n            name: CompanyRuleGroup\n            arn: arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv\n            priority: 0\n            overrideAction: Count\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'custom-rule-group',\n        properties: {\n          name: 'CompanyRuleGroup',\n          arn: 'arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv',\n          priority: 0,\n          overrideAction: 'Count'\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
-              "priority": __stacktapeSharedZod311,
+              "overrideAction": __stacktapeSharedZod311.describe("#### `None` = apply normally, `Count` = log matches without blocking (dry-run mode).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: custom-rule-group\n          properties:\n            name: CompanyRuleGroup\n            arn: arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv\n            priority: 0\n            overrideAction: Count\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'custom-rule-group',\n        properties: {\n          name: 'CompanyRuleGroup',\n          arn: 'arn:aws:wafv2:eu-west-1:123456789012:regional/rulegroup/company-rules/abcd1234-5678-90ef-ghij-klmnopqrstuv',\n          priority: 0,\n          overrideAction: 'Count'\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
+              "priority": __stacktapeSharedZod312,
               "name": __stacktapeSharedZod0,
-              "disableMetrics": __stacktapeSharedZod312,
-              "sampledRequestsEnabled": __stacktapeSharedZod313 }).strict()
+              "disableMetrics": __stacktapeSharedZod313,
+              "sampledRequestsEnabled": __stacktapeSharedZod314 }).strict()
           }).strict()
           , z.object({
             "type": z.literal("rate-based-rule"),
@@ -2678,10 +2673,10 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
                 "headerName": __stacktapeSharedZod0.describe("#### HTTP header containing the client IP (e.g., `X-Forwarded-For`).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: rate-based-rule\n          properties:\n            name: RateLimitForwarded\n            limit: 2000\n            aggregateBasedOn: FORWARDED_IP\n            forwardedIPConfig:\n              headerName: X-Forwarded-For\n              fallbackBehavior: NO_MATCH\n            action: Block\n            priority: 0\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'rate-based-rule',\n        properties: {\n          name: 'RateLimitForwarded',\n          limit: 2000,\n          aggregateBasedOn: 'FORWARDED_IP',\n          forwardedIPConfig: {\n            headerName: 'X-Forwarded-For',\n            fallbackBehavior: 'NO_MATCH'\n          },\n          action: 'Block',\n          priority: 0\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```") }).strict()
               .optional().describe("#### Header and fallback settings when using `FORWARDED_IP` aggregation.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: rate-based-rule\n          properties:\n            name: RateLimitForwarded\n            limit: 2000\n            aggregateBasedOn: FORWARDED_IP\n            forwardedIPConfig:\n              headerName: X-Forwarded-For\n              fallbackBehavior: NO_MATCH\n            action: Block\n            priority: 0\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'rate-based-rule',\n        properties: {\n          name: 'RateLimitForwarded',\n          limit: 2000,\n          aggregateBasedOn: 'FORWARDED_IP',\n          forwardedIPConfig: {\n            headerName: 'X-Forwarded-For',\n            fallbackBehavior: 'NO_MATCH'\n          },\n          action: 'Block',\n          priority: 0\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
               "action": z.enum(["Allow","Block","Captcha","Challenge","Count"]).optional().describe("#### What to do when the rate limit is exceeded.\n\n---\n\n- `Block`: Return 403 (most common for rate limiting).\n- `Count`: Log only, don't block (useful for testing thresholds).\n- `Captcha`/`Challenge`: Verify the client is human.\n\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: rate-based-rule\n          properties:\n            name: RateLimitPerIp\n            limit: 500\n            aggregateBasedOn: IP\n            action: Captcha\n            priority: 0\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'rate-based-rule',\n        properties: {\n          name: 'RateLimitPerIp',\n          limit: 500,\n          aggregateBasedOn: 'IP',\n          action: 'Captcha',\n          priority: 0\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```"),
-              "priority": __stacktapeSharedZod311,
+              "priority": __stacktapeSharedZod312,
               "name": __stacktapeSharedZod0,
-              "disableMetrics": __stacktapeSharedZod312,
-              "sampledRequestsEnabled": __stacktapeSharedZod313 }).strict()
+              "disableMetrics": __stacktapeSharedZod313,
+              "sampledRequestsEnabled": __stacktapeSharedZod314 }).strict()
           }).strict()
         ])).optional().describe("#### Firewall rules: managed rule groups (AWS presets), custom rule groups, or rate-based rules.\n\n---\n\nIf omitted, Stacktape uses `AWSManagedRulesCommonRuleSet` + `AWSManagedRulesKnownBadInputsRuleSet` by default.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  apiFirewall:\n    type: web-app-firewall\n    properties:\n      scope: regional\n      rules:\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesCommonRuleSet\n            vendorName: AWS\n            priority: 0\n        - type: managed-rule-group\n          properties:\n            name: AWSManagedRulesKnownBadInputsRuleSet\n            vendorName: AWS\n            priority: 1\n        - type: rate-based-rule\n          properties:\n            name: RateLimitPerIp\n            limit: 2000\n            aggregateBasedOn: IP\n            priority: 2\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/index.ts\n      resources:\n        cpu: 0.25\n        memory: 512\n      loadBalancing:\n        type: application-load-balancer\n      useFirewall: apiFirewall\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WebAppFirewall, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFirewall = new WebAppFirewall({\n    scope: 'regional',\n    rules: [\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesCommonRuleSet',\n          vendorName: 'AWS',\n          priority: 0\n        }\n      },\n      {\n        type: 'managed-rule-group',\n        properties: {\n          name: 'AWSManagedRulesKnownBadInputsRuleSet',\n          vendorName: 'AWS',\n          priority: 1\n        }\n      },\n      {\n        type: 'rate-based-rule',\n        properties: {\n          name: 'RateLimitPerIp',\n          limit: 2000,\n          aggregateBasedOn: 'IP',\n          priority: 2\n        }\n      }\n    ]\n  });\n\n  const apiService = new WebService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/index.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 },\n    loadBalancing: { type: 'application-load-balancer' },\n    useFirewall: 'apiFirewall'\n  });\n\n  return { resources: { apiFirewall, apiService } };\n});\n```").optional(),
         "customResponseBodies": z.record(__stacktapeSharedZod0, z.object({
@@ -2798,9 +2793,9 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
           "maxLifetimeSeconds": __stacktapeSharedZod28.describe("#### Longest time a runtime session can live, in seconds.\n\n---\n\nAWS ends the session after this time, even while it is active. When omitted, AWS uses its default (8 hours).").optional(),
           "idleTimeoutSeconds": __stacktapeSharedZod28.describe("#### How long an idle runtime session stays alive, in seconds.\n\n---\n\nAWS ends a session that receives no request for this long. A shorter timeout lowers cost. When omitted, AWS uses\nits default (15 minutes).").optional() }).strict()
         .optional().describe("").optional(),
-        "requestHeaders": __stacktapeSharedZod314,
-        "authorizer": __stacktapeSharedZod315.optional().describe("").optional(),
-        "tags": __stacktapeSharedZod316,
+        "requestHeaders": __stacktapeSharedZod315,
+        "authorizer": __stacktapeSharedZod316.optional().describe("").optional(),
+        "tags": __stacktapeSharedZod317,
         "connectTo": __stacktapeSharedZod205,
         "iamRoleStatements": __stacktapeSharedZod207 }).strict()
       ,
@@ -2811,8 +2806,8 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
         "description": __stacktapeSharedZod300,
         "eventRetentionDays": __stacktapeSharedZod28.describe("#### How many days AgentCore keeps raw memory events.\n\n---\n\nEvents older than this are deleted. AWS accepts 7 to 365 days.").default(30),
         "encryptionKeyArn": __stacktapeSharedZod300,
-        "memoryStrategies": __stacktapeSharedZod303,
-        "tags": __stacktapeSharedZod316 }).strict()
+        "memoryStrategies": __stacktapeSharedZod304,
+        "tags": __stacktapeSharedZod317 }).strict()
       ,
       "overrides": __stacktapeSharedZod85 }).strict()
     , z.object({
@@ -2821,7 +2816,7 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
         "description": __stacktapeSharedZod300,
         "authorizer": z.union([z.object({
             "type": z.literal("jwt"),
-            "properties": __stacktapeSharedZod315 }).strict()
+            "properties": __stacktapeSharedZod316 }).strict()
           .describe("#### Require a JSON Web Token from your identity provider on every gateway call."), z.object({
             "type": z.literal("none") }).strict()
           .describe("#### Allow unauthenticated calls to the gateway's tools.")]).describe("#### Who can call the gateway's tools.\n\n---\n\nRequired, because the gateway exposes every configured tool to its callers.\n\n- `jwt`: callers must send a JSON Web Token issued by your identity provider.\n- `none`: anyone who can reach the gateway endpoint can call its tools. Use it only for tools that are safe to\n  expose publicly."),
@@ -2838,10 +2833,10 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
           ) }).strict()
         ).optional().describe("").optional(),
         "instructions": __stacktapeSharedZod300,
-        "supportedVersions": __stacktapeSharedZod314,
+        "supportedVersions": __stacktapeSharedZod315,
         "searchType": z.literal("SEMANTIC").optional().describe("").optional(),
         "exceptionLevel": z.literal("DEBUG").optional().describe("").optional(),
-        "tags": __stacktapeSharedZod316 }).strict()
+        "tags": __stacktapeSharedZod317 }).strict()
       ,
       "overrides": __stacktapeSharedZod85 }).strict()
     , z.object({
@@ -2849,38 +2844,38 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
       "properties": z.object({
         "description": __stacktapeSharedZod300,
         "recording": z.object({
-          "enabled": __stacktapeSharedZod304,
+          "enabled": __stacktapeSharedZod305,
           "bucketName": __stacktapeSharedZod300,
           "prefix": __stacktapeSharedZod300 }).strict()
         .optional().describe("").optional(),
-        "tags": __stacktapeSharedZod316 }).strict()
+        "tags": __stacktapeSharedZod317 }).strict()
       ,
       "overrides": __stacktapeSharedZod85 }).strict()
     , z.object({
       "type": z.literal("agentcore-code-interpreter"),
       "properties": z.object({
         "description": __stacktapeSharedZod300,
-        "tags": __stacktapeSharedZod316 }).strict()
+        "tags": __stacktapeSharedZod317 }).strict()
       ,
       "overrides": __stacktapeSharedZod85 }).strict()
   ])).describe("#### Your app's infrastructure: APIs, databases, containers, functions, buckets, and more.\n\n---\n\nEach entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages\nthe underlying AWS resources for you. Use `stacktape status` to inspect them.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  notificationSender:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/send-notification.ts\n      events:\n        - type: http-api-gateway\n          properties:\n            httpApiGatewayName: mainGateway\n            method: POST\n            path: /notify\n  mainGateway:\n    type: http-api-gateway\n    properties: {}\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainGateway = new HttpApiGateway({});\n  const notificationSender = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/send-notification.ts' }\n    },\n    events: [\n      {\n        type: 'http-api-gateway',\n        properties: { httpApiGatewayName: 'mainGateway', method: 'POST', path: '/notify' }\n      }\n    ]\n  });\n\n  return {\n    resources: { notificationSender, mainGateway }\n  };\n});\n```"),
   "cloudformationResources": z.record(__stacktapeSharedZod0, z.union([z.object({
       "Condition": __stacktapeSharedZod300,
-      "CreationPolicy": __stacktapeSharedZod346,
-      "DeletionPolicy": __stacktapeSharedZod347,
-      "DependsOn": __stacktapeSharedZod348,
-      "Metadata": __stacktapeSharedZod307,
-      "UpdatePolicy": __stacktapeSharedZod350,
-      "UpdateReplacePolicy": __stacktapeSharedZod351,
+      "CreationPolicy": __stacktapeSharedZod347,
+      "DeletionPolicy": __stacktapeSharedZod348,
+      "DependsOn": __stacktapeSharedZod349,
+      "Metadata": __stacktapeSharedZod308,
+      "UpdatePolicy": __stacktapeSharedZod351,
+      "UpdateReplacePolicy": __stacktapeSharedZod352,
       "Type": __stacktapeSharedZod0,
       "Properties": z.object({}).catchall(__stacktapeSharedZod6) }).strict()
     , z.object({
       "Condition": __stacktapeSharedZod300,
-      "CreationPolicy": __stacktapeSharedZod346,
-      "DeletionPolicy": __stacktapeSharedZod347,
-      "DependsOn": __stacktapeSharedZod348,
-      "Metadata": __stacktapeSharedZod307,
-      "UpdatePolicy": __stacktapeSharedZod350,
-      "UpdateReplacePolicy": __stacktapeSharedZod351,
+      "CreationPolicy": __stacktapeSharedZod347,
+      "DeletionPolicy": __stacktapeSharedZod348,
+      "DependsOn": __stacktapeSharedZod349,
+      "Metadata": __stacktapeSharedZod308,
+      "UpdatePolicy": __stacktapeSharedZod351,
+      "UpdateReplacePolicy": __stacktapeSharedZod352,
       "Type": __stacktapeSharedZod0 }).strict()
   ])).optional().describe("#### Escape hatch: add raw AWS CloudFormation resources alongside Stacktape-managed ones.\n\n---\n\nFor advanced use cases where Stacktape doesn't have a built-in resource type.\nThese are merged into the CloudFormation template as-is. Use `stacktape status`\nto check existing logical names and avoid conflicts.\n\nDoes not count towards your resource limit.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\ncloudformationResources:\n  MyRawSnsTopic:\n    Type: AWS::SNS::Topic\n    Properties:\n      TopicName: legacy-events\n      DisplayName: Legacy Events Topic\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    resources: { worker },\n    cloudformationResources: {\n      MyRawSnsTopic: {\n        Type: 'AWS::SNS::Topic',\n        Properties: {\n          TopicName: 'legacy-events',\n          DisplayName: 'Legacy Events Topic'\n        }\n      }\n    }\n  };\n});\n```").optional() }).strict()

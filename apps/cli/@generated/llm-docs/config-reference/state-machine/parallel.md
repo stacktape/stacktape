@@ -5,18 +5,19 @@ Resource type: `state-machine`
 ## TypeScript definition
 
 ```typescript
-import type { StpStateMachine } from 'stacktape';
+import type { StateMachineBranch } from 'stacktape';
 
 type Parallel = {
-  Branches: Array<StpStateMachine>;
-  Type: string;
+  /** The workflows that run in parallel. Each is a native Amazon States Language branch. */
+  Branches: Array<StateMachineBranch>;
+  Type: "Parallel";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
-  ResultPath?: string;
+  OutputPath?: string | null;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
 };
 ```
@@ -24,12 +25,14 @@ type Parallel = {
 ## Property: `Branches`
 
 - Required: yes
-- Type: `Array<StpStateMachine>`
+- Type: `Array<StateMachineBranch>`
+
+The workflows that run in parallel. Each is a native Amazon States Language branch.
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Parallel"`
 
 ## Property: `Catch`
 
@@ -49,7 +52,7 @@ type Parallel = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -59,12 +62,12 @@ type Parallel = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 

@@ -12981,6 +12981,33 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineBranch",
+      "title": "StateMachineBranch API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachinebranch.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineBranch"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineBranch",
+        "StartAt",
+        "States",
+        "Comment",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineBranch#statemachinebranch-api-reference",
+        "config-reference:StateMachineBranch#typescript-definition",
+        "config-reference:StateMachineBranch#property-startat",
+        "config-reference:StateMachineBranch#property-states",
+        "config-reference:StateMachineBranch#property-comment"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineDefinition",
       "title": "StateMachineDefinition API Reference",
       "route": "/config-reference/state-machine",
@@ -13022,6 +13049,35 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineItemProcessor",
+      "title": "StateMachineItemProcessor API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachineitemprocessor.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineItemProcessor"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineItemProcessor",
+        "StartAt",
+        "States",
+        "Comment",
+        "ProcessorConfig",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineItemProcessor#statemachineitemprocessor-api-reference",
+        "config-reference:StateMachineItemProcessor#typescript-definition",
+        "config-reference:StateMachineItemProcessor#property-startat",
+        "config-reference:StateMachineItemProcessor#property-states",
+        "config-reference:StateMachineItemProcessor#property-comment",
+        "config-reference:StateMachineItemProcessor#property-processorconfig"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineMap",
       "title": "StateMachineMap API Reference",
       "route": "/config-reference/state-machine",
@@ -13035,13 +13091,14 @@
       "tags": [
         "config-reference",
         "StateMachineMap",
-        "Iterator",
         "Type",
         "Catch",
         "Comment",
         "End",
         "InputPath",
+        "ItemProcessor",
         "ItemsPath",
+        "Iterator",
         "MaxConcurrency",
         "Next",
         "OutputPath",
@@ -13053,13 +13110,14 @@
       "chunks": [
         "config-reference:StateMachineMap#statemachinemap-api-reference",
         "config-reference:StateMachineMap#typescript-definition",
-        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-type",
         "config-reference:StateMachineMap#property-catch",
         "config-reference:StateMachineMap#property-comment",
         "config-reference:StateMachineMap#property-end",
         "config-reference:StateMachineMap#property-inputpath",
+        "config-reference:StateMachineMap#property-itemprocessor",
         "config-reference:StateMachineMap#property-itemspath",
+        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-maxconcurrency",
         "config-reference:StateMachineMap#property-next",
         "config-reference:StateMachineMap#property-outputpath",
@@ -13091,33 +13149,6 @@
         "config-reference:StateMachineProps#property-definition",
         "config-reference:StateMachineProps#example-1-yaml",
         "config-reference:StateMachineProps#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:StpStateMachine",
-      "title": "StpStateMachine API Reference",
-      "route": "/config-reference/state-machine",
-      "sourcePath": "packages/config/src/state-machines.ts",
-      "outputPath": "config-reference/state-machine/stpstatemachine.md",
-      "docKind": "config-reference",
-      "resourceType": "state-machine",
-      "definitionNames": [
-        "StpStateMachine"
-      ],
-      "tags": [
-        "config-reference",
-        "StpStateMachine",
-        "configParentResourceType",
-        "name",
-        "nameChain",
-        "state-machine"
-      ],
-      "chunks": [
-        "config-reference:StpStateMachine#stpstatemachine-api-reference",
-        "config-reference:StpStateMachine#typescript-definition",
-        "config-reference:StpStateMachine#property-configparentresourcetype",
-        "config-reference:StpStateMachine#property-name",
-        "config-reference:StpStateMachine#property-namechain"
       ]
     },
     {

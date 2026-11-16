@@ -7,16 +7,16 @@ Resource type: `state-machine`
 ```typescript
 type Task = {
   Resource: TaskResource;
-  Type: string;
+  Type: "Task";
   Catch?: Array<unknown>;
   Comment?: string;
   End?: true;
   HeartbeatSeconds?: number;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
   Retry?: Array<unknown>;
   TimeoutSeconds?: number;
 };
@@ -39,7 +39,7 @@ Choices:
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Task"`
 
 ## Property: `Catch`
 
@@ -64,7 +64,7 @@ Choices:
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -74,7 +74,7 @@ Choices:
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -84,7 +84,7 @@ Choices:
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Retry`
 

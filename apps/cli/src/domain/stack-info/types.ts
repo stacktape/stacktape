@@ -53,7 +53,7 @@ import type { StpUserAuthPool } from '@domain-services/config-manager/resolved-t
 import type { StpWebAppFirewall } from '@domain-services/config-manager/resolved-types/web-app-firewall';
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
-import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { StpStateMachine } from '@domain-services/config-manager/resolved-types/state-machines';
 
 export type CfChildResourceOverview = import('@stacktape/stack-info/contracts').CloudformationChildResourceOverview<
   import('@aws-cdk/cloudformation-diff').ResourceImpact,

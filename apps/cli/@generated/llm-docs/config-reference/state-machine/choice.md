@@ -9,13 +9,13 @@ import type { Operator } from 'stacktape';
 
 type Choice = {
   Choices: Array<Operator>;
-  Type: string;
+  Type: "Choice";
   Comment?: string;
   Default?: string;
   End?: true;
-  InputPath?: string;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
 };
 ```
 
@@ -27,7 +27,7 @@ type Choice = {
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Choice"`
 
 ## Property: `Comment`
 
@@ -47,7 +47,7 @@ type Choice = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -57,4 +57,4 @@ type Choice = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`

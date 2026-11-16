@@ -15599,7 +15599,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Choice"
         }
       },
       {
@@ -15647,7 +15648,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -15671,7 +15673,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       }
@@ -15680,7 +15683,7 @@
       "requiredCount": 2,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { Operator } from 'stacktape';\n\n// [!code focus-start]\ntype Choice = {\n  Choices: Array<Operator>;\n  Type: string;\n  Comment?: string;\n  Default?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { Operator } from 'stacktape';\n\n// [!code focus-start]\ntype Choice = {\n  Choices: Array<Operator>;\n  Type: \"Choice\";\n  Comment?: string;\n  Default?: string;\n  End?: true;\n  InputPath?: string | null;\n  Next?: string;\n  OutputPath?: string | null;\n};\n// [!code focus-end]"
   },
   "ClassTransition": {
     "definitionName": "ClassTransition",
@@ -29672,7 +29675,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Fail"
         }
       },
       {
@@ -29719,7 +29723,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -29731,7 +29736,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       }
@@ -29740,7 +29746,7 @@
       "requiredCount": 1,
       "optionalCount": 5
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Fail = {\n  Type: string;\n  Cause?: string;\n  Comment?: string;\n  Error?: string;\n  InputPath?: string;\n  OutputPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Fail = {\n  Type: \"Fail\";\n  Cause?: string;\n  Comment?: string;\n  Error?: string;\n  InputPath?: string | null;\n  OutputPath?: string | null;\n};\n// [!code focus-end]"
   },
   "ForwardCookiesAll": {
     "definitionName": "ForwardCookiesAll",
@@ -45156,13 +45162,13 @@
       {
         "name": "Branches",
         "required": true,
-        "shortDescription": "",
+        "shortDescription": "<p> The workflows that run in parallel. Each is a native Amazon States Language branch.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
           "itemType": {
             "kind": "reference",
-            "typeName": "StpStateMachine"
+            "typeName": "StateMachineBranch"
           }
         }
       },
@@ -45175,7 +45181,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Parallel"
         }
       },
       {
@@ -45223,7 +45230,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -45247,7 +45255,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -45259,7 +45268,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -45280,7 +45290,7 @@
       "requiredCount": 2,
       "optionalCount": 8
     },
-    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype Parallel = {\n  Branches: Array<StpStateMachine>;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { StateMachineBranch } from 'stacktape';\n\n// [!code focus-start]\ntype Parallel = {\n  /** The workflows that run in parallel. Each is a native Amazon States Language branch. */\n  Branches: Array<StateMachineBranch>;\n  Type: \"Parallel\";\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string | null;\n  Next?: string;\n  OutputPath?: string | null;\n  ResultPath?: string | null;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
   },
   "Pass": {
     "definitionName": "Pass",
@@ -45294,7 +45304,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Pass"
         }
       },
       {
@@ -45330,7 +45341,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -45354,7 +45366,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -45384,7 +45397,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       }
@@ -45393,7 +45407,7 @@
       "requiredCount": 1,
       "optionalCount": 8
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Pass = {\n  Type: string;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  Result?: unknown;\n  ResultPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Pass = {\n  Type: \"Pass\";\n  Comment?: string;\n  End?: true;\n  InputPath?: string | null;\n  Next?: string;\n  OutputPath?: string | null;\n  Parameters?: unknown;\n  Result?: unknown;\n  ResultPath?: string | null;\n};\n// [!code focus-end]"
   },
   "PasswordPolicy": {
     "definitionName": "PasswordPolicy",
@@ -57056,6 +57070,50 @@
     },
     "typeDeclaration": "import type { StateMachineProps } from 'stacktape';\n\n// [!code focus-start]\ntype StateMachine = {\n  properties: StateMachineProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
   },
+  "StateMachineBranch": {
+    "definitionName": "StateMachineBranch",
+    "shortDescription": "<p> A nested workflow: a <code>Parallel</code> branch or the workflow a <code>Map</code> state runs for each item.</p>",
+    "properties": [
+      {
+        "name": "StartAt",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "States",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "Comment",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype StateMachineBranch = {\n  StartAt: string;\n  States: unknown;\n  Comment?: string;\n};\n// [!code focus-end]"
+  },
   "StateMachineDefinition": {
     "definitionName": "StateMachineDefinition",
     "properties": [
@@ -57173,19 +57231,61 @@
     },
     "typeDeclaration": "// [!code focus-start]\ntype StateMachineDefinition = {\n  /** The name of the state to start the execution at. */\n  StartAt: string;\n  /** An object containing the states of the state machine. */\n  States: unknown;\n  /** A human-readable description of the state machine. */\n  Comment?: string;\n  /** The maximum time, in seconds, that a state machine can run. */\n  TimeoutSeconds?: number;\n  /** The version of the Amazon States Language. */\n  Version?: string;\n};\n// [!code focus-end]"
   },
-  "StateMachineMap": {
-    "definitionName": "StateMachineMap",
+  "StateMachineItemProcessor": {
+    "definitionName": "StateMachineItemProcessor",
     "properties": [
       {
-        "name": "Iterator",
+        "name": "StartAt",
         "required": true,
         "shortDescription": "",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "StpStateMachine"
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
         }
       },
+      {
+        "name": "States",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "Comment",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "ProcessorConfig",
+        "required": false,
+        "shortDescription": "<p> How the <code>Map</code> state runs its items: <code>INLINE</code>, or <code>DISTRIBUTED</code> with an <code>ExecutionType</code>.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype StateMachineItemProcessor = {\n  StartAt: string;\n  States: unknown;\n  Comment?: string;\n  /** How the `Map` state runs its items: `INLINE`, or `DISTRIBUTED` with an `ExecutionType`. */\n  ProcessorConfig?: unknown;\n};\n// [!code focus-end]"
+  },
+  "StateMachineMap": {
+    "definitionName": "StateMachineMap",
+    "properties": [
       {
         "name": "Type",
         "required": true,
@@ -57195,7 +57295,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Map"
         }
       },
       {
@@ -57243,8 +57344,19 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
+        }
+      },
+      {
+        "name": "ItemProcessor",
+        "required": false,
+        "shortDescription": "<p> The workflow that runs for each item.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "StateMachineItemProcessor"
         }
       },
       {
@@ -57255,8 +57367,19 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
+        }
+      },
+      {
+        "name": "Iterator",
+        "required": false,
+        "shortDescription": "<p> The workflow that runs for each item (the older name for <code>ItemProcessor</code>).</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "StateMachineBranch"
         }
       },
       {
@@ -57291,7 +57414,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -57312,7 +57436,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -57330,10 +57455,10 @@
       }
     ],
     "stats": {
-      "requiredCount": 2,
-      "optionalCount": 11
+      "requiredCount": 1,
+      "optionalCount": 13
     },
-    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype StateMachineMap = {\n  Iterator: StpStateMachine;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  ItemsPath?: string;\n  MaxConcurrency?: number;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { StateMachineBranch, StateMachineItemProcessor } from 'stacktape';\n\n// [!code focus-start]\ntype StateMachineMap = {\n  Type: \"Map\";\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string | null;\n  /** The workflow that runs for each item. */\n  ItemProcessor?: StateMachineItemProcessor;\n  ItemsPath?: string | null;\n  /** The workflow that runs for each item (the older name for `ItemProcessor`). */\n  Iterator?: StateMachineBranch;\n  MaxConcurrency?: number;\n  Next?: string;\n  OutputPath?: string | null;\n  Parameters?: unknown;\n  ResultPath?: string | null;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
   },
   "StateMachineProps": {
     "definitionName": "StateMachineProps",
@@ -57503,56 +57628,6 @@
       "optionalCount": 4
     },
     "typeDeclaration": "// [!code focus-start]\ntype StpIamRoleStatement = {\n  /** ARNs of the AWS resources this statement applies to. Use `\"*\"` for all resources. */\n  Resource: Array<string>;\n  /** AWS actions to allow or deny (e.g., `s3:GetObject`, `sqs:SendMessage`). */\n  Action?: Array<string>;\n  /** Conditions under which this statement applies (e.g., IP restrictions, tag-based access). */\n  Condition?: unknown;\n  /** Whether to allow or deny the specified actions. */\n  Effect?: string;\n  /** Optional identifier for this statement (for readability). */\n  Sid?: string;\n};\n// [!code focus-end]"
-  },
-  "StpStateMachine": {
-    "definitionName": "StpStateMachine",
-    "properties": [
-      {
-        "name": "configParentResourceType",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ],
-          "constValue": "state-machine"
-        }
-      },
-      {
-        "name": "name",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ]
-        }
-      },
-      {
-        "name": "nameChain",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "array",
-          "itemType": {
-            "kind": "primitive",
-            "types": [
-              "string"
-            ]
-          }
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 3,
-      "optionalCount": 0
-    },
-    "typeDeclaration": "// [!code focus-start]\ntype StpStateMachine = {\n  configParentResourceType: \"state-machine\";\n  name: string;\n  nameChain: Array<string>;\n};\n// [!code focus-end]"
   },
   "SubIntrinsic": {
     "definitionName": "SubIntrinsic",
@@ -58463,7 +58538,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Succeed"
         }
       },
       {
@@ -58483,7 +58559,7 @@
       "requiredCount": 1,
       "optionalCount": 1
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Succeed = {\n  Type: string;\n  Comment?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Succeed = {\n  Type: \"Succeed\";\n  Comment?: string;\n};\n// [!code focus-end]"
   },
   "SvelteKitWeb": {
     "definitionName": "SvelteKitWeb",
@@ -59827,7 +59903,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Task"
         }
       },
       {
@@ -59887,7 +59964,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -59911,7 +59989,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -59932,7 +60011,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -59965,7 +60045,7 @@
       "requiredCount": 2,
       "optionalCount": 11
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  HeartbeatSeconds?: number;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: \"Task\";\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  HeartbeatSeconds?: number;\n  InputPath?: string | null;\n  Next?: string;\n  OutputPath?: string | null;\n  Parameters?: unknown;\n  ResultPath?: string | null;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
   },
   "TracingOptions": {
     "definitionName": "TracingOptions",
@@ -62486,7 +62566,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "Wait"
         }
       },
       {
@@ -62522,7 +62603,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -62546,7 +62628,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -62570,7 +62653,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       },
@@ -62594,7 +62678,8 @@
         "typeInfo": {
           "kind": "primitive",
           "types": [
-            "string"
+            "string",
+            "null"
           ]
         }
       }
@@ -62603,7 +62688,7 @@
       "requiredCount": 1,
       "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Wait = {\n  Type: string;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Seconds?: number;\n  SecondsPath?: string;\n  Timestamp?: string;\n  TimestampPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Wait = {\n  Type: \"Wait\";\n  Comment?: string;\n  End?: true;\n  InputPath?: string | null;\n  Next?: string;\n  OutputPath?: string | null;\n  Seconds?: number;\n  SecondsPath?: string | null;\n  Timestamp?: string;\n  TimestampPath?: string | null;\n};\n// [!code focus-end]"
   },
   "WebAppFirewall": {
     "definitionName": "WebAppFirewall",
