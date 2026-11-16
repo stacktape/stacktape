@@ -419,7 +419,8 @@ const getLoggingParameters = ({
   return {};
 };
 
-const getEngineVersionConfigurationData = ({
+/** The parameter group family and major version of an engine version. Exported for the test that walks the version list. */
+export const getEngineVersionConfigurationData = ({
   engineType,
   engineVersion,
   instanceType
@@ -495,18 +496,21 @@ const engineVersionConfigurationData = [
   { family: 'sqlserver-ee-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-ee-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-ee-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-ee-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-ex-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-ex-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-ex-13.0', majorVersion: '13.00' },
   { family: 'sqlserver-ex-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-ex-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-ex-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-ex-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-se-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-se-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-se-13.0', majorVersion: '13.00' },
   { family: 'sqlserver-se-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-se-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-se-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-se-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-web-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-web-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-web-13.0', majorVersion: '13.00' },

@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import versions from '../../@generated/db-engine-versions/versions.json' with { type: 'json' };
+import { getEngineVersionConfigurationData } from '../../src/domain/calculated-stack-overview-manager/resource-resolvers/databases/utils';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 type Template = CloudFormationTemplate & {
@@ -45,6 +46,28 @@ const fullVersionOf = (line: string) => {
 };
 
 describe('database versions', () => {
+  // A refreshed list brings engine generations whose family the CLI has to know: without it, a version that passes
+  // validation fails later with "Cannot find parameter group family".
+  test('every version in the list has a parameter group family', () => {
+    const withoutFamily = Object.entries(versions.rds as Record<string, string[]>).flatMap(([engineType, list]) =>
+      list
+        .filter((engineVersion) => {
+          try {
+            getEngineVersionConfigurationData({
+              engineType: engineType as never,
+              engineVersion,
+              instanceType: 'db.t4g.micro'
+            });
+            return false;
+          } catch {
+            return true;
+          }
+        })
+        .map((engineVersion) => `${engineType} ${engineVersion}`)
+    );
+    expect(withoutFamily).toEqual([]);
+  });
+
   test('a release line reaches CloudFormation as written, with the parameter group family of the line', async () => {
     const template = await synthesize({
       pg: database('postgres', '17'),
