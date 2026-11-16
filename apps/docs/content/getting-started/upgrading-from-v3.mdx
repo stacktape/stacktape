@@ -786,9 +786,7 @@ v4 stops packaging when the project contains a symbolic link that points outside
 
 v4 commands and flags use standard spelling: words separated by spaces, and lowercase flags with dashes. For example, `stacktape secret set my-key --region eu-west-1` replaces `stacktape secret:set --region eu-west-1 --secretName my-key`. Most old spellings, such as colon commands (`info:stack`) and camelCase flags (`--projectName`), still work. Run `stacktape help <command>` to see the current names.
 
-{/* STUB (owner: the "CLI compatibility shims" change, which decides which removed v3 commands keep working). Reconcile this table with what it merged before publishing. */}
-
-These v3 commands were removed or renamed without keeping the old name. Replace them in scripts and CI:
+These v3 commands were renamed. The old names still run the new command and print a warning, so scripts keep working; replace them when convenient:
 
 | v3 command | v4 command |
 |---|---|
@@ -803,27 +801,27 @@ These v3 commands were removed or renamed without keeping the old name. Replace 
 | `debug:sql`, `debug:dynamodb`, `debug:redis`, `debug:opensearch` | `query sql`, `query dynamodb`, `query redis`, `query opensearch` |
 | `debug:aws-sdk` | `aws call` |
 | `debug:container-exec` | `container exec` |
-| `codebuild:deploy` | `deploy --runner ec2`, after you set up a [Console runner](/ci-cd-and-gitops/build-runners) |
 
-Check the options and output of the replacement command, not only its name.
+`codebuild:deploy` was removed and fails with `CLI_COMMAND_REMOVED`. Run `stacktape deploy` in the CI job, or use `deploy --runner ec2` after you set up a [Console runner](/ci-cd-and-gitops/build-runners).
 
 ### Removed flags
 
-{/* STUB (owner: the "CLI compatibility shims" change, which makes --hotSwap a deprecated no-op). Reconcile the first row with what it merged before publishing. */}
+`deploy` still accepts the first three flags and prints a warning, so scripts keep working. The others stop the command.
 
 | v3 flag | What to do |
 |---|---|
-| `--hotSwap`, `--hs` | Delete it. `deploy` updates code-only changes directly without it; see [Fast deployments are automatic](#fast-deployments-are-automatic). |
-| `--disableAutoRollback`, `--dar` | Delete it; this is now the default. Use `--auto-rollback` for v3's behaviour. See [Automatic rollback](#automatic-rollback). |
-| `--disableDriftDetection`, `--ddd` | Delete it. `deploy` no longer checks for drift. |
-| `--templateId`, `--ti` | Use a configuration file in the repository. See [Before you upgrade](#before-you-upgrade). |
+| `--hotSwap`, `--hs` | Accepted and ignored. `deploy` updates code-only changes directly without it; see [Fast deployments are automatic](#fast-deployments-are-automatic). Delete it when convenient. |
+| `--disableAutoRollback`, `--dar` | Accepted as `--auto-rollback=false`, which is now the default. Use `--auto-rollback` for v3's behaviour. See [Automatic rollback](#automatic-rollback). |
+| `--disableDriftDetection`, `--ddd` | Accepted and ignored. `deploy` no longer checks for drift. |
+| `--templateId`, `--ti` | Fails with `CLI_ARGUMENT_REMOVED`. Use a configuration file in the repository and pass its path with `--config` if it is not in the project root. See [Before you upgrade](#before-you-upgrade). |
+| `--awsAccount` on `compile-template`/`synth` or `package-workloads`/`package` | Fails with `CLI_ARGUMENT_REMOVED`. These commands use local AWS credentials (`--profile` or AWS keys in the environment) when the configuration needs AWS. Delete it. |
 | `--devMode`, `--dm` | Delete it. Use [`stacktape dev`](/cli/dev). |
 | `dev --container`, `dev --resourceName` | Use `dev --resources <name>` (and `--skip-resources`). |
 
 Two parsing rules are stricter:
 
 - An option with one dash must be one letter: `-r eu-west-1` works, `-pn shop` does not. Use the long form, `--project shop`.
-- A boolean flag takes its value after `=`: `--watch=false`. `--watch false` sets the flag and passes `false` as an unexpected argument.
+- A boolean flag takes its value after `=`: `--watch=false`. `--flag true` and `--flag false` as separate words still work for commands without positional arguments, such as `deploy`; for others the second word is read as a positional argument.
 
 ### Target AWS account
 

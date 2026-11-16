@@ -10,6 +10,7 @@ import {
   resolveCommandName,
   shortFlags
 } from '../config/cli/public-names';
+import { removedV3Commands, renamedV3Commands, v3CommandWarning, v3Flag } from '../config/cli/v3-compatibility';
 import { CliError } from './errors';
 
 export const transformToCliArgs = (args: StacktapeArgs) => {
@@ -115,7 +116,9 @@ export const parseCliInput = (
   commands: StacktapeCommand[];
   options: StacktapeCliArgs;
   additionalArgs: Record<string, string | boolean>;
+  warnings: string[];
 } => {
+  const warnings: string[] = [];
   const separator = allArgs.indexOf('--');
   const primary = separator < 0 ? allArgs : allArgs.slice(0, separator);
   const additionalArgs = parseAdditionalArgs(separator < 0 ? [] : allArgs.slice(separator + 1));
@@ -126,14 +129,20 @@ export const parseCliInput = (
   const words = afterStart.slice(0, firstOption < 0 ? afterStart.length : firstOption);
   let command: StacktapeCommand | undefined;
   let consumed = 0;
+  let v3CommandName: string | undefined;
   for (let length = words.length; length > 0; length--) {
-    const match = resolveCommandName(words.slice(0, length).join(' '), cliCommands);
+    const typed = words.slice(0, length).join(' ');
+    const match = resolveCommandName(typed, cliCommands) ?? renamedV3Commands[typed];
     if (match) {
       command = match;
       consumed = length;
+      if (!resolveCommandName(typed, cliCommands)) v3CommandName = typed;
       break;
     }
   }
+  if (!command && words[0] && Object.hasOwn(removedV3Commands, words[0]))
+    throw parseError('CLI_COMMAND_REMOVED', removedV3Commands[words[0]]);
+  if (command && v3CommandName) warnings.push(v3CommandWarning(v3CommandName, publicCommandName(command)));
   for (const token of primary) {
     if (!isOption(token) || !/^-[^-].+/.test(token) || ['-help', '-version'].includes(token)) continue;
     const flag = token.split('=')[0];
@@ -151,11 +160,17 @@ export const parseCliInput = (
       commands: ['help'],
       options: {
         ...getBootstrapOptions(primary),
-        ...(words.length ? { command: words.slice(0, consumed || words.length).join(' ') } : {})
+        ...(words.length
+          ? {
+              command: v3CommandName ? publicCommandName(command!) : words.slice(0, consumed || words.length).join(' ')
+            }
+          : {})
       },
-      additionalArgs
+      additionalArgs,
+      warnings
     };
-  if (versionRequested) return { commands: ['version'], options: getBootstrapOptions(primary), additionalArgs };
+  if (versionRequested)
+    return { commands: ['version'], options: getBootstrapOptions(primary), additionalArgs, warnings };
 
   const options: Record<string, unknown> = {};
   const positionals: string[] = [];
@@ -183,13 +198,39 @@ export const parseCliInput = (
       options.quiet = true;
       continue;
     }
+    const legacy =
+      command && !Object.hasOwn(commandDefinitions[command].args, arg) && !globalArgs.has(arg)
+        ? (v3Flag(command, name) ?? v3Flag(command, arg))
+        : undefined;
+    if (legacy) {
+      if ('removed' in legacy) throw parseError('CLI_ARGUMENT_REMOVED', legacy.removed);
+      const takesValue = 'takesValue' in legacy && legacy.takesValue;
+      const next = primary[i + 1];
+      // Stacktape 3 also accepted a boolean's value as the next word (`--hotSwap true`).
+      const value =
+        inline ??
+        (next !== undefined && (takesValue ? !isOption(next) : next === 'true' || next === 'false')
+          ? primary[++i]
+          : undefined);
+      if ('ignored' in legacy) {
+        warnings.push(legacy.ignored);
+        continue;
+      }
+      if (value !== undefined && value !== 'true' && value !== 'false')
+        throw parseError('CLI_ARGUMENT_TYPE_INVALID', `--${name} expects true or false.`);
+      options[legacy.renamedTo] = legacy.negated ? value === 'false' : value !== 'false';
+      warnings.push(legacy.warning);
+      continue;
+    }
     const types = command ? getArgInfo(command, arg).allowedTypes : ['string'];
     // Global output/log flags are accepted for every command.
     const allowedTypes = globalArgs.has(arg) ? (['help', 'quiet'].includes(arg) ? ['boolean'] : ['string']) : types;
     if (allowedTypes.includes('boolean')) {
       if (inline !== undefined && !['true', 'false'].includes(inline))
         throw parseError('CLI_ARGUMENT_TYPE_INVALID', `--${publicFlag(arg)} expects true or false.`);
-      options[arg] = inline !== 'false';
+      // Stacktape 3 scripts write a boolean's value as the next word: `--autoConfirmOperation true`.
+      const separated = inline === undefined && ['true', 'false'].includes(primary[i + 1]) ? primary[++i] : undefined;
+      options[arg] = (inline ?? separated) !== 'false';
     } else if (allowedTypes.includes('array')) {
       const values: string[] = inline === undefined ? [] : [inline];
       while (i + 1 < primary.length && !isOption(primary[i + 1])) values.push(primary[++i]);
@@ -211,7 +252,8 @@ export const parseCliInput = (
     return {
       commands: positionals as StacktapeCommand[],
       options: { ...options, ...getBootstrapOptions(primary) } as StacktapeCliArgs,
-      additionalArgs
+      additionalArgs,
+      warnings
     };
   const positionalNames = commandPositionals[command] ?? [];
   if (command === 'help' && positionals.length) positionals.splice(0, positionals.length, positionals.join(' '));
@@ -238,7 +280,8 @@ export const parseCliInput = (
   return {
     commands: [command],
     options: { ...options, ...getBootstrapOptions(primary) } as StacktapeCliArgs,
-    additionalArgs
+    additionalArgs,
+    warnings
   };
 };
 

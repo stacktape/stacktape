@@ -130,3 +130,18 @@ test('CLI Git deployment setup may name the provider, so a project without a rep
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITLAB' }).success, true);
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITEA' }).success, false);
 });
+
+test('a Stacktape 3 CLI names the project in serviceName, and the Console reads it as projectName', () => {
+  // 3.7.1 sends the project only in its progress report, as `serviceName`.
+  const v3Progress = { invocationId: 'inv-1', command: 'deploy', stackName: 'shop-production', serviceName: 'shop' };
+  const parsed = recordStackOperationInputSchema.parse(v3Progress);
+  assert.equal(parsed.projectName, 'shop');
+  assert.equal('serviceName' in parsed, false);
+
+  assert.equal(
+    recordStackOperationInputSchema.parse({ ...v3Progress, projectName: 'billing' }).projectName,
+    'billing',
+    'projectName wins when a client sends both'
+  );
+  assert.equal(recordStackOperationInputSchema.parse({ invocationId: 'inv-1' }).projectName, undefined);
+});
