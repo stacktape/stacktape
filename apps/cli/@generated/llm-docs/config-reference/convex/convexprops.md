@@ -336,7 +336,7 @@ export default defineConfig(() => {
 Override the PostgreSQL database that backs the Convex deployment.
 
 Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
+option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/databases/relational-database/) — override only what
 you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
 multi-AZ for HA, or increase storage retention.
 

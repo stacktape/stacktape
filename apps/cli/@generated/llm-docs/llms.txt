@@ -222,11 +222,14 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [SQS Events](/resources/triggers/sqs-events) - source: apps/docs/content/resources/triggers/sqs-events.mdx
 - [Account Settings](/stacktape-console/account-settings) - source: apps/docs/content/stacktape-console/account-settings.mdx
 - [API Keys](/stacktape-console/api-keys) - source: apps/docs/content/stacktape-console/api-keys.mdx
+- [Audit Log](/stacktape-console/audit-log) - source: apps/docs/content/stacktape-console/audit-log.mdx
 - [AWS Permissions Needed](/stacktape-console/aws-permissions) - source: apps/docs/content/stacktape-console/aws-permissions.mdx
 - [Billing and Subscription](/stacktape-console/billing-and-subscription) - source: apps/docs/content/stacktape-console/billing-and-subscription.mdx
 - [Connecting Your AWS Account](/stacktape-console/connecting-your-aws-account) - source: apps/docs/content/stacktape-console/connecting-your-aws-account.mdx
 - [Console Overview](/stacktape-console/console-overview) - source: apps/docs/content/stacktape-console/console-overview.mdx
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) - source: apps/docs/content/stacktape-console/organizations-projects-and-stages.mdx
+- [Security Scanning](/stacktape-console/security-scanning) - source: apps/docs/content/stacktape-console/security-scanning.mdx
+- [Single Sign-On](/stacktape-console/single-sign-on) - source: apps/docs/content/stacktape-console/single-sign-on.mdx
 - [Team and Access Control](/stacktape-console/team-and-access-control) - source: apps/docs/content/stacktape-console/team-and-access-control.mdx
 - [Agent Mode in Dev](/using-with-ai/agent-mode-in-dev) - source: apps/docs/content/using-with-ai/agent-mode-in-dev.mdx
 - [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: apps/docs/content/using-with-ai/mcp-server-setup.mdx

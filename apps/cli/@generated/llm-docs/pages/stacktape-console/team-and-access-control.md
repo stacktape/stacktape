@@ -24,7 +24,7 @@ their own.
 | Role | Can do | Reaches |
 |------|--------|---------|
 | Owner | Everything, including deleting the organization, billing and appointing other Owners | Every project and every connected AWS account |
-| Admin | Everything except deleting the organization | Every project and every connected AWS account |
+| Admin | Everything except deleting the organization and setting up single sign-on | Every project and every connected AWS account |
 | Developer | Deploy, delete non-production stages, manage secrets and parameters | Only the projects and AWS accounts chosen for them |
 | Viewer | Read projects, deployments, logs, incidents and members | Only the projects and AWS accounts chosen for them |
 
@@ -65,6 +65,9 @@ share another way; it only works for the invited address. **Cancel invitation** 
 Personal organizations have exactly one member. To work with others, create a team organization; team organizations
 have no member limit.
 
+With [single sign-on](/stacktape-console/single-sign-on), people from your company's email domains can also join
+without an invitation, by signing in through your identity provider or being added by your directory.
+
 ## Organization keys for CI
 
 A personal [API key](/stacktape-console/api-keys) acts as the person who created it and stops working when they leave
@@ -83,9 +86,9 @@ once. Organization keys cannot create organizations or connect AI subscriptions,
 
 Owners and Admins can require two-factor sign-in with **Require** in the Two-factor sign-in row. The confirmation lists
 the members who sign in with a password only. After that, those members see only a screen that sends them to
-[Account Settings](/stacktape-console/account-settings) to add an authenticator app; the rest of the organization opens
-again as soon as they do. Signing in with Google counts as two-factor. API keys, including the CLI and CI, keep
-working.
+[Account Settings](/stacktape-console/account-settings) to add an authenticator app or a passkey; the rest of the
+organization opens again once they sign in with it. Signing in with Google, GitHub, a passkey or single sign-on counts
+as two-factor. API keys, including the CLI and CI, keep working.
 
 You need two-factor sign-in on your own account before you can require it.
 
@@ -136,6 +139,8 @@ Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 
 ## Related features
 
 - [Account Settings](/stacktape-console/account-settings): password and two-factor authentication
+- [Single sign-on](/stacktape-console/single-sign-on): sign-in through your identity provider, and SCIM
+- [Audit log](/stacktape-console/audit-log): member, key and access changes, and AWS events
 - [API Keys](/stacktape-console/api-keys): personal keys for the CLI
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what Stacktape can do in an account
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages)

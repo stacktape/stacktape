@@ -76,6 +76,15 @@ Set `enabled: false` to pause a check without deleting its history.
 
 Deleting the stack (or the check) removes the check's probing; the shared prober infrastructure stays idle in the account and costs nothing meaningful.
 
+## What leaves your AWS account
+
+The probes run in your account, but the Console decides when a check is down, so it receives:
+
+- **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts. Reference a `console-channel` to keep those settings out of the stack configuration.
+- **From every probe:** the project, stage, check name and region, up or down, the HTTP status, the total latency, the DNS, connect, TLS and time-to-first-byte timings, a failure reason of at most 500 characters, and the TLS certificate's expiry date.
+
+Response bodies are read only inside the prober to evaluate `body-contains` assertions and are not sent.
+
 ## Limits
 
 - Probed methods are `GET` and `HEAD`. Checks with request bodies are not supported.

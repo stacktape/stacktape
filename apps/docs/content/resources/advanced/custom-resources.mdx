@@ -30,9 +30,9 @@ Custom resource handlers receive Create, Update, and Delete events as part of Cl
 
 | | Custom resource | Deployment script | Raw CloudFormation | CDK construct |
 |---|---|---|---|---|
-| Runs code during deploy | Yes (Lambda) | Yes (local or bastion) | No | No (build-time only) |
+| Runs code during deploy | Yes (Lambda) | Yes (Lambda) | No | No (build-time only) |
 | Manages external services | Yes | Yes | No | No |
-| Stack-aware lifecycle | Create / Update / Delete | Before / After hooks | Declarative | Declarative |
+| Stack-aware lifecycle | Create / Update / Delete | After deploy / before delete | Declarative | Declarative |
 | CloudFormation response protocol | Required | Not needed | N/A | N/A |
 
 ## How it works
@@ -451,7 +451,13 @@ Custom resources are not listed among Stacktape [referenceable parameters](/conf
 
 ## API Reference
 
+### Custom resource definition
+
 <ApiReference definitionName="CustomResourceDefinitionProps" />
+
+### Custom resource instance
+
+<ApiReference definitionName="CustomResourceInstanceProps" />
 
 ## FAQ
 

@@ -226,7 +226,7 @@ Accesses additional CLI arguments passed after `--` in the deploy command. Accep
 Pass custom arguments when deploying:
 
 ```bash
-stacktape deploy --stage production --region eu-west-1 -- --featureFlag=true --apiVersion=v2
+stacktape deploy --stage production --region eu-west-1 -- --featureFlag true --apiVersion v2
 ```
 
 In your config, reference them with `$CliArgs('featureFlag')`. The optional second argument provides a fallback: `$CliArgs('featureFlag', 'false')` returns `'false'` if `--featureFlag` wasn't passed.
@@ -602,7 +602,7 @@ Runtime directives like `$Secret` produce CloudFormation intrinsic functions tha
 
 ### How do I pass custom values at deploy time without changing the config?
 
-Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For example, `stacktape deploy --stage prod -- --dbSize=db.r6g.large` lets your config read `$CliArgs('dbSize')`. The optional second argument is a fallback used when the flag isn't passed: `$CliArgs('dbSize', 'db.t4g.micro')`. This is useful for values that change per-deploy but shouldn't be committed.
+Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For example, `stacktape deploy --stage prod -- --dbSize db.r6g.large` lets your config read `$CliArgs('dbSize')`. The optional second argument is a fallback used when the flag isn't passed: `$CliArgs('dbSize', 'db.t4g.micro')`. This is useful for values that change per-deploy but shouldn't be committed.
 
 ### What happens if a referenced secret doesn't exist?
 

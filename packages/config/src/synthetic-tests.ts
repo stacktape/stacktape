@@ -129,7 +129,7 @@ export interface SyntheticTestProps {
    * ---
    *
    * Available via `process.env` in the script. Values are limited to 4 KB in total and are not
-   * encrypted — put secrets in [Stacktape secrets](https://docs.stacktape.com/resources/secrets/)
+   * encrypted — put secrets in [Stacktape secrets](https://docs.stacktape.com/configuration/secrets/)
    * and reference them with `$Secret()` instead of pasting them here.
    *
    * **Example (YAML):**

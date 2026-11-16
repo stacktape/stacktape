@@ -21,6 +21,8 @@ Guardrails and [alarms](/observability/alarms) serve fundamentally different pur
 | **Purpose** | Prevent policy violations | Detect runtime issues |
 | **Managed in** | [Stacktape Console](/stacktape-console/console-overview) | Stacktape config or Console |
 
+[Security scanning](/stacktape-console/security-scanning) is a third mechanism. It reports risky settings and vulnerable packages after each deploy but never blocks one. An owner or admin can turn a finding's rule into a guardrail from the finding's page.
+
 ## How guardrails work
 
 Stacktape guardrails define organization-level restrictions for stages, regions, commands, resource types, and selected resource settings. Guardrail definitions contain allowed or blocked values; configurations that fall outside the defined policy are not permitted. Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview).

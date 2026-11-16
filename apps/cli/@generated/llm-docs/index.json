@@ -15448,27 +15448,25 @@
       "chunks": [
         "page:/ci-cd-and-gitops/gitops-with-console#gitops-with-console",
         "page:/ci-cd-and-gitops/gitops-with-console#when-to-use",
-        "page:/ci-cd-and-gitops/gitops-with-console#when-not-to-use",
-        "page:/ci-cd-and-gitops/gitops-with-console#prerequisites",
+        "page:/ci-cd-and-gitops/gitops-with-console#before-you-start",
+        "page:/ci-cd-and-gitops/gitops-with-console#connect-your-git-provider",
+        "page:/ci-cd-and-gitops/gitops-with-console#github",
+        "page:/ci-cd-and-gitops/gitops-with-console#gitlab",
+        "page:/ci-cd-and-gitops/gitops-with-console#bitbucket",
+        "page:/ci-cd-and-gitops/gitops-with-console#connections-from-stacktape-v3",
+        "page:/ci-cd-and-gitops/gitops-with-console#link-a-project-to-its-repository",
+        "page:/ci-cd-and-gitops/gitops-with-console#create-a-git-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#what-triggers-a-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#several-rules-and-several-pushes",
+        "page:/ci-cd-and-gitops/gitops-with-console#following-a-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#runner-cost",
         "page:/ci-cd-and-gitops/gitops-with-console#provider-permissions-for-security-fix-pull-requests",
-        "page:/ci-cd-and-gitops/gitops-with-console#push-to-deploy",
-        "page:/ci-cd-and-gitops/gitops-with-console#setting-up-push-to-deploy",
-        "page:/ci-cd-and-gitops/gitops-with-console#multiple-configurations-per-branch",
-        "page:/ci-cd-and-gitops/gitops-with-console#pr-preview-environments",
-        "page:/ci-cd-and-gitops/gitops-with-console#setting-up-pr-previews",
-        "page:/ci-cd-and-gitops/gitops-with-console#auto-delete-on-pr-close",
-        "page:/ci-cd-and-gitops/gitops-with-console#build-runners",
-        "page:/ci-cd-and-gitops/gitops-with-console#webhook-flow",
-        "page:/ci-cd-and-gitops/gitops-with-console#flow",
-        "page:/ci-cd-and-gitops/gitops-with-console#managing-configurations",
         "page:/ci-cd-and-gitops/gitops-with-console#typical-setup",
         "page:/ci-cd-and-gitops/gitops-with-console#faq",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-is-gitops-with-console-different-from-custom-ci-cd",
-        "page:/ci-cd-and-gitops/gitops-with-console#can-i-run-tests-before-deploying-with-gitops",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-are-pr-preview-environments-cleaned-up",
-        "page:/ci-cd-and-gitops/gitops-with-console#can-a-single-push-deploy-to-multiple-accounts-or-regions",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-much-does-it-cost-to-run-gitops-deployments",
-        "page:/ci-cd-and-gitops/gitops-with-console#a-push-isn-t-triggering-a-deployment-what-should-i-check"
+        "page:/ci-cd-and-gitops/gitops-with-console#how-is-this-different-from-custom-ci-cd",
+        "page:/ci-cd-and-gitops/gitops-with-console#can-i-run-tests-before-deploying",
+        "page:/ci-cd-and-gitops/gitops-with-console#can-one-push-deploy-to-several-accounts-or-regions",
+        "page:/ci-cd-and-gitops/gitops-with-console#a-push-did-not-deploy-what-should-i-check"
       ]
     },
     {
@@ -15499,7 +15497,7 @@
         "page:/ci-cd-and-gitops/overview#choosing-the-right-approach",
         "page:/ci-cd-and-gitops/overview#faq",
         "page:/ci-cd-and-gitops/overview#do-i-need-aws-credentials-in-my-ci-pipeline",
-        "page:/ci-cd-and-gitops/overview#how-do-gitops-pr-preview-environments-show-their-stage-name",
+        "page:/ci-cd-and-gitops/overview#what-stage-does-a-gitops-pr-preview-deploy-to",
         "page:/ci-cd-and-gitops/overview#can-i-run-tests-before-deploying-with-gitops",
         "page:/ci-cd-and-gitops/overview#what-stage-names-should-i-use-for-branch-derived-stages",
         "page:/ci-cd-and-gitops/overview#how-much-do-automated-deployments-cost",
@@ -15571,7 +15569,7 @@
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-pr-previews-work-with-gitops",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-pr-previews-work-with-custom-ci-cd",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close",
-        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#gitlab-and-other-git-providers",
+        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#ci-variables-for-custom-pipelines",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#feature-branch-stages",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#stage-naming-best-practices",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#recommended-naming-patterns",
@@ -17418,6 +17416,7 @@
         "page:/configuration/configuration-files#when-to-use-yaml",
         "page:/configuration/configuration-files#typescript-configuration",
         "page:/configuration/configuration-files#the-defineconfig-callback",
+        "page:/configuration/configuration-files#command-line-options-in-the-config",
         "page:/configuration/configuration-files#project-name-and-region",
         "page:/configuration/configuration-files#conditional-logic-and-loops",
         "page:/configuration/configuration-files#splitting-config-across-files",
@@ -18922,20 +18921,19 @@
       ],
       "chunks": [
         "page:/managing-costs/budgets#budgets",
-        "page:/managing-costs/budgets#creating-a-budget-alert",
-        "page:/managing-costs/budgets#scoping",
-        "page:/managing-costs/budgets#forecast-alerts",
-        "page:/managing-costs/budgets#managing-budgets",
-        "page:/managing-costs/budgets#budget-history",
-        "page:/managing-costs/budgets#when-to-use",
-        "page:/managing-costs/budgets#when-not-to-use",
+        "page:/managing-costs/budgets#before-you-start",
+        "page:/managing-costs/budgets#creating-a-budget",
+        "page:/managing-costs/budgets#when-alerts-arrive",
+        "page:/managing-costs/budgets#checking-budgets",
+        "page:/managing-costs/budgets#budgets-in-slack",
+        "page:/managing-costs/budgets#budgets-created-before-v4",
+        "page:/managing-costs/budgets#recommended-setup",
         "page:/managing-costs/budgets#faq",
         "page:/managing-costs/budgets#do-budget-alerts-stop-aws-from-charging-me",
-        "page:/managing-costs/budgets#can-i-set-a-budget-alert-for-a-single-resource-like-one-database",
+        "page:/managing-costs/budgets#can-i-set-a-budget-for-one-stage-project-or-database",
         "page:/managing-costs/budgets#how-much-do-aws-budgets-cost",
-        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-firing",
-        "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both-for-cost-control",
-        "page:/managing-costs/budgets#why-isn-t-my-stack-scoped-budget-tracking-any-spend"
+        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-arriving",
+        "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both"
       ]
     },
     {
@@ -18956,7 +18954,7 @@
         "page:/managing-costs/dashboards#aws-costs-kpi",
         "page:/managing-costs/dashboards#aws-costs-by-project",
         "page:/managing-costs/dashboards#aws-costs-by-resource",
-        "page:/managing-costs/dashboards#budget-alerts",
+        "page:/managing-costs/dashboards#budgets",
         "page:/managing-costs/dashboards#costs-per-stack",
         "page:/managing-costs/dashboards#filters",
         "page:/managing-costs/dashboards#cost-table",
@@ -19037,7 +19035,7 @@
         "page:/managing-costs/overview#faq",
         "page:/managing-costs/overview#how-long-does-it-take-for-cost-data-to-appear-and-how-often-does-it-refresh",
         "page:/managing-costs/overview#are-aws-costs-billed-through-stacktape",
-        "page:/managing-costs/overview#what-s-the-difference-between-organization-wide-and-stack-scoped-budgets",
+        "page:/managing-costs/overview#can-a-budget-watch-a-single-project-or-stage",
         "page:/managing-costs/overview#what-aws-services-typically-cost-the-most-in-stacktape-deployments",
         "page:/managing-costs/overview#what-s-the-difference-between-the-overview-dashboard-and-the-costs-per-stack-page"
       ]
@@ -19482,6 +19480,7 @@
         "page:/observability/synthetic-tests#configuration",
         "page:/observability/synthetic-tests#writing-the-script",
         "page:/observability/synthetic-tests#failure-alerts",
+        "page:/observability/synthetic-tests#what-leaves-your-aws-account",
         "page:/observability/synthetic-tests#cost",
         "page:/observability/synthetic-tests#limits"
       ]
@@ -19530,6 +19529,7 @@
         "page:/observability/uptime-checks#when-not-to-use",
         "page:/observability/uptime-checks#configuration",
         "page:/observability/uptime-checks#how-it-works",
+        "page:/observability/uptime-checks#what-leaves-your-aws-account",
         "page:/observability/uptime-checks#limits",
         "page:/observability/uptime-checks#viewing-results"
       ]
@@ -19916,14 +19916,16 @@
       "docKind": "docs-page",
       "resourceType": "custom-resource",
       "definitionNames": [
-        "CustomResourceDefinitionProps"
+        "CustomResourceDefinitionProps",
+        "CustomResourceInstanceProps"
       ],
       "tags": [
         "resources",
         "advanced",
         "custom-resources",
         "custom-resource",
-        "CustomResourceDefinitionProps"
+        "CustomResourceDefinitionProps",
+        "CustomResourceInstanceProps"
       ],
       "chunks": [
         "page:/resources/advanced/custom-resources#custom-resources",
@@ -19943,7 +19945,10 @@
         "page:/resources/advanced/custom-resources#connecting-to-resources",
         "page:/resources/advanced/custom-resources#outputs",
         "page:/resources/advanced/custom-resources#api-reference",
+        "page:/resources/advanced/custom-resources#custom-resource-definition",
         "page:/resources/advanced/custom-resources#definition-customresourcedefinitionprops",
+        "page:/resources/advanced/custom-resources#custom-resource-instance",
+        "page:/resources/advanced/custom-resources#definition-customresourceinstanceprops",
         "page:/resources/advanced/custom-resources#faq",
         "page:/resources/advanced/custom-resources#can-i-use-connectto-with-custom-resources",
         "page:/resources/advanced/custom-resources#what-happens-if-my-custom-resource-lambda-fails-or-the-stack-rolls-back",
@@ -20573,6 +20578,7 @@
         "page:/resources/compute/web-service#connecting-to-other-resources",
         "page:/resources/compute/web-service#health-checks",
         "page:/resources/compute/web-service#how-deploys-replace-containers",
+        "page:/resources/compute/web-service#old-containers-behind-api-gateway",
         "page:/resources/compute/web-service#side-containers",
         "page:/resources/compute/web-service#efs-storage",
         "page:/resources/compute/web-service#gradual-deployments",
@@ -21590,18 +21596,23 @@
       "sourcePath": "apps/docs/content/resources/networking/appsync-api.mdx",
       "outputPath": "pages/resources/networking/appsync-api.md",
       "docKind": "docs-page",
-      "definitionNames": [],
+      "definitionNames": [
+        "AppSyncApiProps"
+      ],
       "tags": [
         "resources",
         "networking",
-        "appsync-api"
+        "appsync-api",
+        "AppSyncApiProps"
       ],
       "chunks": [
         "page:/resources/networking/appsync-api#appsync-api",
         "page:/resources/networking/appsync-api#basic-example",
         "page:/resources/networking/appsync-api#authentication",
         "page:/resources/networking/appsync-api#operational-defaults",
-        "page:/resources/networking/appsync-api#custom-domains"
+        "page:/resources/networking/appsync-api#custom-domains",
+        "page:/resources/networking/appsync-api#api-reference",
+        "page:/resources/networking/appsync-api#definition-appsyncapiprops"
       ]
     },
     {
@@ -22562,27 +22573,27 @@
       ],
       "chunks": [
         "page:/stacktape-console/account-settings#account-settings",
-        "page:/stacktape-console/account-settings#overview",
-        "page:/stacktape-console/account-settings#full-name",
+        "page:/stacktape-console/account-settings#if-you-used-the-console-before-v4",
+        "page:/stacktape-console/account-settings#profile",
+        "page:/stacktape-console/account-settings#ways-to-sign-in",
         "page:/stacktape-console/account-settings#password",
-        "page:/stacktape-console/account-settings#changing-your-password",
-        "page:/stacktape-console/account-settings#password-requirements",
-        "page:/stacktape-console/account-settings#multi-factor-authentication",
-        "page:/stacktape-console/account-settings#enable-mfa",
-        "page:/stacktape-console/account-settings#disable-mfa",
-        "page:/stacktape-console/account-settings#account-deletion",
+        "page:/stacktape-console/account-settings#change-your-password",
+        "page:/stacktape-console/account-settings#add-a-password-or-reset-a-forgotten-one",
+        "page:/stacktape-console/account-settings#authenticator-app-and-backup-codes",
+        "page:/stacktape-console/account-settings#turn-it-on",
+        "page:/stacktape-console/account-settings#turn-it-off",
+        "page:/stacktape-console/account-settings#passkeys",
+        "page:/stacktape-console/account-settings#google-and-github",
+        "page:/stacktape-console/account-settings#sessions",
+        "page:/stacktape-console/account-settings#delete-your-account",
+        "page:/stacktape-console/account-settings#what-organizations-see",
         "page:/stacktape-console/account-settings#troubleshooting",
-        "page:/stacktape-console/account-settings#password-change-fails",
-        "page:/stacktape-console/account-settings#mfa-setup-qr-code-does-not-appear",
-        "page:/stacktape-console/account-settings#mfa-code-is-rejected",
-        "page:/stacktape-console/account-settings#google-login-shows-limited-options",
-        "page:/stacktape-console/account-settings#related-features",
-        "page:/stacktape-console/account-settings#faq",
-        "page:/stacktape-console/account-settings#how-do-i-change-my-email-address",
-        "page:/stacktape-console/account-settings#which-authenticator-apps-work-with-stacktape-mfa",
-        "page:/stacktape-console/account-settings#what-happens-if-i-lose-access-to-my-authenticator-app",
-        "page:/stacktape-console/account-settings#why-does-my-password-or-mfa-section-show-go-to-your-google-account-settings",
-        "page:/stacktape-console/account-settings#is-mfa-configured-per-user-or-per-organization"
+        "page:/stacktape-console/account-settings#the-authenticator-code-is-rejected",
+        "page:/stacktape-console/account-settings#i-lost-the-phone-with-my-authenticator-app",
+        "page:/stacktape-console/account-settings#google-was-not-connected-or-github-was-not-connected",
+        "page:/stacktape-console/account-settings#this-organization-requires-two-factor-sign-in",
+        "page:/stacktape-console/account-settings#this-organization-requires-single-sign-on",
+        "page:/stacktape-console/account-settings#related-features"
       ]
     },
     {
@@ -22615,6 +22626,37 @@
         "page:/stacktape-console/api-keys#when-should-i-use-api-keys-vs-interactive-login",
         "page:/stacktape-console/api-keys#are-api-keys-scoped-to-a-specific-organization",
         "page:/stacktape-console/api-keys#related-features"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/audit-log",
+      "title": "Audit Log",
+      "route": "/stacktape-console/audit-log",
+      "sourcePath": "apps/docs/content/stacktape-console/audit-log.mdx",
+      "outputPath": "pages/stacktape-console/audit-log.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "audit-log"
+      ],
+      "chunks": [
+        "page:/stacktape-console/audit-log#audit-log",
+        "page:/stacktape-console/audit-log#who-can-see-it",
+        "page:/stacktape-console/audit-log#what-stacktape-records",
+        "page:/stacktape-console/audit-log#reading-the-table",
+        "page:/stacktape-console/audit-log#filters",
+        "page:/stacktape-console/audit-log#aws-events-are-read-live",
+        "page:/stacktape-console/audit-log#who-did-it-in-aws",
+        "page:/stacktape-console/audit-log#older-aws-account-connections",
+        "page:/stacktape-console/audit-log#how-long-events-are-kept",
+        "page:/stacktape-console/audit-log#export",
+        "page:/stacktape-console/audit-log#troubleshooting",
+        "page:/stacktape-console/audit-log#there-are-no-aws-events",
+        "page:/stacktape-console/audit-log#an-account-shows-access-denied",
+        "page:/stacktape-console/audit-log#an-account-shows-throttled-by-aws",
+        "page:/stacktape-console/audit-log#an-aws-event-shows-a-role-instead-of-a-person",
+        "page:/stacktape-console/audit-log#related-features"
       ]
     },
     {
@@ -22819,6 +22861,78 @@
         "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-stacktape-organization-and-an-aws-account",
         "page:/stacktape-console/organizations-projects-and-stages#when-should-i-create-multiple-organizations",
         "page:/stacktape-console/organizations-projects-and-stages#related-features"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/security-scanning",
+      "title": "Security Scanning",
+      "route": "/stacktape-console/security-scanning",
+      "sourcePath": "apps/docs/content/stacktape-console/security-scanning.mdx",
+      "outputPath": "pages/stacktape-console/security-scanning.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "security-scanning"
+      ],
+      "chunks": [
+        "page:/stacktape-console/security-scanning#security-scanning",
+        "page:/stacktape-console/security-scanning#what-is-checked",
+        "page:/stacktape-console/security-scanning#configuration-checks",
+        "page:/stacktape-console/security-scanning#dependency-checks",
+        "page:/stacktape-console/security-scanning#the-security-pages",
+        "page:/stacktape-console/security-scanning#when-results-appear",
+        "page:/stacktape-console/security-scanning#how-a-finding-changes-over-time",
+        "page:/stacktape-console/security-scanning#production-and-non-production-stages",
+        "page:/stacktape-console/security-scanning#choosing-what-is-scanned",
+        "page:/stacktape-console/security-scanning#for-an-aws-account",
+        "page:/stacktape-console/security-scanning#for-a-stack-or-some-stages",
+        "page:/stacktape-console/security-scanning#which-setting-wins",
+        "page:/stacktape-console/security-scanning#ignoring-and-reopening-a-finding",
+        "page:/stacktape-console/security-scanning#fixing-a-finding",
+        "page:/stacktape-console/security-scanning#blocking-deploys-with-a-guardrail",
+        "page:/stacktape-console/security-scanning#notifications",
+        "page:/stacktape-console/security-scanning#permissions",
+        "page:/stacktape-console/security-scanning#what-leaves-your-aws-account",
+        "page:/stacktape-console/security-scanning#related-pages"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/single-sign-on",
+      "title": "Single Sign-On",
+      "route": "/stacktape-console/single-sign-on",
+      "sourcePath": "apps/docs/content/stacktape-console/single-sign-on.mdx",
+      "outputPath": "pages/stacktape-console/single-sign-on.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "single-sign-on"
+      ],
+      "chunks": [
+        "page:/stacktape-console/single-sign-on#single-sign-on",
+        "page:/stacktape-console/single-sign-on#before-you-start",
+        "page:/stacktape-console/single-sign-on#what-your-members-will-see",
+        "page:/stacktape-console/single-sign-on#1-verify-your-email-domains",
+        "page:/stacktape-console/single-sign-on#2-connect-your-identity-provider",
+        "page:/stacktape-console/single-sign-on#saml-2-0",
+        "page:/stacktape-console/single-sign-on#oidc",
+        "page:/stacktape-console/single-sign-on#change-or-delete-the-connection",
+        "page:/stacktape-console/single-sign-on#3-test-the-sign-in",
+        "page:/stacktape-console/single-sign-on#4-access",
+        "page:/stacktape-console/single-sign-on#role-of-new-people",
+        "page:/stacktape-console/single-sign-on#require-single-sign-on",
+        "page:/stacktape-console/single-sign-on#5-scim-provisioning",
+        "page:/stacktape-console/single-sign-on#if-the-organization-moves-to-the-free-plan",
+        "page:/stacktape-console/single-sign-on#audit-log",
+        "page:/stacktape-console/single-sign-on#troubleshooting",
+        "page:/stacktape-console/single-sign-on#verify-says-no-txt-record-holds-the-value",
+        "page:/stacktape-console/single-sign-on#is-verified-by-another-stacktape-organization",
+        "page:/stacktape-console/single-sign-on#the-test-sign-in-fails-with-is-not-a-verified-domain",
+        "page:/stacktape-console/single-sign-on#the-test-sign-in-fails-at-the-provider",
+        "page:/stacktape-console/single-sign-on#a-member-sees-requires-single-sign-on",
+        "page:/stacktape-console/single-sign-on#a-removed-member-is-back",
+        "page:/stacktape-console/single-sign-on#related-features"
       ]
     },
     {

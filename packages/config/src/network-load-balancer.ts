@@ -370,7 +370,7 @@ export interface NetworkLoadBalancerProps {
   //  * ---
   //  * - You can use `web-app-firewall` to protect your resources from common web exploits that could affect application availability, compromise security, or consume excessive resources.
   //  * - Web app firewall protects your application by filtering dangerous requests coming to your app.
-  //  *   You can read more about the firewall [in our docs](https://docs.stacktape.com/security-resources/web-app-firewalls/).
+  //  *   You can read more about the firewall [in our docs](https://docs.stacktape.com/resources/security/web-application-firewall/).
   //  */
   // useFirewall?: string;
 }

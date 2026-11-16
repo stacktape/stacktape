@@ -66,3 +66,21 @@ CloudWatch Logs Infrequent Access is supported when logs are not forwarded. Log 
 Use `customDomain` when clients need a stable branded GraphQL endpoint. Stacktape uses its existing global certificate flow; AppSync custom-domain certificates must be in `us-east-1`, even when the API runs elsewhere. DNS records are created automatically unless explicitly disabled.
 
 The resource exposes `url`, `realtimeUrl`, `apiId`, and `arn`. API-key authentication additionally exposes the sensitive `apiKey` value.
+
+## API reference
+
+
+### Definition: `AppSyncApiProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/appsync-apis` with definition name `AppSyncApiProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `authentication` | yes | `aws-iam \| user-auth-pool \| api-key` | - |
+| `customDomain` | no | `DomainConfiguration` | - |
+| `introspectionEnabled` | no | `boolean` | `true` |
+| `logging` | no | `AppSyncApiLogging` | - |
+| `queryDepthLimit` | no | `number` | `10` |
+| `resolverCountLimit` | no | `number` | `1000` |
+| `schemaFilePath` | no | `string` | `schema.graphql` |
+| `xrayEnabled` | no | `boolean` | `false` |

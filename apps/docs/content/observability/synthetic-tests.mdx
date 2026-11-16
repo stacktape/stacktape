@@ -89,6 +89,12 @@ exports.handler = async () => {
 
 Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
+## What leaves your AWS account
+
+Run results, screenshots and the canary's logs stay in your account. The Console's Synthetics page reads them from your account in your browser, with short-lived credentials, and Stacktape's servers do not store them.
+
+When the test's alarm changes state, the stack sends the Console the alarm event: the test and alarm names, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource, a link to the alarm in the AWS console, and the test's `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts.
+
 ## Cost
 
 CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs each month are free), plus the underlying Lambda, S3 and CloudWatch Logs usage. A browser test at `rate(5 minutes)` runs ~8,900 times a month — roughly $11 in run charges and $15–20 all-in. An `api` test runs shorter and lands closer to $11–13. Slower schedules cost proportionally less: `rate(15 minutes)` is about a third of that.

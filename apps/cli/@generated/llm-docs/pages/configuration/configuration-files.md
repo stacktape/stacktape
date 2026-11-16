@@ -87,7 +87,52 @@ The `defineConfig` function receives a callback whose argument provides deploy-t
 | `region`      | `string`   | AWS region for this deployment (e.g. `eu-west-1`)            |
 | `projectName` | `string`   | Project name: `--project`, the settings object, or the machine-wide default |
 | `command`     | `string`   | The CLI command being run (`deploy`, `delete`, `dev`, etc.)  |
-| `cliArgs`     | `string[]`   | Additional CLI arguments passed after `--`                   |
+| `cliArgs`     | `Readonly<Record<string, unknown>>` | The options of the current command, as typed on the command line. See [Command-line options in the config](#command-line-options-in-the-config) |
+| `awsProfile`  | `string`   | The local AWS profile the command uses                       |
+| `user`        | `{ id, name, email }` or `undefined` | The signed-in Stacktape user. Local commands such as `package`, `synth` and `validate` have none |
+
+### Command-line options in the config
+
+`cliArgs` holds the options you passed to the current command, keyed by their camelCase option names. Some options
+have a different internal name: `--config` arrives as `configPath` and `--project` as `projectName`. Options you did
+not type, including defaults, are not in it, and every value is `unknown`, so check its type before you use it.
+
+`cliArgs` accepts only the command's own options. Pass your own values after `--` and read them with the
+[`$CliArgs()`](/configuration/directives#cliargs) directive instead. Write each one as `--name value`; the form
+`--name=value` is not split into a name and a value.
+
+
+Example (bash):
+
+```bash
+stacktape deploy --stage dev --region eu-west-1 --config stacktape.ts -- --seed demo
+```
+
+
+For this command, `cliArgs` is `{ stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' }`, and
+`$CliArgs('seed')` resolves to `'demo'`:
+
+
+Example (stacktape.ts):
+
+```typescript
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(({ cliArgs }) => {
+  const handler = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
+    environment: {
+      // Passed with --config; 'stacktape.ts' when the option was not typed.
+      CONFIG_FILE: typeof cliArgs.configPath === 'string' ? cliArgs.configPath : 'stacktape.ts',
+      // Passed after --; 'none' when it is missing.
+      SEED: "$CliArgs('seed', 'none')"
+    }
+  });
+
+  return { resources: { handler } };
+});
+```
+
 
 ### Project name and region
 

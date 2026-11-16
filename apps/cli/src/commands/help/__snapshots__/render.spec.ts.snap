@@ -93,7 +93,7 @@ Global options:
       --log-level <level>  info, debug or error
 
 Run stacktape help <command> for arguments and options.
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for deploy 1`] = `
@@ -129,7 +129,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for secret set 1`] = `
@@ -157,7 +157,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for secret 1`] = `
@@ -176,7 +176,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for stack 1`] = `
@@ -196,7 +196,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for dev 1`] = `
@@ -238,7 +238,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for dev stop 1`] = `
@@ -264,7 +264,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for mcp 1`] = `
@@ -286,7 +286,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for mcp add 1`] = `
@@ -306,7 +306,7 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;
 
 exports[`help for defaults set 1`] = `
@@ -330,5 +330,5 @@ Global options:
       --quiet              Hide progress, banners and hints; output, warnings and errors stay
       --log-level <level>  info, debug or error
 
-Documentation: https://docs.stacktape.com/cli/"
+Documentation: https://docs.stacktape.com/cli/help/"
 `;

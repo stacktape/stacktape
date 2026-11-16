@@ -32,7 +32,7 @@ import type { ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { getApexDomain } from '@utils/domains';
 
-const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/other-resources/domains-and-certificates/';
+const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/resources/networking/custom-domains/';
 
 const wrap = (
   errorsObj: typeof errors
@@ -279,7 +279,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
               desiredNameServers.map((ns) => `- ${ns}`).join('\n')
             )}`
           : 'At your registrar, update name servers to the values shown in the Stacktape Console.',
-        `Docs: ${DOMAINS_DOCS_URL}#adding-domain`
+        `Docs: ${DOMAINS_DOCS_URL}`
       ]
     };
   },
@@ -439,14 +439,18 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       message: `Cannot perform operation, because no resource of type ${prettyResourceType(
         'bastion'
       )} was found in your stack.`,
-      hint: ['See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/bastion-servers/']
+      hint: [
+        'See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/security/bastion-host/'
+      ]
     };
   },
   e98({ stpResourceName }: { stpResourceName: string }): ReturnedError {
     return {
       type: 'NON_EXISTING_RESOURCE',
       message: `No resource with name ${prettyResourceName(stpResourceName)} was found in your stack.`,
-      hint: ['See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/bastion-servers/']
+      hint: [
+        'See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/security/bastion-host/'
+      ]
     };
   },
   e99({

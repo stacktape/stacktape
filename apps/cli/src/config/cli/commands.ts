@@ -329,7 +329,7 @@ You will be prompted to enter the name of the profile to delete.`,
   'domain:add': {
     description: `Adds a domain to your AWS account.
 
-Once added, the domain and its subdomains can be used with various resources, such as Web Services, Hosting Buckets, and API Gateways. Before adding a domain, please review the [Domains and Certificates documentation](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).`,
+Once added, the domain and its subdomains can be used with various resources, such as Web Services, Hosting Buckets, and API Gateways. Before adding a domain, please review the [custom domains documentation](https://docs.stacktape.com/resources/networking/custom-domains/).`,
     args: {
       ...universalArgs,
       region: awsRegion.optional()
@@ -565,7 +565,7 @@ Files in the bucket that are not present in the source directory will be removed
 
 Your stack must include a \`bastion\` resource. If you have multiple bastions, you can specify which one to connect to with the \`--bastion-resource\` argument. The session is established over a secure SSM connection.
 
-For more information, refer to the [bastion documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).`,
+For more information, refer to the [bastion shell documentation](https://docs.stacktape.com/cli/bastion-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -580,7 +580,7 @@ For more information, refer to the [bastion documentation](https://docs.stacktap
 
 Your stack must include a \`bastion\` resource. This is useful for accessing resources in a private VPC. If you have multiple bastions, you can specify one with the \`--bastion-resource\` argument. The command will print the tunneled endpoints to the terminal.
 
-For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/bastion-servers/#creating-bastion-tunnel).`,
+For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/cli/bastion-tunnel/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -597,7 +597,7 @@ For more information, refer to the [bastion tunnel documentation](https://docs.s
 
 The session is established using ECS Exec and a secure SSM connection. If your service has multiple containers, you can choose which one to connect to. This is useful for debugging and inspecting running containers.
 
-For more information, refer to the [container session documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).`,
+For more information, refer to the [container shell documentation](https://docs.stacktape.com/cli/container-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -787,7 +787,7 @@ You can also configure default executables for resolving Node.js directives.`,
 
 You can pass environment variables to the script using the \`--env\` option (e.g., \`--env MY_VAR=my_value\`).
 
-To learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/scripts/).`,
+To learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/hooks-and-scripts/).`,
     args: {
       ...universalArgs,
       ...stackArgs,

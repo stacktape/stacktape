@@ -61,12 +61,12 @@ For production, most teams use Slack (`type: 'slack'` with `conversationId` and 
 
 ## Budgets
 
-Budget alerts prevent surprise AWS bills. Configure them in the [Stacktape Console](/getting-started/using-console-ui) with a dollar threshold and percentage-based triggers (e.g., alert at 50%, 80%, 100%). Budgets can scope to your entire organization or to individual stacks — filter by project and stage to set different limits for production versus development.
+Budgets catch surprise AWS bills. In the [Stacktape Console](/getting-started/using-console-ui), a budget sets a monthly spending limit for one connected AWS account and alerts your [alert channels](/observability/alert-channels) when the account's spend crosses percentages of it (80% and 100% by default). Forecast alerts, on by default, also warn you when AWS forecasts that the month's spend will cross a percentage.
 
-You can also enable forecast-based alerts that fire when projected spend is on track to exceed the threshold, even if actual spend hasn't reached it yet. When creating a budget, attach one or more [alert channels](/observability/alert-channels) — Slack, Microsoft Teams, Discord, email, or webhooks — so notifications reach your team automatically. See [Budgets](/managing-costs/budgets) for setup details.
+A budget watches the whole AWS account. It cannot filter by project or stage. If you want separate limits for production and development, run them in separate AWS accounts. See [Budgets](/managing-costs/budgets) for setup details.
 
 
-> **Tip:** Set a budget alert for every production stack. Even a generous threshold catches misconfigurations (e.g., a runaway Lambda loop or an oversized database instance) before they become expensive. Alert at 80% and 100% of expected monthly spend as a starting point.
+> **Tip:** Create a budget for every AWS account that runs production stages. Even a generous limit catches mistakes such as a runaway Lambda loop or an oversized database instance before they become expensive. Set the limit to your expected monthly bill and keep the default 80% and 100% alerts.
 
 
 ## Custom domains
@@ -184,7 +184,7 @@ Before sending real traffic, run through these concrete checks:
 
 1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationChannels` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
 
-2. **Set a budget threshold.** Open the [Stacktape Console](/getting-started/using-console-ui) Budgets page and create a budget alert matching your expected monthly spend. Set alerts at 80% and 100%. Enable forecast-based alerts so you catch spend trends before they hit the threshold.
+2. **Set a budget.** Open **Budgets** in the [Stacktape Console](/getting-started/using-console-ui) and create a budget for your production AWS account with a monthly limit matching your expected spend. Keep the default alerts at 80% and 100%, and keep forecast alerts on so you hear about spend trends before they reach the limit.
 
 3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
 
