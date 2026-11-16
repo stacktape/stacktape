@@ -13,7 +13,7 @@ const SECRET_DIRECTIVE = /\$(?:Secret|SsmParam)\(/;
 const RESOURCE_PARAM_DIRECTIVE = /\$ResourceParam\(\s*['"]?[^'",)]*['"]?\s*,\s*['"]?([^'",)\s]+)['"]?\s*\)/g;
 
 /** A `$Secret` or `$SsmParam` directive, or a `$ResourceParam` of a parameter that holds a credential (`password`). */
-const readsSecret = (value: string) =>
+export const readsSecret = (value: string) =>
   SECRET_DIRECTIVE.test(value) ||
   [...value.matchAll(RESOURCE_PARAM_DIRECTIVE)].some(([, param]) => SENSITIVE_REFERENCEABLE_PARAM_NAMES.has(param!));
 

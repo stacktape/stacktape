@@ -47,8 +47,8 @@ const config = (scriptProperties: Record<string, unknown> = {}) => ({
     },
     // Inherited: it reads the terminal's input itself.
     ask: { type: 'local-script', properties: { executeCommand: `${process.execPath} ask.mjs`, stdioMode: 'inherit' } },
-    // Fails with a secret in its resolved command line.
-    leaky: { type: 'local-script', properties: { executeCommand: `$Format('false {}', $Secret('${SECRET_NAME}'))` } },
+    // Its command is a secret; the shell fails on it and names the command it could not find.
+    leaky: { type: 'local-script', properties: { executeCommand: `$Secret('${SECRET_NAME}')` } },
     // Prints the secret it was given, then fails.
     printer: {
       type: 'local-script',
@@ -258,7 +258,8 @@ for await (const line of lines) {
     expect(asked.exitCode, asked.tail).toBe(0);
     expect(asked.stdout).toContain('answer: blue');
 
-    // A failing command is named as it is written in the config, not with the secret it resolved to.
+    // A failing command is named as it is written in the config, not with the secret it resolved to, and the shell's
+    // own message about it is masked.
     const failed = await run('script-run-leaky', ['script:run', '--scriptName', 'leaky', '--agent']);
     expect(failed.exitCode, failed.tail).toBe(1);
     expect(failed.result?.message).toContain('$Secret(');

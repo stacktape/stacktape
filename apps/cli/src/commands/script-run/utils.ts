@@ -19,7 +19,7 @@ import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 import { resolveScriptStdioMode } from './stdio';
 import { assertEnvironmentResolved } from '../dev/unresolved-environment';
-import { getSecretSourcedEnvNames } from '../dev/agent-env-masking';
+import { getSecretSourcedEnvNames, readsSecret } from '../dev/agent-env-masking';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import type {
   BastionScript,
@@ -184,11 +184,13 @@ const getExecuteSequence = (properties: {
 const createInjectedSecretMasker = ({
   scriptDefinition,
   env,
-  connectTo
+  connectTo,
+  secretCommands = []
 }: {
   scriptDefinition: { properties: unknown };
   env: EnvironmentVar[];
   connectTo?: string[];
+  secretCommands?: string[];
 }) => {
   const secretNames = new Set([
     ...getSecretSourcedEnvNames(scriptDefinition.properties),
@@ -201,9 +203,11 @@ const createInjectedSecretMasker = ({
     )
   ]);
   // Longest first, so a value that contains another is replaced whole. Very short values would garble ordinary text.
-  const secretValues = env
-    .filter(({ name, value }) => secretNames.has(name) && `${value ?? ''}`.length >= 4)
-    .map(({ value }) => `${value}`)
+  const secretValues = [
+    ...env.filter(({ name }) => secretNames.has(name)).map(({ value }) => `${value ?? ''}`),
+    ...secretCommands
+  ]
+    .filter((value) => value.length >= 4)
     .sort((a, b) => b.length - a.length);
   return (text: string) => secretValues.reduce((masked, value) => masked.split(value).join('[redacted]'), text);
 };
@@ -287,7 +291,9 @@ const getLocalScriptExecutionFn = ({
     const maskSecrets = createInjectedSecretMasker({
       scriptDefinition,
       env: [...connectToEnvVars, ...userDefinedEnvVars],
-      connectTo: resolvedScriptDefinition.properties.connectTo
+      connectTo: resolvedScriptDefinition.properties.connectTo,
+      // A command that is itself a secret (`executeCommand: $Secret('cmd')`) can be echoed by the shell that runs it.
+      secretCommands: executeSequence.filter((_, index) => readsSecret(authoredSequence[index] ?? ''))
     });
     const getEnv = () =>
       getScriptEnv({
