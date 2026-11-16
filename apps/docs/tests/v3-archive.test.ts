@@ -52,7 +52,11 @@ test('the archive holds the 94 pages v3.7.1 served', () => {
 
 test('every old v3 URL still resolves: as a v4 page, a redirect to v4, or a redirect into the archive', () => {
   const config = readFileSync(join(APP_ROOT, 'astro.config.mjs'), 'utf8');
-  assert.match(config, /\.\.\.V3_REDIRECTS_TO_V4,\s*\.\.\.V3_ARCHIVE_REDIRECTS/, 'astro.config.mjs must spread both v3 redirect maps');
+  assert.match(
+    config,
+    /\.\.\.V3_REDIRECTS_TO_V4,\s*\.\.\.V3_ARCHIVE_REDIRECTS/,
+    'astro.config.mjs must spread both v3 redirect maps'
+  );
   const redirects = new Set([
     ...configuredRedirects(),
     ...Object.keys(V3_REDIRECTS_TO_V4),
@@ -63,7 +67,8 @@ test('every old v3 URL still resolves: as a v4 page, a redirect to v4, or a redi
 });
 
 test('v3 redirects lead to pages this site builds, do not shadow v4 pages and do not overlap', () => {
-  for (const from of Object.keys(V3_ARCHIVE_REDIRECTS)) assert.ok(!(from in V3_REDIRECTS_TO_V4), `${from} is in both maps`);
+  for (const from of Object.keys(V3_ARCHIVE_REDIRECTS))
+    assert.ok(!(from in V3_REDIRECTS_TO_V4), `${from} is in both maps`);
   for (const [from, to] of Object.entries({ ...V3_REDIRECTS_TO_V4, ...V3_ARCHIVE_REDIRECTS })) {
     assert.ok(!isV4Page(from), `${from} is a v4 page and must not redirect`);
     const target = to.startsWith('/v3/') ? to.slice(3).replace(/\/$/, '') || '/' : undefined;
