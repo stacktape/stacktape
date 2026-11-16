@@ -58,6 +58,8 @@ import {
   getLoadAverage
 } from '../perf/measurement-context';
 import type { DockerPreparationRequest, DockerPreparationResult } from './docker-preparation-worker';
+import { DOCKER_PREPARATION_PROJECT_NAME, DOCKER_PREPARATION_STAGE } from './docker-preparation-target';
+import { getLocalImageName } from '@stacktape/naming/workload-names';
 import { writeInstallMarker } from './split-project-fixture';
 import {
   ensureLambdaImage,
@@ -326,6 +328,17 @@ case "$1" in
   buildx)
     case "$2" in
       inspect)
+        # Stacktape's own docker-container builder (ensureStacktapeBuilder), by name.
+        if [ "$#" -ge 3 ] && [ "$3" = stacktape-builder ]; then
+          if [ "$cache_builder" != yes ]; then
+            record answered 1 'no cache builder' "$@"
+            echo 'ERROR: no builder "stacktape-builder" found' >&2
+            exit 1
+          fi
+          record answered 0 'cache builder' "$@"
+          printf 'Name:   stacktape-builder\nDriver: docker-container\n\nNodes:\nName:      stacktape-builder0\nPlatforms: %s\n' "$platforms"
+          exit 0
+        fi
         if [ -z "$platforms" ]; then
           record answered 1 'buildx broken' "$@"
           echo 'ERROR: buildx component is missing or broken' >&2
@@ -1279,7 +1292,18 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
       files: { 'src/single.ts': HANDLER, ...IMAGE_FILES },
       check: (run) => {
         expectPackaged(run, ['cached-service-container', 'single']);
-        expectOperations(run, ['buildx inspect', 'buildx ls', 'login', 'buildx build', 'image inspect']);
+        // The builder check and the ECR login run at the same time, so either may reach Docker first.
+        const [platformCheck, ...rest] = operations(run);
+        expect(
+          platformCheck === 'buildx inspect' &&
+            JSON.stringify(rest.slice(0, 2).sort()) === JSON.stringify(['buildx inspect', 'login']) &&
+            JSON.stringify(rest.slice(2)) === JSON.stringify(['buildx build', 'image inspect']),
+          `Docker was asked ${JSON.stringify(operations(run))}, expected the platform check, the builder check and the login, then the cached build.`
+        );
+        expect(
+          run.dockerOperations.some(({ reason }) => reason === 'cache builder'),
+          'The Stacktape builder was not checked.'
+        );
         const build = run.dockerOperations[3]!;
         expect(
           build.args.includes('stacktape-builder') &&
@@ -1378,7 +1402,9 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
           );
           const operations = deployment.dockerOperations.map(({ operation }) => operation);
           expect(
-            !operations.some((operation) => operation.startsWith('buildx build') || operation === 'buildx ls'),
+            !deployment.dockerOperations.some(
+              ({ operation, reason }) => operation.startsWith('buildx build') || reason === 'cache builder'
+            ),
             `Deployment ${index + 1} used the registry cache builder: ${operations}.`
           );
           const pushes = operations.filter((operation) => operation === 'push').length;
@@ -1489,7 +1515,13 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
     scenarios.push({
       name: 'real Docker, host-native image',
       command: 'package',
-      docker: { kind: 'real', realDocker, imagePrefix: workload },
+      // Local images are named per project, stage and job (`getLocalImageName`); the random workload name keeps the
+      // prefix this scenario's own.
+      docker: {
+        kind: 'real',
+        realDocker,
+        imagePrefix: `stp-${DOCKER_PREPARATION_PROJECT_NAME}-${DOCKER_PREPARATION_STAGE}-${workload}-`
+      },
       resources: { [workload]: workerService('x86_64'), single: lambda('./src/single.ts') },
       files: { 'src/single.ts': HANDLER, ...IMAGE_FILES },
       check: (run) => {
@@ -1672,10 +1704,21 @@ const main = async () => {
     }
 
     const deployments = runs.find(({ name }) => name === REGISTRY_CACHE_SERIES)?.deployments ?? [];
-    // Each job's cache tag, as the CLI's own first build named it in `--cache-to`.
+    // Each job's cache tag, as the CLI's own first build named it in `--cache-to`. A build's `-t` is the job's local
+    // image name (`getLocalImageName`), which ends with a hash, so the job is found by recomputing that name.
+    const firstJobs = (deployments[0]?.result?.jobs ?? []).map(({ jobName }) => jobName);
+    const jobOfLocalImage = (localImageName: string) =>
+      firstJobs.find(
+        (jobName) =>
+          getLocalImageName({
+            projectName: DOCKER_PREPARATION_PROJECT_NAME,
+            stage: DOCKER_PREPARATION_STAGE,
+            jobName
+          }) === localImageName
+      ) ?? localImageName;
     const cacheTags = new Map(
       (deployments[0] ? imageBuilds(deployments[0]) : []).map(({ args }) => [
-        valueAfter(args, '-t')!,
+        jobOfLocalImage(valueAfter(args, '-t')!),
         tagOf(valueAfter(args, '--cache-to') ?? '')
       ])
     );
