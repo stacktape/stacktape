@@ -2111,6 +2111,9 @@ export const lanes: readonly Lane[] = [
     level: 'focused',
     tier: 'pr',
     tests: [
+      'apps/console/ui/src/components/Logs/newest-lines.test.ts',
+      'apps/console/ui/src/pages/AuditLogPage/audit-log-format.test.ts',
+      'apps/console/ui/src/pages/CostsAndUsagePage/cost-view.test.ts',
       'apps/console/ui/src/pages/DeployNewProject/starter-projects.test.ts',
       'apps/console/ui/src/pages/DeployNewProject/agent-prompt.test.ts',
       'apps/console/ui/src/pages/CostsAndUsagePage/cost-month.test.ts',
@@ -2166,6 +2169,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/config-changes.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/release-history.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/failed-step.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/stage-deletion.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/resource-polling.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
@@ -2193,6 +2197,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/ui/src/pages/SecurityPage/cvss.test.ts',
       'apps/console/ui/src/pages/SecurityPage/exposure-labels.test.ts',
       'apps/console/ui/src/pages/GuardrailsPage/guardrail-impact.test.ts',
       'apps/console/ui/src/pages/RunnersPage/runner-metrics.test.ts',
@@ -2828,6 +2833,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/cost-months.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
@@ -3005,6 +3011,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/config-changes.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/release-history.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/failed-step.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/stage-deletion.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/resource-polling.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
@@ -3880,6 +3887,7 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/cost-months.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts'
@@ -6050,6 +6058,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/cost-months.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/services/customer-announcements.test.ts'
     ],
@@ -6284,6 +6293,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-guardrails.test.ts',
       'apps/console/ui/e2e/security.spec.ts',
       'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
+      'apps/console/ui/src/pages/SecurityPage/cvss.test.ts',
       'apps/console/ui/src/pages/SecurityPage/exposure-labels.test.ts',
       'apps/console/ui/src/pages/GuardrailsPage/guardrail-impact.test.ts',
       'apps/console/api/scripts/security-settings-database.test.ts'
@@ -6390,6 +6400,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/config-changes.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/release-history.test.ts',
+      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/failed-step.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/stage-deletion.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/resource-polling.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/project-stages.test.ts',
@@ -6498,6 +6509,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/currency-conversion.ts'
     ],
     tests: [
+      'apps/console/ui/src/pages/CostsAndUsagePage/cost-view.test.ts',
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/budgets/money.test.ts',
       'apps/console/api/src/budgets/stored-event-details.test.ts',
