@@ -5,22 +5,40 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-import type { CdnCustomRequestHeader, ForwardCookies, ForwardHeaders, ForwardQueryString } from 'stacktape';
+import type { CdnCustomRequestHeader, ForwardCookiesAll, ForwardCookiesNone, ForwardCookiesWhitelist, ForwardHeadersAllExcept, ForwardHeadersAllViewer, ForwardHeadersAllViewerAndWhitelistCloudFront, ForwardHeadersNone, ForwardHeadersWhitelist, ForwardQueryStringAll, ForwardQueryStringNone, ForwardQueryStringWhitelist } from 'stacktape';
 
 type CdnForwardingOptions = {
   /** HTTP methods forwarded to the origin. Default: all methods. */
   allowedMethods?: Array<"DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT">;
   /** Which cookies to forward to the origin. Default: all cookies. */
-  cookies?: ForwardCookies;
+  cookies?: CdnForwardingOptionsCookies;
   /** Static headers the CDN adds to every request sent to the origin (e.g., API keys, custom identifiers). */
   customRequestHeaders?: Array<CdnCustomRequestHeader>;
   /** Which headers to forward to the origin. Default: all headers. */
-  headers?: ForwardHeaders;
+  headers?: CdnForwardingOptionsHeaders;
   /** Use a pre-existing AWS origin request policy ID instead of configuring forwarding options here. */
   originRequestPolicyId?: string;
   /** Which query params to forward to the origin. Default: all query params. */
-  queryString?: ForwardQueryString;
+  queryString?: CdnForwardingOptionsQueryString;
 };
+
+/** Union choices used by the properties above. */
+type CdnForwardingOptionsCookies =
+  | ForwardCookiesNone
+  | ForwardCookiesWhitelist
+  | ForwardCookiesAll;
+
+type CdnForwardingOptionsHeaders =
+  | ForwardHeadersNone
+  | ForwardHeadersWhitelist
+  | ForwardHeadersAllViewer
+  | ForwardHeadersAllViewerAndWhitelistCloudFront
+  | ForwardHeadersAllExcept;
+
+type CdnForwardingOptionsQueryString =
+  | ForwardQueryStringAll
+  | ForwardQueryStringNone
+  | ForwardQueryStringWhitelist;
 ```
 
 ## Property: `allowedMethods`
@@ -68,11 +86,16 @@ return { resources: { api } };
 ## Property: `cookies`
 
 - Required: no
-- Type: `ForwardCookies`
+- Type: `ForwardCookiesNone | ForwardCookiesWhitelist | ForwardCookiesAll`
 
 Which cookies to forward to the origin. Default: all cookies.
 
 Cookies in the cache key (see `cachingOptions`) are always forwarded regardless of this setting.
+
+Choices:
+- `ForwardCookiesNone` (`ForwardCookiesNone`). Properties: `none: boolean = true`.
+- `ForwardCookiesWhitelist` (`ForwardCookiesWhitelist`). Properties: `whitelist: Array<string>`.
+- `ForwardCookiesAll` (`ForwardCookiesAll`). Properties: `all: boolean = true`.
 
 ### Example 1 (yaml)
 
@@ -150,11 +173,18 @@ return { resources: { api } };
 ## Property: `headers`
 
 - Required: no
-- Type: `ForwardHeaders`
+- Type: `ForwardHeadersNone | ForwardHeadersWhitelist | ForwardHeadersAllViewer | ForwardHeadersAllViewerAndWhitelistCloudFront | ForwardHeadersAllExcept`
 
 Which headers to forward to the origin. Default: all headers.
 
 The `Authorization` header must be added to `cachingOptions.cacheKeyParameters` to be forwarded.
+
+Choices:
+- `ForwardHeadersNone` (`ForwardHeadersNone`). Properties: `none: boolean = true`.
+- `ForwardHeadersWhitelist` (`ForwardHeadersWhitelist`). Properties: `whitelist: Array<string>`.
+- `ForwardHeadersAllViewer` (`ForwardHeadersAllViewer`). Properties: `allViewer: boolean = true`.
+- `ForwardHeadersAllViewerAndWhitelistCloudFront` (`ForwardHeadersAllViewerAndWhitelistCloudFront`). Properties: `allViewerAndWhitelistCloudFront: Array<string>`.
+- `ForwardHeadersAllExcept` (`ForwardHeadersAllExcept`). Properties: `allExcept: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -230,9 +260,14 @@ return { resources: { api } };
 ## Property: `queryString`
 
 - Required: no
-- Type: `ForwardQueryString`
+- Type: `ForwardQueryStringAll | ForwardQueryStringNone | ForwardQueryStringWhitelist`
 
 Which query params to forward to the origin. Default: all query params.
+
+Choices:
+- `ForwardQueryStringAll` (`ForwardQueryStringAll`). Properties: `all: boolean = true`.
+- `ForwardQueryStringNone` (`ForwardQueryStringNone`). Properties: `none: boolean = true`.
+- `ForwardQueryStringWhitelist` (`ForwardQueryStringWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 

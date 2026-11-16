@@ -33,6 +33,7 @@ import { validateApplicationLoadBalancerConfig } from './application-load-balanc
 import { validateAgentCoreRuntimeConfig } from './agentcore';
 import { validateAppSyncApiConfig, validateAppSyncIntegrations } from './appsync-apis';
 import { validateHostingBucketConfig } from './buckets';
+import { findInvalidCdnSelector } from './cdn';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
@@ -274,6 +275,7 @@ export const validateConfigStructure = async ({
   configPath: string;
 }) => {
   validateNoLegacyRedisClusters({ config });
+  validateCdnSelectors({ config });
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
@@ -284,6 +286,25 @@ export const validateConfigStructure = async ({
       code: 'CONFIG_SCHEMA_INVALID',
       message: zodResult.errorMessage
     });
+  }
+};
+
+/**
+ * CDN cookie, header and query-string selectors set exactly one option, and boolean options must be `true`. v3 accepted
+ * `{ all: false }` and used the `all` behaviour anyway, so an explicit error tells the user to write what they mean.
+ */
+const validateCdnSelectors = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    const error = findInvalidCdnSelector((resource as { properties?: unknown } | undefined)?.properties, [
+      'properties'
+    ]);
+    if (error) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_SCHEMA_INVALID',
+        message: `Resource \`${name}\`: ${error}`
+      });
+    }
   }
 };
 

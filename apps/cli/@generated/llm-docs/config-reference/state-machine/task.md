@@ -10,7 +10,7 @@ type Task = {
   Type: string;
   Catch?: Array<unknown>;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   HeartbeatSeconds?: number;
   InputPath?: string;
   Next?: string;
@@ -54,7 +54,7 @@ Choices:
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `HeartbeatSeconds`
 

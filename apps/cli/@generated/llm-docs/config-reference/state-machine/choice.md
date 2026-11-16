@@ -12,7 +12,7 @@ type Choice = {
   Type: string;
   Comment?: string;
   Default?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -42,7 +42,7 @@ type Choice = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 

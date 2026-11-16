@@ -251,7 +251,7 @@ const PRETTY_BREAK_THRESHOLD = 2;
 
 const Punct = ({ children }: { children: ReactNode }) => <span style={{ color: tokens.syntax.punct }}>{children}</span>;
 
-const renderLiteral = (value: string | number): ReactNode => {
+const renderLiteral = (value: string | number | boolean): ReactNode => {
   if (typeof value === 'string') {
     return <span style={{ color: tokens.syntax.string }}>{`"${value}"`}</span>;
   }

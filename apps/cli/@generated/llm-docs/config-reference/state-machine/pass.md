@@ -8,7 +8,7 @@ Resource type: `state-machine`
 type Pass = {
   Type: string;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -31,7 +31,7 @@ type Pass = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 

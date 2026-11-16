@@ -8,7 +8,7 @@ Resource type: `state-machine`
 type Wait = {
   Type: string;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -32,7 +32,7 @@ type Wait = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 

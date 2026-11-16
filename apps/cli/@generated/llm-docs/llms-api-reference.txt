@@ -15479,7 +15479,7 @@ export default defineConfig(() => {
 
 ---
 
-# CacheKeyCookies API Reference
+# CacheKeyCookiesAll API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -15489,22 +15489,16 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type CacheKeyCookies = {
+type CacheKeyCookiesAll = {
   /** All cookies are included in the cache key. */
-  all?: boolean;
-  /** All cookies except the listed ones are included in the cache key. */
-  allExcept?: Array<string>;
-  /** No cookies are included in the cache key. */
-  none?: boolean;
-  /** Only the listed cookies are included in the cache key. */
-  whitelist?: Array<string>;
+  all: true;
 };
 ```
 
 ## Property: `all`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 All cookies are included in the cache key.
 
@@ -15545,9 +15539,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyCookiesAllExcept API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyCookiesAllExcept = {
+  /** All cookies except the listed ones are included in the cache key. */
+  allExcept: Array<string>;
+};
+```
+
 ## Property: `allExcept`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 All cookies except the listed ones are included in the cache key.
@@ -15590,10 +15602,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyCookiesNone API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyCookiesNone = {
+  /** No cookies are included in the cache key. */
+  none: true;
+};
+```
+
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No cookies are included in the cache key.
 
@@ -15634,9 +15664,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyCookiesWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyCookiesWhitelist = {
+  /** Only the listed cookies are included in the cache key. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed cookies are included in the cache key.
@@ -15681,7 +15729,7 @@ return { resources: { api } };
 
 ---
 
-# CacheKeyHeaders API Reference
+# CacheKeyHeadersNone API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -15691,18 +15739,16 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type CacheKeyHeaders = {
+type CacheKeyHeadersNone = {
   /** No headers are included in the cache key. */
-  none?: boolean;
-  /** Only the listed headers are included in the cache key. */
-  whitelist?: Array<string>;
+  none: true;
 };
 ```
 
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No headers are included in the cache key.
 
@@ -15743,9 +15789,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyHeadersWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyHeadersWhitelist = {
+  /** Only the listed headers are included in the cache key. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed headers are included in the cache key.
@@ -15790,7 +15854,7 @@ return { resources: { api } };
 
 ---
 
-# CacheKeyQueryString API Reference
+# CacheKeyQueryStringAll API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -15800,20 +15864,16 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type CacheKeyQueryString = {
+type CacheKeyQueryStringAll = {
   /** All query parameters are included in the cache key. */
-  all?: boolean;
-  /** No query parameters are included in the cache key. */
-  none?: boolean;
-  /** Only the listed query parameters are included in the cache key. */
-  whitelist?: Array<string>;
+  all: true;
 };
 ```
 
 ## Property: `all`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 All query parameters are included in the cache key.
 
@@ -15854,10 +15914,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyQueryStringNone API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyQueryStringNone = {
+  /** No query parameters are included in the cache key. */
+  none: true;
+};
+```
+
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No query parameters are included in the cache key.
 
@@ -15898,9 +15976,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# CacheKeyQueryStringWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type CacheKeyQueryStringWhitelist = {
+  /** Only the listed query parameters are included in the cache key. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed query parameters are included in the cache key.
@@ -16118,24 +16214,46 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-import type { CacheKeyCookies, CacheKeyHeaders, CacheKeyQueryString } from 'stacktape';
+import type { CacheKeyCookiesAll, CacheKeyCookiesAllExcept, CacheKeyCookiesNone, CacheKeyCookiesWhitelist, CacheKeyHeadersNone, CacheKeyHeadersWhitelist, CacheKeyQueryStringAll, CacheKeyQueryStringNone, CacheKeyQueryStringWhitelist } from 'stacktape';
 
 type CdnCacheKey = {
   /** Which cookies to include in the cache key. Different cookie values = different cached responses. */
-  cookies?: CacheKeyCookies;
+  cookies?: CdnCacheKeyCookies;
   /** Which headers to include in the cache key. Different header values = different cached responses. */
-  headers?: CacheKeyHeaders;
+  headers?: CdnCacheKeyHeaders;
   /** Which query params to include in the cache key. Different param values = different cached responses. */
-  queryString?: CacheKeyQueryString;
+  queryString?: CdnCacheKeyQueryString;
 };
+
+/** Union choices used by the properties above. */
+type CdnCacheKeyCookies =
+  | CacheKeyCookiesNone
+  | CacheKeyCookiesWhitelist
+  | CacheKeyCookiesAllExcept
+  | CacheKeyCookiesAll;
+
+type CdnCacheKeyHeaders =
+  | CacheKeyHeadersNone
+  | CacheKeyHeadersWhitelist;
+
+type CdnCacheKeyQueryString =
+  | CacheKeyQueryStringAll
+  | CacheKeyQueryStringNone
+  | CacheKeyQueryStringWhitelist;
 ```
 
 ## Property: `cookies`
 
 - Required: no
-- Type: `CacheKeyCookies`
+- Type: `CacheKeyCookiesNone | CacheKeyCookiesWhitelist | CacheKeyCookiesAllExcept | CacheKeyCookiesAll`
 
 Which cookies to include in the cache key. Different cookie values = different cached responses.
+
+Choices:
+- `CacheKeyCookiesNone` (`CacheKeyCookiesNone`). Properties: `none: boolean = true`.
+- `CacheKeyCookiesWhitelist` (`CacheKeyCookiesWhitelist`). Properties: `whitelist: Array<string>`.
+- `CacheKeyCookiesAllExcept` (`CacheKeyCookiesAllExcept`). Properties: `allExcept: Array<string>`.
+- `CacheKeyCookiesAll` (`CacheKeyCookiesAll`). Properties: `all: boolean = true`.
 
 ### Example 1 (yaml)
 
@@ -16176,9 +16294,13 @@ return { resources: { api } };
 ## Property: `headers`
 
 - Required: no
-- Type: `CacheKeyHeaders`
+- Type: `CacheKeyHeadersNone | CacheKeyHeadersWhitelist`
 
 Which headers to include in the cache key. Different header values = different cached responses.
+
+Choices:
+- `CacheKeyHeadersNone` (`CacheKeyHeadersNone`). Properties: `none: boolean = true`.
+- `CacheKeyHeadersWhitelist` (`CacheKeyHeadersWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -16219,9 +16341,14 @@ return { resources: { api } };
 ## Property: `queryString`
 
 - Required: no
-- Type: `CacheKeyQueryString`
+- Type: `CacheKeyQueryStringAll | CacheKeyQueryStringNone | CacheKeyQueryStringWhitelist`
 
 Which query params to include in the cache key. Different param values = different cached responses.
+
+Choices:
+- `CacheKeyQueryStringAll` (`CacheKeyQueryStringAll`). Properties: `all: boolean = true`.
+- `CacheKeyQueryStringNone` (`CacheKeyQueryStringNone`). Properties: `none: boolean = true`.
+- `CacheKeyQueryStringWhitelist` (`CacheKeyQueryStringWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -17461,22 +17588,40 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-import type { CdnCustomRequestHeader, ForwardCookies, ForwardHeaders, ForwardQueryString } from 'stacktape';
+import type { CdnCustomRequestHeader, ForwardCookiesAll, ForwardCookiesNone, ForwardCookiesWhitelist, ForwardHeadersAllExcept, ForwardHeadersAllViewer, ForwardHeadersAllViewerAndWhitelistCloudFront, ForwardHeadersNone, ForwardHeadersWhitelist, ForwardQueryStringAll, ForwardQueryStringNone, ForwardQueryStringWhitelist } from 'stacktape';
 
 type CdnForwardingOptions = {
   /** HTTP methods forwarded to the origin. Default: all methods. */
   allowedMethods?: Array<"DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT">;
   /** Which cookies to forward to the origin. Default: all cookies. */
-  cookies?: ForwardCookies;
+  cookies?: CdnForwardingOptionsCookies;
   /** Static headers the CDN adds to every request sent to the origin (e.g., API keys, custom identifiers). */
   customRequestHeaders?: Array<CdnCustomRequestHeader>;
   /** Which headers to forward to the origin. Default: all headers. */
-  headers?: ForwardHeaders;
+  headers?: CdnForwardingOptionsHeaders;
   /** Use a pre-existing AWS origin request policy ID instead of configuring forwarding options here. */
   originRequestPolicyId?: string;
   /** Which query params to forward to the origin. Default: all query params. */
-  queryString?: ForwardQueryString;
+  queryString?: CdnForwardingOptionsQueryString;
 };
+
+/** Union choices used by the properties above. */
+type CdnForwardingOptionsCookies =
+  | ForwardCookiesNone
+  | ForwardCookiesWhitelist
+  | ForwardCookiesAll;
+
+type CdnForwardingOptionsHeaders =
+  | ForwardHeadersNone
+  | ForwardHeadersWhitelist
+  | ForwardHeadersAllViewer
+  | ForwardHeadersAllViewerAndWhitelistCloudFront
+  | ForwardHeadersAllExcept;
+
+type CdnForwardingOptionsQueryString =
+  | ForwardQueryStringAll
+  | ForwardQueryStringNone
+  | ForwardQueryStringWhitelist;
 ```
 
 ## Property: `allowedMethods`
@@ -17524,11 +17669,16 @@ return { resources: { api } };
 ## Property: `cookies`
 
 - Required: no
-- Type: `ForwardCookies`
+- Type: `ForwardCookiesNone | ForwardCookiesWhitelist | ForwardCookiesAll`
 
 Which cookies to forward to the origin. Default: all cookies.
 
 Cookies in the cache key (see `cachingOptions`) are always forwarded regardless of this setting.
+
+Choices:
+- `ForwardCookiesNone` (`ForwardCookiesNone`). Properties: `none: boolean = true`.
+- `ForwardCookiesWhitelist` (`ForwardCookiesWhitelist`). Properties: `whitelist: Array<string>`.
+- `ForwardCookiesAll` (`ForwardCookiesAll`). Properties: `all: boolean = true`.
 
 ### Example 1 (yaml)
 
@@ -17606,11 +17756,18 @@ return { resources: { api } };
 ## Property: `headers`
 
 - Required: no
-- Type: `ForwardHeaders`
+- Type: `ForwardHeadersNone | ForwardHeadersWhitelist | ForwardHeadersAllViewer | ForwardHeadersAllViewerAndWhitelistCloudFront | ForwardHeadersAllExcept`
 
 Which headers to forward to the origin. Default: all headers.
 
 The `Authorization` header must be added to `cachingOptions.cacheKeyParameters` to be forwarded.
+
+Choices:
+- `ForwardHeadersNone` (`ForwardHeadersNone`). Properties: `none: boolean = true`.
+- `ForwardHeadersWhitelist` (`ForwardHeadersWhitelist`). Properties: `whitelist: Array<string>`.
+- `ForwardHeadersAllViewer` (`ForwardHeadersAllViewer`). Properties: `allViewer: boolean = true`.
+- `ForwardHeadersAllViewerAndWhitelistCloudFront` (`ForwardHeadersAllViewerAndWhitelistCloudFront`). Properties: `allViewerAndWhitelistCloudFront: Array<string>`.
+- `ForwardHeadersAllExcept` (`ForwardHeadersAllExcept`). Properties: `allExcept: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -17686,9 +17843,14 @@ return { resources: { api } };
 ## Property: `queryString`
 
 - Required: no
-- Type: `ForwardQueryString`
+- Type: `ForwardQueryStringAll | ForwardQueryStringNone | ForwardQueryStringWhitelist`
 
 Which query params to forward to the origin. Default: all query params.
+
+Choices:
+- `ForwardQueryStringAll` (`ForwardQueryStringAll`). Properties: `all: boolean = true`.
+- `ForwardQueryStringNone` (`ForwardQueryStringNone`). Properties: `none: boolean = true`.
+- `ForwardQueryStringWhitelist` (`ForwardQueryStringWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -18752,7 +18914,7 @@ return { resources: { securityHeaders, api } };
 
 ---
 
-# ForwardCookies API Reference
+# ForwardCookiesAll API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -18762,20 +18924,16 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type ForwardCookies = {
+type ForwardCookiesAll = {
   /** All cookies are forwarded to the origin. */
-  all?: boolean;
-  /** No cookies are forwarded to the origin. */
-  none?: boolean;
-  /** Only the listed cookies are forwarded to the origin. */
-  whitelist?: Array<string>;
+  all: true;
 };
 ```
 
 ## Property: `all`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 All cookies are forwarded to the origin.
 
@@ -18808,10 +18966,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardCookiesNone API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardCookiesNone = {
+  /** No cookies are forwarded to the origin. */
+  none: true;
+};
+```
+
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No cookies are forwarded to the origin.
 
@@ -18844,9 +19020,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardCookiesWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardCookiesWhitelist = {
+  /** Only the listed cookies are forwarded to the origin. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed cookies are forwarded to the origin.
@@ -18883,7 +19077,7 @@ return { resources: { api } };
 
 ---
 
-# ForwardHeaders API Reference
+# ForwardHeadersAllExcept API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -18893,23 +19087,15 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type ForwardHeaders = {
+type ForwardHeadersAllExcept = {
   /** Forward all viewer headers except the listed ones. */
-  allExcept?: Array<string>;
-  /** Forward all headers from the viewer's request. */
-  allViewer?: boolean;
-  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`). */
-  allViewerAndWhitelistCloudFront?: Array<string>;
-  /** No headers are forwarded to the origin. */
-  none?: boolean;
-  /** Only the listed headers are forwarded to the origin. */
-  whitelist?: Array<string>;
+  allExcept: Array<string>;
 };
 ```
 
 ## Property: `allExcept`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Forward all viewer headers except the listed ones.
@@ -18944,10 +19130,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardHeadersAllViewer API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardHeadersAllViewer = {
+  /** Forward all headers from the viewer's request. */
+  allViewer: true;
+};
+```
+
 ## Property: `allViewer`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 Forward all headers from the viewer's request.
 
@@ -18980,9 +19184,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardHeadersAllViewerAndWhitelistCloudFront API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardHeadersAllViewerAndWhitelistCloudFront = {
+  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`). */
+  allViewerAndWhitelistCloudFront: Array<string>;
+};
+```
+
 ## Property: `allViewerAndWhitelistCloudFront`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`).
@@ -19017,10 +19239,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardHeadersNone API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardHeadersNone = {
+  /** No headers are forwarded to the origin. */
+  none: true;
+};
+```
+
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No headers are forwarded to the origin.
 
@@ -19053,9 +19293,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardHeadersWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardHeadersWhitelist = {
+  /** Only the listed headers are forwarded to the origin. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed headers are forwarded to the origin.
@@ -19092,7 +19350,7 @@ return { resources: { api } };
 
 ---
 
-# ForwardQueryString API Reference
+# ForwardQueryStringAll API Reference
 
 Source: `packages/config/src/cdn.ts`
 Route: `/config-reference/cdn`
@@ -19102,20 +19360,16 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-type ForwardQueryString = {
+type ForwardQueryStringAll = {
   /** All query parameters are forwarded to the origin. */
-  all?: boolean;
-  /** No query parameters are forwarded to the origin. */
-  none?: boolean;
-  /** Only the listed query parameters are forwarded to the origin. */
-  whitelist?: Array<string>;
+  all: true;
 };
 ```
 
 ## Property: `all`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 All query parameters are forwarded to the origin.
 
@@ -19148,10 +19402,28 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardQueryStringNone API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardQueryStringNone = {
+  /** No query parameters are forwarded to the origin. */
+  none: true;
+};
+```
+
 ## Property: `none`
 
-- Required: no
-- Type: `boolean`
+- Required: yes
+- Type: `boolean = true`
 
 No query parameters are forwarded to the origin.
 
@@ -19184,9 +19456,27 @@ return { resources: { api } };
 });
 ```
 
+---
+
+# ForwardQueryStringWhitelist API Reference
+
+Source: `packages/config/src/cdn.ts`
+Route: `/config-reference/cdn`
+
+Resource type: `cdn`
+
+## TypeScript definition
+
+```typescript
+type ForwardQueryStringWhitelist = {
+  /** Only the listed query parameters are forwarded to the origin. */
+  whitelist: Array<string>;
+};
+```
+
 ## Property: `whitelist`
 
-- Required: no
+- Required: yes
 - Type: `Array<string>`
 
 Only the listed query parameters are forwarded to the origin.
@@ -67326,7 +67616,7 @@ type Choice = {
   Type: string;
   Comment?: string;
   Default?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -67356,7 +67646,7 @@ type Choice = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
@@ -67586,7 +67876,7 @@ type Parallel = {
   Type: string;
   Catch?: Array<unknown>;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -67618,7 +67908,7 @@ type Parallel = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
@@ -67660,7 +67950,7 @@ Resource type: `state-machine`
 type Pass = {
   Type: string;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -67683,7 +67973,7 @@ type Pass = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
@@ -68171,7 +68461,7 @@ type StateMachineMap = {
   Type: string;
   Catch?: Array<unknown>;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   ItemsPath?: string;
   MaxConcurrency?: number;
@@ -68206,7 +68496,7 @@ type StateMachineMap = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
@@ -68408,7 +68698,7 @@ type Task = {
   Type: string;
   Catch?: Array<unknown>;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   HeartbeatSeconds?: number;
   InputPath?: string;
   Next?: string;
@@ -68452,7 +68742,7 @@ Choices:
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `HeartbeatSeconds`
 
@@ -68509,7 +68799,7 @@ Resource type: `state-machine`
 type Wait = {
   Type: string;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -68533,7 +68823,7 @@ type Wait = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 

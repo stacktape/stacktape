@@ -13268,19 +13268,20 @@
     },
     "typeDeclaration": "import type { DotnetBuildpackConfig, JavaBuildpackConfig, PythonBuildpackConfig } from 'stacktape';\n\n// [!code focus-start]\ntype BuildpackLambdaPackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** .NET options. Applies when `entryfilePath` is a `.cs` file. */\n  dotnet?: DotnetBuildpackConfig;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** The name of the handler function to be executed when the Lambda is invoked. */\n  handlerFunction?: string;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Java options. Applies when `entryfilePath` is a `.java` file. */\n  java?: JavaBuildpackConfig;\n  /** Python options. Applies when `entryfilePath` is a `.py` file. */\n  python?: PythonBuildpackConfig;\n};\n// [!code focus-end]"
   },
-  "CacheKeyCookies": {
-    "definitionName": "CacheKeyCookies",
+  "CacheKeyCookiesAll": {
+    "definitionName": "CacheKeyCookiesAll",
     "properties": [
       {
         "name": "all",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> All cookies are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -13292,10 +13293,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          all: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyCookiesAll = {\n  /** All cookies are included in the cache key. */\n  all: true;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyCookiesAllExcept": {
+    "definitionName": "CacheKeyCookiesAllExcept",
+    "properties": [
       {
         "name": "allExcept",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> All cookies except the listed ones are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -13317,17 +13328,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          allExcept: ['tracking']\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyCookiesAllExcept = {\n  /** All cookies except the listed ones are included in the cache key. */\n  allExcept: Array<string>;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyCookiesNone": {
+    "definitionName": "CacheKeyCookiesNone",
+    "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No cookies are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -13339,10 +13361,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyCookiesNone = {\n  /** No cookies are included in the cache key. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyCookiesWhitelist": {
+    "definitionName": "CacheKeyCookiesWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed cookies are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -13367,24 +13399,25 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 4
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyCookies = {\n  /** All cookies are included in the cache key. */\n  all?: boolean;\n  /** All cookies except the listed ones are included in the cache key. */\n  allExcept?: Array<string>;\n  /** No cookies are included in the cache key. */\n  none?: boolean;\n  /** Only the listed cookies are included in the cache key. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyCookiesWhitelist = {\n  /** Only the listed cookies are included in the cache key. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
-  "CacheKeyHeaders": {
-    "definitionName": "CacheKeyHeaders",
+  "CacheKeyHeadersNone": {
+    "definitionName": "CacheKeyHeadersNone",
     "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No headers are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -13396,10 +13429,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        headers: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyHeadersNone = {\n  /** No headers are included in the cache key. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyHeadersWhitelist": {
+    "definitionName": "CacheKeyHeadersWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed headers are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -13424,24 +13467,25 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 2
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyHeaders = {\n  /** No headers are included in the cache key. */\n  none?: boolean;\n  /** Only the listed headers are included in the cache key. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyHeadersWhitelist = {\n  /** Only the listed headers are included in the cache key. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
-  "CacheKeyQueryString": {
-    "definitionName": "CacheKeyQueryString",
+  "CacheKeyQueryStringAll": {
+    "definitionName": "CacheKeyQueryStringAll",
     "properties": [
       {
         "name": "all",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> All query parameters are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -13453,17 +13497,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        queryString: {\n          // [!code focus-start]\n          all: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyQueryStringAll = {\n  /** All query parameters are included in the cache key. */\n  all: true;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyQueryStringNone": {
+    "definitionName": "CacheKeyQueryStringNone",
+    "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No query parameters are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -13475,10 +13530,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        queryString: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyQueryStringNone = {\n  /** No query parameters are included in the cache key. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "CacheKeyQueryStringWhitelist": {
+    "definitionName": "CacheKeyQueryStringWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed query parameters are included in the cache key.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -13503,10 +13568,10 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 3
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyQueryString = {\n  /** All query parameters are included in the cache key. */\n  all?: boolean;\n  /** No query parameters are included in the cache key. */\n  none?: boolean;\n  /** Only the listed query parameters are included in the cache key. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype CacheKeyQueryStringWhitelist = {\n  /** Only the listed query parameters are included in the cache key. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
   "CdnBucketOrigin": {
     "definitionName": "CdnBucketOrigin",
@@ -13592,8 +13657,130 @@
         "shortDescription": "<p> Which cookies to include in the cache key. Different cookie values = different cached responses.</p>",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "CacheKeyCookies"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "CacheKeyCookiesNone",
+              "typeName": "CacheKeyCookiesNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No cookies are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          cookies:\n            # [!code focus-start]\n            none: true\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyCookiesWhitelist",
+              "typeName": "CacheKeyCookiesWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed cookies are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          cookies:\n            # [!code focus-start]\n            whitelist:\n              - sessionId\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          whitelist: ['sessionId']\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyCookiesAllExcept",
+              "typeName": "CacheKeyCookiesAllExcept",
+              "properties": [
+                {
+                  "name": "allExcept",
+                  "required": true,
+                  "shortDescription": "<p> All cookies except the listed ones are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          cookies:\n            # [!code focus-start]\n            allExcept:\n              - tracking\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          allExcept: ['tracking']\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyCookiesAll",
+              "typeName": "CacheKeyCookiesAll",
+              "properties": [
+                {
+                  "name": "all",
+                  "required": true,
+                  "shortDescription": "<p> All cookies are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          cookies:\n            # [!code focus-start]\n            all: true\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        cookies: {\n          // [!code focus-start]\n          all: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -13612,8 +13799,70 @@
         "shortDescription": "<p> Which headers to include in the cache key. Different header values = different cached responses.</p>",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "CacheKeyHeaders"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "CacheKeyHeadersNone",
+              "typeName": "CacheKeyHeadersNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No headers are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          headers:\n            # [!code focus-start]\n            none: true\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        headers: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyHeadersWhitelist",
+              "typeName": "CacheKeyHeadersWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed headers are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          headers:\n            # [!code focus-start]\n            whitelist:\n              - Authorization\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        headers: {\n          // [!code focus-start]\n          whitelist: ['Authorization']\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -13632,8 +13881,99 @@
         "shortDescription": "<p> Which query params to include in the cache key. Different param values = different cached responses.</p>",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "CacheKeyQueryString"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "CacheKeyQueryStringAll",
+              "typeName": "CacheKeyQueryStringAll",
+              "properties": [
+                {
+                  "name": "all",
+                  "required": true,
+                  "shortDescription": "<p> All query parameters are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          queryString:\n            # [!code focus-start]\n            all: true\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        queryString: {\n          // [!code focus-start]\n          all: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyQueryStringNone",
+              "typeName": "CacheKeyQueryStringNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No query parameters are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          queryString:\n            # [!code focus-start]\n            none: true\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        queryString: {\n          // [!code focus-start]\n          none: true\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "CacheKeyQueryStringWhitelist",
+              "typeName": "CacheKeyQueryStringWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed query parameters are included in the cache key.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      cachingOptions:\n        cacheKeyParameters:\n          queryString:\n            # [!code focus-start]\n            whitelist:\n              - page\n            # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: {\n    enabled: true,\n    cachingOptions: {\n      cacheKeyParameters: {\n        queryString: {\n          // [!code focus-start]\n          whitelist: ['page']\n          // [!code focus-end]\n        }\n      }\n    }\n  }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -13651,7 +13991,7 @@
       "requiredCount": 0,
       "optionalCount": 3
     },
-    "typeDeclaration": "import type { CacheKeyCookies, CacheKeyHeaders, CacheKeyQueryString } from 'stacktape';\n\n// [!code focus-start]\ntype CdnCacheKey = {\n  /** Which cookies to include in the cache key. Different cookie values = different cached responses. */\n  cookies?: CacheKeyCookies;\n  /** Which headers to include in the cache key. Different header values = different cached responses. */\n  headers?: CacheKeyHeaders;\n  /** Which query params to include in the cache key. Different param values = different cached responses. */\n  queryString?: CacheKeyQueryString;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CacheKeyCookiesAll, CacheKeyCookiesAllExcept, CacheKeyCookiesNone, CacheKeyCookiesWhitelist, CacheKeyHeadersNone, CacheKeyHeadersWhitelist, CacheKeyQueryStringAll, CacheKeyQueryStringNone, CacheKeyQueryStringWhitelist } from 'stacktape';\n\n// [!code focus-start]\ntype CdnCacheKey = {\n  /** Which cookies to include in the cache key. Different cookie values = different cached responses. */\n  cookies?: CdnCacheKeyCookies;\n  /** Which headers to include in the cache key. Different header values = different cached responses. */\n  headers?: CdnCacheKeyHeaders;\n  /** Which query params to include in the cache key. Different param values = different cached responses. */\n  queryString?: CdnCacheKeyQueryString;\n};\n\n/** Union choices used by the properties above. */\ntype CdnCacheKeyCookies =\n  | CacheKeyCookiesNone\n  | CacheKeyCookiesWhitelist\n  | CacheKeyCookiesAllExcept\n  | CacheKeyCookiesAll;\n\ntype CdnCacheKeyHeaders =\n  | CacheKeyHeadersNone\n  | CacheKeyHeadersWhitelist;\n\ntype CdnCacheKeyQueryString =\n  | CacheKeyQueryStringAll\n  | CacheKeyQueryStringNone\n  | CacheKeyQueryStringWhitelist;\n// [!code focus-end]"
   },
   "CdnCachingOptions": {
     "definitionName": "CdnCachingOptions",
@@ -14302,8 +14642,99 @@
         "shortDescription": "<p> Which cookies to forward to the origin. Default: all cookies.</p>",
         "longDescription": "<p>Cookies in the cache key (see <code>cachingOptions</code>) are always forwarded regardless of this setting.</p>",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "ForwardCookies"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ForwardCookiesNone",
+              "typeName": "ForwardCookiesNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No cookies are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        cookies:\n          # [!code focus-start]\n          none: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { cookies: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardCookiesWhitelist",
+              "typeName": "ForwardCookiesWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed cookies are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        cookies:\n          # [!code focus-start]\n          whitelist:\n            - sessionId\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { cookies: {\n    // [!code focus-start]\n    whitelist: ['sessionId']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardCookiesAll",
+              "typeName": "ForwardCookiesAll",
+              "properties": [
+                {
+                  "name": "all",
+                  "required": true,
+                  "shortDescription": "<p> All cookies are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        cookies:\n          # [!code focus-start]\n          all: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { cookies: {\n    // [!code focus-start]\n    all: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -14345,8 +14776,161 @@
         "shortDescription": "<p> Which headers to forward to the origin. Default: all headers.</p>",
         "longDescription": "<blockquote>\n<p>The <code>Authorization</code> header must be added to <code>cachingOptions.cacheKeyParameters</code> to be forwarded.</p>\n</blockquote>",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "ForwardHeaders"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ForwardHeadersNone",
+              "typeName": "ForwardHeadersNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No headers are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        headers:\n          # [!code focus-start]\n          none: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardHeadersWhitelist",
+              "typeName": "ForwardHeadersWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed headers are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        headers:\n          # [!code focus-start]\n          whitelist:\n            - User-Agent\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    whitelist: ['User-Agent']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardHeadersAllViewer",
+              "typeName": "ForwardHeadersAllViewer",
+              "properties": [
+                {
+                  "name": "allViewer",
+                  "required": true,
+                  "shortDescription": "<p> Forward all headers from the viewer&#39;s request.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        headers:\n          # [!code focus-start]\n          allViewer: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allViewer: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardHeadersAllViewerAndWhitelistCloudFront",
+              "typeName": "ForwardHeadersAllViewerAndWhitelistCloudFront",
+              "properties": [
+                {
+                  "name": "allViewerAndWhitelistCloudFront",
+                  "required": true,
+                  "shortDescription": "<p> Forward all viewer headers plus the listed CloudFront-specific headers (e.g., <code>CloudFront-Viewer-Country</code>).</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        headers:\n          # [!code focus-start]\n          allViewerAndWhitelistCloudFront:\n            - CloudFront-Viewer-Country\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allViewerAndWhitelistCloudFront: ['CloudFront-Viewer-Country']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardHeadersAllExcept",
+              "typeName": "ForwardHeadersAllExcept",
+              "properties": [
+                {
+                  "name": "allExcept",
+                  "required": true,
+                  "shortDescription": "<p> Forward all viewer headers except the listed ones.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        headers:\n          # [!code focus-start]\n          allExcept:\n            - Host\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allExcept: ['Host']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -14387,8 +14971,99 @@
         "shortDescription": "<p> Which query params to forward to the origin. Default: all query params.</p>",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "ForwardQueryString"
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "ForwardQueryStringAll",
+              "typeName": "ForwardQueryStringAll",
+              "properties": [
+                {
+                  "name": "all",
+                  "required": true,
+                  "shortDescription": "<p> All query parameters are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        queryString:\n          # [!code focus-start]\n          all: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { queryString: {\n    // [!code focus-start]\n    all: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardQueryStringNone",
+              "typeName": "ForwardQueryStringNone",
+              "properties": [
+                {
+                  "name": "none",
+                  "required": true,
+                  "shortDescription": "<p> No query parameters are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ],
+                    "constValue": true
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        queryString:\n          # [!code focus-start]\n          none: true\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { queryString: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "ForwardQueryStringWhitelist",
+              "typeName": "ForwardQueryStringWhitelist",
+              "properties": [
+                {
+                  "name": "whitelist",
+                  "required": true,
+                  "shortDescription": "<p> Only the listed query parameters are forwarded to the origin.</p>",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\napi:\n  type: http-api-gateway\n  properties:\n    cdn:\n      enabled: true\n      forwardingOptions:\n        queryString:\n          # [!code focus-start]\n          whitelist:\n            - page\n          # [!code focus-end]"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { queryString: {\n    // [!code focus-start]\n    whitelist: ['page']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "examples": [
           {
@@ -14406,7 +15081,7 @@
       "requiredCount": 0,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { CdnCustomRequestHeader, ForwardCookies, ForwardHeaders, ForwardQueryString } from 'stacktape';\n\n// [!code focus-start]\ntype CdnForwardingOptions = {\n  /** HTTP methods forwarded to the origin. Default: all methods. */\n  allowedMethods?: Array<\"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\">;\n  /** Which cookies to forward to the origin. Default: all cookies. */\n  cookies?: ForwardCookies;\n  /** Static headers the CDN adds to every request sent to the origin (e.g., API keys, custom identifiers). */\n  customRequestHeaders?: Array<CdnCustomRequestHeader>;\n  /** Which headers to forward to the origin. Default: all headers. */\n  headers?: ForwardHeaders;\n  /** Use a pre-existing AWS origin request policy ID instead of configuring forwarding options here. */\n  originRequestPolicyId?: string;\n  /** Which query params to forward to the origin. Default: all query params. */\n  queryString?: ForwardQueryString;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CdnCustomRequestHeader, ForwardCookiesAll, ForwardCookiesNone, ForwardCookiesWhitelist, ForwardHeadersAllExcept, ForwardHeadersAllViewer, ForwardHeadersAllViewerAndWhitelistCloudFront, ForwardHeadersNone, ForwardHeadersWhitelist, ForwardQueryStringAll, ForwardQueryStringNone, ForwardQueryStringWhitelist } from 'stacktape';\n\n// [!code focus-start]\ntype CdnForwardingOptions = {\n  /** HTTP methods forwarded to the origin. Default: all methods. */\n  allowedMethods?: Array<\"DELETE\" | \"GET\" | \"HEAD\" | \"OPTIONS\" | \"PATCH\" | \"POST\" | \"PUT\">;\n  /** Which cookies to forward to the origin. Default: all cookies. */\n  cookies?: CdnForwardingOptionsCookies;\n  /** Static headers the CDN adds to every request sent to the origin (e.g., API keys, custom identifiers). */\n  customRequestHeaders?: Array<CdnCustomRequestHeader>;\n  /** Which headers to forward to the origin. Default: all headers. */\n  headers?: CdnForwardingOptionsHeaders;\n  /** Use a pre-existing AWS origin request policy ID instead of configuring forwarding options here. */\n  originRequestPolicyId?: string;\n  /** Which query params to forward to the origin. Default: all query params. */\n  queryString?: CdnForwardingOptionsQueryString;\n};\n\n/** Union choices used by the properties above. */\ntype CdnForwardingOptionsCookies =\n  | ForwardCookiesNone\n  | ForwardCookiesWhitelist\n  | ForwardCookiesAll;\n\ntype CdnForwardingOptionsHeaders =\n  | ForwardHeadersNone\n  | ForwardHeadersWhitelist\n  | ForwardHeadersAllViewer\n  | ForwardHeadersAllViewerAndWhitelistCloudFront\n  | ForwardHeadersAllExcept;\n\ntype CdnForwardingOptionsQueryString =\n  | ForwardQueryStringAll\n  | ForwardQueryStringNone\n  | ForwardQueryStringWhitelist;\n// [!code focus-end]"
   },
   "CdnHttpApiGatewayOrigin": {
     "definitionName": "CdnHttpApiGatewayOrigin",
@@ -15061,7 +15736,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -15105,7 +15781,7 @@
       "requiredCount": 2,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { Operator } from 'stacktape';\n\n// [!code focus-start]\ntype Choice = {\n  Choices: Array<Operator>;\n  Type: string;\n  Comment?: string;\n  Default?: string;\n  End?: boolean;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { Operator } from 'stacktape';\n\n// [!code focus-start]\ntype Choice = {\n  Choices: Array<Operator>;\n  Type: string;\n  Comment?: string;\n  Default?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n};\n// [!code focus-end]"
   },
   "ClassTransition": {
     "definitionName": "ClassTransition",
@@ -29167,19 +29843,20 @@
     },
     "typeDeclaration": "// [!code focus-start]\ntype Fail = {\n  Type: string;\n  Cause?: string;\n  Comment?: string;\n  Error?: string;\n  InputPath?: string;\n  OutputPath?: string;\n};\n// [!code focus-end]"
   },
-  "ForwardCookies": {
-    "definitionName": "ForwardCookies",
+  "ForwardCookiesAll": {
+    "definitionName": "ForwardCookiesAll",
     "properties": [
       {
         "name": "all",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> All cookies are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29191,17 +29868,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { cookies: {\n    // [!code focus-start]\n    all: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardCookiesAll = {\n  /** All cookies are forwarded to the origin. */\n  all: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardCookiesNone": {
+    "definitionName": "ForwardCookiesNone",
+    "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No cookies are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29213,10 +29901,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { cookies: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardCookiesNone = {\n  /** No cookies are forwarded to the origin. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardCookiesWhitelist": {
+    "definitionName": "ForwardCookiesWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed cookies are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -29241,17 +29939,17 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 3
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype ForwardCookies = {\n  /** All cookies are forwarded to the origin. */\n  all?: boolean;\n  /** No cookies are forwarded to the origin. */\n  none?: boolean;\n  /** Only the listed cookies are forwarded to the origin. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardCookiesWhitelist = {\n  /** Only the listed cookies are forwarded to the origin. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
-  "ForwardHeaders": {
-    "definitionName": "ForwardHeaders",
+  "ForwardHeadersAllExcept": {
+    "definitionName": "ForwardHeadersAllExcept",
     "properties": [
       {
         "name": "allExcept",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Forward all viewer headers except the listed ones.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -29273,17 +29971,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allExcept: ['Host']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeadersAllExcept = {\n  /** Forward all viewer headers except the listed ones. */\n  allExcept: Array<string>;\n};\n// [!code focus-end]"
+  },
+  "ForwardHeadersAllViewer": {
+    "definitionName": "ForwardHeadersAllViewer",
+    "properties": [
       {
         "name": "allViewer",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Forward all headers from the viewer&#39;s request.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29295,10 +30004,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allViewer: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeadersAllViewer = {\n  /** Forward all headers from the viewer's request. */\n  allViewer: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardHeadersAllViewerAndWhitelistCloudFront": {
+    "definitionName": "ForwardHeadersAllViewerAndWhitelistCloudFront",
+    "properties": [
       {
         "name": "allViewerAndWhitelistCloudFront",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Forward all viewer headers plus the listed CloudFront-specific headers (e.g., <code>CloudFront-Viewer-Country</code>).</p>",
         "longDescription": "",
         "typeInfo": {
@@ -29320,17 +30039,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    allViewerAndWhitelistCloudFront: ['CloudFront-Viewer-Country']\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeadersAllViewerAndWhitelistCloudFront = {\n  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`). */\n  allViewerAndWhitelistCloudFront: Array<string>;\n};\n// [!code focus-end]"
+  },
+  "ForwardHeadersNone": {
+    "definitionName": "ForwardHeadersNone",
+    "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No headers are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29342,10 +30072,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { headers: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeadersNone = {\n  /** No headers are forwarded to the origin. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardHeadersWhitelist": {
+    "definitionName": "ForwardHeadersWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed headers are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -29370,24 +30110,25 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 5
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeaders = {\n  /** Forward all viewer headers except the listed ones. */\n  allExcept?: Array<string>;\n  /** Forward all headers from the viewer's request. */\n  allViewer?: boolean;\n  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`). */\n  allViewerAndWhitelistCloudFront?: Array<string>;\n  /** No headers are forwarded to the origin. */\n  none?: boolean;\n  /** Only the listed headers are forwarded to the origin. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardHeadersWhitelist = {\n  /** Only the listed headers are forwarded to the origin. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
-  "ForwardQueryString": {
-    "definitionName": "ForwardQueryString",
+  "ForwardQueryStringAll": {
+    "definitionName": "ForwardQueryStringAll",
     "properties": [
       {
         "name": "all",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> All query parameters are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29399,17 +30140,28 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { queryString: {\n    // [!code focus-start]\n    all: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardQueryStringAll = {\n  /** All query parameters are forwarded to the origin. */\n  all: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardQueryStringNone": {
+    "definitionName": "ForwardQueryStringNone",
+    "properties": [
       {
         "name": "none",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> No query parameters are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         },
         "examples": [
           {
@@ -29421,10 +30173,20 @@
             "code": "import { HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\nconst api = new HttpApiGateway({\n  cdn: { enabled: true, forwardingOptions: { queryString: {\n    // [!code focus-start]\n    none: true\n    // [!code focus-end]\n  } } }\n});\nreturn { resources: { api } };\n});"
           }
         ]
-      },
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardQueryStringNone = {\n  /** No query parameters are forwarded to the origin. */\n  none: true;\n};\n// [!code focus-end]"
+  },
+  "ForwardQueryStringWhitelist": {
+    "definitionName": "ForwardQueryStringWhitelist",
+    "properties": [
       {
         "name": "whitelist",
-        "required": false,
+        "required": true,
         "shortDescription": "<p> Only the listed query parameters are forwarded to the origin.</p>",
         "longDescription": "",
         "typeInfo": {
@@ -29449,10 +30211,10 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 3
+      "requiredCount": 1,
+      "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype ForwardQueryString = {\n  /** All query parameters are forwarded to the origin. */\n  all?: boolean;\n  /** No query parameters are forwarded to the origin. */\n  none?: boolean;\n  /** Only the listed query parameters are forwarded to the origin. */\n  whitelist?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype ForwardQueryStringWhitelist = {\n  /** Only the listed query parameters are forwarded to the origin. */\n  whitelist: Array<string>;\n};\n// [!code focus-end]"
   },
   "ForwardedIPConfig": {
     "definitionName": "ForwardedIPConfig",
@@ -44550,7 +45312,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -44618,7 +45381,7 @@
       "requiredCount": 2,
       "optionalCount": 8
     },
-    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype Parallel = {\n  Branches: Array<StpStateMachine>;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: boolean;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype Parallel = {\n  Branches: Array<StpStateMachine>;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
   },
   "Pass": {
     "definitionName": "Pass",
@@ -44656,7 +45419,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -44730,7 +45494,7 @@
       "requiredCount": 1,
       "optionalCount": 8
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Pass = {\n  Type: string;\n  Comment?: string;\n  End?: boolean;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  Result?: unknown;\n  ResultPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Pass = {\n  Type: string;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  Result?: unknown;\n  ResultPath?: string;\n};\n// [!code focus-end]"
   },
   "PasswordPolicy": {
     "definitionName": "PasswordPolicy",
@@ -56711,7 +57475,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -56812,7 +57577,7 @@
       "requiredCount": 2,
       "optionalCount": 11
     },
-    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype StateMachineMap = {\n  Iterator: StpStateMachine;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: boolean;\n  InputPath?: string;\n  ItemsPath?: string;\n  MaxConcurrency?: number;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { StpStateMachine } from 'stacktape';\n\n// [!code focus-start]\ntype StateMachineMap = {\n  Iterator: StpStateMachine;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  ItemsPath?: string;\n  MaxConcurrency?: number;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n};\n// [!code focus-end]"
   },
   "StateMachineProps": {
     "definitionName": "StateMachineProps",
@@ -59342,7 +60107,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -59443,7 +60209,7 @@
       "requiredCount": 2,
       "optionalCount": 11
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: boolean;\n  HeartbeatSeconds?: number;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: true;\n  HeartbeatSeconds?: number;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
   },
   "TracingOptions": {
     "definitionName": "TracingOptions",
@@ -61988,7 +62754,8 @@
           "kind": "primitive",
           "types": [
             "boolean"
-          ]
+          ],
+          "constValue": true
         }
       },
       {
@@ -62080,7 +62847,7 @@
       "requiredCount": 1,
       "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype Wait = {\n  Type: string;\n  Comment?: string;\n  End?: boolean;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Seconds?: number;\n  SecondsPath?: string;\n  Timestamp?: string;\n  TimestampPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype Wait = {\n  Type: string;\n  Comment?: string;\n  End?: true;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Seconds?: number;\n  SecondsPath?: string;\n  Timestamp?: string;\n  TimestampPath?: string;\n};\n// [!code focus-end]"
   },
   "WebAppFirewall": {
     "definitionName": "WebAppFirewall",

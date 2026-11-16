@@ -12,7 +12,7 @@ type Parallel = {
   Type: string;
   Catch?: Array<unknown>;
   Comment?: string;
-  End?: boolean;
+  End?: true;
   InputPath?: string;
   Next?: string;
   OutputPath?: string;
@@ -44,7 +44,7 @@ type Parallel = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
