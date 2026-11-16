@@ -197,6 +197,12 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
         })
       );
       completedCommandError = returnableError;
+      // Loaded only on failure, like the report of a failed command below.
+      const { notificationManager } = await import('@domain-services/notification-manager');
+      await notificationManager.reportFailedAfterDeployHook({
+        scriptName,
+        errorMessage: error instanceof Error ? error.message : `${error}`
+      });
       const errorDetails = (returnableError as any).details || {};
       tuiManager.emitJsonlResult({
         ok: false,

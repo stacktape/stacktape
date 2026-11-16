@@ -101,7 +101,18 @@ process.exit(Number(exitCode));
       // The deployment itself stays what it is: complete, reported as succeeded, and no longer locked.
       expect(await stackStatus()).toBe('CREATE_COMPLETE');
       expect(reportedEvents(project)).toContain('DEPLOY_SUCCEEDED');
-      expect(reportedEvents(project)).not.toContain('DEPLOY_FAILED');
+      // A second event tells the people who hear about failed deploys, and names the hook so the Console can say
+      // that the release is live.
+      const failedEvents = project.controlPlane.calls
+        .filter(({ procedure }) => procedure === 'reportEvent')
+        .map(({ input }) => input as { type: string; title: string; stackStatus?: string; details?: unknown })
+        .filter(({ type }) => type === 'DEPLOY_FAILED');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0]).toMatchObject({
+        title: `Deployed ${project.stackName}, but the afterDeploy hook failing failed`,
+        stackStatus: 'CREATE_COMPLETE',
+        details: { afterDeployHook: 'failing', error: expect.stringContaining('failing') }
+      });
       // The operation record says both: the release is live, and the command failed on a hook.
       const recorded = project.controlPlane.calls
         .filter(({ procedure }) => procedure === 'recordStackOperation')

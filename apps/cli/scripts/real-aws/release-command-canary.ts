@@ -1363,6 +1363,11 @@ hooks:
       failedAfter.output.includes('The deployment finished, but the afterDeploy hook canaryHook failed.'),
     `the deploy did not say that its afterDeploy hook failed:\n${failedAfter.output.slice(-2000)}`
   );
+  // The command also tells the Console about the failed hook, after its cleanup.
+  assert(
+    !failedAfter.output.includes("Couldn't record this event"),
+    `the Console refused an event of the deploy whose afterDeploy hook failed:\n${failedAfter.output.slice(-2000)}`
+  );
   await expectServed('failed afterDeploy hook', { release: 'a8', feature: 'five' });
   assert(!(await stack.lockHolder()), 'the lock is still held after the deploy whose afterDeploy hook failed.');
   await setHook('exit 7', 'afterDeploy', 'continue');
