@@ -203,11 +203,14 @@
 /resources/triggers/sqs-events
 /stacktape-console/account-settings
 /stacktape-console/api-keys
+/stacktape-console/audit-log
 /stacktape-console/aws-permissions
 /stacktape-console/billing-and-subscription
 /stacktape-console/connecting-your-aws-account
 /stacktape-console/console-overview
 /stacktape-console/organizations-projects-and-stages
+/stacktape-console/security-scanning
+/stacktape-console/single-sign-on
 /stacktape-console/team-and-access-control
 /using-with-ai/agent-mode-in-dev
 /using-with-ai/mcp-server-setup

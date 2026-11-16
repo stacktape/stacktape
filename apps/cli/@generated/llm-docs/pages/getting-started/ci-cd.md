@@ -1,6 +1,6 @@
 # CI/CD
 
-Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments without writing a GitHub Actions workflow file for the deploy path. Custom CI gives full control when you already have an established workflow.
+Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments for GitHub, GitLab and Bitbucket repositories without writing a pipeline file. Custom CI gives full control when you already have an established workflow.
 
 
 > **Info:** Already have CI/CD running? Skip ahead to [Going to production](/getting-started/going-to-production).
@@ -12,30 +12,30 @@ GitOps is the recommended path for most teams. You connect your repository once,
 
 ### CLI prompt after first deploy
 
-After a successful CLI deploy that creates a new stack, Stacktape runs a CI/CD setup prompt when invoked from an interactive terminal. If you skip the prompt, you can configure GitOps at any time in the Stacktape Console.
+After a successful CLI deploy that creates a new stack, the CLI asks whether to deploy automatically on pushes to your current branch (only in an interactive terminal). If you accept, it opens the browser to connect GitHub, GitLab or Bitbucket when needed, and creates a Git deployment for the stage you just deployed. If you skip the prompt, you can set up Git deployments at any time in the Stacktape Console.
 
 ### What you can configure
 
-Each GitOps configuration maps a git event to a deployment action. In the Console, you set:
+In the Console, these rules are called **Git deployments**. Each one maps a Git event to a deployment. You set:
 
-- **Deployment trigger** — push to a branch, or pull request opened against a branch
-- **Source branch** — the branch that triggers the deployment
-- **Target stage** — the stage name to deploy (e.g. `production`, `staging`, or `pr-{#number}` for PR previews)
-- **AWS region** — where the stack deploys
-- **AWS account** — which connected account to use
-- **Auto-delete on PR close** — when enabled (`deleteStackAfterPrClose`), Stacktape deletes the PR stack when the PR is merged or closed
+- **Deployment trigger** — **Push to branch**, or **Pull request opened** into a branch
+- **Branch** — the branch that is pushed to, or that pull requests merge into
+- **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
+- **AWS account and region** — where the stage deploys
+- **Config path** — the Stacktape config file in the repository
+- **Delete stack after pull request is merged or closed?** — for previews, deletes the preview stage when the pull request closes
 
-You can create multiple GitOps configurations per project — for example, one that deploys `main` to `production` and another that creates preview environments for every PR.
+You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 
 ### PR preview environments
 
-When you configure a pull-request trigger, Stacktape creates an isolated stage for each PR (named `pr-{#number}` by default). The PR stage deploys when the PR is opened, redeploys on every new commit pushed to the PR branch, and deletes automatically when the PR is merged or closed (if auto-delete is enabled). This gives reviewers a live URL to test against without touching your production or staging stage.
+When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape deletes the stage if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
 
-For the full reference on branch patterns and advanced configuration, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
 
 ### Connecting your repository
 
-GitOps uses the GitHub App integration to react to git events. Connect your repository in the Stacktape Console before creating your first GitOps configuration.
+Git deployments work with GitHub (through the Stacktape GitHub App), GitLab (gitlab.com groups) and Bitbucket Cloud (through the Stacktape app for Bitbucket). An organization owner or admin connects the provider under **Git connections** in the Console's profile menu. Then link the project to its repository. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the steps for each provider.
 
 ## Custom CI/CD integration
 

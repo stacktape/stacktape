@@ -1,6 +1,6 @@
 # From scratch to production-grade AWS infra in a day. No DevOps knowledge required.
 
-Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and own every byte — it all runs in the AWS account you control.
+Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and run it in the AWS account you control. Your infrastructure and application data stay in that account; operational data such as error events, check results and security findings goes to the Stacktape Console.
 
 
 - [Get started](/getting-started/configure-your-stack/)
@@ -173,17 +173,19 @@ That's it — your app is now running on AWS. 🎉
 
 ## Configuration in TypeScript, YAML or JSON
 
-Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer.
+Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer. Each tab below defines the same deployable function.
 
 
 Example (stacktape.ts (recommended)):
 
 ```typescript
-import { defineConfig } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
-export default defineConfig(({ stage }) => ({
+export default defineConfig(() => ({
   resources: {
-    // Your resources here
+    myFunction: new LambdaFunction({
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
+    })
   }
 }));
 ```
@@ -210,12 +212,21 @@ Example (stacktape.json):
   "resources": {
     "myFunction": {
       "type": "function",
-      "properties": {}
+      "properties": {
+        "packaging": {
+          "type": "js-bundle",
+          "properties": {
+            "entryfilePath": "./src/index.ts"
+          }
+        }
+      }
     }
   }
 }
 ```
 
+
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
 
 ## A development workflow built for speed
 

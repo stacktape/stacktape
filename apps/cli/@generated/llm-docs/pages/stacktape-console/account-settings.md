@@ -1,115 +1,185 @@
 # Account Settings
 
-Account Settings in the Stacktape Console is your personal profile page. Update your full name, change your password, or enable time-based one-time password (TOTP) multi-factor authentication to secure your login. These settings apply to your individual account, not to your organization or team.
+Account settings is your personal page in the Stacktape Console. Open it with **Account** in the profile menu at the top
+right. It holds your name and the ways you sign in, and it shows where you are signed in. These settings belong to you,
+not to an organization, so they apply in every organization you are a member of.
 
+Rules that an organization sets for all its members, such as requiring two-factor sign-in or single sign-on, are on
+[Members](/stacktape-console/team-and-access-control#requiring-two-factor-sign-in) and
+[Single sign-on](/stacktape-console/single-sign-on).
 
-> **Info:** Account Settings controls your personal login credentials and MFA. For organization-wide user management, roles, and permissions, see [Team and access control](/stacktape-console/team-and-access-control).
+## If you used the Console before v4
 
+Stacktape v4 moved Console sign-in to a new system. Your account, organizations, roles and API keys did not change. A few
+things work differently:
 
-## Overview
+- **Password.** The first time you sign in with your email and password, Stacktape checks the password against the old
+  system and keeps it. If your password is not accepted, use **Forgot password?** on the sign-in page to set a new one.
+- **Authenticator app.** If you used one before, the sign-in page asks for its code once more. The old authenticator
+  does not carry over: after that sign-in, Account settings asks you to set up an
+  [authenticator app](#authenticator-app-and-backup-codes) or a [passkey](#passkeys) again. Until you do, a password
+  sign-in does not count as two-factor, and an organization that requires two-factor sign-in stays closed to you. SMS
+  codes are no longer offered.
+- **Google.** Sign in with Google as before. Your account is matched by its verified email address.
+- **CLI.** `stacktape login` now asks you to approve the sign-in in the browser. See [login](/cli/login).
 
-The Account Settings page in the Stacktape Console contains three independent sections: **Change full name**, **Change password**, and **Multi-factor authentication**. The full-name, password, and MFA controls are shown as separate sections. Full-name changes update the profile data in the Console; password changes sign you out after success.
+## Profile
 
-Google-authenticated sessions may show Google-account guidance for password and MFA. The password form detects Google sign-in from the current Cognito username, while the MFA section shows the Google-account message when the MFA preference lookup fails because the session lacks the required scopes.
+- **Name** is shown to your teammates. Edit it and click **Save**.
+- **Email** is the address you sign in with. It cannot be changed on this page.
 
-## Full name
+## Ways to sign in
 
-The **Change full name** section updates the name stored on your Stacktape user profile. Enter your new name in the **Full name** field and click **Change full name**. The change takes effect immediately.
+You can have several ways to sign in at once. All of them except a password alone count as two-factor sign-in, which
+matters when an organization requires it.
 
-The field is pre-filled with your current name. The form requires a non-empty value — you cannot save a blank name.
+| Way to sign in | Where you set it up | Counts as two-factor |
+|---|---|---|
+| Password | When you sign up, or with **Forgot password?** | No |
+| Password and authenticator app | [Authenticator app](#authenticator-app-and-backup-codes) on this page | Yes |
+| Passkey | [Passkeys](#passkeys) on this page | Yes |
+| Google or GitHub | [Google and GitHub](#google-and-github) on this page | Yes |
+| Single sign-on | Your organization's [identity provider](/stacktape-console/single-sign-on) | Yes |
 
 ## Password
 
-The **Change password** section lets you update the password you use to sign in to the Stacktape Console. When the Console detects a Google login for the current session, this section shows a message directing you to your Google account settings instead of the password form.
+### Change your password
 
-### Changing your password
+1. In the **Password** row, click **Change password**.
+2. Enter your **Current password**, then the **New password** twice.
+3. Click **Change password**.
 
-1. Enter your current password in the **Old password** field.
-2. Enter your new password in the **New Password** field.
-3. Re-enter the new password in the **Confirm new password** field.
-4. Click **Change password**.
+A password must have at least 8 characters (at most 128) and must not appear in a known data breach. Stacktape checks
+this with Have I Been Pwned, which receives only the beginning of the password's hash, never the password.
 
-Each password field has a visibility toggle icon (show/hide) so you can verify what you've typed.
+After the change, this browser stays signed in and every other browser and device is signed out. CLI logins
+(`stacktape login`) and API keys keep working; see [Sessions](#sessions) for how to end them.
 
-### Password requirements
+### Add a password or reset a forgotten one
 
-Passwords changed from Account Settings must contain at least 8 characters and at least one number. Both the **New Password** and **Confirm new password** fields enforce these rules. The confirmation field also validates that both entries match.
+If you signed up with Google or GitHub, the **Password** row shows **None**. To add a password, or to replace one you
+forgot:
 
+1. Sign out, and on the sign-in page click **Forgot password?**.
+2. Enter your email and click **Send reset code**.
+3. Enter the **Reset code** from the email and your **New password**, then click **Change password**.
 
-> **Warning:** After a successful password change, the Console logs you out. You must sign in again with your new password.
+A reset signs you out of every browser and device. Sign in again with the new password.
 
+## Authenticator app and backup codes
 
-## Multi-factor authentication
+The **Authenticator app** row appears when your account has a password. With it on, a password sign-in also asks for a
+6-digit code from an app such as 1Password, Google Authenticator or Microsoft Authenticator.
 
-Multi-factor authentication (MFA) adds a second verification step when you sign in to the Stacktape Console. The Console supports TOTP-based MFA, which works with any authenticator app that generates time-based one-time passwords — Google Authenticator, Authy, Microsoft Authenticator, 1Password, and others.
+### Turn it on
 
-When the MFA preference lookup fails because the access token lacks the required scopes (typically during Google-authenticated sessions), the MFA section shows a message directing you to enable MFA in your Google account settings instead.
-
-### Enable MFA
-
-1. Click **Setup MFA**. A modal opens titled "Multi-factor authentication setup".
-2. **Scan the QR code** with your authenticator app. If you cannot scan the code, click the copy button next to the displayed secret key and enter it manually in your authenticator app.
-3. **Enter the 6-digit code** from your authenticator app into the verification field. The code must be exactly 6 digits.
-4. Click **Setup**. MFA is now active on your account.
-
-The QR code encodes a standard TOTP URI. The entry appears in your authenticator app as "Stacktape" with your email address as the account identifier.
-
-If the QR code fails to load (for example, due to a network issue), the modal displays a "Failed to display QR code" message. Close the modal and click **Setup MFA** again — clicking Setup MFA clears the previous local secret and calls the TOTP setup flow again.
-
-### Disable MFA
-
-When MFA is enabled, the section shows a **Disable MFA** button in place of the setup button. Clicking it turns off TOTP verification immediately — you will no longer need a code when signing in.
+1. In the **Authenticator app** row, click **Turn on**.
+2. Enter your password and click **Continue**.
+3. Scan the QR code with your authenticator app. If you cannot scan it, copy the secret shown under the code into the
+   app instead.
+4. Enter the 6-digit code from the app and click **Turn on**.
+5. The **Save your backup codes** dialog shows 10 backup codes. Copy them to a safe place, such as your password
+   manager, and click **I saved them**.
 
 
-> **Warning:** Disabling MFA removes the second factor from your login. Only disable it if you plan to re-enable it with a new authenticator device or have another way to secure your account.
+> **Warning:** The backup codes are shown only once. Each code signs you in once instead of an authenticator code. Without the
+codes, a lost phone can lock you out unless you have another way to sign in, such as a passkey or Google.
 
 
-## Account deletion
+The change counts from your next sign-in. If an organization requires two-factor sign-in, sign out and sign in again
+with your password and a code to open it.
 
-Account deletion is not self-service. To delete your Stacktape account, contact [support@stacktape.com](mailto:support@stacktape.com).
+When you sign in, the **Two-step verification** screen asks for the code. If you do not have your phone, choose
+**Use a backup code**.
+
+### Turn it off
+
+Click **Turn off** and confirm with your password. Your password sign-ins stop asking for a code, so organizations that
+require two-factor sign-in then need you to sign in with a passkey, Google or GitHub.
+
+To move the authenticator to a new phone, turn it off and on again. The old entry in your authenticator app stops
+working.
+
+## Passkeys
+
+A passkey signs you in with your device's fingerprint, face recognition or PIN instead of a password. It counts as
+two-factor sign-in on its own.
+
+1. In the **Passkeys** row, click **Add passkey**.
+2. Follow your browser's or password manager's prompt.
+
+Passkeys are named `Passkey 1`, `Passkey 2` and so on, with the date each was added. To use one, click
+**Sign in with a passkey** on the sign-in page.
+
+To remove a passkey, click **Remove** next to it. Also remove it from your device's password manager, which keeps
+offering it otherwise.
+
+## Google and GitHub
+
+The **Google** and **GitHub** rows let you sign in with those accounts. Click **Connect** and approve the request at the
+provider.
+
+The provider account must have verified the same email address as your Stacktape account. Otherwise it is not
+connected, and the page says which address it needs.
+
+**Disconnect** removes the connection. You cannot disconnect your only way to sign in; add another one first.
+
+## Sessions
+
+The **Sessions** row lists the browsers signed in to your account, with the browser and system, IP address and when
+each was last active. **This browser** marks the one you are using.
+
+- **Sign out** next to a session signs that browser out at its next request.
+- **Sign out everywhere else** ends every session except this one.
+
+A browser that is not used for 30 days is signed out. Changing your password also signs out every other session.
+
+CLI logins are not browser sessions and do not appear here. Run [`stacktape logout`](/cli/logout) on a machine to end
+its CLI login. Owners, Admins and Developers also see their CLI logins as **CLI session** on the
+[API keys](/stacktape-console/api-keys) page and can revoke them there.
+
+## Delete your account
+
+Account deletion is not self-service. Email [support@stacktape.com](mailto:support@stacktape.com) from the address you
+sign in with.
+
+## What organizations see
+
+Changes on this page are recorded in the [audit log](/stacktape-console/audit-log) of every organization you belong
+to: password changes, the authenticator app turned on or off, passkeys added or removed, Google or GitHub connected or
+disconnected, and sessions ended. Sign-ins themselves are not recorded. Owners and Admins can also see on the
+[Members](/stacktape-console/team-and-access-control) page whether you have two-factor sign-in.
 
 ## Troubleshooting
 
-### Password change fails
+### The authenticator code is rejected
 
-If the password change fails, read the error message shown under the form. The old password field is required, and the new password must meet the displayed password rules (at least 8 characters and at least one number). Use the visibility toggle icon next to each field to verify what you've entered.
+Codes change every 30 seconds. Enter the current one, and check that your phone's clock is set automatically. If codes
+are still rejected, sign in with a backup code or another way, then turn the authenticator app off and on again.
 
-### MFA setup QR code does not appear
+### I lost the phone with my authenticator app
 
-If the modal shows "Failed to display QR code," close the modal and click **Setup MFA** again. Clicking Setup MFA clears the previous local secret and starts the TOTP setup flow again.
+On the **Two-step verification** screen, choose **Use a backup code**. You can also sign in with a passkey, Google or
+GitHub if you added one. Then turn the authenticator app off and on again with your new phone. If you have none of
+these, contact [support@stacktape.com](mailto:support@stacktape.com).
 
-### MFA code is rejected
+### "Google was not connected" or "GitHub was not connected"
 
-TOTP codes are time-sensitive. Verify that your device clock is accurate (most phones sync automatically) and enter the current code promptly. If codes are consistently rejected, remove the Stacktape entry from your authenticator app and set up MFA again with a fresh QR code.
+The provider has not verified the email address of your Stacktape account. Verify that address at the provider, or
+connect a provider account that uses the same address.
 
-### Google login shows limited options
+### "This organization requires two-factor sign-in"
 
-The password section detects Google sign-in from the Cognito username and displays "You are logged in with Google. To change your password, please go to your Google account settings." The MFA section shows similar guidance when the MFA preference lookup fails because the access token lacks the required scopes. This is expected — manage your password and MFA through your Google account settings.
+Set up an authenticator app or a passkey on this page, then sign out and sign in again with it.
+
+### "This organization requires single sign-on"
+
+Sign out, then on the sign-in page click **Sign in with SSO** and enter your work email. See
+[Single sign-on](/stacktape-console/single-sign-on).
 
 ## Related features
 
-- [Team and access control](/stacktape-console/team-and-access-control) — manage organization members, roles, and permissions.
-- [API keys](/stacktape-console/api-keys) — create API keys for CLI and CI/CD authentication.
-- [Billing and subscription](/stacktape-console/billing-and-subscription) — manage your Stacktape subscription plan and invoices.
-
-## FAQ
-
-### How do I change my email address?
-
-The Account Settings page does not include an email-change form. Your email is tied to your sign-in identity and cannot be changed from this page.
-
-### Which authenticator apps work with Stacktape MFA?
-
-Any authenticator app that supports TOTP (Time-based One-Time Password) works. Common choices include Google Authenticator, Authy, Microsoft Authenticator, and 1Password. The Console generates a standard TOTP QR code, so any compliant authenticator app can read it.
-
-### What happens if I lose access to my authenticator app?
-
-The Account Settings page does not provide a self-service MFA recovery flow. If you still have an active session, you can disable MFA from the Account Settings page and set it up again with a new device. If you are locked out entirely, contact [support@stacktape.com](mailto:support@stacktape.com) — there is no documented self-service recovery for a lost authenticator.
-
-### Why does my password or MFA section show "go to your Google account settings"?
-
-If you signed in with Google, the Console can't change your password or MFA itself. The password form detects the Google login from your current Cognito username, and the MFA section shows the same guidance when the MFA preference lookup fails because the Google session's access token lacks the required scopes. This is expected — manage your password and MFA through your Google account instead.
-
-### Is MFA configured per user or per organization?
-
-Account Settings configures MFA for the current user only. Each team member enables or disables MFA independently from their own Account Settings page. For organization-wide user management, see [Team and access control](/stacktape-console/team-and-access-control).
+- [Team and access control](/stacktape-console/team-and-access-control): members, roles and the two-factor requirement
+- [Single sign-on](/stacktape-console/single-sign-on): sign in through your organization's identity provider
+- [API keys](/stacktape-console/api-keys): keys and CLI sessions for the CLI and CI
+- [`stacktape login`](/cli/login): sign in to the CLI

@@ -89,7 +89,6 @@ export const DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS = 10;
 export const DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS = 10;
 // @todo
 export const linksMap = {
-  docsCli: 'https://docs.stacktape.com/cli/using-cli/',
   pricingPage: 'https://stacktape.com#pricing',
   docs: 'https://docs.stacktape.com',
   javaWorkloadIssue: 'https://github.com/stacktape/stacktape/issues/5',
@@ -97,8 +96,7 @@ export const linksMap = {
   csharpWorkloadIssue: 'https://github.com/stacktape/stacktape/issues/3',
   rubyWorkloadIssue: 'https://github.com/stacktape/stacktape/issues/2',
   goWorkloadIssue: 'https://github.com/stacktape/stacktape/issues/1',
-  newIssue: 'https://github.com/stacktape/stacktape/issues/new',
-  prerequisites: 'https://docs.stacktape.com/getting-started/setup-stacktape/'
+  newIssue: 'https://github.com/stacktape/stacktape/issues/new'
 };
 
 export const defaultLogRetentionDays = {

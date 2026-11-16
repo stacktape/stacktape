@@ -8490,7 +8490,7 @@
         "name": "environment",
         "required": false,
         "shortDescription": "<p> Environment Variables</p>",
-        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/resources/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
+        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/configuration/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -22211,7 +22211,7 @@
         "name": "database",
         "required": false,
         "shortDescription": "<p> Override the PostgreSQL database that backs the Convex deployment.</p>",
-        "longDescription": "<p>Defaults to a single-AZ RDS PostgreSQL <code>db.t4g.micro</code> instance (cheapest production-viable\noption, ~$13/month). The shape mirrors a subset of <a href=\"https://docs.stacktape.com/resources/relational-databases/\"><code>relational-database</code></a> — override only what\nyou need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable\nmulti-AZ for HA, or increase storage retention.</p>\n<p>You cannot bring an existing external database — Convex assumes it owns its Postgres entirely.</p>",
+        "longDescription": "<p>Defaults to a single-AZ RDS PostgreSQL <code>db.t4g.micro</code> instance (cheapest production-viable\noption, ~$13/month). The shape mirrors a subset of <a href=\"https://docs.stacktape.com/resources/databases/relational-database/\"><code>relational-database</code></a> — override only what\nyou need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable\nmulti-AZ for HA, or increase storage retention.</p>\n<p>You cannot bring an existing external database — Convex assumes it owns its Postgres entirely.</p>",
         "typeInfo": {
           "kind": "reference",
           "typeName": "ConvexDatabaseConfig"
@@ -40141,7 +40141,7 @@
         "name": "environment",
         "required": false,
         "shortDescription": "<p> Environment Variables</p>",
-        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/resources/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
+        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/configuration/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -40422,7 +40422,7 @@
         "name": "environment",
         "required": false,
         "shortDescription": "<p> Environment Variables</p>",
-        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/resources/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
+        "longDescription": "<p>A list of environment variables to pass to the script or command.</p>\n<p>Values can be:</p>\n<ul>\n<li>A static string, number, or boolean.</li>\n<li>The result of a <a href=\"https://docs.stacktape.com/configuration/directives/#custom-directives\">custom directive</a>.</li>\n<li>A reference to another resource&#39;s parameter using the <a href=\"https://docs.stacktape.com/configuration/referenceable-parameters/\"><code>$ResourceParam</code> directive</a>.</li>\n<li>A value from a <a href=\"https://docs.stacktape.com/configuration/secrets/\">secret</a> using the <a href=\"https://docs.stacktape.com/configuration/directives/#secret\"><code>$Secret</code> directive</a>.</li>\n</ul>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -58521,7 +58521,7 @@
         "name": "environment",
         "required": false,
         "shortDescription": "<p> Environment variables available to the test script.</p>",
-        "longDescription": "<p>Available via <code>process.env</code> in the script. Values are limited to 4 KB in total and are not\nencrypted — put secrets in <a href=\"https://docs.stacktape.com/resources/secrets/\">Stacktape secrets</a>\nand reference them with <code>$Secret()</code> instead of pasting them here.</p>",
+        "longDescription": "<p>Available via <code>process.env</code> in the script. Values are limited to 4 KB in total and are not\nencrypted — put secrets in <a href=\"https://docs.stacktape.com/configuration/secrets/\">Stacktape secrets</a>\nand reference them with <code>$Secret()</code> instead of pasting them here.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {

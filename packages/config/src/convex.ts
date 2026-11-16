@@ -412,7 +412,7 @@ export interface ConvexProps {
    * ---
    *
    * Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-   * option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
+   * option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/databases/relational-database/) — override only what
    * you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
    * multi-AZ for HA, or increase storage retention.
    *
@@ -1413,7 +1413,7 @@ export interface ConvexDashboardConfig {
  *
  * ---
  *
- * The shape is a focused subset of [`RelationalDatabase`](https://docs.stacktape.com/resources/relational-databases/)
+ * The shape is a focused subset of [`RelationalDatabase`](https://docs.stacktape.com/resources/databases/relational-database/)
  * properties — only the fields that make sense in this context are exposed. The default is a single-AZ
  * RDS PostgreSQL `db.t4g.micro` instance with 20 GB storage, 1-day backup retention, and
  * `scoping-workloads-in-vpc` accessibility (only the Convex backend can reach it).

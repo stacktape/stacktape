@@ -33,7 +33,7 @@ The Free plan requires no credit card and has no member limit. It covers managed
 
 The Flexible plan is priced as a percentage of AWS costs managed by Stacktape, with rate tiers shown on the Subscription Plans page. Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
 
-The Flexible plan includes unlimited team members, single sign-on (SAML or OIDC) with SCIM provisioning, and hands-on support. Choose this when your team is growing or your AWS costs exceed the Free plan's $100/month cap.
+The Flexible plan includes unlimited team members, [single sign-on](/stacktape-console/single-sign-on) (SAML or OIDC) with SCIM provisioning, and hands-on support. Choose this when your team is growing or your AWS costs exceed the Free plan's $100/month cap.
 
 ### Enterprise plan
 

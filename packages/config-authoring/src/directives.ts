@@ -15,7 +15,7 @@ export const $ResourceParam = (resourceName: string, property: string) => {
  * If you are referencing a resource defined in the cloudformationResources section, use its name.
  * To reference a child resource of a Stacktape resource, you can get a list of child resources with the `stacktape status` command
  * @param property - The parameter of the Cloudformation resource to reference.
- * For a list of all referenceable parameters, refer to the [Referencing parameters](https://docs.stacktape.com/configuration/referencing-parameters#parameters-of-cloudformation-resources) section in the Stacktape docs.
+ * See the [`$CfResourceParam` directive](https://docs.stacktape.com/configuration/directives/#cfresourceparam) in the Stacktape docs.
  */
 export const $CfResourceParam = (cloudformationResourceLogicalId: string, property: string) => {
   return `$CfResourceParam('${cloudformationResourceLogicalId}','${property}')`;

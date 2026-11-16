@@ -45,17 +45,12 @@ The costs-per-stack view shows AWS costs broken down by project and stage, gener
 
 ## Controlling costs with budgets
 
-Budget alerts let you set spending thresholds and get alerted before your AWS costs exceed them. Stacktape supports two scopes:
+A budget sets a monthly spending limit for one connected AWS account. Stacktape creates the matching AWS budget in that account and alerts your channels when actual or forecasted spend crosses percentages of the limit. A budget watches the whole account; it cannot filter by project or stage.
 
-- **Organization-wide budgets** — applied across your organization and created in the selected AWS account when saved.
-- **Stack-scoped budgets** — scoped to specific projects. Stack-scoped budget status depends on Stacktape deployment metadata, so deploy matching stacks after creating or changing stack-scoped alerts.
-
-The overview budget panel displays each budget's name, scope, alert percentages, and threshold. Budget history records threshold-exceeded and forecasted-overspend events. Budget alerts can be scoped to specific projects or applied across the organization.
-
-Organization-wide budgets are the simpler option. Organization-wide budget alerts are created in the selected AWS account when saved. Most teams start with an organization-wide budget and add stack-scoped budgets for production stages as they grow.
+The Budgets page shows each budget's state this month and the alerts it sent. The Console Overview flags budgets that are over their limit or forecast to go over it.
 
 
-> **Tip:** Start with a single organization-wide budget at a comfortable monthly cap. Add stack-scoped budgets later for production stages that you want to monitor individually.
+> **Tip:** Start with one budget for each AWS account that runs production stages, with the limit set to your expected monthly bill. To track production and development spend separately, run them in separate AWS accounts.
 
 
 For setup details, see [Budgets](/managing-costs/budgets).
@@ -82,9 +77,9 @@ Cost reports are generated daily from AWS Cost and Usage Reports, and new stacks
 
 No. AWS bills your AWS account directly — the Stacktape Console displays AWS cost report data for connected AWS accounts but does not process AWS charges. Stacktape's own subscription is a separate charge billed by Stacktape to your organization. See [Billing and subscription](/stacktape-console/billing-and-subscription) for subscription details.
 
-### What's the difference between organization-wide and stack-scoped budgets?
+### Can a budget watch a single project or stage?
 
-You define a spending threshold and one or more percentage triggers for either scope. Organization-wide budgets apply across the whole organization and are created in the selected AWS account when saved — the simpler option for a single safety net. Stack-scoped budgets target specific projects, and their status depends on Stacktape deployment metadata, so you must deploy matching stacks after creating or changing them. There is no separate per-stage budget scope; use the costs-per-stack view for per-stage cost visibility. See [Budgets](/managing-costs/budgets) for setup steps.
+No. Each budget watches one whole AWS account. Stacktape v3 could filter budgets by project and stage; v4 cannot create those budgets. Use the costs-per-stack view to see spend per project and stage. See [Budgets](/managing-costs/budgets) for setup steps.
 
 ### What AWS services typically cost the most in Stacktape deployments?
 

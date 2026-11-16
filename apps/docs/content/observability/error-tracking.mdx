@@ -50,7 +50,7 @@ The Console has one organization-wide switch as well. Click **Settings** on the 
 
 ## What leaves your AWS account
 
-For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. Logs themselves stay in your account.
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. It also sends where the error happened (project, stage, region, function name and log group) and how many occurrences the report stands for. Logs themselves stay in your account.
 
 Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 

@@ -37,9 +37,9 @@ A horizontal bar chart titled "AWS Costs by Project" displays up to 10 items sor
 
 A separate horizontal bar chart titled "AWS Costs by Resource" breaks down current-month spend by AWS resource type. This view is useful for identifying which resource types drive your bill, independent of which project uses them. If a particular resource type suddenly spikes, you know where to start investigating — even before checking which project is responsible.
 
-### Budget Alerts
+### Budgets
 
-The Budget Alerts panel shows all configured [budget alerts](/managing-costs/budgets) with their name, scope (organization-wide or per stack), threshold amount, and the percentage levels that trigger notifications. Clicking a budget row navigates to the Console budgets page. When no budgets are configured, the panel displays "No budget alerts configured."
+The **Budgets** row on the overview shows how many [budgets](/managing-costs/budgets) you have. When budgets are over their limit or forecast to go over it this month, the row turns red and counts those budgets instead. Snoozed budgets are not counted as over. Click the row to open the Budgets page.
 
 ## Costs per stack
 
@@ -89,7 +89,7 @@ The AWS Billing console shows account-wide cost data. The Stacktape Console attr
 
 ### Can I set up alerts when costs exceed a threshold?
 
-Yes. Stacktape supports budget alerts that notify you when spend reaches specified percentage thresholds. You can scope budgets to the entire organization or to individual stacks. See [Budgets](/managing-costs/budgets) for setup details.
+Yes. A budget sets a monthly limit for one connected AWS account and alerts your channels when actual or forecasted spend crosses percentages of it. See [Budgets](/managing-costs/budgets) for setup details.
 
 ### How far back can I view cost history?
 

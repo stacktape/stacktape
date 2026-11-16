@@ -13,22 +13,19 @@ Stacktape supports three approaches to automated deployments: push-to-deploy **G
 | Where the build runs | Dedicated EC2 runner in your AWS account | Your CI provider's runners | EC2 runner in your AWS account |
 | Pipeline customization | Maps git events directly to deployments | Full control — tests, lint, approval gates, multi-step builds | Full GitHub Actions flexibility |
 | Maintenance | Managed by Stacktape | You own the pipeline definition | You own the workflow |
-| PR previews | Configuration displays stage as pr-{#number} | Manual setup with dynamic stage names | Manual setup with dynamic stage names |
+| PR previews | Built in: one stage per pull request (pr-42), redeployed on new commits, optional delete on close | Manual setup with dynamic stage names | Manual setup with dynamic stage names |
 
 
 ## GitOps with Console
 
-[GitOps with Console](/ci-cd-and-gitops/gitops-with-console) is the fastest path to automated deployments. You connect your repository in the Stacktape Console and create one or more GitOps configurations from the GitOps page. The Console lists each configuration with its deployment trigger, branch, stage name, target region, and connected AWS account.
+[GitOps with Console](/ci-cd-and-gitops/gitops-with-console) is the fastest path to automated deployments. It works with repositories on GitHub, GitLab and Bitbucket. You connect your Git provider in the Stacktape Console, link the project to its repository and create one or more **Git deployments**. Each Git deployment has:
 
-Each GitOps configuration row in the Console displays:
+- **Deployment trigger** — **Push to branch** deploys a fixed stage on every push; **Pull request opened** deploys a `pr-<number>` preview for each pull request (merge request on GitLab)
+- **Branch** — the branch that is pushed to, or that pull requests merge into
+- **Stage** — the Stacktape stage to deploy (previews always use `pr-<number>`)
+- **AWS account and region** — where the stage deploys
 
-- **Deployment trigger** — shown as **Push to Branch** or **PR Opened**
-- **From branch** — the branch the trigger watches
-- **Stage name** — the Stacktape stage to deploy to (displayed as `pr-{#number}` for PR-opened configurations that have no explicit stage set)
-- **Region** — the target AWS region
-- **AWS account** — the connected AWS account the configuration deploys to
-
-A common setup uses multiple configurations per project: one for `main` → `production`, one for `develop` → `staging`, and a PR-opened trigger for preview environments. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the full setup and event-handling details.
+A common setup uses several Git deployments per project: one for `main` → `production`, one for `develop` → `staging`, and a pull request trigger for preview environments. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for connecting each provider and what each Git event does.
 
 ## When to use GitOps
 
@@ -36,7 +33,7 @@ GitOps is the right choice when you want automated deployments with minimal setu
 
 ## When NOT to use GitOps
 
-GitOps configuration is centered on mapping a git event to a deployment: trigger type, branch, stage, region, and AWS account. If your workflow requires test suites, linting, approval gates, or multi-step build pipelines before deploying, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every step. You can also combine both — GitOps for staging environments and custom CI/CD for production.
+A Git deployment maps a Git event to a deployment: trigger type, branch, stage, region, and AWS account. If your workflow requires test suites, linting, approval gates, or multi-step build pipelines before deploying, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every step. You can also combine both — GitOps for staging environments and custom CI/CD for production.
 
 ## Custom CI/CD
 
@@ -95,7 +92,7 @@ The [stacks-per-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern)
 | **PR previews** | PR number as stage | PR #42 → `pr-42` |
 | **Feature branches** | Branch name (shortened) | `feat/auth` → `auth` |
 
-For PR-opened GitOps configurations, the Console displays the stage name as `pr-{#number}` when no explicit stage is stored on the configuration. For custom CI/CD, derive the stage name from your CI environment variables.
+Git deployments in the Console name PR preview stages `pr-<number>` automatically. For custom CI/CD, derive the stage name from your CI environment variables.
 
 Deploy a PR stage:
 
@@ -109,7 +106,7 @@ Clean up when the PR closes:
 npx stacktape delete --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
 ```
 
-Stage names must be lowercase alphanumeric with dashes only (regex `[a-z0-9-]+`), at least 2 characters, and at most 10 characters. Branch names containing uppercase letters, underscores, or slashes must be sanitized before use as stage names. Use short, stable names because stage names are reused in generated stack and resource names, and downstream AWS resources have their own length limits.
+Stage names must be lowercase alphanumeric with dashes only (regex `[a-z0-9-]+`), and at least 2 characters long. Branch names containing uppercase letters, underscores, or slashes must be sanitized before use as stage names. Use short, stable names because stage names are reused in generated stack and resource names, and downstream AWS resources have their own length limits.
 
 
 > **Warning:** Each stage is a complete independent stack. PR preview environments incur the same AWS costs as any other stage. Configure cleanup (via GitOps or a CI pipeline step) to avoid accumulating unused infrastructure.
@@ -117,7 +114,7 @@ Stage names must be lowercase alphanumeric with dashes only (regex `[a-z0-9-]+`)
 
 ## Choosing the right approach
 
-For most teams, start with **GitOps via the Console**. Each GitOps configuration is a single row — deployment trigger, branch, stage, region, and AWS account — with no pipeline files to write or maintain. PR preview environments are created by adding a PR-opened trigger configuration. If you later need test gates, approvals, or multi-step builds, add **custom CI/CD** — the two approaches work independently on the same project.
+For most teams, start with **GitOps via the Console**. Each Git deployment is a single row — deployment trigger, branch, stage, region, and AWS account — with no pipeline files to write or maintain. PR preview environments are created by adding a **Pull request opened** Git deployment. If you later need test gates, approvals, or multi-step builds, add **custom CI/CD** — the two approaches work independently on the same project.
 
 A common combined pattern:
 
@@ -139,17 +136,17 @@ There is no conflict between the approaches. GitOps and custom CI/CD operate ind
 
 No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
-### How do GitOps PR preview environments show their stage name?
+### What stage does a GitOps PR preview deploy to?
 
-For GitOps configurations with a pull-request-opened trigger, the Console displays the stage name as `pr-{#number}` when no explicit stage is stored on the configuration. Each PR thus maps to its own isolated stack with independent infrastructure. See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full pattern.
+A **Pull request opened** Git deployment deploys pull request #42 to the stage `pr-42`. Each pull request gets its own isolated stack with independent infrastructure. See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full pattern.
 
 ### Can I run tests before deploying with GitOps?
 
-No — GitOps configuration maps a git event directly to a deployment (trigger type, branch, stage, region, and AWS account) with no place to insert test suites, linting, or approval gates. If you need pre-deploy validation, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every step. The two approaches operate independently on the same project, so a common pattern is custom CI for production (with test gates) and GitOps for staging or PR previews.
+No — a Git deployment maps a Git event directly to a deployment (trigger type, branch, stage, region, and AWS account) with no place to insert test suites, linting, or approval gates. If you need pre-deploy validation, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control every step. The two approaches operate independently on the same project, so a common pattern is custom CI for production (with test gates) and GitOps for staging or PR previews.
 
 ### What stage names should I use for branch-derived stages?
 
-Stage names must be lowercase alphanumeric with dashes only, at least 2 characters, and at most 10 characters long. Use short, predictable values (e.g. `prod`, `staging`, `pr-42`). Branch names with uppercase letters, underscores, or slashes need sanitization. Stage names appear in generated stack and AWS resource names, so shorter names give you more headroom for downstream length limits.
+Stage names must be lowercase alphanumeric with dashes only, and at least 2 characters long. Use short, predictable values (e.g. `prod`, `staging`, `pr-42`). Branch names with uppercase letters, underscores, or slashes need sanitization. Stage names appear in generated stack and AWS resource names, so shorter names give you more headroom for downstream length limits.
 
 ### How much do automated deployments cost?
 

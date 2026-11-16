@@ -383,9 +383,7 @@ export const configErrors = {
           'cpu'
         )} and ${inlineCode('memory')}`
       ].join('\n'),
-      hints: [
-        `See resource docs to learn more: https://docs.stacktape.com/compute-resources/${workloadType}s/#resources`
-      ]
+      hints: [`See resource docs to learn more: https://docs.stacktape.com/resources/compute/${workloadType}/`]
     });
   },
   scalingRangeInvalid({

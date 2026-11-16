@@ -78,7 +78,7 @@ export const renderHelp = (path?: string): string[] => {
       ...globalHelp,
       '',
       'Run stacktape help <command> for arguments and options.',
-      'Documentation: https://docs.stacktape.com/cli/'
+      'Documentation: https://docs.stacktape.com/cli/help/'
     ];
   }
   const info = command ? getCommandInfo(command) : undefined;
@@ -117,5 +117,5 @@ export const renderHelp = (path?: string): string[] => {
     }
     lines.push('');
   }
-  return [...lines, ...globalHelp, '', 'Documentation: https://docs.stacktape.com/cli/'];
+  return [...lines, ...globalHelp, '', 'Documentation: https://docs.stacktape.com/cli/help/'];
 };

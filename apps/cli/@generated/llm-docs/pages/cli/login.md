@@ -28,9 +28,11 @@ You can create CI keys from the [Stacktape Console's API keys page](/stacktape-c
 Stacktape performs these steps when you run `login`:
 
 1. **Authenticates you** — through the browser sign-in, which the CLI exchanges for a CLI session for the organization you choose, or by verifying the API key supplied by a CI secret. The short-lived sign-in from the browser is never stored.
-2. **Stores local auth state** — keeps the CLI session in the operating system's credential store (macOS Keychain, Windows Credential Manager or the Linux Secret Service). Where that store is unavailable, as is common in WSL, SSH sessions and containers, the session is kept in `~/.stacktape/persisted-state.json`, readable only by your user. Set `STACKTAPE_CREDENTIAL_STORE=file` to always use the file, for example on a machine whose credential store asks for a password on every command.
+2. **Stores local auth state** — keeps the CLI session in the operating system's credential store on Windows (Credential Manager) and Linux (Secret Service). Where that store is unavailable, as is common in WSL, SSH sessions and containers, the session is kept in `~/.stacktape/persisted-state.json`, readable only by your user. Set `STACKTAPE_CREDENTIAL_STORE=file` to always use the file, for example on a machine whose credential store asks for a password on every command.
 3. **Verifies access** — calls the Stacktape API to confirm your user, organization, and permissions.
 4. **Displays your identity** — prints your user name and the organization the current auth state belongs to.
+
+On macOS, the CLI always uses `~/.stacktape/persisted-state.json`, not the Keychain. The Keychain ties each item to the signature of the program that created it, and released Stacktape binaries are not yet signed with a stable identity. Every CLI update would then ask you to allow access again, and unattended runs, such as the MCP server or `stacktape dev`, would wait until someone answers. As on other systems, the file is readable only by your user.
 
 If the API key is invalid, Stacktape clears the key it attempted to save and reports an authentication error.
 

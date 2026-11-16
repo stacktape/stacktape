@@ -296,7 +296,7 @@ Values can be:
 A static string, number, or boolean.
 The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).
 A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referenceable-parameters/).
-A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
+A value from a [secret](https://docs.stacktape.com/configuration/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
 
 ### Example 1 (yaml)
 
