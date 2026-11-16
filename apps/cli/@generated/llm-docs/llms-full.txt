@@ -16782,7 +16782,7 @@ Besides the renamed [packaging classes](#packaging) and `RedisCluster`, three th
 
 - **Constructors take only the properties.** v3 also accepted a name as the first argument, `new Bucket('uploads', { ... })`. In v4, write `new Bucket({ ... })`; the resource's name is its key in the returned `resources` object. Keep the keys you had: a different key is a different resource, which v4 would create while deleting the old one.
 - **`.resourceName` is gone.** Pass the resource object itself where a property takes a resource, for example `connectTo: [database]`.
-- **Resource parameters cannot be turned into strings.** In v3, `` `${database.connectionString}` `` produced a directive string. In v4, converting a parameter reference to a string throws an error while the configuration is evaluated. Pass the reference as the whole value, or use `$CfFormat` to build a string:
+- **Resource parameters cannot be turned into strings.** In v3, a parameter inside a template string, such as `${database.connectionString}`, produced a directive string. In v4, converting a parameter reference to a string throws an error while the configuration is evaluated. Pass the reference as the whole value, or use `$CfFormat` to build a string:
 
 
 Example (TypeScript):
@@ -16799,7 +16799,7 @@ export default defineConfig(() => {
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     connectTo: [database],
     environment: {
-      // v3: `${database.connectionString}` – throws in v4
+      // In v3 this could be a template string with database.connectionString inside; v4 throws
       DATABASE_URL: database.connectionString,
       DATABASE_HOST_LABEL: $CfFormat('db-{}', $ResourceParam('database', 'host'))
     }
@@ -16875,6 +16875,9 @@ In TypeScript configurations, rename the classes in both the `new ...Packaging(.
 
 Before:
 
+
+Example (TypeScript (v3)):
+
 ```typescript
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
 
@@ -16888,6 +16891,7 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
 
 After:
 
