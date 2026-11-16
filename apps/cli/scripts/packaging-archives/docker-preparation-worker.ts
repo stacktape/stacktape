@@ -39,6 +39,7 @@ import { seedArtifactStack } from './artifact-stack-fixture';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { fsPaths } from '../../src/config/runtime-paths';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
+import { DOCKER_PREPARATION_PROJECT_NAME, DOCKER_PREPARATION_STAGE } from './docker-preparation-target';
 
 export type DockerPreparationRequest = {
   command: 'package' | 'deploy';
@@ -89,8 +90,8 @@ const writeRegistry = (registryPath: string, images: RegistryImage[]) =>
 
 const REGION = 'eu-west-1';
 const ACCOUNT_ID = '123456789999';
-const PROJECT_NAME = 'docker-preparation';
-const STAGE = 'acceptance';
+const PROJECT_NAME = DOCKER_PREPARATION_PROJECT_NAME;
+const STAGE = DOCKER_PREPARATION_STAGE;
 
 /** Rejects every AWS SDK request before it is signed or sent. */
 const refuseAwsRequests: Pluggable<object, object> = {
