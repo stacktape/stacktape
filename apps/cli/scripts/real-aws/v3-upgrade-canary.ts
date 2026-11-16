@@ -52,9 +52,11 @@ import {
   DescribeSecretCommand,
   SecretsManagerClient
 } from '@aws-sdk/client-secrets-manager';
+import { ListExecutionsCommand, SFNClient } from '@aws-sdk/client-sfn';
 import { SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { randomBytes } from 'node:crypto';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -68,6 +70,7 @@ import {
   describeStack,
   gone,
   hasDevApiKey,
+  isMissing,
   isRecord,
   sleep
 } from './source-cli-canary';
@@ -150,9 +153,14 @@ type FixtureState = {
   region: string;
   stage: string;
   secretName: string;
-  secretCreated?: boolean;
+  /** Recorded right after the secret was created; cleanup deletes only the secret with this ARN and the owner tag. */
+  secretArn?: string;
   deployAttempted?: boolean;
   stackId?: string;
+  /** The raw Aurora cluster; CloudFormation leaves its final snapshot, which cleanup deletes. */
+  auroraClusterId?: string;
+  /** The us-east-1 bucket a custom resource creates for edge function code. */
+  edgeBuckets?: string[];
   edgeFunctions?: EdgeFunction[];
   pendingEdgeFunctions?: string[];
   cleanupVerifiedAt?: string;
@@ -222,6 +230,8 @@ const createClients = (profile: string, region: string) => {
     lambda: new LambdaClient(config),
     secrets: new SecretsManagerClient(config),
     sqs: new SQSClient(config),
+    sfn: new SFNClient(config),
+    rds: new RDSClient(config),
     sts: new STSClient(config),
     iam: new IAMClient(config),
     edgeLambda: new LambdaClient({ ...config, region: 'us-east-1' }),
@@ -232,6 +242,29 @@ const createClients = (profile: string, region: string) => {
   };
 };
 type Clients = ReturnType<typeof createClients>;
+
+/** Polls until AWS reports the resource missing, for up to 10 minutes. */
+const awaitGone = async (operation: () => Promise<unknown>, names: string[], description: string) => {
+  const startedAt = Date.now();
+  while (!(await gone(operation, names))) {
+    assert(Date.now() - startedAt < 10 * 60 * 1000, `${description} still exists 10 minutes after its deletion.`);
+    await sleep(10_000);
+  }
+};
+
+/** Records the resources cleanup must verify that the stack does not delete itself, or deletes only in part. */
+const recordOwned = async (clients: Clients, fixture: FixtureState) => {
+  const resources = await listStackResources(clients, fixture.stackName);
+  const physical = (logicalId: string) =>
+    resources.find(({ LogicalResourceId }) => LogicalResourceId === logicalId)?.PhysicalResourceId;
+  fixture.auroraClusterId ??= physical('AuroraPostgresDatabaseDBCluster');
+  const edgeBucket = physical(cfLogicalNames.customResourceEdgeLambdaBucket());
+  if (edgeBucket) fixture.edgeBuckets = [...new Set([...(fixture.edgeBuckets ?? []), edgeBucket])];
+  fixture.edgeFunctions = mergeEdgeFunctions(
+    fixture.edgeFunctions,
+    await readEdgeFunctions(clients, fixture.stackName)
+  );
+};
 
 /** The edge functions seen so far, each once: a later deploy can add one or keep the same. */
 const mergeEdgeFunctions = (known: EdgeFunction[] = [], found: EdgeFunction[]) => [
@@ -528,8 +561,37 @@ const probe = async ({
       assert(body.includes('"apiKeyConfigured":true'), `${fn} did not get its secret: ${body}`);
       results[fn] = 'ok';
     }
+    // The load balancer's priority rule to a function, and an SQS-triggered function.
+    results.webhookRoute = (
+      await awaitResponse(
+        `${loadBalancer}/hooks/canary`,
+        (status, body) => status === 200 && body.includes('webhookIngress')
+      )
+    ).status;
+    const maintenance = await invoke(clients, physicalIdOf(resources, 'MaintenanceFunction'));
+    assert(maintenance.includes('"apiKeyConfigured":true'), `maintenance did not get its secret: ${maintenance}`);
+    results.maintenance = 'ok';
+    results.queueConsumer = await awaitQueueConsumer(clients, resources);
   }
   return results;
+};
+
+/** Sends a message to the webhook queue and waits until the function the queue triggers logs it. */
+const awaitQueueConsumer = async (clients: Clients, resources: StackResourceSummary[]) => {
+  const message = `canary-${Date.now()}-${randomBytes(3).toString('hex')}`;
+  const startedAt = Date.now();
+  await clients.sqs.send(
+    new SendMessageCommand({ QueueUrl: physicalIdOf(resources, 'WebhookQueueQueue'), MessageBody: message })
+  );
+  const logGroupName = `/aws/lambda/${physicalIdOf(resources, 'QueueConsumerFunction')}`;
+  for (;;) {
+    const { events = [] } = await clients.logs
+      .send(new FilterLogEventsCommand({ logGroupName, startTime: startedAt - 60_000, filterPattern: `"${message}"` }))
+      .catch(() => ({ events: [] }));
+    if (events.length) return { secondsToConsume: Math.round((Date.now() - startedAt) / 1000) };
+    assert(Date.now() - startedAt < 5 * 60 * 1000, 'The queue consumer did not receive its message within 5 minutes.');
+    await sleep(10_000);
+  }
 };
 
 /**
@@ -551,8 +613,20 @@ const runBatchJob = async (clients: Clients, stackName: string) => {
         new FilterLogEventsCommand({ logGroupName, startTime: startedAt - 60_000, filterPattern: `"${MessageId}"` })
       )
       .catch(() => ({ events: [] }));
-    if (events.length) return { secondsToRun: Math.round((Date.now() - startedAt) / 1000) };
+    if (events.length) break;
     assert(Date.now() - startedAt < 20 * 60 * 1000, 'The notifier batch job did not run within 20 minutes.');
+    await sleep(15_000);
+  }
+  // The job prints the message when it starts; its state machine execution says whether it succeeded.
+  const stateMachineArn = physicalIdOf(resources, 'NotifierJobJobExecutionStateMachine');
+  for (;;) {
+    const { executions = [] } = await clients.sfn.send(new ListExecutionsCommand({ stateMachineArn }));
+    const execution = executions.find(({ startDate }) => (startDate?.getTime() ?? 0) >= startedAt - 60_000);
+    if (execution && execution.status !== 'RUNNING' && execution.status !== 'PENDING_REDRIVE') {
+      assert(execution.status === 'SUCCEEDED', `The notifier batch job execution ended ${execution.status}.`);
+      return { secondsToSucceed: Math.round((Date.now() - startedAt) / 1000) };
+    }
+    assert(Date.now() - startedAt < 30 * 60 * 1000, 'The notifier batch job did not finish within 30 minutes.');
     await sleep(15_000);
   }
 };
@@ -578,8 +652,9 @@ const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
       .send(
         new FilterLogEventsCommand({
           logGroupName: `/aws/lambda/${sink}`,
-          startTime: startedAt - 60_000,
-          filterPattern: '"ALARM_NOTIFICATION"'
+          startTime: startedAt,
+          // The forced alarm's own incident: every alarmed function notifies the same sink.
+          filterPattern: `"ALARM_NOTIFICATION" "INCIDENT_OPENED" "${alarm.LogicalResourceId}"`
         })
       )
       .catch(() => ({ events: [] }));
@@ -672,15 +747,15 @@ const runFixture = async ({
   assert(/^\d+\.\d+\.\d+\.\d+$/.test(runnerIp), "Could not determine this runner's public IPv4 address.");
   const directory = await prepareFixture(options, name, fixture.secretName, runnerIp);
   const secret = Object.fromEntries(spec.secretKeys.map((key) => [key, randomBytes(18).toString('hex')]));
-  fixture.secretCreated = true;
-  await persist();
-  await clients.secrets.send(
+  const created = await clients.secrets.send(
     new CreateSecretCommand({
       Name: fixture.secretName,
       SecretString: JSON.stringify(secret),
       Tags: [{ Key: OWNER_TAG, Value: options.owner }]
     })
   );
+  fixture.secretArn = created.ARN;
+  await persist();
 
   // 1. Two v3 deploys: the stack as 3.7.1 creates it, then a code-only change as the customer's CI deploys one.
   fixture.deployAttempted = true;
@@ -695,7 +770,7 @@ const runFixture = async ({
     'Owner tag missing.'
   );
   fixture.stackId = stack.StackId;
-  fixture.edgeFunctions = await readEdgeFunctions(clients, fixture.stackName);
+  await recordOwned(clients, fixture);
   await persist();
   await writeFile(join(directory, spec.codeChange.file), spec.codeChange.content(marks[1]!));
   const v3Second = await runV3({
@@ -782,10 +857,7 @@ const runFixture = async ({
       changes.statefulLosses.length === 0,
       `The upgrade replaced or deleted: ${changes.statefulLosses.join(', ')}.`
     );
-    fixture.edgeFunctions = mergeEdgeFunctions(
-      fixture.edgeFunctions,
-      await readEdgeFunctions(clients, fixture.stackName)
-    );
+    await recordOwned(clients, fixture);
     await persist();
 
     // 3. Everything still works, including what only v4 adds and the data the v3 deploys wrote.
@@ -827,10 +899,7 @@ const cleanupFixture = async (options: Options, state: State, name: FixtureName,
         (!fixture.stackId || fixture.stackId === stack.StackId),
       `Refusing to delete ${fixture.stackName}: it is not this run's stack.`
     );
-    fixture.edgeFunctions = mergeEdgeFunctions(
-      fixture.edgeFunctions,
-      await readEdgeFunctions(clients, fixture.stackName)
-    );
+    await recordOwned(clients, fixture);
     await persist();
     const runner = createSourceCliRunner(
       {
@@ -878,24 +947,52 @@ const cleanupFixture = async (options: Options, state: State, name: FixtureName,
   }
   assert(!(await describeStack(clients.cloudFormation, fixture.stackName)), `${fixture.stackName} still exists.`);
   verification.stack = 'absent';
-  if (fixture.secretCreated) {
-    await clients.secrets
-      .send(new DeleteSecretCommand({ SecretId: fixture.secretName, ForceDeleteWithoutRecovery: true }))
-      .catch((error: unknown) => {
-        if (!(error instanceof Error && error.name === 'ResourceNotFoundException')) throw error;
-      });
-    verification.secret = 'deleted';
+  if (fixture.secretArn) {
+    const describeSecret = () => clients.secrets.send(new DescribeSecretCommand({ SecretId: fixture.secretArn }));
+    const existing = await describeSecret().catch((error: unknown) => {
+      if (isMissing(error, ['ResourceNotFoundException'])) return undefined;
+      throw error;
+    });
+    if (existing && !existing.DeletedDate) {
+      assert(
+        existing.ARN === fixture.secretArn &&
+          existing.Tags?.some(({ Key, Value }) => Key === OWNER_TAG && Value === options.owner),
+        `Refusing to delete the secret ${fixture.secretName}: it is not this run's.`
+      );
+      await clients.secrets.send(
+        new DeleteSecretCommand({ SecretId: fixture.secretArn, ForceDeleteWithoutRecovery: true })
+      );
+    }
+    await awaitGone(describeSecret, ['ResourceNotFoundException'], `The secret ${fixture.secretName}`);
+    verification.secret = 'absent';
   }
-  // CloudFormation keeps a final snapshot of a raw `AWS::RDS::DBCluster` without a DeletionPolicy, named after the stack.
-  const rds = new RDSClient({ credentials: fromIni({ profile: options.profile }), region: fixture.region });
-  const { DBClusterSnapshots = [] } = await rds.send(new DescribeDBClusterSnapshotsCommand({ SnapshotType: 'manual' }));
-  const snapshots = DBClusterSnapshots.flatMap(({ DBClusterSnapshotIdentifier: id }) =>
-    id?.startsWith(`${fixture.stackName}-snapshot-`) ? [id] : []
-  );
-  for (const id of snapshots) {
-    await rds.send(new DeleteDBClusterSnapshotCommand({ DBClusterSnapshotIdentifier: id }));
+  if (fixture.auroraClusterId) {
+    // CloudFormation keeps a final snapshot of a raw `AWS::RDS::DBCluster` without a DeletionPolicy.
+    const snapshots: string[] = [];
+    let Marker: string | undefined;
+    do {
+      const page = await clients.rds.send(
+        new DescribeDBClusterSnapshotsCommand({
+          DBClusterIdentifier: fixture.auroraClusterId,
+          SnapshotType: 'manual',
+          Marker
+        })
+      );
+      for (const { DBClusterSnapshotIdentifier: id, DBClusterIdentifier } of page.DBClusterSnapshots ?? []) {
+        if (id && DBClusterIdentifier === fixture.auroraClusterId) snapshots.push(id);
+      }
+      Marker = page.Marker;
+    } while (Marker);
+    for (const id of snapshots) {
+      await clients.rds.send(new DeleteDBClusterSnapshotCommand({ DBClusterSnapshotIdentifier: id }));
+      await awaitGone(
+        () => clients.rds.send(new DescribeDBClusterSnapshotsCommand({ DBClusterSnapshotIdentifier: id })),
+        ['DBClusterSnapshotNotFoundFault'],
+        `The snapshot ${id}`
+      );
+    }
+    verification.clusterSnapshotsDeleted = snapshots;
   }
-  verification.clusterSnapshotsDeleted = snapshots;
   // The CLI deploys created a Console project, which only the CLI can delete once its stages are gone.
   const runner = createSourceCliRunner(
     {
@@ -920,7 +1017,7 @@ const cleanupFixture = async (options: Options, state: State, name: FixtureName,
   } finally {
     await runner.dispose();
   }
-  const edge = await cleanupEdgeFunctions(clients, fixture.edgeFunctions ?? [], []);
+  const edge = await cleanupEdgeFunctions(clients, fixture.edgeFunctions ?? [], fixture.edgeBuckets ?? []);
   fixture.pendingEdgeFunctions = edge.pendingFunctions;
   verification.edgeLeftByStack = edge.leftByStack;
   verification.pendingEdgeFunctions = edge.pendingFunctions;
@@ -971,6 +1068,11 @@ export const runV3UpgradeCanary = async ({ cleanupOnly = false }: { cleanupOnly?
     );
   } else {
     assert(await hasDevApiKey(), 'apps/cli/.env.local sets no STACKTAPE_API_KEY.');
+    // An existing state file may be the only record of an unfinished run's resources.
+    assert(
+      !(await Bun.file(options.stateFile).exists()),
+      `${options.stateFile} already exists. Finish that run with --cleanup-only, or choose a new state file.`
+    );
     state = {
       accountId: options.expectedAccountId,
       owner: options.owner,
@@ -1002,6 +1104,8 @@ export const runV3UpgradeCanary = async ({ cleanupOnly = false }: { cleanupOnly?
       const v4Package = options.fixtures.some((name) => FIXTURES[name].npmPackage)
         ? buildV4Package(options)
         : Promise.resolve('');
+      // Awaited only after the v3 deploys; until then a build failure must not end the process before cleanup.
+      v4Package.catch(() => undefined);
       const outcomes = await Promise.allSettled(
         options.fixtures.map((name) => runFixture({ options, name, state, persist, report, apiKey, v4Package }))
       );
@@ -1016,7 +1120,7 @@ export const runV3UpgradeCanary = async ({ cleanupOnly = false }: { cleanupOnly?
   } finally {
     await writeReport().catch(() => undefined);
     for (const name of Object.keys(state.fixtures) as FixtureName[]) {
-      if (!state.fixtures[name]?.secretCreated && !state.fixtures[name]?.deployAttempted && !cleanupOnly) continue;
+      if (!state.fixtures[name]?.secretArn && !state.fixtures[name]?.deployAttempted && !cleanupOnly) continue;
       try {
         report[`${name}Cleanup`] = await cleanupFixture(options, state, name, persist);
       } catch (error) {

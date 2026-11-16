@@ -3975,7 +3975,12 @@ export const slices: readonly Slice[] = [
     promise: 'Resource identity stays stable.',
     status: 'active',
     journeys: ['J2'],
-    paths: ['packages/naming/**'],
+    paths: [
+      'packages/naming/**',
+      'apps/cli/_test-stacks/v3-upgrade/**',
+      'apps/cli/scripts/real-aws/v3-upgrade-canary.ts',
+      'apps/cli/tests/data-safety/**'
+    ],
     tests: [
       'apps/cli/tests/characterization/naming-ownership.spec.ts',
       'apps/cli/tests/data-safety/change-plan-compatibility.spec.ts',
@@ -3989,7 +3994,7 @@ export const slices: readonly Slice[] = [
       'packages/naming/src/user-pool-domain-prefix.test.ts',
       'packages/naming/src/workload-names.test.ts'
     ],
-    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2']
+    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2', 'v3-upgrade-live']
   },
   {
     id: 'S04',
