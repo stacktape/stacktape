@@ -44,6 +44,12 @@ Pass `--stage` when you want to target a specific stage explicitly. Include it u
 stacktape param get mainDatabase connectionString --region eu-west-1 --stage production
 ```
 
+A parameter that holds a credential, such as a database `password` or a `connectionString` that contains one, comes back as `<<OMITTED>>` unless you pass `--show-secrets`. Use the flag only where the output stays private:
+
+```bash
+stacktape param get mainDatabase connectionString --region eu-west-1 --stage production --show-secrets
+```
+
 For programmatic consumption in scripts or CI steps, use `--agent` or `--json` to get machine-readable JSONL output. The default interactive output includes formatting that is not suitable for shell variable capture.
 
 ```bash

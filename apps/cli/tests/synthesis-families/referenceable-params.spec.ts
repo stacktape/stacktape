@@ -270,7 +270,7 @@ class ParametersCollected extends Error {}
 
 type MapResource = {
   resourceType: string;
-  referencableParams: Record<string, unknown>;
+  referencableParams: Record<string, { ssmParameterName?: string }>;
   _nestedResources?: Record<string, MapResource>;
 };
 
@@ -280,9 +280,13 @@ type MapResource = {
  */
 const synthesizeParameters = async (resources: Record<string, unknown>) => {
   const published: [resourceType: string, param: string][] = [];
+  const sensitive: string[] = [];
   const types = new Set(Object.values(resources).map((resource) => (resource as { type: string }).type));
   const collect = (resource: MapResource) => {
-    for (const param of Object.keys(resource.referencableParams)) published.push([resource.resourceType, param]);
+    for (const [param, { ssmParameterName }] of Object.entries(resource.referencableParams)) {
+      published.push([resource.resourceType, param]);
+      if (ssmParameterName) sensitive.push(`${resource.resourceType}: ${param}`);
+    }
     for (const nested of Object.values(resource._nestedResources ?? {})) {
       types.add(nested.resourceType);
       collect(nested);
@@ -309,15 +313,17 @@ const synthesizeParameters = async (resources: Record<string, unknown>) => {
   await synthesis.catch((error) => {
     if (!(error instanceof ParametersCollected)) throw error;
   });
-  return { published, types };
+  return { published, sensitive, types };
 };
 
 test('the registry lists exactly the parameters each resource type publishes', async () => {
   const published: [resourceType: string, param: string][] = [];
+  const sensitive = new Set<string>();
   const exercisedTypes = new Set<string>();
   for (const resources of Object.values(variants)) {
     const result = await synthesizeParameters(resources);
     published.push(...result.published);
+    for (const param of result.sensitive) sensitive.add(param);
     for (const type of result.types) exercisedTypes.add(type);
   }
   expect([...exercisedTypes].sort()).toEqual([...STACKTAPE_RESOURCE_TYPES].sort());
@@ -345,6 +351,15 @@ test('the registry lists exactly the parameters each resource type publishes', a
     )
   ];
   expect(neverPublished).toEqual([]);
+
+  // A parameter the CLI keeps in SSM is one commands withhold without --show-secrets; dev mode masks the variables
+  // built from it by its registry flag.
+  const registeredSensitive = Object.entries(REFERENCEABLE_PARAMS).flatMap(([resourceType, params]) =>
+    (params as ReadonlyArray<{ name: string; sensitive?: true }>)
+      .filter((param) => param.sensitive)
+      .map(({ name }) => `${resourceType}: ${name}`)
+  );
+  expect([...sensitive].sort()).toEqual(registeredSensitive.sort());
 }, 120_000);
 
 test('numbered parameters match only their number', () => {

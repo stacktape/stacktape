@@ -134,9 +134,9 @@ Controls where deployment build and packaging work runs.
 - \`local\`: Run deployment locally.
 - \`ec2\`: Run deployment on a configured EC2 runner in your AWS account.`);
 
-export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
+export const showSensitiveValues = z.boolean().describe(`#### Show Secrets
 ---
-If \`true\`, includes sensitive values in the output of commands such as \`status\`, \`deploy\`, and \`param get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+If \`true\`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a \`secret get\` reads. Without it, each of them is \`<<OMITTED>>\` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs.`);
 
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---

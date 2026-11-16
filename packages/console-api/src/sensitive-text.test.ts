@@ -13,6 +13,7 @@ const fake = {
   anthropicOAuthToken: ['sk', 'ant', 'oat01', `${'fake-token_'.repeat(8)}AA`].join('-'),
   jwt: ['eyJhbGciOiJIUzI1NiJ9', 'eyJzdWIiOiIxMjM0In0', 'dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'].join('.'),
   connectionString: `postgres:/${'/app:not-a-real-password@db.example.com:5432/orders'}`,
+  redisUrl: `rediss:/${'/:not-a-real-password@cache.example.com:6379'}`,
   pem: (body: string) => {
     const label = 'RSA PRIVATE KEY';
     return `-----BEGIN ${label}-----\n${body}\n-----END ${label}-----`;
@@ -30,7 +31,8 @@ test('masks credential formats that are recognizable on their own', () => {
     [`oauth ${fake.anthropicOAuthToken}`, 'oauth [redacted:secret]'],
     [`jwt ${fake.jwt}`, 'jwt [redacted:secret]'],
     ['Authorization: Bearer abcdef.ghijkl.mnopqr', 'Authorization: Bearer [redacted:secret]'],
-    [fake.connectionString, 'postgres://[redacted:credentials]@db.example.com:5432/orders']
+    [fake.connectionString, 'postgres://[redacted:credentials]@db.example.com:5432/orders'],
+    [fake.redisUrl, 'rediss://[redacted:credentials]@cache.example.com:6379']
   ];
   for (const [input, expected] of cases) assert.equal(scrubSensitiveText(input), expected, input);
   assert.equal(scrubSensitiveText(`${fake.pem('MIIEow\nIBAAKCAQEA')} then`), '[redacted:private-key] then');

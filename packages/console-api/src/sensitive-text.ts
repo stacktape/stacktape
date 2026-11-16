@@ -62,8 +62,11 @@ const AUTHORIZATION_SCHEME = /\b(Bearer|Basic|Token)[ \t]+([A-Za-z0-9._~+/=-]{4,
 const looksLikeCredential = (candidate: string) =>
   /[0-9_~+/=-]/.test(candidate) || /\.[A-Za-z0-9]/.test(candidate) || /[a-z][A-Z]/.test(candidate);
 
-/** A URL whose authority carries a user and a password before the host, including database connection strings. */
-const URL_CREDENTIALS = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi;
+/**
+ * A URL whose authority carries a password before the host, including database connection strings. The user can be
+ * empty: Redis URLs carry only the password (`rediss://:<password>@host`).
+ */
+const URL_CREDENTIALS = /(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]*:[^\s/@]+@/gi;
 
 const EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}/g;
 
