@@ -225,6 +225,8 @@ A failed hook stops the command with an error, and the hooks listed after it don
 
 An `afterDeploy` hook runs after the deployment finished. When it fails, the stack stays deployed on the new version and nothing is rolled back, but `stacktape deploy` exits with an error, so a CI job fails. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run).
 
+In the Console, Slack and email, the deploy is still reported as succeeded, because the new version is live. Everyone who is notified about failed deploys also gets a "Deployed, but a hook failed" message that names the hook.
+
 Set `onFailure: continue` on a hook whose failure should not fail the command, such as a notification. The failure is then printed as a warning:
 
 ```yaml
