@@ -1,0 +1,7 @@
+{
+  "name": "example/legacy-site",
+  "description": "Canary fixture",
+  "require": {
+    "php": ">=8.2"
+  }
+}

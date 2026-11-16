@@ -1,0 +1,161 @@
+# The shape of a web agency's client site as deployed with Stacktape 3.7.1: a PHP CMS container on EC2 behind a CDN
+# with a firewall and a viewer-request edge function, a MySQL database open only to listed IPs, an older site built
+# with Nixpacks, a DynamoDB table, a scheduled sync flow with an error-rate alarm, and an afterDeploy migration that
+# runs on the CI runner. scripts/real-aws/v3-upgrade-canary.ts deploys it with the released 3.7.1 CLI, then deploys
+# ./stacktape.yml (the same stack after the documented migration) with the current CLI.
+#
+# The canary replaces __OWNER__, __RUNNER_IP__ and __SECRET_NAME__ in its copy of this file.
+resources:
+  forwardHostFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: edge-functions/forward-host.ts
+  webAppFirewall:
+    type: web-app-firewall
+    properties:
+      defaultAction: Allow
+      scope: cdn
+      rules:
+        - type: managed-rule-group
+          properties:
+            name: AWSManagedRulesCommonRuleSet
+            vendorName: AWS
+            priority: 2
+            excludedRules:
+              - SizeRestrictions_BODY
+              - CrossSiteScripting_BODY
+  webService:
+    type: web-service
+    properties:
+      connectTo:
+        - mainDatabase
+      cdn:
+        enabled: true
+        useFirewall: webAppFirewall
+        edgeFunctions:
+          onRequest: forwardHostFunction
+        cachingOptions:
+          defaultTTL: 0
+          minTTL: 0
+          maxTTL: 31536000
+        forwardingOptions:
+          headers:
+            allExcept:
+              - Host
+          cookies:
+            all: true
+          queryString:
+            all: true
+          customRequestHeaders:
+            - headerName: X-Origin-Verify
+              value: $Secret('__SECRET_NAME__.ORIGIN_VERIFY_KEY')
+            - headerName: X-Forwarded-Proto
+              value: https
+      enableRemoteSessions: true
+      resources:
+        instanceTypes:
+          - t3a.micro
+        enableWarmPool: true
+      scaling:
+        minInstances: 1
+        maxInstances: 2
+        scalingPolicy:
+          keepAvgCpuUtilizationUnder: 60
+          keepAvgMemoryUtilizationUnder: 80
+      packaging:
+        type: custom-dockerfile
+        properties:
+          dockerfilePath: ./Dockerfile
+          buildContextPath: ./site
+      environment:
+        - name: ENVIRONMENT
+          value: production
+        - name: ORIGIN_VERIFY_KEY
+          value: $Secret('__SECRET_NAME__.ORIGIN_VERIFY_KEY')
+        - name: DB_SERVER
+          value: $ResourceParam('mainDatabase', 'host')
+        - name: DB_PORT
+          value: $ResourceParam('mainDatabase', 'port')
+        - name: DB_DATABASE
+          value: site_db
+        - name: DB_USER
+          value: main_db_user
+        - name: DB_PASSWORD
+          value: $Secret('__SECRET_NAME__.db_password')
+  legacySite:
+    type: web-service
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      packaging:
+        type: nixpacks
+        properties:
+          sourceDirectoryPath: ./legacy-site
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: main_db_user
+        masterUserPassword: $Secret('__SECRET_NAME__.db_password')
+      engine:
+        type: mysql
+        properties:
+          version: 8.4.5
+          dbName: site_db
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: vpc
+        whitelistedIps:
+          - '__RUNNER_IP__'
+      automatedBackupRetentionDays: 5
+  siteTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+  flowSync:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: flows/sync.ts
+      connectTo:
+        - siteTable
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 day)
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+scripts:
+  migrateDatabase:
+    type: local-script
+    properties:
+      executeCommand: node scripts/after-deploy.mjs
+      connectTo:
+        - mainDatabase
+      environment:
+        - name: DB_DATABASE
+          value: site_db
+        - name: DB_USER
+          value: main_db_user
+        - name: DB_PASSWORD
+          value: $Secret('__SECRET_NAME__.db_password')
+hooks:
+  afterDeploy:
+    - scriptName: migrateDatabase
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: __OWNER__

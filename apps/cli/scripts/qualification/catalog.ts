@@ -29,7 +29,8 @@ export type AwsQualificationScenario = {
     | 'release-command'
     | 'scoped-access'
     | 'static-site'
-    | 'batch-job';
+    | 'batch-job'
+    | 'v3-upgrade';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -144,6 +145,27 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['batch-job', 'compute-environment', 'sqs-trigger', 'pre-deployment-validation', 'cleanup'],
     reason:
       'Only AWS Batch shows which compute environment images it still accepts; it refused Amazon Linux 2 with no change on our side.'
+  },
+  {
+    id: 'v3-upgrade-customer-shapes',
+    runner: 'v3-upgrade',
+    policy: 'deep',
+    costClass: 'medium',
+    coverage: [
+      'v3-upgrade',
+      'web-service',
+      'multi-container-workload',
+      'relational-database',
+      'raw-cloudformation',
+      'cdn',
+      'edge-functions',
+      'batch-job',
+      'alarms',
+      'fast-deploy',
+      'cleanup'
+    ],
+    reason:
+      'Only a real update of stacks that the released 3.7.1 CLI created shows what the first v4 deploy replaces and whether the applications and their data survive it.'
   },
   {
     id: 'init-static-site',
