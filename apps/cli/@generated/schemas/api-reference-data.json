@@ -3362,7 +3362,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -3384,8 +3384,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -3682,7 +3682,7 @@
       "requiredCount": 2,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype AlarmDefinition = {\n  /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */\n  name: string;\n  /** The metric and threshold that fires this alarm. */\n  trigger: AlarmDefinitionTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Only activate this alarm for these services. If omitted, applies to all services. */\n  forServices?: Array<string>;\n  /** Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages. */\n  forStages?: Array<string>;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<AlarmDefinitionNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype AlarmDefinitionTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype AlarmDefinitionNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype AlarmDefinition = {\n  /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */\n  name: string;\n  /** The metric and threshold that fires this alarm. */\n  trigger: AlarmDefinitionTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Only activate this alarm for these services. If omitted, applies to all services. */\n  forServices?: Array<string>;\n  /** Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages. */\n  forStages?: Array<string>;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<AlarmDefinitionNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype AlarmDefinitionTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype AlarmDefinitionNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "AlarmEvaluation": {
     "definitionName": "AlarmEvaluation",
@@ -4957,7 +4957,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -4979,8 +4979,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -5277,7 +5277,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype ApplicationLoadBalancerAlarm = {\n  trigger: ApplicationLoadBalancerAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger;\n\ntype ApplicationLoadBalancerAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype ApplicationLoadBalancerAlarm = {\n  trigger: ApplicationLoadBalancerAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger;\n\ntype ApplicationLoadBalancerAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "ApplicationLoadBalancerCdnConfiguration": {
     "definitionName": "ApplicationLoadBalancerCdnConfiguration",
@@ -21458,8 +21458,8 @@
                   {
                     "name": "notificationChannels",
                     "required": false,
-                    "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-                    "longDescription": "",
+                    "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+                    "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
                     "typeInfo": {
                       "kind": "array",
                       "itemType": {
@@ -21755,7 +21755,7 @@
                     "name": "includeInHistory",
                     "required": false,
                     "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-                    "longDescription": "",
+                    "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
                     "defaultValue": "true",
                     "typeInfo": {
                       "kind": "primitive",
@@ -22371,8 +22371,8 @@
                   {
                     "name": "notificationChannels",
                     "required": false,
-                    "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-                    "longDescription": "",
+                    "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+                    "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
                     "typeInfo": {
                       "kind": "array",
                       "itemType": {
@@ -22668,7 +22668,7 @@
                     "name": "includeInHistory",
                     "required": false,
                     "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-                    "longDescription": "",
+                    "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
                     "defaultValue": "true",
                     "typeInfo": {
                       "kind": "primitive",
@@ -31700,7 +31700,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -31722,8 +31722,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -32020,7 +32020,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiGatewayAlarm = {\n  trigger: HttpApiGatewayAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiGatewayAlarmTrigger =\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger;\n\ntype HttpApiGatewayAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiGatewayAlarm = {\n  trigger: HttpApiGatewayAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiGatewayAlarmTrigger =\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger;\n\ntype HttpApiGatewayAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "HttpApiGatewayErrorRateTrigger": {
     "definitionName": "HttpApiGatewayErrorRateTrigger",
@@ -35581,7 +35581,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -35603,8 +35603,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -35901,7 +35901,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaAlarm = {\n  trigger: LambdaAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<LambdaAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaAlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger;\n\ntype LambdaAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaAlarm = {\n  trigger: LambdaAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<LambdaAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaAlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger;\n\ntype LambdaAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "LambdaAuthorizer": {
     "definitionName": "LambdaAuthorizer",
@@ -50144,7 +50144,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -50166,8 +50166,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -50464,7 +50464,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype RelationalDatabaseAlarm = {\n  trigger: RelationalDatabaseAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype RelationalDatabaseAlarmTrigger =\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype RelationalDatabaseAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype RelationalDatabaseAlarm = {\n  trigger: RelationalDatabaseAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype RelationalDatabaseAlarmTrigger =\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype RelationalDatabaseAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "RelationalDatabaseCPUUtilizationTrigger": {
     "definitionName": "RelationalDatabaseCPUUtilizationTrigger",
@@ -55293,7 +55293,7 @@
         "name": "includeInHistory",
         "required": false,
         "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-        "longDescription": "",
+        "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -55315,8 +55315,8 @@
       {
         "name": "notificationChannels",
         "required": false,
-        "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-        "longDescription": "",
+        "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+        "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
@@ -55613,7 +55613,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueAlarm = {\n  trigger: SqsQueueAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype SqsQueueAlarmTrigger =\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;\n\ntype SqsQueueAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueAlarm = {\n  trigger: SqsQueueAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires and when it recovers. */\n  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype SqsQueueAlarmTrigger =\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;\n\ntype SqsQueueAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "SqsQueueEventBusIntegration": {
     "definitionName": "SqsQueueEventBusIntegration",
@@ -64840,8 +64840,8 @@
                   {
                     "name": "notificationChannels",
                     "required": false,
-                    "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-                    "longDescription": "",
+                    "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+                    "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
                     "typeInfo": {
                       "kind": "array",
                       "itemType": {
@@ -65137,7 +65137,7 @@
                     "name": "includeInHistory",
                     "required": false,
                     "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-                    "longDescription": "",
+                    "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
                     "defaultValue": "true",
                     "typeInfo": {
                       "kind": "primitive",
@@ -65365,8 +65365,8 @@
                   {
                     "name": "notificationChannels",
                     "required": false,
-                    "shortDescription": "<p> Where to send notifications when the alarm fires — Slack, MS Teams, or email.</p>",
-                    "longDescription": "",
+                    "shortDescription": "<p> Where to send notifications when the alarm fires and when it recovers.</p>",
+                    "longDescription": "<p>Inline channels (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) are delivered by the stack&#39;s own service\nLambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from\n<code>$Secret</code> and secure SSM parameters, are read there and never sent to Stacktape. <code>console-channel</code> and <code>slack-app</code>\nchannels are delivered by the Stacktape Console, which keeps their credentials.</p>",
                     "typeInfo": {
                       "kind": "array",
                       "itemType": {
@@ -65662,7 +65662,7 @@
                     "name": "includeInHistory",
                     "required": false,
                     "shortDescription": "<p> Whether alarm state changes should appear in monitoring history.</p>",
-                    "longDescription": "",
+                    "longDescription": "<p>When <code>false</code>, the alarm&#39;s state changes are not reported to the Stacktape Console, so they open no incident and\nappear in no history. Inline notification channels are still delivered from your account. <code>console-channel</code> and\n<code>slack-app</code> channels are delivered by the Console, so they need this to stay <code>true</code>.</p>",
                     "defaultValue": "true",
                     "typeInfo": {
                       "kind": "primitive",

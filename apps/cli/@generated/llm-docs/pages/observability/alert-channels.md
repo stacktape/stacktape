@@ -118,7 +118,7 @@ Yes — this is the main reason to use Console-managed channels. Create a channe
 
 ### When should I use a Console channel instead of config-level alarm options?
 
-Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. See [alarm notification targets](/observability/alarms#notification-targets).
+Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. A direct integration is delivered from your AWS account, so its credentials never reach Stacktape and its messages do not appear in Sent alerts. See [alarm notification targets](/observability/alarms#notification-targets).
 
 ### Can I send alerts to multiple Slack channels?
 

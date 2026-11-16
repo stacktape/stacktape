@@ -16759,6 +16759,8 @@ resources:
 
 v4 also accepts `{ type: console-channel, properties: { channelName: <name> } }`, which sends to an [alert channel](/observability/alert-channels) set up in the Console, so the token stays out of the configuration.
 
+In v4, inline channels such as `slack` are delivered by the stack's own service Lambda from your AWS account, when the alarm fires and when it recovers. Their tokens and webhook URLs are no longer sent to the Stacktape Console. A stack still deployed with v3 keeps sending them with each alarm event until you redeploy it with v4; the Console delivers those notifications but does not store the channel settings.
+
 ### NAT
 
 `stackConfig.vpc.nat` moved to `stackConfig.nat`, and NAT is no longer created implicitly. In v3, a container with `usePrivateSubnetsWithNAT: true` gave the stack NAT Gateways. In v4, the stack needs `stackConfig.nat`; without it, validation stops with `CONFIG_NAT_REQUIRED`.
@@ -21620,9 +21622,13 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
+Stacktape alarms can send notifications to one or more targets when they fire and when they recover. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
-To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`:
+Inline targets (`slack`, `ms-teams`, `discord`, `email` and `webhook`) are sent by the stack's own service Lambda, from your AWS account. The Lambda reads `$Secret` and secure SSM values when it sends the notification. Tokens, webhook URLs, signing secrets and headers are never sent to Stacktape. Email goes through Amazon SES in your account from the `sender` address. Microsoft Teams, Discord and webhook receivers get the same request format as from a Console [alert channel](/observability/alert-channels). A webhook request carries the alarm's EventBridge event ID as `id`, so a receiver can drop a repeated delivery.
+
+Each target receives one message when the alarm fires and one when it returns to OK after firing. A new alarm's first evaluation to OK sends nothing. If a target fails, the Lambda retries it without resending the targets that already received the message. Muting an incident in the Console does not silence inline targets, because the Console does not deliver them.
+
+To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`. The Console delivers `console-channel` and `slack-app` targets with the credentials it keeps:
 
 
 Example (YAML):
@@ -21643,7 +21649,11 @@ Use the optional `description` property on an alarm to include a custom message 
 
 ### History tracking
 
-The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view.
+The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view. Such an alarm is not reported to the Console, so it opens no incident. Its inline targets are still notified. `console-channel` and `slack-app` targets need history, and the deploy refuses an alarm that combines them with `includeInHistory: false`.
+
+### What leaves your AWS account
+
+When an alarm with history changes state, the stack's service Lambda sends the Console the alarm event: the alarm name and trigger type, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource with its AWS console link, a link to the alarm, and the EventBridge event ID. It also sends the `console-channel` names and resolved `slack-app` channel IDs, which the Console delivers. Inline targets and their settings stay in your account.
 
 ## Migrating legacy Console alarm rules
 
@@ -21849,7 +21859,7 @@ Yes — this is the main reason to use Console-managed channels. Create a channe
 
 ### When should I use a Console channel instead of config-level alarm options?
 
-Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. See [alarm notification targets](/observability/alarms#notification-targets).
+Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. A direct integration is delivered from your AWS account, so its credentials never reach Stacktape and its messages do not appear in Sent alerts. See [alarm notification targets](/observability/alarms#notification-targets).
 
 ### Can I send alerts to multiple Slack channels?
 
@@ -23528,13 +23538,13 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms#notification-targets) notifications: inline channels from your account, and `console-channel` references by the Console, which lists them in Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## What leaves your AWS account
 
 Run results, screenshots and the canary's logs stay in your account. The Console's Synthetics page reads them from your account in your browser, with short-lived credentials, and Stacktape's servers do not store them.
 
-When the test's alarm changes state, the stack sends the Console the alarm event: the test and alarm names, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource, a link to the alarm in the AWS console, and the test's `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts.
+When the test's alarm changes state, the stack sends the Console the alarm event: the test and alarm names, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource, a link to the alarm in the AWS console, and the names of its `console-channel` and `slack-app` channels. Inline channels (Slack, Microsoft Teams, Discord, email and webhooks) are delivered by the stack's service Lambda from your account, so their tokens, webhook URLs and secrets stay there.
 
 ## Cost
 
@@ -53264,7 +53274,7 @@ type AlarmDefinition = {
   forStages?: Array<string>;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<AlarmDefinitionNotificationChannels>;
 };
 
@@ -53480,6 +53490,10 @@ Only activate this alarm for these stages (e.g., `production`). If omitted, appl
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -53524,7 +53538,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
@@ -53818,7 +53837,7 @@ type ApplicationLoadBalancerAlarm = {
   evaluation?: AlarmEvaluation;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;
 };
 
@@ -53985,6 +54004,10 @@ export default defineConfig(() => {
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -54029,7 +54052,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
@@ -54572,7 +54600,7 @@ type HttpApiGatewayAlarm = {
   evaluation?: AlarmEvaluation;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;
 };
 
@@ -54737,6 +54765,10 @@ export default defineConfig(() => {
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -54781,7 +54813,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
@@ -55245,7 +55282,7 @@ type LambdaAlarm = {
   evaluation?: AlarmEvaluation;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<LambdaAlarmNotificationChannels>;
 };
 
@@ -55410,6 +55447,10 @@ export default defineConfig(() => {
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -55454,7 +55495,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
@@ -55930,7 +55976,7 @@ type RelationalDatabaseAlarm = {
   evaluation?: AlarmEvaluation;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;
 };
 
@@ -56103,6 +56149,10 @@ export default defineConfig(() => {
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -56147,7 +56197,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
@@ -57631,7 +57686,7 @@ type SqsQueueAlarm = {
   evaluation?: AlarmEvaluation;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;
 };
 
@@ -57796,6 +57851,10 @@ export default defineConfig(() => {
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -57840,7 +57899,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.

@@ -80,13 +80,13 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms#notification-targets) notifications: inline channels from your account, and `console-channel` references by the Console, which lists them in Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## What leaves your AWS account
 
 Run results, screenshots and the canary's logs stay in your account. The Console's Synthetics page reads them from your account in your browser, with short-lived credentials, and Stacktape's servers do not store them.
 
-When the test's alarm changes state, the stack sends the Console the alarm event: the test and alarm names, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource, a link to the alarm in the AWS console, and the test's `notificationChannels`. Inline channels are sent with their settings, including a webhook URL or bot token, because the Console delivers the alerts.
+When the test's alarm changes state, the stack sends the Console the alarm event: the test and alarm names, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource, a link to the alarm in the AWS console, and the names of its `console-channel` and `slack-app` channels. Inline channels (Slack, Microsoft Teams, Discord, email and webhooks) are delivered by the stack's service Lambda from your account, so their tokens, webhook URLs and secrets stay there.
 
 ## Cost
 
