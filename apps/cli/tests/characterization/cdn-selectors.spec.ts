@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import configSchema from '@stacktape/config/config-schema.json';
 import { HttpApiGateway, defineConfig } from '@stacktape/config-authoring';
+import { validateConfigStructure } from '../../src/domain/config-manager/utils/validation';
 import { validateConfigWithZod } from '../../src/domain/config-manager/utils/zod-validator';
 import { synthesizeFixture } from './synthesis-fixture';
 
@@ -192,6 +193,31 @@ describe('CDN selectors are exclusive choices', () => {
       });
     }
   }
+
+  test('the same key names outside a CDN are not selectors', async () => {
+    await validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          workflow: {
+            type: 'state-machine',
+            properties: {
+              definition: {
+                StartAt: 'Respond',
+                States: {
+                  Respond: {
+                    Type: 'Pass',
+                    Result: { forwardingOptions: { headers: { 'x-custom': 'value' } } },
+                    End: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      } as never
+    });
+  });
 
   test('every valid option synthesizes the matching CloudFront policy', async () => {
     const template = await synthesizeRewrites(validChoices);

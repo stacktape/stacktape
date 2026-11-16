@@ -114,7 +114,9 @@ export const findInvalidCdnSelector = (value: unknown, path: string[] = []): str
   }
   const record = value as Record<string, unknown>;
   const kind = path.at(-1);
-  if (kind === 'cacheKeyParameters' || kind === 'forwardingOptions') {
+  // Only CDN configuration holds these selectors; the same key names in other data, such as a state machine's
+  // `Result`, are left alone.
+  if ((kind === 'cacheKeyParameters' || kind === 'forwardingOptions') && path.includes('cdn')) {
     for (const property of SELECTOR_PROPERTIES) {
       const selector = record[property];
       // Directives are resolved later and validated after resolution.
