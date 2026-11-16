@@ -2937,6 +2937,7 @@ export const lanes: readonly Lane[] = [
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
       'apps/docs/tests/twoslash-types.test.ts',
+      'apps/docs/tests/v3-archive.test.ts',
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
@@ -5283,7 +5284,8 @@ export const slices: readonly Slice[] = [
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
-      'apps/docs/tests/twoslash-types.test.ts'
+      'apps/docs/tests/twoslash-types.test.ts',
+      'apps/docs/tests/v3-archive.test.ts'
     ],
     lanes: ['docs', 'docs-2', 'docs-3', 'docs-test']
   },

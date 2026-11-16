@@ -26,6 +26,16 @@ if (cliArgs.length > 0 && (cliArgs.length !== 2 || cliArgs[0] !== '--out-dir' ||
 }
 const OUT_DIR = resolve(APP_ROOT, cliArgs[1] ?? 'dist');
 const CONTENT_DIR = resolve(APP_ROOT, 'content');
+// The frozen v3 documentation, served under /v3/ and kept out of indexes (see archive/v3/README.md).
+const ARCHIVE_DIR = resolve(APP_ROOT, 'archive/v3/content');
+const ARCHIVE_PREFIX = 'v3/';
+// In-page anchors that v3.7.1's own pages linked to but never had. Any other missing anchor fails.
+const KNOWN_MISSING_ARCHIVE_ANCHORS = new Set(
+  readFileSync(resolve(APP_ROOT, 'archive/v3/known-missing-anchors.txt'), 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+);
 const SITE_ORIGIN = 'https://docs.stacktape.com';
 const ERROR_PAGE = '404.html';
 
@@ -52,13 +62,17 @@ const contentFiles = walk(CONTENT_DIR)
   .filter((path) => path.endsWith('.mdx'))
   .map((path) => normalize(relative(CONTENT_DIR, path)));
 
-const expectedHtmlFiles = new Set([
-  ERROR_PAGE,
-  ...contentFiles.map((file) => {
-    const slug = entryToUrlSlug(file.replace(/\.mdx$/, ''));
-    return slug.length === 0 ? 'index.html' : `${slug.join('/')}/index.html`;
-  })
-]);
+const htmlFileFor = (file: string, prefix = '') => {
+  const slug = entryToUrlSlug(file.replace(/\.mdx$/, ''));
+  return slug.length === 0 ? `${prefix}index.html` : `${prefix}${slug.join('/')}/index.html`;
+};
+const archiveFiles = walk(ARCHIVE_DIR)
+  .filter((path) => path.endsWith('.mdx'))
+  .map((path) => normalize(relative(ARCHIVE_DIR, path)));
+const archiveHtmlFiles = new Set(archiveFiles.map((file) => htmlFileFor(file, ARCHIVE_PREFIX)));
+const isArchivePage = (outputPath: string) => archiveHtmlFiles.has(outputPath);
+
+const expectedHtmlFiles = new Set([ERROR_PAGE, ...contentFiles.map((file) => htmlFileFor(file)), ...archiveHtmlFiles]);
 
 const htmlFiles = walk(OUT_DIR).filter((path) => path.endsWith('.html'));
 const actualHtmlFiles = new Set(htmlFiles.map((path) => normalize(relative(OUT_DIR, path))));
@@ -71,10 +85,11 @@ const isRedirectPage = (relativePath: string) =>
 for (const actual of actualHtmlFiles) {
   // Redirect pages come from `redirects` in astro.config.mjs, not from content; they are checked with the pages below.
   if (!expectedHtmlFiles.has(actual) && !isRedirectPage(actual)) {
-    fail(`unexpected page ${actual} is not derived from content/`);
+    fail(`unexpected page ${actual} is not derived from content/ or archive/v3/content/`);
   }
 }
 if (contentFiles.length === 0) fail('found no canonical MDX pages in content/');
+if (archiveFiles.length !== 94) fail(`expected the 94 v3 archive pages, found ${archiveFiles.length}`);
 
 /* -------------------------------------------------------------------------------------------- *
  * Per-page contract.
@@ -110,6 +125,7 @@ const outputFileForPath = (pathname: string): string | undefined => {
 };
 
 const descriptions = new Map<string, string[]>();
+const archiveFragmentNotices = new Set<string>(); // known-missing archive anchors actually seen
 const cliCommands = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8')) as Record<
   string,
   { publicName: string; args: { flag: string; alias?: string; positional?: number }[] }
@@ -118,6 +134,7 @@ const cliCommands = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8'))
 for (const [filePath, html] of htmlByFile) {
   const shownPath = normalize(relative(OUT_DIR, filePath));
   const isErrorPage = shownPath === ERROR_PAGE;
+  const isArchive = isArchivePage(shownPath);
   for (const section of html.matchAll(/<section\b[^>]*\bid="api-ref-([^"]+)"[^>]*>([\s\S]*?)<\/section>/g)) {
     const command = section[1];
     const reference = cliCommands[command];
@@ -156,15 +173,16 @@ for (const [filePath, html] of htmlByFile) {
   if (titles.length !== 1 || !titles[0].trim()) fail(`${shownPath}: expected one non-empty <title>`);
   if (metaDescriptions.length !== 1 || !metaDescriptions[0].trim()) {
     fail(`${shownPath}: expected one non-empty meta description`);
-  } else {
+  } else if (!isArchive) {
     descriptions.set(metaDescriptions[0], [...(descriptions.get(metaDescriptions[0]) || []), shownPath]);
   }
   if (h1Count !== 1) fail(`${shownPath}: expected one H1, found ${h1Count}`);
 
   const hasNoindex = /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(html);
-  if (isErrorPage) {
-    if (canonicals.length !== 0) fail(`${shownPath}: noindex error page must not declare a canonical URL`);
-    if (!hasNoindex) fail(`${shownPath}: error page must be noindex`);
+  if (isErrorPage || isArchive) {
+    // The v3 archive stays reachable for readers and crawlers (so they see noindex) but out of indexes.
+    if (canonicals.length !== 0) fail(`${shownPath}: noindex page must not declare a canonical URL`);
+    if (!hasNoindex) fail(`${shownPath}: ${isArchive ? 'v3 archive' : 'error'} page must be noindex`);
   } else {
     // The canonical must be the URL this very file is served at — same-origin is not enough. A
     // page advertising a different (or redirecting) URL splits its own ranking signals.
@@ -178,7 +196,7 @@ for (const [filePath, html] of htmlByFile) {
   }
 
   const structuredData = captureAll(html, /<script\s+type="application\/ld\+json">([\s\S]*?)<\/script>/g);
-  if (!isErrorPage && structuredData.length === 0) fail(`${shownPath}: expected JSON-LD structured data`);
+  if (!isErrorPage && !isArchive && structuredData.length === 0) fail(`${shownPath}: expected JSON-LD structured data`);
   for (const json of structuredData) {
     try {
       const parsed = JSON.parse(json);
@@ -217,7 +235,12 @@ for (const [filePath, html] of htmlByFile) {
     if (url.hash && targetFile.endsWith('.html')) {
       const targetHtml = htmlByFile.get(targetFile) ?? readFileSync(targetFile, 'utf8');
       const fragment = decodeURIComponent(url.hash.slice(1));
-      if (fragment && !idsFor(targetHtml).has(fragment)) fail(`${shownPath}: missing fragment ${rawReference}`);
+      if (fragment && !idsFor(targetHtml).has(fragment)) {
+        // The frozen v3 pages keep the anchors they linked to, including the listed ones v3 itself lacked.
+        const known = isArchive && KNOWN_MISSING_ARCHIVE_ANCHORS.has(`${shownPath} ${rawReference}`);
+        if (known) archiveFragmentNotices.add(`${shownPath} ${rawReference}`);
+        else fail(`${shownPath}: missing fragment ${rawReference}`);
+      }
     }
   }
 }
@@ -240,11 +263,14 @@ if (existsSync(sitemapPath)) {
   const sitemap = readFileSync(sitemapPath, 'utf8');
   const listed = new Set(captureAll(sitemap, /<loc>([^<]+)<\/loc>/g));
   for (const page of expectedHtmlFiles) {
-    if (page === ERROR_PAGE) continue;
+    if (page === ERROR_PAGE || isArchivePage(page)) continue;
     const path = page === 'index.html' ? '/' : `/${page.replace(/index\.html$/, '')}`;
     if (!listed.has(`${SITE_ORIGIN}${path}`)) fail(`sitemap is missing ${path}`);
   }
   if (listed.has(`${SITE_ORIGIN}/404/`)) fail('sitemap must not list the noindex error page');
+  for (const url of listed) {
+    if (url.startsWith(`${SITE_ORIGIN}/${ARCHIVE_PREFIX}`)) fail(`sitemap must not list the v3 archive page ${url}`);
+  }
 }
 
 // The CLI owns the LLM corpus; this site republishes it. A transformed copy would make the served
@@ -263,11 +289,17 @@ for (const name of LLM_DISCOVERY_FILES) {
   const served = readFileSync(servedPath);
   const source = readFileSync(sourcePath);
   if (served.length === 0) fail(`${name} is empty`);
+  else if (served.toString('utf8').includes(`${SITE_ORIGIN}/${ARCHIVE_PREFIX}`))
+    fail(`${name} must not include the v3 archive`);
   else if (!served.equals(source)) fail(`${name} differs from the generated corpus at ${sourcePath}`);
 }
 
 /* -------------------------------------------------------------------------------------------- */
 
+for (const entry of KNOWN_MISSING_ARCHIVE_ANCHORS) {
+  if (!archiveFragmentNotices.has(entry))
+    fail(`archive/v3/known-missing-anchors.txt lists ${entry}, which now resolves; remove it`);
+}
 if (errors.length > 0) {
   console.error(`[site-validation] Found ${errors.length} issue(s):`);
   for (const error of errors) console.error(`- ${error}`);
@@ -275,7 +307,8 @@ if (errors.length > 0) {
 }
 
 console.info(
-  `[site-validation] ${htmlFiles.length} pages (${contentFiles.length} from content/ plus the error page): route set, ` +
+  `[site-validation] ${htmlFiles.length} pages (${contentFiles.length} from content/, ${archiveFiles.length} from the v3 ` +
+    'archive, the error page and redirects): route set, ' +
     'metadata, CLI references, JSON-LD, H1s, image alts, internal links, fragments, local assets, sitemap, robots, and the LLM ' +
     'discovery corpus all passed.'
 );

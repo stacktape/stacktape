@@ -1,0 +1,282 @@
+---
+title: 'Configuration'
+order: 1
+---
+
+Stacktape uses a configuration file to define your infrastructure. You can write it in **TypeScript** (recommended), YAML, or JSON.
+
+## TypeScript Configuration
+
+TypeScript gives you full type safety, autocomplete, and the ability to use programming logic.
+
+### Basic Structure
+
+Create a `stacktape.ts` file in your project root:
+
+```typescript
+import { defineConfig, LambdaFunction, HttpApiGateway } from 'stacktape';
+
+export default defineConfig(({ stage, region }) => {
+  // Define your resources
+  const api = new HttpApiGateway({});
+
+  const myFunction = new LambdaFunction({
+    packaging: { entryfilePath: './src/handler.ts' },
+    events: [{ httpApi: api, method: 'GET', path: '/' }]
+  });
+
+  // Return the config object
+  return {
+    resources: { api, myFunction }
+  };
+});
+```
+
+The `defineConfig` function receives context about the deployment:
+
+- `stage` - The stage name (e.g., `dev`, `production`)
+- `region` - The AWS region being deployed to
+- `projectName` - The project name
+
+### Using TypeScript Logic
+
+The power of TypeScript is that you can use real programming constructs:
+
+```typescript
+import { defineConfig, LambdaFunction, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  // Conditional configuration based on stage
+  const isProduction = stage === 'production';
+
+  const db = new RelationalDatabase({
+    engine: {
+      type: 'postgres',
+      version: '16',
+      primaryInstance: {
+        instanceSize: isProduction ? 'db.t4g.medium' : 'db.t4g.micro',
+        multiAz: isProduction // Enable Multi-AZ only in production
+      }
+    }
+  });
+
+  // Generate multiple functions from a list
+  const routes = ['users', 'products', 'orders'];
+  const functions = Object.fromEntries(
+    routes.map((route) => [
+      `${route}Handler`,
+      new LambdaFunction({
+        packaging: { entryfilePath: `./src/handlers/${route}.ts` },
+        connectTo: [db]
+      })
+    ])
+  );
+
+  return {
+    resources: { db, ...functions }
+  };
+});
+```
+
+## YAML Configuration
+
+If you prefer YAML, create a `stacktape.yml` file:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /
+```
+
+### Dynamic Values with Directives
+
+YAML configurations can use **directives** for dynamic values:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: $Format('{}-api.myapp.com', $Stage())
+
+  myFunction:
+    type: function
+    properties:
+      environment:
+        STAGE: $Stage()
+        DATABASE_URL: $ResourceParam('myDatabase', 'connectionString')
+```
+
+Common directives:
+
+- `$Stage()` - Current stage name
+- `$Region()` - Current AWS region
+- `$ResourceParam('resourceName', 'property')` - Reference another resource's property
+- `$Secret('secretName')` - Reference a secret from your secrets store
+- `$Format('template {}', $Stage())` - String formatting
+
+## Connecting Resources
+
+The `connectTo` property automatically:
+
+1. Injects environment variables with connection details
+2. Grants necessary IAM permissions
+3. Configures security group rules for network access
+
+```typescript
+const db = new RelationalDatabase({
+  engine: { type: 'postgres', version: '16' }
+});
+
+const myFunction = new LambdaFunction({
+  packaging: { entryfilePath: './src/handler.ts' },
+  connectTo: [db] // Automatically gets DATABASE_URL, grants permissions
+});
+```
+
+The injected environment variables follow a naming convention:
+
+- `STP_<RESOURCE_NAME>_CONNECTION_STRING`
+- `STP_<RESOURCE_NAME>_HOST`
+- `STP_<RESOURCE_NAME>_PORT`
+
+## Environment Variables
+
+Set environment variables directly on your resources:
+
+```typescript
+const myFunction = new LambdaFunction({
+  packaging: { entryfilePath: './src/handler.ts' },
+  environment: {
+    NODE_ENV: stage === 'production' ? 'production' : 'development',
+    API_KEY: $Secret('my-api-key'),
+    DATABASE_URL: db.connectionString
+  }
+});
+```
+
+## Scripts and Hooks
+
+Define reusable scripts for tasks like database migrations:
+
+```typescript
+import { defineConfig, LocalScript, RelationalDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const db = new RelationalDatabase({
+    engine: { type: 'postgres', version: '16' }
+  });
+
+  return {
+    resources: { db },
+    scripts: {
+      migrate: new LocalScript({
+        executeCommand: 'npx prisma migrate deploy',
+        connectTo: [db]
+      }),
+      seed: new LocalScript({
+        executeCommand: 'npx prisma db seed',
+        connectTo: [db]
+      })
+    },
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    }
+  };
+});
+```
+
+Run scripts manually:
+
+```bash
+stacktape script:run --scriptName migrate --stage dev
+```
+
+## Extending with CloudFormation
+
+Add any AWS resource using raw CloudFormation:
+
+```typescript
+export default defineConfig(() => {
+  const myFunction = new LambdaFunction({
+    packaging: { entryfilePath: './src/handler.ts' },
+    environment: {
+      TOPIC_ARN: $CfResourceParam('MySnsTopic', 'TopicArn')
+    }
+  });
+
+  return {
+    resources: { myFunction },
+    cloudformationResources: {
+      MySnsTopic: {
+        Type: 'AWS::SNS::Topic',
+        Properties: {
+          TopicName: 'my-notifications'
+        }
+      }
+    }
+  };
+});
+```
+
+## Overriding Resource Properties
+
+Override any underlying CloudFormation property:
+
+```typescript
+const myFunction = new LambdaFunction({
+  packaging: { entryfilePath: './src/handler.ts' },
+  overrides: {
+    lambda: {
+      Description: 'My custom description',
+      ReservedConcurrentExecutions: 100
+    }
+  }
+});
+```
+
+Or use transforms for more control:
+
+```typescript
+const myFunction = new LambdaFunction({
+  packaging: { entryfilePath: './src/handler.ts' },
+  transforms: {
+    lambda: (props) => ({
+      ...props,
+      MemorySize: (props.MemorySize ?? 128) * 2
+    })
+  }
+});
+```
+
+## Interactive Config Editor
+
+For YAML configurations, use the web-based [Interactive Config Editor](https://console.stacktape.com/template-editor):
+
+- Visual resource builder with presets
+- Real-time validation and error checking
+- Cost estimation
+- Auto-completion for all properties
+- Preview of generated CloudFormation
+
+The VS Code extension also provides autocomplete and validation for YAML configs.
+
+<PreviousNext
+  left={{ url: '/getting-started/quick-start/', title: 'Quick Start' }}
+  right={{ url: '/getting-started/development-mode/', title: 'Development Mode' }}
+/>

@@ -17,6 +17,7 @@ ignorePatterns = [
   "**/node_modules/**",
   "**/pnpm-lock.yaml",
   "apps/cli/starter-projects/**",
+  "apps/docs/archive/**",
   "apps/docs/content/**",
   "packages/config/src/**"
 ]

@@ -18,4 +18,4 @@ export type AstParent = AstNode & { children: AstNode[] };
 export type JsxElementNode = AstNode & { attributes?: AstNode[] };
 
 /** Frontmatter Astro attaches to the vfile while compiling an MDX page. */
-export type MdxVFile = { value?: unknown; data?: { astro?: { frontmatter?: Record<string, unknown> } } };
+export type MdxVFile = { path?: string; value?: unknown; data?: { astro?: { frontmatter?: Record<string, unknown> } } };

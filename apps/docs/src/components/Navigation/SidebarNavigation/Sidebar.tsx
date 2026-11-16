@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { ContentTree } from './ContentTree';
+import type { DocsVersion } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
 
 const SCROLL_STORAGE_KEY = '_stp-sidebar-scroll-pos';
@@ -89,11 +90,13 @@ if (typeof window !== 'undefined' && !(window as Window & { stpSidebarScrollInit
 export function SidebarNavigation({
   showOnSm,
   allDocPages,
-  pathname
+  pathname,
+  version = 'v4'
 }: {
   showOnSm: boolean;
   allDocPages: DocPage[];
   pathname?: string;
+  version?: DocsVersion;
 }) {
   return (
     <nav
@@ -111,7 +114,7 @@ export function SidebarNavigation({
         data-stp-sidebar-scroller
         className="stp-pretty-scrollbar block self-end w-full m-0 pt-5 overflow-y-auto border-r border-r-border-light [align-content:right] [-webkit-overflow-scrolling:touch] max-[795px]:w-full max-[795px]:bg-[unset] max-[795px]:px-3 max-[795px]:animate-grow-down"
       >
-        <ContentTree allDocPages={allDocPages} pathname={pathname} />
+        <ContentTree allDocPages={allDocPages} pathname={pathname} version={version} />
         <div className="h-[25px]" />
       </div>
     </nav>

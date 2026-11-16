@@ -1,0 +1,470 @@
+---
+title: "MongoDB Atlas Clusters"
+order: 170
+---
+
+<br />
+<br />
+
+A MongoDB Atlas cluster is a schema-less, NoSQL database that is fully managed by MongoDB. Although it is not an AWS-native service, Stacktape seamlessly integrates it into your stacks.
+
+MongoDB Atlas clusters are secure, scalable, and highly available. They have built-in replication and support backups and point-in-time recovery. Each stack that includes a MongoDB Atlas cluster will also create a new [MongoDB Atlas project](https://docs.atlas.mongodb.com/tutorial/manage-projects/), which ensures isolation between stacks.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Secure:** Your data is protected by multiple layers of security.
+- **Scalable:** You can scale your cluster up or down as your needs change.
+- **Performant:** MongoDB Atlas is designed for high performance.
+- **Backups and point-in-time recovery:** You can restore your data to a previous state in case of an accident.
+- **High availability:** Your data is replicated across multiple servers to ensure that it is always available.
+- **ACID transactions:** MongoDB supports multi-document ACID transactions.
+
+## Disadvantages
+
+- **Separate billing:** Although Stacktape integrates with MongoDB Atlas, you will still need to manage your billing separately.
+
+# Provider configuration
+
+To use MongoDB Atlas with Stacktape, you will need to:
+
+1.  Create a [MongoDB Atlas account](https://account.mongodb.com/account/register).
+2.  Follow our [step-by-step guide](/user-guides/mongo-db-atlas-credentials/) to get your `organizationId`, `publicKey`, and `privateKey`.
+3.  Store your credentials in a [secret](/security-resources/secrets/).
+
+```yaml
+# {start-highlight}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-highlight}
+
+resources:
+  myMongoCluster:
+    type: 'mongo-db-atlas-cluster'
+    properties:
+      clusterTier: M2
+```
+
+<PropertiesTable definitionName="MongoDbAtlasProvider" />
+
+# Basic usage
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  # {start-highlight}
+  myMongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2
+  # {stop-highlight}
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      environment:
+        - name: MONGODB_CONNECTION_STRING
+          value: $ResourceParam('myMongoDbCluster', 'connectionString')
+      connectTo:
+        - myMongoDbCluster
+```
+
+```typescript
+import { MongoClient } from 'mongodb';
+
+const client = new MongoClient(process.env.MONGODB_CONNECTION_STRING);
+
+const handler = async (event, context) => {
+  await client.connect();
+
+  const db = client.db('mydb');
+
+  await db.collection('posts').insertOne({
+    title: 'My first post',
+    content: 'Hello!'
+  });
+
+  const post = await db.collection('posts').findOne({ title: 'My first post' });
+
+  await client.close();
+};
+```
+
+# Cluster tier
+
+The cluster tier determines the resources (memory, storage, IOPS) for each data-bearing node in your cluster. To learn more, see the [MongoDB Atlas documentation](https://docs.atlas.mongodb.com/cluster-tier/).
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoCluster:
+    type: 'mongo-db-atlas-cluster'
+    properties:
+      # {start-highlight}
+      clusterTier: M2
+      # {stop-highlight}
+```
+
+# Disk size
+
+Each cluster tier comes with a default amount of storage. All M10+ clusters automatically scale their storage, but you can disable this behavior. You can also customize the storage capacity for all M10+ clusters.
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2
+      # {start-highlight}
+      diskSizeGB: 60
+      # {stop-highlight}
+```
+
+# Auto-scaling
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="autoScaling" descType="ld" />
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+      # {start-highlight}
+      autoScaling:
+        minClusterTier: M10
+        maxClusterTier: M30
+        disableDiskScaling: true
+        disableScaleDown: true
+      # {stop-highlight}
+```
+
+<PropertiesTable definitionName="MongoDbAutoScaling" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+# Sharding
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="numShards" descType="ld" />
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M30
+      # {start-highlight}
+      numShards: 3
+      # {stop-highlight}
+```
+
+# Backups
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="enableBackups" descType="ld" />
+
+There are different types of snapshots with different retention periods and frequencies:
+
+- **Hourly:** Every 6 hours, retained for 2 days.
+- **Daily:** Every day, retained for 7 days.
+- **Weekly:** Every Saturday, retained for 4 weeks.
+- **Monthly:** Last day of the month, retained for 12 months.
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+      # {start-highlight}
+      enableBackups: true
+      # {stop-highlight}
+```
+
+# Point-in-time recovery
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="enablePointInTimeRecovery" descType="ld" />
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+      # {start-highlight}
+      enablePointInTimeRecovery: true
+      # {stop-highlight}
+```
+
+# Accessing clusters from workloads
+
+You can grant a compute resource permission to access a cluster by listing it in the resource's `connectTo` property. This will inject the necessary credentials into the resource.
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+
+resources:
+  myMongoCluster:
+    type: 'mongo-db-atlas-cluster'
+    properties:
+      clusterTier: M2
+
+  myMongoFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/mongo-lambda.ts'
+      memory: 512
+      # {start-highlight}
+      # by allowing access to cluster, lambda receives permissions for reading and writing into cluster databases
+      connectTo:
+        - myMongoCluster
+      # {stop-highlight}
+      environment:
+        # injecting the connection string as environment variable
+        - name: MONGODB_CONNECTION_STRING
+          value: $ResourceParam('myMongoCluster', 'connectionString')
+```
+
+# Accessibility
+
+You can restrict access to your cluster to specific resources or IP addresses. Unlike other database resources, accessibility is set globally in the provider configuration, not on the resource itself. This means that all clusters in a given stack will have the same accessibility mode.
+
+<Warning>
+
+Shared cluster tiers (M2 and M5) only support `internet` accessibility mode.
+
+</Warning>
+
+<PropertiesTable definitionName="MongoDbAtlasAccessibility" searchForReferencesInDefinition="MongoDbAtlasProvider" />
+
+## Internet mode
+
+This is the default and least restrictive mode. The cluster can be accessed from anywhere on the internet. However, your cluster is still protected by _IAM_ permissions.
+
+## VPC mode
+
+In addition to _IAM_ permissions, the cluster is also protected at the network level. This means that only resources within your stack's default VPC can access the cluster. Any IP addresses in the `whitelistedIps` list can also access the cluster. Traffic between your stack's resources and the cluster never leaves the AWS network, which is more secure and can be cheaper.
+
+```yaml
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    # {start-highlight}
+    # "accessibility" option is shared between "mongo-db-atlas-cluster" resources of your stack
+    accessibility:
+      accessibilityMode: vpc
+    # {stop-highlight}
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+```
+
+## Scoped VPC mode
+
+This mode is similar to VPC mode, but even more restrictive. In this mode, the `connectTo` property not only grants _IAM_ permissions, but also grants access at the network level.
+
+```yaml
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    # {start-highlight}
+    # "accessibility" option is shared between "mongo-db-atlas-cluster" resources of your stack
+    accessibility:
+      accessibilityMode: scoping-workloads-in-vpc
+    # {stop-highlight}
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+
+resources:
+  # functionOne does NOT have access to database eventhough it is joined in vpc
+  functionOne:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda.ts'
+      joinDefaultVpc: true
+
+  # functionTwo does have access to database, because it is scoping the database in connectTo list
+  functionTwo:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda-2.ts'
+      joinDefaultVpc: true
+      # {start-highlight}
+      connectTo:
+        - myMongoCluster
+      # {stop-highlight}
+
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+```
+
+## Whitelisted IPs only mode
+
+The cluster can only be accessed from the IP addresses and CIDR blocks in the `whitelistedIps` list.
+
+```yaml
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    # {start-highlight}
+    # "accessibility" option is shared between "mongo-db-atlas-cluster" resources of your stack
+    accessibility:
+      accessibilityMode: whitelisted-ips-only
+      whitelistedIps:
+        - 193.12.16.4
+    # {stop-highlight}
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+```
+
+# Admin user
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="adminUserCredentials" descType="ld" />
+
+<PropertiesTable
+  definitionName="MongoDbAdminUserCredentials"
+  searchForReferencesInDefinition="MongoDbAtlasClusterProps"
+/>
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+resources:
+  myMongoCluster:
+    type: 'mongo-db-atlas-cluster'
+    properties:
+      clusterTier: M2
+      # {start-highlight}
+      adminUserCredentials:
+        userName: my-master-user
+        password: $Secret('mongo-master-password')
+      # {stop-highlight}
+```
+
+# Business Intelligence Connector for SQL
+
+The MongoDB Connector for BI allows you to use SQL to query your MongoDB data with tools like Tableau, Power BI, and Excel.
+
+<PropertiesTable definitionName="MongoDbBiConnector" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+```yaml
+# {start-ignore}
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+# {stop-ignore}
+
+resources:
+  myMongoCluster:
+    type: 'mongo-db-atlas-cluster'
+    properties:
+      clusterTier: 'M10'
+      # {start-highlight}
+      biConnector:
+        enabled: true
+      # {stop-highlight}
+```
+
+# Referenceable parameters
+
+<ReferenceableParams resource="mongo-db-atlas-cluster" />
+
+# Pricing
+
+You are charged for:
+
+- **Cluster tier:** Starting at $8.60/month for an M2 shared cluster.
+- **Data transfer:** For most customers, data transfer fees are less than 10% of their bill. There are no data transfer fees for M0, M2, and M5 clusters.
+
+For a more detailed overview, see the [MongoDB documentation](https://docs.atlas.mongodb.com/billing/data-transfer-costs/).
+
+# API reference
+
+<PropertiesTable definitionName="MongoDbReplication" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+<PropertiesTable definitionName="MongoDbAtlasCluster" />
