@@ -1,0 +1,182 @@
+---
+title: "SQS Queues"
+order: 276
+---
+
+<br />
+<br />
+
+An SQS queue lets you send, store, and receive messages between software components at any volume without losing messages or requiring other services to be available. It's a reliable way to decouple and connect microservices.
+
+Under the hood, Stacktape uses [Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/).
+
+# When to use them
+
+Stacktape offers three managed resources for messaging and communication:
+
+1.  [SNS topics](/other-resources/sns-topics/)
+2.  SQS queues
+3.  [Event buses](/other-resources/event-buses/)
+
+**Use an SNS topic when:**
+
+-   You need to publish messages to many different subscribers with a single action.
+-   You require high throughput and reliability.
+
+**Use an SQS queue when:**
+
+-   You need reliable, one-to-one, asynchronous communication to decouple your applications.
+-   You want to control the rate at which messages are consumed.
+
+**Use an event bus when:**
+
+-   You want to publish messages to many subscribers and use the event data itself to filter which messages are delivered to which subscribers.
+-   You need to integrate with third-party SaaS providers like Shopify, Datadog, or PagerDuty.
+
+# Basic usage
+
+You don't need to specify any properties to create a basic SQS queue.
+
+```yaml
+resources:
+  mainQueue:
+    type: sqs-queue
+```
+
+<PropertiesTable definitionName="SqsQueue" />
+
+# Integrating with workloads
+
+You can trigger a [function](/compute-resources/functions/#sqs-queue) or a [batch job](/compute-resources/batch-jobs/#sqs-queue) whenever messages are available in an SQS queue. Messages are processed in batches. If the function or batch job fails, the messages will reappear in the queue after the visibility timeout.
+
+```yaml
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: mySqsQueue
+      # {stop-highlight}
+
+  mySqsQueue:
+    type: sqs-queue
+```
+
+> A Lambda function with an SQS queue integration.
+
+You can also receive messages using the AWS SDK, as shown in this worker service example:
+
+```yaml
+resources:
+  myQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+
+  processing:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: processing.ts
+      # {start-highlight}
+      connectTo:
+        - myQueue
+      # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+```typescript
+import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+
+const sqsClient = new SQSClient({});
+
+const interval = setInterval(async () => {
+  try {
+    const { Messages } = await sqsClient.send(new ReceiveMessageCommand({ QueueUrl: process.env.STP_MY_QUEUE_URL }));
+    if (Messages?.length) {
+      // do some message processing
+      // .....
+
+      // After processing, delete messages from queue.
+      // If you do NOT delete messages, they will become visible after visibility timeout elapses.
+      // This can lead to same message being processed twice.
+      await Promise.all(
+        Messages.map(({ ReceiptHandle }) =>
+          sqsClient.send(new DeleteMessageCommand({ QueueUrl: process.env.STP_MY_QUEUE_URL, ReceiptHandle }))
+        )
+      );
+    }
+    console.info('Nothing to process');
+  } catch (err) {
+    // error handling
+    console.error(err);
+    clearInterval(interval);
+  }
+}, 10000);
+```
+
+> The code for `processing.ts`.
+
+# Sending messages
+
+You can use the [AWS SDK](https://aws.amazon.com/developer/tools/#SDKs) to send messages to a queue.
+
+```typescript
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+
+const sqsClient = new SQSClient({});
+
+sqsClient.send(
+  new SendMessageCommand({
+    MessageBody: "Hello from the other side",
+    QueueUrl: process.env.STP_MY_QUEUE_URL,
+  })
+);
+```
+
+# FIFO
+
+You can enable FIFO (First-In, First-Out) to ensure that messages are processed in the exact order that they are sent.
+
+<PropDescription definitionName="SqsQueueProps" propertyName="fifoEnabled" descType="ld" />
+
+```yaml
+resources:
+  mainQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+```
+
+## Content-based deduplication
+
+You can enable content-based deduplication to prevent duplicate messages from being sent.
+
+<PropDescription definitionName="SqsQueueProps" propertyName="contentBasedDeduplication" descType="ld" />
+
+# Visibility timeout
+
+The visibility timeout is the amount of time that a message is hidden from other consumers after it has been received. This prevents other consumers from processing the same message.
+
+<PropDescription definitionName="SqsQueueProps" propertyName="visibilityTimeout" descType="ld" />
+
+You can set the visibility timeout using the `visibilityTimeoutSeconds` property.
+
+```yaml
+resources:
+  mainQueue:
+    type: sqs-queue
+    properties:
+      visibilityTimeoutSeconds: 300
+```

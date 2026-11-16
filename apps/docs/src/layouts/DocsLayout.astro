@@ -1,7 +1,7 @@
 ---
 import { ClientRouter } from 'astro:transitions';
 import '@/styles/global.css';
-import config from '@/site-config';
+import config, { type DocsVersion } from '@/site-config';
 import { SITE_NAME, type DocsSeo } from '@/utils/seo';
 import type { DocPage, TableOfContentsItem } from '@/utils/docs-data';
 import { Header } from '@/components/Header/Header';
@@ -18,9 +18,13 @@ type Props = {
   allDocPages: DocPage[];
   tableOfContents: TableOfContentsItem[];
   currentPath: string;
+  /** `v3` renders the archive's own sidebar. Defaults to the current docs. */
+  version?: DocsVersion;
 };
 
-const { title, seo, allDocPages, tableOfContents, currentPath } = Astro.props;
+const { title, seo, allDocPages, tableOfContents, currentPath, version = 'v4' } = Astro.props;
+// Separate persistence names per version: a v4 sidebar must never survive onto a v3 page or back.
+const persistSuffix = version === 'v4' ? '' : `-${version}`;
 const isHome = currentPath === '/';
 
 // The navigation islands below carry explicit `transition:persist` names. Without them Astro
@@ -146,18 +150,21 @@ const siteJsonLd = isHome ? [
     <div class="page-wrapper">
       <MobileHamburgerNavigation
         client:load
-        transition:persist="docs-mobile-nav"
+        transition:persist={`docs-mobile-nav${persistSuffix}`}
         allDocPages={allDocPages}
         pathname={currentPath}
+        version={version}
       />
       <SidebarNavigation
         client:load
-        transition:persist="docs-sidebar"
+        transition:persist={`docs-sidebar${persistSuffix}`}
         allDocPages={allDocPages}
         pathname={currentPath}
+        version={version}
         showOnSm={false}
       />
       <main id="main-content">
+        <slot name="before-title" />
         <h1 class="page-title">{title}</h1>
         <article class="mdx-content"><slot /></article>
         <Divider style={{ marginTop: '55px' }} />

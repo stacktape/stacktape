@@ -1,0 +1,135 @@
+---
+title: "Upstash Serverless Redis"
+order: 190
+---
+
+<br />
+<br />
+
+Upstash provides a serverless Redis service, which allows you to use the fast, in-memory NoSQL data store without having to manage your own servers. With its per-request pricing and low latency, Upstash is a great choice for serverless applications.
+
+<NegativeMargin />
+
+## Advantages
+
+- **REST API:** You can access your database using a [simple REST API](https://docs.upstash.com/redis/features/restapi).
+- **Secure:** You can enable TLS with a single click.
+- **Highly available:** You can enable multi-zone replication to ensure that your data is always available.
+- **Pay-per-request:** You only pay for what you use. See the [Upstash pricing](https://docs.upstash.com/redis/overall/pricing) for more details.
+- **Scalable:** Upstash automatically scales to meet your needs.
+
+## Disadvantages
+
+- **Separate billing:** Although Stacktape integrates with Upstash, you will still need to manage your billing separately.
+
+# Provider configuration
+
+To use Upstash with Stacktape, you will need to:
+
+1.  Create an [Upstash account](https://console.upstash.com/login).
+2.  Get your API key from the [Upstash console](https://console.upstash.com/account/api).
+3.  Store your credentials (the email address for your Upstash account and your API key) in a [secret](/security-resources/secrets/).
+
+```yaml
+# {start-highlight}
+providerConfig:
+  upstash:
+    accountEmail: xxxxx.yyyy@example.com
+    apiKey: $Secret('upstash-api-key')
+# {stop-highlight}
+
+resources:
+  myUpstash:
+    type: upstash-redis
+```
+
+<PropertiesTable definitionName="UpstashProviderConfig" />
+
+# Basic usage
+
+```yaml
+providerConfig:
+  upstash:
+    accountEmail: xxxxx.yyyy@example.com
+    apiKey: $Secret('upstash-api-key')
+
+resources:
+  # {start-highlight}
+  myUpstash:
+    type: upstash-redis
+  # {stop-highlight}
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/upstash.ts
+      environment:
+        - name: UPSTASH_REDIS_REST_URL
+          value: $ResourceParam('myUpstash', 'restUrl')
+        - name: UPSTASH_REDIS_REST_TOKEN
+          value: $ResourceParam('myUpstash', 'restToken')
+```
+
+```typescript
+import upstash from '@upstash/redis';
+
+const redis = upstash({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN });
+
+export default async (event) => {
+  // write data
+  let { data, error } = await redis.set('key1', 'value1');
+
+  // read data
+  ({ data, error } = await redis.get('key1'));
+  console.log(data);
+
+  if (error) {
+    throw error;
+  }
+};
+```
+
+> The code for the `myFunction` function.
+
+<PropertiesTable definitionName="UpstashRedis" />
+
+# Deployment region
+
+Upstash Redis is currently available in the following regions:
+
+-   us-east-1
+-   us-west-1
+-   us-west-2
+-   eu-west-1
+-   eu-central-1
+-   ap-southeast-1
+-   ap-southeast-2
+-   sa-east-1
+
+If you deploy your stack in a different region, Stacktape will automatically deploy the database in the region that is geographically closest to your stack's region.
+
+# Enable eviction
+
+<PropDescription definitionName="UpstashRedisProps" propertyName="enableEviction" descType="ld" />
+
+```yaml
+providerConfig:
+  upstash:
+    accountEmail: xxxxx.yyyy@example.com
+    apiKey: $Secret('upstash-api-key')
+
+resources:
+  myUpstash:
+    type: upstash-redis
+    properties:
+      # {start-highlight}
+      enableEviction: true
+      # {stop-highlight}
+```
+
+# Referenceable parameters
+
+<ReferenceableParams resource="upstash-redis" />

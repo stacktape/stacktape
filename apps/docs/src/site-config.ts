@@ -2,6 +2,7 @@ import {
   LuActivity,
   LuBot,
   LuBoxes,
+  LuBookOpen,
   LuBrainCircuit,
   LuCloudUpload,
   LuContainer,
@@ -17,7 +18,9 @@ import {
   LuMonitor,
   LuNetwork,
   LuPackage,
+  LuPuzzle,
   LuRocket,
+  LuServer,
   LuShield,
   LuTerminal,
   LuWallet,
@@ -36,6 +39,9 @@ import type { ComponentType } from 'react';
 
 /** A `react-icons` component. */
 export type SidebarIcon = ComponentType<{ size?: number }>;
+
+/** `v4` is the current documentation; `v3` is the frozen 3.7.1 archive under `/v3/`. */
+export type DocsVersion = 'v4' | 'v3';
 
 type SidebarSubgroup = {
   /**
@@ -129,6 +135,23 @@ const siteConfig = {
      * Top-level groups use `defaultOpen` on their group entry above.
      */
     defaultOpenPaths: ['/resources/compute']
+  },
+  /** Sidebar of the frozen v3 archive: v3's own groups, in v3's order. */
+  v3Sidebar: {
+    basePath: '/v3',
+    forcedNavOrder: ['/getting-started', '/cli', '/compute-resources', '/database-resources', '/configuration'],
+    groups: [
+      { order: 1, path: '/getting-started', title: 'Getting Started', icon: LuRocket, defaultOpen: true },
+      { order: 3, path: '/cli', title: 'CLI', icon: LuTerminal },
+      { order: 6, path: '/compute-resources', title: 'Compute resources', icon: LuCpu },
+      { order: 7, path: '/database-resources', title: 'Database resources', icon: LuDatabase },
+      { order: 8, path: '/security-resources', title: 'Security resources', icon: LuShield },
+      { order: 9, path: '/other-resources', title: 'Other Resources', icon: LuServer },
+      { order: 10, path: '/3rd-party-resources', title: '3rd party resources', icon: LuPuzzle },
+      { order: 11, path: '/extending', title: 'Extending Stacktape', icon: LuWrench },
+      { order: 12, path: '/user-guides', title: 'User Guides', icon: LuBookOpen },
+      { order: 13, path: '/configuration', title: 'Configuration', icon: LuFileCog }
+    ] satisfies SidebarGroup[]
   },
   social: {
     github: 'https://github.com/stacktape/stacktape',
