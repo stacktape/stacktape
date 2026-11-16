@@ -189,10 +189,11 @@ const variants: Record<string, Record<string, unknown>> = {
   },
   agents: {
     tools: { type: 'function', properties: { packaging: lambdaPackaging('./src/tool.ts') } },
-    agentMemory: { type: 'agentcore-memory', properties: { expirationDays: 30 } },
+    agentMemory: { type: 'agentcore-memory', properties: { eventRetentionDays: 30 } },
     agentGateway: {
       type: 'agentcore-gateway',
       properties: {
+        authorizer: { type: 'none' },
         tools: [
           {
             name: 'lookupOrder',
@@ -279,13 +280,21 @@ type MapResource = {
  * configuration exercised, including types that publish no parameters.
  */
 const synthesizeParameters = async (resources: Record<string, unknown>) => {
-  const published: [resourceType: string, param: string][] = [];
+  const { published, types } = await synthesizeParameterValues(resources);
+  return { published: published.map(([resourceType, param]) => [resourceType, param] as [string, string]), types };
+};
+
+/** Every published parameter with its value, keyed by the resource it belongs to. */
+const synthesizeParameterValues = async (resources: Record<string, unknown>) => {
+  const published: [resourceType: string, param: string, value: unknown, resourceName: string][] = [];
   const types = new Set(Object.values(resources).map((resource) => (resource as { type: string }).type));
-  const collect = (resource: MapResource) => {
-    for (const param of Object.keys(resource.referencableParams)) published.push([resource.resourceType, param]);
-    for (const nested of Object.values(resource._nestedResources ?? {})) {
+  const collect = (resource: MapResource, resourceName: string) => {
+    for (const [param, entry] of Object.entries(resource.referencableParams)) {
+      published.push([resource.resourceType, param, (entry as { value: unknown }).value, resourceName]);
+    }
+    for (const [nestedName, nested] of Object.entries(resource._nestedResources ?? {})) {
       types.add(nested.resourceType);
-      collect(nested);
+      collect(nested, `${resourceName}.${nestedName}`);
     }
   };
   const synthesis = synthesizeFixture({
@@ -300,8 +309,8 @@ const synthesizeParameters = async (resources: Record<string, unknown>) => {
     }),
     workingDir: fixturesDir,
     beforeFinalize: () => {
-      for (const resource of Object.values(calculatedStackOverviewManager.stackInfoMap.resources)) {
-        collect(resource as unknown as MapResource);
+      for (const [name, resource] of Object.entries(calculatedStackOverviewManager.stackInfoMap.resources)) {
+        collect(resource as unknown as MapResource, name);
       }
       throw new ParametersCollected();
     }
@@ -370,3 +379,49 @@ test('numbered parameters reject numbers synthesis never writes', () => {
   expect(isReferenceableParam('relational-database', 'readReplica01Port')).toBe(false);
   expect(isReferenceableParam('relational-database', 'readReplica15Port')).toBe(false);
 });
+
+test('a website `url` is one URL; `customDomainUrls` lists every custom domain in configured order', async () => {
+  const websites = (customDomains: string[]) => {
+    const domainsProperty = customDomains.length
+      ? { customDomains: customDomains.map((name) => ({ ...domain(name), domainName: name })) }
+      : {};
+    return {
+      astro: { type: 'astro-web', properties: { appDirectory: './web', ...domainsProperty } },
+      nextServer: { type: 'nextjs-web', properties: { appDirectory: './web', ...domainsProperty } },
+      nextEdge: { type: 'nextjs-web', properties: { appDirectory: './web', useEdgeLambda: true, ...domainsProperty } }
+    };
+  };
+  const paramsOf = async (customDomains: string[]) => {
+    const { published } = await synthesizeParameterValues(websites(customDomains));
+    return Object.fromEntries(
+      ['astro', 'nextServer', 'nextEdge'].map((resourceName) => [
+        resourceName,
+        Object.fromEntries(
+          published.filter(([, , , name]) => name === resourceName).map(([, param, value]) => [param, value])
+        )
+      ])
+    );
+  };
+
+  const managed = await paramsOf([]);
+  for (const params of Object.values(managed)) {
+    expect(Object.keys(params)).toEqual(['url']);
+    // The managed default domain of the website's CDN.
+    expect(params.url).toMatch(/^https:\/\/[a-z-]+-characterization-baseline-xxxxxxxx\.stacktape-app\.com$/);
+  }
+
+  const single = await paramsOf(['www.example.com']);
+  for (const params of Object.values(single)) {
+    expect(params).toEqual({ url: 'https://www.example.com', customDomainUrls: 'https://www.example.com' });
+  }
+
+  // `b` sorts before `z`; the configured order still wins.
+  const two = await paramsOf(['z.example.com', 'b.example.com']);
+  for (const params of Object.values(two)) {
+    expect(params).toEqual({
+      url: 'https://z.example.com',
+      customDomainUrls: 'https://z.example.com, https://b.example.com'
+    });
+    expect(() => new URL(params.url as string)).not.toThrow();
+  }
+}, 120_000);
