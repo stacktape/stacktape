@@ -997,6 +997,17 @@ export const lanes: readonly Lane[] = [
       "A batch job deploys on Amazon Linux 2023 compute environments that AWS Batch accepts, runs for a message of its SQS queue with the launch template's 100 GB root volume, a deploy that CloudFormation's pre-deployment validation rejects names the resource, property path and reason, and deletion leaves no compute environment, job queue or other resource."
   },
   {
+    id: 'v3-upgrade-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=v3-upgrade-customer-shapes'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/v3-upgrade-canary.ts'],
+    requires: ['aws', 'network', 'docker'],
+    release: 'every-candidate',
+    proves:
+      "Stacks shaped like the paying customers' and created by the released 3.7.1 CLI upgrade through the documented migration without replacing or deleting a stateful resource; the sites, functions, a batch job, an alarm webhook and the database rows the v3 deploys wrote all survive; a code-only change then takes the fast path; and deletion leaves nothing but deferred edge replicas."
+  },
+  {
     id: 'container-fast-deploy-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=container-fast-deploy-serving'],
     level: 'live-aws',
@@ -3976,7 +3987,12 @@ export const slices: readonly Slice[] = [
     promise: 'Resource identity stays stable.',
     status: 'active',
     journeys: ['J2'],
-    paths: ['packages/naming/**'],
+    paths: [
+      'packages/naming/**',
+      'apps/cli/_test-stacks/v3-upgrade/**',
+      'apps/cli/scripts/real-aws/v3-upgrade-canary.ts',
+      'apps/cli/tests/data-safety/**'
+    ],
     tests: [
       'apps/cli/tests/characterization/naming-ownership.spec.ts',
       'apps/cli/tests/data-safety/change-plan-compatibility.spec.ts',
@@ -3990,7 +4006,7 @@ export const slices: readonly Slice[] = [
       'packages/naming/src/user-pool-domain-prefix.test.ts',
       'packages/naming/src/workload-names.test.ts'
     ],
-    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2']
+    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2', 'v3-upgrade-live']
   },
   {
     id: 'S04',

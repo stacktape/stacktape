@@ -684,7 +684,8 @@ const runGlobalLanes = async (options: ParsedOptions): Promise<QualificationStep
       'scoped-access': 'test:real-aws-scoped-access-canary',
       'alarm-notifications': 'test:real-aws-alarm-notifications-canary',
       'static-site': 'test:real-aws-static-site-canary',
-      'batch-job': 'test:real-aws-batch-canary'
+      'batch-job': 'test:real-aws-batch-canary',
+      'v3-upgrade': 'test:real-aws-v3-upgrade'
     }[scenario.runner];
     const inheritedFixture = process.env.STP_INIT_CANARY_FIXTURE;
     if (scenario.fixture !== undefined) process.env.STP_INIT_CANARY_FIXTURE = scenario.fixture;
