@@ -324,7 +324,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -343,7 +343,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('database', 'connectionString')
         - name: STRIPE_SECRET_KEY
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
 ```
 
 ### Example 2 (typescript)
@@ -353,7 +353,7 @@ import { NextjsWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam } 
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {
@@ -368,7 +368,7 @@ export default defineConfig(() => {
     environment: {
       NODE_ENV: 'production',
       DATABASE_URL: $ResourceParam('database', 'connectionString'),
-      STRIPE_SECRET_KEY: $Secret('stripe.secretKey')
+      STRIPE_SECRET_KEY: $Secret('stripe', 'secretKey')
     }
   });
   return { resources: { database, web } };

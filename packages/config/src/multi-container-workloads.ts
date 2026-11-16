@@ -1672,7 +1672,7 @@ export interface ContainerWorkloadContainerBase {
    *             - name: DATABASE_URL
    *               value: $ResourceParam('appDb', 'connectionString')
    *             - name: STRIPE_KEY
-   *               value: $Secret('stripe.secretKey')
+   *               value: $Secret('stripe', 'secretKey')
    *           # stp-end-focus
    *       resources:
    *         cpu: 0.5
@@ -1683,7 +1683,7 @@ export interface ContainerWorkloadContainerBase {
    *     type: relational-database
    *     properties:
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -1699,7 +1699,7 @@ export interface ContainerWorkloadContainerBase {
    *
    * export default defineConfig(() => {
    *   const appDb = new RelationalDatabase({
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const app = new MultiContainerWorkload({
@@ -1711,7 +1711,7 @@ export interface ContainerWorkloadContainerBase {
    *         environment: {
    *           NODE_ENV: 'production',
    *           DATABASE_URL: $ResourceParam('appDb', 'connectionString'),
-   *           STRIPE_KEY: $Secret('stripe.secretKey')
+   *           STRIPE_KEY: $Secret('stripe', 'secretKey')
    *         }
    *         // stp-end-focus
    *       }

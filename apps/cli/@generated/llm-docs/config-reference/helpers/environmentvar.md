@@ -38,7 +38,7 @@ resources:
         - name: MAX_CONNECTIONS
           value: 50
         - name: STRIPE_KEY
-          value: $Secret('stripe.secret-key')
+          value: $Secret('stripe', 'secret-key')
 ```
 
 ### Example 2 (typescript)
@@ -53,7 +53,7 @@ export default defineConfig(() => {
     environment: {
       NODE_ENV: 'production',
       MAX_CONNECTIONS: 50,
-      STRIPE_KEY: $Secret('stripe.secret-key')
+      STRIPE_KEY: $Secret('stripe', 'secret-key')
     }
   });
 

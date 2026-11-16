@@ -487,19 +487,13 @@ export interface StateMachineDefinition {
    * ```
    */
   TimeoutSeconds?: number;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
-export type StpStateMachine = StateMachine['properties'] & {
-  name: string;
-  type: StateMachine['type'];
-  configParentResourceType: StateMachine['type'];
-  nameChain: string[];
-};
-
-
 export interface Choice {
-  Type: string;
+  Type: 'Choice';
   Next?: string;
   End?: true;
   Comment?: string;
@@ -507,6 +501,8 @@ export interface Choice {
   InputPath?: string | null;
   Choices: Operator[];
   Default?: string;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 export interface Operator {
@@ -536,17 +532,19 @@ export interface Operator {
 
 
 export interface Fail {
-  Type: string;
+  Type: 'Fail';
   Comment?: string;
   OutputPath?: string | null;
   InputPath?: string | null;
   Cause?: string;
   Error?: string;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export interface StateMachineMap {
-  Type: string;
+  Type: 'Map';
   Next?: string;
   End?: true;
   Comment?: string;
@@ -555,7 +553,10 @@ export interface StateMachineMap {
   ResultPath?: string | null;
   ItemsPath?: string | null;
   MaxConcurrency?: number;
-  Iterator: StpStateMachine;
+  /** #### The workflow that runs for each item (the older name for `ItemProcessor`). */
+  Iterator?: StateMachineBranch;
+  /** #### The workflow that runs for each item. */
+  ItemProcessor?: StateMachineItemProcessor;
   Parameters?: {
     [k: string]: any;
   };
@@ -571,18 +572,21 @@ export interface StateMachineMap {
     Next: string;
     [k: string]: any;
   }[];
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export interface Parallel {
-  Type: string;
+  Type: 'Parallel';
   Next?: string;
   End?: true;
   Comment?: string;
   OutputPath?: string | null;
   InputPath?: string | null;
   ResultPath?: string | null;
-  Branches: StpStateMachine[];
+  /** #### The workflows that run in parallel. Each is a native Amazon States Language branch. */
+  Branches: StateMachineBranch[];
   Retry?: {
     ErrorEquals: string[];
     IntervalSeconds?: number;
@@ -595,35 +599,69 @@ export interface Parallel {
     Next: string;
     [k: string]: any;
   }[];
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export interface Pass {
-  Type: string;
+  Type: 'Pass';
   Next?: string;
   End?: true;
   Comment?: string;
   OutputPath?: string | null;
   InputPath?: string | null;
-  ResultPath?: string;
+  ResultPath?: string | null;
   Parameters?: {
     [k: string]: any;
   };
   Result?: any;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export type State = Choice | Fail | Parallel | Pass | Succeed | Task | Wait | StateMachineMap;
 
 
-export interface Succeed {
-  Type: string;
+/**
+ * #### A nested workflow: a `Parallel` branch or the workflow a `Map` state runs for each item.
+ *
+ * ---
+ *
+ * Written in Amazon States Language, like the top-level definition. Stacktape passes it to AWS unchanged.
+ */
+export interface StateMachineBranch {
   Comment?: string;
+  StartAt: string;
+  States: {
+    [k: string]: State;
+  };
+  /** Other Amazon States Language fields, such as `QueryLanguage`, are passed to AWS unchanged. */
+  [field: string]: unknown;
+}
+
+
+export interface StateMachineItemProcessor extends StateMachineBranch {
+  /** #### How the `Map` state runs its items: `INLINE`, or `DISTRIBUTED` with an `ExecutionType`. */
+  ProcessorConfig?: {
+    [k: string]: unknown;
+  };
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
+}
+
+
+export interface Succeed {
+  Type: 'Succeed';
+  Comment?: string;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export interface Task {
-  Type: string;
+  Type: 'Task';
   Next?: string;
   End?: true;
   Comment?: string;
@@ -652,11 +690,13 @@ export interface Task {
   Parameters?: {
     [k: string]: any;
   };
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }
 
 
 export interface Wait {
-  Type: string;
+  Type: 'Wait';
   Next?: string;
   End?: true;
   Comment?: string;
@@ -666,4 +706,6 @@ export interface Wait {
   Timestamp?: string;
   SecondsPath?: string | null;
   TimestampPath?: string | null;
+  /** Other Amazon States Language fields are passed to AWS unchanged. */
+  [field: string]: unknown;
 }

@@ -227,8 +227,8 @@ export default defineConfig(() => {
     identityProviders: [
       {
         type: 'Google',
-        clientId: "$Secret('google-credentials.clientId')",
-        clientSecret: "$Secret('google-credentials.clientSecret')"
+        clientId: "$Secret('google-credentials', 'clientId')",
+        clientSecret: "$Secret('google-credentials', 'clientSecret')"
       }
     ],
     callbackURLs: ['https://myapp.com/auth/callback'],

@@ -280,6 +280,7 @@ const CONSTRUCTORS: Record<string, Argument[]> = {
   boolean: [],
   enum: ['strings'],
   literal: ['literal'],
+  null: [],
   number: [],
   object: ['shape'],
   preprocess: ['coercion'],

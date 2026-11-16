@@ -34,7 +34,7 @@ export interface RelationalDatabaseProps {
  *       # stp-focus
  *       credentials:
  *         masterUserName: db_master_user
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-end-focus
  *       engine:
  *         type: postgres
@@ -54,7 +54,7 @@ export interface RelationalDatabaseProps {
  *     // stp-focus
  *     credentials: {
  *       masterUserName: 'db_master_user',
- *       masterUserPassword: $Secret('mainDatabase.password')
+ *       masterUserPassword: $Secret('mainDatabase', 'password')
  *     },
  *     // stp-end-focus
  *     engine: {
@@ -89,7 +89,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       engine:
  *         type: aurora-postgresql-serverless-v2
@@ -107,7 +107,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
@@ -123,7 +123,7 @@ export interface RelationalDatabaseProps {
  * });
  * ```
    */
-  engine: AuroraServerlessEngine | RdsEngine | AuroraEngine | AuroraServerlessV2Engine;
+  engine: RdsEngine | AuroraEngine | AuroraServerlessV2Engine;
   /**
    * #### Who can connect to this database (network-level access control).
    *
@@ -141,7 +141,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       accessibility:
  *         accessibilityMode: scoping-workloads-in-vpc
@@ -161,7 +161,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
  *     // stp-end-focus
@@ -192,7 +192,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       deletionProtection: true
  *       # stp-end-focus
@@ -211,7 +211,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     deletionProtection: true,
  *     // stp-end-focus
@@ -244,7 +244,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       automatedBackupRetentionDays: 7
  *       # stp-end-focus
@@ -263,7 +263,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     automatedBackupRetentionDays: 7,
  *     // stp-end-focus
@@ -298,7 +298,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       preferredMaintenanceWindow: Sun:02:00-Sun:04:00
  *       # stp-end-focus
@@ -317,7 +317,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     preferredMaintenanceWindow: 'Sun:02:00-Sun:04:00',
  *     // stp-end-focus
@@ -347,7 +347,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       alarms:
  *         - trigger:
@@ -375,7 +375,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     alarms: [
  *       {
@@ -418,7 +418,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       disabledGlobalAlarms:
  *         - db-cpu-high
@@ -438,7 +438,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     disabledGlobalAlarms: ['db-cpu-high'],
  *     // stp-end-focus
@@ -471,7 +471,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       logging:
  *         retentionDays: 30
@@ -493,7 +493,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     logging: {
  *       retentionDays: 30,
@@ -526,7 +526,7 @@ export interface RelationalDatabaseProps {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       # stp-focus
  *       dev:
  *         remote: true
@@ -546,7 +546,7 @@ export interface RelationalDatabaseProps {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     // stp-focus
  *     dev: { remote: true },
  *     // stp-end-focus
@@ -587,7 +587,7 @@ export interface SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -605,7 +605,7 @@ export interface SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -635,7 +635,7 @@ export interface SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -654,7 +654,7 @@ export interface SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -687,21 +687,6 @@ export interface SharedEngineProperties {
 export interface AuroraEngine {
   type: 'aurora-mysql' | 'aurora-postgresql';
   properties: AuroraEngineProperties;
-}
-
-
-/**
- * #### Aurora Serverless v1: auto-scaling database that can pause when idle.
- *
- * ---
- *
- * Scales compute capacity automatically and pauses during inactivity (you only pay for storage).
- *
- * > **For new projects, use Aurora Serverless v2 instead** — it has faster scaling and more granular capacity control.
- */
-export interface AuroraServerlessEngine {
-  type: 'aurora-mysql-serverless' | 'aurora-postgresql-serverless';
-  properties?: AuroraServerlessEngineProperties;
 }
 
 
@@ -763,7 +748,7 @@ export interface RdsEnginePrimaryInstance {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -781,7 +766,7 @@ export interface RdsEnginePrimaryInstance {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -815,7 +800,7 @@ export interface RdsEnginePrimaryInstance {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -834,7 +819,7 @@ export interface RdsEnginePrimaryInstance {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -876,7 +861,7 @@ export interface RelationalDatabaseCredentials {
  *         # stp-focus
  *         masterUserName: app_admin
  *         # stp-end-focus
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -896,7 +881,7 @@ export interface RelationalDatabaseCredentials {
  *       // stp-focus
  *       masterUserName: 'app_admin',
  *       // stp-end-focus
- *       masterUserPassword: $Secret('mainDatabase.password')
+ *       masterUserPassword: $Secret('mainDatabase', 'password')
  *     },
  *     engine: {
  *       type: 'postgres',
@@ -930,7 +915,7 @@ export interface RelationalDatabaseCredentials {
  *       credentials:
  *         masterUserName: db_master_user
  *         # stp-focus
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *         # stp-end-focus
  *       engine:
  *         type: postgres
@@ -950,7 +935,7 @@ export interface RelationalDatabaseCredentials {
  *     credentials: {
  *       masterUserName: 'db_master_user',
  *       // stp-focus
- *       masterUserPassword: $Secret('mainDatabase.password')
+ *       masterUserPassword: $Secret('mainDatabase', 'password')
  *       // stp-end-focus
  *     },
  *     engine: {
@@ -994,7 +979,7 @@ export interface DatabaseAccessibility {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       accessibility:
  *         # stp-focus
  *         accessibilityMode: vpc
@@ -1014,7 +999,7 @@ export interface DatabaseAccessibility {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     accessibility: {
  *       // stp-focus
  *       accessibilityMode: 'vpc'
@@ -1050,7 +1035,7 @@ export interface DatabaseAccessibility {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       accessibility:
  *         accessibilityMode: vpc
  *         # stp-focus
@@ -1071,7 +1056,7 @@ export interface DatabaseAccessibility {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     accessibility: {
  *       accessibilityMode: 'vpc',
  *       // stp-focus
@@ -1108,7 +1093,7 @@ export interface DatabaseAccessibility {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       accessibility:
  *         accessibilityMode: whitelisted-ips-only
  *         # stp-focus
@@ -1131,7 +1116,7 @@ export interface DatabaseAccessibility {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     accessibility: {
  *       accessibilityMode: 'whitelisted-ips-only',
  *       // stp-focus
@@ -1171,7 +1156,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -1190,7 +1175,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -1220,7 +1205,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -1239,7 +1224,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -1269,7 +1254,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -1290,7 +1275,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -1320,7 +1305,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -1339,7 +1324,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -1373,7 +1358,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -1394,7 +1379,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -1432,7 +1417,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         # stp-focus
  *         disabled: true
@@ -1452,7 +1437,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       // stp-focus
  *       disabled: true
@@ -1487,7 +1472,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         # stp-focus
  *         retentionDays: 180
@@ -1509,7 +1494,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       // stp-focus
  *       retentionDays: 180,
@@ -1549,7 +1534,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         # stp-focus
  *         logTypes:
@@ -1571,7 +1556,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       // stp-focus
  *       logTypes: ['error', 'slowquery']
@@ -1603,7 +1588,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1627,7 +1612,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       // stp-focus
@@ -1667,7 +1652,7 @@ export interface PostgresLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1690,7 +1675,7 @@ export interface PostgresLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       engineSpecificOptions: {
@@ -1727,7 +1712,7 @@ export interface PostgresLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1750,7 +1735,7 @@ export interface PostgresLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       engineSpecificOptions: {
@@ -1787,7 +1772,7 @@ export interface PostgresLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1810,7 +1795,7 @@ export interface PostgresLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       engineSpecificOptions: {
@@ -1847,7 +1832,7 @@ export interface PostgresLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1870,7 +1855,7 @@ export interface PostgresLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       engineSpecificOptions: {
@@ -1907,7 +1892,7 @@ export interface PostgresLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - postgresql
@@ -1930,7 +1915,7 @@ export interface PostgresLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['postgresql'],
  *       engineSpecificOptions: {
@@ -1971,7 +1956,7 @@ export interface MysqlLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - audit
@@ -1996,7 +1981,7 @@ export interface MysqlLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['audit'],
  *       engineSpecificOptions: {
@@ -2033,7 +2018,7 @@ export interface MysqlLoggingOptions {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       logging:
  *         logTypes:
  *           - slowquery
@@ -2056,7 +2041,7 @@ export interface MysqlLoggingOptions {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     logging: {
  *       logTypes: ['slowquery'],
  *       engineSpecificOptions: {
@@ -2097,7 +2082,7 @@ export interface RdsEngineStorage {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -2118,7 +2103,7 @@ export interface RdsEngineStorage {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -2153,7 +2138,7 @@ export interface RdsEngineStorage {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: postgres
  *         properties:
@@ -2174,7 +2159,7 @@ export interface RdsEngineStorage {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'postgres',
  *       properties: {
@@ -2199,276 +2184,6 @@ export interface RdsEngineStorage {
 }
 
 
-export interface AuroraServerlessEngineProperties extends Omit<SharedEngineProperties, 'version'> {
-  /**
-   * #### Engine version. Usually managed by AWS automatically for serverless v1.
- *
- * ---
- *
- * **Example (YAML):**
- *
- * ```yaml
- * resources:
- *   mainDatabase:
- *     type: relational-database
- *     properties:
- *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
- *       accessibility:
- *         accessibilityMode: scoping-workloads-in-vpc
- *       engine:
- *         type: aurora-postgresql-serverless
- *         properties:
- *           # stp-focus
- *           version: '13.12'
- *           # stp-end-focus
- *           minCapacity: 2
- *           maxCapacity: 8
- * ```
- *
- * **Example (TypeScript):**
- *
- * ```ts
- * import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
- *
- * export default defineConfig(() => {
- *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
- *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
- *     engine: {
- *       type: 'aurora-postgresql-serverless',
- *       properties: {
- *         // stp-focus
- *         version: '13.12',
- *         // stp-end-focus
- *         minCapacity: 2,
- *         maxCapacity: 8
- *       }
- *     }
- *   });
- *   return { resources: { mainDatabase } };
- * });
- * ```
-   */
-  version?: string;
-  /**
-   * #### Name of the initial database.
- *
- * ---
- *
- * **Example (YAML):**
- *
- * ```yaml
- * resources:
- *   mainDatabase:
- *     type: relational-database
- *     properties:
- *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
- *       accessibility:
- *         accessibilityMode: scoping-workloads-in-vpc
- *       engine:
- *         type: aurora-postgresql-serverless
- *         properties:
- *           # stp-focus
- *           dbName: appdb
- *           # stp-end-focus
- *           minCapacity: 2
- *           maxCapacity: 8
- * ```
- *
- * **Example (TypeScript):**
- *
- * ```ts
- * import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
- *
- * export default defineConfig(() => {
- *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
- *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
- *     engine: {
- *       type: 'aurora-postgresql-serverless',
- *       properties: {
- *         // stp-focus
- *         dbName: 'appdb',
- *         // stp-end-focus
- *         minCapacity: 2,
- *         maxCapacity: 8
- *       }
- *     }
- *   });
- *   return { resources: { mainDatabase } };
- * });
- * ```
-   *
-   * @default "defdb"
-   */
-  dbName?: string;
-  /**
-   * #### Minimum ACUs to scale down to (~1 ACU ≈ 2 GB RAM).
-   *
-   * ---
-   *
-   * MySQL: 1-256 (powers of 2). PostgreSQL: 2-256 (powers of 2).
-   *
- *
- * **Example (YAML):**
- *
- * ```yaml
- * resources:
- *   mainDatabase:
- *     type: relational-database
- *     properties:
- *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
- *       accessibility:
- *         accessibilityMode: scoping-workloads-in-vpc
- *       engine:
- *         type: aurora-postgresql-serverless
- *         properties:
- *           # stp-focus
- *           minCapacity: 2
- *           # stp-end-focus
- *           maxCapacity: 16
- * ```
- *
- * **Example (TypeScript):**
- *
- * ```ts
- * import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
- *
- * export default defineConfig(() => {
- *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
- *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
- *     engine: {
- *       type: 'aurora-postgresql-serverless',
- *       properties: {
- *         // stp-focus
- *         minCapacity: 2,
- *         // stp-end-focus
- *         maxCapacity: 16
- *       }
- *     }
- *   });
- *   return { resources: { mainDatabase } };
- * });
- * ```
-   *
-   * @default 2
-   */
-  minCapacity?: number;
-  /**
-   * #### Maximum ACUs to scale up to.
-   *
-   * ---
-   *
-   * MySQL: 1-256 (powers of 2). PostgreSQL: 2-256 (powers of 2).
-   *
- *
- * **Example (YAML):**
- *
- * ```yaml
- * resources:
- *   mainDatabase:
- *     type: relational-database
- *     properties:
- *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
- *       accessibility:
- *         accessibilityMode: scoping-workloads-in-vpc
- *       engine:
- *         type: aurora-postgresql-serverless
- *         properties:
- *           minCapacity: 2
- *           # stp-focus
- *           maxCapacity: 32
- *           # stp-end-focus
- * ```
- *
- * **Example (TypeScript):**
- *
- * ```ts
- * import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
- *
- * export default defineConfig(() => {
- *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
- *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
- *     engine: {
- *       type: 'aurora-postgresql-serverless',
- *       properties: {
- *         minCapacity: 2,
- *         // stp-focus
- *         maxCapacity: 32
- *         // stp-end-focus
- *       }
- *     }
- *   });
- *   return { resources: { mainDatabase } };
- * });
- * ```
-   *
-   * @default 4
-   */
-  maxCapacity?: number;
-  /**
-   * #### Pause the database after this many seconds of inactivity (no connections).
-   *
-   * ---
-   *
-   * When paused, you only pay for storage. Range: 300 (5 min) - 86400 (24 hr).
-   * Omit to never pause.
- *
- * **Example (YAML):**
- *
- * ```yaml
- * resources:
- *   mainDatabase:
- *     type: relational-database
- *     properties:
- *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
- *       accessibility:
- *         accessibilityMode: scoping-workloads-in-vpc
- *       engine:
- *         type: aurora-postgresql-serverless
- *         properties:
- *           minCapacity: 2
- *           maxCapacity: 8
- *           # stp-focus
- *           pauseAfterSeconds: 900
- *           # stp-end-focus
- * ```
- *
- * **Example (TypeScript):**
- *
- * ```ts
- * import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
- *
- * export default defineConfig(() => {
- *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
- *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
- *     engine: {
- *       type: 'aurora-postgresql-serverless',
- *       properties: {
- *         minCapacity: 2,
- *         maxCapacity: 8,
- *         // stp-focus
- *         pauseAfterSeconds: 900
- *         // stp-end-focus
- *       }
- *     }
- *   });
- *   return { resources: { mainDatabase } };
- * });
- * ```
-   */
-  pauseAfterSeconds?: number;
-}
-
-
 export interface AuroraServerlessV2EngineProperties extends SharedEngineProperties {
   /**
    * #### Name of the initial database.
@@ -2483,7 +2198,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
@@ -2502,7 +2217,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
@@ -2538,7 +2253,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
@@ -2556,7 +2271,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
@@ -2589,7 +2304,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
@@ -2607,7 +2322,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
@@ -2643,7 +2358,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
@@ -2662,7 +2377,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
@@ -2699,7 +2414,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql
  *         properties:
@@ -2718,7 +2433,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
@@ -2750,7 +2465,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql
  *         properties:
@@ -2769,7 +2484,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
@@ -2802,7 +2517,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql
  *         properties:
@@ -2821,7 +2536,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
@@ -2859,7 +2574,7 @@ export interface AuroraEngineInstance {
  *     type: relational-database
  *     properties:
  *       credentials:
- *         masterUserPassword: $Secret('mainDatabase.password')
+ *         masterUserPassword: $Secret('mainDatabase', 'password')
  *       engine:
  *         type: aurora-postgresql
  *         properties:
@@ -2877,7 +2592,7 @@ export interface AuroraEngineInstance {
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
- *     credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+ *     credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {

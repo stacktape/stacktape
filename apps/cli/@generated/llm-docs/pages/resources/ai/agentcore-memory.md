@@ -10,7 +10,7 @@ AgentCore Memory is the right choice when your AI agents need cross-session pers
 - **Support agents** that track customer preferences, prior issues, and handoff context over time.
 - **Knowledge-accumulating agents** that build up domain understanding through ongoing interactions.
 
-AgentCore Memory supports optional expiration settings and customer-managed encryption. It also accepts configurable memory strategies whose shape is defined by the AWS Bedrock AgentCore API.
+AgentCore Memory supports an event retention period and customer-managed encryption. It also accepts configurable memory strategies whose shape is defined by the AWS Bedrock AgentCore API.
 
 ## When NOT to use
 
@@ -61,7 +61,7 @@ import {
 export default defineConfig(() => {
   const supportMemory = new AgentCoreMemory({
     description: 'Stores customer interaction history and preferences.',
-    expirationDays: 60
+    eventRetentionDays: 60
   });
 
   const supportAgent = new AgentCoreRuntime({
@@ -94,9 +94,7 @@ const memoryId = process.env.MEMORY_ID;
 
 ## Memory expiration
 
-`AgentCoreMemoryProps` exposes two optional numeric expiration-related properties: `expirationDays` and `eventExpiryDuration`. The provided Stacktape types do not document their accepted ranges, defaults, or relationship — consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for how they interact and what values they accept.
-
-The example below sets `expirationDays`:
+`eventRetentionDays` sets how many days AgentCore keeps raw memory events before deleting them. It defaults to `30`; AWS accepts 7 to 365 days.
 
 
 Example (TypeScript):
@@ -105,7 +103,7 @@ Example (TypeScript):
 import { defineConfig, AgentCoreMemory } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 90
+    eventRetentionDays: 90
   });
 
   return {
@@ -113,9 +111,6 @@ export default defineConfig(() => {
   };
 });
 ```
-
-
-`eventExpiryDuration` is a separate optional numeric property also related to expiration. The precise relationship between `expirationDays` and `eventExpiryDuration` is not specified at the Stacktape config layer — consult the [AWS Bedrock AgentCore API documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for how they interact.
 
 
 > **Tip:** Choose a retention window that balances recall usefulness against storage growth. Shorter windows suit transient conversational context; longer windows work for agents that accumulate user preferences or project knowledge over time.
@@ -139,7 +134,7 @@ import { defineConfig, AgentCoreMemory } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
     encryptionKeyArn: 'arn:aws:kms:us-east-1:123456789012:key/your-key-id',
-    expirationDays: 90
+    eventRetentionDays: 90
   });
 
   return {
@@ -164,7 +159,7 @@ export default defineConfig(() => {
   const secureMemory = new AgentCoreMemory({
     description: 'Encrypted memory for a compliance-sensitive agent.',
     encryptionKeyArn: 'arn:aws:kms:us-east-1:123456789012:key/your-key-id',
-    expirationDays: 180,
+    eventRetentionDays: 180,
     tags: [{ name: 'compliance', value: 'hipaa' }]
   });
 
@@ -192,7 +187,7 @@ import {
 export default defineConfig(() => {
   const chatMemory = new AgentCoreMemory({
     description: 'Conversation history for the chat agent.',
-    expirationDays: 30
+    eventRetentionDays: 30
   });
 
   const chatAgent = new AgentCoreRuntime({
@@ -242,8 +237,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `description` | no | `string` | - |
 | `encryptionKeyArn` | no | `string` | - |
-| `eventExpiryDuration` | no | `number` | - |
-| `expirationDays` | no | `number` | - |
+| `eventRetentionDays` | no | `number` | `30` |
 | `memoryStrategies` | no | `Array<unknown>` | - |
 | `tags` | no | `Array<CloudformationTag>` | - |
 

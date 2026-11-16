@@ -22,7 +22,7 @@ import type {
   PrebuiltBjImagePackaging
 } from '@stacktape/config/deployment-artifacts';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
-import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { StpStateMachine } from '@domain-services/config-manager/resolved-types/state-machines';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import {

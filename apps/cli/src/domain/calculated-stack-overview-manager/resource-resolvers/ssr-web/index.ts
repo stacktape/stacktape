@@ -17,6 +17,7 @@ import {
   getHostHeaderRewriteCloudfrontFunction,
   getDistributionRootObjectTemplateOverride,
   getStaticAssetsCacheBehaviorTemplateOverride,
+  getWebsiteUrlParams,
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
 } from '../_utils/ssr-web-shared';
@@ -62,9 +63,10 @@ const resolveSsrWeb = (ssrWeb: SsrWebResource, resourceType: SsrWebResourceType)
   const resource = calculatedStackOverviewManager.getStpResource({ nameChain: ssrWeb.nameChain });
   const cdnResource = resource._nestedResources.serverFunction;
 
-  resource.referencableParams = {
-    url: cdnResource.referencableParams.cdnCustomDomainUrls || cdnResource.referencableParams.cdnUrl
-  };
+  resource.referencableParams = getWebsiteUrlParams({
+    customDomains: ssrWeb.customDomains,
+    cdnUrl: cdnResource.referencableParams.cdnUrl
+  });
 
   resource.links['logs-server'] = cdnResource.links.logs;
 };

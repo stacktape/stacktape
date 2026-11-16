@@ -259,7 +259,7 @@ export default defineConfig(() => {
   const reports = new Bucket({});
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const exportJob = new BatchJob({

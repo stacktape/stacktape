@@ -36,7 +36,7 @@ Password of the `default` user. 16-128 printable ASCII characters.
 
 Clients connect as user `default` with this password; all traffic is encrypted in transit (TLS).
 Allowed special characters: `!`, `&`, `#`, `$`, `^`, `<`, `>`, `-`. Use `$Secret()` instead of hardcoding:
-defaultUserPassword: $Secret('cache.password')
+defaultUserPassword: $Secret('cache', 'password')
 
 ### Example 1 (yaml)
 
@@ -45,7 +45,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
 ```
@@ -57,7 +57,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -97,7 +97,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
 
@@ -120,7 +120,7 @@ import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -151,7 +151,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       accessibility:
@@ -176,7 +176,7 @@ import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
@@ -211,7 +211,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       automatedBackupRetentionDays: 7
@@ -224,7 +224,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     automatedBackupRetentionDays: 7
   });
@@ -251,7 +251,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       dev:
@@ -265,7 +265,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     dev: {
       remote: true

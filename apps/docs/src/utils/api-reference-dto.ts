@@ -8,7 +8,7 @@
  */
 
 export type ApiTypeInfo =
-  | { kind: 'primitive'; types: string[]; enumValues?: (string | number)[]; constValue?: string | number }
+  | { kind: 'primitive'; types: string[]; enumValues?: (string | number)[]; constValue?: string | number | boolean }
   | { kind: 'reference'; typeName: string }
   | { kind: 'union'; discriminator: string | null; branches: ApiUnionBranch[] }
   | { kind: 'array'; itemType: ApiTypeInfo }

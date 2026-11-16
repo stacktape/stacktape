@@ -113,14 +113,16 @@ The Stacktape `StateMachine` definition models eight ASL state types: Choice, Fa
 |---|---|---|
 | **Task** | Invokes a Lambda function or another supported ASL task target | `Resource`, `Retry`, `Catch`, `TimeoutSeconds`, `HeartbeatSeconds`, `Parameters` |
 | **Choice** | Branches based on input conditions | `Choices` (condition rules), `Default` (fallback state) |
-| **Parallel** | Runs multiple branches concurrently, waits for all to complete | `Branches`, `Retry`, `Catch` |
-| **Map** | Iterates over an array, running a sub-workflow per item | `Iterator`, `ItemsPath`, `MaxConcurrency` |
+| **Parallel** | Runs multiple branches concurrently, waits for all to complete | `Branches` (each a `StartAt`/`States` workflow), `Retry`, `Catch` |
+| **Map** | Iterates over an array, running a sub-workflow per item | `ItemProcessor` (or the older `Iterator`), `ItemsPath`, `MaxConcurrency` |
 | **Wait** | Pauses execution for a duration or until a timestamp | `Seconds`, `Timestamp`, `SecondsPath`, `TimestampPath` |
 | **Pass** | Passes input to output, optionally injecting or transforming data | `Result`, `Parameters`, `ResultPath` |
 | **Succeed** | Marks successful completion — terminates the workflow | — |
 | **Fail** | Terminates execution with an error | `Error`, `Cause` |
 
 **Task** is the most common state type — it's how the state machine invokes your Lambda functions and other AWS services. **Choice** is the branching mechanism (equivalent to if/else). **Parallel** and **Map** handle fan-out patterns. **Succeed** and **Fail** are terminal states that end execution without needing `Next` or `End`. See the [ASL specification](https://states-language.net/spec.html) for full syntax details.
+
+Stacktape checks the state types and the fields listed above. Other ASL fields, such as `QueryLanguage`, `Arguments` or `Assign`, are passed to AWS unchanged, and a path set to `null` (for example `OutputPath: null`) is kept.
 
 ### Referencing Lambda functions
 

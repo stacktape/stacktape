@@ -47,7 +47,11 @@ const ENDPOINT_PARAMS = [
   { name: 'canonicalDomain', description: 'Canonical domain' }
 ] as const;
 
-const SSR_WEB_PARAMS = [{ name: 'url', description: 'Website URL' }] as const;
+/** `url` is the first custom domain URL, or the CDN URL while the website has no custom domains. */
+const SSR_WEB_PARAMS = [
+  { name: 'url', description: 'Website URL: the first custom domain, or the default URL without custom domains' },
+  { name: 'customDomainUrls', description: 'All custom domain URLs, comma-separated' }
+] as const;
 
 /**
  * The parameters each resource type can expose to `$ResourceParam`, the resource classes and `stacktape param get`.

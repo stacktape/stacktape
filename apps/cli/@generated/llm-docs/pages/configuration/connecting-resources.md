@@ -27,7 +27,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -183,7 +183,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -543,7 +543,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion } from 'st
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',

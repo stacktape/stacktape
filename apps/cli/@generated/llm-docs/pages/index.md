@@ -255,7 +255,7 @@ import { defineConfig, LocalScript, RelationalDatabase, RdsEnginePostgres, $Secr
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   return {
@@ -320,7 +320,7 @@ import { Bastion, LocalScriptWithBastionTunneling, RelationalDatabase, RdsEngine
 
 const mainDatabase = new RelationalDatabase({
   engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-  credentials: { masterUserPassword: $Secret('database.password') }
+  credentials: { masterUserPassword: $Secret('database', 'password') }
 });
 
 const bastion = new Bastion({});

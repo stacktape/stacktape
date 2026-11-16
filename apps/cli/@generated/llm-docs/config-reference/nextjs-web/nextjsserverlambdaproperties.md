@@ -36,7 +36,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -60,7 +60,7 @@ import { NextjsWeb, RelationalDatabase, defineConfig, $Secret } from 'stacktape'
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {

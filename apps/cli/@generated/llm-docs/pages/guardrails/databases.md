@@ -148,7 +148,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     accessibility: {
       accessibilityMode: 'vpc'

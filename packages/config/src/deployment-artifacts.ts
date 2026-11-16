@@ -2278,7 +2278,7 @@ export interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingP
   *         properties:
   *           image: registry.example.com/my-org/my-app:latest
   *           # stp-focus
-  *           repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+  *           repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
   *           # stp-end-focus
   *       resources:
   *         cpu: 0.5
@@ -2297,7 +2297,7 @@ export interface PrebuiltImageCwPackagingProps extends PrebuiltImageBjPackagingP
   *       properties: {
   *         image: 'registry.example.com/my-org/my-app:latest',
   *         // stp-focus
-  *         repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+  *         repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
   *         // stp-end-focus
   *       }
   *     },

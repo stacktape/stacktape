@@ -64,7 +64,8 @@ import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getDirectiveParams, getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
+import { getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
+import { getNestedSecretReferences } from './secret-references';
 import { getApexDomain } from '@utils/domains';
 import { startTiming } from '@utils/timings';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
@@ -2214,7 +2215,7 @@ export class ConfigManager {
       if (typeof node === 'string') {
         // if secret is referenced using $Secret directive, on its own or inside another directive
         if (getIsDirective(node)) {
-          secretNames.push(...getNestedDirectiveReferences(node, 'Secret').map((reference) => reference.split('.')[0]));
+          secretNames.push(...getNestedSecretReferences(node).map(({ secretName }) => secretName));
           return;
         }
         // secret referenced using dynamic reference
@@ -2236,8 +2237,7 @@ export class ConfigManager {
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();
     const visit = (node: unknown) => {
-      for (const fullRef of getNestedDirectiveReferences(node, 'Secret')) {
-        const [secretName, jsonKey] = fullRef.split('.');
+      for (const { secretName, jsonKey } of getNestedSecretReferences(node)) {
         if (!secretRefs.has(secretName)) {
           secretRefs.set(secretName, new Set());
         }
@@ -2270,8 +2270,7 @@ export class ConfigManager {
     const names = new Set<string>();
     const extractSecretName = (value: unknown): string | null => {
       if (typeof value === 'string' && getIsDirective(value) && value.startsWith('$Secret')) {
-        const fullRef = getDirectiveParams('Secret', value)[0].value as string;
-        return fullRef.split('.')[0];
+        return getNestedSecretReferences(value)[0]?.secretName ?? null;
       }
       return null;
     };
@@ -2732,12 +2731,6 @@ export class ConfigManager {
 
   get allAuroraDatabases() {
     return this.databases.filter(({ engine }) => isAuroraEngine(engine.type));
-  }
-
-  get allDatabasesWithInstancies() {
-    return this.databases.filter(
-      ({ engine }) => engine.type !== 'aurora-mysql-serverless' && engine.type !== 'aurora-postgresql-serverless'
-    );
   }
 
   get requiredCloudformationPrivateTypes(): StpCfInfrastructureModuleType[] {

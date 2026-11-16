@@ -33,7 +33,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('redis.password')
+      defaultUserPassword: $Secret('redis', 'password')
       engine:
         type: valkey-serverless
   web:
@@ -52,7 +52,7 @@ import { AstroWeb, Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
   const web = new AstroWeb({

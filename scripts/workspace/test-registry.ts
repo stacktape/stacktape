@@ -535,6 +535,7 @@ export const lanes: readonly Lane[] = [
       'tests/characterization/change-plan-replacements.spec.ts',
       'src/domain/config-manager/utils/cdn.spec.ts',
       'tests/characterization/cdn-edge-lambdas.spec.ts',
+      'tests/characterization/cdn-selectors.spec.ts',
       'src/utils/stack-info-map-diff.spec.ts',
       'src/commands/deploy/ec2-runner-config-path.spec.ts',
       'src/commands/deploy/fast-deploy.spec.ts',
@@ -561,6 +562,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/change-plan-replacements.spec.ts',
       'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
+      'apps/cli/tests/characterization/cdn-selectors.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
@@ -4471,6 +4473,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
+      'apps/cli/tests/characterization/cdn-selectors.spec.ts',
       'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
@@ -5865,6 +5868,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
+      'apps/cli/src/domain/config-manager/secret-references.spec.ts',
       'apps/cli/tests/config-loading-ministack/dev-generated-secrets.spec.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',

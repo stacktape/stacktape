@@ -132,8 +132,9 @@ describe('AgentCore family', () => {
       const tools = new LambdaFunction({
         packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/tool.ts' })
       });
-      const agentMemory = new AgentCoreMemory({ expirationDays: 30 });
+      const agentMemory = new AgentCoreMemory({ eventRetentionDays: 45 });
       const agentGateway = new AgentCoreGateway({
+        authorizer: { type: 'none' },
         searchType: 'SEMANTIC',
         tools: [
           {
@@ -169,7 +170,7 @@ describe('AgentCore family', () => {
         // A moving endpoint plus a pinned `default` one, listed second so the default is chosen by name, not position.
         endpoints: ['chat', { name: 'default', runtimeVersion: '1' }],
         environment: { MODEL: 'anthropic.claude' },
-        lifecycle: { maxLifetime: 7200, idleRuntimeSessionTimeout: 300 }
+        lifecycle: { maxLifetimeSeconds: 7200, idleTimeoutSeconds: 300 }
       });
       return {
         resources: { tools, agentMemory, agentGateway, recordings, agentBrowser, agentInterpreter, supportAgent }
@@ -209,6 +210,7 @@ describe('AgentCore family', () => {
 
     // The gateway exposes the tool with its schema in AgentCore's capitalized shape; enum and additionalProperties
     // have no AgentCore equivalent and are dropped.
+    expect(memory.resource.Properties?.EventExpiryDuration).toBe(45);
     expect(gateway.resource.Properties).toMatchObject({
       AuthorizerType: 'NONE',
       ProtocolType: 'MCP',
@@ -272,6 +274,60 @@ describe('AgentCore family', () => {
     expect(allActions.some((action) => /^bedrock-agentcore:.*Gateway|bedrock-agentcore:\*/.test(action))).toBe(true);
     expect(allActions.some((action) => /^bedrock-agentcore:.*Browser|bedrock-agentcore:\*/.test(action))).toBe(true);
     expect(allActions.some((action) => /CodeInterpreter|bedrock-agentcore:\*/.test(action))).toBe(true);
+  });
+
+  test('a gateway requires an explicit authorizer; JWT synthesizes a custom JWT authorizer', async () => {
+    const gatewayConfig = (authorizer: unknown) =>
+      defineConfig(() => {
+        const tools = new LambdaFunction({
+          packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/tool.ts' })
+        });
+        const agentMemory = new AgentCoreMemory({});
+        const agentGateway = new AgentCoreGateway({
+          authorizer: authorizer as never,
+          tools: [
+            { name: 'lookup', function: 'tools', toolSchema: [{ name: 'lookup', inputSchema: { type: 'object' } }] }
+          ]
+        });
+        return { resources: { tools, agentMemory, agentGateway } };
+      });
+
+    const template = await synthesizeFamily(
+      'agentcore-jwt',
+      gatewayConfig({
+        type: 'jwt',
+        properties: {
+          discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+          allowedAudience: ['agents']
+        }
+      })
+    );
+    expect(onlyResourceOfType(template, 'AWS::BedrockAgentCore::Gateway').resource.Properties).toMatchObject({
+      AuthorizerType: 'CUSTOM_JWT',
+      AuthorizerConfiguration: {
+        CustomJWTAuthorizer: {
+          DiscoveryUrl: 'https://auth.example.com/.well-known/openid-configuration',
+          AllowedAudience: ['agents']
+        }
+      }
+    });
+    // Raw memory events are kept for 30 days unless `eventRetentionDays` says otherwise.
+    expect(onlyResourceOfType(template, 'AWS::BedrockAgentCore::Memory').resource.Properties?.EventExpiryDuration).toBe(
+      30
+    );
+
+    const missing = await synthesizeFamily('agentcore-no-authorizer', gatewayConfig(undefined)).catch(
+      (error: Error) => error
+    );
+    expect(missing).toMatchObject({ code: 'CONFIG_AGENTCORE_GATEWAY_AUTHORIZER_MISSING' });
+    expect((missing as Error).message).toContain('exposes all of its tools');
+    expect((missing as Error & { hints?: string[] }).hints?.join('\n')).toContain('`authorizer: { type: none }`');
+
+    const flat = await synthesizeFamily(
+      'agentcore-flat-jwt',
+      gatewayConfig({ discoveryUrl: 'https://auth.example.com/.well-known/openid-configuration' })
+    ).catch((error: Error) => error);
+    expect((flat as Error).message).toContain('sets the JWT settings directly under `authorizer`');
   });
 
   test('a runtime without a `default` endpoint references its first configured endpoint', async () => {
@@ -1408,6 +1464,32 @@ describe('Redis family', () => {
       {},
       '`maxDataGb` must be a whole number'
     );
+  });
+
+  test.each([
+    ['aurora-postgresql-serverless', 'aurora-postgresql-serverless-v2'],
+    ['aurora-mysql-serverless', 'aurora-mysql-serverless-v2']
+  ])('Aurora Serverless v1 `%s` is rejected with a migration hint, not read as v2', async (engineType, replacement) => {
+    const rejection = validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          mainDatabase: {
+            type: 'relational-database',
+            properties: {
+              credentials: { masterUserPassword: 'literal-password-1234' },
+              engine: { type: engineType, properties: { minCapacity: 2, maxCapacity: 8, pauseAfterSeconds: 900 } }
+            }
+          }
+        }
+      } as never
+    });
+    await expect(rejection).rejects.toMatchObject({ code: 'CONFIG_AURORA_SERVERLESS_V1_RETIRED' });
+    const error = (await rejection.catch((caught: Error) => caught)) as Error & { hints?: string[] };
+    expect(error.message).toContain(`Database \`mainDatabase\` uses \`${engineType}\` (Aurora Serverless v1)`);
+    const hints = error.hints?.join('\n') ?? '';
+    expect(hints).toContain(`\`${replacement}\``);
+    expect(hints).toContain('upgrading-from-v3/#aurora-serverless-v1');
   });
 
   test('a v3 `redis-cluster` gets the v4 replacement that keeps its engine and version', async () => {

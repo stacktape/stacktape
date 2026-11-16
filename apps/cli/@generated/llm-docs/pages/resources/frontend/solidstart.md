@@ -210,7 +210,7 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const web = new SolidStartWeb({

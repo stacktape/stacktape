@@ -1,8 +1,9 @@
 import { sub } from '@stacktape/cloudformation/intrinsics';
 import { getDirectiveName, getDirectiveParams, getDirectivePathToProp, getIsDirective } from '@utils/directives';
+import { parseSecretReference } from './secret-references';
 
 export type ContainerSecretReference =
-  | { service: 'secretsmanager'; reference: string; secretName: string; jsonKey?: string }
+  | { service: 'secretsmanager'; reference: string; secretName: string; jsonKey?: string; explicitKey: boolean }
   | { service: 'ssm'; reference: string; parameterName: string };
 
 /** Parses the deliberately narrow syntax accepted by a container `secrets` entry. */
@@ -17,7 +18,8 @@ export const parseContainerSecretReference = (valueFrom: string): ContainerSecre
   }
 
   const params = getDirectiveParams(directiveName, valueFrom);
-  if (params.length !== 1 || typeof params[0].value !== 'string') {
+  const maxParams = directiveName === 'Secret' ? 2 : 1;
+  if (params.length < 1 || params.length > maxParams || params.some(({ value }) => typeof value !== 'string')) {
     return null;
   }
 
@@ -26,8 +28,14 @@ export const parseContainerSecretReference = (valueFrom: string): ContainerSecre
     return { service: 'ssm', reference, parameterName: reference };
   }
 
-  const [secretName, jsonKey] = reference.split('.');
-  return { service: 'secretsmanager', reference, secretName, ...(jsonKey ? { jsonKey } : {}) };
+  const { secretName, jsonKey } = parseSecretReference(params.map(({ value }) => value));
+  return {
+    service: 'secretsmanager',
+    reference,
+    secretName,
+    ...(jsonKey ? { jsonKey } : {}),
+    explicitKey: params.length === 2
+  };
 };
 
 const getSsmParameterArn = (parameterName: string) =>
@@ -38,10 +46,13 @@ const getSsmParameterArn = (parameterName: string) =>
   );
 
 /** The ARN/selector understood by ECS and Batch without ever resolving the sensitive value into CloudFormation. */
-export const getContainerSecretValueFrom = (reference: ContainerSecretReference) =>
-  reference.service === 'ssm'
-    ? getSsmParameterArn(reference.parameterName)
+export const getContainerSecretValueFrom = (reference: ContainerSecretReference) => {
+  if (reference.service === 'ssm') return getSsmParameterArn(reference.parameterName);
+  // The two-argument form names the secret literally, so it reaches `$ContainerSecret` as two arguments too.
+  return reference.explicitKey
+    ? `$ContainerSecret(${JSON.stringify(reference.secretName)}, ${JSON.stringify(reference.jsonKey ?? '')})`
     : `$ContainerSecret(${JSON.stringify(reference.reference)})`;
+};
 
 /** Non-sensitive task metadata that makes an SSM parameter version change register a fresh task definition. */
 export const getContainerSecretVersionLabels = (valueFromEntries: string[] | undefined) =>

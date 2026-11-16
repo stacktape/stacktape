@@ -180,7 +180,7 @@ Define reusable scripts in your config — they run with the same connectivity a
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   return {
@@ -245,7 +245,7 @@ Then add a bastion resource, so you can perform management tasks through a secur
 
 const mainDatabase = new RelationalDatabase({
   engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-  credentials: { masterUserPassword: $Secret('database.password') }
+  credentials: { masterUserPassword: $Secret('database', 'password') }
 });
 
 const bastion = new Bastion({});

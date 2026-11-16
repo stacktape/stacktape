@@ -133,6 +133,27 @@
       ]
     },
     {
+      "id": "config-reference:AgentCoreGatewayJwtAuthorizer",
+      "title": "AgentCoreGatewayJwtAuthorizer API Reference",
+      "route": "/config-reference/agentcore",
+      "sourcePath": "packages/config/src/agentcore.ts",
+      "outputPath": "config-reference/agentcore/agentcoregatewayjwtauthorizer.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AgentCoreGatewayJwtAuthorizer"
+      ],
+      "tags": [
+        "config-reference",
+        "AgentCoreGatewayJwtAuthorizer",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:AgentCoreGatewayJwtAuthorizer#agentcoregatewayjwtauthorizer-api-reference",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#typescript-definition",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#property-properties"
+      ]
+    },
+    {
       "id": "config-reference:AgentCoreGatewayProps",
       "title": "AgentCoreGatewayProps API Reference",
       "route": "/config-reference/agentcore",
@@ -263,8 +284,7 @@
         "AgentCoreMemoryProps",
         "description",
         "encryptionKeyArn",
-        "eventExpiryDuration",
-        "expirationDays",
+        "eventRetentionDays",
         "memoryStrategies",
         "tags"
       ],
@@ -273,8 +293,7 @@
         "config-reference:AgentCoreMemoryProps#typescript-definition",
         "config-reference:AgentCoreMemoryProps#property-description",
         "config-reference:AgentCoreMemoryProps#property-encryptionkeyarn",
-        "config-reference:AgentCoreMemoryProps#property-eventexpiryduration",
-        "config-reference:AgentCoreMemoryProps#property-expirationdays",
+        "config-reference:AgentCoreMemoryProps#property-eventretentiondays",
         "config-reference:AgentCoreMemoryProps#property-memorystrategies",
         "config-reference:AgentCoreMemoryProps#property-tags"
       ]
@@ -342,14 +361,14 @@
       "tags": [
         "config-reference",
         "AgentCoreRuntimeLifecycleConfig",
-        "idleRuntimeSessionTimeout",
-        "maxLifetime"
+        "idleTimeoutSeconds",
+        "maxLifetimeSeconds"
       ],
       "chunks": [
         "config-reference:AgentCoreRuntimeLifecycleConfig#agentcoreruntimelifecycleconfig-api-reference",
         "config-reference:AgentCoreRuntimeLifecycleConfig#typescript-definition",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idleruntimesessiontimeout",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetime"
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idletimeoutseconds",
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetimeseconds"
       ]
     },
     {
@@ -3026,102 +3045,228 @@
       ]
     },
     {
-      "id": "config-reference:CacheKeyCookies",
-      "title": "CacheKeyCookies API Reference",
+      "id": "config-reference:CacheKeyCookiesAll",
+      "title": "CacheKeyCookiesAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeycookies.md",
+      "outputPath": "config-reference/cdn/cachekeycookiesall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyCookies"
+        "CacheKeyCookiesAll"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyCookies",
+        "CacheKeyCookiesAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesAll#cachekeycookiesall-api-reference",
+        "config-reference:CacheKeyCookiesAll#typescript-definition",
+        "config-reference:CacheKeyCookiesAll#property-all",
+        "config-reference:CacheKeyCookiesAll#example-1-yaml",
+        "config-reference:CacheKeyCookiesAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesAllExcept",
+      "title": "CacheKeyCookiesAllExcept API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookiesallexcept.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesAllExcept"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesAllExcept",
         "allExcept",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesAllExcept#cachekeycookiesallexcept-api-reference",
+        "config-reference:CacheKeyCookiesAllExcept#typescript-definition",
+        "config-reference:CacheKeyCookiesAllExcept#property-allexcept",
+        "config-reference:CacheKeyCookiesAllExcept#example-1-yaml",
+        "config-reference:CacheKeyCookiesAllExcept#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesNone",
+      "title": "CacheKeyCookiesNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookiesnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesNone"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesNone#cachekeycookiesnone-api-reference",
+        "config-reference:CacheKeyCookiesNone#typescript-definition",
+        "config-reference:CacheKeyCookiesNone#property-none",
+        "config-reference:CacheKeyCookiesNone#example-1-yaml",
+        "config-reference:CacheKeyCookiesNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesWhitelist",
+      "title": "CacheKeyCookiesWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookieswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyCookies#cachekeycookies-api-reference",
-        "config-reference:CacheKeyCookies#typescript-definition",
-        "config-reference:CacheKeyCookies#property-all",
-        "config-reference:CacheKeyCookies#example-1-yaml",
-        "config-reference:CacheKeyCookies#example-2-typescript",
-        "config-reference:CacheKeyCookies#property-allexcept",
-        "config-reference:CacheKeyCookies#example-1-yaml-2",
-        "config-reference:CacheKeyCookies#example-2-typescript-2",
-        "config-reference:CacheKeyCookies#property-none",
-        "config-reference:CacheKeyCookies#example-1-yaml-3",
-        "config-reference:CacheKeyCookies#example-2-typescript-3",
-        "config-reference:CacheKeyCookies#property-whitelist",
-        "config-reference:CacheKeyCookies#example-1-yaml-4",
-        "config-reference:CacheKeyCookies#example-2-typescript-4"
+        "config-reference:CacheKeyCookiesWhitelist#cachekeycookieswhitelist-api-reference",
+        "config-reference:CacheKeyCookiesWhitelist#typescript-definition",
+        "config-reference:CacheKeyCookiesWhitelist#property-whitelist",
+        "config-reference:CacheKeyCookiesWhitelist#example-1-yaml",
+        "config-reference:CacheKeyCookiesWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:CacheKeyHeaders",
-      "title": "CacheKeyHeaders API Reference",
+      "id": "config-reference:CacheKeyHeadersNone",
+      "title": "CacheKeyHeadersNone API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeyheaders.md",
+      "outputPath": "config-reference/cdn/cachekeyheadersnone.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyHeaders"
+        "CacheKeyHeadersNone"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyHeaders",
+        "CacheKeyHeadersNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyHeadersNone#cachekeyheadersnone-api-reference",
+        "config-reference:CacheKeyHeadersNone#typescript-definition",
+        "config-reference:CacheKeyHeadersNone#property-none",
+        "config-reference:CacheKeyHeadersNone#example-1-yaml",
+        "config-reference:CacheKeyHeadersNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyHeadersWhitelist",
+      "title": "CacheKeyHeadersWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyheaderswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyHeadersWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyHeadersWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyHeaders#cachekeyheaders-api-reference",
-        "config-reference:CacheKeyHeaders#typescript-definition",
-        "config-reference:CacheKeyHeaders#property-none",
-        "config-reference:CacheKeyHeaders#example-1-yaml",
-        "config-reference:CacheKeyHeaders#example-2-typescript",
-        "config-reference:CacheKeyHeaders#property-whitelist",
-        "config-reference:CacheKeyHeaders#example-1-yaml-2",
-        "config-reference:CacheKeyHeaders#example-2-typescript-2"
+        "config-reference:CacheKeyHeadersWhitelist#cachekeyheaderswhitelist-api-reference",
+        "config-reference:CacheKeyHeadersWhitelist#typescript-definition",
+        "config-reference:CacheKeyHeadersWhitelist#property-whitelist",
+        "config-reference:CacheKeyHeadersWhitelist#example-1-yaml",
+        "config-reference:CacheKeyHeadersWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:CacheKeyQueryString",
-      "title": "CacheKeyQueryString API Reference",
+      "id": "config-reference:CacheKeyQueryStringAll",
+      "title": "CacheKeyQueryStringAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeyquerystring.md",
+      "outputPath": "config-reference/cdn/cachekeyquerystringall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyQueryString"
+        "CacheKeyQueryStringAll"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyQueryString",
+        "CacheKeyQueryStringAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyQueryStringAll#cachekeyquerystringall-api-reference",
+        "config-reference:CacheKeyQueryStringAll#typescript-definition",
+        "config-reference:CacheKeyQueryStringAll#property-all",
+        "config-reference:CacheKeyQueryStringAll#example-1-yaml",
+        "config-reference:CacheKeyQueryStringAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyQueryStringNone",
+      "title": "CacheKeyQueryStringNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyquerystringnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyQueryStringNone"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyQueryStringNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyQueryStringNone#cachekeyquerystringnone-api-reference",
+        "config-reference:CacheKeyQueryStringNone#typescript-definition",
+        "config-reference:CacheKeyQueryStringNone#property-none",
+        "config-reference:CacheKeyQueryStringNone#example-1-yaml",
+        "config-reference:CacheKeyQueryStringNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyQueryStringWhitelist",
+      "title": "CacheKeyQueryStringWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyquerystringwhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyQueryStringWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyQueryStringWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyQueryString#cachekeyquerystring-api-reference",
-        "config-reference:CacheKeyQueryString#typescript-definition",
-        "config-reference:CacheKeyQueryString#property-all",
-        "config-reference:CacheKeyQueryString#example-1-yaml",
-        "config-reference:CacheKeyQueryString#example-2-typescript",
-        "config-reference:CacheKeyQueryString#property-none",
-        "config-reference:CacheKeyQueryString#example-1-yaml-2",
-        "config-reference:CacheKeyQueryString#example-2-typescript-2",
-        "config-reference:CacheKeyQueryString#property-whitelist",
-        "config-reference:CacheKeyQueryString#example-1-yaml-3",
-        "config-reference:CacheKeyQueryString#example-2-typescript-3"
+        "config-reference:CacheKeyQueryStringWhitelist#cachekeyquerystringwhitelist-api-reference",
+        "config-reference:CacheKeyQueryStringWhitelist#typescript-definition",
+        "config-reference:CacheKeyQueryStringWhitelist#property-whitelist",
+        "config-reference:CacheKeyQueryStringWhitelist#example-1-yaml",
+        "config-reference:CacheKeyQueryStringWhitelist#example-2-typescript"
       ]
     },
     {
@@ -3692,110 +3837,278 @@
       ]
     },
     {
-      "id": "config-reference:ForwardCookies",
-      "title": "ForwardCookies API Reference",
+      "id": "config-reference:ForwardCookiesAll",
+      "title": "ForwardCookiesAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardcookies.md",
+      "outputPath": "config-reference/cdn/forwardcookiesall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardCookies"
+        "ForwardCookiesAll"
       ],
       "tags": [
         "config-reference",
-        "ForwardCookies",
+        "ForwardCookiesAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardCookiesAll#forwardcookiesall-api-reference",
+        "config-reference:ForwardCookiesAll#typescript-definition",
+        "config-reference:ForwardCookiesAll#property-all",
+        "config-reference:ForwardCookiesAll#example-1-yaml",
+        "config-reference:ForwardCookiesAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardCookiesNone",
+      "title": "ForwardCookiesNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardcookiesnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardCookiesNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardCookiesNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardCookiesNone#forwardcookiesnone-api-reference",
+        "config-reference:ForwardCookiesNone#typescript-definition",
+        "config-reference:ForwardCookiesNone#property-none",
+        "config-reference:ForwardCookiesNone#example-1-yaml",
+        "config-reference:ForwardCookiesNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardCookiesWhitelist",
+      "title": "ForwardCookiesWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardcookieswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardCookiesWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardCookiesWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardCookies#forwardcookies-api-reference",
-        "config-reference:ForwardCookies#typescript-definition",
-        "config-reference:ForwardCookies#property-all",
-        "config-reference:ForwardCookies#example-1-yaml",
-        "config-reference:ForwardCookies#example-2-typescript",
-        "config-reference:ForwardCookies#property-none",
-        "config-reference:ForwardCookies#example-1-yaml-2",
-        "config-reference:ForwardCookies#example-2-typescript-2",
-        "config-reference:ForwardCookies#property-whitelist",
-        "config-reference:ForwardCookies#example-1-yaml-3",
-        "config-reference:ForwardCookies#example-2-typescript-3"
+        "config-reference:ForwardCookiesWhitelist#forwardcookieswhitelist-api-reference",
+        "config-reference:ForwardCookiesWhitelist#typescript-definition",
+        "config-reference:ForwardCookiesWhitelist#property-whitelist",
+        "config-reference:ForwardCookiesWhitelist#example-1-yaml",
+        "config-reference:ForwardCookiesWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:ForwardHeaders",
-      "title": "ForwardHeaders API Reference",
+      "id": "config-reference:ForwardHeadersAllExcept",
+      "title": "ForwardHeadersAllExcept API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardheaders.md",
+      "outputPath": "config-reference/cdn/forwardheadersallexcept.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardHeaders"
+        "ForwardHeadersAllExcept"
       ],
       "tags": [
         "config-reference",
-        "ForwardHeaders",
+        "ForwardHeadersAllExcept",
         "allExcept",
-        "allViewer",
-        "allViewerAndWhitelistCloudFront",
-        "none",
-        "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardHeaders#forwardheaders-api-reference",
-        "config-reference:ForwardHeaders#typescript-definition",
-        "config-reference:ForwardHeaders#property-allexcept",
-        "config-reference:ForwardHeaders#example-1-yaml",
-        "config-reference:ForwardHeaders#example-2-typescript",
-        "config-reference:ForwardHeaders#property-allviewer",
-        "config-reference:ForwardHeaders#example-1-yaml-2",
-        "config-reference:ForwardHeaders#example-2-typescript-2",
-        "config-reference:ForwardHeaders#property-allviewerandwhitelistcloudfront",
-        "config-reference:ForwardHeaders#example-1-yaml-3",
-        "config-reference:ForwardHeaders#example-2-typescript-3",
-        "config-reference:ForwardHeaders#property-none",
-        "config-reference:ForwardHeaders#example-1-yaml-4",
-        "config-reference:ForwardHeaders#example-2-typescript-4",
-        "config-reference:ForwardHeaders#property-whitelist",
-        "config-reference:ForwardHeaders#example-1-yaml-5",
-        "config-reference:ForwardHeaders#example-2-typescript-5"
+        "config-reference:ForwardHeadersAllExcept#forwardheadersallexcept-api-reference",
+        "config-reference:ForwardHeadersAllExcept#typescript-definition",
+        "config-reference:ForwardHeadersAllExcept#property-allexcept",
+        "config-reference:ForwardHeadersAllExcept#example-1-yaml",
+        "config-reference:ForwardHeadersAllExcept#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:ForwardQueryString",
-      "title": "ForwardQueryString API Reference",
+      "id": "config-reference:ForwardHeadersAllViewer",
+      "title": "ForwardHeadersAllViewer API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardquerystring.md",
+      "outputPath": "config-reference/cdn/forwardheadersallviewer.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardQueryString"
+        "ForwardHeadersAllViewer"
       ],
       "tags": [
         "config-reference",
-        "ForwardQueryString",
-        "all",
+        "ForwardHeadersAllViewer",
+        "allViewer",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersAllViewer#forwardheadersallviewer-api-reference",
+        "config-reference:ForwardHeadersAllViewer#typescript-definition",
+        "config-reference:ForwardHeadersAllViewer#property-allviewer",
+        "config-reference:ForwardHeadersAllViewer#example-1-yaml",
+        "config-reference:ForwardHeadersAllViewer#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront",
+      "title": "ForwardHeadersAllViewerAndWhitelistCloudFront API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheadersallviewerandwhitelistcloudfront.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersAllViewerAndWhitelistCloudFront"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersAllViewerAndWhitelistCloudFront",
+        "allViewerAndWhitelistCloudFront",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#forwardheadersallviewerandwhitelistcloudfront-api-reference",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#typescript-definition",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#property-allviewerandwhitelistcloudfront",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#example-1-yaml",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersNone",
+      "title": "ForwardHeadersNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheadersnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersNone#forwardheadersnone-api-reference",
+        "config-reference:ForwardHeadersNone#typescript-definition",
+        "config-reference:ForwardHeadersNone#property-none",
+        "config-reference:ForwardHeadersNone#example-1-yaml",
+        "config-reference:ForwardHeadersNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersWhitelist",
+      "title": "ForwardHeadersWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheaderswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardQueryString#forwardquerystring-api-reference",
-        "config-reference:ForwardQueryString#typescript-definition",
-        "config-reference:ForwardQueryString#property-all",
-        "config-reference:ForwardQueryString#example-1-yaml",
-        "config-reference:ForwardQueryString#example-2-typescript",
-        "config-reference:ForwardQueryString#property-none",
-        "config-reference:ForwardQueryString#example-1-yaml-2",
-        "config-reference:ForwardQueryString#example-2-typescript-2",
-        "config-reference:ForwardQueryString#property-whitelist",
-        "config-reference:ForwardQueryString#example-1-yaml-3",
-        "config-reference:ForwardQueryString#example-2-typescript-3"
+        "config-reference:ForwardHeadersWhitelist#forwardheaderswhitelist-api-reference",
+        "config-reference:ForwardHeadersWhitelist#typescript-definition",
+        "config-reference:ForwardHeadersWhitelist#property-whitelist",
+        "config-reference:ForwardHeadersWhitelist#example-1-yaml",
+        "config-reference:ForwardHeadersWhitelist#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringAll",
+      "title": "ForwardQueryStringAll API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringall.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringAll"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringAll",
+        "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringAll#forwardquerystringall-api-reference",
+        "config-reference:ForwardQueryStringAll#typescript-definition",
+        "config-reference:ForwardQueryStringAll#property-all",
+        "config-reference:ForwardQueryStringAll#example-1-yaml",
+        "config-reference:ForwardQueryStringAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringNone",
+      "title": "ForwardQueryStringNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringNone",
+        "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringNone#forwardquerystringnone-api-reference",
+        "config-reference:ForwardQueryStringNone#typescript-definition",
+        "config-reference:ForwardQueryStringNone#property-none",
+        "config-reference:ForwardQueryStringNone#example-1-yaml",
+        "config-reference:ForwardQueryStringNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringWhitelist",
+      "title": "ForwardQueryStringWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringwhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringWhitelist",
+        "whitelist",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringWhitelist#forwardquerystringwhitelist-api-reference",
+        "config-reference:ForwardQueryStringWhitelist#typescript-definition",
+        "config-reference:ForwardQueryStringWhitelist#property-whitelist",
+        "config-reference:ForwardQueryStringWhitelist#example-1-yaml",
+        "config-reference:ForwardQueryStringWhitelist#example-2-typescript"
       ]
     },
     {
@@ -11108,76 +11421,6 @@
       ]
     },
     {
-      "id": "config-reference:AuroraServerlessEngine",
-      "title": "AuroraServerlessEngine API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengine.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngine"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngine",
-        "type",
-        "properties",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngine#auroraserverlessengine-api-reference",
-        "config-reference:AuroraServerlessEngine#typescript-definition",
-        "config-reference:AuroraServerlessEngine#property-type",
-        "config-reference:AuroraServerlessEngine#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:AuroraServerlessEngineProperties",
-      "title": "AuroraServerlessEngineProperties API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengineproperties.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngineProperties"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngineProperties",
-        "dbName",
-        "disableAutoMinorVersionUpgrade",
-        "maxCapacity",
-        "minCapacity",
-        "pauseAfterSeconds",
-        "version",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngineProperties#auroraserverlessengineproperties-api-reference",
-        "config-reference:AuroraServerlessEngineProperties#typescript-definition",
-        "config-reference:AuroraServerlessEngineProperties#property-dbname",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript",
-        "config-reference:AuroraServerlessEngineProperties#property-disableautominorversionupgrade",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-2",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-2",
-        "config-reference:AuroraServerlessEngineProperties#property-maxcapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-3",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-3",
-        "config-reference:AuroraServerlessEngineProperties#property-mincapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-4",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-4",
-        "config-reference:AuroraServerlessEngineProperties#property-pauseafterseconds",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-5",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-5",
-        "config-reference:AuroraServerlessEngineProperties#property-version",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-6",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-6"
-      ]
-    },
-    {
       "id": "config-reference:AuroraServerlessV2Engine",
       "title": "AuroraServerlessV2Engine API Reference",
       "route": "/config-reference/relational-database",
@@ -12730,6 +12973,33 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineBranch",
+      "title": "StateMachineBranch API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachinebranch.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineBranch"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineBranch",
+        "StartAt",
+        "States",
+        "Comment",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineBranch#statemachinebranch-api-reference",
+        "config-reference:StateMachineBranch#typescript-definition",
+        "config-reference:StateMachineBranch#property-startat",
+        "config-reference:StateMachineBranch#property-states",
+        "config-reference:StateMachineBranch#property-comment"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineDefinition",
       "title": "StateMachineDefinition API Reference",
       "route": "/config-reference/state-machine",
@@ -12771,6 +13041,35 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineItemProcessor",
+      "title": "StateMachineItemProcessor API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachineitemprocessor.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineItemProcessor"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineItemProcessor",
+        "StartAt",
+        "States",
+        "Comment",
+        "ProcessorConfig",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineItemProcessor#statemachineitemprocessor-api-reference",
+        "config-reference:StateMachineItemProcessor#typescript-definition",
+        "config-reference:StateMachineItemProcessor#property-startat",
+        "config-reference:StateMachineItemProcessor#property-states",
+        "config-reference:StateMachineItemProcessor#property-comment",
+        "config-reference:StateMachineItemProcessor#property-processorconfig"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineMap",
       "title": "StateMachineMap API Reference",
       "route": "/config-reference/state-machine",
@@ -12784,13 +13083,14 @@
       "tags": [
         "config-reference",
         "StateMachineMap",
-        "Iterator",
         "Type",
         "Catch",
         "Comment",
         "End",
         "InputPath",
+        "ItemProcessor",
         "ItemsPath",
+        "Iterator",
         "MaxConcurrency",
         "Next",
         "OutputPath",
@@ -12802,13 +13102,14 @@
       "chunks": [
         "config-reference:StateMachineMap#statemachinemap-api-reference",
         "config-reference:StateMachineMap#typescript-definition",
-        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-type",
         "config-reference:StateMachineMap#property-catch",
         "config-reference:StateMachineMap#property-comment",
         "config-reference:StateMachineMap#property-end",
         "config-reference:StateMachineMap#property-inputpath",
+        "config-reference:StateMachineMap#property-itemprocessor",
         "config-reference:StateMachineMap#property-itemspath",
+        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-maxconcurrency",
         "config-reference:StateMachineMap#property-next",
         "config-reference:StateMachineMap#property-outputpath",
@@ -12840,33 +13141,6 @@
         "config-reference:StateMachineProps#property-definition",
         "config-reference:StateMachineProps#example-1-yaml",
         "config-reference:StateMachineProps#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:StpStateMachine",
-      "title": "StpStateMachine API Reference",
-      "route": "/config-reference/state-machine",
-      "sourcePath": "packages/config/src/state-machines.ts",
-      "outputPath": "config-reference/state-machine/stpstatemachine.md",
-      "docKind": "config-reference",
-      "resourceType": "state-machine",
-      "definitionNames": [
-        "StpStateMachine"
-      ],
-      "tags": [
-        "config-reference",
-        "StpStateMachine",
-        "configParentResourceType",
-        "name",
-        "nameChain",
-        "state-machine"
-      ],
-      "chunks": [
-        "config-reference:StpStateMachine#stpstatemachine-api-reference",
-        "config-reference:StpStateMachine#typescript-definition",
-        "config-reference:StpStateMachine#property-configparentresourcetype",
-        "config-reference:StpStateMachine#property-name",
-        "config-reference:StpStateMachine#property-namechain"
       ]
     },
     {
@@ -17774,7 +18048,7 @@
         "page:/configuration/secrets#referencing-secrets-with-secret",
         "page:/configuration/secrets#native-secret-injection-for-containers",
         "page:/configuration/secrets#basic-usage",
-        "page:/configuration/secrets#json-secrets-with-dot-notation",
+        "page:/configuration/secrets#json-secrets",
         "page:/configuration/secrets#how-secret-resolution-works",
         "page:/configuration/secrets#retrieving-and-managing-secrets",
         "page:/configuration/secrets#view-a-secret-value",
@@ -18414,6 +18688,10 @@
         "page:/getting-started/upgrading-from-v3#alarm-notifications",
         "page:/getting-started/upgrading-from-v3#nat",
         "page:/getting-started/upgrading-from-v3#redis-caches",
+        "page:/getting-started/upgrading-from-v3#aurora-serverless-v1",
+        "page:/getting-started/upgrading-from-v3#cdn-cache-and-forwarding-options",
+        "page:/getting-started/upgrading-from-v3#website-urls",
+        "page:/getting-started/upgrading-from-v3#secrets-with-a-json-key",
         "page:/getting-started/upgrading-from-v3#automatic-rollback",
         "page:/getting-started/upgrading-from-v3#typescript-configurations",
         "page:/getting-started/upgrading-from-v3#sending-email-with-ses",
@@ -20925,7 +21203,7 @@
         "page:/resources/databases/relational-database#standard-rds",
         "page:/resources/databases/relational-database#aurora",
         "page:/resources/databases/relational-database#aurora-serverless-v2",
-        "page:/resources/databases/relational-database#aurora-serverless-v1",
+        "page:/resources/databases/relational-database#aurora-serverless-v1-is-retired",
         "page:/resources/databases/relational-database#database-name-and-port",
         "page:/resources/databases/relational-database#supported-versions",
         "page:/resources/databases/relational-database#accessibility",

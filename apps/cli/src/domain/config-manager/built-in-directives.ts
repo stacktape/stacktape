@@ -21,6 +21,7 @@ import { getAllReferencableParams, isSecretCfAttribute, referenceableTypes } fro
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { configErrors } from './errors';
+import { describeSecretDirective, parseSecretReference } from './secret-references';
 
 /**
  * The intrinsic `$CfResourceParam(resourceName, property)` stands for: `Fn::GetAtt` of an attribute, or `Ref` when
@@ -346,79 +347,33 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       name: 'Secret',
       requiredParams: { resourceName: 'string' },
       isRuntime: true,
-      resolveFunction: () => async (secretReference: string) => {
-        const [secretName, jsonKey] = secretReference.split('.');
-        // `validate` has already reported this secret as missing. Deploy never gets here: it creates or asks for every
-        // missing secret first, and fails when it cannot.
-        if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
-          return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::}}`;
-        }
-        let secret;
-        try {
-          secret = await awsSdkManager.secrets.get({ secretId: secretName });
-        } catch (error) {
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve \`$Secret('${secretName}')\`.\n${String(error)}`,
-            hints: `If the secret does not exist yet, create it using \`stacktape secret set\`.`,
-            cause: error
-          });
-        }
-        if (jsonKey) {
-          let parsedSecret: unknown;
+      resolveFunction:
+        () =>
+        async (...args: string[]) => {
+          const { secretName, jsonKey } = parseSecretReference(args);
+          const directive = describeSecretDirective(args);
+          // `validate` has already reported this secret as missing. Deploy never gets here: it creates or asks for every
+          // missing secret first, and fails when it cannot.
+          if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+            return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::}}`;
+          }
+          let secret;
           try {
-            parsedSecret = JSON.parse(secret.SecretString);
+            secret = await awsSdkManager.secrets.get({ secretId: secretName });
           } catch (error) {
             throw new CliError({
               category: 'DIRECTIVE',
-              code: 'DIRECTIVE_SECRET_JSON_INVALID',
-              message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+              code: 'DIRECTIVE_SECRET_UNRESOLVED',
+              message: `Cannot resolve \`$Secret('${secretName}')\`.\n${String(error)}`,
+              hints: `If the secret does not exist yet, create it using \`stacktape secret set\`.`,
               cause: error
             });
           }
-          if (typeof parsedSecret !== 'object' || parsedSecret === null || Array.isArray(parsedSecret)) {
-            throw new CliError({
-              category: 'DIRECTIVE',
-              code: 'DIRECTIVE_SECRET_JSON_INVALID',
-              message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not a JSON object.`
-            });
-          }
-          if (!Object.hasOwn(parsedSecret, jsonKey)) {
-            throw new CliError({
-              category: 'DIRECTIVE',
-              code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
-              message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretName}.${jsonKey}')\`.`
-            });
-          }
-        }
-
-        const outputName = getStackOutputName(secretName, 'CurrentSecretVersionId');
-        templateManager.addFinalTemplateOverrideFn(async () => {
-          templateManager.addStackOutput({
-            cfOutputName: outputName,
-            value: secret.VersionId,
-            description: `Added by $Secret('${secretReference}') directive`
-          });
-        });
-
-        return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::${secret.VersionId}}}`;
-      },
-      localResolveFunction: () => async (secretReference: string) => {
-        const secretName = secretReference.split('.')[0];
-        try {
-          const { SecretString: secretValue } = await awsSdkManager.secrets.get({ secretId: secretName });
-          if (!secretValue) {
-            throw new Error(`Secret "${secretName}" is not valid string secret.`);
-          }
-          const jsonKey = secretReference.split('.')[1];
-          let finalValue = secretValue;
           if (jsonKey) {
             let parsedSecret: unknown;
             try {
-              parsedSecret = JSON.parse(secretValue);
+              parsedSecret = JSON.parse(secret.SecretString);
             } catch (error) {
-              // The parser quotes the token it stopped at, which is part of the secret value; only the cause keeps it.
               throw new CliError({
                 category: 'DIRECTIVE',
                 code: 'DIRECTIVE_SECRET_JSON_INVALID',
@@ -426,85 +381,137 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
                 cause: error
               });
             }
-            finalValue = (parsedSecret as Record<string, string>)?.[jsonKey];
-            if (finalValue === undefined) {
+            if (typeof parsedSecret !== 'object' || parsedSecret === null || Array.isArray(parsedSecret)) {
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_INVALID',
+                message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not a JSON object.`
+              });
+            }
+            if (!Object.hasOwn(parsedSecret, jsonKey)) {
               throw new CliError({
                 category: 'DIRECTIVE',
                 code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
-                message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretReference}')\`.`
+                message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`${directive}\`.`
               });
             }
           }
-          return finalValue;
-        } catch (error) {
-          if (error instanceof CliError) throw error;
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve secret \`${secretName}\`.`,
-            cause: error
+
+          const outputName = getStackOutputName(secretName, 'CurrentSecretVersionId');
+          templateManager.addFinalTemplateOverrideFn(async () => {
+            templateManager.addStackOutput({
+              cfOutputName: outputName,
+              value: secret.VersionId,
+              description: `Added by ${directive} directive`
+            });
           });
+
+          return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::${secret.VersionId}}}`;
+        },
+      localResolveFunction:
+        () =>
+        async (...args: string[]) => {
+          const { secretName, jsonKey } = parseSecretReference(args);
+          try {
+            const { SecretString: secretValue } = await awsSdkManager.secrets.get({ secretId: secretName });
+            if (!secretValue) {
+              throw new Error(`Secret "${secretName}" is not valid string secret.`);
+            }
+            let finalValue = secretValue;
+            if (jsonKey) {
+              let parsedSecret: unknown;
+              try {
+                parsedSecret = JSON.parse(secretValue);
+              } catch (error) {
+                // The parser quotes the token it stopped at, which is part of the secret value; only the cause keeps it.
+                throw new CliError({
+                  category: 'DIRECTIVE',
+                  code: 'DIRECTIVE_SECRET_JSON_INVALID',
+                  message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+                  cause: error
+                });
+              }
+              finalValue = (parsedSecret as Record<string, string>)?.[jsonKey];
+              if (finalValue === undefined) {
+                throw new CliError({
+                  category: 'DIRECTIVE',
+                  code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+                  message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`${describeSecretDirective(args)}\`.`
+                });
+              }
+            }
+            return finalValue;
+          } catch (error) {
+            if (error instanceof CliError) throw error;
+            throw new CliError({
+              category: 'DIRECTIVE',
+              code: 'DIRECTIVE_SECRET_UNRESOLVED',
+              message: `Cannot resolve secret \`${secretName}\`.`,
+              cause: error
+            });
+          }
         }
-      }
     },
     {
       // Internal directive emitted only for an ECS/Batch `secrets` entry. It returns an ARN selector, never the value.
       name: 'ContainerSecret',
       requiredParams: { secretReference: 'string' },
       isRuntime: true,
-      resolveFunction: () => async (secretReference: string) => {
-        const [secretName, jsonKey] = secretReference.split('.');
-        if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
-          return `arn:aws:secretsmanager:${context.region}:${context.accountId}:secret:${secretName}:${jsonKey || ''}::`;
-        }
-        let secret;
-        try {
-          secret = await awsSdkManager.secrets.get({ secretId: secretName });
-        } catch (error) {
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve container secret \`$Secret('${secretName}')\`.\n${String(error)}`,
-            hints: 'If the secret does not exist yet, create it using `stacktape secret set`.',
-            cause: error
-          });
-        }
-
-        if (jsonKey) {
-          let parsedSecret: unknown;
+      resolveFunction:
+        () =>
+        async (...args: string[]) => {
+          const { secretName, jsonKey } = parseSecretReference(args);
+          if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+            return `arn:aws:secretsmanager:${context.region}:${context.accountId}:secret:${secretName}:${jsonKey || ''}::`;
+          }
+          let secret;
           try {
-            parsedSecret = JSON.parse(secret.SecretString);
+            secret = await awsSdkManager.secrets.get({ secretId: secretName });
           } catch (error) {
             throw new CliError({
               category: 'DIRECTIVE',
-              code: 'DIRECTIVE_SECRET_JSON_INVALID',
-              message: `Cannot resolve key \`${jsonKey}\` from container secret \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+              code: 'DIRECTIVE_SECRET_UNRESOLVED',
+              message: `Cannot resolve container secret \`$Secret('${secretName}')\`.\n${String(error)}`,
+              hints: 'If the secret does not exist yet, create it using `stacktape secret set`.',
               cause: error
             });
           }
-          if (
-            typeof parsedSecret !== 'object' ||
-            parsedSecret === null ||
-            Array.isArray(parsedSecret) ||
-            !Object.hasOwn(parsedSecret, jsonKey)
-          ) {
+
+          if (jsonKey) {
+            let parsedSecret: unknown;
+            try {
+              parsedSecret = JSON.parse(secret.SecretString);
+            } catch (error) {
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_INVALID',
+                message: `Cannot resolve key \`${jsonKey}\` from container secret \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+                cause: error
+              });
+            }
+            if (
+              typeof parsedSecret !== 'object' ||
+              parsedSecret === null ||
+              Array.isArray(parsedSecret) ||
+              !Object.hasOwn(parsedSecret, jsonKey)
+            ) {
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+                message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`${describeSecretDirective(args)}\`.`
+              });
+            }
+          }
+
+          if (!secret.ARN || !secret.VersionId) {
             throw new CliError({
               category: 'DIRECTIVE',
-              code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
-              message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretReference}')\`.`
+              code: 'DIRECTIVE_SECRET_UNRESOLVED',
+              message: `Cannot resolve an ARN and current version for container secret \`${secretName}\`.`
             });
           }
+          return `${secret.ARN}:${jsonKey || ''}::${secret.VersionId}`;
         }
-
-        if (!secret.ARN || !secret.VersionId) {
-          throw new CliError({
-            category: 'DIRECTIVE',
-            code: 'DIRECTIVE_SECRET_UNRESOLVED',
-            message: `Cannot resolve an ARN and current version for container secret \`${secretName}\`.`
-          });
-        }
-        return `${secret.ARN}:${jsonKey || ''}::${secret.VersionId}`;
-      }
     },
     {
       // Internal directive used as non-sensitive task metadata so a new SSM version creates a new task definition.

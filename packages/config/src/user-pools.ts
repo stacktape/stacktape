@@ -1189,7 +1189,7 @@ export interface UserAuthPoolProps {
    *       identityProviders:
    *         - type: Google
    *           clientId: my-google-client-id.apps.googleusercontent.com
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    *           authorizeScopes:
    *             - openid
    *             - email
@@ -1213,7 +1213,7 @@ export interface UserAuthPoolProps {
    *       {
    *         type: 'Google',
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
-   *         clientSecret: $Secret('google-oauth.client-secret'),
+   *         clientSecret: $Secret('google-oauth', 'client-secret'),
    *         authorizeScopes: ['openid', 'email']
    *       }
    *     ]
@@ -1420,7 +1420,7 @@ export interface UserAuthPoolProps {
    *       identityProviders:
    *         - type: Google
    *           clientId: my-google-client-id.apps.googleusercontent.com
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    *       # stp-focus
    *       allowOnlyExternalIdentityProviders: true
    *       # stp-end-focus
@@ -1442,7 +1442,7 @@ export interface UserAuthPoolProps {
    *       {
    *         type: 'Google',
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
-   *         clientSecret: $Secret('google-oauth.client-secret')
+   *         clientSecret: $Secret('google-oauth', 'client-secret')
    *       }
    *     ],
    *     // stp-focus
@@ -3464,7 +3464,7 @@ export interface IdentityProvider {
    *           type: Facebook
    *           # stp-end-focus
    *           clientId: my-facebook-app-id
-   *           clientSecret: $Secret('facebook-oauth.client-secret')
+   *           clientSecret: $Secret('facebook-oauth', 'client-secret')
    * ```
    *
    * **Example (TypeScript):**
@@ -3485,7 +3485,7 @@ export interface IdentityProvider {
    *         type: 'Facebook',
    *         // stp-end-focus
    *         clientId: 'my-facebook-app-id',
-   *         clientSecret: $Secret('facebook-oauth.client-secret')
+   *         clientSecret: $Secret('facebook-oauth', 'client-secret')
    *       }
    *     ]
    *   });
@@ -3522,7 +3522,7 @@ export interface IdentityProvider {
    *           # stp-focus
    *           clientId: my-google-client-id.apps.googleusercontent.com
    *           # stp-end-focus
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    * ```
    *
    * **Example (TypeScript):**
@@ -3543,7 +3543,7 @@ export interface IdentityProvider {
    *         // stp-focus
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
    *         // stp-end-focus
-   *         clientSecret: $Secret('google-oauth.client-secret')
+   *         clientSecret: $Secret('google-oauth', 'client-secret')
    *       }
    *     ]
    *   });
@@ -3579,7 +3579,7 @@ export interface IdentityProvider {
    *         - type: Google
    *           clientId: my-google-client-id.apps.googleusercontent.com
    *           # stp-focus
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    *           # stp-end-focus
    * ```
    *
@@ -3600,7 +3600,7 @@ export interface IdentityProvider {
    *         type: 'Google',
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
    *         // stp-focus
-   *         clientSecret: $Secret('google-oauth.client-secret')
+   *         clientSecret: $Secret('google-oauth', 'client-secret')
    *         // stp-end-focus
    *       }
    *     ]
@@ -3638,7 +3638,7 @@ export interface IdentityProvider {
    *       identityProviders:
    *         - type: Google
    *           clientId: my-google-client-id.apps.googleusercontent.com
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    *           # stp-focus
    *           attributeMapping:
    *             email: email
@@ -3662,7 +3662,7 @@ export interface IdentityProvider {
    *       {
    *         type: 'Google',
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
-   *         clientSecret: $Secret('google-oauth.client-secret'),
+   *         clientSecret: $Secret('google-oauth', 'client-secret'),
    *         // stp-focus
    *         attributeMapping: {
    *           email: 'email',
@@ -3706,7 +3706,7 @@ export interface IdentityProvider {
    *       identityProviders:
    *         - type: Google
    *           clientId: my-google-client-id.apps.googleusercontent.com
-   *           clientSecret: $Secret('google-oauth.client-secret')
+   *           clientSecret: $Secret('google-oauth', 'client-secret')
    *           # stp-focus
    *           authorizeScopes:
    *             - openid
@@ -3731,7 +3731,7 @@ export interface IdentityProvider {
    *       {
    *         type: 'Google',
    *         clientId: 'my-google-client-id.apps.googleusercontent.com',
-   *         clientSecret: $Secret('google-oauth.client-secret'),
+   *         clientSecret: $Secret('google-oauth', 'client-secret'),
    *         // stp-focus
    *         authorizeScopes: ['openid', 'email', 'profile']
    *         // stp-end-focus
@@ -3772,7 +3772,7 @@ export interface IdentityProvider {
    *       identityProviders:
    *         - type: OIDC
    *           clientId: my-oidc-client-id
-   *           clientSecret: $Secret('oidc-provider.client-secret')
+   *           clientSecret: $Secret('oidc-provider', 'client-secret')
    *           authorizeScopes:
    *             - openid
    *             - email
@@ -3799,7 +3799,7 @@ export interface IdentityProvider {
    *       {
    *         type: 'OIDC',
    *         clientId: 'my-oidc-client-id',
-   *         clientSecret: $Secret('oidc-provider.client-secret'),
+   *         clientSecret: $Secret('oidc-provider', 'client-secret'),
    *         authorizeScopes: ['openid', 'email'],
    *         // stp-focus
    *         providerDetails: {

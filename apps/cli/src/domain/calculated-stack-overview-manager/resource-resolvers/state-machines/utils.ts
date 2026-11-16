@@ -3,7 +3,7 @@ import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { StpStateMachine } from '@domain-services/config-manager/resolved-types/state-machines';
 
 export const getStateMachineResource = async (stateMachine: StpStateMachine) => {
   return cfnResource('AWS::StepFunctions::StateMachine', {

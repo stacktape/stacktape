@@ -76,7 +76,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',

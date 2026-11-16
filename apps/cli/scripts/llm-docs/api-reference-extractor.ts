@@ -43,7 +43,7 @@ const refToName = (ref: string) => ref.replace('#/definitions/', '');
 const PRIMITIVE_TYPES = new Set(['string', 'number', 'boolean', 'integer', 'null']);
 
 export type NormalizedTypeInfo =
-  | { kind: 'primitive'; types: string[]; enumValues?: (string | number)[]; constValue?: string | number }
+  | { kind: 'primitive'; types: string[]; enumValues?: (string | number)[]; constValue?: string | number | boolean }
   | { kind: 'reference'; typeName: string }
   | { kind: 'union'; discriminator: string | null; branches: NormalizedUnionBranch[] }
   | { kind: 'array'; itemType: NormalizedTypeInfo }
@@ -229,7 +229,10 @@ const buildTypeInfo = (
       kind: 'primitive',
       types: Array.isArray(schema.type) ? schema.type : [schema.type as string],
       enumValues: Array.isArray(schema.enum) ? (schema.enum as (string | number)[]) : undefined,
-      constValue: typeof schema.const === 'string' || typeof schema.const === 'number' ? schema.const : undefined
+      constValue:
+        typeof schema.const === 'string' || typeof schema.const === 'number' || typeof schema.const === 'boolean'
+          ? schema.const
+          : undefined
     };
   }
   return { kind: 'unknown' };

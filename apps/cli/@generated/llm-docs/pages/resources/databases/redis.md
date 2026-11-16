@@ -44,7 +44,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -71,7 +71,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -99,7 +99,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: { instanceSize: 'cache.t4g.micro' }
@@ -126,7 +126,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'redis',
       properties: { instanceSize: 'cache.t4g.micro', version: '6.2' }
@@ -193,7 +193,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -228,7 +228,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -263,7 +263,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
@@ -297,7 +297,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -348,7 +348,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     automatedBackupRetentionDays: 7
   });
@@ -375,7 +375,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     dev: {
       remote: true
@@ -398,14 +398,14 @@ Stacktape v4 renamed `redis-cluster` to `redis` and moved node settings under `e
 cache:
   type: redis-cluster
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     instanceSize: cache.t4g.micro
 
 # Stacktape v4
 cache:
   type: redis
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     engine:
       type: redis
       properties:

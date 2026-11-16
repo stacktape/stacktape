@@ -5,7 +5,8 @@ import type {
   KnownCloudFormationResourceType
 } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   BatchJob,
@@ -23,6 +24,7 @@ import {
   defineConfig
 } from '@stacktape/config-authoring';
 import { existingResourcesOf, synthesizeFixture } from '../characterization/synthesis-fixture';
+import { validateConfigWithZod } from '../../src/domain/config-manager/utils/zod-validator';
 
 const fixturesDir = join(import.meta.dir, 'fixtures');
 const templateOutputDirectory = process.env.STACKTAPE_SYNTHESIS_FAMILY_TEMPLATE_OUTPUT_DIR;
@@ -525,5 +527,99 @@ describe('user pool client restrictions', () => {
     const open = clients.find((client) => client !== restricted);
     expect(open?.ExplicitAuthFlows).toHaveLength(5);
     expect(open?.ReadAttributes).toBeUndefined();
+  });
+});
+
+/**
+ * A state machine definition is native Amazon States Language. Parallel branches and Map item workflows are native
+ * `StartAt`/`States` objects, and fields Stacktape does not model (null paths, `QueryLanguage`, `ItemProcessor`) reach
+ * CloudFormation unchanged.
+ */
+describe('state machine definitions', () => {
+  const definition = {
+    Comment: 'Native ASL round trip',
+    QueryLanguage: 'JSONPath',
+    StartAt: 'Fan out',
+    States: {
+      'Fan out': {
+        Type: 'Parallel',
+        OutputPath: null,
+        Branches: [
+          { StartAt: 'Left', States: { Left: { Type: 'Pass', Result: { side: 'left' }, End: true } } },
+          {
+            Comment: 'Right branch',
+            StartAt: 'Right',
+            States: { Right: { Type: 'Wait', Seconds: 1, Next: 'Right done' }, 'Right done': { Type: 'Succeed' } }
+          }
+        ],
+        Next: 'Each item'
+      },
+      'Each item': {
+        Type: 'Map',
+        ItemsPath: '$.items',
+        Iterator: { StartAt: 'Item', States: { Item: { Type: 'Pass', End: true } } },
+        Next: 'Each item, distributed'
+      },
+      'Each item, distributed': {
+        Type: 'Map',
+        ItemProcessor: {
+          ProcessorConfig: { Mode: 'DISTRIBUTED', ExecutionType: 'EXPRESS' },
+          StartAt: 'Process',
+          States: { Process: { Type: 'Pass', End: true } }
+        },
+        MaxConcurrency: 10,
+        End: true
+      }
+    }
+  };
+
+  test('YAML with native Parallel and Map branches validates and synthesizes the definition unchanged', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-state-machine-'));
+    try {
+      const configPath = join(directory, 'stacktape.yml');
+      await writeFile(
+        configPath,
+        `resources:\n  workflow:\n    type: state-machine\n    properties:\n      definition: ${JSON.stringify(definition)}\n`
+      );
+      const template = await synthesizeFixture({ configPath, workingDir: directory });
+      if (templateOutputDirectory) {
+        await mkdir(templateOutputDirectory, { recursive: true });
+        await writeFile(
+          join(templateOutputDirectory, 'state-machine-native-asl.json'),
+          `${JSON.stringify(template, null, 2)}\n`
+        );
+      }
+      expect(onlyResourceOfType(template, 'AWS::StepFunctions::StateMachine').resource.Properties.Definition).toEqual(
+        definition
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('a branch made of Stacktape resource metadata is not a valid definition', () => {
+    const internalBranch = {
+      name: 'workflow',
+      type: 'state-machine',
+      configParentResourceType: 'state-machine',
+      nameChain: []
+    };
+    const result = validateConfigWithZod({
+      config: {
+        resources: {
+          workflow: {
+            type: 'state-machine',
+            properties: {
+              definition: {
+                StartAt: 'Fan out',
+                States: { 'Fan out': { Type: 'Parallel', Branches: [internalBranch], End: true } }
+              }
+            }
+          }
+        }
+      },
+      configPath: 'stacktape.yml'
+    });
+    expect(result.valid).toBe(false);
   });
 });

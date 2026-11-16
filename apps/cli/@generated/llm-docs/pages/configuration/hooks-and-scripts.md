@@ -73,7 +73,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -108,7 +108,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});

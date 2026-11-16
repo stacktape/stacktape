@@ -6,19 +6,19 @@ Resource type: `state-machine`
 
 ```typescript
 type Fail = {
-  Type: string;
+  Type: "Fail";
   Cause?: string;
   Comment?: string;
   Error?: string;
-  InputPath?: string;
-  OutputPath?: string;
+  InputPath?: string | null;
+  OutputPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Fail"`
 
 ## Property: `Cause`
 
@@ -38,9 +38,9 @@ type Fail = {
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`

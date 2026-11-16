@@ -135,7 +135,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   activeConfig: ConfigManager;
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
-  const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
+  const { allAuroraDatabases, databases, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
   const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
   const hasDeployedVpcResources = allResourcesRequiringVpc.some(
     (resource) =>
@@ -304,10 +304,10 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
           }
         ]
       : []),
-    ...(allDatabasesWithInstancies.length
+    ...(databases.length
       ? [
           {
-            Resource: allDatabasesWithInstancies.map(
+            Resource: databases.map(
               ({ name, engine }) =>
                 sub(
                   `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:db:${

@@ -85,7 +85,7 @@ export default defineConfig(() => {
     environment: { LOG_LEVEL: 'info' },
     secrets: [
       { name: 'API_TOKEN', valueFrom: $SsmParam('/my-app/production/api-token') },
-      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key.value') }
+      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key', 'value') }
     ]
   });
 
@@ -116,7 +116,7 @@ resources:
         - name: API_TOKEN
           valueFrom: $SsmParam('/my-app/production/api-token')
         - name: ROTATING_KEY
-          valueFrom: $Secret('rotating-key.value')
+          valueFrom: $Secret('rotating-key', 'value')
       # stp-end-focus
 ```
 
@@ -175,10 +175,12 @@ Your application code reads the value from the environment variable — `process
 named `discord-bot-token` must be fetchable by Stacktape before deployment. If it cannot be fetched, the deployment
 fails with an error and a hint to create it using [`stacktape secret set`](/cli/secret-set).
 
-### JSON secrets with dot notation
+### JSON secrets
 
-When a secret stores a JSON object, extract a specific key using dot notation: `$Secret('secretName.keyName')`. This
-is useful for database credentials where a single secret holds multiple related fields.
+When a secret stores a JSON object, pass the key you need as the second argument: `$Secret('secretName', 'keyName')`.
+This is useful for database credentials where a single secret holds multiple related fields. The first argument is the
+exact secret name, so a name such as `billing.api` works too. Stacktape 3 configurations that write
+`$Secret('secretName.keyName')` keep working and read the same secret and key.
 
 
 Example (TypeScript):
@@ -195,7 +197,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -220,7 +222,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `$Secret('mainDatabase.password')` reads the `password` key from a JSON secret named `mainDatabase`.
+In this example, `$Secret('mainDatabase', 'password')` reads the `password` key from a JSON secret named `mainDatabase`.
 The secret value in AWS Secrets Manager would look like:
 
 ```json

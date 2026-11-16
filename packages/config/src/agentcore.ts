@@ -42,8 +42,23 @@ export interface AgentCoreRuntimeEndpointConfig {
 
 
 export interface AgentCoreRuntimeLifecycleConfig {
-  maxLifetime?: number;
-  idleRuntimeSessionTimeout?: number;
+  /**
+   * #### Longest time a runtime session can live, in seconds.
+   *
+   * ---
+   *
+   * AWS ends the session after this time, even while it is active. When omitted, AWS uses its default (8 hours).
+   */
+  maxLifetimeSeconds?: number;
+  /**
+   * #### How long an idle runtime session stays alive, in seconds.
+   *
+   * ---
+   *
+   * AWS ends a session that receives no request for this long. A shorter timeout lowers cost. When omitted, AWS uses
+   * its default (15 minutes).
+   */
+  idleTimeoutSeconds?: number;
 }
 
 
@@ -64,8 +79,16 @@ export interface AgentCoreMemory {
 
 export interface AgentCoreMemoryProps {
   description?: string;
-  expirationDays?: number;
-  eventExpiryDuration?: number;
+  /**
+   * #### How many days AgentCore keeps raw memory events.
+   *
+   * ---
+   *
+   * Events older than this are deleted. AWS accepts 7 to 365 days.
+   *
+   * @default 30
+   */
+  eventRetentionDays?: number;
   encryptionKeyArn?: string;
   memoryStrategies?: any[];
   tags?: CloudformationTag[];
@@ -81,13 +104,40 @@ export interface AgentCoreGateway {
 
 export interface AgentCoreGatewayProps {
   description?: string;
-  authorizer?: AgentCoreJwtAuthorizerConfig;
+  /**
+   * #### Who can call the gateway's tools.
+   *
+   * ---
+   *
+   * Required, because the gateway exposes every configured tool to its callers.
+   *
+   * - `jwt`: callers must send a JSON Web Token issued by your identity provider.
+   * - `none`: anyone who can reach the gateway endpoint can call its tools. Use it only for tools that are safe to
+   *   expose publicly.
+   */
+  authorizer: AgentCoreGatewayAuthorizer;
   tools?: AgentCoreGatewayTool[];
   instructions?: string;
   supportedVersions?: string[];
   searchType?: 'SEMANTIC';
   exceptionLevel?: 'DEBUG';
   tags?: CloudformationTag[];
+}
+
+
+export type AgentCoreGatewayAuthorizer = AgentCoreGatewayJwtAuthorizer | AgentCoreGatewayNoAuthorizer;
+
+
+/** #### Require a JSON Web Token from your identity provider on every gateway call. */
+export interface AgentCoreGatewayJwtAuthorizer {
+  type: 'jwt';
+  properties: AgentCoreJwtAuthorizerConfig;
+}
+
+
+/** #### Allow unauthenticated calls to the gateway's tools. */
+export interface AgentCoreGatewayNoAuthorizer {
+  type: 'none';
 }
 
 

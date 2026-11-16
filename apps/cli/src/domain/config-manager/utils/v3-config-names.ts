@@ -36,8 +36,20 @@ const V3_EXPORTS: Record<string, string> = {
   ExternalBuildpackPackaging:
     'Use `BuildpackImagePackaging`, or `DockerfilePackaging` if you depend on a specific builder',
   RedisCluster: 'Use `Redis`',
+  AuroraServerlessEngineMysql:
+    'AWS retired Aurora Serverless v1. Use `AuroraServerlessV2EngineMysql` for a new database; a deployed v1 database needs a planned migration',
+  AuroraServerlessEnginePostgresql:
+    'AWS retired Aurora Serverless v1. Use `AuroraServerlessV2EnginePostgresql` for a new database; a deployed v1 database needs a planned migration',
   AWS_SES: 'Declare an `EmailSender` resource for your verified identity and list it in `connectTo`'
 };
+
+/** Aurora Serverless v1 engine types, which AWS retired on 31 March 2025, with their v2 replacements. */
+export const AURORA_SERVERLESS_V1_ENGINES: Record<string, string> = {
+  'aurora-mysql-serverless': 'aurora-mysql-serverless-v2',
+  'aurora-postgresql-serverless': 'aurora-postgresql-serverless-v2'
+};
+
+export const AURORA_SERVERLESS_V1_GUIDE_URL = `${UPGRADING_FROM_V3_URL}#aurora-serverless-v1`;
 
 const withGuide = (text: string) => `${text}. See ${UPGRADING_FROM_V3_URL}`;
 

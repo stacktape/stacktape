@@ -41,7 +41,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: vpc
     engine:
@@ -59,7 +59,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'vpc'
   },
@@ -92,7 +92,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: vpc
       forceDisablePublicIp: true
@@ -111,7 +111,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'vpc',
     forceDisablePublicIp: true
@@ -147,7 +147,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: whitelisted-ips-only
       whitelistedIps:
@@ -168,7 +168,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'whitelisted-ips-only',
     whitelistedIps: ['203.0.113.50/32', '198.51.100.0/24']

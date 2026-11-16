@@ -53,7 +53,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -67,7 +67,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -98,7 +98,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -114,7 +114,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -148,7 +148,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -165,7 +165,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -195,7 +195,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -212,7 +212,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -247,7 +247,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -263,7 +263,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -293,7 +293,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -310,7 +310,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -341,7 +341,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -356,7 +356,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -387,7 +387,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -402,7 +402,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {

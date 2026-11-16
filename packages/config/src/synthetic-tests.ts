@@ -148,7 +148,7 @@ export interface SyntheticTestProps {
    *         - name: BASE_URL
    *           value: https://app.example.com
    *         - name: TEST_USER_PASSWORD
-   *           value: $Secret('synthetic-test-user.password')
+   *           value: $Secret('synthetic-test-user', 'password')
    *       # stp-end-focus
    * ```
    *
@@ -163,7 +163,7 @@ export interface SyntheticTestProps {
    *     // stp-focus
    *     environment: [
    *       { name: 'BASE_URL', value: 'https://app.example.com' },
-   *       { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user.password')" }
+   *       { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user', 'password')" }
    *     ]
    *     // stp-end-focus
    *   });

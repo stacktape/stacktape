@@ -31,7 +31,7 @@ export interface BastionProps {
    *     properties:
    *       credentials:
    *         masterUserName: admin
-   *         masterUserPassword: $Secret('database.password')
+   *         masterUserPassword: $Secret('database', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -55,7 +55,7 @@ export interface BastionProps {
    *
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
-   *     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
+   *     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database', 'password') },
    *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
    *     accessibility: { accessibilityMode: 'vpc' }
    *   });
@@ -88,7 +88,7 @@ export interface BastionProps {
    *     properties:
    *       credentials:
    *         masterUserName: admin
-   *         masterUserPassword: $Secret('database.password')
+   *         masterUserPassword: $Secret('database', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -115,7 +115,7 @@ export interface BastionProps {
    *
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
-   *     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
+   *     credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database', 'password') },
    *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
    *     accessibility: { accessibilityMode: 'vpc' }
    *   });
