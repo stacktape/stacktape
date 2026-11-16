@@ -15,8 +15,8 @@ resources:
         - name: production
           description: Main data analyst endpoint.
       lifecycle:
-        idleRuntimeSessionTimeout: 3600
-        maxLifetime: 28800
+        idleTimeoutSeconds: 3600
+        maxLifetimeSeconds: 28800
       environment:
         - name: AI_MODEL
           value: eu.amazon.nova-micro-v1:0
@@ -27,7 +27,7 @@ resources:
     type: agentcore-memory
     properties:
       description: Stores user preferences, recurring KPI definitions, and analysis context.
-      expirationDays: 90
+      eventRetentionDays: 90
 
   analysisCodeInterpreter:
     type: agentcore-code-interpreter
