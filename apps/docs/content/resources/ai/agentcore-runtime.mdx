@@ -301,6 +301,7 @@ To access resource attributes from other parts of your config, use the [`$Resour
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'MCP tool gateway for support tools',
+    authorizer: { type: 'none' },
     supportedVersions: ['2025-03-26']
   });
 
@@ -332,7 +333,7 @@ export default defineConfig(() => {
   ]}
 />
 
-In the example above, `supportedVersions: ['2025-03-26']` on the gateway is an optional string array. No `tools` are configured on the gateway in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for defining tool entries (each requires a `toolSchema`). See also [AgentCore Browser](/resources/ai/agentcore-browser), [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter), and [AgentCore Memory](/resources/ai/agentcore-memory).
+In the example above, the gateway uses `authorizer: { type: 'none' }` to keep the example short; protect a real gateway with a JWT authorizer. `supportedVersions: ['2025-03-26']` is an optional string array. No `tools` are configured on the gateway in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for defining tool entries (each requires a `toolSchema`). See also [AgentCore Browser](/resources/ai/agentcore-browser), [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter), and [AgentCore Memory](/resources/ai/agentcore-memory).
 
 ## Lifecycle
 
