@@ -452,6 +452,18 @@ describe('early database and cache deletes', () => {
       []
     ],
     [
+      "a MySQL instance that names the stack's option group through Fn::Sub",
+      {
+        Db: {
+          type: instance,
+          deletionPolicy: 'Delete',
+          properties: { OptionGroupName: { 'Fn::Sub': '${DbOptionGroup}' } }
+        },
+        DbOptionGroup: { type: 'AWS::RDS::OptionGroup' }
+      },
+      []
+    ],
+    [
       'an instance with an option group from outside the stack',
       { Db: { type: instance, deletionPolicy: 'Delete', properties: { OptionGroupName: 'shared-mysql-options' } } },
       ['Db']
