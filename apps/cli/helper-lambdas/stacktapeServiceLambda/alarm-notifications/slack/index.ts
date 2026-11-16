@@ -10,10 +10,13 @@ export const sendAlarmSlackMessage = ({
   alarmDetail: AlarmNotificationEventRuleInput;
   notificationDetail: SlackIntegration;
 }) => {
-  // Bounded well inside the delivery claim's lease (the client's default retries for about half an hour).
+  // Bounded well inside the delivery claim's lease (the client's default retries for about half an hour). A rate-limited
+  // call fails at once instead of sleeping for Slack's Retry-After, which can outlast the lease; the claim is given up
+  // and Lambda retries the event a minute or more later.
   const slackClient = new WebClient(notificationDetail.properties.accessToken, {
     timeout: 10_000,
-    retryConfig: { retries: 2, minTimeout: 1000, maxTimeout: 5000 }
+    retryConfig: { retries: 2, minTimeout: 1000, maxTimeout: 5000 },
+    rejectRateLimitedCalls: true
   });
 
   // The client throws on a refusal (`ok: false`), so a returned response is an accepted message.

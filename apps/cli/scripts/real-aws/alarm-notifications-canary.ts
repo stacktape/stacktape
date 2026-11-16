@@ -533,10 +533,40 @@ export const runAlarmNotificationsCanary = async ({ cleanupOnly = false }: { cle
       })
     );
     assert(!replayed.FunctionError, `The replayed alarm event failed: ${replayed.FunctionError}.`);
+
+    // Events that arrive after a newer one of the same alarm: a recovery from before the firing, and a firing from
+    // before the recovery. Announcing either would contradict the alarm's current state, so no channel may hear them.
+    const recoveryBody = JSON.parse(
+      recovery.value.find((request) => channelOf(request) === 'webhook' && announcedState(request) === 'resolved')!.body
+    ) as { details: { time: string } };
+    const firingTime = Date.parse(firingBody.details.time);
+    const recoveryTime = Date.parse(recoveryBody.details.time);
+    assert(recoveryTime - firingTime >= 2000, 'The alarm recovered within two seconds of firing.');
+    const lateEvents = [
+      { stateValue: 'OK', previousStateValue: 'ALARM', time: new Date(firingTime - 1000).toISOString() },
+      { stateValue: 'ALARM', previousStateValue: 'OK', time: new Date(recoveryTime - 1000).toISOString() }
+    ];
+    for (const [index, late] of lateEvents.entries()) {
+      const invoked = await clients.lambda.send(
+        new InvokeCommand({
+          FunctionName: serviceLambda,
+          Payload: Buffer.from(
+            fillInputTemplate(template, {
+              sourceEventId: `${firingBody.id}-late-${index}`,
+              alarmName,
+              description: firingBody.details.description,
+              ...late
+            })
+          )
+        })
+      );
+      assert(!invoked.FunctionError, `The late alarm event ${index} failed: ${invoked.FunctionError}.`);
+    }
+    report.lateEvents = lateEvents.map(({ stateValue, time }) => ({ stateValue, time }));
     await sleep(15_000);
     const requests = await readRequests();
 
-    // Exactly one firing and one recovery per channel, including after the replay.
+    // Exactly one firing and one recovery per channel, including after the replay and the late events.
     const counts: Record<string, Record<string, number>> = {};
     for (const request of requests) {
       const channel = channelOf(request);
@@ -612,14 +642,21 @@ export const runAlarmNotificationsCanary = async ({ cleanupOnly = false }: { cle
       detailFields: Object.keys((input.details as object) ?? {}).sort()
     }));
 
-    // The service Lambda's delivery markers: one "sent" per channel and event, and no credential in them.
+    // The service Lambda's delivery markers: one "sent" per channel and event, and no credential in them. The alarm's
+    // cursor holds the recovery, the newest state change, so the late events were never claimed.
     const markers = await clients.s3.send(
       new ListObjectsV2Command({ Bucket: state.deploymentBucket, Prefix: ALARM_DELIVERY_MARKER_PREFIX })
     );
+    const readObject = async (Key: string) =>
+      (await clients.s3.send(new GetObjectCommand({ Bucket: state.deploymentBucket, Key }))).Body!.transformToString();
+    const cursorPrefix = `${ALARM_DELIVERY_MARKER_PREFIX}cursors/`;
+    const cursorKeys = (markers.Contents ?? []).flatMap(({ Key }) => (Key?.startsWith(cursorPrefix) ? [Key] : []));
+    assert(cursorKeys.length === 1, `Expected one alarm cursor, found ${cursorKeys.length}.`);
+    const cursor = JSON.parse(await readObject(cursorKeys[0]!)) as { time: number };
+    report.cursorTime = new Date(cursor.time).toISOString();
+    assert(cursor.time === recoveryTime, `The alarm cursor holds ${report.cursorTime}, not the recovery.`);
     const markerBodies = await Promise.all(
-      (markers.Contents ?? []).map(async ({ Key }) =>
-        (await clients.s3.send(new GetObjectCommand({ Bucket: state.deploymentBucket, Key }))).Body!.transformToString()
-      )
+      (markers.Contents ?? []).flatMap(({ Key }) => (Key && !Key.startsWith(cursorPrefix) ? [readObject(Key)] : []))
     );
     report.deliveryMarkers = markerBodies.length;
     assert(markerBodies.length === 6, `Expected 6 delivery markers, found ${markerBodies.length}.`);

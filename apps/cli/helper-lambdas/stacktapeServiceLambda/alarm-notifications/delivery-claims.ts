@@ -19,6 +19,8 @@ const getBucketName = () => {
 };
 
 type Marker = { status: 'sending' | 'sent' | 'failed'; at: number };
+/** The newest state change seen for one alarm: its time in epoch milliseconds and its EventBridge event ID. */
+type AlarmCursor = { time: number; sourceEventId: string };
 
 const errorName = (error: unknown) => (error as { name?: string })?.name;
 const isConditionFailure = (error: unknown) =>
@@ -28,7 +30,11 @@ const isConditionFailure = (error: unknown) =>
  * Writes a marker only if the key is absent (`ifAbsent`) or still holds the version this invocation read or wrote
  * (`ifMatch`), so two invocations can never both take the same notification. Returns the new version's ETag.
  */
-const putMarker = async (key: string, marker: Marker, condition: { ifAbsent: true } | { ifMatch: string }) => {
+const putMarker = async (
+  key: string,
+  marker: Marker | AlarmCursor,
+  condition: { ifAbsent: true } | { ifMatch: string }
+) => {
   const response = await s3Client.send(
     new PutObjectCommand({
       Bucket: getBucketName(),
@@ -41,10 +47,10 @@ const putMarker = async (key: string, marker: Marker, condition: { ifAbsent: tru
   return response.ETag!;
 };
 
-const readMarker = async (key: string): Promise<{ marker: Marker; etag: string } | null> => {
+const readMarker = async <T = Marker>(key: string): Promise<{ marker: T; etag: string } | null> => {
   try {
     const response = await s3Client.send(new GetObjectCommand({ Bucket: getBucketName(), Key: key }));
-    return { marker: JSON.parse(await response.Body!.transformToString()) as Marker, etag: response.ETag! };
+    return { marker: JSON.parse(await response.Body!.transformToString()) as T, etag: response.ETag! };
   } catch (error) {
     // Without s3:ListBucket a missing key reads as AccessDenied.
     if (['NoSuchKey', 'AccessDenied', 'NotFound'].includes(errorName(error) ?? '')) return null;
@@ -98,4 +104,45 @@ export const deliverOnce = async ({ key, send }: { key: string; send: () => Prom
   }
   await putMarker(markerKey, { status: 'sent', at: Date.now() }, { ifMatch: claimed });
   return 'sent' as const;
+};
+
+const CURSOR_WRITE_ATTEMPTS = 5;
+
+/**
+ * Orders one alarm's events before anything is sent. EventBridge and Lambda can deliver an alarm's events late and out
+ * of order, so a recovery can arrive after the newer firing that followed it. Announcing it would tell the receiver the
+ * alarm recovered while it is still firing.
+ *
+ * The alarm's cursor holds the newest state-change time any invocation has seen, and only ever moves forward: each
+ * write is conditional on the version just read. An event older than the cursor is `superseded`. The newest event, and
+ * a retry of it, is `current`; its per-channel markers keep a retry from resending what was already sent. A deploy
+ * removes a cursor untouched for a day, which is safe because Lambda drops events older than six hours.
+ */
+export const orderAlarmEvent = async ({
+  alarmName,
+  sourceEventId,
+  time
+}: {
+  alarmName: string;
+  sourceEventId: string;
+  time: string;
+}): Promise<'current' | 'superseded'> => {
+  const eventTime = Date.parse(time);
+  // Without a time the event cannot be ordered; it is delivered rather than lost.
+  if (Number.isNaN(eventTime)) return 'current';
+  const cursorKey = `${ALARM_DELIVERY_MARKER_PREFIX}cursors/${encodeURIComponent(alarmName)}`;
+  const next: AlarmCursor = { time: eventTime, sourceEventId };
+  for (let attempt = 0; attempt < CURSOR_WRITE_ATTEMPTS; attempt++) {
+    const current = await readMarker<AlarmCursor>(cursorKey);
+    if (current && current.marker.time > eventTime) return 'superseded';
+    if (current && current.marker.time === eventTime) return 'current';
+    try {
+      await putMarker(cursorKey, next, current ? { ifMatch: current.etag } : { ifAbsent: true });
+      return 'current';
+    } catch (error) {
+      // Another invocation of this alarm moved the cursor first; read it again.
+      if (!isConditionFailure(error)) throw error;
+    }
+  }
+  throw inProgress();
 };
