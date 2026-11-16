@@ -191,8 +191,15 @@ export const planEarlyDeletes = ({
       }
       // A standalone instance's default policy is Snapshot, so only an explicit Delete means no final snapshot.
       const deleteAutomatedBackups = properties.DeleteAutomatedBackups;
+      // RDS keeps the stack's option group (MySQL and MariaDB have one) in use for a while after the instance is gone.
+      // CloudFormation then finds the early-deleted instance missing, deletes the option group at once and fails with
+      // "it is in use", so such an instance stays with CloudFormation, which deletes the two in order.
+      const usesStackOptionGroup = [...referencedLogicalIds(properties.OptionGroupName)].some(
+        (referenced) => templateResources[referenced]?.Type === 'AWS::RDS::OptionGroup'
+      );
       if (
         deployed.DeletionPolicy !== 'Delete' ||
+        usesStackOptionGroup ||
         properties.SourceDBInstanceIdentifier !== undefined ||
         replicaSources.has(logicalId) ||
         replicaSources.has('*') ||

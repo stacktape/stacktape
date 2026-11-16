@@ -442,6 +442,32 @@ describe('early database and cache deletes', () => {
     ['a standalone instance with DeletionPolicy Delete', { Db: { type: instance, deletionPolicy: 'Delete' } }, ['Db']],
     // CloudFormation's default for a standalone instance is Snapshot.
     ['a standalone instance without a DeletionPolicy', { Db: { type: instance } }, []],
+    [
+      // RDS releases the option group only a while after the instance; CloudFormation must delete the two in order.
+      "a MySQL instance with the stack's option group",
+      {
+        Db: { type: instance, deletionPolicy: 'Delete', properties: { OptionGroupName: { Ref: 'DbOptionGroup' } } },
+        DbOptionGroup: { type: 'AWS::RDS::OptionGroup' }
+      },
+      []
+    ],
+    [
+      "a MySQL instance that names the stack's option group through Fn::Sub",
+      {
+        Db: {
+          type: instance,
+          deletionPolicy: 'Delete',
+          properties: { OptionGroupName: { 'Fn::Sub': '${DbOptionGroup}' } }
+        },
+        DbOptionGroup: { type: 'AWS::RDS::OptionGroup' }
+      },
+      []
+    ],
+    [
+      'an instance with an option group from outside the stack',
+      { Db: { type: instance, deletionPolicy: 'Delete', properties: { OptionGroupName: 'shared-mysql-options' } } },
+      ['Db']
+    ],
     ['a standalone instance with Snapshot', { Db: { type: instance, deletionPolicy: 'Snapshot' } }, []],
     ['a standalone instance with Retain', { Db: { type: instance, deletionPolicy: 'Retain' } }, []],
     [

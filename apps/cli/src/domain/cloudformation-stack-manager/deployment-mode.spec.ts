@@ -99,6 +99,13 @@ describe('chooseDeleteDeploymentMode', () => {
     expect(chooseDeleteDeploymentMode([])).toBe('EXPRESS');
   });
 
+  test('a MySQL or MariaDB stack waits for its database before deleting the option group', () => {
+    expect(
+      chooseDeleteDeploymentMode(['AWS::RDS::DBInstance', 'AWS::RDS::OptionGroup', 'AWS::RDS::DBSubnetGroup'])
+    ).toBe('STANDARD');
+    expect(chooseDeleteDeploymentMode(['AWS::RDS::DBInstance', 'AWS::RDS::DBSubnetGroup'])).toBe('EXPRESS');
+  });
+
   test('a serverless cache stack waits for its user group before deleting the user', () => {
     expect(
       chooseDeleteDeploymentMode([
