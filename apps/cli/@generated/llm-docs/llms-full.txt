@@ -17298,7 +17298,7 @@ These v3 commands were renamed. The old names still run the new command and prin
 | `--devMode`, `--dm` | Delete it. Use [`stacktape dev`](/cli/dev). |
 | `dev --container`, `dev --resourceName` | Use `dev --resources <name>` (and `--skip-resources`). |
 
-Two parsing rules are stricter:
+Two parsing rules changed:
 
 - An option with one dash must be one letter: `-r eu-west-1` works, `-pn shop` does not. Use the long form, `--project shop`.
 - A boolean flag takes its value after `=`: `--watch=false`. `--flag true` and `--flag false` as separate words still work for commands without positional arguments, such as `deploy`; for others the second word is read as a positional argument.
