@@ -45,6 +45,13 @@ class CalculatedStackOverviewManager {
     this.#context = undefined;
   };
 
+  /** The synthesis state before a pass whose result must not stay, such as deploy's confirmation preview. */
+  captureSynthesisState = (): StackInfoMap => serialize(this.stackInfoMap);
+
+  restoreSynthesisState = (stackInfoMap: StackInfoMap) => {
+    this.stackInfoMap = stackInfoMap;
+  };
+
   get resourceCount() {
     return Object.values(this.stackInfoMap.resources)
       .flat()

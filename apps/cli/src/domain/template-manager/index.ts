@@ -49,6 +49,21 @@ export class TemplateManager {
     this.#stackName = undefined;
   };
 
+  /** The synthesis state before a pass whose result must not stay, such as deploy's confirmation preview. */
+  captureSynthesisState = () => ({
+    template: serialize(this.template),
+    initialTemplate: serialize(this.initialTemplate),
+    templateOverrideFunctions: [...this.templateOverrideFunctions],
+    preFinalizationTemplate: this.#preFinalizationTemplate && serialize(this.#preFinalizationTemplate)
+  });
+
+  restoreSynthesisState = (state: ReturnType<TemplateManager['captureSynthesisState']>) => {
+    this.template = state.template;
+    this.initialTemplate = state.initialTemplate;
+    this.templateOverrideFunctions = state.templateOverrideFunctions;
+    this.#preFinalizationTemplate = state.preFinalizationTemplate;
+  };
+
   /**
    * Starts a finalization pass, putting the template back to the state it was in before this invocation finalized it
    * for the first time.

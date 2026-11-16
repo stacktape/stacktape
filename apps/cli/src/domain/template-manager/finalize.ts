@@ -358,7 +358,7 @@ export const assertNoUnresolvedPlaceholders = (template: CloudFormationTemplate)
  * New queues, queue policies and rules are created by the service Lambda. This depends on the deployed stack, so it is
  * part of what a deploy sends rather than of the synthesized template that `synth` and `validate` show.
  */
-const createNewResourcesThroughServiceLambda = () => {
+export const createNewResourcesThroughServiceLambda = () => {
   // Dev stacks keep CloudFormation's own resource types; `stacktape dev` manages them separately.
   if (calculatedStackOverviewManager.context.command === 'dev') return;
   createNewQueuesAndRulesThroughServiceLambda({

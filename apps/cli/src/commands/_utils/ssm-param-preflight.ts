@@ -15,21 +15,7 @@ import { isAgentMode } from './agent-mode';
  *   and a link to the Stacktape Console SSM parameters page.
  */
 export const ensureMissingSsmParamsCreated = async () => {
-  const paramRefs = configManager.allSsmParamReferencesUsedInConfig;
-  if (!paramRefs.size) {
-    return;
-  }
-
-  const found = await Promise.all(
-    [...paramRefs].map((paramName) =>
-      awsSdkManager.parameterStore.get({ name: paramName }).then(
-        () => true,
-        () => false
-      )
-    )
-  );
-  const missingParams = [...paramRefs].filter((_, index) => !found[index]);
-
+  const missingParams = await findMissingSsmParams();
   if (!missingParams.length) {
     return;
   }
@@ -48,6 +34,20 @@ export const ensureMissingSsmParamsCreated = async () => {
       `Create the parameters in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`
     );
   }
+};
+
+/** `$SsmParam` references whose parameter does not exist in the target region. Reads only. */
+export const findMissingSsmParams = async (): Promise<string[]> => {
+  const paramRefs = [...configManager.allSsmParamReferencesUsedInConfig];
+  const found = await Promise.all(
+    paramRefs.map((paramName) =>
+      awsSdkManager.parameterStore.get({ name: paramName }).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  return paramRefs.filter((_, index) => !found[index]);
 };
 
 const promptAndCreateParams = async (paramNames: string[]) => {

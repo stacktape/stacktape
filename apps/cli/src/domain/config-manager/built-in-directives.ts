@@ -77,7 +77,10 @@ export const getCfResourceParamOutput = ({
 export type BuiltInDirectiveContext = Readonly<{
   runtime: Readonly<{
     calculatedStackOverviewManager: Pick<typeof calculatedStackOverviewManager, 'getStpResource'>;
-    configManager: Pick<typeof configManager, 'findResourceInConfig' | 'deploymentContext' | 'isSecretReportedMissing'>;
+    configManager: Pick<
+      typeof configManager,
+      'findResourceInConfig' | 'deploymentContext' | 'isSecretReportedMissing' | 'isSsmParamReportedMissing'
+    >;
     deployedStackOverviewManager: Pick<typeof deployedStackOverviewManager, 'getStpResource'>;
     stackManager: Pick<typeof stackManager, 'getExistingResourceDetails' | 'existingStackDetails'>;
     templateManager: Pick<typeof templateManager, 'template' | 'addFinalTemplateOverrideFn' | 'addStackOutput'>;
@@ -352,9 +355,10 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         async (...args: string[]) => {
           const { secretName, jsonKey } = parseSecretReference(args);
           const directive = describeSecretDirective(args);
-          // `validate` has already reported this secret as missing. Deploy never gets here: it creates or asks for every
-          // missing secret first, and fails when it cannot.
-          if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+          // `validate` reported this secret as missing, or `deploy` is building the template it asks for confirmation
+          // with, before it creates or asks for the secret. A deployed template never holds this placeholder: deploy
+          // resolves again once every missing secret exists, and fails when one cannot be created.
+          if (configManager.isSecretReportedMissing(secretName)) {
             return `{{resolve:secretsmanager:${secretName}:SecretString:${jsonKey || ''}::}}`;
           }
           let secret;
@@ -461,7 +465,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         () =>
         async (...args: string[]) => {
           const { secretName, jsonKey } = parseSecretReference(args);
-          if (context.command === 'validate' && configManager.isSecretReportedMissing(secretName)) {
+          if (configManager.isSecretReportedMissing(secretName)) {
             return `arn:aws:secretsmanager:${context.region}:${context.accountId}:secret:${secretName}:${jsonKey || ''}::`;
           }
           let secret;
@@ -546,6 +550,8 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       requiredParams: { paramName: 'string' },
       isRuntime: true,
       resolveFunction: () => async (paramReference: string) => {
+        // Only while `deploy` builds the template it asks for confirmation with, before it asks for the parameter.
+        if (configManager.isSsmParamReportedMissing(paramReference)) return `{{resolve:ssm:${paramReference}}}`;
         let param;
         try {
           param = await awsSdkManager.parameterStore.get({ name: paramReference });
