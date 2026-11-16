@@ -582,6 +582,13 @@ describe('state machine definitions', () => {
         `resources:\n  workflow:\n    type: state-machine\n    properties:\n      definition: ${JSON.stringify(definition)}\n`
       );
       const template = await synthesizeFixture({ configPath, workingDir: directory });
+      if (templateOutputDirectory) {
+        await mkdir(templateOutputDirectory, { recursive: true });
+        await writeFile(
+          join(templateOutputDirectory, 'state-machine-native-asl.json'),
+          `${JSON.stringify(template, null, 2)}\n`
+        );
+      }
       expect(onlyResourceOfType(template, 'AWS::StepFunctions::StateMachine').resource.Properties.Definition).toEqual(
         definition
       );

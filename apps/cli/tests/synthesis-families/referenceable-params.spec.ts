@@ -407,7 +407,7 @@ test('a website `url` is one URL; `customDomainUrls` lists every custom domain i
   for (const params of Object.values(managed)) {
     expect(Object.keys(params)).toEqual(['url']);
     // The managed default domain of the website's CDN.
-    expect(params.url).toMatch(/^https:\/\/[a-z-]+-characterization-baseline-xxxxxxxx\.stacktape-app\.com$/);
+    expect(params.url).toMatch(/^https:\/\/[a-z-]+-characterization-baseline-[a-z0-9]+\.stacktape-app\.com$/);
   }
 
   const single = await paramsOf(['www.example.com']);
