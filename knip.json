@@ -67,6 +67,7 @@
         "e2e/*fixture.tsx",
         "e2e/ui-capture/*.capture.ts",
         "e2e/ui-capture/broken-check.ts",
+        "e2e/ui-capture/behaviour-probe.ts",
         "src/dev/auth-review/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"]
