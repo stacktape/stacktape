@@ -271,7 +271,7 @@ class ParametersCollected extends Error {}
 
 type MapResource = {
   resourceType: string;
-  referencableParams: Record<string, unknown>;
+  referencableParams: Record<string, { ssmParameterName?: string }>;
   _nestedResources?: Record<string, MapResource>;
 };
 
@@ -280,17 +280,24 @@ type MapResource = {
  * configuration exercised, including types that publish no parameters.
  */
 const synthesizeParameters = async (resources: Record<string, unknown>) => {
-  const { published, types } = await synthesizeParameterValues(resources);
-  return { published: published.map(([resourceType, param]) => [resourceType, param] as [string, string]), types };
+  const { published, sensitive, types } = await synthesizeParameterValues(resources);
+  return {
+    published: published.map(([resourceType, param]) => [resourceType, param] as [string, string]),
+    sensitive,
+    types
+  };
 };
 
 /** Every published parameter with its value, keyed by the resource it belongs to. */
 const synthesizeParameterValues = async (resources: Record<string, unknown>) => {
   const published: [resourceType: string, param: string, value: unknown, resourceName: string][] = [];
+  const sensitive: string[] = [];
   const types = new Set(Object.values(resources).map((resource) => (resource as { type: string }).type));
   const collect = (resource: MapResource, resourceName: string) => {
     for (const [param, entry] of Object.entries(resource.referencableParams)) {
-      published.push([resource.resourceType, param, (entry as { value: unknown }).value, resourceName]);
+      const { value, ssmParameterName } = entry as { value: unknown; ssmParameterName?: string };
+      published.push([resource.resourceType, param, value, resourceName]);
+      if (ssmParameterName) sensitive.push(`${resource.resourceType}: ${param}`);
     }
     for (const [nestedName, nested] of Object.entries(resource._nestedResources ?? {})) {
       types.add(nested.resourceType);
@@ -318,15 +325,17 @@ const synthesizeParameterValues = async (resources: Record<string, unknown>) => 
   await synthesis.catch((error) => {
     if (!(error instanceof ParametersCollected)) throw error;
   });
-  return { published, types };
+  return { published, sensitive, types };
 };
 
 test('the registry lists exactly the parameters each resource type publishes', async () => {
   const published: [resourceType: string, param: string][] = [];
+  const sensitive = new Set<string>();
   const exercisedTypes = new Set<string>();
   for (const resources of Object.values(variants)) {
     const result = await synthesizeParameters(resources);
     published.push(...result.published);
+    for (const param of result.sensitive) sensitive.add(param);
     for (const type of result.types) exercisedTypes.add(type);
   }
   expect([...exercisedTypes].sort()).toEqual([...STACKTAPE_RESOURCE_TYPES].sort());
@@ -354,6 +363,15 @@ test('the registry lists exactly the parameters each resource type publishes', a
     )
   ];
   expect(neverPublished).toEqual([]);
+
+  // A parameter the CLI keeps in SSM is one commands withhold without --show-secrets; dev mode masks the variables
+  // built from it by its registry flag.
+  const registeredSensitive = Object.entries(REFERENCEABLE_PARAMS).flatMap(([resourceType, params]) =>
+    (params as ReadonlyArray<{ name: string; sensitive?: true }>)
+      .filter((param) => param.sensitive)
+      .map(({ name }) => `${resourceType}: ${name}`)
+  );
+  expect([...sensitive].sort()).toEqual(registeredSensitive.sort());
 }, 120_000);
 
 test('numbered parameters match only their number', () => {

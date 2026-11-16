@@ -374,9 +374,7 @@ v4 checks some values that v3 accepted:
 
 ### Scripts
 
-{/* STUB (owner: the "remove pipeStdio" change, breaking change C). Reconcile with what it merged before publishing. */}
-
-`pipeStdio` on `local-script` and `local-script-with-bastion-tunneling` is replaced by `stdioMode`. Replace `pipeStdio: false` with `stdioMode: ignore`, and delete `pipeStdio: true`, which is the default (`stdioMode: capture`). Use `stdioMode: inherit` for a script that needs keyboard input. See [hooks and scripts](/configuration/hooks-and-scripts).
+`pipeStdio` on `local-script` and `local-script-with-bastion-tunneling` is replaced by `stdioMode`. A configuration that still sets it fails validation with `CONFIG_SCRIPT_PIPE_STDIO_REMOVED`, which names the script. Replace `pipeStdio: false` with `stdioMode: ignore`, and delete `pipeStdio: true`, which is the default (`stdioMode: capture`). Use `stdioMode: inherit` for a script that needs keyboard input. See [hooks and scripts](/configuration/hooks-and-scripts).
 
 ### Removed resource parameters
 
@@ -857,9 +855,14 @@ Check scripts and CI jobs that set an AWS profile or AWS keys, for example for a
 
 ### Secrets in command output
 
-{/* STUB (owner: the "hide credentials in all command output" change, breaking change A). Reconcile with what it merged before publishing. */}
+Every command replaces secret values with `<<OMITTED>>` unless you pass `--show-secrets`. Secret values are database and Redis connection strings, Upstash passwords and tokens, AppSync API keys, user pool client secrets and Convex keys. This changes:
 
-Commands that print credentials as part of their output, such as database connection strings in stack outputs, hide them unless you pass `--show-secrets`. If a script reads such a value from a command's output, add `--show-secrets` to that command, and make sure its output does not end up in shared CI logs. `stacktape secret get` prints the value you ask for, as before.
+- `deploy --agent`: `data.result.stackInfo` now holds `<<OMITTED>>` for them; v3 returned them. So does the stack-info file `deploy` writes.
+- `secret get`: prints the secret's name, ARN and creation date, and its value only with `--show-secrets`. With `--agent`, the result is `{ name, arn, created, value }` at `data.result`, where v3 printed the value in a log line.
+- `aws-profile list --agent`: returns the secret access key masked, as its table shows it, unless you pass `--show-secrets`.
+- Local scripts: their captured output and their error replace the secrets Stacktape gives them (`$Secret`, `$SsmParam` and secret `connectTo` parameters) with `[redacted]`. A script with `stdioMode: inherit` writes to your terminal unchanged.
+
+If a script or CI job reads a secret from one of these commands, add `--show-secrets` to that command and keep its output out of shared logs. The [MCP server](/using-with-ai/mcp-server-setup) never returns secret values and refuses `--show-secrets`.
 
 ### Scripts that read CLI output
 

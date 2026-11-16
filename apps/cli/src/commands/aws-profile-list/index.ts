@@ -1,30 +1,34 @@
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { listAwsProfiles } from '@utils/aws-config';
 
+/** Without --show-secrets, only the last 4 characters of a secret access key are shown, enough to tell keys apart. */
+const maskSecretAccessKey = (secretAccessKey: string) => `${'*'.repeat(36)}${secretAccessKey.slice(36)}`;
+
 export const commandAwsProfileList = async () => {
-  const availableAwsProfiles = await listAwsProfiles();
+  const showSecrets = Boolean(globalStateManager.args.showSensitiveValues);
+  const profiles = (await listAwsProfiles()).map((profile) => ({
+    profile: profile.profile,
+    AWS_ACCESS_KEY_ID: profile.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: showSecrets
+      ? profile.AWS_SECRET_ACCESS_KEY
+      : maskSecretAccessKey(profile.AWS_SECRET_ACCESS_KEY)
+  }));
 
-  const header = ['Profile', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
-  const rows = availableAwsProfiles.map((profile) => [
-    tuiManager.colorize('cyan', profile.profile),
-    profile.AWS_ACCESS_KEY_ID,
-    profile.AWS_SECRET_ACCESS_KEY
-  ]);
-
-  if (!rows.length) {
+  if (!profiles.length) {
     tuiManager.warn(
       `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile create')}\`.`
     );
   } else {
     tuiManager.printTable({
-      header,
-      rows: rows.map((row) => [...row.slice(0, -1), '*'.repeat(36) + row[2].slice(36)])
+      header: ['Profile', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
+      rows: profiles.map((profile) => [
+        tuiManager.colorize('cyan', profile.profile),
+        profile.AWS_ACCESS_KEY_ID,
+        profile.AWS_SECRET_ACCESS_KEY
+      ])
     });
   }
 
-  return rows.map((row) => ({
-    profile: row[0],
-    AWS_ACCESS_KEY_ID: row[1],
-    AWS_SECRET_ACCESS_KEY: row[2]
-  }));
+  return profiles;
 };

@@ -60,19 +60,19 @@ const SSR_WEB_PARAMS = [
  */
 export const REFERENCEABLE_PARAMS = {
   'relational-database': [
-    { name: 'connectionString', description: 'Connection string for the database' },
-    { name: 'jdbcConnectionString', description: 'JDBC connection string' },
+    { name: 'connectionString', description: 'Connection string for the database', sensitive: true },
+    { name: 'jdbcConnectionString', description: 'JDBC connection string', sensitive: true },
     { name: 'host', description: 'Database host' },
     { name: 'hosts', description: 'Hosts of all Aurora instances' },
     { name: 'port', description: 'Database port' },
     { name: 'dbName', description: 'Database name' },
     { name: 'readerHost', description: 'Reader endpoint host' },
     { name: 'readerPort', description: 'Reader endpoint port' },
-    { name: 'readerConnectionString', description: 'Reader connection string' },
-    { name: 'readerJdbcConnectionString', description: 'Reader JDBC connection string' },
+    { name: 'readerConnectionString', description: 'Reader connection string', sensitive: true },
+    { name: 'readerJdbcConnectionString', description: 'Reader JDBC connection string', sensitive: true },
     { name: 'readReplicaHosts', description: 'Read replica hosts' },
-    { name: 'readReplicaConnectionStrings', description: 'Read replica connection strings' },
-    { name: 'readReplicaJdbcConnectionStrings', description: 'Read replica JDBC connection strings' }
+    { name: 'readReplicaConnectionStrings', description: 'Read replica connection strings', sensitive: true },
+    { name: 'readReplicaJdbcConnectionStrings', description: 'Read replica JDBC connection strings', sensitive: true }
   ],
   'dsql-database': [
     { name: 'endpoint', description: 'DSQL cluster endpoint' },
@@ -140,16 +140,20 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'url', description: 'GraphQL HTTPS endpoint' },
     { name: 'realtimeUrl', description: 'GraphQL realtime WebSocket endpoint' },
     { name: 'customDomainUrl', description: 'GraphQL endpoint on the configured custom domain' },
-    { name: 'apiKey', description: 'Sensitive AppSync API key when API-key authentication is configured' }
+    {
+      name: 'apiKey',
+      description: 'Sensitive AppSync API key when API-key authentication is configured',
+      sensitive: true
+    }
   ],
   'mongo-db-atlas-cluster': [{ name: 'connectionString', description: 'MongoDB connection string' }],
   redis: [
     { name: 'host', description: 'Redis host' },
     { name: 'port', description: 'Redis port' },
-    { name: 'connectionString', description: 'Redis connection string' },
+    { name: 'connectionString', description: 'Redis connection string', sensitive: true },
     { name: 'readerHost', description: 'Redis reader host' },
     { name: 'readerPort', description: 'Redis reader port' },
-    { name: 'readerConnectionString', description: 'Redis reader connection string' },
+    { name: 'readerConnectionString', description: 'Redis reader connection string', sensitive: true },
     { name: 'sharding', description: 'Sharding status' }
   ],
   'state-machine': [
@@ -160,18 +164,18 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'id', description: 'User pool ID' },
     { name: 'arn', description: 'User pool ARN' },
     { name: 'clientId', description: 'Client ID' },
-    { name: 'clientSecret', description: 'Client secret when generateClientSecret is enabled' },
+    { name: 'clientSecret', description: 'Client secret when generateClientSecret is enabled', sensitive: true },
     { name: 'providerUrl', description: 'Identity provider URL' },
     { name: 'domain', description: 'User pool domain' }
   ],
   'upstash-redis': [
     { name: 'host', description: 'Upstash Redis host' },
     { name: 'port', description: 'Upstash Redis port' },
-    { name: 'password', description: 'Password' },
-    { name: 'restToken', description: 'REST token' },
-    { name: 'readOnlyRestToken', description: 'Read-only REST token' },
+    { name: 'password', description: 'Password', sensitive: true },
+    { name: 'restToken', description: 'REST token', sensitive: true },
+    { name: 'readOnlyRestToken', description: 'Read-only REST token', sensitive: true },
     { name: 'restUrl', description: 'REST URL' },
-    { name: 'redisUrl', description: 'Redis URL' }
+    { name: 'redisUrl', description: 'Redis URL', sensitive: true }
   ],
   'application-load-balancer': [
     { name: 'domain', description: 'Load balancer domain' },
@@ -214,8 +218,12 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'url', description: 'Cloud origin that frontend clients connect to' },
     { name: 'siteUrl', description: 'HTTP actions origin' },
     { name: 'dashboardUrl', description: 'Admin dashboard URL when the dashboard is enabled' },
-    { name: 'adminKey', description: 'Sensitive admin key for Convex tooling; never injected by connectTo' },
-    { name: 'instanceSecret', description: 'Sensitive instance boot secret' }
+    {
+      name: 'adminKey',
+      description: 'Sensitive admin key for Convex tooling; never injected by connectTo',
+      sensitive: true
+    },
+    { name: 'instanceSecret', description: 'Sensitive instance boot secret', sensitive: true }
   ],
   'sqs-queue': [
     { name: 'arn', description: 'Queue ARN' },
@@ -254,8 +262,21 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'arn', description: 'AgentCore code interpreter ARN' }
   ]
 } as const satisfies Partial<
-  Record<StacktapeResourceType, ReadonlyArray<{ readonly name: string; readonly description: string }>>
+  Record<
+    StacktapeResourceType,
+    ReadonlyArray<{ readonly name: string; readonly description: string; readonly sensitive?: true }>
+  >
 >;
+
+/**
+ * Parameters that hold a credential: Stacktape stores their values in SSM Parameter Store instead of stack outputs, and
+ * commands print them only with `--show-secrets`. A name is listed if it is sensitive for any resource type.
+ */
+export const SENSITIVE_REFERENCEABLE_PARAM_NAMES: ReadonlySet<string> = new Set(
+  Object.values(REFERENCEABLE_PARAMS).flatMap((params: ReadonlyArray<{ name: string; sensitive?: true }>) =>
+    params.filter(({ sensitive }) => sensitive).map(({ name }) => name)
+  )
+);
 
 const LISTENER_PORT = { min: 1, max: 65535 } as const;
 

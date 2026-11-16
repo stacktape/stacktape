@@ -60,7 +60,7 @@ export default defineConfig(() => {
 ```
 
 
-The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. Local scripts include a `pipeStdio` property that controls whether script output is piped to your terminal.
+The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. A local script's `stdioMode` controls its terminal: `capture` (the default) shows its output in Stacktape's progress output, `inherit` hands it the terminal, including input, for interactive programs, and `ignore` discards its output. In captured output and in a failed script's error, Stacktape replaces the secret values it injected into the script, from `$Secret`, `$SsmParam` or the secret parameters of `connectTo` resources, with `[redacted]`.
 
 ### Local script with bastion tunneling
 

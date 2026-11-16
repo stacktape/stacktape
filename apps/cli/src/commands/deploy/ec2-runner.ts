@@ -124,13 +124,10 @@ export const deployWithEc2Runner = async () => {
     budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
   });
 
+  // The stack-info file and the command result (`--agent` output, MCP) hold secret values only with --show-secrets.
   const detailedStackInfo = getDetailedStackInfoMap({
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: args.showSensitiveValues
-  });
-  const detailedStackInfoSensitive = getDetailedStackInfoMap({
-    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: true
+    showSensitiveValues: Boolean(args.showSensitiveValues)
   });
   if (configManager.stackInfoDirPath) {
     await saveDetailedStackInfoMap({
@@ -155,7 +152,7 @@ export const deployWithEc2Runner = async () => {
 
   return {
     invocationId,
-    stackInfo: detailedStackInfoSensitive
+    stackInfo: detailedStackInfo
   };
 };
 

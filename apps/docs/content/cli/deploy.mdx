@@ -101,7 +101,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 ### `--show-secrets`
 
-Includes sensitive values in deploy output. Handle with care.
+Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
 
 ## All flags
 

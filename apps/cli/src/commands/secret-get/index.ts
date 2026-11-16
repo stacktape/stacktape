@@ -23,37 +23,38 @@ export const commandSecretGet = async () => {
   const secretValue = await awsSdkManager.secrets.get({ secretId: secretName });
   spinner.success({ text: `Retrieved secret ${tuiManager.makeBold(secretName)}` });
 
-  const parsedValue = isJson(secretValue.SecretString)
-    ? JSON.parse(secretValue.SecretString)
-    : secretValue.SecretString;
+  // The value is printed and returned only with --show-secrets: command output often ends up in CI logs and agent
+  // transcripts.
+  const showValue = Boolean(args.showSensitiveValues);
+  const value = !showValue
+    ? '<<OMITTED>>'
+    : isJson(secretValue.SecretString)
+      ? JSON.parse(secretValue.SecretString)
+      : secretValue.SecretString;
+  const result = {
+    name: secretValue.Name,
+    arn: secretValue.ARN,
+    created: secretValue.CreatedDate?.toISOString(),
+    value
+  };
 
-  if (agentMode) {
-    tuiManager.info(
-      JSON.stringify(
-        {
-          name: secretValue.Name,
-          value: parsedValue,
-          created: secretValue.CreatedDate.toLocaleString(),
-          arn: secretValue.ARN
-        },
-        null,
-        2
-      )
-    );
-  } else {
-    const valueStr = typeof parsedValue === 'object' ? JSON.stringify(parsedValue, null, 2) : String(parsedValue);
+  if (!agentMode) {
+    const valueStr = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
     tuiManager.printBox({
       title: 'Secret',
       lines: [
         `${tuiManager.makeBold('Name')}     ${secretValue.Name}`,
-        `${tuiManager.makeBold('Created')}  ${secretValue.CreatedDate.toLocaleString()}`,
+        `${tuiManager.makeBold('Created')}  ${secretValue.CreatedDate?.toLocaleString()}`,
         `${tuiManager.makeBold('ARN')}      ${secretValue.ARN}`,
         '',
         `${tuiManager.makeBold('Value')}`,
         valueStr
       ]
     });
+    if (!showValue) {
+      tuiManager.info('Re-run with --show-secrets to print the value.');
+    }
   }
 
-  return null;
+  return result;
 };

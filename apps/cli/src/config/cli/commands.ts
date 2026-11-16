@@ -319,9 +319,10 @@ You will be prompted to enter the name of the profile to delete.`,
   },
 
   'aws-profile:list': {
-    description: `Lists all AWS profiles configured on your system.`,
+    description: `Lists all AWS profiles configured on your system. Secret access keys are masked unless you pass \`--show-secrets\`.`,
     args: {
-      logLevel: logLevel.optional()
+      logLevel: logLevel.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: [] as const
   },
@@ -366,13 +367,14 @@ In agent mode, use --secret-name with either --value or --file. Use --force-upda
   },
 
   'secret:get': {
-    description: `Prints details about a specified secret to the console.
+    description: `Prints details about a specified secret. The value itself is printed only with \`--show-secrets\`.
 
 In agent mode, use --secret-name to specify the secret.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
-      secretName: secretName.optional()
+      secretName: secretName.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: ['region'] as const
   },

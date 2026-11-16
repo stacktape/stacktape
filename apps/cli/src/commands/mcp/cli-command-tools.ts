@@ -594,19 +594,20 @@ const SHOW_SECRETS_REFUSAL =
 
 /**
  * Arguments MCP does not pass on, with what to use instead: ones that would keep a command running past what one MCP
- * call can wait for, and ones that would print secret values into the conversation.
+ * call can wait for, and `showSensitiveValues` on every command, which would print secret values into the conversation.
  */
 const MCP_REFUSED_ARGS: Partial<Record<StacktapeCommand, Record<string, string>>> = {
   logs: {
     follow:
       '`follow` keeps `stacktape logs` running until it is stopped, so an MCP call would not return. To watch a dev session\'s logs, use the stacktape_dev tool with action "logs"; for a deployed stack, run logs again with a later startTime.'
-  },
-  'param:get': { showSensitiveValues: SHOW_SECRETS_REFUSAL },
-  deploy: { showSensitiveValues: SHOW_SECRETS_REFUSAL }
+  }
 };
 
+const getMcpRefusal = (command: StacktapeCommand, argName: string) =>
+  argName === 'showSensitiveValues' ? SHOW_SECRETS_REFUSAL : MCP_REFUSED_ARGS[command]?.[argName];
+
 const isMcpExcludedArg = (command: StacktapeCommand, argName: string) =>
-  MCP_MANAGED_ARGS.has(argName) || Boolean(MCP_REFUSED_ARGS[command]?.[argName]);
+  MCP_MANAGED_ARGS.has(argName) || Boolean(getMcpRefusal(command, argName));
 
 const getMcpAllowedArgs = (command: StacktapeCommand) =>
   getAllowedArgs(command).filter((argName) => !isMcpExcludedArg(command, argName));
@@ -742,12 +743,12 @@ export const prepareCliRun = ({
     };
   }
 
-  const refusedArg = Object.keys(normalizedArgs).find((argName) => MCP_REFUSED_ARGS[command]?.[argName]);
+  const refusedArg = Object.keys(normalizedArgs).find((argName) => getMcpRefusal(command, argName));
   if (refusedArg) {
     return {
       ok: false,
       code: 'VALIDATION_ERROR',
-      message: MCP_REFUSED_ARGS[command]![refusedArg],
+      message: getMcpRefusal(command, refusedArg)!,
       data: { refusedArg }
     };
   }

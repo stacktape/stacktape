@@ -1714,55 +1714,6 @@ export interface LocalScriptProps extends ScriptEnvProps {
    * @default capture
    */
   stdioMode?: 'capture' | 'inherit' | 'ignore';
-  /**
-   * #### Pipe Stdio
-   *
-   * ---
-   *
-   * If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-   * Use `stdioMode: inherit` for scripts that need interactive terminal input.
-   *
-   *
-   * **Example (YAML):**
-   *
-   * ```yaml
-   * scripts:
-   *   silentTask:
-   *     type: local-script
-   *     properties:
-   *       executeCommand: node ./scripts/background-task.js
-   *       # stp-focus
-   *       pipeStdio: false
-   *       # stp-end-focus
-   * resources:
-   *   web:
-   *     type: hosting-bucket
-   *     properties:
-   *       uploadDirectoryPath: ./dist
-   * ```
-   *
-   * **Example (TypeScript):**
-   *
-   * ```ts
-   * import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-   *
-   * export default defineConfig(() => {
-   *   const silentTask = new LocalScript({
-   *     executeCommand: 'node ./scripts/background-task.js',
-   *     // stp-focus
-   *     pipeStdio: false
-   *     // stp-end-focus
-   *   });
-   *   const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-   *
-   *   return { scripts: { silentTask }, resources: { web } };
-   * });
-   * ```
-   *
-   * @default true
-   * @deprecated Use `stdioMode`.
-   */
-  pipeStdio?: boolean;
 }
 
 

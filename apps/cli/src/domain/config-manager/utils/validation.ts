@@ -276,6 +276,7 @@ export const validateConfigStructure = async ({
   configPath: string;
 }) => {
   validateNoLegacyRedisClusters({ config });
+  validateNoPipeStdio({ config });
   validateCdnSelectors({ config });
   validateNoAuroraServerlessV1({ config });
   validateAgentCoreGatewayAuthorizers({ config });
@@ -413,6 +414,33 @@ const validateNoLegacyRedisClusters = ({ config }: { config: StacktapeConfig }) 
       'To switch the cache to Valkey in place, set `engine.type: valkey` instead. Writes pause for a few seconds (longer without replicas), the endpoint and data stay, and the switch cannot be reversed.'
     ]
   });
+};
+
+/**
+ * Stacktape v4 removed the deprecated `pipeStdio` script property; `stdioMode` is the only control. The schema error
+ * alone would only call it an unknown property, so the script gets the exact replacement.
+ */
+const validateNoPipeStdio = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, script] of Object.entries(config?.scripts || {})) {
+    const properties = (script as unknown as { properties?: Record<string, unknown> } | undefined)?.properties;
+    if (!properties || !('pipeStdio' in properties)) continue;
+    const { pipeStdio } = properties;
+    const replacement =
+      properties.stdioMode !== undefined
+        ? `Delete \`pipeStdio\`; the script already sets \`stdioMode: ${String(properties.stdioMode)}\`.`
+        : pipeStdio === false
+          ? 'Replace it with `stdioMode: ignore`.'
+          : 'Replace it with `stdioMode: capture`, or delete it: `capture` is the default.';
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCRIPT_PIPE_STDIO_REMOVED',
+      message: `Script \`${name}\` uses \`pipeStdio\`, which Stacktape v4 removed. ${replacement}`,
+      hints: [
+        '`pipeStdio: true` becomes `stdioMode: capture` and `pipeStdio: false` becomes `stdioMode: ignore`.',
+        'Use `stdioMode: inherit` for a script that needs interactive terminal input.'
+      ]
+    });
+  }
 };
 
 const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {

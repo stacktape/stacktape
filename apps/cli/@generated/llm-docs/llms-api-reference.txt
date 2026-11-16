@@ -40736,8 +40736,6 @@ type LocalScriptProps = {
   executeScript?: string;
   /** Execute Scripts */
   executeScripts?: Array<string>;
-  /** Pipe Stdio */
-  pipeStdio?: boolean;
   /** Standard I/O Mode */
   stdioMode?: "capture" | "ignore" | "inherit";
 };
@@ -41178,49 +41176,6 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `pipeStdio`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Pipe Stdio
-
-If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-Use `stdioMode: inherit` for scripts that need interactive terminal input.
-
-### Example 1 (yaml)
-
-```yaml
-scripts:
-  silentTask:
-    type: local-script
-    properties:
-      executeCommand: node ./scripts/background-task.js
-      pipeStdio: false
-resources:
-  web:
-    type: hosting-bucket
-    properties:
-      uploadDirectoryPath: ./dist
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const silentTask = new LocalScript({
-    executeCommand: 'node ./scripts/background-task.js',
-    pipeStdio: false
-  });
-  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-
-  return { scripts: { silentTask }, resources: { web } };
-});
-```
-
 ## Property: `stdioMode`
 
 - Required: no
@@ -41292,8 +41247,6 @@ type LocalScriptWithBastionTunnelingProps = {
   executeScript?: string;
   /** Execute Scripts */
   executeScripts?: Array<string>;
-  /** Pipe Stdio */
-  pipeStdio?: boolean;
   /** Standard I/O Mode */
   stdioMode?: "capture" | "ignore" | "inherit";
 };
@@ -41793,49 +41746,6 @@ export default defineConfig(() => {
   });
 
   return { scripts: { setup }, resources: { db } };
-});
-```
-
-## Property: `pipeStdio`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Pipe Stdio
-
-If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-Use `stdioMode: inherit` for scripts that need interactive terminal input.
-
-### Example 1 (yaml)
-
-```yaml
-scripts:
-  silentTask:
-    type: local-script
-    properties:
-      executeCommand: node ./scripts/background-task.js
-      pipeStdio: false
-resources:
-  web:
-    type: hosting-bucket
-    properties:
-      uploadDirectoryPath: ./dist
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const silentTask = new LocalScript({
-    executeCommand: 'node ./scripts/background-task.js',
-    pipeStdio: false
-  });
-  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-
-  return { scripts: { silentTask }, resources: { web } };
 });
 ```
 
