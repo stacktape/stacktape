@@ -166,6 +166,7 @@ const getAlarmNotificationRule = ({ test, canaryName }: { test: StpSyntheticTest
     description: '<description>',
     time: '<time>',
     stateValue: '<stateValue>',
+    previousStateValue: '<previousStateValue>',
     alarmAwsResourceName,
     stackName,
     alarmConfig: {
@@ -204,7 +205,8 @@ const getAlarmNotificationRule = ({ test, canaryName }: { test: StpSyntheticTest
             alarmName: '$.detail.alarmName',
             description: '$.detail.configuration.description',
             time: '$.time',
-            stateValue: '$.detail.state.value'
+            stateValue: '$.detail.state.value',
+            previousStateValue: '$.detail.previousState.value'
           },
           InputTemplate: JSON.stringify(inputTemplate)
         },

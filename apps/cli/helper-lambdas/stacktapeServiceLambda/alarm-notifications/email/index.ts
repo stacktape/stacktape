@@ -29,10 +29,21 @@ export const sendAlarmEmail = ({
 };
 
 const getEmailSubject = ({ alarmDetail }: { alarmDetail: AlarmNotificationEventRuleInput }) => {
+  if (alarmDetail.stateValue === 'OK') {
+    return `Resolved: alarm ${alarmDetail.alarmConfig.name} (stack ${alarmDetail.stackName})`;
+  }
   return `Alarm ${alarmDetail.alarmConfig.name} (stack ${alarmDetail.stackName})`;
 };
 
 const getTextEmailContent = ({ alarmDetail }: { alarmDetail: AlarmNotificationEventRuleInput }) => {
+  if (alarmDetail.stateValue === 'OK') {
+    return `Alarm ${alarmDetail.alarmConfig.name} in stack ${alarmDetail.stackName} is back to OK.\n\n`
+      .concat(` - Alarm link: ${alarmDetail.alarmLink}\n\n`)
+      .concat(
+        ` - Affected resource: ${alarmDetail.affectedResource.displayName} (${alarmDetail.affectedResource.link})\n\n`
+      )
+      .concat(` - Time: ${alarmDetail.time}`);
+  }
   return `Alarm ${alarmDetail.alarmConfig.name} was fired in stack ${alarmDetail.stackName}.\n\n`
     .concat(` - Alarm link: ${alarmDetail.alarmLink}\n\n`)
     .concat(alarmDetail.alarmConfig.description ? ` - Description: ${alarmDetail.description}\n\n` : '')

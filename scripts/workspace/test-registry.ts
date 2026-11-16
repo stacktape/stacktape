@@ -964,6 +964,17 @@ export const lanes: readonly Lane[] = [
       'Through a real HTTP API and its default domain, connectTo grants exactly its targets, an update revokes removed targets and swaps the STP_* variables, a $Secret() reference serves the pinned then the rotated value, and deletion leaves no resource or DNS record.'
   },
   {
+    id: 'alarm-notifications-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=alarm-inline-channels-in-account'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/alarm-notifications-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      "A real error-rate alarm's firing and recovery reach Teams, Discord and a signed webhook from the stack's service Lambda exactly once each, a replayed event sends nothing again, the Console report names no channel and carries no credential, and deletion leaves nothing."
+  },
+  {
     id: 'static-site-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=hosting-bucket-cdn-update'],
     level: 'live-aws',
@@ -6282,10 +6293,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.ts',
       'apps/console/api/src/services/alarm-event-counts.ts',
-      'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts'
+      'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts',
+      'apps/cli/_test-stacks/alarm-notifications/**',
+      'apps/cli/scripts/real-aws/alarm-notifications-canary.ts'
     ],
     tests: [
       'apps/console/api/scripts/uptime-database.test.ts',
+      'apps/cli/scripts/real-aws/alarm-notifications-canary.ts',
       'apps/console/api/src/services/uptime-stored-state.test.ts',
       'apps/console/api/src/services/uptime-access.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
@@ -6308,7 +6322,8 @@ export const slices: readonly Slice[] = [
       'console-ui-2',
       'console-ui-3',
       'console-database-incident-journey',
-      'console-database-console-access'
+      'console-database-console-access',
+      'alarm-notifications-live'
     ],
     contributors: ['S56', 'S45']
   },

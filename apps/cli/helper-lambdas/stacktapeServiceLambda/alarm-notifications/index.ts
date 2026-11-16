@@ -1,38 +1,48 @@
 import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
-import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import type { ReportAlarmEventParams } from '@stacktape/console-api/aws-identity';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@stacktape-api/aws-identity-protected';
-import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from 'src/config/constants';
-import { processAllNodes } from '@utils/misc';
-import { sendAlarmEmail } from './email';
-import { sendAlarmSlackMessage } from './slack';
+import { deliverInlineChannels, getAlarmDetails, getAlarmTitle } from './inline-channels';
 
-const ssmClient = new SSMClient({});
-const secretsClient = new SecretsManagerClient({});
-
+/**
+ * Handles one alarm state change. Inline channels (Slack, Microsoft Teams, Discord, email, webhooks) are delivered from
+ * this function, in the customer's account, whether or not the alarm is in the Console history. The Console receives
+ * the alarm's facts and the names of Console-managed channels only, never an inline channel's properties.
+ *
+ * Both parts run even when one fails, and either failure fails the invocation so Lambda retries it. A retry does not
+ * repeat what already succeeded: sent notifications are recorded per event and channel, and the Console treats the
+ * EventBridge event ID as the event's identity.
+ */
 export default async (event: AlarmNotificationEventRuleInput) => {
-  const resolvedEvent = await resolveDynamicReferences(event);
-
-  if (resolvedEvent.alarmConfig?.includeInHistory === false) {
-    if (resolvedEvent.stateValue !== 'ALARM') return;
-
-    await Promise.all(
-      (resolvedEvent.alarmConfig?.notificationChannels || []).map((notificationDetail) => {
-        if (notificationDetail.type === 'slack') {
-          return sendAlarmSlackMessage({ notificationDetail, alarmDetail: resolvedEvent });
-        }
-        if (notificationDetail.type === 'email') {
-          return sendAlarmEmail({ notificationDetail, alarmDetail: resolvedEvent });
-        }
-        return Promise.resolve();
-      })
-    );
-    return;
-  }
-
-  await reportToConsoleApi(resolvedEvent);
+  const results = await Promise.allSettled([
+    deliverInlineChannels(event),
+    event.alarmConfig?.includeInHistory === false ? Promise.resolve() : reportToConsoleApi(event)
+  ]);
+  const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason as Error] : []));
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) throw new Error(failures.map((error) => error?.message ?? String(error)).join('\n'));
 };
+
+/** Only the channels the Console delivers itself, by reference. Inline channels never leave the account. */
+export const getConsoleChannelReferences = (
+  event: AlarmNotificationEventRuleInput
+): ReportAlarmEventParams['channels'] =>
+  (event.alarmConfig?.notificationChannels || []).flatMap((channel): ReportAlarmEventParams['channels'] => {
+    if (channel.type === 'console-channel') {
+      return [{ name: channel.properties.channelName, type: 'console-channel', properties: {} }];
+    }
+    if (channel.type === 'slack-app') {
+      // The deploy resolved the channel name into the connection and channel IDs; neither is a credential.
+      return [
+        {
+          name: `#${channel.properties.channel.replace(/^#/u, '')}`,
+          type: 'slack_app' as const,
+          properties: channel.properties
+        }
+      ];
+    }
+    return [];
+  });
 
 const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
   const apiUrl = process.env.STACKTAPE_TRPC_API_ENDPOINT;
@@ -47,83 +57,20 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
   const client = new AwsIdentityProtectedClient();
   await client.init({ credentials: await defaultProvider()(), region, apiUrl });
 
+  const { alarmName, triggerType, ...details } = getAlarmDetails(event);
   await client.reportAlarmEvent.mutate({
     sourceEventId: event.sourceEventId,
     type: event.stateValue === 'OK' ? 'ALARM_RESOLVED' : 'ALARM_TRIGGERED',
-    alarmName: event.alarmConfig?.name || event.alarmAwsResourceName,
+    alarmName,
     sourceConfigName: event.alarmConfig?.name,
     // The config-side trigger type: the Console uses it to classify the signal (a canary's
     // SuccessPercent alarm becomes the synthetic test's own signal, not a generic alarm).
-    triggerType: event.alarmConfig?.trigger?.type,
+    triggerType,
     project,
     stage,
     region,
-    title:
-      event.stateValue === 'OK'
-        ? `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" resolved`
-        : `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" triggered`,
-    channels: (event.alarmConfig?.notificationChannels || []).map((channel) => {
-      if (channel.type === 'console-channel') {
-        return { name: channel.properties.channelName, type: channel.type, properties: {} };
-      }
-      if (channel.type === 'slack-app') {
-        return {
-          name: `#${channel.properties.channel.replace(/^#/u, '')}`,
-          type: 'slack_app',
-          properties: channel.properties
-        };
-      }
-      return {
-        name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
-        type: channel.type === 'ms-teams' ? 'ms_teams' : channel.type === 'email' ? 'e_mail' : channel.type,
-        properties: channel.properties || {}
-      };
-    }),
-    details: {
-      description: event.description,
-      time: event.time,
-      state: event.stateValue,
-      alarmArn: event.alarmAwsResourceName,
-      stackName: event.stackName,
-      affectedResource: event.affectedResource,
-      comparisonOperator: event.comparisonOperator,
-      measuringUnit: event.measuringUnit,
-      statFunction: event.statFunction,
-      alarmLink: event.alarmLink
-    }
-  });
-};
-
-const resolveDynamicReferences = <T>(obj: T): Promise<T> => {
-  return processAllNodes(obj, async (node) => {
-    if (typeof node === 'string' && node.startsWith(CF_ESCAPED_DYNAMIC_REFERENCE_START)) {
-      const cleanedReference = node.slice(
-        CF_ESCAPED_DYNAMIC_REFERENCE_START.length,
-        -CF_ESCAPED_DYNAMIC_REFERENCE_END.length
-      );
-      const [, serviceName, ...referenceKey] = cleanedReference.split(':');
-      if (serviceName === 'ssm-secure' || serviceName === 'ssm') {
-        const parameterReference = referenceKey.join(':');
-        const {
-          Parameter: { Value }
-        } = await ssmClient.send(new GetParameterCommand({ Name: parameterReference, WithDecryption: true }));
-        return Value;
-      }
-      if (serviceName === 'secretsmanager') {
-        const [secretId, , jsonKey, versionStage, versionId] = referenceKey;
-        const { SecretString } = await secretsClient.send(
-          new GetSecretValueCommand({
-            SecretId: secretId,
-            ...(versionId && { VersionId: versionId }),
-            ...(versionStage && { VersionStage: versionStage })
-          })
-        );
-        if (jsonKey) {
-          return JSON.parse(SecretString)[jsonKey];
-        }
-        return SecretString;
-      }
-    }
-    return node;
+    title: getAlarmTitle(event),
+    channels: getConsoleChannelReferences(event),
+    details
   });
 };

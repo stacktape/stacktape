@@ -101,6 +101,7 @@
     "test:real-aws-dev-canary": "bun scripts/real-aws/dev-mode-canary.ts",
     "test:real-aws-init-canary": "bun scripts/real-aws/init-canary.ts",
     "test:real-aws-scoped-access-canary": "bun scripts/real-aws/scoped-access-canary.ts",
+    "test:real-aws-alarm-notifications-canary": "bun scripts/real-aws/alarm-notifications-canary.ts",
     "test:real-aws-static-site-canary": "bun scripts/real-aws/static-site-canary.ts",
     "test:real-aws-batch-canary": "bun scripts/real-aws/batch-job-canary.ts",
     "test:source-cli:aws-readonly": "bun scripts/verify-source-cli-aws-readonly.ts",

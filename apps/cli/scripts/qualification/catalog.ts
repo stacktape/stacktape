@@ -28,6 +28,7 @@ export type AwsQualificationScenario = {
     | 'container-fast-deploy'
     | 'release-command'
     | 'scoped-access'
+    | 'alarm-notifications'
     | 'static-site'
     | 'batch-job';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
@@ -126,6 +127,24 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
       'cleanup'
     ],
     reason: 'Only real IAM shows that connectTo grants exactly its targets and that an update revokes a removed target.'
+  },
+  {
+    id: 'alarm-inline-channels-in-account',
+    runner: 'alarm-notifications',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: [
+      'lambda',
+      'cloudwatch-alarm',
+      'eventbridge',
+      'service-lambda',
+      'notification-delivery',
+      'secret-dynamic-reference',
+      'console-report',
+      'cleanup'
+    ],
+    reason:
+      'Only a real alarm, EventBridge rule and service Lambda role show that inline channels are delivered from the account once per event and that the Console report carries no channel credentials.'
   },
   {
     id: 'hosting-bucket-cdn-update',
