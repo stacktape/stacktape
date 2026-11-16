@@ -370,7 +370,7 @@ resources:
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
   web:
     type: sveltekit-web
     properties:
@@ -380,7 +380,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('database', 'connectionString')
         - name: STRIPE_SECRET_KEY
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
         - name: PUBLIC_APP_NAME
           value: My Storefront
 ```
@@ -396,13 +396,13 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const web = new SvelteKitWeb({
     connectTo: ['database'],
     environment: [
       { name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') },
-      { name: 'STRIPE_SECRET_KEY', value: $Secret('stripe.secretKey') },
+      { name: 'STRIPE_SECRET_KEY', value: $Secret('stripe', 'secretKey') },
       { name: 'PUBLIC_APP_NAME', value: 'My Storefront' }
     ]
   });
@@ -560,7 +560,7 @@ resources:
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
   web:
     type: sveltekit-web
     properties:
@@ -585,7 +585,7 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const web = new SvelteKitWeb({
     connectTo: ['database'],

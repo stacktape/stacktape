@@ -108,7 +108,7 @@ export interface AstroWebProps extends ResourceAccessProps {
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *   web:
    *     type: astro-web
    *     properties:
@@ -119,7 +119,7 @@ export interface AstroWebProps extends ResourceAccessProps {
    *         - name: DATABASE_URL
    *           value: $ResourceParam('marketingDb', 'connectionString')
    *         - name: STRIPE_SECRET
-   *           value: $Secret('stripe.secretKey')
+   *           value: $Secret('stripe', 'secretKey')
    *       # stp-end-focus
    * ```
    *
@@ -137,14 +137,14 @@ export interface AstroWebProps extends ResourceAccessProps {
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
-   *     credentials: { masterUserPassword: $Secret('db.password') }
+   *     credentials: { masterUserPassword: $Secret('db', 'password') }
    *   });
    *   const web = new AstroWeb({
    *     // stp-focus
    *     environment: [
    *       { name: 'PUBLIC_SITE_NAME', value: 'My Store' },
    *       { name: 'DATABASE_URL', value: $ResourceParam('marketingDb', 'connectionString') },
-   *       { name: 'STRIPE_SECRET', value: $Secret('stripe.secretKey') }
+   *       { name: 'STRIPE_SECRET', value: $Secret('stripe', 'secretKey') }
    *     ]
    *     // stp-end-focus
    *   });
@@ -513,7 +513,7 @@ export interface AstroWebServerLambdaConfig {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('redis.password')
+   *       defaultUserPassword: $Secret('redis', 'password')
    *       engine:
    *         type: valkey-serverless
    *   web:
@@ -534,7 +534,7 @@ export interface AstroWebServerLambdaConfig {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('redis.password'),
+   *     defaultUserPassword: $Secret('redis', 'password'),
    *     engine: { type: 'valkey-serverless' }
    *   });
    *   const web = new AstroWeb({

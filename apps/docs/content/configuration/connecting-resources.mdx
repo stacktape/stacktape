@@ -38,7 +38,7 @@ Skip `connectTo` when you need permissions narrower than the defaults it grants.
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -207,7 +207,7 @@ Use `connectTo` on the Lambda function to inject database connection variables. 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -580,7 +580,7 @@ The `iamRoleStatements` property adds a separate IAM policy alongside any auto-g
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',

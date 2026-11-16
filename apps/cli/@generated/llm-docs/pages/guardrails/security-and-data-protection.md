@@ -73,7 +73,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     accessibility: {
       accessibilityMode: 'vpc'
@@ -111,7 +111,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     deletionProtection: true
   });

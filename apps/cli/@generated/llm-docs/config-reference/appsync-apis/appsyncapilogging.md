@@ -140,7 +140,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -157,7 +157,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });

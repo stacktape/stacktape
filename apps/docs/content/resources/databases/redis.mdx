@@ -55,7 +55,7 @@ Prices are approximate for us-east-1.
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -88,7 +88,7 @@ There are no instances to size. The cache stores up to 5,000 GB and is billed fo
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -122,7 +122,7 @@ Clients connect on port 6379. Port 6380 serves lower-latency, eventually consist
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: { instanceSize: 'cache.t4g.micro' }
@@ -155,7 +155,7 @@ AWS publishes no Redis OSS versions after 7.1, so new caches must use Valkey. `e
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'redis',
       properties: { instanceSize: 'cache.t4g.micro', version: '6.2' }
@@ -228,7 +228,7 @@ Set `numReplicaNodes` to add read replicas, and `enableAutomaticFailover` to pro
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -269,7 +269,7 @@ Deploy replicas first, then enable `enableAutomaticFailover` in a separate deplo
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -310,7 +310,7 @@ Caches run inside your stack's VPC and have no public IP addresses.
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
@@ -350,7 +350,7 @@ Use [`connectTo`](/configuration/connecting-resources) to grant a workload acces
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -408,7 +408,7 @@ Set `automatedBackupRetentionDays` to keep daily snapshots for that many days (m
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     automatedBackupRetentionDays: 7
   });
@@ -441,7 +441,7 @@ During [`stacktape dev`](/local-development/dev-mode-overview), the cache runs l
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     dev: {
       remote: true
@@ -466,14 +466,14 @@ Stacktape v4 renamed `redis-cluster` to `redis` and moved node settings under `e
 cache:
   type: redis-cluster
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     instanceSize: cache.t4g.micro
 
 # Stacktape v4
 cache:
   type: redis
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     engine:
       type: redis
       properties:

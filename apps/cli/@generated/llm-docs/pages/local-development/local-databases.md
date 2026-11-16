@@ -25,7 +25,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db', 'password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -57,7 +57,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -88,7 +88,7 @@ import { defineConfig, RelationalDatabase, RdsEngineMysql } from 'stacktape';
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEngineMysql({
       version: '8.4',
@@ -133,7 +133,7 @@ Example (TypeScript):
 import { defineConfig, Redis } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
 
@@ -210,7 +210,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',

@@ -44,7 +44,7 @@ The simplest relational database configuration uses standard RDS with a fixed in
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -103,7 +103,7 @@ Use RDS when you need MariaDB, Oracle, or SQL Server (which Aurora doesn't suppo
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -150,7 +150,7 @@ Use Aurora when you need high availability with fast failover, read replicas for
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraEnginePostgresql({
       version: '16',
@@ -187,7 +187,7 @@ This is the **recommended engine for most new projects**. It handles traffic spi
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraServerlessV2EnginePostgresql({
       version: '16',
@@ -272,7 +272,7 @@ For production, use `scoping-workloads-in-vpc`. This restricts network access to
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -333,7 +333,7 @@ For **standard RDS**, you can also add `readReplicas` to offload read traffic. E
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -378,7 +378,7 @@ For workload `connectTo`, Stacktape injects `STP_MAIN_DATABASE_CONNECTION_STRING
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -439,7 +439,7 @@ For write-heavy workloads or larger datasets, increase `initialSize` to avoid fr
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -491,7 +491,7 @@ View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -548,7 +548,7 @@ At minimum, set up a `database-free-storage` alarm on every production database.
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',

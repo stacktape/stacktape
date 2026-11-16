@@ -292,7 +292,7 @@ Deployment fails with an error if Stacktape cannot fetch the named secret, with 
 
 When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#how-secret-resolution-works) for the distinction between local directives and deployed database credentials.
 
-For JSON-formatted secrets, use dot notation to extract a single top-level key — `$Secret('secret-name.key')` splits on the first `.` to determine the secret name and the JSON key:
+For a secret that stores a JSON object, pass the top-level key as the second argument: `$Secret('secret-name', 'key')`. The first argument is always the exact secret name, so it can contain dots. Omit the key, or pass `''`, to use the whole secret.
 
 
 Example (TypeScript):
@@ -308,8 +308,8 @@ export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
-      STRIPE_KEY: $Secret('api-keys.stripe'),
-      SENDGRID_KEY: $Secret('api-keys.sendgrid')
+      STRIPE_KEY: $Secret('api-keys', 'stripe'),
+      SENDGRID_KEY: $Secret('api-keys', 'sendgrid')
     }
   });
 
@@ -317,6 +317,8 @@ export default defineConfig(() => {
 });
 ```
 
+
+The Stacktape 3 form `$Secret('secret-name.key')` still works and reads the same secret as before: the text before the first `.` is the secret name, and the next segment is the JSON key. Use the two-argument form in new configurations, and always for a secret whose name contains a dot.
 
 Create a JSON secret with the CLI:
 
@@ -565,7 +567,7 @@ In TypeScript configs, nesting constraints rarely apply because you use native J
 | `$GitInfo()` | Local | `(property)` | Git repository information |
 | `$CliArgs()` | Local | `(argName, defaultValue?)` | CLI arguments passed after `--` |
 | `$StackOutput()` | Local | `(stackName, outputName, region?)` | Exported output from another deployed stack |
-| `$Secret()` | Runtime | `(secretName)` | AWS Secrets Manager value |
+| `$Secret()` | Runtime | `(secretName, jsonKey?)` | AWS Secrets Manager value, or one key of a JSON secret |
 | `$SsmParam()` | Runtime | `(paramName)` | SSM Parameter Store value |
 | `$ResourceParam()` | Runtime | `(resourceName, param)` | Parameter from a Stacktape resource |
 | `$CfResourceParam()` | Runtime | `(logicalId, attribute)` | Parameter from a raw CF resource |
@@ -618,4 +620,4 @@ Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at co
 
 ### How do I access JSON properties from $Secret?
 
-Use dot notation to extract a single top-level key from a JSON-formatted secret: `$Secret('my-secret.apiKey')` where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error. The same dot-notation pattern works with `$File()` in YAML configs for accessing nested properties: `$File('config.json').database.host`.
+Pass a top-level key as the second argument to read one value from a JSON secret: `$Secret('my-secret', 'apiKey')`, where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error.

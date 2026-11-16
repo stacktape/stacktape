@@ -9053,7 +9053,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -9209,7 +9209,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -9569,7 +9569,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion } from 'st
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -10035,7 +10035,7 @@ Deployment fails with an error if Stacktape cannot fetch the named secret, with 
 
 When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#how-secret-resolution-works) for the distinction between local directives and deployed database credentials.
 
-For JSON-formatted secrets, use dot notation to extract a single top-level key — `$Secret('secret-name.key')` splits on the first `.` to determine the secret name and the JSON key:
+For a secret that stores a JSON object, pass the top-level key as the second argument: `$Secret('secret-name', 'key')`. The first argument is always the exact secret name, so it can contain dots. Omit the key, or pass `''`, to use the whole secret.
 
 
 Example (TypeScript):
@@ -10051,8 +10051,8 @@ export default defineConfig(() => {
   const handler = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
-      STRIPE_KEY: $Secret('api-keys.stripe'),
-      SENDGRID_KEY: $Secret('api-keys.sendgrid')
+      STRIPE_KEY: $Secret('api-keys', 'stripe'),
+      SENDGRID_KEY: $Secret('api-keys', 'sendgrid')
     }
   });
 
@@ -10060,6 +10060,8 @@ export default defineConfig(() => {
 });
 ```
 
+
+The Stacktape 3 form `$Secret('secret-name.key')` still works and reads the same secret as before: the text before the first `.` is the secret name, and the next segment is the JSON key. Use the two-argument form in new configurations, and always for a secret whose name contains a dot.
 
 Create a JSON secret with the CLI:
 
@@ -10308,7 +10310,7 @@ In TypeScript configs, nesting constraints rarely apply because you use native J
 | `$GitInfo()` | Local | `(property)` | Git repository information |
 | `$CliArgs()` | Local | `(argName, defaultValue?)` | CLI arguments passed after `--` |
 | `$StackOutput()` | Local | `(stackName, outputName, region?)` | Exported output from another deployed stack |
-| `$Secret()` | Runtime | `(secretName)` | AWS Secrets Manager value |
+| `$Secret()` | Runtime | `(secretName, jsonKey?)` | AWS Secrets Manager value, or one key of a JSON secret |
 | `$SsmParam()` | Runtime | `(paramName)` | SSM Parameter Store value |
 | `$ResourceParam()` | Runtime | `(resourceName, param)` | Parameter from a Stacktape resource |
 | `$CfResourceParam()` | Runtime | `(logicalId, attribute)` | Parameter from a raw CF resource |
@@ -10361,7 +10363,7 @@ Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at co
 
 ### How do I access JSON properties from $Secret?
 
-Use dot notation to extract a single top-level key from a JSON-formatted secret: `$Secret('my-secret.apiKey')` where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error. The same dot-notation pattern works with `$File()` in YAML configs for accessing nested properties: `$File('config.json').database.host`.
+Pass a top-level key as the second argument to read one value from a JSON secret: `$Secret('my-secret', 'apiKey')`, where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error.
 
 ---
 
@@ -10443,7 +10445,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -10478,7 +10480,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -12061,7 +12063,7 @@ export default defineConfig(() => {
     environment: { LOG_LEVEL: 'info' },
     secrets: [
       { name: 'API_TOKEN', valueFrom: $SsmParam('/my-app/production/api-token') },
-      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key.value') }
+      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key', 'value') }
     ]
   });
 
@@ -12092,7 +12094,7 @@ resources:
         - name: API_TOKEN
           valueFrom: $SsmParam('/my-app/production/api-token')
         - name: ROTATING_KEY
-          valueFrom: $Secret('rotating-key.value')
+          valueFrom: $Secret('rotating-key', 'value')
       # stp-end-focus
 ```
 
@@ -12151,10 +12153,12 @@ Your application code reads the value from the environment variable — `process
 named `discord-bot-token` must be fetchable by Stacktape before deployment. If it cannot be fetched, the deployment
 fails with an error and a hint to create it using [`stacktape secret set`](/cli/secret-set).
 
-### JSON secrets with dot notation
+### JSON secrets
 
-When a secret stores a JSON object, extract a specific key using dot notation: `$Secret('secretName.keyName')`. This
-is useful for database credentials where a single secret holds multiple related fields.
+When a secret stores a JSON object, pass the key you need as the second argument: `$Secret('secretName', 'keyName')`.
+This is useful for database credentials where a single secret holds multiple related fields. The first argument is the
+exact secret name, so a name such as `billing.api` works too. Stacktape 3 configurations that write
+`$Secret('secretName.keyName')` keep working and read the same secret and key.
 
 
 Example (TypeScript):
@@ -12171,7 +12175,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -12196,7 +12200,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `$Secret('mainDatabase.password')` reads the `password` key from a JSON secret named `mainDatabase`.
+In this example, `$Secret('mainDatabase', 'password')` reads the `password` key from a JSON secret named `mainDatabase`.
 The secret value in AWS Secrets Manager would look like:
 
 ```json
@@ -13445,7 +13449,7 @@ The directive expects the full CloudFormation stack name. Stacktape's error hint
 
 For sensitive values, use CloudFormation-time directives that resolve during stack creation.
 
-**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret.apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret set`](/cli/secret-set). See [Secrets](/configuration/secrets) for the full guide.
+**`$Secret()`** references a value stored in AWS Secrets Manager. Stacktape looks up the secret during deployment to validate the reference and pin the current version, then writes a Secrets Manager dynamic reference into the template rather than plaintext. For JSON secrets, reference a top-level key by appending it after the secret name: `$Secret('mySecret', 'apiKey')`. If a secret does not exist, the directive throws an error with a hint to create it using [`stacktape secret set`](/cli/secret-set). See [Secrets](/configuration/secrets) for the full guide.
 
 **`$SsmParam()`** references a value stored in AWS Systems Manager Parameter Store. It uses a secure dynamic reference (`ssm-secure`) for `SecureString` parameters and a standard SSM dynamic reference for other parameter types. The parameter version is pinned at deploy time to produce a deterministic reference.
 
@@ -13461,7 +13465,7 @@ export default defineConfig(() => {
     }),
     environment: {
       DB_PASSWORD: "$Secret('dbPassword')",
-      STRIPE_KEY: "$Secret('stripeConfig.apiKey')",
+      STRIPE_KEY: "$Secret('stripeConfig', 'apiKey')",
       FEATURE_CONFIG: "$SsmParam('/myapp/feature-config')"
     }
   });
@@ -13528,7 +13532,7 @@ For string-valued properties, embed `$Stage()` directly or use `$Format()` to co
 
 ### How do I pass secrets to my application at deploy time?
 
-Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. For JSON secrets, append a top-level key: `$Secret('stripeConfig.apiKey')`. Create secrets with [`stacktape secret set`](/cli/secret-set); referencing a secret that doesn't exist throws an error. See [Secrets](/configuration/secrets) for setup details.
+Use the `$Secret()` directive in environment variables. Stacktape validates the secret and pins the current version during deployment, then writes a Secrets Manager dynamic reference into the CloudFormation template — the plaintext value never appears in the template. For JSON secrets, append a top-level key: `$Secret('stripeConfig', 'apiKey')`. Create secrets with [`stacktape secret set`](/cli/secret-set); referencing a secret that doesn't exist throws an error. See [Secrets](/configuration/secrets) for setup details.
 
 ### Can I reference outputs from a stack in a different AWS region?
 
@@ -15955,7 +15959,7 @@ export default defineConfig(({ stage }) => {
 
   const database = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -17568,7 +17572,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -17933,7 +17937,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     accessibility: {
       accessibilityMode: 'vpc'
@@ -18514,7 +18518,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     accessibility: {
       accessibilityMode: 'vpc'
@@ -18552,7 +18556,7 @@ export default defineConfig(() => {
       }
     }),
     credentials: {
-      masterUserPassword: $Secret('database.password')
+      masterUserPassword: $Secret('database', 'password')
     },
     deletionProtection: true
   });
@@ -19042,7 +19046,7 @@ import { defineConfig, LocalScript, RelationalDatabase, RdsEnginePostgres, $Secr
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   return {
@@ -19107,7 +19111,7 @@ import { Bastion, LocalScriptWithBastionTunneling, RelationalDatabase, RdsEngine
 
 const mainDatabase = new RelationalDatabase({
   engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-  credentials: { masterUserPassword: $Secret('database.password') }
+  credentials: { masterUserPassword: $Secret('database', 'password') }
 });
 
 const bastion = new Bastion({});
@@ -20270,7 +20274,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db', 'password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
 Aurora engine types — Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
@@ -20302,7 +20306,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -20333,7 +20337,7 @@ import { defineConfig, RelationalDatabase, RdsEngineMysql } from 'stacktape';
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEngineMysql({
       version: '8.4',
@@ -20378,7 +20382,7 @@ Example (TypeScript):
 import { defineConfig, Redis } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
 
@@ -20455,7 +20459,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -29345,7 +29349,7 @@ export default defineConfig(() => {
   const reports = new Bucket({});
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const exportJob = new BatchJob({
@@ -30776,7 +30780,7 @@ export default defineConfig(() => {
       version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const api = new LambdaFunction({
@@ -31604,7 +31608,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const myBucket = new Bucket({});
 
@@ -32671,7 +32675,7 @@ import {
 
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
-    credentials: { masterUserPassword: "$Secret('db.password')" },
+    credentials: { masterUserPassword: "$Secret('db', 'password')" },
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
 
@@ -35044,7 +35048,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -35071,7 +35075,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -35099,7 +35103,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: { instanceSize: 'cache.t4g.micro' }
@@ -35126,7 +35130,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'redis',
       properties: { instanceSize: 'cache.t4g.micro', version: '6.2' }
@@ -35193,7 +35197,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -35228,7 +35232,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -35263,7 +35267,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
@@ -35297,7 +35301,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -35348,7 +35352,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     automatedBackupRetentionDays: 7
   });
@@ -35375,7 +35379,7 @@ Example (TypeScript):
 import { defineConfig, Redis, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
     dev: {
       remote: true
@@ -35398,14 +35402,14 @@ Stacktape v4 renamed `redis-cluster` to `redis` and moved node settings under `e
 cache:
   type: redis-cluster
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     instanceSize: cache.t4g.micro
 
 # Stacktape v4
 cache:
   type: redis
   properties:
-    defaultUserPassword: $Secret('redis.password')
+    defaultUserPassword: $Secret('redis', 'password')
     engine:
       type: redis
       properties:
@@ -35507,7 +35511,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35563,7 +35567,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35604,7 +35608,7 @@ import { defineConfig, RelationalDatabase, AuroraEnginePostgresql } from 'stackt
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraEnginePostgresql({
       version: '16',
@@ -35635,7 +35639,7 @@ import { defineConfig, RelationalDatabase, AuroraServerlessV2EnginePostgresql } 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraServerlessV2EnginePostgresql({
       version: '16',
@@ -35716,7 +35720,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35775,7 +35779,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35814,7 +35818,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35869,7 +35873,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35915,7 +35919,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -35966,7 +35970,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -36892,7 +36896,7 @@ import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const web = new NextjsWeb({
@@ -37445,7 +37449,7 @@ import { defineConfig, RemixWeb, RelationalDatabase, RdsEnginePostgres, $Secret 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const web = new RemixWeb({
@@ -37777,7 +37781,7 @@ export default defineConfig(() => {
         instanceSize: 'db.t4g.micro'
       }
     }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const web = new SolidStartWeb({
@@ -38307,7 +38311,7 @@ import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres, $Sec
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
 const frontend = new SvelteKitWeb({
@@ -38527,7 +38531,7 @@ import { defineConfig, TanStackWeb, RelationalDatabase, RdsEnginePostgres } from
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -38564,7 +38568,7 @@ import { defineConfig, TanStackWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new TanStackWeb({
     appDirectory: './apps/web',
-    environment: { APP_ENV: 'production', API_KEY: "$Secret('api.key')" }
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('api', 'key')" }
   });
 
   return { resources: { web } };
@@ -43833,8 +43837,8 @@ export default defineConfig(() => {
     identityProviders: [
       {
         type: 'Google',
-        clientId: "$Secret('google-credentials.clientId')",
-        clientSecret: "$Secret('google-credentials.clientSecret')"
+        clientId: "$Secret('google-credentials', 'clientId')",
+        clientSecret: "$Secret('google-credentials', 'clientSecret')"
       }
     ],
     callbackURLs: ['https://myapp.com/auth/callback'],
@@ -50616,7 +50620,7 @@ curl -H "$AUTH" $AGENT/env/api
 
 Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, private IP addresses, ports, database names and plain settings stay readable. A deployed dev function reaches a local database at the private address of the dev box, such as `10.230.4.17`, so its `/env` shows that address. Public IP addresses are masked as `[redacted:ip]`. Your workloads still receive the real values.
 
-Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db.password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
+Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db', 'password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
 
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 
@@ -60737,7 +60741,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -60754,7 +60758,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -61441,7 +61445,7 @@ resources:
           primaryInstance:
             instanceSize: db.t3.micro
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
   web:
     type: astro-web
     properties:
@@ -61451,7 +61455,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('marketingDb', 'connectionString')
         - name: STRIPE_SECRET
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
 ```
 
 ### Example 2 (typescript)
@@ -61468,13 +61472,13 @@ export default defineConfig(() => {
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
-    credentials: { masterUserPassword: $Secret('db.password') }
+    credentials: { masterUserPassword: $Secret('db', 'password') }
   });
   const web = new AstroWeb({
     environment: [
       { name: 'PUBLIC_SITE_NAME', value: 'My Store' },
       { name: 'DATABASE_URL', value: $ResourceParam('marketingDb', 'connectionString') },
-      { name: 'STRIPE_SECRET', value: $Secret('stripe.secretKey') }
+      { name: 'STRIPE_SECRET', value: $Secret('stripe', 'secretKey') }
     ]
   });
   return { resources: { marketingDb, web } };
@@ -61708,7 +61712,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('redis.password')
+      defaultUserPassword: $Secret('redis', 'password')
       engine:
         type: valkey-serverless
   web:
@@ -61727,7 +61731,7 @@ import { AstroWeb, Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('redis.password'),
+    defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
   const web = new AstroWeb({
@@ -62236,7 +62240,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -62253,7 +62257,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -62487,7 +62491,7 @@ resources:
     properties:
       credentials:
         masterUserName: admin
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
       engine:
         type: postgres
         properties:
@@ -62509,7 +62513,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
+    credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database', 'password') },
     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
@@ -62581,7 +62585,7 @@ resources:
     properties:
       credentials:
         masterUserName: admin
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
       engine:
         type: postgres
         properties:
@@ -62606,7 +62610,7 @@ import { Bastion, RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database.password') },
+    credentials: { masterUserName: 'admin', masterUserPassword: $Secret('database', 'password') },
     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
     accessibility: { accessibilityMode: 'vpc' }
   });
@@ -63025,7 +63029,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -63042,7 +63046,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -79177,7 +79181,7 @@ resources:
        type: prebuilt-image
        properties:
          image: registry.example.com/my-org/my-app:latest
-         repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+         repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
      resources:
        cpu: 0.5
        memory: 1024
@@ -79194,7 +79198,7 @@ export default defineConfig(() => {
      type: 'prebuilt-image',
      properties: {
        image: 'registry.example.com/my-org/my-app:latest',
-       repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+       repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
      }
    },
    resources: {
@@ -88114,7 +88118,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -88131,7 +88135,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -91803,7 +91807,7 @@ resources:
         - name: MAX_CONNECTIONS
           value: 50
         - name: STRIPE_KEY
-          value: $Secret('stripe.secret-key')
+          value: $Secret('stripe', 'secret-key')
 ```
 
 ### Example 2 (typescript)
@@ -91818,7 +91822,7 @@ export default defineConfig(() => {
     environment: {
       NODE_ENV: 'production',
       MAX_CONNECTIONS: 50,
-      STRIPE_KEY: $Secret('stripe.secret-key')
+      STRIPE_KEY: $Secret('stripe', 'secret-key')
     }
   });
 
@@ -94357,7 +94361,7 @@ resources:
             - name: DATABASE_URL
               value: $ResourceParam('appDb', 'connectionString')
             - name: STRIPE_KEY
-              value: $Secret('stripe.secretKey')
+              value: $Secret('stripe', 'secretKey')
       resources:
         cpu: 0.5
         memory: 1024
@@ -94367,7 +94371,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -94383,7 +94387,7 @@ import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, de
 
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const app = new MultiContainerWorkload({
@@ -94394,7 +94398,7 @@ export default defineConfig(() => {
         environment: {
           NODE_ENV: 'production',
           DATABASE_URL: $ResourceParam('appDb', 'connectionString'),
-          STRIPE_KEY: $Secret('stripe.secretKey')
+          STRIPE_KEY: $Secret('stripe', 'secretKey')
         }
       }
     ],
@@ -96725,7 +96729,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -96742,7 +96746,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -98441,7 +98445,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -98457,7 +98461,7 @@ export default defineConfig(() => {
       logForwarding: {
         type: 'datadog',
         properties: {
-          apiKey: $Secret('datadog.apiKey')
+          apiKey: $Secret('datadog', 'apiKey')
         }
       }
     }
@@ -98490,7 +98494,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
             endpointUrl: https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input
 ```
 
@@ -98507,7 +98511,7 @@ export default defineConfig(() => {
       logForwarding: {
         type: 'datadog',
         properties: {
-          apiKey: $Secret('datadog.apiKey'),
+          apiKey: $Secret('datadog', 'apiKey'),
           endpointUrl: 'https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input'
         }
       }
@@ -98774,7 +98778,7 @@ resources:
           type: http-endpoint
           properties:
             endpointUrl: https://logs.example.com/v1/ingest
-            accessKey: $Secret('logForwarding.accessKey')
+            accessKey: $Secret('logForwarding', 'accessKey')
 ```
 
 ### Example 2 (typescript)
@@ -98791,7 +98795,7 @@ export default defineConfig(() => {
         type: 'http-endpoint',
         properties: {
           endpointUrl: 'https://logs.example.com/v1/ingest',
-          accessKey: $Secret('logForwarding.accessKey')
+          accessKey: $Secret('logForwarding', 'accessKey')
         }
       }
     }
@@ -99062,7 +99066,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -99079,7 +99083,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -101531,7 +101535,7 @@ resources:
             - name: DATABASE_URL
               value: $ResourceParam('appDb', 'connectionString')
             - name: STRIPE_KEY
-              value: $Secret('stripe.secretKey')
+              value: $Secret('stripe', 'secretKey')
       resources:
         cpu: 0.5
         memory: 1024
@@ -101541,7 +101545,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -101557,7 +101561,7 @@ import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, de
 
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const app = new MultiContainerWorkload({
@@ -101568,7 +101572,7 @@ export default defineConfig(() => {
         environment: {
           NODE_ENV: 'production',
           DATABASE_URL: $ResourceParam('appDb', 'connectionString'),
-          STRIPE_KEY: $Secret('stripe.secretKey')
+          STRIPE_KEY: $Secret('stripe', 'secretKey')
         }
       }
     ],
@@ -102136,7 +102140,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -102153,7 +102157,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -104760,7 +104764,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -104784,7 +104788,7 @@ import { NextjsWeb, RelationalDatabase, defineConfig, $Secret } from 'stacktape'
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {
@@ -105325,7 +105329,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -105344,7 +105348,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('database', 'connectionString')
         - name: STRIPE_SECRET_KEY
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
 ```
 
 ### Example 2 (typescript)
@@ -105354,7 +105358,7 @@ import { NextjsWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam } 
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {
@@ -105369,7 +105373,7 @@ export default defineConfig(() => {
     environment: {
       NODE_ENV: 'production',
       DATABASE_URL: $ResourceParam('database', 'connectionString'),
-      STRIPE_SECRET_KEY: $Secret('stripe.secretKey')
+      STRIPE_SECRET_KEY: $Secret('stripe', 'secretKey')
     }
   });
   return { resources: { database, web } };
@@ -106191,7 +106195,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -106207,7 +106211,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('db', 'connectionString')
         - name: SESSION_SECRET
-          value: $Secret('session.secret')
+          value: $Secret('session', 'secret')
 ```
 
 ### Example 2 (typescript)
@@ -106217,7 +106221,7 @@ import { NuxtWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam } fr
 
 export default defineConfig(() => {
   const db = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {
@@ -106230,7 +106234,7 @@ export default defineConfig(() => {
     environment: {
       NUXT_PUBLIC_API_BASE: 'https://api.example.com',
       DATABASE_URL: $ResourceParam('db', 'connectionString'),
-      SESSION_SECRET: $Secret('session.secret')
+      SESSION_SECRET: $Secret('session', 'secret')
     }
   });
   return { resources: { db, web } };
@@ -109676,7 +109680,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -109693,7 +109697,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -109795,7 +109799,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -109809,7 +109813,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -109839,7 +109843,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: redis
         properties:
@@ -109854,7 +109858,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'redis',
       properties: {
@@ -109886,7 +109890,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -109902,7 +109906,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -109936,7 +109940,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -109953,7 +109957,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -109983,7 +109987,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110000,7 +110004,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110035,7 +110039,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110051,7 +110055,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110081,7 +110085,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110098,7 +110102,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110129,7 +110133,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110144,7 +110148,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110201,7 +110205,7 @@ Password of the `default` user. 16-128 printable ASCII characters.
 
 Clients connect as user `default` with this password; all traffic is encrypted in transit (TLS).
 Allowed special characters: `!`, `&`, `#`, `$`, `^`, `<`, `>`, `-`. Use `$Secret()` instead of hardcoding:
-defaultUserPassword: $Secret('cache.password')
+defaultUserPassword: $Secret('cache', 'password')
 
 ### Example 1 (yaml)
 
@@ -110210,7 +110214,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
 ```
@@ -110222,7 +110226,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -110262,7 +110266,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
 
@@ -110285,7 +110289,7 @@ import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
@@ -110316,7 +110320,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       accessibility:
@@ -110341,7 +110345,7 @@ import { Redis, LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
@@ -110376,7 +110380,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       automatedBackupRetentionDays: 7
@@ -110389,7 +110393,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     automatedBackupRetentionDays: 7
   });
@@ -110416,7 +110420,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
       dev:
@@ -110430,7 +110434,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: { type: 'valkey-serverless' },
     dev: {
       remote: true
@@ -110527,7 +110531,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110541,7 +110545,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110572,7 +110576,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110588,7 +110592,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110622,7 +110626,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110639,7 +110643,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110669,7 +110673,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110686,7 +110690,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110721,7 +110725,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110737,7 +110741,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110767,7 +110771,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110784,7 +110788,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110815,7 +110819,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110830,7 +110834,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110861,7 +110865,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey
         properties:
@@ -110876,7 +110880,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey',
       properties: {
@@ -110956,7 +110960,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
         properties:
@@ -110970,7 +110974,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -111001,7 +111005,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
         properties:
@@ -111015,7 +111019,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -111045,7 +111049,7 @@ resources:
   cache:
     type: redis
     properties:
-      defaultUserPassword: $Secret('cache.password')
+      defaultUserPassword: $Secret('cache', 'password')
       engine:
         type: valkey-serverless
         properties:
@@ -111059,7 +111063,7 @@ import { Redis, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: $Secret('cache.password'),
+    defaultUserPassword: $Secret('cache', 'password'),
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -111139,7 +111143,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
@@ -111155,7 +111159,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
@@ -111216,7 +111220,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
@@ -111233,7 +111237,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
@@ -111271,7 +111275,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -111287,7 +111291,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -111316,7 +111320,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
@@ -111333,7 +111337,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
@@ -111363,7 +111367,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -111380,7 +111384,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -111409,7 +111413,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
@@ -111426,7 +111430,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
@@ -111522,7 +111526,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -111538,7 +111542,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -111567,7 +111571,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
@@ -111584,7 +111588,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
@@ -111615,7 +111619,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -111632,7 +111636,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -111662,7 +111666,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
@@ -111678,7 +111682,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
@@ -111710,7 +111714,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
@@ -111726,7 +111730,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
@@ -111759,7 +111763,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
@@ -111776,7 +111780,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
@@ -111839,7 +111843,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: vpc
     engine:
@@ -111857,7 +111861,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'vpc'
   },
@@ -111890,7 +111894,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: vpc
       forceDisablePublicIp: true
@@ -111909,7 +111913,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'vpc',
     forceDisablePublicIp: true
@@ -111945,7 +111949,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: whitelisted-ips-only
       whitelistedIps:
@@ -111966,7 +111970,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: {
     accessibilityMode: 'whitelisted-ips-only',
     whitelistedIps: ['203.0.113.50/32', '198.51.100.0/24']
@@ -112019,7 +112023,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - slowquery
@@ -112040,7 +112044,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['slowquery'],
     engineSpecificOptions: {
@@ -112075,7 +112079,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - audit
@@ -112098,7 +112102,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['audit'],
     engineSpecificOptions: {
@@ -112159,7 +112163,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -112180,7 +112184,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -112215,7 +112219,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -112236,7 +112240,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -112271,7 +112275,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -112292,7 +112296,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -112327,7 +112331,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -112348,7 +112352,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -112383,7 +112387,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -112404,7 +112408,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -112498,7 +112502,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112514,7 +112518,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112547,7 +112551,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112564,7 +112568,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112627,7 +112631,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112644,7 +112648,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112682,7 +112686,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112698,7 +112702,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112726,7 +112730,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112743,7 +112747,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112773,7 +112777,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112790,7 +112794,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112819,7 +112823,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112836,7 +112840,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112867,7 +112871,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112886,7 +112890,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112918,7 +112922,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -112937,7 +112941,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -112994,7 +112998,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113010,7 +113014,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -113043,7 +113047,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113060,7 +113064,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -113112,7 +113116,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113131,7 +113135,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -113164,7 +113168,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113183,7 +113187,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
@@ -113318,7 +113322,7 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: db_master_user
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113336,7 +113340,7 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'db_master_user',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
@@ -113369,7 +113373,7 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: app_admin
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113387,7 +113391,7 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'app_admin',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
@@ -113466,7 +113470,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       disabled: true
     engine:
@@ -113484,7 +113488,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     disabled: true
   },
@@ -113519,7 +113523,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -113541,7 +113545,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -113636,7 +113640,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -113653,7 +113657,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -113681,7 +113685,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - error
@@ -113701,7 +113705,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['error', 'slowquery']
   },
@@ -113733,7 +113737,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       retentionDays: 180
       logTypes:
@@ -113753,7 +113757,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     retentionDays: 180,
     logTypes: ['postgresql']
@@ -113833,7 +113837,7 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: db_master_user
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -113851,7 +113855,7 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'db_master_user',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
@@ -113891,7 +113895,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
@@ -113907,7 +113911,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
@@ -113940,7 +113944,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: scoping-workloads-in-vpc
     engine:
@@ -113958,7 +113962,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
   engine: {
     type: 'postgres',
@@ -113987,7 +113991,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     alarms:
       - trigger:
           type: database-cpu-utilization
@@ -114013,7 +114017,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   alarms: [
     {
       trigger: {
@@ -114056,7 +114060,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     automatedBackupRetentionDays: 7
     engine:
       type: postgres
@@ -114073,7 +114077,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   automatedBackupRetentionDays: 7,
   engine: {
     type: 'postgres',
@@ -114103,7 +114107,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     deletionProtection: true
     engine:
       type: postgres
@@ -114120,7 +114124,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   deletionProtection: true,
   engine: {
     type: 'postgres',
@@ -114149,7 +114153,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     dev:
       remote: true
     engine:
@@ -114167,7 +114171,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   dev: { remote: true },
   engine: {
     type: 'postgres',
@@ -114196,7 +114200,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     disabledGlobalAlarms:
       - db-cpu-high
     engine:
@@ -114214,7 +114218,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   disabledGlobalAlarms: ['db-cpu-high'],
   engine: {
     type: 'postgres',
@@ -114246,7 +114250,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       retentionDays: 30
       logTypes:
@@ -114266,7 +114270,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     retentionDays: 30,
     logTypes: ['postgresql']
@@ -114301,7 +114305,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     preferredMaintenanceWindow: Sun:02:00-Sun:04:00
     engine:
       type: postgres
@@ -114318,7 +114322,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   preferredMaintenanceWindow: 'Sun:02:00-Sun:04:00',
   engine: {
     type: 'postgres',
@@ -118760,7 +118764,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
       engine:
         type: postgres
         properties:
@@ -118790,7 +118794,7 @@ import { NuxtWeb, RelationalDatabase, $Secret, $ResourceParam, defineConfig } fr
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('database.password') },
+    credentials: { masterUserPassword: $Secret('database', 'password') },
     engine: {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
@@ -120715,7 +120719,7 @@ resources:
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
   web:
     type: sveltekit-web
     properties:
@@ -120725,7 +120729,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('database', 'connectionString')
         - name: STRIPE_SECRET_KEY
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
         - name: PUBLIC_APP_NAME
           value: My Storefront
 ```
@@ -120741,13 +120745,13 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const web = new SvelteKitWeb({
     connectTo: ['database'],
     environment: [
       { name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') },
-      { name: 'STRIPE_SECRET_KEY', value: $Secret('stripe.secretKey') },
+      { name: 'STRIPE_SECRET_KEY', value: $Secret('stripe', 'secretKey') },
       { name: 'PUBLIC_APP_NAME', value: 'My Storefront' }
     ]
   });
@@ -120905,7 +120909,7 @@ resources:
           primaryInstance:
             instanceSize: db.t4g.micro
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
   web:
     type: sveltekit-web
     properties:
@@ -120930,7 +120934,7 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const web = new SvelteKitWeb({
     connectTo: ['database'],
@@ -121316,7 +121320,7 @@ resources:
         - name: BASE_URL
           value: https://app.example.com
         - name: TEST_USER_PASSWORD
-          value: $Secret('synthetic-test-user.password')
+          value: $Secret('synthetic-test-user', 'password')
 ```
 
 ### Example 2 (typescript)
@@ -121329,7 +121333,7 @@ export default defineConfig(() => {
     test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } },
     environment: [
       { name: 'BASE_URL', value: 'https://app.example.com' },
-      { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user.password')" }
+      { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user', 'password')" }
     ]
   });
   return { resources: { checkoutFlow } };
@@ -123931,7 +123935,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -123950,7 +123954,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ]
   });
@@ -123986,7 +123990,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -124005,7 +124009,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ]
   });
@@ -124045,7 +124049,7 @@ resources:
         -
           type: Facebook
           clientId: my-facebook-app-id
-          clientSecret: $Secret('facebook-oauth.client-secret')
+          clientSecret: $Secret('facebook-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -124064,7 +124068,7 @@ export default defineConfig(() => {
       {
         type: 'Facebook',
         clientId: 'my-facebook-app-id',
-        clientSecret: $Secret('facebook-oauth.client-secret')
+        clientSecret: $Secret('facebook-oauth', 'client-secret')
       }
     ]
   });
@@ -124102,7 +124106,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           attributeMapping:
             email: email
             given_name: given_name
@@ -124124,7 +124128,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         attributeMapping: {
           email: 'email',
           given_name: 'given_name'
@@ -124167,7 +124171,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -124190,7 +124194,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         authorizeScopes: ['openid', 'email', 'profile']
       }
     ]
@@ -124230,7 +124234,7 @@ resources:
       identityProviders:
         - type: OIDC
           clientId: my-oidc-client-id
-          clientSecret: $Secret('oidc-provider.client-secret')
+          clientSecret: $Secret('oidc-provider', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -124255,7 +124259,7 @@ export default defineConfig(() => {
       {
         type: 'OIDC',
         clientId: 'my-oidc-client-id',
-        clientSecret: $Secret('oidc-provider.client-secret'),
+        clientSecret: $Secret('oidc-provider', 'client-secret'),
         authorizeScopes: ['openid', 'email'],
         providerDetails: {
           oidc_issuer: 'https://idp.example.com',
@@ -125476,7 +125480,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
       allowOnlyExternalIdentityProviders: true
 ```
 
@@ -125496,7 +125500,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ],
     allowOnlyExternalIdentityProviders: true
@@ -126106,7 +126110,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -126128,7 +126132,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         authorizeScopes: ['openid', 'email']
       }
     ]
@@ -133479,7 +133483,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -133496,7 +133500,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });

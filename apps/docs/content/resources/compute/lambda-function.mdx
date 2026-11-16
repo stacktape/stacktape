@@ -559,7 +559,7 @@ export default defineConfig(() => {
       version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const api = new LambdaFunction({

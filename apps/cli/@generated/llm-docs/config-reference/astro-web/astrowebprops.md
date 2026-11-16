@@ -344,7 +344,7 @@ resources:
           primaryInstance:
             instanceSize: db.t3.micro
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
   web:
     type: astro-web
     properties:
@@ -354,7 +354,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('marketingDb', 'connectionString')
         - name: STRIPE_SECRET
-          value: $Secret('stripe.secretKey')
+          value: $Secret('stripe', 'secretKey')
 ```
 
 ### Example 2 (typescript)
@@ -371,13 +371,13 @@ export default defineConfig(() => {
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
-    credentials: { masterUserPassword: $Secret('db.password') }
+    credentials: { masterUserPassword: $Secret('db', 'password') }
   });
   const web = new AstroWeb({
     environment: [
       { name: 'PUBLIC_SITE_NAME', value: 'My Store' },
       { name: 'DATABASE_URL', value: $ResourceParam('marketingDb', 'connectionString') },
-      { name: 'STRIPE_SECRET', value: $Secret('stripe.secretKey') }
+      { name: 'STRIPE_SECRET', value: $Secret('stripe', 'secretKey') }
     ]
   });
   return { resources: { marketingDb, web } };

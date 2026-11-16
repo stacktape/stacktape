@@ -313,3 +313,63 @@ test('validate and the deploy preflight find a $Secret nested in $CfFormat', asy
     configManager.reset();
   }
 });
+
+test('$Secret with a key argument reads a secret whose name contains dots; the dotted form keeps its meaning', async () => {
+  const account = ministack.account();
+  const secrets = new SecretsManagerClient(ministack.clientConfig(account));
+  const yaml = `resources: {}
+variables:
+  explicit: $Secret('billing.api', 'token')
+  whole: $Secret('billing.api', '')
+  legacy: $Secret('billing.api')
+  container: $ContainerSecret('billing.api', 'token')
+`;
+  try {
+    const dotted = await secrets.send(
+      new CreateSecretCommand({ Name: 'billing.api', SecretString: '{"token":"synthetic-dotted"}' })
+    );
+    // A different secret that the Stacktape 3 form `billing.api` has always meant: secret `billing`, key `api`.
+    const legacy = await secrets.send(
+      new CreateSecretCommand({ Name: 'billing', SecretString: '{"api":"synthetic-legacy"}' })
+    );
+    const loaded = await loadConfig(account, yaml);
+    expect(await loaded.resolve(false)).toEqual({
+      explicit: `{{resolve:secretsmanager:billing.api:SecretString:token::${dotted.VersionId}}}`,
+      whole: `{{resolve:secretsmanager:billing.api:SecretString:::${dotted.VersionId}}}`,
+      legacy: `{{resolve:secretsmanager:billing:SecretString:api::${legacy.VersionId}}}`,
+      container: `${dotted.ARN}:token::${dotted.VersionId}`
+    });
+    expect(await loaded.resolve(true)).toMatchObject({
+      explicit: 'synthetic-dotted',
+      whole: '{"token":"synthetic-dotted"}',
+      legacy: 'synthetic-legacy'
+    });
+
+    const missingKey = await loadConfig(
+      account,
+      "resources: {}\nvariables:\n  value: $Secret('billing.api', 'other')\n"
+    );
+    await expect(missingKey.resolve(false)).rejects.toMatchObject({
+      code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+      message: "Secret `billing.api` does not contain JSON key `other` required by `$Secret('billing.api', 'other')`."
+    });
+  } finally {
+    secrets.destroy();
+  }
+});
+
+test('the deploy preflight finds a missing secret named with the key argument', async () => {
+  const account = ministack.account();
+  const yaml =
+    "resources: {}\nvariables:\n  token: $Secret('orders.v2', 'token')\n  legacy: $Secret('orders.password')\n";
+  const loaded = await loadConfig(account, yaml, {}, 'validate');
+  configManager.config = loaded.resolver.rawConfig;
+  try {
+    expect(await findMissingSecrets()).toEqual([
+      { name: 'orders.v2', jsonKeys: ['token'], generated: false },
+      { name: 'orders', jsonKeys: ['password'], generated: false }
+    ]);
+  } finally {
+    configManager.reset();
+  }
+});

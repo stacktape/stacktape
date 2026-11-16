@@ -229,7 +229,7 @@ resources:
             - name: DATABASE_URL
               value: $ResourceParam('appDb', 'connectionString')
             - name: STRIPE_KEY
-              value: $Secret('stripe.secretKey')
+              value: $Secret('stripe', 'secretKey')
       resources:
         cpu: 0.5
         memory: 1024
@@ -239,7 +239,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -255,7 +255,7 @@ import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, de
 
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const app = new MultiContainerWorkload({
@@ -266,7 +266,7 @@ export default defineConfig(() => {
         environment: {
           NODE_ENV: 'production',
           DATABASE_URL: $ResourceParam('appDb', 'connectionString'),
-          STRIPE_KEY: $Secret('stripe.secretKey')
+          STRIPE_KEY: $Secret('stripe', 'secretKey')
         }
       }
     ],

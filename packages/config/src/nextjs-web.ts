@@ -340,7 +340,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *     type: relational-database
    *     properties:
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -360,7 +360,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *         - name: DATABASE_URL
    *           value: $ResourceParam('database', 'connectionString')
    *         - name: STRIPE_SECRET_KEY
-   *           value: $Secret('stripe.secretKey')
+   *           value: $Secret('stripe', 'secretKey')
    *       # stp-end-focus
    * ```
    *
@@ -371,7 +371,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     engine: {
    *       type: 'postgres',
    *       properties: {
@@ -387,7 +387,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *     environment: {
    *       NODE_ENV: 'production',
    *       DATABASE_URL: $ResourceParam('database', 'connectionString'),
-   *       STRIPE_SECRET_KEY: $Secret('stripe.secretKey')
+   *       STRIPE_SECRET_KEY: $Secret('stripe', 'secretKey')
    *     }
    *     // stp-end-focus
    *   });
@@ -731,7 +731,7 @@ export interface NextjsServerLambdaProperties {
    *     type: relational-database
    *     properties:
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -757,7 +757,7 @@ export interface NextjsServerLambdaProperties {
    *
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     engine: {
    *       type: 'postgres',
    *       properties: {

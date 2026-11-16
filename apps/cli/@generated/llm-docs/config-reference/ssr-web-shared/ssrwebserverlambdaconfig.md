@@ -34,7 +34,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
       engine:
         type: postgres
         properties:
@@ -64,7 +64,7 @@ import { NuxtWeb, RelationalDatabase, $Secret, $ResourceParam, defineConfig } fr
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('database.password') },
+    credentials: { masterUserPassword: $Secret('database', 'password') },
     engine: {
       type: 'postgres',
       properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }

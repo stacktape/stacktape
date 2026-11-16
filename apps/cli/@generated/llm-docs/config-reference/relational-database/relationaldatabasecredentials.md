@@ -31,7 +31,7 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: db_master_user
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -49,7 +49,7 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'db_master_user',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
@@ -82,7 +82,7 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: app_admin
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
@@ -100,7 +100,7 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'app_admin',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',

@@ -342,7 +342,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('db.password')
+        masterUserPassword: $Secret('db', 'password')
       engine:
         type: postgres
         properties:
@@ -358,7 +358,7 @@ resources:
         - name: DATABASE_URL
           value: $ResourceParam('db', 'connectionString')
         - name: SESSION_SECRET
-          value: $Secret('session.secret')
+          value: $Secret('session', 'secret')
 ```
 
 ### Example 2 (typescript)
@@ -368,7 +368,7 @@ import { NuxtWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam } fr
 
 export default defineConfig(() => {
   const db = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('db.password') },
+    credentials: { masterUserPassword: $Secret('db', 'password') },
     engine: {
       type: 'postgres',
       properties: {
@@ -381,7 +381,7 @@ export default defineConfig(() => {
     environment: {
       NUXT_PUBLIC_API_BASE: 'https://api.example.com',
       DATABASE_URL: $ResourceParam('db', 'connectionString'),
-      SESSION_SECRET: $Secret('session.secret')
+      SESSION_SECRET: $Secret('session', 'secret')
     }
   });
   return { resources: { db, web } };

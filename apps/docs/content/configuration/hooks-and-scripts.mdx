@@ -90,7 +90,7 @@ When your database or Redis cache has no public endpoint, `local-script-with-bas
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -131,7 +131,7 @@ A bastion script runs directly on the bastion EC2 instance inside your VPC, with
 // [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});

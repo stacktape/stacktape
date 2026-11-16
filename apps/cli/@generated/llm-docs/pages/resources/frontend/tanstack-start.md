@@ -116,7 +116,7 @@ import { defineConfig, TanStackWeb, RelationalDatabase, RdsEnginePostgres } from
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -153,7 +153,7 @@ import { defineConfig, TanStackWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new TanStackWeb({
     appDirectory: './apps/web',
-    environment: { APP_ENV: 'production', API_KEY: "$Secret('api.key')" }
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('api', 'key')" }
   });
 
   return { resources: { web } };

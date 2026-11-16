@@ -230,7 +230,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
       allowOnlyExternalIdentityProviders: true
 ```
 
@@ -250,7 +250,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ],
     allowOnlyExternalIdentityProviders: true
@@ -860,7 +860,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -882,7 +882,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         authorizeScopes: ['openid', 'email']
       }
     ]

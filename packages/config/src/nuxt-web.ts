@@ -102,7 +102,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *     type: relational-database
    *     properties:
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       engine:
    *         type: postgres
    *         properties:
@@ -119,7 +119,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *         - name: DATABASE_URL
    *           value: $ResourceParam('db', 'connectionString')
    *         - name: SESSION_SECRET
-   *           value: $Secret('session.secret')
+   *           value: $Secret('session', 'secret')
    *       # stp-end-focus
    * ```
    *
@@ -130,7 +130,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     engine: {
    *       type: 'postgres',
    *       properties: {
@@ -144,7 +144,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *     environment: {
    *       NUXT_PUBLIC_API_BASE: 'https://api.example.com',
    *       DATABASE_URL: $ResourceParam('db', 'connectionString'),
-   *       SESSION_SECRET: $Secret('session.secret')
+   *       SESSION_SECRET: $Secret('session', 'secret')
    *     }
    *     // stp-end-focus
    *   });

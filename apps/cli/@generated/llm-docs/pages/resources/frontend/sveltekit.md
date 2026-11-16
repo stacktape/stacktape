@@ -145,7 +145,7 @@ import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres, $Sec
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
 const frontend = new SvelteKitWeb({

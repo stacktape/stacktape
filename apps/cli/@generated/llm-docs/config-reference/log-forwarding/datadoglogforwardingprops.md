@@ -34,7 +34,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -50,7 +50,7 @@ export default defineConfig(() => {
       logForwarding: {
         type: 'datadog',
         properties: {
-          apiKey: $Secret('datadog.apiKey')
+          apiKey: $Secret('datadog', 'apiKey')
         }
       }
     }
@@ -83,7 +83,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
             endpointUrl: https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input
 ```
 
@@ -100,7 +100,7 @@ export default defineConfig(() => {
       logForwarding: {
         type: 'datadog',
         properties: {
-          apiKey: $Secret('datadog.apiKey'),
+          apiKey: $Secret('datadog', 'apiKey'),
           endpointUrl: 'https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input'
         }
       }

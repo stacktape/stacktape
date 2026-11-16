@@ -356,7 +356,7 @@ A Stacktape web service can use `connectTo` to access other resources in the sam
 
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
-    credentials: { masterUserPassword: "$Secret('db.password')" },
+    credentials: { masterUserPassword: "$Secret('db', 'password')" },
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
 
