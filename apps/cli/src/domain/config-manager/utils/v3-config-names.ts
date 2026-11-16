@@ -9,7 +9,7 @@ const languageSpecificConfigMove = 'move the options under `languageSpecificConf
 /** v3 `packaging.type` values. */
 const V3_PACKAGING_TYPES: Record<string, string> = {
   'custom-dockerfile': 'use `dockerfile`; its properties are unchanged',
-  'stacktape-lambda-buildpack': `use \`js-bundle\` for a JavaScript or TypeScript entry file, or \`buildpack\` for other languages, and ${languageSpecificConfigMove}`,
+  'stacktape-lambda-buildpack': `use \`js-bundle\` for a JavaScript or TypeScript entry file and ${languageSpecificConfigMove}, or \`buildpack\` for other languages and rename \`languageSpecificConfig\` to \`python\`, \`java\` or \`dotnet\``,
   'stacktape-image-buildpack': `use \`js-bundle\` for a JavaScript or TypeScript entry file and ${languageSpecificConfigMove}, or \`buildpack\` for other languages`,
   nixpacks: 'use `buildpack`, and rename `startCmd` to `startCommand`',
   'external-buildpack': 'use `buildpack`, or `dockerfile` if you depend on a specific builder'
@@ -18,7 +18,8 @@ const V3_PACKAGING_TYPES: Record<string, string> = {
 /** v3 property names, keyed by the last segment of the path that holds them. */
 const V3_PROPERTIES: Record<string, string> = {
   notificationTargets: 'Rename it to `notificationChannels`; the destinations inside it are unchanged',
-  languageSpecificConfig: 'Move its options up one level, into the packaging `properties`',
+  languageSpecificConfig:
+    'For `js-bundle`, move its options up one level, into the packaging `properties`. For a Lambda `buildpack`, rename it to `python`, `java` or `dotnet`',
   disableAutoRollback: 'Delete it: v4 does not roll back a failed deployment unless `autoRollback: true` is set',
   serviceName: 'Rename it to `projectName`, keeping the value, so the config still targets the deployed stacks',
   startCmd: 'Rename it to `startCommand`'
