@@ -309,6 +309,69 @@ run `stacktape defaults:list`) and find its printed error ID in PostHog error tr
 
 ## Other mutable publications
 
-The old release also invoked the CLI to update schemas and generated AI documentation. Those endpoints remain separate
-from v4 npm/binary releases for now; do not reintroduce a Stacktape API key into `release.yml` to publish them. When
-they are reconnected, give their exact buckets/distributions the same direct-OIDC treatment.
+The documentation site and the config schema are not part of the binary/npm release. Publish them from the release
+revision, after the `publish-installers` job, with credentials for the `stacktape-dev` account (977946299200) exported
+into the environment. Neither uses `release.yml`; do not add a Stacktape API key there to publish them. If they move
+into the workflow later, give their buckets and distributions the same direct-OIDC treatment as the installers.
+
+```sh
+eval "$(aws configure export-credentials --profile <profile> --format env)"
+aws sts get-caller-identity --query Account --output text   # 977946299200
+```
+
+### Documentation site
+
+[`apps/docs/stacktape.ts`](../apps/docs/stacktape.ts) deploys the stack `docs-<stage>` in `eu-west-1`: a bucket behind
+CloudFront, the Route 53 record, and a CloudFront Function that answers the old URLs in
+[`site-redirects.ts`](../apps/docs/src/utils/site-redirects.ts) with a 301. A deploy builds the site from the checkout
+(`turbo run build --filter @stacktape/docs`, which includes CLI generation and the built-site validators), uploads
+`dist` (files missing from the build are deleted), and invalidates the CDN. The source CLI runs in dev mode with the dev
+Console API key in `apps/cli/.env.local`, so the operation is recorded in the dev Console.
+
+| Command                    | Stack             | URL                                  |
+| -------------------------- | ----------------- | ------------------------------------ |
+| `pnpm deploy:docs:preview` | `docs-preview`    | `https://preview-docs.stacktape.com` |
+| `pnpm deploy:docs`         | `docs-production` | `https://docs.stacktape.com`         |
+
+Publish to the preview first and check it:
+
+- an old URL answers 301: `curl -sI <site>/compute-resources/functions` points to `/resources/compute/lambda-function/`;
+  `/cli/commands/debug-logs` points to `/v3/cli/commands/logs/`;
+- `/getting-started/upgrading-from-v3/`, `/v3/` and `/v3/compute-resources/functions/` return 200, and the v3 page is
+  `noindex`;
+- an unknown path returns 404 with the site's error page;
+- `/llms.txt`, `/llms-full.txt` and `/llms-api-reference.txt` are byte-identical to `apps/cli/@generated/llm-docs/`.
+
+**Rollback.** Copy the bucket before a production publish, keeping the listing:
+
+```sh
+aws s3 sync s3://docs-production-webbucket-aaa125e6 <backup directory>
+```
+
+`DOCS_RESTORE_DIRECTORY=<absolute backup directory> pnpm deploy:docs` uploads that copy instead of building, removes the
+redirect function (its targets are pages the old site lacks) and invalidates the CDN. Bucket versioning is off, so this
+copy is the only record of the previous site.
+
+**Search.** The Algolia DocSearch crawler (index `Docs crawler`, app `PFTWPISD3F`) is configured in the Algolia
+dashboard, not in this repository. After publishing, run a crawl so that stale URLs disappear. `/v3/` pages are
+`noindex` and absent from the sitemap, which is now `/sitemap-index.xml` (`/sitemap.xml` redirects to it).
+
+### Config schema
+
+`pnpm publish:schemas` uploads the committed `packages/config/generated/config-schema.json` and
+`apps/cli/@generated/schemas/*` to `internal-services-production-schemasbucket-eb6fca19` and invalidates its CDN. They
+are served at `https://schemas.stacktape-dev.com`, which the VS Code extension uses when it finds no local Stacktape
+installation. The script runs this checkout's CLI, not the installed one. Like the other `pnpm dev:cli` commands it
+needs the dev Console API key in `apps/cli/.env.local` (not a production key) and uploads with the environment's AWS
+credentials. Check that the served file matches:
+
+```sh
+curl -s https://schemas.stacktape-dev.com/config-schema.json | sha256sum
+sha256sum packages/config/generated/config-schema.json
+```
+
+### AI documentation
+
+`/llms.txt`, `/llms-full.txt` and `/llms-api-reference.txt` are part of the documentation build and publish with the
+site. The CLI ships the same corpus. The v3-era hosted MCP endpoint (`mcp.stacktape.com`) and its docs bucket belong to
+the Console stack and are removed by the Console v4 deployment.

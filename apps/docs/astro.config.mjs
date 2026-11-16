@@ -15,7 +15,8 @@ import { remarkCodeToComponent } from './src/utils/remark-code-to-component.ts';
 import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
 import { remarkV3Archive } from './src/utils/remark-v3-archive.ts';
-import { V3_ARCHIVE_REDIRECTS, V3_REDIRECTS_TO_V4, isV3Path } from './src/utils/v3-archive-routes.ts';
+import { SITE_REDIRECTS } from './src/utils/site-redirects.ts';
+import { isV3Path } from './src/utils/v3-archive-routes.ts';
 
 const SITE_URL = 'https://docs.stacktape.com';
 const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
@@ -35,21 +36,8 @@ const posthogSourceMapPlugin = posthogSourceMapsEnabled
 export default defineConfig({
   site: SITE_URL,
   trailingSlash: 'always',
-  // Pages renamed or merged in v4. The old URLs are linked from older blog posts, issues and search results.
-  redirects: {
-    '/packaging/containers/nixpacks/': '/packaging/containers/buildpack/',
-    '/packaging/containers/external-buildpack/': '/packaging/containers/buildpack/',
-    '/packaging/containers/custom-dockerfile/': '/packaging/containers/dockerfile/',
-    '/packaging/containers/stacktape-buildpack/': '/packaging/containers/js-bundle/',
-    '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
-    '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
-    '/using-with-ai/config-generation-from-repository/': '/cli/init/',
-    '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/',
-    // v3 (3.7.1) pages whose topic has a v4 page land on it; the same map drives the v3 banner and the version
-    // switcher. The other old v3 URLs, and links printed by the 3.7.1 CLI, go to the /v3/ archive.
-    ...V3_REDIRECTS_TO_V4,
-    ...V3_ARCHIVE_REDIRECTS
-  },
+  // Old URLs (v4 renames and v3 pages): src/utils/site-redirects.ts. The production CDN serves them as 301s.
+  redirects: SITE_REDIRECTS,
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover'

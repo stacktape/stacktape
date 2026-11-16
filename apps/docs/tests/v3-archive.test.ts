@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import { entryToUrlSlug, slugToUrl } from '../src/utils/route-slugs.ts';
+import { SITE_REDIRECTS } from '../src/utils/site-redirects.ts';
 import { getV3PagePaths, toV3Href } from '../src/utils/v3-archive.ts';
 import {
   V3_ARCHIVE_REDIRECTS,
@@ -36,13 +37,6 @@ const v4Routes = new Set(
 const withSlash = (path: string) => (path === '/' ? '/' : `${path.replace(/\/$/, '')}/`);
 const isV4Page = (url: string) => v4Routes.has(url === '/' ? '/' : url.replace(/[#?].*$/, '').replace(/\/$/, ''));
 
-/** Literal keys of `redirects` in astro.config.mjs (the v3 maps are spread in and imported below). */
-const configuredRedirects = (): Set<string> => {
-  const source = readFileSync(join(APP_ROOT, 'astro.config.mjs'), 'utf8');
-  const block = source.slice(source.indexOf('redirects: {'), source.indexOf('\n  },', source.indexOf('redirects: {')));
-  return new Set([...block.matchAll(/^\s*'([^']+)':/gm)].map((match) => withSlash(match[1])));
-};
-
 test('the archive holds the 94 pages v3.7.1 served', () => {
   assert.equal(archiveFiles.length, 94);
   assert.equal(getV3PagePaths().size, 94);
@@ -51,17 +45,10 @@ test('the archive holds the 94 pages v3.7.1 served', () => {
 });
 
 test('every old v3 URL still resolves: as a v4 page, a redirect to v4, or a redirect into the archive', () => {
-  const config = readFileSync(join(APP_ROOT, 'astro.config.mjs'), 'utf8');
-  assert.match(
-    config,
-    /\.\.\.V3_REDIRECTS_TO_V4,\s*\.\.\.V3_ARCHIVE_REDIRECTS/,
-    'astro.config.mjs must spread both v3 redirect maps'
-  );
-  const redirects = new Set([
-    ...configuredRedirects(),
-    ...Object.keys(V3_REDIRECTS_TO_V4),
-    ...Object.keys(V3_ARCHIVE_REDIRECTS)
-  ]);
+  for (const [from, to] of Object.entries({ ...V3_REDIRECTS_TO_V4, ...V3_ARCHIVE_REDIRECTS })) {
+    assert.equal(SITE_REDIRECTS[from], to, `${from} is missing from the site's redirects`);
+  }
+  const redirects = new Set(Object.keys(SITE_REDIRECTS));
   const unresolved = [...getV3PagePaths()].filter((path) => !isV4Page(path) && !redirects.has(withSlash(path)));
   assert.deepEqual(unresolved, []);
 });

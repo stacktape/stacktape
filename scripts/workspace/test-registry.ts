@@ -2947,6 +2947,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/docs/tests/api-reference-data.test.ts',
+      'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
@@ -5298,6 +5299,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/docs/scripts/test-build-contracts.ts',
       'apps/docs/tests/api-reference-data.test.ts',
+      'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
