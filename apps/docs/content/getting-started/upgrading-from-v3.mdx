@@ -888,7 +888,7 @@ The first v4 deployment also gives each batch job an execution role with `Amazon
 v4 turns on two features that send operational data to the Stacktape Console:
 
 - **[Error tracking](/observability/error-tracking)** subscribes the log group of every function and `js-bundle` container to Stacktape's error detector, which runs in your account. The detector sends each error's message, stack frames and log line to the Console, with known kinds of sensitive values, such as tokens, passwords and email addresses, masked. Your logs stay in your account.
-- **Security scanning** checks the stack's configuration and its dependencies after each deployment and reports findings to the Console. The dependency inventory stays in your account's deployment bucket.
+- **[Security scanning](/stacktape-console/security-scanning)** checks the stack's configuration and lists its dependencies during each deployment, and reports findings to the Console. It never blocks a deployment. The dependency list stays in your account's deployment bucket; the first scan downloads the Trivy scanner (about 50 MB) to the machine that deploys.
 
 Each subscription filter is a CloudFormation resource. A stack close to CloudFormation's limit of 500 resources per stack can exceed it; the CLI then stops before deploying. Turn error tracking off, or limit it to some stages, in `deploymentConfig`:
 
