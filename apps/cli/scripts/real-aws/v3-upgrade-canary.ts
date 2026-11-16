@@ -655,8 +655,11 @@ const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
         new FilterLogEventsCommand({
           logGroupName: `/aws/lambda/${sink}`,
           startTime: startedAt,
-          // The forced alarm's own incident: every alarmed function notifies the same sink.
-          filterPattern: `"ALARM_NOTIFICATION" "INCIDENT_OPENED" "${alarmName}"`
+          // The forced alarm's own firing: every alarmed function notifies the same sink. A webhook channel on an alarm
+          // receives the alert event (`ALARM_TRIGGERED`, `details.alarmName`), whether the service Lambda delivers it in
+          // the account or, for an older helper Lambda, the Console does. `INCIDENT_OPENED` goes only to channels of the
+          // Console's own alert rules.
+          filterPattern: `"ALARM_NOTIFICATION" "ALARM_TRIGGERED" "${alarmName}"`
         })
       )
       .catch(() => ({ events: [] }));
