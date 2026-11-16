@@ -210,7 +210,7 @@ test('uptime sync drops channels with credentials that Stacktape 4 previews sent
     ]
   });
 
-  assert.deepEqual(parsed.checks[0].notificationChannels, [
+  assert.deepEqual(parsed.checks[0]!.notificationChannels, [
     { name: 'on-call', type: 'console-channel', properties: {} },
     {
       name: '#alerts',
