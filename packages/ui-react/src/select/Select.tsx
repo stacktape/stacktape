@@ -226,7 +226,8 @@ export function Select<Value>({
   onMenuOpen,
   optionHeight,
   options,
-  placeholder = 'Select a value',
+  // The Console's own wording ("Choose a size"); a form passes its own where it can say what to choose.
+  placeholder = 'Choose…',
   reserveMessageSpace = true,
   required = false,
   searchable = true,
