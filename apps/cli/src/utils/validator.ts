@@ -90,10 +90,14 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
   }
 };
 
-const getLink = (command: string) => {
-  const cmdLink = command.replaceAll(':', '-');
-  return `https://docs.stacktape.com/cli/${cmdLink}/`;
+// Commands documented on another command's page.
+const commandDocsPage: Record<string, string> = {
+  'dev:network:delete': 'cli/dev-network',
+  'alarms:export': 'observability/alarms'
 };
+
+const getLink = (command: string) =>
+  `https://docs.stacktape.com/${commandDocsPage[command] ?? `cli/${command.replaceAll(':', '-')}`}/`;
 
 export const validateArgs = ({
   command,

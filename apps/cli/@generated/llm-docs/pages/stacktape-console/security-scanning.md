@@ -120,7 +120,9 @@ switches per connected account:
 - **Dependencies** turns the dependency checks on or off. It can be on only while **Configuration** is on.
 
 A newly connected account runs both checks. Only organization owners and admins can change the switches. A change
-applies from each stack's next deploy. Findings already reported stay visible but stop updating.
+to the configuration checks applies from each stack's next deploy. Turning **Dependencies** off also stops the
+vulnerability checks of packages already listed, including the nightly re-check, and turning it back on resumes them
+within about an hour, without a deploy. Findings already reported stay visible.
 
 ### For a stack or some stages
 

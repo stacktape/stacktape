@@ -41,8 +41,9 @@ You need:
 
 Open the profile menu in the Console header and choose **Git connections**. Click **Connect Git provider** and pick
 the provider. Each connection appears in the list with a status. **Connected** means pushes are received.
-**Needs attention** means Stacktape cannot use the connection and pushes are not deployed until an owner or admin
-clicks **Reconnect**.
+**Needs attention** on a GitLab or Bitbucket connection means Stacktape cannot use it, and pushes are not deployed
+until an owner or admin clicks **Reconnect**. On a GitHub connection it means the GitHub App's repository write
+permissions are not approved yet; deployments keep working, and approving the permissions in GitHub clears it.
 
 ### GitHub
 

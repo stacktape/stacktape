@@ -537,8 +537,9 @@ You need:
 
 Open the profile menu in the Console header and choose **Git connections**. Click **Connect Git provider** and pick
 the provider. Each connection appears in the list with a status. **Connected** means pushes are received.
-**Needs attention** means Stacktape cannot use the connection and pushes are not deployed until an owner or admin
-clicks **Reconnect**.
+**Needs attention** on a GitLab or Bitbucket connection means Stacktape cannot use it, and pushes are not deployed
+until an owner or admin clicks **Reconnect**. On a GitHub connection it means the GitHub App's repository write
+permissions are not approved yet; deployments keep working, and approving the permissions in GitHub clears it.
 
 ### GitHub
 
@@ -8707,7 +8708,8 @@ The `defineConfig` function receives a callback whose argument provides deploy-t
 
 `cliArgs` holds the options you passed to the current command, keyed by their camelCase option names. Some options
 have a different internal name: `--config` arrives as `configPath` and `--project` as `projectName`. Options you did
-not type, including defaults, are not in it, and every value is `unknown`, so check its type before you use it.
+not type are usually not in it, but `projectName` and `region` declared in the config are, so do not treat
+their presence as a command-line override. Every value is `unknown`, so check its type before you use it.
 
 `cliArgs` accepts only the command's own options. Pass your own values after `--` and read them with the
 [`$CliArgs()`](/configuration/directives#cliargs) directive instead. Write each one as `--name value`; the form
@@ -49321,7 +49323,9 @@ switches per connected account:
 - **Dependencies** turns the dependency checks on or off. It can be on only while **Configuration** is on.
 
 A newly connected account runs both checks. Only organization owners and admins can change the switches. A change
-applies from each stack's next deploy. Findings already reported stay visible but stop updating.
+to the configuration checks applies from each stack's next deploy. Turning **Dependencies** off also stops the
+vulnerability checks of packages already listed, including the nightly re-check, and turning it back on resumes them
+within about an hour, without a deploy. Findings already reported stay visible.
 
 ### For a stack or some stages
 

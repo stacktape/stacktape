@@ -95,7 +95,8 @@ The `defineConfig` function receives a callback whose argument provides deploy-t
 
 `cliArgs` holds the options you passed to the current command, keyed by their camelCase option names. Some options
 have a different internal name: `--config` arrives as `configPath` and `--project` as `projectName`. Options you did
-not type, including defaults, are not in it, and every value is `unknown`, so check its type before you use it.
+not type are usually not in it, but `projectName` and `region` declared in the config are, so do not treat
+their presence as a command-line override. Every value is `unknown`, so check its type before you use it.
 
 `cliArgs` accepts only the command's own options. Pass your own values after `--` and read them with the
 [`$CliArgs()`](/configuration/directives#cliargs) directive instead. Write each one as `--name value`; the form
