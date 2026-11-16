@@ -289,7 +289,8 @@ export class ConfigManager {
 
     await operationReporter.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
-      data: { stackName: this.stackContext.stackName, config: this.config },
+      // Not the config itself: it can hold credentials written into it, and event details reach `--agent` output.
+      data: { stackName: this.stackContext.stackName },
       phase: 'INITIALIZE'
     });
   };

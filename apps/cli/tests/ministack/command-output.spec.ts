@@ -3,14 +3,12 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
-import {
-  CognitoIdentityProviderClient,
-  DescribeUserPoolClientCommand
-} from '@aws-sdk/client-cognito-identity-provider';
 import { CreateSecretCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
+import { buildSSMParameterNameForReferencableParam } from '@stacktape/naming/ssm-parameter-paths';
 // oxlint-disable-next-line import/no-unassigned-import
 import './offline-preload';
 import {
@@ -30,6 +28,7 @@ type ResultRecord = { type?: string; ok?: boolean; code?: string; message?: stri
 const ACCOUNT = 'cli-process-account';
 const SECRET_NAME = 'command-output-secret';
 const SECRET_VALUE = 'secret-value-that-must-stay-private-6f1c';
+const DATABASE_PASSWORD = 'database-password-that-must-stay-private-7d2e';
 
 const terminalResult = (stdout: string) =>
   stdout
@@ -59,11 +58,19 @@ const config = (scriptProperties: Record<string, unknown> = {}) => ({
     }
   },
   hooks: { afterDeploy: [{ scriptName: 'greet' }] },
-  resources: { pool: { type: 'user-auth-pool', properties: { generateClientSecret: true } } }
+  resources: {
+    database: {
+      type: 'relational-database',
+      properties: {
+        credentials: { masterUserPassword: DATABASE_PASSWORD },
+        engine: { type: 'postgres', properties: { version: '18.1', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+      }
+    }
+  }
 });
 
-// The source CLI deploys a user pool whose client secret is a sensitive stack parameter: the service Lambda reads it
-// from Cognito into SSM, and every command that loads the deployed stack resolves it again. No command output may
+// The source CLI deploys a database whose connection string, password included, is a sensitive stack parameter: the
+// stack stores it in SSM, and every command that loads the deployed stack resolves it again. No command output may
 // contain it unless --show-secrets is passed, and the MCP server never returns it.
 describe('command output', () => {
   let out: string;
@@ -71,7 +78,7 @@ describe('command output', () => {
   let project: FamilyProject;
   let cloudFormation: CloudFormationClient;
   let deployed = false;
-  let clientSecret: string;
+  let connectionString: string;
   let firstDeploy: { exitCode: number; stdout: string; stderr: string; result?: ResultRecord; tail: string };
 
   const run = async (logName: string, args: string[], options: { stdin?: string; targetArgs?: boolean } = {}) => {
@@ -110,18 +117,22 @@ for await (const line of lines) {
     firstDeploy = await run('deploy', ['deploy', '--autoConfirmOperation', '--agent']);
     deployed = (await describeStackResources(cloudFormation, project.stackName)) !== undefined;
     expect(firstDeploy.exitCode, firstDeploy.tail).toBe(0);
-    const params = firstDeploy.result?.data?.result?.stackInfo?.resources?.pool?.referenceableParams;
-    const cognito = new CognitoIdentityProviderClient(ministack.clientConfig());
+    // The key as the stack stored it, read without the CLI.
+    const ssm = new SSMClient(ministack.clientConfig());
     try {
-      const { UserPoolClient } = await cognito.send(
-        new DescribeUserPoolClientCommand({ UserPoolId: params?.id, ClientId: params?.clientId })
-      );
-      clientSecret = UserPoolClient?.ClientSecret ?? '';
+      const name = buildSSMParameterNameForReferencableParam({
+        nameChain: ['database'],
+        paramName: 'connectionString',
+        stackName: project.stackName,
+        region: ministack.region
+      });
+      connectionString =
+        (await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: true }))).Parameter?.Value ?? '';
     } finally {
-      cognito.destroy();
+      ssm.destroy();
     }
     // A short value could appear in the output by chance and make the absence checks meaningless.
-    expect(clientSecret.length).toBeGreaterThanOrEqual(16);
+    expect(connectionString.length).toBeGreaterThanOrEqual(16);
   }, 420_000);
 
   afterAll(async () => {
@@ -143,29 +154,50 @@ for await (const line of lines) {
   }, 300_000);
 
   test('deploy withholds secret values from its result and stack-info file unless --show-secrets is passed', async () => {
-    const params = firstDeploy.result?.data?.result?.stackInfo?.resources?.pool?.referenceableParams;
-    expect(params?.clientSecret).toBe('<<OMITTED>>');
-    expect(params?.clientId).toEqual(expect.any(String));
-    expect(`${firstDeploy.stdout}\n${firstDeploy.stderr}`).not.toContain(clientSecret);
-    expect(await stackInfoFile()).not.toContain(clientSecret);
-    expect(JSON.parse(await stackInfoFile()).resources.pool.referenceableParams.clientSecret).toBe('<<OMITTED>>');
+    const params = firstDeploy.result?.data?.result?.stackInfo?.resources?.database?.referenceableParams;
+    expect(params?.connectionString).toBe('<<OMITTED>>');
+    expect(params?.host).toEqual(expect.any(String));
+    expect(`${firstDeploy.stdout}\n${firstDeploy.stderr}`).not.toContain(connectionString);
+    expect(`${firstDeploy.stdout}\n${firstDeploy.stderr}`).not.toContain(DATABASE_PASSWORD);
+    expect(await stackInfoFile()).not.toContain(connectionString);
+    expect(JSON.parse(await stackInfoFile()).resources.database.referenceableParams.connectionString).toBe(
+      '<<OMITTED>>'
+    );
 
     const shown = await run('deploy-show-secrets', ['deploy', '--autoConfirmOperation', '--agent', '--show-secrets']);
     expect(shown.exitCode, shown.tail).toBe(0);
-    expect(shown.result?.data?.result?.stackInfo?.resources?.pool?.referenceableParams?.clientSecret).toBe(
-      clientSecret
+    expect(shown.result?.data?.result?.stackInfo?.resources?.database?.referenceableParams?.connectionString).toBe(
+      connectionString
     );
-    expect(JSON.parse(await stackInfoFile()).resources.pool.referenceableParams.clientSecret).toBe(clientSecret);
+    expect(JSON.parse(await stackInfoFile()).resources.database.referenceableParams.connectionString).toBe(
+      connectionString
+    );
   }, 300_000);
 
   test('param get and secret get print a secret value only with --show-secrets', async () => {
-    const paramArgs = ['param:get', '--resourceName', 'pool', '--paramName', 'clientSecret', '--agent'];
-    const omitted = await run('param-get', paramArgs);
+    // `param get` reads only the deployed stack, so it takes the stack target without a working directory.
+    const paramArgs = [
+      'param:get',
+      '--resourceName',
+      'database',
+      '--paramName',
+      'connectionString',
+      '--stage',
+      STAGE,
+      '--region',
+      ministack.region,
+      '--projectName',
+      project.projectName,
+      '--awsAccount',
+      ACCOUNT,
+      '--agent'
+    ];
+    const omitted = await run('param-get', paramArgs, { targetArgs: false });
     expect(omitted.exitCode, omitted.tail).toBe(0);
     expect(omitted.result?.data?.result).toBe('<<OMITTED>>');
-    expect(`${omitted.stdout}\n${omitted.stderr}`).not.toContain(clientSecret);
-    const shown = await run('param-get-show-secrets', [...paramArgs, '--show-secrets']);
-    expect(shown.result?.data?.result).toBe(clientSecret);
+    expect(`${omitted.stdout}\n${omitted.stderr}`).not.toContain(connectionString);
+    const shown = await run('param-get-show-secrets', [...paramArgs, '--show-secrets'], { targetArgs: false });
+    expect(shown.result?.data?.result).toBe(connectionString);
 
     const secretArgs = [
       'secret:get',
@@ -215,18 +247,12 @@ for await (const line of lines) {
             { timeout: 180_000 }
           )
         ).structuredContent as { ok: boolean; code: string; data?: Record<string, any> };
-      const target = {
-        stage: STAGE,
-        region: ministack.region,
-        projectName: project.projectName,
-        awsAccount: ACCOUNT,
-        currentWorkingDirectory: project.directory
-      };
+      const target = { stage: STAGE, region: ministack.region, projectName: project.projectName, awsAccount: ACCOUNT };
 
-      const param = await call('param:get', { ...target, resourceName: 'pool', paramName: 'clientSecret' });
+      const param = await call('param:get', { ...target, resourceName: 'database', paramName: 'connectionString' });
       expect(param.ok, JSON.stringify(param).slice(0, 2000)).toBe(true);
       expect(param.data?.cli?.result).toBe('<<OMITTED>>');
-      expect(JSON.stringify(param)).not.toContain(clientSecret);
+      expect(JSON.stringify(param)).not.toContain(connectionString);
 
       const secret = await call('secret:get', {
         region: ministack.region,
@@ -237,7 +263,7 @@ for await (const line of lines) {
       expect(JSON.stringify(secret)).not.toContain(SECRET_VALUE);
 
       for (const [command, args] of [
-        ['param:get', { ...target, resourceName: 'pool', paramName: 'clientSecret' }],
+        ['param:get', { ...target, resourceName: 'database', paramName: 'connectionString' }],
         ['secret:get', { region: ministack.region, awsAccount: ACCOUNT, secretName: SECRET_NAME }]
       ] as const) {
         const refused = await call(command, { ...args, showSensitiveValues: true });
