@@ -16483,81 +16483,379 @@ Browse the current starter projects at https://docs.stacktape.com/getting-starte
 Source: `apps/docs/content/getting-started/upgrading-from-v3.mdx`
 Route: `/getting-started/upgrading-from-v3`
 
-Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page covers packaging, removed resource parameters and what the first v4 deployment changes in an existing stack.
+Stacktape v4 makes deliberate breaking changes. A v3 configuration usually needs a few renames before v4 accepts it, some CLI flags and commands are gone, the first v4 deployment of a stack changes more than an ordinary deployment, and the Stacktape Console changes for everyone at the same time.
 
-## Deployed stacks
+This guide is for upgrading a project from v3.7 to v4. Start with [Before you upgrade](#before-you-upgrade), follow [the upgrade, step by step](#the-upgrade-step-by-step), and read the other sections when that procedure points you to them. Most projects need only the packaging renames and a slower first deployment.
 
-Deploying a v4 configuration over a stack created by v3 is an ordinary stack update. Databases, buckets, DynamoDB tables, Redis caches, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. Stacktape checks this before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
+Your deployed stacks keep running while you upgrade: nothing in AWS changes until you deploy a stack with v4.
 
-The first v4 deployment adds a log subscription filter to every function and container log group for issue detection. On stacks without databases, load balancers or private service discovery, it also deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag.
+## Before you upgrade
 
-On stacks with a CDN, it deletes Stacktape's origin-response Lambda@Edge function unless a bucket sets custom metadata headers, the only case that uses it. It also deletes the origin-request Lambda@Edge function unless a bucket cache behaviour uses URL normalization or SPA routing without a custom origin-request handler. API Gateway, load balancer, Lambda URL and custom HTTP origins do not use that helper. When no edge function remains, its internal artifact bucket is removed too. CloudFormation updates distributions before deleting a helper they previously referenced. AWS may retain detached Lambda@Edge replicas for a few hours; this does not fail the update. After AWS releases the replicas, delete any retained function in `us-east-1` with `aws lambda delete-function --profile <profile> --region us-east-1 --function-name <name>`.
+Do these before the v4 release reaches your machines and CI, or right now if it already has.
 
-Batch jobs now run on Amazon Linux 2023 instances, because AWS Batch stopped creating compute environments with its Amazon Linux 2 images on 30 June 2026. A compute environment last deployed by v3.0.10 or later keeps Amazon Linux 2: changing the image would make CloudFormation replace the environment and could interrupt jobs running on it. AWS keeps such environments running but no longer patches their image. An older environment, or one that a later change replaces anyway (such as a change to the stack's `tags`), moves to Amazon Linux 2023. CloudFormation then deletes the old environment, which can interrupt jobs still running on it, so deploy such a change when no jobs run; the change plan lists the compute environment as replaced. Amazon Linux 2023 requires IMDSv2 and uses cgroup v2; see [compute resources](/resources/compute/batch-job#compute-resources). The first v4 deployment also gives each batch job an execution role with `AmazonECSTaskExecutionRolePolicy`, which the ECS agent uses to pull the job's image from ECR, write its logs and read its secrets. The job's own role is unchanged.
+1. **Pin the Stacktape version everywhere you install it.** The v4 release replaces the install scripts at `installs.stacktape.com`, so every unpinned `curl … | sh` or `irm … | iex`, CI jobs included, and `stacktape upgrade` on a v3 CLI install v4. Pin v3 until each project is migrated:
 
-The first v4 deployment deletes the stack's `<stack name>-dev-agent` IAM role and its `DevAgentRoleArn` output: only `stacktape dev` uses that role, and its dev stacks keep it. The read-only `<stack name>-debug-agent` role, which `aws call`, `query dynamodb` and `query opensearch` use, now reads only the stack's own resources in the stack's region. It no longer reads Secrets Manager or SSM Parameter Store values, other stacks' databases and caches, or the account-wide `aws/spans` trace log group. Automation that assumed either role for anything else needs its own role.
 
-Existing organization-wide Console alarm rules remain as legacy rules. The Console no longer creates or edits alarm rules; use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
+Example (macOS):
 
-Container services without gradual deployments shut down more gracefully in v4. The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers a new task definition and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
+```bash
+curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=3.7.1 sh
+```
 
-A container service whose `minInstances` equals `maxInstances` (the default is 1 and 1) no longer gets CPU and memory scaling policies, because they could never change its instance count. Services whose `overrides` change the scalable target or a scaling policy keep both policies. The first v4 deployment deletes both policies and their CloudWatch alarms. The service keeps its scalable target and its instance count.
 
-Code-only deployments of web services behind the default HTTP API finish once the new tasks are `RUNNING` and API Gateway can discover them, plus a 4-second routing allowance. Old tasks drain in the background. No health check is added by default, so this does not confirm that the new application works. Add an `internalHealthCheck` for application failure detection and automatic rollback. HTTP API tasks also gain a managed drain container, which waits 35 seconds before ECS signals the application so cached routes can expire. This uses one of ECS's 10 container slots and has a 16 MiB memory limit. The protection applies once those task definitions are running; the first rollout still retires the previous unprotected tasks. Keep an application shutdown delay or use a maintenance window for that transition. Services with an `internalHealthCheck`, and ALB/NLB services, keep their existing health-based completion checks. Code-only deploy timing stays the same. Full CloudFormation deployments, scale-in and deletion take about 36 seconds longer per task stop; tasks can stop in parallel. The 35-second delay can be raised through task definition overrides, with a matching increase to the helper’s stop timeout. The helper is non-essential and pulls a digest-pinned image from the stack’s private ECR; the CLI copies both amd64 and arm64 images there once without Docker. The privileged Console connection role already covers this copy. Restricted deployer roles need `ecr:BatchGetImage`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload` and `ecr:PutImage` on the stack’s deployment repository, even when all application images are prebuilt. Upgrade every team and Console runner CLI before adopting the helper: older CLIs can delete its cached images during retention. See [web-service health checks](/resources/compute/web-service#health-checks).
+Example (Linux):
 
-## CLI command and flag names
+```bash
+curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=3.7.1 sh
+```
 
-v4 commands and flags use standard spelling: words separated by spaces, and lowercase flags with dashes. For example, `stacktape secret set my-key --region eu-west-1` replaces `stacktape secret:set --region eu-west-1 --secretName my-key`. The old spellings, such as colon commands (`info:stack`) and camelCase flags (`--projectName`), still work, so existing scripts and CI jobs keep running. Run `stacktape help <command>` to see the current names.
 
-## Error tracking names
+Example (Windows):
 
-Use `error list`, `error ignore`, `error resolve`, and `error reopen` in place of the `issues:*` CLI commands. The `issues:*` commands still work, so existing scripts, automation and MCP command requests keep running. Replace `deploymentConfig.issues` with `deploymentConfig.errorTracking` in YAML and TypeScript configs; the old config name is rejected. Issue IDs and status values are unchanged. See [Error tracking](/observability/error-tracking) for capture settings and triage commands.
+```powershell
+$env:STACKTAPE_VERSION='3.7.1'; irm https://installs.stacktape.com/windows.ps1 | iex
+```
 
-## Failed deployments keep what they created
 
-v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated, unless it replaced existing resources: CloudFormation can only replace resources in a deployment it may roll back. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure. To undo a failed update, run `stacktape stack recover`; to remove a failed first deployment, run `stacktape delete`. See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+Example (npm):
 
-- Replace `deploymentConfig.disableAutoRollback: true` by deleting it; this is now the default. The old name is rejected.
-- To keep the v3 behaviour, set `deploymentConfig.autoRollback: true`, or pass `--auto-rollback` to one deployment. Stacks with `triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` keep rolling back automatically without a change.
-- Remove `--no-auto-rollback` (`--disableAutoRollback`, `--dar`) from scripts and CI jobs. The flag no longer exists.
+```bash
+npm install --save-exact stacktape@3.7.1
+```
 
-## Security findings in agent output
 
-In the `--agent` result of `validate` and `deploy`, one `security` object replaces the `securityFindings` and `securityExposure` fields that `4.0.0-preview.10` returned: read `security.findings` and `security.exposure` instead. See [security findings by stage purpose](/cli/validate#security-findings-by-stage-purpose).
+   A project that runs the CLI from its `stacktape` npm package (`npx stacktape`) stays on the version in its lockfile. Use an exact version, not a range such as `^3.7.1`.
 
-## Target AWS account
+2. **Export configurations stored in the Stacktape Console.** The Console update that ships with v4 deletes every configuration template stored in the Console, and the history of configurations it generated for you. This cannot be undone, and a pinned v3 CLI does not keep them: `--templateId` stops working because the Console no longer has the templates. If you deploy with `--templateId`, or want to keep a template, save it as a file in your repository before the Console update: copy it from the template editor in the Console, or run `stacktape init --templateId <id>` with the v3 CLI in an empty directory. That command writes `stacktape.yml` without asking, so running it in your project would overwrite the configuration you have. Your deployed stacks are not affected.
 
-v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--aws-account`, the saved default, or the organization's only connected account. In v4, when `--aws-account` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
+3. **Plan to upgrade the whole toolchain of a project at once.** A project's deployments must all use v4 once one has: the CLI on every developer machine, the project's `stacktape` npm package and lockfile, and the CLI version pinned in CI. A v4 CLI evaluates a TypeScript configuration with the project's installed `stacktape` package, so an old package produces a v3 configuration that v4 rejects. An older CLI that deploys a stack after v4 has deployed it can also delete images that v4's container helpers need. Deployments the Console runs for you (Git pushes and Console runners) use the CLI version the Console chooses, which is v4 after the Console update, unless the project was set to a specific Stacktape version. If you are not sure, ask [support@stacktape.com](mailto:support@stacktape.com) to check your projects.
 
-Check scripts and CI jobs that set an AWS profile or AWS keys for a different account than the one they deploy to. Pass `--aws-account <name>` in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+4. **Choose a quiet time for the first v4 deployment of each stage.** It rebuilds and re-uploads every function, replaces running containers once, and can replace AWS Batch compute environments. See [what the first v4 deployment changes](#what-the-first-v4-deployment-changes).
 
-## Redis caches
+5. **Tell your team about the Console changes.** Everyone may have to sign in to the CLI again, people who used an authenticator app set it up again, and Developers and Viewers keep access only to some AWS accounts. See [Stacktape Console changes](#stacktape-console-changes).
 
-`type: redis-cluster` is now `type: redis`, and the node settings (`instanceSize`, replicas, sharding, `port`, `logging`) moved under `engine.properties`. To keep a deployed cache unchanged, use `engine.type: redis` and set `version` to the version it runs: the former `engineVersion`, or `6.2` if it was not set. The CLI rejects `redis-cluster` and prints this replacement for your settings. TypeScript configs replace `RedisCluster` with `Redis`.
+### Which sections apply to you
 
-The cache keeps its endpoint and data. New caches use Valkey (`engine.type: valkey` or `valkey-serverless`); to move an existing cache to Valkey, change `engine.type` to `valkey`. See [Redis](/resources/databases/redis#migrating-from-redis-cluster).
+| If your project or team uses… | Read |
+|---|---|
+| Any `packaging` (every function and container) | [Packaging](#packaging) |
+| `serviceName` in the configuration | [Project name](#project-name) |
+| Alarms with `notificationTargets` | [Alarm notifications](#alarm-notifications) |
+| `usePrivateSubnetsWithNAT` or `stackConfig.vpc.nat` | [NAT](#nat) |
+| `redis-cluster` | [Redis caches](#redis-caches) |
+| `disableAutoRollback`, `--disableAutoRollback` | [Automatic rollback](#automatic-rollback) |
+| A TypeScript configuration (`stacktape.ts`) | [TypeScript configurations](#typescript-configurations) |
+| `connectTo: ['aws:ses']` or `AWS_SES` | [Sending email with SES](#sending-email-with-ses) |
+| `afterDeploy` hooks | [After-deploy hooks fail the deployment](#after-deploy-hooks-fail-the-deployment) |
+| Scripts or CI that call the CLI | [CLI changes](#cli-changes) |
+| Java, Ruby or Go functions | [Lambda runtimes](#lambda-runtimes) |
+| Container services | [Container services](#container-services) |
+| AWS Batch jobs | [Batch jobs](#batch-jobs) |
+| Lambda functions in a VPC (`joinDefaultVpc`) | [Functions in a VPC](#functions-in-a-vpc) |
+| The Stacktape Console | [Stacktape Console changes](#stacktape-console-changes) |
 
-## Removed resource parameters
+## The upgrade, step by step
+
+Upgrade one project at a time, and one stage before the others.
+
+1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
+
+
+Example (npm):
+
+```bash
+npm install --save-exact stacktape@4
+```
+
+
+Example (Linux):
+
+```bash
+curl -fsSL https://installs.stacktape.com/linux.sh | sh
+```
+
+
+2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
+
+3. **Validate** the configuration against a non-production stage. Name the stage, region and AWS account explicitly:
+
+   ```bash
+   stacktape validate --stage staging --region eu-west-1 --aws-account my-staging-account
+   ```
+
+   Validation checks the configuration and builds the CloudFormation template. It does not start your application or deploy anything.
+
+4. **Review the change plan** with [`stacktape diff`](/cli/diff), using the same flags. Look for resources that would be replaced or deleted. The first v4 deployment always updates functions, container task definitions and some helper resources; [what the first v4 deployment changes](#what-the-first-v4-deployment-changes) lists what to expect. A database, bucket or table listed as replaced means a configuration change went wrong: compare the resource names and settings with the v3 configuration before deploying. `stacktape deploy` also stops and asks for confirmation before replacing or deleting a Stacktape resource that holds data, but not for resources in `cloudformationResources`.
+
+5. **Deploy the non-production stage** and check that the application works: open its endpoints, run a job, read its logs with [`stacktape logs`](/cli/logs).
+
+6. **Update CI**: install v4 with a pinned version (`STACKTAPE_VERSION=4.0.0`, or the package version in the lockfile), replace [removed commands and flags](#cli-changes), and pass `--aws-account` (see [Target AWS account](#target-aws-account)).
+
+7. **Deploy production**, at a quiet time.
+
+### Going back to v3
+
+There is no automatic way back. A configuration updated for v4 does not work with v3, and the v4 Console no longer supports some things v3 relies on: stored templates, configuration generation in `init`, and AWS account connection from the CLI. To go back for one stack, revert the configuration and the package to their v3 versions and deploy with a pinned v3.7.1 CLI. Expect that deployment to change the stack again: it rebuilds the functions, replaces the containers and moves functions in a VPC back to their own security groups, which can interrupt their database connections for about four minutes. Before you rely on this, try it on a non-production stage.
+
+Data in databases, buckets and tables is not affected either way. A database migration your application ran during the upgrade is not reverted by redeploying.
+
+## Configuration changes
+
+v4 rejects the old names: `stacktape validate` and `stacktape deploy` stop and name the property they do not accept. Make these changes before the first v4 deployment.
+
+### Project name
+
+The root `serviceName` property is now `projectName`. Keep the same value, because the project name is part of the stack name: a different name deploys a new stack next to the old one.
+
+Before:
+
+```yaml
+serviceName: shop
+resources:
+  # ...
+```
+
+After, in YAML, put `projectName` (and optionally `region`) at the top of the file. In TypeScript, pass them as the first argument of `defineConfig`, as string literals; returning them from the config function is rejected:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig({ projectName: 'shop', region: 'eu-west-1' }, () => {
+  const uploads = new Bucket({});
+
+  return {
+    resources: { uploads }
+  };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+projectName: shop
+region: eu-west-1
+resources:
+  uploads:
+    type: bucket
+```
+
+
+Stacktape reads these values without running the configuration, so they must be plain strings, not computed values. To deploy the same configuration as another project, pass `--project <name>` to the command. A project that declares `projectName` in `stacktape.ts` needs the v4 `stacktape` package: with an older package, the CLI stops with `CONFIG_PROJECT_SETTINGS_UNSUPPORTED_RUNTIME`.
+
+### Alarm notifications
+
+On the `alarms` of functions, databases, load balancers, HTTP APIs and SQS queues, `notificationTargets` is now `notificationChannels`. The channel objects inside are unchanged.
+
+Before:
+
+```yaml
+alarms:
+  - trigger:
+      type: lambda-error-rate
+      properties:
+        thresholdPercent: 5
+    notificationTargets:
+      - type: slack
+        properties:
+          conversationId: C0123456789
+          accessToken: $Secret('slack-bot-token')
+```
+
+After:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    alarms: [
+      {
+        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
+        notificationChannels: [
+          {
+            type: 'slack',
+            properties: { conversationId: 'C0123456789', accessToken: $Secret('slack-bot-token') }
+          }
+        ]
+      }
+    ]
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+          notificationChannels:
+            - type: slack
+              properties:
+                conversationId: C0123456789
+                accessToken: $Secret('slack-bot-token')
+```
+
+
+v4 also accepts `{ type: console-channel, properties: { channelName: <name> } }`, which sends to an [alert channel](/observability/alert-channels) set up in the Console, so the token stays out of the configuration.
+
+### NAT
+
+`stackConfig.vpc.nat` moved to `stackConfig.nat`, and NAT is no longer created implicitly. In v3, a container with `usePrivateSubnetsWithNAT: true` gave the stack NAT Gateways. In v4, the stack needs `stackConfig.nat`; without it, validation stops with `CONFIG_NAT_REQUIRED`.
+
+To keep the NAT Gateways you have, and with them the Elastic IPs your partners may allowlist, set `gateway` with the number of availability zones you had (2 if you did not set it):
+
+Before:
+
+```yaml
+stackConfig:
+  vpc:
+    nat:
+      availabilityZones: 3
+```
+
+After:
+
+
+Example (YAML):
+
+```yaml
+stackConfig:
+  nat:
+    type: gateway
+    availabilityZones: 3
+```
+
+
+`stackConfig.nat: gateway` alone means two zones. v4 has no single-gateway option: if you had `availabilityZones: 1`, `type: gateway` with two zones keeps the existing gateway and its IP, and adds a second gateway (about $32 per month) with a new IP that you need to allowlist too.
+
+v4 also offers cheaper NAT instances, `ec2` and `ha-ec2`. Switching to them on a deployed stack changes the outbound IPs. See [NAT: internet access from private subnets](/configuration/connecting-resources#nat-internet-access-from-private-subnets) for the trade-offs. Once a stack has NAT, its [VPC Lambda functions use it too](#functions-in-a-vpc).
+
+### Redis caches
+
+`type: redis-cluster` is now `type: redis`, and the node settings (`instanceSize`, replicas, sharding, `port`, `logging`) moved under `engine.properties`. To keep a deployed cache unchanged, use `engine.type: redis` and set `version` to the version it runs: the former `engineVersion`, or `6.2` if it was not set. The CLI rejects `redis-cluster` and prints this replacement for your settings. TypeScript configurations replace `RedisCluster` with `Redis`.
+
+The cache keeps its endpoint and data. New caches use Valkey (`engine.type: valkey` or `valkey-serverless`). Changing an existing cache to Valkey is an in-place migration that cannot be reversed, so do it separately from the upgrade if at all. See [Redis](/resources/databases/redis#migrating-from-redis-cluster).
+
+### Automatic rollback
+
+`deploymentConfig.disableAutoRollback` is removed. v4 no longer rolls back a failed deployment by default (see [Failed deployments keep what they created](#failed-deployments-keep-what-they-created)), so:
+
+- if you had `disableAutoRollback: true`, delete it;
+- to keep v3's behaviour, set `autoRollback: true`.
+
+
+Example (YAML):
+
+```yaml
+deploymentConfig:
+  autoRollback: true
+```
+
+
+Stacks with `triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` keep rolling back automatically.
+
+### TypeScript configurations
+
+Besides the renamed [packaging classes](#packaging) and `RedisCluster`, three things change in `stacktape.ts`:
+
+- **Constructors take only the properties.** v3 also accepted a name as the first argument, `new Bucket('uploads', { ... })`. In v4, write `new Bucket({ ... })`; the resource's name is its key in the returned `resources` object. Keep the keys you had: a different key is a different resource, which v4 would create while deleting the old one.
+- **`.resourceName` is gone.** Pass the resource object itself where a property takes a resource, for example `connectTo: [database]`.
+- **Resource parameters cannot be turned into strings.** In v3, a parameter inside a template string, such as `${database.connectionString}`, produced a directive string. In v4, converting a parameter reference to a string throws an error while the configuration is evaluated. Pass the reference as the whole value, or use `$CfFormat` to build a string:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging, RelationalDatabase, RdsEnginePostgres, $Secret, $CfFormat, $ResourceParam } from 'stacktape';
+
+export default defineConfig(() => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
+    credentials: { masterUserPassword: $Secret('database.password') }
+  });
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    connectTo: [database],
+    environment: {
+      // In v3 this could be a template string with database.connectionString inside; v4 throws
+      DATABASE_URL: database.connectionString,
+      DATABASE_HOST_LABEL: $CfFormat('db-{}', $ResourceParam('database', 'host'))
+    }
+  });
+
+  return { resources: { database, api } };
+});
+```
+
+
+`defineConfig(() => ({ ... }))` still works. Tools that call the exported config function directly get a compiled object (`{ config, transforms, finalTransform }`) instead of the plain configuration.
+
+### Sending email with SES
+
+The `aws:ses` entry in `connectTo` and the `AWS_SES` constant are removed. v4 resolves every `connectTo` entry as a resource in your configuration. Declare an [email sender](/resources/messaging/email-sender) for the identity you send from, and connect to it. For an identity you verified outside Stacktape, set `manageIdentity: false` so the deployment uses it instead of creating one. The connection grants permission to send email, where `aws:ses` granted every SES action; give automation that needs other SES actions its own IAM statements.
+
+### Values that v4 rejects
+
+v4 checks some values that v3 accepted:
+
+- **Container scaling below one instance.** `scaling.minInstances` and `maxInstances` must be at least 1. v3 accepted `minInstances: 0`; set it to 1.
+- **Stack tags starting with `stp:`.** Stacktape uses this prefix for its own tags. Rename such tags in `stackConfig.tags`.
+- **Database log settings that do not fit the engine.** Remove `logging` options for another engine, and keep the logs that Aurora Serverless v1 requires.
+- **SQS triggers with a function timeout longer than the queue's visibility timeout.** AWS rejects this combination; raise the queue's `visibilityTimeoutSeconds` or lower the function's `timeout`.
+- **`Condition` and `DependsOn` in `cloudformationResources`** must be a condition name and a resource name (or a list of names), as CloudFormation requires.
+
+### Scripts
+
+{/* STUB (owner: the "remove pipeStdio" change, breaking change C). Reconcile with what it merged before publishing. */}
+
+`pipeStdio` on `local-script` and `local-script-with-bastion-tunneling` is replaced by `stdioMode`. Replace `pipeStdio: false` with `stdioMode: ignore`, and delete `pipeStdio: true`, which is the default (`stdioMode: capture`). Use `stdioMode: inherit` for a script that needs keyboard input. See [hooks and scripts](/configuration/hooks-and-scripts).
+
+### Removed resource parameters
 
 The `MultiContainerWorkload` class no longer has a `logGroupArn` property, and `$ResourceParam('<workload>', 'logGroupArn')` is rejected. Stacktape never published this parameter, so a v3 configuration using it could not deploy.
 
 A multi-container workload has one log group per container. To reference one, use [`$CfResourceParam`](/configuration/directives) with the log group's CloudFormation logical ID: the workload name and the container name in PascalCase, followed by `LogGroup`. For the `app` container of a workload named `orders`, use `$CfResourceParam('OrdersAppLogGroup', 'Arn')`. A container with `logging.disabled` has no log group. Run [`stacktape synth`](/cli/synth) to check the logical IDs in the generated template.
 
-## User auth pool token lifetimes
+### User auth pool token lifetimes
 
 v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito without a unit, so Cognito read them in hours and accepted only 1 to 24. v4 sends them in seconds. A value from 1 to 24 keeps its meaning in hours, and the CLI warns you to write it in seconds: replace `accessTokenValiditySeconds: 1` with `accessTokenValiditySeconds: 3600`. Unset lifetimes stay at 1 hour, and deploying updates the user pool client in place. See [token lifetimes](/resources/security/user-auth-pool#token-lifetimes).
 
 The CLI does not warn about `overrides`. If you set `AccessTokenValidity` or `IdTokenValidity` on the user pool client through `overrides`, the value is now read in seconds, so a value that meant hours fails to deploy. Set the matching unit in the same override, or replace the override with `accessTokenValiditySeconds` or `idTokenValiditySeconds`. For a pool named `auth`:
 
 ```yaml
-overrides:
-  AuthUserPoolClient:
-    AccessTokenValidity: 2
-    TokenValidityUnits:
-      AccessToken: hours
+resources:
+  auth:
+    type: user-auth-pool
+    overrides:
+      AuthUserPoolClient:
+        AccessTokenValidity: 2
+        TokenValidityUnits:
+          AccessToken: hours
 ```
 
-## Packaging
+### Packaging
 
 v4 replaces the v3 packaging types with a smaller set:
 
@@ -16573,9 +16871,49 @@ v4 replaces the v3 packaging types with a smaller set:
 | `custom-artifact` | `custom-artifact` (unchanged) | `CustomArtifactLambdaPackaging` |
 | `prebuilt-image` | `prebuilt-image` (unchanged) | `PrebuiltImagePackaging` |
 
-In TypeScript configurations, rename the classes in both the `new ...Packaging(...)` calls and the `import` list.
+In TypeScript configurations, rename the classes in both the `new ...Packaging(...)` calls and the `import` list. The v3 classes were `StacktapeLambdaBuildpackPackaging`, `StacktapeImageBuildpackPackaging`, `CustomDockerfilePackaging`, `NixpacksPackaging` and `ExternalBuildpackPackaging`.
 
-### JavaScript and TypeScript Lambda functions
+Before:
+
+
+Example (TypeScript (v3)):
+
+```typescript
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts',
+      languageSpecificConfig: { outputModuleFormat: 'esm' }
+    })
+  });
+  return { resources: { api } };
+});
+```
+
+
+After:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/api.ts',
+      outputModuleFormat: 'esm'
+    })
+  });
+  return { resources: { api } };
+});
+```
+
+
+#### JavaScript and TypeScript Lambda functions
 
 Rename the type to `js-bundle` and move the options from `languageSpecificConfig` up one level.
 
@@ -16612,7 +16950,7 @@ resources:
 
 See [JS Bundle for Lambda](/packaging/function/js-bundle).
 
-### Python, Java, Go, Ruby and .NET Lambda functions
+#### Python, Java, Go, Ruby and .NET Lambda functions
 
 Rename the type to `buildpack`. Rename `languageSpecificConfig` to `python`, `java` or `dotnet`, depending on the language. Delete the version fields and set the function's `runtime` instead. Go and Ruby have no options, so delete their `languageSpecificConfig`.
 
@@ -16649,13 +16987,13 @@ resources:
             packageManagerFile: ./pyproject.toml
 ```
 
-v3 ignored the runtime when it built a function: without a version field, it built for Python 3.12, Java 11, Ruby 3.3 or .NET 8. v4 builds for the function's runtime. A function without `runtime` keeps `python3.13` or `dotnet10`, as in v3. Java moves from `java21` to `java25` and Ruby from `ruby3.3` to `ruby4.0`; set `runtime` to keep the v3 one.
+v3 ignored the runtime when it built a function: without a version field, it built for Python 3.12, Java 11, Ruby 3.3 or .NET 8. v4 builds for the function's runtime. Set `runtime` explicitly; see [Lambda runtimes](#lambda-runtimes) for the defaults that changed.
 
 See [Buildpack for Lambda](/packaging/function/buildpack).
 
-### Rust Lambda functions
+#### Rust Lambda functions
 
-v3 had no Rust support, so Rust functions used `custom-artifact` with a hook that ran cargo-lambda. In v4, delete the hook and use `buildpack`.
+v3 had no Rust support, so Rust functions used `custom-artifact` with a hook that ran cargo-lambda. In v4, you can delete the hook and use `buildpack`.
 
 Before:
 
@@ -16693,7 +17031,7 @@ resources:
           entryfilePath: src/main.rs
 ```
 
-### JavaScript and TypeScript container services
+#### JavaScript and TypeScript container services
 
 Rename the type to `js-bundle` and move the options from `languageSpecificConfig` up one level. `requiresGlibcBinaries` and `customDockerBuildCommands` stay where they are.
 
@@ -16742,7 +17080,7 @@ The v4 image installs nothing beside the runtime by default. v3 images ran `tini
 
 See [JS Bundle for Containers](/packaging/containers/js-bundle).
 
-### Python and other non-JavaScript container services
+#### Python and other non-JavaScript container services
 
 Rename the type to `buildpack`. The container `buildpack` builds the whole project directory, so replace `entryfilePath` with `sourceDirectoryPath`. Replace `runAppAs` with a `startCommand` that starts the server on `$PORT`, and add the server (for example `uvicorn` or `gunicorn`) to the project's dependencies.
 
@@ -16784,9 +17122,9 @@ resources:
 
 For a WSGI app, use gunicorn, for example `gunicorn --bind 0.0.0.0:$PORT app.main:app`. When a FastAPI, Flask or Django project uses the conventional module layout, the start command is detected and `startCommand` can be omitted.
 
-The v4 images are Debian-based and larger than the v3 Alpine images. See [Buildpack for Containers](/packaging/containers/buildpack).
+The v4 images are Debian-based and larger than the v3 Alpine images, and they detect native dependencies differently. Test that the application starts and shuts down in the new image. See [Buildpack for Containers](/packaging/containers/buildpack).
 
-### Nixpacks
+#### Nixpacks
 
 Rename the type to `buildpack` and `startCmd` to `startCommand`. Nixpacks phases have no direct equivalent: move install and build commands to `installCommand` and `buildCommand`, and use `railpackConfig` for anything else.
 
@@ -16829,7 +17167,9 @@ resources:
         memory: 512
 ```
 
-### External buildpacks
+A PHP application that used Nixpacks builds with `buildpack` too; check that the detected PHP version and extensions match what it needs, or switch it to a Dockerfile.
+
+#### External buildpacks
 
 Cloud Native Buildpacks and the pack CLI are no longer supported. Try `buildpack`, which detects most projects without configuration. If you depended on a specific builder or buildpack, write a Dockerfile and use `dockerfile`.
 
@@ -16866,7 +17206,7 @@ resources:
         memory: 512
 ```
 
-### Custom Dockerfiles
+#### Custom Dockerfiles
 
 Rename the type to `dockerfile`. The properties are unchanged.
 
@@ -16906,7 +17246,7 @@ resources:
 
 See [Dockerfile](/packaging/containers/dockerfile).
 
-### Removed packaging properties
+#### Removed packaging properties
 
 - `languageSpecificConfig`: its options are direct properties of `js-bundle`, or `python`, `java` and `dotnet` on the Lambda `buildpack`.
 - `pythonVersion`, `javaVersion`, `rubyVersion` and `dotnetVersion` on Lambda functions: set the function's `runtime`.
@@ -16915,6 +17255,235 @@ See [Dockerfile](/packaging/containers/dockerfile).
 - `startCmd`, `phases`, `providers`, `buildImage`, `startRunImage` and `startOnlyIncludeFiles` from `nixpacks`. Use `startCommand`, `installCommand`, `buildCommand`, `aptPackages` or `railpackConfig`.
 - `builder` and `buildpacks` from `external-buildpack`.
 - PHP Lambda functions. Run PHP as a container with [`buildpack`](/packaging/containers/buildpack).
+
+#### Files that v4 refuses to package
+
+v4 stops packaging when the project contains a symbolic link that points outside the package or to nothing, or a path with a backslash on Linux or macOS. v3 followed or rewrote these. Copy the files the link points to into the project, or fix the link. This mostly affects monorepos that link packages from outside the project directory.
+
+## CLI changes
+
+### Command and flag spelling
+
+v4 commands and flags use standard spelling: words separated by spaces, and lowercase flags with dashes. For example, `stacktape secret set my-key --region eu-west-1` replaces `stacktape secret:set --region eu-west-1 --secretName my-key`. Most old spellings, such as colon commands (`info:stack`) and camelCase flags (`--projectName`), still work. Run `stacktape help <command>` to see the current names.
+
+{/* STUB (owner: the "CLI compatibility shims" change, which decides which removed v3 commands keep working). Reconcile this table with what it merged before publishing. */}
+
+These v3 commands were removed or renamed without keeping the old name. Replace them in scripts and CI:
+
+| v3 command | v4 command |
+|---|---|
+| `compile-template` | `synth` |
+| `preview-changes` | `diff` |
+| `package-workloads` | `package` |
+| `secret:create` | `secret set` |
+| `projects:list` | `project list` |
+| `debug:logs` | `logs` |
+| `debug:metrics` | `metrics` |
+| `debug:alarms` | `alarm list` |
+| `debug:sql`, `debug:dynamodb`, `debug:redis`, `debug:opensearch` | `query sql`, `query dynamodb`, `query redis`, `query opensearch` |
+| `debug:aws-sdk` | `aws call` |
+| `debug:container-exec` | `container exec` |
+| `codebuild:deploy` | `deploy --runner ec2`, after you set up a [Console runner](/ci-cd-and-gitops/build-runners) |
+
+Check the options and output of the replacement command, not only its name.
+
+### Removed flags
+
+{/* STUB (owner: the "CLI compatibility shims" change, which makes --hotSwap a deprecated no-op). Reconcile the first row with what it merged before publishing. */}
+
+| v3 flag | What to do |
+|---|---|
+| `--hotSwap`, `--hs` | Delete it. `deploy` updates code-only changes directly without it; see [Fast deployments are automatic](#fast-deployments-are-automatic). |
+| `--disableAutoRollback`, `--dar` | Delete it; this is now the default. Use `--auto-rollback` for v3's behaviour. See [Automatic rollback](#automatic-rollback). |
+| `--disableDriftDetection`, `--ddd` | Delete it. `deploy` no longer checks for drift. |
+| `--templateId`, `--ti` | Use a configuration file in the repository. See [Before you upgrade](#before-you-upgrade). |
+| `--devMode`, `--dm` | Delete it. Use [`stacktape dev`](/cli/dev). |
+| `dev --container`, `dev --resourceName` | Use `dev --resources <name>` (and `--skip-resources`). |
+
+Two parsing rules are stricter:
+
+- An option with one dash must be one letter: `-r eu-west-1` works, `-pn shop` does not. Use the long form, `--project shop`.
+- A boolean flag takes its value after `=`: `--watch=false`. `--watch false` sets the flag and passes `false` as an unexpected argument.
+
+### Target AWS account
+
+v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected with Stacktape-managed access. They deployed to `--aws-account`, the saved default, or the organization's only connected account. In v4, when `--aws-account` is not set, `--profile`, `AWS_PROFILE` or AWS keys in the environment choose the connected account they belong to. If they belong to an account that is not connected, the command stops before changing anything.
+
+Check scripts and CI jobs that set an AWS profile or AWS keys, for example for an S3 upload in an earlier step. Pass `--aws-account <name>` to Stacktape commands in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
+
+### Secrets in command output
+
+{/* STUB (owner: the "hide credentials in all command output" change, breaking change A). Reconcile with what it merged before publishing. */}
+
+Commands that print credentials as part of their output, such as database connection strings in stack outputs, hide them unless you pass `--show-secrets`. If a script reads such a value from a command's output, add `--show-secrets` to that command, and make sure its output does not end up in shared CI logs. `stacktape secret get` prints the value you ask for, as before.
+
+### Scripts that read CLI output
+
+The `--json` (JSONL) output keeps its v3 envelope: lines with `event`, `log`, `output` or `result`, and `ok`, `code`, `message` and `data.result`. Error codes are more specific: `result.code` is now a code such as `CONFIG_NAT_REQUIRED` instead of a category such as `CONFIG`. Some renamed commands return different data; for example, `diff` returns `changes`, `resourceChanges` and `changePlan`. Human-readable output is redesigned, so do not match its text. A failed command still exits with code 1.
+
+### Environment variables
+
+`STACKTAPE_API_KEY`, `STP_DISABLE_TELEMETRY`, `STP_DISABLE_NOTIFICATIONS` and the AWS variables work as before. `STACKTAPE_TUNNEL_SERVER` no longer does anything: `stacktape dev` connects deployed functions to your machine through a small shared instance in your account (see [`dev network`](/cli/dev-network)). The `STP_CODEBUILD*` variables belonged to the removed CodeBuild runner.
+
+## What the first v4 deployment changes
+
+The first deployment of a stack with v4 is an ordinary CloudFormation update, but it changes more than a usual deployment. Expect it to take longer, and deploy at a quiet time.
+
+### Your data is kept
+
+Databases, buckets, DynamoDB tables, Redis caches, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. This holds as long as the configuration keeps the project name, stage and resource names, and no replacement-sensitive setting changed. Stacktape checks it before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when a Stacktape resource that holds data would be replaced or deleted. Resources you define in `cloudformationResources` are not part of this check, so review them in the change plan yourself.
+
+### Lambda functions
+
+- **Every function and layer is rebuilt and uploaded once.** v4 packages functions differently, so the first build cannot use the v3 cache, and each function publishes a new version.
+- **Functions with `deployment` or `provisionedConcurrency` get their configuration on the alias.** In v3, a change to only the environment, memory, timeout or similar settings of such a function did not reach the alias that serves traffic. v4 publishes a new version and moves the alias, so the first v4 deployment applies any such setting that never reached it, runs the gradual deployment and allocates provisioned concurrency again. Check that the function's configuration is what you want live.
+- **JavaScript source maps leave the package.** Bundled functions no longer carry `.map` files, so stack traces in CloudWatch show the deployed file names. Stacktape [error tracking](/observability/error-tracking) still maps them to your source. To keep the maps in the package, set `keepSourceMapsInPackage: true` in the `js-bundle` packaging.
+
+#### Lambda runtimes
+
+A function without `runtime` gets the default for its language, and three defaults changed:
+
+| Language | v3 default | v4 default | To keep the v3 runtime |
+|---|---|---|---|
+| Java | `java21` | `java25` | `runtime: java21` |
+| Ruby | `ruby3.3` | `ruby4.0` | `runtime: ruby3.3` |
+| Go | `provided.al2` | `provided.al2023` | `runtime: provided.al2` |
+
+Node.js (`nodejs24.x`), Python (`python3.13`) and .NET (`dotnet10`) keep their defaults. v4 also builds each function for its runtime, where v3 built for Python 3.12, Java 11, Ruby 3.3 or .NET 8. Set `runtime` explicitly on existing functions, and test those with native dependencies.
+
+#### Functions in a VPC
+
+- **Security groups are shared.** Functions with `joinDefaultVpc: true` that connect to the same databases, caches or file systems now share one security group, instead of one each. The first v4 deployment keeps each function's old group while it moves, and the next deployment deletes it. AWS creates network interfaces for each new combination of subnets and security groups, which adds about four minutes to that deployment. `overrides` or `$CfResourceParam` references that target a function's own security group (`<Function>SecurityGroup`) no longer apply; run [`stacktape synth`](/cli/synth) to find the shared group's logical ID.
+- **Functions use the stack's NAT.** In a stack with `stackConfig.nat`, VPC functions now run in the private subnets and reach the internet through the NAT. In v3 they stayed in public subnets without internet access. Their outbound traffic leaves from the NAT's IP addresses.
+
+### Container services
+
+- **Containers are replaced once.** The default container `stopTimeout` is 30 seconds instead of 2, and a load balancer gives an old container 30 seconds instead of 5 to finish its requests. The first v4 deployment therefore registers new task definitions and replaces the running containers, as a code change would. Set `stopTimeout: 2` on a container to keep the v3 shutdown window.
+- **Unused scaling policies are removed.** A service whose `minInstances` equals `maxInstances` (the default is 1 and 1) loses its CPU and memory scaling policies and their CloudWatch alarms, because they could never change its instance count. The service keeps its scalable target and its instance count. Services whose `overrides` change the scalable target or a scaling policy keep both policies.
+- **Web services behind the default HTTP API get a drain container.** Their tasks gain a small container that delays the application's stop signal by 35 seconds, so API Gateway stops sending requests before the application exits. It uses one of ECS's 10 container slots and 16 MiB of memory, and stopping a task takes about 36 seconds longer. The first rollout still stops the previous tasks without this delay; keep a shutdown delay in your application or deploy at a quiet time. The CLI copies the helper's image into the stack's ECR repository. Deployer roles with restricted permissions need `ecr:BatchGetImage`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload` and `ecr:PutImage` on that repository, even when every application image is prebuilt.
+- **A code-only deployment does not check application health by default.** It finishes when the new tasks run and the HTTP API can reach them. Add an `internalHealthCheck` so that a failing application fails and rolls back the deployment. See [web-service health checks](/resources/compute/web-service#health-checks).
+
+### Batch jobs
+
+Batch jobs now run on Amazon Linux 2023 instances, because AWS Batch stopped creating compute environments with its Amazon Linux 2 images on 30 June 2026. A compute environment last deployed by v3.0.10 or later keeps Amazon Linux 2: changing the image would make CloudFormation replace the environment and could interrupt jobs running on it. AWS keeps such environments running but no longer patches their image. An older environment, or one that a later change replaces anyway (such as a change to the stack's `tags`), moves to Amazon Linux 2023. CloudFormation then deletes the old environment, which can interrupt jobs still running on it, so deploy such a change when no jobs run; the change plan lists the compute environment as replaced. Amazon Linux 2023 requires IMDSv2 and uses cgroup v2; see [compute resources](/resources/compute/batch-job#compute-resources).
+
+The first v4 deployment also gives each batch job an execution role with `AmazonECSTaskExecutionRolePolicy`, which the ECS agent uses to pull the job's image from ECR, write its logs and read its secrets. The job's own role is unchanged.
+
+### Error tracking and security scanning
+
+v4 turns on two features that send operational data to the Stacktape Console:
+
+- **[Error tracking](/observability/error-tracking)** subscribes the log group of every function and `js-bundle` container to Stacktape's error detector, which runs in your account. The detector sends each error's message, stack frames and log line to the Console, with known kinds of sensitive values, such as tokens, passwords and email addresses, masked. Your logs stay in your account.
+- **[Security scanning](/stacktape-console/security-scanning)** checks the stack's configuration and lists its dependencies during each deployment, and reports findings to the Console. It never blocks a deployment. The dependency list stays in your account's deployment bucket; the first scan downloads the Trivy scanner (about 50 MB) to the machine that deploys.
+
+Each subscription filter is a CloudFormation resource. A stack close to CloudFormation's limit of 500 resources per stack can exceed it; the CLI then stops before deploying. Turn error tracking off, or limit it to some stages, in `deploymentConfig`:
+
+
+Example (YAML):
+
+```yaml
+deploymentConfig:
+  errorTracking:
+    stages:
+      - production
+  securityScanning:
+    enabled: false
+```
+
+
+AWS allows two subscription filters per log group, so a log group that already has two of your own cannot take Stacktape's. Deployer roles with restricted permissions also need permission to create subscription filters.
+
+### Helper resources that are removed
+
+- **Development and debugging roles.** The stack's `<stack name>-dev-agent` IAM role and its `DevAgentRoleArn` output are deleted: only `stacktape dev` uses that role, and its dev stacks keep it. The read-only `<stack name>-debug-agent` role, which `aws call`, `query dynamodb` and `query opensearch` use, now reads only the stack's own resources in the stack's region. It no longer reads Secrets Manager or SSM Parameter Store values, other stacks' databases and caches, or the account-wide `aws/spans` trace log group. Automation that assumed either role for anything else needs its own role.
+- **The tagging schedule.** On stacks without databases, load balancers or private service discovery, the deployment deletes Stacktape's internal tagging schedule (an EventBridge rule and its Lambda permission), which had nothing to tag.
+- **CDN edge functions.** On stacks with a CDN, it deletes Stacktape's origin-response Lambda@Edge function unless a bucket sets custom metadata headers, the only case that uses it. It also deletes the origin-request Lambda@Edge function unless a bucket cache behaviour uses URL normalization or SPA routing without a custom origin-request handler. When no edge function remains, its internal artifact bucket is removed too. AWS may keep detached Lambda@Edge replicas for a few hours; this does not fail the update. After AWS releases the replicas, delete any retained function in `us-east-1` with `aws lambda delete-function --profile <profile> --region us-east-1 --function-name <name>`.
+
+## What changes after the first deployment
+
+### Failed deployments keep what they created
+
+v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated, unless it replaced existing resources: CloudFormation can only replace resources in a deployment it may roll back. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure.
+
+To undo a failed update, run [`stacktape stack recover`](/cli/cf-rollback); to remove a failed first deployment, run `stacktape delete`. A failed deployment can leave part of the application on the new version and part on the old one, so check the application after a failure. To keep v3's behaviour, see [Automatic rollback](#automatic-rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+
+### After-deploy hooks fail the deployment
+
+In v3, `deploy` reported success when an `afterDeploy` hook failed. In v4, the failure makes `stacktape deploy` exit with an error, so the CI job fails, and the hooks after it don't run. The stack is already deployed and stays on the new version; deploying again does not undo anything.
+
+Keep this for hooks that must succeed, such as database migrations. For a hook that may fail without consequences, such as a notification, set `onFailure: continue`:
+
+
+Example (YAML):
+
+```yaml
+hooks:
+  afterDeploy:
+    - scriptName: migrate
+    - scriptName: notifyTeam
+      onFailure: continue
+```
+
+
+See [When a hook fails](/configuration/hooks-and-scripts#when-a-hook-fails).
+
+### Fast deployments are automatic
+
+`stacktape deploy` updates functions and containers directly when only their code changed, without a CloudFormation update; v3 did this only with `--hotSwap`. Automation that waits for a CloudFormation stack update after every deployment no longer sees one for code-only changes. Use the CLI's result instead, or pass `--full` to deploy through CloudFormation every time. See [fast deployments](/cli/deploy#fast-deployments).
+
+### New non-production stages share a network
+
+A new non-production stage, such as `staging` or a preview stage, joins a VPC shared by the non-production stages in the same AWS account and region, instead of creating its own. Stages deployed before v4 keep their own VPC. A stage cannot move between the two after its first deployment. To give a new stage its own VPC, set `stackConfig.vpc.shared: false` before you deploy it the first time. See [Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages), which also lists the permissions a restricted CI role needs.
+
+### Deploy each upgraded stack only with v4
+
+After v4 deploys a stack, deploy it only with v4, from CI and from every developer machine. A v3 CLI rebuilds functions and containers in the v3 format and can delete images that v4's container helpers need.
+
+## Stacktape Console changes
+
+The Console is updated to v4 for everyone at the same time as the v4 release, whichever CLI version you use.
+
+### Configuration templates and generation are removed
+
+Configurations live in your repository. The Console no longer stores configuration templates or offers the configuration editor, and the update deletes stored templates and the history of generated configurations. Export the ones you need [before the update](#before-you-upgrade).
+
+A v3 CLI keeps deploying with a local configuration file, but these v3 features stop working against the v4 Console: `init` from a template (`--templateId`) and `init` that analyses the project to generate a configuration, connecting an AWS account from the CLI, and setting up Git deployments after a deploy. Use [`stacktape init`](/cli/init) from v4, and connect AWS accounts and Git providers in the Console.
+
+### Signing in to the Console
+
+The Console has a new sign-in system.
+
+- **Email and password:** sign in with your current password. The first sign-in moves it to the new system.
+- **Google:** sign in with Google as before. Your account is linked by its email address.
+- **GitHub:** new; you can link it in [Account Settings](/stacktape-console/account-settings).
+- **Authenticator app:** if you used one, the first sign-in still asks for its code. Authenticator secrets cannot be moved, so the Console then asks you to set up the authenticator app, or a passkey, again. Until you do, your sign-ins do not count as two-factor, and an organization that requires two-factor sign-in asks you to set it up. SMS codes are no longer offered.
+
+### CLI logins expire
+
+A login made with `stacktape login` now lasts at most 90 days, and ends after 30 days without use. With the Console update, older or unused logins end at once, and the CLI reports that the API key has expired: run `stacktape login` again. API keys created in the Console for CI are not affected.
+
+On Linux and Windows, the first v4 command on a machine moves the stored login into the operating system's credential store, and a v3 CLI on the same machine then asks you to log in again. On macOS, the login stays in `~/.stacktape`. See [`login`](/cli/login).
+
+### Developers and Viewers reach only their AWS accounts
+
+Before v4, every member of an organization reached every connected AWS account. Now Owners and Admins reach all accounts, and Developers and Viewers only the accounts chosen for them on the Members page. The update gives each Developer and Viewer the accounts their projects have deployed to, so day-to-day work continues. Someone who works with an account their projects never deployed to gets "Your access does not include the AWS account" until an Owner or Admin adds it.
+
+CI that deploys with a person's API key stops working when that person loses access or leaves. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) instead. See [Project and AWS account access](/stacktape-console/team-and-access-control#project-and-aws-account-access).
+
+### Removed Console features
+
+- **CodeBuild runners.** Deployments from Git and from the Console run on [EC2 runners](/ci-cd-and-gitops/build-runners) in your account. Projects that used CodeBuild need an EC2 runner.
+- **Old GitLab and Bitbucket connections.** GitLab connections made with a personal or group access token and Bitbucket connections made with OAuth are removed, and projects that used them are no longer linked to a Git connection. Connect GitLab or Bitbucket again in the Console; to make such a project deploy on push again, email [support@stacktape.com](mailto:support@stacktape.com). GitHub connections are unchanged.
+- **Hosted MCP server.** Remove the hosted Stacktape MCP server from your coding agent and run `stacktape mcp add`. See [Moving from the hosted MCP server](/using-with-ai/mcp-server-setup#moving-from-the-hosted-mcp-server).
+- **Alarm rules in the Console.** Existing organization-wide alarm rules keep working as legacy rules, but the Console no longer creates or edits them. Use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
+
+## Upgrading from a v4 preview
+
+If you used a `4.0.0-preview` release, these changed since then:
+
+- `deploymentConfig.issues` is now `deploymentConfig.errorTracking`, and the old name is rejected. The `issues:*` commands are now `error list`, `error ignore`, `error resolve` and `error reopen`; the old commands still work. Issue IDs and status values are unchanged.
+- In the `--agent` result of `validate` and `deploy`, one `security` object replaces the `securityFindings` and `securityExposure` fields of `4.0.0-preview.10`: read `security.findings` and `security.exposure`. See [security findings by stage purpose](/cli/validate#security-findings-by-stage-purpose).
+- The default Python runtime is `python3.13`, not `python3.14`. Set `runtime: python3.14` to keep it.
 
 ---
 
