@@ -4,9 +4,7 @@ export type RelationalDatabaseEngine = RelationalDatabaseProps['engine']['type']
 
 export type NormalizedRelationalDatabaseEngine = Exclude<
   RelationalDatabaseEngine,
-  | 'aurora-postgresql-serverless'
-  | 'aurora-mysql-serverless'
-  | 'aurora-postgresql-serverless-v2'
+  'aurora-postgresql-serverless-v2'
   | 'aurora-mysql-serverless-v2'
 >;
 

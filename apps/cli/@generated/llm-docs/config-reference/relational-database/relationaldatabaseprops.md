@@ -5,7 +5,7 @@ Resource type: `relational-database`
 ## TypeScript definition
 
 ```typescript
-import type { AuroraEngine, AuroraServerlessEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
+import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
 
 type RelationalDatabaseProps = {
   /** Master user credentials (username and password). */
@@ -33,7 +33,6 @@ type RelationalDatabaseProps = {
 /** Union choices used by the properties above. */
 type RelationalDatabaseEngine =
   | AuroraEngine
-  | AuroraServerlessEngine
   | AuroraServerlessV2Engine
   | RdsEngine;
 ```
@@ -92,7 +91,7 @@ return { resources: { mainDatabase } };
 ## Property: `engine`
 
 - Required: yes
-- Type: `AuroraEngine | AuroraServerlessEngine | AuroraServerlessV2Engine | RdsEngine`
+- Type: `AuroraEngine | AuroraServerlessV2Engine | RdsEngine`
 
 Database engine: what type of database and how it runs.
 
@@ -104,7 +103,6 @@ Up to 5x faster than standard MySQL / 3x faster than standard PostgreSQL.
 
 Choices:
 - `AuroraEngine` (`AuroraEngine`) — Aurora: high-performance clustered database with auto-failover.. Properties: `dbName?: string`, `port?: number`, `instances: Array<AuroraEngineInstance>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
-- `AuroraServerlessEngine` (`AuroraServerlessEngine`) — Aurora Serverless v1: auto-scaling database that can pause when idle.. Properties: `version?: string`, `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `pauseAfterSeconds?: number`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `AuroraServerlessV2Engine` (`AuroraServerlessV2Engine`) — Aurora Serverless v2: recommended for most new projects.. Properties: `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `serverlessReadersCount?: number`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `RdsEngine` (`RdsEngine`) — Standard RDS: single-instance database with predictable pricing.. Properties: `dbName?: string`, `port?: number`, `storage?: RdsEngineStorage`, `primaryInstance: RdsEnginePrimaryInstance`, `readReplicas?: Array<RdsEngineReadReplica>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 

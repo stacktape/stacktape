@@ -1410,6 +1410,32 @@ describe('Redis family', () => {
     );
   });
 
+  test.each([
+    ['aurora-postgresql-serverless', 'aurora-postgresql-serverless-v2'],
+    ['aurora-mysql-serverless', 'aurora-mysql-serverless-v2']
+  ])('Aurora Serverless v1 `%s` is rejected with a migration hint, not read as v2', async (engineType, replacement) => {
+    const rejection = validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          mainDatabase: {
+            type: 'relational-database',
+            properties: {
+              credentials: { masterUserPassword: 'literal-password-1234' },
+              engine: { type: engineType, properties: { minCapacity: 2, maxCapacity: 8, pauseAfterSeconds: 900 } }
+            }
+          }
+        }
+      } as never
+    });
+    await expect(rejection).rejects.toMatchObject({ code: 'CONFIG_AURORA_SERVERLESS_V1_RETIRED' });
+    const error = (await rejection.catch((caught: Error) => caught)) as Error & { hints?: string[] };
+    expect(error.message).toContain(`Database \`mainDatabase\` uses \`${engineType}\` (Aurora Serverless v1)`);
+    const hints = error.hints?.join('\n') ?? '';
+    expect(hints).toContain(`\`${replacement}\``);
+    expect(hints).toContain('upgrading-from-v3/#aurora-serverless-v1');
+  });
+
   test('a v3 `redis-cluster` gets the v4 replacement that keeps its engine and version', async () => {
     const rejection = validateConfigStructure({
       configPath: 'stacktape.yml',

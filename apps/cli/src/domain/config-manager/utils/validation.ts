@@ -34,6 +34,7 @@ import { validateAgentCoreRuntimeConfig } from './agentcore';
 import { validateAppSyncApiConfig, validateAppSyncIntegrations } from './appsync-apis';
 import { validateHostingBucketConfig } from './buckets';
 import { findInvalidCdnSelector } from './cdn';
+import { AURORA_SERVERLESS_V1_ENGINES, AURORA_SERVERLESS_V1_GUIDE_URL } from './v3-config-names';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
@@ -276,6 +277,7 @@ export const validateConfigStructure = async ({
 }) => {
   validateNoLegacyRedisClusters({ config });
   validateCdnSelectors({ config });
+  validateNoAuroraServerlessV1({ config });
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
@@ -285,6 +287,32 @@ export const validateConfigStructure = async ({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_SCHEMA_INVALID',
       message: zodResult.errorMessage
+    });
+  }
+};
+
+/**
+ * AWS retired Aurora Serverless v1 on 31 March 2025, so v4 does not synthesize it. v2 has different capacity units and
+ * creates a new cluster, so the error points to the migration guide instead of reading the config as v2.
+ */
+const validateNoAuroraServerlessV1 = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    const engineType = (resource as { type?: string; properties?: { engine?: { type?: unknown } } } | undefined)
+      ?.properties?.engine?.type;
+    if (resource?.type !== 'relational-database' || typeof engineType !== 'string') continue;
+    const replacement = AURORA_SERVERLESS_V1_ENGINES[engineType];
+    if (!replacement) continue;
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_AURORA_SERVERLESS_V1_RETIRED',
+      message:
+        `Database \`${name}\` uses \`${engineType}\` (Aurora Serverless v1). AWS retired Aurora Serverless v1 on ` +
+        '31 March 2025, and Stacktape v4 no longer deploys it.',
+      hints: [
+        `For a new database, use \`${replacement}\` and set \`minCapacity\` and \`maxCapacity\` (0.5–128 ACUs). v2 does not pause when idle.`,
+        'For a deployed database, do not only change the type: the new engine creates a new cluster without your data. ' +
+          `Follow ${AURORA_SERVERLESS_V1_GUIDE_URL} to migrate it.`
+      ]
     });
   }
 };
@@ -756,7 +784,6 @@ export const validateGuardrails = ({
 const getDbInstanceSizes = (engine: StpRelationalDatabase['engine']): string[] => {
   if (!engine) return [];
   const engineType = engine.type;
-  if (engineType === 'aurora-mysql-serverless' || engineType === 'aurora-postgresql-serverless') return [];
   if (engineType === 'aurora-mysql-serverless-v2' || engineType === 'aurora-postgresql-serverless-v2') return [];
   if (engineType === 'aurora-mysql' || engineType === 'aurora-postgresql') {
     return ((engine as AuroraEngine).properties?.instances || []).map((i) => i.instanceSize).filter(Boolean);

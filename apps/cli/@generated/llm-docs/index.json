@@ -11410,76 +11410,6 @@
       ]
     },
     {
-      "id": "config-reference:AuroraServerlessEngine",
-      "title": "AuroraServerlessEngine API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengine.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngine"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngine",
-        "type",
-        "properties",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngine#auroraserverlessengine-api-reference",
-        "config-reference:AuroraServerlessEngine#typescript-definition",
-        "config-reference:AuroraServerlessEngine#property-type",
-        "config-reference:AuroraServerlessEngine#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:AuroraServerlessEngineProperties",
-      "title": "AuroraServerlessEngineProperties API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengineproperties.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngineProperties"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngineProperties",
-        "dbName",
-        "disableAutoMinorVersionUpgrade",
-        "maxCapacity",
-        "minCapacity",
-        "pauseAfterSeconds",
-        "version",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngineProperties#auroraserverlessengineproperties-api-reference",
-        "config-reference:AuroraServerlessEngineProperties#typescript-definition",
-        "config-reference:AuroraServerlessEngineProperties#property-dbname",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript",
-        "config-reference:AuroraServerlessEngineProperties#property-disableautominorversionupgrade",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-2",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-2",
-        "config-reference:AuroraServerlessEngineProperties#property-maxcapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-3",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-3",
-        "config-reference:AuroraServerlessEngineProperties#property-mincapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-4",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-4",
-        "config-reference:AuroraServerlessEngineProperties#property-pauseafterseconds",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-5",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-5",
-        "config-reference:AuroraServerlessEngineProperties#property-version",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-6",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-6"
-      ]
-    },
-    {
       "id": "config-reference:AuroraServerlessV2Engine",
       "title": "AuroraServerlessV2Engine API Reference",
       "route": "/config-reference/relational-database",
@@ -21227,7 +21157,7 @@
         "page:/resources/databases/relational-database#standard-rds",
         "page:/resources/databases/relational-database#aurora",
         "page:/resources/databases/relational-database#aurora-serverless-v2",
-        "page:/resources/databases/relational-database#aurora-serverless-v1",
+        "page:/resources/databases/relational-database#aurora-serverless-v1-is-retired",
         "page:/resources/databases/relational-database#database-name-and-port",
         "page:/resources/databases/relational-database#supported-versions",
         "page:/resources/databases/relational-database#accessibility",

@@ -2733,12 +2733,6 @@ export class ConfigManager {
     return this.databases.filter(({ engine }) => isAuroraEngine(engine.type));
   }
 
-  get allDatabasesWithInstancies() {
-    return this.databases.filter(
-      ({ engine }) => engine.type !== 'aurora-mysql-serverless' && engine.type !== 'aurora-postgresql-serverless'
-    );
-  }
-
   get requiredCloudformationPrivateTypes(): StpCfInfrastructureModuleType[] {
     const res: StpCfInfrastructureModuleType[] = [];
     if (this.atlasMongoClusters.length) {

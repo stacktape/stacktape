@@ -667,20 +667,6 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES = [
     sourceFile: 'relational-databases.d.ts'
   },
   {
-    className: 'AuroraServerlessEnginePostgresql',
-    typeValue: 'aurora-postgresql-serverless',
-    propsType: 'AuroraServerlessEngineProperties',
-    interfaceName: 'AuroraServerlessEngine',
-    sourceFile: 'relational-databases.d.ts'
-  },
-  {
-    className: 'AuroraServerlessEngineMysql',
-    typeValue: 'aurora-mysql-serverless',
-    propsType: 'AuroraServerlessEngineProperties',
-    interfaceName: 'AuroraServerlessEngine',
-    sourceFile: 'relational-databases.d.ts'
-  },
-  {
     className: 'AuroraServerlessV2EnginePostgresql',
     typeValue: 'aurora-postgresql-serverless-v2',
     propsType: 'AuroraServerlessV2EngineProperties',

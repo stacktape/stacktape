@@ -165,7 +165,6 @@ const _PLAIN_TYPES_TO_GENERATE = [
   // Engine types
   'RdsEngineProperties',
   'AuroraEngineProperties',
-  'AuroraServerlessEngineProperties',
   'AuroraServerlessV2EngineProperties',
   // Packaging types
   'JsBundleLambdaPackagingProps',

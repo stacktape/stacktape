@@ -6,8 +6,6 @@ import type { AuroraEngine, RdsEngine } from '@stacktape/config/relational-datab
 const defaultEnginePorts: {
   [_engineType in StpRelationalDatabase['engine']['type']]: number;
 } = {
-  'aurora-mysql-serverless': 3306,
-  'aurora-postgresql-serverless': 5432,
   'aurora-mysql-serverless-v2': 3306,
   'aurora-postgresql-serverless-v2': 5432,
   'aurora-postgresql': 5432,

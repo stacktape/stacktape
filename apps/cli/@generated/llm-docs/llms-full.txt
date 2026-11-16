@@ -20260,7 +20260,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | Resource type | Local emulation |
 |---|---|
 | [Relational database](/resources/databases/relational-database) (PostgreSQL, MySQL, MariaDB) | Docker container |
-| RDS Aurora (PostgreSQL, MySQL — including Serverless v1/v2) | Mapped to standard PostgreSQL or MySQL container |
+| RDS Aurora (PostgreSQL, MySQL — including Serverless v2) | Mapped to standard PostgreSQL or MySQL container |
 | RDS Oracle, RDS SQL Server | Not supported — set `dev.remote: true` |
 | [Redis](/resources/databases/redis) | Docker container |
 | [DynamoDB table](/resources/databases/dynamodb) | `amazon/dynamodb-local` container |
@@ -20270,7 +20270,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 
 For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
-Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
+Aurora engine types — Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
 
 > **Info:** Dev mode needs Docker to start local database containers. If Docker is not running, dev mode cannot proceed with local databases.
@@ -20352,12 +20352,12 @@ Referenceable parameters available for MySQL and MariaDB include `host`, `port`,
 
 ### Aurora engines
 
-All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
+All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
 
 | Aurora engine type | Local container |
 |---|---|
-| `aurora-postgresql`, `aurora-postgresql-serverless`, `aurora-postgresql-serverless-v2` | PostgreSQL |
-| `aurora-mysql`, `aurora-mysql-serverless`, `aurora-mysql-serverless-v2` | MySQL |
+| `aurora-postgresql`, `aurora-postgresql-serverless-v2` | PostgreSQL |
+| `aurora-mysql`, `aurora-mysql-serverless-v2` | MySQL |
 
 This is a pragmatic tradeoff: the SQL interface, schema behavior, and connection string format match the deployed database, which is sufficient for application development. Aurora-specific behavior — ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity — is only available on the deployed AWS resource. Test these features against a deployed stage using `dev.remote: true`.
 
@@ -20536,7 +20536,7 @@ No. The `amazon/dynamodb-local` image used by dev mode does not include Streams,
 
 ### How does Stacktape handle Aurora Serverless locally?
 
-Aurora Serverless v1 and v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based), pause-after-inactivity, and automatic failover are AWS-only features. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
+Aurora Serverless v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based) and automatic failover are AWS-only features. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
 ### Can I use the local database for running migrations?
 
@@ -35525,22 +35525,21 @@ This creates a PostgreSQL 16 database on a `db.t4g.micro` instance (~$12/month, 
 
 ## Engine types
 
-Stacktape supports four database engine families, each backed by a different AWS service tier. Pick the one that matches your workload's performance, cost, and operational requirements.
+Stacktape supports three database engine families, each backed by a different AWS service tier. Pick the one that matches your workload's performance, cost, and operational requirements.
 
 
 ## Feature Comparison
 
-| Feature | RDS | Aurora | Aurora Serverless v2 | Aurora Serverless v1 |
-| --- | --- | --- | --- | --- |
-| Scaling | Fixed instance | Fixed instances | Auto (0.5–128 ACUs) | Auto (MySQL: 1–256, PostgreSQL: 2–256 ACUs, powers of 2) |
-| High availability | Multi-AZ (doubles cost) | Built-in (3-AZ replication) | Built-in (3-AZ replication) | Built-in |
-| Read replicas | yes | yes | yes | no |
-| Pause when idle | no | no | no | yes |
-| Starting cost | ~$12/month | ~$35/month | Pay per ACU-hour | Pay per ACU-hour |
-| PostgreSQL | yes | yes | yes | yes |
-| MySQL | yes | yes | yes | yes |
-| MariaDB, Oracle, SQL Server | yes | no | no | no |
-| Best for | Predictable workloads, non-Aurora engines | High-performance production | Most new projects | Legacy (use v2 instead) |
+| Feature | RDS | Aurora | Aurora Serverless v2 |
+| --- | --- | --- | --- |
+| Scaling | Fixed instance | Fixed instances | Auto (0.5–128 ACUs) |
+| High availability | Multi-AZ (doubles cost) | Built-in (3-AZ replication) | Built-in (3-AZ replication) |
+| Read replicas | yes | yes | yes |
+| Starting cost | ~$12/month | ~$35/month | Pay per ACU-hour |
+| PostgreSQL | yes | yes | yes |
+| MySQL | yes | yes | yes |
+| MariaDB, Oracle, SQL Server | yes | no | no |
+| Best for | Predictable workloads, non-Aurora engines | High-performance production | Most new projects |
 
 
 ### Standard RDS
@@ -35651,47 +35650,12 @@ export default defineConfig(() => {
 The `minCapacity` (default `0.5`) controls how far down the database scales during idle periods. The `maxCapacity` (default `10`) caps both compute scaling and cost. A `maxCapacity` of `16` provides up to ~32 GB RAM — enough for most production workloads. You can add read replicas with `serverlessReadersCount` (default `0`, meaning writer only); each reader scales independently between the same min/max bounds.
 
 
-> **Info:** Aurora Serverless engines (v1 and v2) only support `vpc` or `scoping-workloads-in-vpc` accessibility modes. The global default is `internet`, which is not valid for Aurora Serverless — you must set one of the VPC modes explicitly. Standard RDS and provisioned Aurora support all four modes including `internet`.
+> **Info:** Aurora Serverless v2 engines only support `vpc` or `scoping-workloads-in-vpc` accessibility modes. The global default is `internet`, which is not valid for Aurora Serverless v2 — you must set one of the VPC modes explicitly. Standard RDS and provisioned Aurora support all four modes including `internet`.
 
 
-### Aurora Serverless v1
+### Aurora Serverless v1 is retired
 
-Aurora Serverless v1 can pause the database after a period of inactivity, so you pay only for storage while paused. Available engine types: `aurora-postgresql-serverless` and `aurora-mysql-serverless`, with corresponding classes `AuroraServerlessEnginePostgresql` and `AuroraServerlessEngineMysql`. Capacity scales in powers of 2: MySQL supports 1–256 ACUs, PostgreSQL supports 2–256 ACUs.
-
-
-> **Warning:** For new projects, use Aurora Serverless v2 instead. It has faster scaling and more granular capacity control (0.5-ACU increments vs powers of 2).
-
-
-The only advantage of Serverless v1 over v2 is the ability to **pause when idle** — useful for dev/test databases that sit unused for hours and where a 30+ second cold-start on resume is acceptable. If you need the database always ready, Serverless v2 is strictly better.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, RelationalDatabase, AuroraServerlessEnginePostgresql } from 'stacktape';
-export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: "$Secret('database.password')"
-    },
-    engine: new AuroraServerlessEnginePostgresql({
-      minCapacity: 2,
-      maxCapacity: 8,
-      pauseAfterSeconds: 300
-    }),
-    accessibility: {
-      accessibilityMode: 'vpc'
-    }
-  });
-
-  return {
-    resources: { mainDatabase }
-  };
-});
-```
-
-
-The `pauseAfterSeconds` property pauses the cluster after the specified seconds of inactivity (range 300–86400). Omit it to keep the database always running. When paused, you pay only for storage. Resume time can take 30 seconds or more, which causes the first connection attempt to time out — your application code should handle this with a retry. Like Serverless v2, Serverless v1 requires `vpc` or `scoping-workloads-in-vpc` accessibility.
+AWS retired Aurora Serverless v1 on 31 March 2025, and Stacktape v4 no longer deploys it. The `aurora-postgresql-serverless` and `aurora-mysql-serverless` engine types fail validation with a migration error. Use the Serverless v2 engines above. Serverless v2 does not pause when idle; it scales down to `minCapacity` (0.5 ACU at the lowest). To move a deployed v1 database, follow [Upgrading from v3](/getting-started/upgrading-from-v3/#aurora-serverless-v1).
 
 ## Database name and port
 
@@ -35706,7 +35670,7 @@ The `port` property overrides the default listening port. Most users should leav
 | Oracle | 1521 |
 | SQL Server | 1433 |
 
-Aurora Serverless engines (v1 and v2) do not expose a configurable `port` property — they use the default port for the underlying engine.
+Aurora Serverless v2 engines do not expose a configurable `port` property — they use the default port for the underlying engine.
 
 ## Supported versions
 
@@ -35722,7 +35686,7 @@ The `version` property on each engine specifies the database compatibility versi
 | Aurora PostgreSQL Serverless v2 | `16.11`, `15.15`, `14.20` |
 | Aurora MySQL Serverless v2 | `8.0.mysql_aurora.3.11.1` |
 
-Aurora Serverless v1 manages its version automatically — the `version` property is optional. By default, minor version upgrades are applied automatically (e.g., PostgreSQL 16.10 to 16.11). Set `disableAutoMinorVersionUpgrade: true` on the engine to control upgrade timing manually.
+By default, minor version upgrades are applied automatically (e.g., PostgreSQL 16.10 to 16.11). Set `disableAutoMinorVersionUpgrade: true` on the engine to control upgrade timing manually.
 
 ## Accessibility
 
@@ -36071,7 +36035,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
 | `credentials` | yes | `RelationalDatabaseCredentials` | - |
-| `engine` | yes | `AuroraEngine \| AuroraServerlessEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
+| `engine` | yes | `AuroraEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
 | `accessibility` | no | `DatabaseAccessibility` | - |
 | `alarms` | no | `Array<RelationalDatabaseAlarm>` | - |
 | `automatedBackupRetentionDays` | no | `number` | `1` |
@@ -111416,359 +111380,6 @@ return { resources: { mainDatabase } };
 
 ---
 
-# AuroraServerlessEngine API Reference
-
-Source: `packages/config/src/relational-databases.ts`
-Route: `/config-reference/relational-database`
-
-Aurora Serverless v1: auto-scaling database that can pause when idle.
-
-Resource type: `relational-database`
-
-## TypeScript definition
-
-```typescript
-import type { AuroraServerlessEngineProperties } from 'stacktape';
-
-type AuroraServerlessEngine = {
-  type: "aurora-mysql-serverless" | "aurora-postgresql-serverless";
-  properties?: AuroraServerlessEngineProperties;
-};
-```
-
-## Property: `type`
-
-- Required: yes
-- Type: `string: "aurora-mysql-serverless" | "aurora-postgresql-serverless"`
-
-## Property: `properties`
-
-- Required: no
-- Type: `AuroraServerlessEngineProperties`
-
----
-
-# AuroraServerlessEngineProperties API Reference
-
-Source: `packages/config/src/relational-databases.ts`
-Route: `/config-reference/relational-database`
-
-Resource type: `relational-database`
-
-## TypeScript definition
-
-```typescript
-type AuroraServerlessEngineProperties = {
-  /** Name of the initial database. */
-  dbName?: string;
-  /** Skip automatic minor version upgrades (e.g., 16.4 → 16.5). */
-  disableAutoMinorVersionUpgrade?: boolean;
-  /** Maximum ACUs to scale up to. */
-  maxCapacity?: number;
-  /** Minimum ACUs to scale down to (~1 ACU ≈ 2 GB RAM). */
-  minCapacity?: number;
-  /** Pause the database after this many seconds of inactivity (no connections). */
-  pauseAfterSeconds?: number;
-  /** Engine version. Usually managed by AWS automatically for serverless v1. */
-  version?: string;
-};
-```
-
-## Property: `dbName`
-
-- Required: no
-- Type: `string`
-- Default: `defdb`
-
-Name of the initial database.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    accessibility:
-      accessibilityMode: scoping-workloads-in-vpc
-    engine:
-      type: aurora-postgresql-serverless
-      properties:
-        dbName: appdb
-        minCapacity: 2
-        maxCapacity: 8
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-  engine: {
-    type: 'aurora-postgresql-serverless',
-    properties: {
-      dbName: 'appdb',
-      minCapacity: 2,
-      maxCapacity: 8
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
-## Property: `disableAutoMinorVersionUpgrade`
-
-- Required: no
-- Type: `boolean`
-- Default: `false`
-
-Skip automatic minor version upgrades (e.g., 16.4 → 16.5).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    engine:
-      type: postgres
-      properties:
-        version: '16'
-        disableAutoMinorVersionUpgrade: true
-        primaryInstance:
-          instanceSize: db.t4g.medium
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  engine: {
-    type: 'postgres',
-    properties: {
-      version: '16',
-      disableAutoMinorVersionUpgrade: true,
-      primaryInstance: { instanceSize: 'db.t4g.medium' }
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
-## Property: `maxCapacity`
-
-- Required: no
-- Type: `number`
-- Default: `4`
-
-Maximum ACUs to scale up to.
-
-MySQL: 1-256 (powers of 2). PostgreSQL: 2-256 (powers of 2).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    accessibility:
-      accessibilityMode: scoping-workloads-in-vpc
-    engine:
-      type: aurora-postgresql-serverless
-      properties:
-        minCapacity: 2
-        maxCapacity: 32
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-  engine: {
-    type: 'aurora-postgresql-serverless',
-    properties: {
-      minCapacity: 2,
-      maxCapacity: 32
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
-## Property: `minCapacity`
-
-- Required: no
-- Type: `number`
-- Default: `2`
-
-Minimum ACUs to scale down to (~1 ACU ≈ 2 GB RAM).
-
-MySQL: 1-256 (powers of 2). PostgreSQL: 2-256 (powers of 2).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    accessibility:
-      accessibilityMode: scoping-workloads-in-vpc
-    engine:
-      type: aurora-postgresql-serverless
-      properties:
-        minCapacity: 2
-        maxCapacity: 16
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-  engine: {
-    type: 'aurora-postgresql-serverless',
-    properties: {
-      minCapacity: 2,
-      maxCapacity: 16
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
-## Property: `pauseAfterSeconds`
-
-- Required: no
-- Type: `number`
-
-Pause the database after this many seconds of inactivity (no connections).
-
-When paused, you only pay for storage. Range: 300 (5 min) - 86400 (24 hr).
-Omit to never pause.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    accessibility:
-      accessibilityMode: scoping-workloads-in-vpc
-    engine:
-      type: aurora-postgresql-serverless
-      properties:
-        minCapacity: 2
-        maxCapacity: 8
-        pauseAfterSeconds: 900
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-  engine: {
-    type: 'aurora-postgresql-serverless',
-    properties: {
-      minCapacity: 2,
-      maxCapacity: 8,
-      pauseAfterSeconds: 900
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
-## Property: `version`
-
-- Required: no
-- Type: `string`
-
-Engine version. Usually managed by AWS automatically for serverless v1.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-mainDatabase:
-  type: relational-database
-  properties:
-    credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
-    accessibility:
-      accessibilityMode: scoping-workloads-in-vpc
-    engine:
-      type: aurora-postgresql-serverless
-      properties:
-        version: '13.12'
-        minCapacity: 2
-        maxCapacity: 8
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
-  accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-  engine: {
-    type: 'aurora-postgresql-serverless',
-    properties: {
-      version: '13.12',
-      minCapacity: 2,
-      maxCapacity: 8
-    }
-  }
-});
-return { resources: { mainDatabase } };
-});
-```
-
----
-
 # AuroraServerlessV2Engine API Reference
 
 Source: `packages/config/src/relational-databases.ts`
@@ -114109,7 +113720,7 @@ Resource type: `relational-database`
 ## TypeScript definition
 
 ```typescript
-import type { AuroraEngine, AuroraServerlessEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
+import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
 
 type RelationalDatabaseProps = {
   /** Master user credentials (username and password). */
@@ -114137,7 +113748,6 @@ type RelationalDatabaseProps = {
 /** Union choices used by the properties above. */
 type RelationalDatabaseEngine =
   | AuroraEngine
-  | AuroraServerlessEngine
   | AuroraServerlessV2Engine
   | RdsEngine;
 ```
@@ -114196,7 +113806,7 @@ return { resources: { mainDatabase } };
 ## Property: `engine`
 
 - Required: yes
-- Type: `AuroraEngine | AuroraServerlessEngine | AuroraServerlessV2Engine | RdsEngine`
+- Type: `AuroraEngine | AuroraServerlessV2Engine | RdsEngine`
 
 Database engine: what type of database and how it runs.
 
@@ -114208,7 +113818,6 @@ Up to 5x faster than standard MySQL / 3x faster than standard PostgreSQL.
 
 Choices:
 - `AuroraEngine` (`AuroraEngine`) — Aurora: high-performance clustered database with auto-failover.. Properties: `dbName?: string`, `port?: number`, `instances: Array<AuroraEngineInstance>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
-- `AuroraServerlessEngine` (`AuroraServerlessEngine`) — Aurora Serverless v1: auto-scaling database that can pause when idle.. Properties: `version?: string`, `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `pauseAfterSeconds?: number`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `AuroraServerlessV2Engine` (`AuroraServerlessV2Engine`) — Aurora Serverless v2: recommended for most new projects.. Properties: `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `serverlessReadersCount?: number`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `RdsEngine` (`RdsEngine`) — Standard RDS: single-instance database with predictable pricing.. Properties: `dbName?: string`, `port?: number`, `storage?: RdsEngineStorage`, `primaryInstance: RdsEnginePrimaryInstance`, `readReplicas?: Array<RdsEngineReadReplica>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 

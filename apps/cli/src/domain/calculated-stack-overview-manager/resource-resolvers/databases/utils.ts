@@ -154,16 +154,8 @@ export const getAuroraDbCluster = ({
     DBClusterParameterGroupName: ref(cfLogicalNames.auroraDbClusterParameterGroup(stpResourceName)),
     Engine: engineType,
     DatabaseName: getDatabaseName({ resource }),
-    Port:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? undefined
-        : resolveDatabasePort({ definition: resource }),
-    EnableCloudwatchLogsExports:
-      resource.engine.type !== 'aurora-mysql-serverless' &&
-      resource.engine.type !== 'aurora-postgresql-serverless' &&
-      logExports.length
-        ? logExports
-        : undefined,
+    Port: resolveDatabasePort({ definition: resource }),
+    EnableCloudwatchLogsExports: logExports.length ? logExports : undefined,
     EngineVersion: getEngineVersionForDb({
       engineType: resource.engine.type,
       engineVersion: getConfiguredEngineVersion(resource),
@@ -171,19 +163,7 @@ export const getAuroraDbCluster = ({
     }),
     PreferredMaintenanceWindow: getDbBackupAndMaintenanceWindow(resource).preferredMaintenanceWindow,
     PreferredBackupWindow: getDbBackupAndMaintenanceWindow(resource).preferredBackupWindow,
-    EngineMode:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? 'serverless'
-        : 'provisioned',
-    ScalingConfiguration:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? {
-            AutoPause: !!resource.engine.properties?.pauseAfterSeconds,
-            MaxCapacity: resource.engine.properties?.maxCapacity || resource.engine.properties?.minCapacity || 4,
-            MinCapacity: resource.engine.properties?.minCapacity || 2,
-            SecondsUntilAutoPause: resource.engine.properties?.pauseAfterSeconds
-          }
-        : undefined,
+    EngineMode: 'provisioned',
     ServerlessV2ScalingConfiguration:
       resource.engine.type === 'aurora-mysql-serverless-v2' ||
       resource.engine.type === 'aurora-postgresql-serverless-v2'
@@ -638,10 +618,8 @@ export const getDbOptionGroup = ({
 const connectionStringProtocol: { [_key in StpRelationalDatabase['engine']['type']]: { basic: string; jdbc: string } } =
   {
     'aurora-mysql': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
-    'aurora-mysql-serverless': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     'aurora-mysql-serverless-v2': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     'aurora-postgresql': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
-    'aurora-postgresql-serverless': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
     'aurora-postgresql-serverless-v2': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
     mysql: { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     postgres: { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
@@ -796,10 +774,7 @@ export const isAuroraCluster = ({ resource }: { resource: StpRelationalDatabase 
   isAuroraEngine(resource.engine.type);
 
 export const isAuroraServerlessCluster = ({ resource }: { resource: StpRelationalDatabase }) =>
-  resource.engine.type === 'aurora-mysql-serverless' ||
-  resource.engine.type === 'aurora-postgresql-serverless' ||
-  resource.engine.type === 'aurora-mysql-serverless-v2' ||
-  resource.engine.type === 'aurora-postgresql-serverless-v2';
+  resource.engine.type === 'aurora-mysql-serverless-v2' || resource.engine.type === 'aurora-postgresql-serverless-v2';
 
 const encryptionUnsupportedInstanceSizes = [
   'db.m1.small',
@@ -841,10 +816,6 @@ export const validateEngineVersion = ({ resource }: { resource: StpRelationalDat
     }
     return foundResource;
   });
-
-  if (resource.engine?.type === 'aurora-mysql-serverless' || resource.engine?.type === 'aurora-postgresql-serverless') {
-    return;
-  }
 
   if (!resource.engine?.properties?.version) {
     throw stpErrors.e110({
