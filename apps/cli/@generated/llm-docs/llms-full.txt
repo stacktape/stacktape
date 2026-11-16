@@ -16549,6 +16549,10 @@ npm install --save-exact stacktape@3.7.1
 | Alarms with `notificationTargets` | [Alarm notifications](#alarm-notifications) |
 | `usePrivateSubnetsWithNAT` or `stackConfig.vpc.nat` | [NAT](#nat) |
 | `redis-cluster` | [Redis caches](#redis-caches) |
+| `aurora-postgresql-serverless` or `aurora-mysql-serverless` | [Aurora Serverless v1](#aurora-serverless-v1) |
+| CDN `cookies`, `headers` or `queryString` options | [CDN cache and forwarding options](#cdn-cache-and-forwarding-options) |
+| `$ResourceParam(<website>, 'url')` or `connectTo` on a website with several custom domains | [Website URLs](#website-urls) |
+| `$Secret(...)` | [Secrets with a JSON key](#secrets-with-a-json-key) |
 | `disableAutoRollback`, `--disableAutoRollback` | [Automatic rollback](#automatic-rollback) |
 | A TypeScript configuration (`stacktape.ts`) | [TypeScript configurations](#typescript-configurations) |
 | `connectTo: ['aws:ses']` or `AWS_SES` | [Sending email with SES](#sending-email-with-ses) |
@@ -16764,6 +16768,30 @@ v4 also offers cheaper NAT instances, `ec2` and `ha-ec2`. Switching to them on a
 
 The cache keeps its endpoint and data. New caches use Valkey (`engine.type: valkey` or `valkey-serverless`). Changing an existing cache to Valkey is an in-place migration that cannot be reversed, so do it separately from the upgrade if at all. See [Redis](/resources/databases/redis#migrating-from-redis-cluster).
 
+### Aurora Serverless v1
+
+AWS retired Aurora Serverless v1 on 31 March 2025, and v4 no longer deploys it. The `aurora-postgresql-serverless` and `aurora-mysql-serverless` engine types, and the `AuroraServerlessEnginePostgresql` and `AuroraServerlessEngineMysql` classes, fail validation with a migration error.
+
+For a new database, use `aurora-postgresql-serverless-v2` or `aurora-mysql-serverless-v2` (`AuroraServerlessV2EnginePostgresql`, `AuroraServerlessV2EngineMysql`) with `minCapacity` and `maxCapacity` between 0.5 and 128 ACUs. Serverless v2 does not pause when idle, and `pauseAfterSeconds` does not exist on it.
+
+Do not only change the engine type of a deployed v1 database. The v2 engine type uses a different engine mode, and CloudFormation replaces the cluster when the engine mode changes, so editing the type alone puts your data at risk. Keep that stack on v3, take a snapshot, and email [support@stacktape.com](mailto:support@stacktape.com) to plan the move.
+
+### CDN cache and forwarding options
+
+Each `cookies`, `headers` and `queryString` option under `cdn.cachingOptions.cacheKeyParameters` and `cdn.forwardingOptions` (including those in `routeRewrites`) now sets exactly one choice. A choice without a list, such as `all` or `none`, must be `true`.
+
+v3 accepted `{ all: false }` and applied `all` anyway. v4 rejects `false`, an empty object and several choices at once, and names the valid choices. Replace a `false` value with the choice you mean, for example `none: true`. Selectors that already set one choice, such as `{ all: true }` or `{ whitelist: [session] }`, are unchanged and produce the same cache and origin request policies.
+
+### Website URLs
+
+The `url` parameter of `nextjs-web`, `astro-web`, `nuxt-web`, `sveltekit-web`, `solidstart-web`, `tanstack-web` and `remix-web` is now always one URL: the first of the website's `customDomains`, or its default Stacktape URL when it has none. In v3, a website with several custom domains returned all of them joined by `, `, which broke code that parsed `url` as a URL. This value reaches `$ResourceParam('<website>', 'url')` and the `STP_<WEBSITE>_URL` variable of resources that list the website in `connectTo`.
+
+With zero or one custom domain, nothing changes. If you need every custom domain, use the new `customDomainUrls` parameter: the custom domain URLs in configured order, joined by `, `.
+
+### Secrets with a JSON key
+
+`$Secret('secret-name', 'key')` is the documented way to read one key of a JSON secret. The first argument is the exact secret name, so it can contain dots. You do not have to change anything: `$Secret('secret-name.key')` keeps working and reads the same secret and key as in v3. Use the two-argument form for a secret whose name contains a dot. See [Secrets](/configuration/secrets#json-secrets).
+
 ### Automatic rollback
 
 `deploymentConfig.disableAutoRollback` is removed. v4 no longer rolls back a failed deployment by default (see [Failed deployments keep what they created](#failed-deployments-keep-what-they-created)), so:
@@ -16828,7 +16856,8 @@ v4 checks some values that v3 accepted:
 
 - **Container scaling below one instance.** `scaling.minInstances` and `maxInstances` must be at least 1. v3 accepted `minInstances: 0`; set it to 1.
 - **Stack tags starting with `stp:`.** Stacktape uses this prefix for its own tags. Rename such tags in `stackConfig.tags`.
-- **Database log settings that do not fit the engine.** Remove `logging` options for another engine, and keep the logs that Aurora Serverless v1 requires.
+- **Database log settings that do not fit the engine.** Remove `logging` options for another engine.
+- **State machine definitions with Stacktape metadata.** `Parallel` branches and `Map` item workflows must be Amazon States Language workflows with `StartAt` and `States`, and each state needs a valid `Type`. Other ASL fields, such as `QueryLanguage` or `ItemProcessor`, and `null` paths are passed to AWS unchanged.
 - **SQS triggers with a function timeout longer than the queue's visibility timeout.** AWS rejects this combination; raise the queue's `visibilityTimeoutSeconds` or lower the function's `timeout`.
 - **`Condition` and `DependsOn` in `cloudformationResources`** must be a condition name and a resource name (or a list of names), as CloudFormation requires.
 
@@ -17488,6 +17517,8 @@ If you used a `4.0.0-preview` release, these changed since then:
 - `deploymentConfig.issues` is now `deploymentConfig.errorTracking`, and the old name is rejected. The `issues:*` commands are now `error list`, `error ignore`, `error resolve` and `error reopen`; the old commands still work. Issue IDs and status values are unchanged.
 - In the `--agent` result of `validate` and `deploy`, one `security` object replaces the `securityFindings` and `securityExposure` fields of `4.0.0-preview.10`: read `security.findings` and `security.exposure`. See [security findings by stage purpose](/cli/validate#security-findings-by-stage-purpose).
 - The default Python runtime is `python3.13`, not `python3.14`. Set `runtime: python3.14` to keep it.
+- An `agentcore-gateway` needs an explicit `authorizer`. A JWT authorizer moves under `properties` with `type: jwt` (`authorizer: { type: jwt, properties: { discoveryUrl: ... } }`). A gateway meant to be open sets `authorizer: { type: none }`.
+- AgentCore timing fields name their unit: on a runtime, `lifecycle.maxLifetime` is now `maxLifetimeSeconds` and `lifecycle.idleRuntimeSessionTimeout` is `idleTimeoutSeconds`. On a memory, `expirationDays` and `eventExpiryDuration` are replaced by one `eventRetentionDays` (default 30). Values are unchanged.
 
 ---
 
