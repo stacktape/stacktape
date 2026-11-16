@@ -222,7 +222,10 @@ const channelOf = (request: ReceivedRequest) =>
         ? 'webhook'
         : request.path.endsWith('/reportAlarmEvent')
           ? 'console'
-          : 'other';
+          : // Error tracking reports the faulty function's thrown errors through the same service Lambda.
+            request.path.endsWith('/reportIssueEvent')
+            ? 'issue'
+            : 'other';
 
 const consoleReportsOf = (requests: ReceivedRequest[]) =>
   requests
@@ -537,7 +540,8 @@ export const runAlarmNotificationsCanary = async ({ cleanupOnly = false }: { cle
     const counts: Record<string, Record<string, number>> = {};
     for (const request of requests) {
       const channel = channelOf(request);
-      const announced = channel === 'console' ? 'report' : (announcedState(request) ?? 'unknown');
+      const announced =
+        channel === 'console' || channel === 'issue' ? 'report' : (announcedState(request) ?? 'unknown');
       counts[channel] = { ...counts[channel], [announced]: (counts[channel]?.[announced] ?? 0) + 1 };
     }
     report.requestCounts = counts;
@@ -550,7 +554,20 @@ export const runAlarmNotificationsCanary = async ({ cleanupOnly = false }: { cle
         `${channel} did not receive exactly one firing and one recovery: ${JSON.stringify(counts[channel])}.`
       );
     }
-    assert(!counts.other, `Unexpected requests reached the receiver: ${JSON.stringify(counts.other)}.`);
+    // The function URL is public, so the internet can reach it too. Anything signed or carrying the stack's AWS identity
+    // came from the service Lambda, and must be one of the requests above.
+    const strays = requests.filter((request) => channelOf(request) === 'other');
+    report.strayRequests = strays.map((request) => ({
+      path: request.path.slice(0, 40),
+      signed: Boolean(request.headers['x-stacktape-signature']),
+      awsIdentity: request.headers['has-aws-identity'] === true
+    }));
+    assert(
+      strays.every(
+        (request) => !request.headers['x-stacktape-signature'] && request.headers['has-aws-identity'] !== true
+      ),
+      `The service Lambda sent an unexpected request: ${JSON.stringify(report.strayRequests)}.`
+    );
 
     // The webhook is signed with the `$Secret` value the service Lambda read in the account, and carries its header.
     for (const request of requests.filter((candidate) => channelOf(candidate) === 'webhook')) {
@@ -578,6 +595,10 @@ export const runAlarmNotificationsCanary = async ({ cleanupOnly = false }: { cle
       assert(Array.isArray(input.channels) && input.channels.length === 0, 'A Console report names channels.');
       const leaked = credentials.filter((credential) => request.body.includes(credential));
       assert(leaked.length === 0, `A Console report carries ${leaked.length} channel credential(s).`);
+    }
+    for (const request of requests.filter((candidate) => channelOf(candidate) === 'issue')) {
+      const leaked = credentials.filter((credential) => request.body.includes(credential));
+      assert(leaked.length === 0, `An issue report carries ${leaked.length} channel credential(s).`);
     }
     const reportTypes = reports.map(({ input }) => input.type);
     assert(

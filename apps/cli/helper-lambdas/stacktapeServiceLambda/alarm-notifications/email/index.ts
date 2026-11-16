@@ -3,7 +3,8 @@ import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import { getCauseString } from '../utils';
 import type { EmailIntegration } from '@stacktape/config/user-integrations';
 
-const sesClient = new SESv2Client({});
+// Bounded well inside the delivery claim's lease.
+const sesClient = new SESv2Client({ maxAttempts: 3, requestHandler: { requestTimeout: 10_000 } });
 
 export const sendAlarmEmail = ({
   notificationDetail,

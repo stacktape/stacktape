@@ -45,6 +45,8 @@ let server: ReturnType<typeof Bun.serve>;
 let providerRequests: ProviderRequest[] = [];
 let consoleReports: Array<Record<string, unknown>> = [];
 let markers = new Map<string, string>();
+let markerEtags = new Map<string, string>();
+let etagCounter = 0;
 let refuseConsole = false;
 let failTeamsTimes = 0;
 
@@ -53,8 +55,8 @@ beforeAll(async () => {
   mock.module('@slack/web-api', () => ({
     ...slackModule,
     WebClient: class extends slackModule.WebClient {
-      constructor(token?: string) {
-        super(token, { slackApiUrl: `${endpoint}/slack/`, retryConfig: { retries: 0 } });
+      constructor(token?: string, options?: ConstructorParameters<typeof slackModule.WebClient>[1]) {
+        super(token, { ...options, slackApiUrl: `${endpoint}/slack/`, retryConfig: { retries: 0 } });
       }
     }
   }));
@@ -79,18 +81,20 @@ beforeAll(async () => {
       if (path.startsWith('/s3/')) {
         const key = decodeURIComponent(path.slice('/s3/'.length));
         if (request.method === 'PUT') {
-          if (request.headers.get('if-none-match') === '*' && markers.has(key)) {
+          // Read first, then check and write without yielding: S3 applies a conditional write atomically.
+          const body = await request.text();
+          const ifNoneMatch = request.headers.get('if-none-match');
+          const ifMatch = request.headers.get('if-match');
+          if ((ifNoneMatch === '*' && markers.has(key)) || (ifMatch && markerEtags.get(key) !== ifMatch)) {
             return new Response(
-              '<?xml version="1.0"?><Error><Code>PreconditionFailed</Code><Message>exists</Message></Error>',
+              '<?xml version="1.0"?><Error><Code>PreconditionFailed</Code><Message>condition</Message></Error>',
               { status: 412, headers: { 'Content-Type': 'application/xml' } }
             );
           }
-          markers.set(key, await request.text());
-          return new Response(null, { status: 200, headers: { ETag: '"etag"' } });
-        }
-        if (request.method === 'DELETE') {
-          markers.delete(key);
-          return new Response(null, { status: 204 });
+          const etag = `"etag-${++etagCounter}"`;
+          markers.set(key, body);
+          markerEtags.set(key, etag);
+          return new Response(null, { status: 200, headers: { ETag: etag } });
         }
         if (!markers.has(key)) {
           return new Response('<?xml version="1.0"?><Error><Code>NoSuchKey</Code><Message>none</Message></Error>', {
@@ -98,7 +102,9 @@ beforeAll(async () => {
             headers: { 'Content-Type': 'application/xml' }
           });
         }
-        return new Response(markers.get(key), { headers: { 'Content-Type': 'application/json' } });
+        return new Response(markers.get(key), {
+          headers: { 'Content-Type': 'application/json', ETag: markerEtags.get(key)! }
+        });
       }
       if (path.startsWith('/secrets')) {
         return Response.json({ SecretString: JSON.stringify({ token: SLACK_TOKEN }), VersionId: 'v1' });
@@ -152,6 +158,7 @@ beforeEach(() => {
   providerRequests = [];
   consoleReports = [];
   markers = new Map();
+  markerEtags = new Map();
   refuseConsole = false;
   failTeamsTimes = 0;
 });
@@ -333,4 +340,27 @@ test('a recovery from a real firing is announced; an alarm first evaluating to O
   expect(new URLSearchParams(requestsTo('/slack/')[0]!.body).get('text')).toContain('ALARM resolved');
   expect(JSON.parse(requestsTo(WEBHOOK_PATH)[0]!.body)).toMatchObject({ type: 'ALARM_RESOLVED', severity: 'INFO' });
   expect(consoleReports[1]).toMatchObject({ type: 'ALARM_RESOLVED' });
+});
+
+test('duplicate invocations of one event send each notification once, and an abandoned claim is taken over once', async () => {
+  const { default: handle } = await import('./index');
+  const results = await Promise.allSettled([handle(event()), handle(event())]);
+  for (const result of results) {
+    if (result.status === 'rejected')
+      expect((result.reason as Error).message).toContain('NotificationDeliveryInProgress');
+  }
+  for (const prefix of ['/slack/', TEAMS_PATH, DISCORD_PATH, '/v2/email/outbound-emails', WEBHOOK_PATH]) {
+    expect(requestsTo(prefix)).toHaveLength(1);
+  }
+
+  // An invocation that stopped mid-send left a stale claim on the Teams notification of another event.
+  const staleKey = 'stp-deployment-bucket-abc123/alarm-notification-deliveries/stale-event/1';
+  markers.set(staleKey, JSON.stringify({ status: 'sending', at: 0 }));
+  markerEtags.set(staleKey, '"stale"');
+  await Promise.allSettled([
+    handle(event({ sourceEventId: 'stale-event' })),
+    handle(event({ sourceEventId: 'stale-event' }))
+  ]);
+  expect(requestsTo(TEAMS_PATH)).toHaveLength(2);
+  expect(JSON.parse(markers.get(staleKey)!)).toMatchObject({ status: 'sent' });
 });

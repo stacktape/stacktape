@@ -247,6 +247,30 @@ export STP_AWS_SCOPED_CANARY_STATE_FILE="$(pwd)/.stacktape-scoped-canary-${STP_A
 pnpm test:aws --aws-scenario=lambda-http-api-scoped-access
 ```
 
+## Alarm notifications canary
+
+`test:real-aws-alarm-notifications-canary` (scenario `alarm-inline-channels-in-account`) deploys
+`_test-stacks/alarm-notifications`: a function whose `lambda-error-rate` alarm notifies Microsoft Teams, Discord and a
+signed webhook with a header, all pointing at a receiver function URL that stores each request in a bucket. The canary
+points the stack's service Lambda at the same receiver as its Console API. It makes the function fail, waits for the
+alarm to fire and to recover on its own, and requires one firing and one recovery message per channel, the webhook
+signed with the `$Secret` value, and Console reports that name no channel and carry none of the run's random channel
+values. It then replays the firing event to the service Lambda as EventBridge built it and requires no channel to hear
+it again, checks the six "sent" delivery markers in the deployment bucket, and deletes the stack and the secret. A run
+takes about 12 minutes; it uses only Lambda, S3, CloudWatch and EventBridge. Slack and email are covered by the helper
+Lambda's tests, not here. Delete the Console project afterwards with
+`pnpm dev:cli project:delete --projectName <project> --yes`.
+
+```sh
+export STP_AWS_ALARM_CANARY_DEPLOY=1
+export STP_AWS_ALARM_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_ALARM_CANARY_PROFILE='<profile>'
+export STP_AWS_ALARM_CANARY_OWNER="local-alarm-$(date -u +%s)"
+export STP_AWS_ALARM_CANARY_STATE_FILE="$(pwd)/.stacktape-alarm-canary-${STP_AWS_ALARM_CANARY_OWNER}.json"
+export STP_AWS_ALARM_CANARY_REPORT="$(pwd)/.stacktape-alarm-canary-${STP_AWS_ALARM_CANARY_OWNER}.report.json"
+pnpm test:aws --aws-scenario=alarm-inline-channels-in-account
+```
+
 ## Static site canary
 
 This deploys `_test-stacks/static-site`: one hosting bucket behind CloudFront, with no build step. The canary writes the

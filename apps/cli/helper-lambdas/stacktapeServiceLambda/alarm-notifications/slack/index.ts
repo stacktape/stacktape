@@ -10,7 +10,11 @@ export const sendAlarmSlackMessage = ({
   alarmDetail: AlarmNotificationEventRuleInput;
   notificationDetail: SlackIntegration;
 }) => {
-  const slackClient = new WebClient(notificationDetail.properties.accessToken);
+  // Bounded well inside the delivery claim's lease (the client's default retries for about half an hour).
+  const slackClient = new WebClient(notificationDetail.properties.accessToken, {
+    timeout: 10_000,
+    retryConfig: { retries: 2, minTimeout: 1000, maxTimeout: 5000 }
+  });
 
   // The client throws on a refusal (`ok: false`), so a returned response is an accepted message.
   return slackClient.chat.postMessage({

@@ -520,7 +520,7 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
       Resource: [
         sub(`arn:\${AWS::Partition}:s3:::${deploymentBucketName}/${ALARM_DELIVERY_MARKER_PREFIX}*`) as unknown as string
       ],
-      Action: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject']
+      Action: ['s3:GetObject', 's3:PutObject']
     },
     allParameterNamesUsedInAlarmNotifications.length && {
       Resource: allParameterNamesUsedInAlarmNotifications
