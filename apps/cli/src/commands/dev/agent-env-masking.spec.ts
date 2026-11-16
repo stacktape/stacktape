@@ -60,6 +60,7 @@ describe('dev agent environment masking', () => {
         { name: 'PGPASS', value: "$ResourceParam('db','password')" },
         { name: 'CACHE', value: "$Format('{}?tls=1', $ResourceParam('cache', 'redisUrl'))" },
         { name: 'DB_HOST', value: "$ResourceParam('db','host')" },
+        { name: 'POOL_AUTH', value: '$ResourceParam(pool, clientSecret)' },
         { name: 'LOG_LEVEL', value: 'debug' }
       ],
       containers: [
@@ -72,6 +73,7 @@ describe('dev agent environment masking', () => {
       'CACHE',
       'PAYMENT_WEBHOOK',
       'PGPASS',
+      'POOL_AUTH',
       'SIGNING_HOST',
       'WORKER_ENDPOINT'
     ]);

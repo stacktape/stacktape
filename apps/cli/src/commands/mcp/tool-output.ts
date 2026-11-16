@@ -36,7 +36,9 @@ const maskSensitiveText = (value: string): string =>
     .replace(/\bxox[baprs]-[A-Za-z0-9-]{16,}/g, (match) => `${match.slice(0, 8)}...REDACTED`)
     .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}/g, (match) => `${match.slice(0, 8)}...REDACTED`)
     .replace(/\bpostgres(?:ql)?:\/\/[^:\s/@]+:[^\s/@]+@/gi, 'postgresql://<REDACTED>@')
-    .replace(/\bmysql:\/\/[^:\s/@]+:[^\s/@]+@/gi, 'mysql://<REDACTED>@');
+    .replace(/\bmysql:\/\/[^:\s/@]+:[^\s/@]+@/gi, 'mysql://<REDACTED>@')
+    // Any other URL with a password, including Redis URLs that carry no user (`rediss://:<password>@host`).
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:<]*:[^\s/@]+@/gi, '$1<REDACTED>@');
 
 const shouldMaskValueForKey = (key: string): boolean => {
   const normalizedKey = key.toLowerCase();

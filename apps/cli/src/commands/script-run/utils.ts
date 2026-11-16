@@ -19,6 +19,8 @@ import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 import { resolveScriptStdioMode } from './stdio';
 import { assertEnvironmentResolved } from '../dev/unresolved-environment';
+import { getSecretSourcedEnvNames } from '../dev/agent-env-masking';
+import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import type {
   BastionScript,
   EnvironmentVar,
@@ -174,6 +176,38 @@ const getExecuteSequence = (properties: {
     ...(properties.executeCommands || [])
   ].filter(Boolean) as string[];
 
+/**
+ * Replaces the secret values Stacktape injected into a script with `[redacted]` in its captured output and errors: values
+ * of variables read from `$Secret`, `$SsmParam` or a sensitive `$ResourceParam`, and the sensitive parameters of its
+ * `connectTo` resources. An inherited script writes to the terminal directly and is not masked.
+ */
+const createInjectedSecretMasker = ({
+  scriptDefinition,
+  env,
+  connectTo
+}: {
+  scriptDefinition: { properties: unknown };
+  env: EnvironmentVar[];
+  connectTo?: string[];
+}) => {
+  const secretNames = new Set([
+    ...getSecretSourcedEnvNames(scriptDefinition.properties),
+    ...(connectTo || []).flatMap((resourceName) =>
+      Object.entries(
+        deployedStackOverviewManager.getStpResource({ nameChain: [resourceName] })?.referencableParams || {}
+      )
+        .filter(([, { ssmParameterName }]) => ssmParameterName)
+        .map(([paramName]) => injectedParameterEnvVarName(resourceName, paramName))
+    )
+  ]);
+  // Longest first, so a value that contains another is replaced whole. Very short values would garble ordinary text.
+  const secretValues = env
+    .filter(({ name, value }) => secretNames.has(name) && `${value ?? ''}`.length >= 4)
+    .map(({ value }) => `${value}`)
+    .sort((a, b) => b.length - a.length);
+  return (text: string) => secretValues.reduce((masked, value) => masked.split(value).join('[redacted]'), text);
+};
+
 const getLocalScriptExecutionFn = ({
   scriptDefinition,
   hookTrigger,
@@ -250,6 +284,11 @@ const getLocalScriptExecutionFn = ({
     }
 
     const stdioMode = forwardOutputLine ? 'capture' : resolveScriptStdioMode(resolvedScriptDefinition.properties);
+    const maskSecrets = createInjectedSecretMasker({
+      scriptDefinition,
+      env: [...connectToEnvVars, ...userDefinedEnvVars],
+      connectTo: resolvedScriptDefinition.properties.connectTo
+    });
     const getEnv = () =>
       getScriptEnv({
         userDefinedEnv: userDefinedEnvVars,
@@ -289,7 +328,8 @@ const getLocalScriptExecutionFn = ({
     // This avoids piping directly to stdout while streaming
     const onOutputLine =
       stdioMode === 'capture'
-        ? (line: string, stream: 'stdout' | 'stderr') => {
+        ? (rawLine: string, stream: 'stdout' | 'stderr') => {
+            const line = maskSecrets(rawLine);
             operationReporter.appendEventOutput({
               eventType: 'RUN_SCRIPT',
               instanceId: eventInstanceId,
@@ -353,7 +393,7 @@ const getLocalScriptExecutionFn = ({
         };
         throw new ExpectedError(
           'SCRIPT',
-          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${currentDescription}. Error:\n${err}`,
+          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${currentDescription}. Error:\n${maskSecrets(`${err}`)}`,
           undefined,
           timedOut ? { timedOut, processTreeStopped, survivingPids } : undefined
         );

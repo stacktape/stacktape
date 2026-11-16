@@ -1,14 +1,18 @@
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { listAwsProfiles } from '@utils/aws-config';
 
-/** Only the last 4 characters of a secret access key are shown, enough to tell keys apart. */
+/** Without --show-secrets, only the last 4 characters of a secret access key are shown, enough to tell keys apart. */
 const maskSecretAccessKey = (secretAccessKey: string) => `${'*'.repeat(36)}${secretAccessKey.slice(36)}`;
 
 export const commandAwsProfileList = async () => {
+  const showSecrets = Boolean(globalStateManager.args.showSensitiveValues);
   const profiles = (await listAwsProfiles()).map((profile) => ({
     profile: profile.profile,
     AWS_ACCESS_KEY_ID: profile.AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY: maskSecretAccessKey(profile.AWS_SECRET_ACCESS_KEY)
+    AWS_SECRET_ACCESS_KEY: showSecrets
+      ? profile.AWS_SECRET_ACCESS_KEY
+      : maskSecretAccessKey(profile.AWS_SECRET_ACCESS_KEY)
   }));
 
   if (!profiles.length) {

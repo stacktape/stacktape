@@ -9,7 +9,8 @@ const SENSITIVE_NAME =
 const CAMEL_CASE_KEY = /[a-z0-9]Key(?![a-z])/;
 
 const SECRET_DIRECTIVE = /\$(?:Secret|SsmParam)\(/;
-const RESOURCE_PARAM_DIRECTIVE = /\$ResourceParam\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g;
+/** `$ResourceParam('db', 'password')`, with the arguments quoted or not. */
+const RESOURCE_PARAM_DIRECTIVE = /\$ResourceParam\(\s*['"]?[^'",)]*['"]?\s*,\s*['"]?([^'",)\s]+)['"]?\s*\)/g;
 
 /** A `$Secret` or `$SsmParam` directive, or a `$ResourceParam` of a parameter that holds a credential (`password`). */
 const readsSecret = (value: string) =>

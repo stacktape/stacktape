@@ -136,7 +136,7 @@ Controls where deployment build and packaging work runs.
 
 export const showSensitiveValues = z.boolean().describe(`#### Show Secrets
 ---
-If \`true\`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a \`secret get\` reads. Without it, each of them is \`<<OMITTED>>\` in the terminal, in the \`--agent\` result and in the stack-info file. Use it only where the output stays private, never in shared CI logs.`);
+If \`true\`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a \`secret get\` reads. Without it, each of them is \`<<OMITTED>>\` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs.`);
 
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---

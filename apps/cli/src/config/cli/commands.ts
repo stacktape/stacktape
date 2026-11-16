@@ -319,9 +319,10 @@ You will be prompted to enter the name of the profile to delete.`,
   },
 
   'aws-profile:list': {
-    description: `Lists all AWS profiles configured on your system.`,
+    description: `Lists all AWS profiles configured on your system. Secret access keys are masked unless you pass \`--show-secrets\`.`,
     args: {
-      logLevel: logLevel.optional()
+      logLevel: logLevel.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: [] as const
   },

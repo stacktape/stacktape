@@ -48,7 +48,15 @@ const config = (scriptProperties: Record<string, unknown> = {}) => ({
     // Inherited: it reads the terminal's input itself.
     ask: { type: 'local-script', properties: { executeCommand: `${process.execPath} ask.mjs`, stdioMode: 'inherit' } },
     // Fails with a secret in its resolved command line.
-    leaky: { type: 'local-script', properties: { executeCommand: `$Format('false {}', $Secret('${SECRET_NAME}'))` } }
+    leaky: { type: 'local-script', properties: { executeCommand: `$Format('false {}', $Secret('${SECRET_NAME}'))` } },
+    // Prints the secret it was given, then fails.
+    printer: {
+      type: 'local-script',
+      properties: {
+        executeCommand: 'echo "token=$LEAK"; echo "token=$LEAK" >&2; exit 3',
+        environment: [{ name: 'LEAK', value: `$Secret('${SECRET_NAME}')` }]
+      }
+    }
   },
   hooks: { afterDeploy: [{ scriptName: 'greet' }] },
   resources: { pool: { type: 'user-auth-pool', properties: { generateClientSecret: true } } }
@@ -255,6 +263,11 @@ for await (const line of lines) {
     expect(failed.exitCode, failed.tail).toBe(1);
     expect(failed.result?.message).toContain('$Secret(');
     expect(`${failed.stdout}\n${failed.stderr}`).not.toContain(SECRET_VALUE);
+    // Captured output and the error replace a secret the script was given and printed.
+    const printed = await run('script-run-printer', ['script:run', '--scriptName', 'printer', '--agent']);
+    expect(printed.exitCode, printed.tail).toBe(1);
+    expect(printed.stdout).toContain('token=[redacted]');
+    expect(`${printed.stdout}\n${printed.stderr}`).not.toContain(SECRET_VALUE);
 
     for (const [pipeStdio, replacement] of [
       [false, 'stdioMode: ignore'],

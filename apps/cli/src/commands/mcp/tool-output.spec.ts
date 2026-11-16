@@ -114,6 +114,24 @@ describe('MCP tool output', () => {
     expect(run({ resourceName: 'db', paramName: 'host' }).data?.cli).toEqual({ result: canary });
   });
 
+  test('masks the password of any connection URL in command output, Redis included', () => {
+    const password = 'r2zz-fabricated-redis-pw';
+    const output = buildCliRunOutput({
+      command: 'logs',
+      policy: { category: 'observability', safety: 'readOnly' },
+      result: {
+        ok: true,
+        code: 'OK',
+        message: 'logs completed',
+        data: {
+          result: [`connecting to rediss://:${password}@cache.example.com:6379`, `amqp://app:${password}@mq:5672`]
+        }
+      }
+    });
+    expect(JSON.stringify(output)).not.toContain(password);
+    expect(JSON.stringify(output)).toContain('rediss://<REDACTED>@cache.example.com:6379');
+  });
+
   test("keeps the CLI's <<OMITTED>> placeholder readable under a masked key", () => {
     const output = buildCliRunOutput({
       command: 'secret:get',
