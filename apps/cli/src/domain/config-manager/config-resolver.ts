@@ -9,6 +9,7 @@ import {
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { readFileSync } from 'node:fs';
 import { supportedCodeConfigLanguages } from '@config';
 import { forgetModuleGraph, getFileExtension } from '@utils/fs-utils';
 import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
@@ -21,12 +22,19 @@ import {
   getIsDirective
 } from '@utils/directives';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
-import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
+import {
+  getInstalledStacktapeVersion,
+  loadFromAnySupportedFile,
+  loadFromTypescript,
+  parseUserCodeFilepath
+} from '@utils/file-loaders';
+import { getStacktapeVersion } from '@utils/versioning';
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { createBuiltInDirectives, type BuiltInDirectiveContext } from './built-in-directives';
 import type { StacktapeConfig } from '@stacktape/config';
 import { configErrors } from './errors';
+import { v3ExportHint, v3ExportsMentionedIn } from './utils/v3-config-names';
 import type { ProjectSettings } from './project-settings';
 
 const describeSettings = (settings: ProjectSettings | undefined) =>
@@ -100,9 +108,22 @@ const formatBuildErrors = (errors: BuildError[]): string => {
 };
 
 /**
+ * A config that imports a v3 `stacktape` package from its project fails in ways that point at the config, such as a
+ * `defineConfig` result the CLI does not recognize. The installed package is the cause, so it is named instead.
+ */
+const assertStacktapePackageCurrent = (configPath: string) => {
+  const installedVersion = getInstalledStacktapeVersion(configPath);
+  const installedMajor = Number(installedVersion?.split('.')[0]);
+  if (installedVersion && Number.isInteger(installedMajor) && installedMajor < 4) {
+    throw configErrors.stacktapePackageOutdated({ configPath, installedVersion, cliVersion: getStacktapeVersion() });
+  }
+};
+
+/**
  * Parse TypeScript config loading errors and throw appropriate user-friendly errors
  */
 const handleTypescriptConfigError = (error: Error, configPath: string): never => {
+  assertStacktapePackageCurrent(configPath);
   const rawMessage = error.message || String(error);
 
   if ('errors' in error) {
@@ -132,6 +153,18 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
   // Check for syntax errors
   if (rawMessage.includes('SyntaxError') || rawMessage.includes('Parse error')) {
     throw configErrors.typescriptSyntaxInvalid({ configPath, errorMessage: rawMessage });
+  }
+
+  // An import of a class or constant that v4 renamed or removed gets its replacement.
+  const removedExport = rawMessage.match(/Export named '([^']+)' not found in module 'stacktape'/)?.[1];
+  if (removedExport && v3ExportHint(removedExport)) {
+    const source = readFileSync(configPath, 'utf8');
+    const exportNames = [...new Set([removedExport, ...v3ExportsMentionedIn(source)])];
+    throw configErrors.typescriptV3ExportImported({
+      configPath,
+      exportNames,
+      hints: exportNames.map(v3ExportHint).filter((hint): hint is string => Boolean(hint))
+    });
   }
 
   // Check for export not found
@@ -348,6 +381,7 @@ export class ConfigResolver {
       const configFn = defaultExport as (params: GetConfigParams) => unknown;
       const result = configFn(authoringParams);
       if (!isCompiledStacktapeConfig(result)) {
+        assertStacktapePackageCurrent(filePath);
         throw configErrors.typescriptDefineConfigRequired({ configPath: filePath });
       }
       return result;

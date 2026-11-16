@@ -46,6 +46,18 @@ const findInstalledStacktape = (importer: string): string | undefined => {
   }
 };
 
+/** The version of the `stacktape` package that `import ... from 'stacktape'` in this file loads, if one is installed. */
+export const getInstalledStacktapeVersion = (importer: string): string | undefined => {
+  const installed = findInstalledStacktape(importer);
+  if (installed === undefined) return undefined;
+  try {
+    const { version } = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')) as { version?: unknown };
+    return typeof version === 'string' ? version : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 let stacktapeImportResolutionRegistered = false;
 /** The TypeScript file being loaded; `stacktape` resolves relative to it. */
 let stacktapeImporter: string | undefined;
