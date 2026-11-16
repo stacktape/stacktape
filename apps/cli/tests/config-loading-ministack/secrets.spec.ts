@@ -260,16 +260,21 @@ test.each([
   }
 });
 
-test('validate checks a template around a secret it reported missing, and deploy still fails on it', async () => {
+test('validate and the deploy confirmation check a template around a missing secret, and deploy then fails on it', async () => {
   const account = ministack.account();
   const yaml =
     "resources: {}\nvariables:\n  password: $Secret('app-cache.password')\n  container: $ContainerSecret('app-cache.password')\n";
+  const placeholders = {
+    password: '{{resolve:secretsmanager:app-cache:SecretString:password::}}',
+    container: `arn:aws:secretsmanager:eu-west-1:${account.accountId}:secret:app-cache:password::`
+  };
   configManager.reportSecretsMissing(['app-cache']);
   try {
-    expect(await (await loadConfig(account, yaml, {}, 'validate')).resolve(false)).toEqual({
-      password: '{{resolve:secretsmanager:app-cache:SecretString:password::}}',
-      container: `arn:aws:secretsmanager:eu-west-1:${account.accountId}:secret:app-cache:password::`
-    });
+    expect(await (await loadConfig(account, yaml, {}, 'validate')).resolve(false)).toEqual(placeholders);
+    // Deploy builds the template it asks for confirmation with before it creates the secret, then stops reporting it:
+    // the deployed template is resolved again, and a secret that still does not exist fails the deploy.
+    expect(await (await loadConfig(account, yaml, {}, 'deploy')).resolve(false)).toEqual(placeholders);
+    configManager.clearReportedMissingReferences();
     await expect((await loadConfig(account, yaml, {}, 'deploy')).resolve(false)).rejects.toMatchObject({
       code: 'DIRECTIVE_SECRET_UNRESOLVED'
     });

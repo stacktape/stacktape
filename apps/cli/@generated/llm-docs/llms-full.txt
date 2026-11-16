@@ -13948,7 +13948,7 @@ export default defineConfig(() => {
 ```
 
 
-The `beforeDeploy` hook runs the build script before Stacktape begins packaging. The `afterDeploy` hook runs migrations after the deployment completes. The `migrate` script uses `connectTo` to receive the database connection details as environment variables.
+The `beforeDeploy` hook runs the build script before Stacktape begins packaging. It runs only after `deploy` has asked everything it needs to ask: whether to delete or replace a database, bucket or other stateful resource, and the values of missing secrets and SSM parameters. If you decline, or the deploy runs without a terminal and without `--yes`, it stops before any hook runs and changes nothing. The `afterDeploy` hook runs migrations after the deployment completes. The `migrate` script uses `connectTo` to receive the database connection details as environment variables.
 
 ### Skipping hooks in CI or locally
 

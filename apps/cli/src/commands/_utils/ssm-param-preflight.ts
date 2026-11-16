@@ -14,24 +14,13 @@ import { isAgentMode } from './agent-mode';
  * - **Non-interactive / agent**: aborts with an actionable error listing missing params
  *   and a link to the Stacktape Console SSM parameters page.
  */
-export const ensureMissingSsmParamsCreated = async () => {
-  const paramRefs = configManager.allSsmParamReferencesUsedInConfig;
-  if (!paramRefs.size) {
-    return;
-  }
+export type MissingSsmParamsPlan = { name: string; value: string; encrypted: boolean }[];
 
-  const found = await Promise.all(
-    [...paramRefs].map((paramName) =>
-      awsSdkManager.parameterStore.get({ name: paramName }).then(
-        () => true,
-        () => false
-      )
-    )
-  );
-  const missingParams = [...paramRefs].filter((_, index) => !found[index]);
-
+/** Asks for the values of missing parameters, or fails where it cannot ask. Creates nothing. */
+export const planMissingSsmParams = async (): Promise<MissingSsmParamsPlan> => {
+  const missingParams = await findMissingSsmParams();
   if (!missingParams.length) {
-    return;
+    return [];
   }
 
   const paramList = missingParams.map((name) => `  - ${tuiManager.makeBold(name)}`).join('\n');
@@ -40,31 +29,50 @@ export const ensureMissingSsmParamsCreated = async () => {
   );
 
   if (!isAgentMode() && process.stdout.isTTY) {
-    await promptAndCreateParams(missingParams);
-  } else {
-    throw new ExpectedError(
-      'CONFIG',
-      `Missing ${missingParams.length} SSM parameter(s): ${missingParams.join(', ')}`,
-      `Create the parameters in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`
-    );
+    return promptForParams(missingParams);
+  }
+  throw new ExpectedError(
+    'CONFIG',
+    `Missing ${missingParams.length} SSM parameter(s): ${missingParams.join(', ')}`,
+    `Create the parameters in the Stacktape Console: ${stacktapeConsoleUrl('/ssm-params')}`
+  );
+};
+
+export const createMissingSsmParams = async (plan: MissingSsmParamsPlan) => {
+  for (const { name, value, encrypted } of plan) {
+    const spinner = tuiManager.createSpinner({ text: `Creating SSM parameter ${tuiManager.makeBold(name)}` });
+    await awsSdkManager.parameterStore.put({ name, value, encrypted });
+    spinner.success({ text: `SSM parameter ${tuiManager.makeBold(name)} created` });
   }
 };
 
-const promptAndCreateParams = async (paramNames: string[]) => {
+export const ensureMissingSsmParamsCreated = async () => createMissingSsmParams(await planMissingSsmParams());
+
+/** `$SsmParam` references whose parameter does not exist in the target region. Reads only. */
+export const findMissingSsmParams = async (): Promise<string[]> => {
+  const paramRefs = [...configManager.allSsmParamReferencesUsedInConfig];
+  const found = await Promise.all(
+    paramRefs.map((paramName) =>
+      awsSdkManager.parameterStore.get({ name: paramName }).then(
+        () => true,
+        () => false
+      )
+    )
+  );
+  return paramRefs.filter((_, index) => !found[index]);
+};
+
+const promptForParams = async (paramNames: string[]): Promise<MissingSsmParamsPlan> => {
+  const plan: MissingSsmParamsPlan = [];
   for (const paramName of paramNames) {
-    const isSecure = await tuiManager.promptConfirm({
+    const encrypted = await tuiManager.promptConfirm({
       message: `Should ${tuiManager.makeBold(paramName)} be encrypted (SecureString)?`
     });
     const value = await tuiManager.promptText({
       message: `Enter value for ${tuiManager.makeBold(paramName)}:`,
-      isPassword: isSecure
+      isPassword: encrypted
     });
-    const spinner = tuiManager.createSpinner({ text: `Creating SSM parameter ${tuiManager.makeBold(paramName)}` });
-    await awsSdkManager.parameterStore.put({
-      name: paramName,
-      value,
-      encrypted: isSecure
-    });
-    spinner.success({ text: `SSM parameter ${tuiManager.makeBold(paramName)} created` });
+    plan.push({ name: paramName, value, encrypted });
   }
+  return plan;
 };

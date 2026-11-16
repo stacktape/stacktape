@@ -182,8 +182,12 @@ export class ConfigManager {
   #cliRemoteResourceNames: readonly string[] = [];
   #devAutoRemoteResourceNames: readonly string[] = [];
   #devSkippedFunctionNames: ReadonlySet<string> = new Set();
-  /** Secrets `validate` reported as missing, so their references resolve to placeholders and the other checks run. */
+  /**
+   * Secrets and SSM parameters reported as missing, so their references resolve to placeholders: `validate` checks the
+   * rest of the template, and `deploy` builds the template it asks for confirmation with before it creates them.
+   */
   #secretsReportedMissing = new Set<string>();
+  #ssmParamsReportedMissing = new Set<string>();
   #devNetworkPlacement: DevNetworkPlacement | undefined;
   #devTrustStatement: DeveloperTrustStatement | undefined;
 
@@ -342,6 +346,7 @@ export class ConfigManager {
     this.#devAutoRemoteResourceNames = [];
     this.#devSkippedFunctionNames = new Set();
     this.#secretsReportedMissing = new Set();
+    this.#ssmParamsReportedMissing = new Set();
     this.#devNetworkPlacement = undefined;
     this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
@@ -2246,6 +2251,18 @@ export class ConfigManager {
   };
 
   isSecretReportedMissing = (secretName: string) => this.#secretsReportedMissing.has(secretName);
+
+  reportSsmParamsMissing = (paramNames: Iterable<string>) => {
+    for (const paramName of paramNames) this.#ssmParamsReportedMissing.add(paramName);
+  };
+
+  isSsmParamReportedMissing = (paramName: string) => this.#ssmParamsReportedMissing.has(paramName);
+
+  /** Ends placeholder resolution. Runtime directive results stay cached until `invalidatePotentiallyChangedDirectiveResults`. */
+  clearReportedMissingReferences = () => {
+    this.#secretsReportedMissing = new Set();
+    this.#ssmParamsReportedMissing = new Set();
+  };
 
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();

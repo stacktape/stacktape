@@ -247,7 +247,8 @@ export const initializeStackOperationLifecycle = async ({
   requiresSubscription,
   beforeConfigInit,
   skipRawConfigForTarget = false,
-  stackLockOperation
+  stackLockOperation,
+  deferStartHooks = false
 }: {
   commandModifiesStack?: boolean;
   commandRequiresDeployedStack?: boolean;
@@ -263,6 +264,8 @@ export const initializeStackOperationLifecycle = async ({
   skipRawConfigForTarget?: boolean;
   /** The command holds the stack's lock from its start. */
   stackLockOperation?: StackLockOperation;
+  /** The command runs its `before` hooks itself, after it has asked for every confirmation it needs. */
+  deferStartHooks?: boolean;
 }) => {
   const getHeaderAction = () => {
     const command = globalStateManager.command;
@@ -421,7 +424,7 @@ export const initializeStackOperationLifecycle = async ({
       phase: 'INITIALIZE'
     });
   }
-  await commandLifecycle.processHooks({ captureType: 'START' });
+  if (!deferStartHooks) await commandLifecycle.processHooks({ captureType: 'START' });
 
   return { args: captureCommandArgs(), stackContext } as const;
 };
@@ -489,7 +492,9 @@ export const initializeDeployOperation = async ({
     requiresSubscription: true,
     beforeConfigInit,
     skipRawConfigForTarget,
-    stackLockOperation: 'deploy'
+    stackLockOperation: 'deploy',
+    // Deploy asks for its confirmations before the beforeDeploy hooks run (`confirmDeployBeforeChanges`).
+    deferStartHooks: true
   })),
   application: applicationManager,
   budget: budgetManager,

@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { DescribeSecretCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { startMiniStack } from '@stacktape/ministack/fixture';
 // oxlint-disable-next-line import/no-unassigned-import
@@ -168,6 +170,128 @@ process.exit(Number(exitCode));
   } finally {
     cloudFormation.destroy();
     s3.destroy();
+    try {
+      await ministack.stop();
+    } finally {
+      await rm(out, { recursive: true, force: true });
+    }
+  }
+}, 420_000);
+
+// Found in the v4 Console cutover rehearsal: a deploy without `--yes` ran its beforeDeploy hook (the database
+// migration) and only then stopped to ask about a deleted bucket. Every question now comes before the hooks, so a run
+// that cannot ask changes nothing: no hook, no created parameter, no stack update.
+test('a deploy that needs confirmation and cannot ask stops before its beforeDeploy hooks and changes nothing', async () => {
+  const out = await mkdtemp(join(tmpdir(), 'stp-deploy-confirm-'));
+  const ministack = await startMiniStack({ label: 'deploy-confirm' });
+  const cloudFormation = new CloudFormationClient(ministack.clientConfig());
+  const ssm = new SSMClient(ministack.clientConfig());
+  const secrets = new SecretsManagerClient(ministack.clientConfig());
+  try {
+    const project = await createFamilyProject({ familyName: 'deploy-confirm', out, ministack });
+    const missingSecret = 'stp-deploy-confirm-not-created-yet';
+    const runsPath = join(project.directory, 'hook-runs.log');
+    const missingParameter = '/stp-deploy-confirm/not-created-yet';
+    const hookRuns = async () => (await readFile(runsPath, 'utf8').catch(() => '')).split('\n').filter(Boolean);
+    const config = ({
+      withData,
+      referenceMissingParameter
+    }: {
+      withData: boolean;
+      referenceMissingParameter?: boolean;
+    }) => ({
+      scripts: {
+        migrate: { type: 'local-script', properties: { executeCommand: `${process.execPath} hook.mjs migrate` } }
+      },
+      hooks: { beforeDeploy: [{ scriptName: 'migrate' }] },
+      ...(referenceMissingParameter
+        ? {
+            stackConfig: {
+              outputs: [
+                { name: 'Setting', value: `$SsmParam('${missingParameter}')` },
+                { name: 'Token', value: `$Secret('${missingSecret}')` }
+              ]
+            }
+          }
+        : {}),
+      resources: { kept: { type: 'bucket' }, ...(withData ? { data: { type: 'bucket' } } : {}) }
+    });
+    const deploy = async (logName: string, args: string[]) => {
+      const run = await runSourceCliCommand({
+        project,
+        ministack,
+        logName,
+        args: ['deploy', '--outputFormat', 'jsonl', ...args]
+      });
+      const result = run.stdout
+        .split('\n')
+        .filter((line) => line.startsWith('{'))
+        .map((line) => JSON.parse(line) as ResultRecord)
+        .findLast((record) => record.type === 'result');
+      return { ...run, result, tail: `${run.stdout}\n${run.stderr}`.slice(-3000) };
+    };
+    const stack = async () =>
+      (await cloudFormation.send(new DescribeStacksCommand({ StackName: project.stackName }))).Stacks?.[0];
+    const bucketsInStack = async () =>
+      ((await describeStackResources(cloudFormation, project.stackName)) ?? [])
+        .filter(({ ResourceType }) => ResourceType === 'AWS::S3::Bucket')
+        .map(({ LogicalResourceId }) => LogicalResourceId)
+        .sort();
+    let deployed = false;
+    try {
+      await writeProjectFiles(project, {
+        'hook.mjs': `import { appendFileSync } from 'node:fs';
+appendFileSync(${JSON.stringify(runsPath)}, process.argv[2] + '\\n');
+`,
+        'stacktape.yml': config({ withData: true })
+      });
+      const created = await deploy('create', ['--autoConfirmOperation']);
+      deployed = true;
+      expect(created.exitCode, created.tail).toBe(0);
+      const bucketsBefore = await bucketsInStack();
+      expect(bucketsBefore.some((logicalId) => logicalId.startsWith('Data'))).toBe(true);
+      const { LastUpdatedTime: updatedBefore, StackStatus: statusBefore } = (await stack())!;
+      await rm(runsPath, { force: true });
+
+      // The update deletes the `data` bucket. Standard input is closed, so the CLI cannot ask; without --yes it must
+      // refuse before the hook runs and before it asks for the missing parameter and secret. The template it checks
+      // holds placeholders for both.
+      await writeProjectFiles(project, {
+        'stacktape.yml': config({ withData: false, referenceMissingParameter: true })
+      });
+      const refused = await deploy('refused', []);
+      expect(refused.exitCode, refused.tail).not.toBe(0);
+      expect(refused.result, refused.tail).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+      expect(refused.result?.message).toContain('data');
+      expect(await hookRuns()).toEqual([]);
+      expect(await bucketsInStack()).toEqual(bucketsBefore);
+      const after = (await stack())!;
+      expect(after.StackStatus).toBe(statusBefore);
+      expect(after.LastUpdatedTime).toEqual(updatedBefore);
+      await expect(ssm.send(new GetParameterCommand({ Name: missingParameter }))).rejects.toThrow();
+      await expect(secrets.send(new DescribeSecretCommand({ SecretId: missingSecret }))).rejects.toThrow();
+
+      // With --yes the same update runs the hook first, then deletes the bucket.
+      await writeProjectFiles(project, { 'stacktape.yml': config({ withData: false }) });
+      const confirmed = await deploy('confirmed', ['--autoConfirmOperation']);
+      expect(confirmed.exitCode, confirmed.tail).toBe(0);
+      expect(await hookRuns()).toEqual(['migrate']);
+      expect((await bucketsInStack()).some((logicalId) => logicalId.startsWith('Data'))).toBe(false);
+    } finally {
+      try {
+        if (deployed) {
+          const deleted = await runSourceCli({ project, step: 'delete', ministack });
+          expect(deleted.exitCode, deleted.tail).toBe(0);
+          expect(await describeStackResources(cloudFormation, project.stackName)).toBeUndefined();
+        }
+      } finally {
+        await project.close();
+      }
+    }
+  } finally {
+    cloudFormation.destroy();
+    ssm.destroy();
+    secrets.destroy();
     try {
       await ministack.stop();
     } finally {

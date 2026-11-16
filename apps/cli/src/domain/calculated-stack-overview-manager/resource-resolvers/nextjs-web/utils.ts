@@ -109,11 +109,13 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
-    // `synth`, and `validate` without `--withPackage`, build nothing, so there is nothing to read: the template keeps
-    // the static-asset placeholder behavior. Every other command has built the app by now, and a missing directory is
-    // a failed build it must not deploy past.
+    // `synth`, `validate` without `--withPackage` and the template deploy confirms before it builds anything have nothing
+    // to read: the template keeps the static-asset placeholder behavior. Every other command has built the app by now,
+    // and a missing directory is a failed build it must not deploy past.
     const { command } = calculatedStackOverviewManager.context;
-    if ((command === 'validate' || command === 'synth') && !(await pathExists(assetsDirPath))) {
+    const buildsNothing =
+      command === 'validate' || command === 'synth' || calculatedStackOverviewManager.isPreviewingTemplate;
+    if (buildsNothing && !(await pathExists(assetsDirPath))) {
       if (command === 'synth') {
         tuiManager.warn(
           `${nextjsWeb.name}: synth does not build the Next.js app, so the template has a placeholder (<<TBD_STATIC>>) instead of the cache behaviors of its static assets. \`stacktape deploy\` and \`stacktape validate --withPackage\` build the app and add them.`

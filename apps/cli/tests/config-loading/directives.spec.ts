@@ -268,7 +268,7 @@ resources:
     });
   }, 60_000);
 
-  test('a project with both stacktape.ts and stacktape.yml loads the TypeScript one', async () => {
+  test('a project with both stacktape.ts and stacktape.yml refuses to guess, and loads the file it is given', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 resources:
   onlyInYaml:
@@ -280,13 +280,12 @@ resources:
     );
     const originalArgs = globalStateManager.rawArgs;
     globalStateManager.rawArgs = { currentWorkingDirectory: dir } as typeof originalArgs;
-    let configPath: string;
     try {
-      configPath = getConfigPath();
+      expect(() => getConfigPath()).toThrow('Stacktape does not guess which one to use.');
     } finally {
       globalStateManager.rawArgs = originalArgs;
     }
-    expect(configPath).toBe(join(dir, 'stacktape.ts'));
+    const configPath = join(dir, 'stacktape.ts');
     const template = await synthesizeFixture({
       configPath,
       workingDir: dir,
