@@ -1,6 +1,6 @@
 # AgentCore Gateway
 
-A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It defines Lambda-backed tools behind a single endpoint, each referencing a Lambda function using either `function` (Stacktape resource name) or `lambdaArn` (full ARN). An [AgentCore runtime](/resources/ai/agentcore-runtime) can reference the gateway via its `useGateway` property. Configure optional JWT authentication to restrict access.
+A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It defines Lambda-backed tools behind a single endpoint, each referencing a Lambda function using either `function` (Stacktape resource name) or `lambdaArn` (full ARN). An [AgentCore runtime](/resources/ai/agentcore-runtime) can reference the gateway via its `useGateway` property. Every gateway chooses its authentication: a JWT authorizer, or explicitly none.
 
 ## When to use
 
@@ -42,6 +42,7 @@ export default defineConfig(() => {
   });
 
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Tool gateway for customer support agent',
     tools: [
       {
@@ -106,9 +107,12 @@ export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'E-commerce agent tools',
     authorizer: {
-      discoveryUrl:
-        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
-      allowedAudience: ['my-app-client-id']
+      type: 'jwt',
+      properties: {
+        discoveryUrl:
+          'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
+        allowedAudience: ['my-app-client-id']
+      }
     },
     tools: [
       {
@@ -211,6 +215,7 @@ export default defineConfig(() => {
   });
 
   const supportGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Governed tool gateway for customer support operations',
     instructions: 'Use these tools only for customer support lookup and ticket workflows.',
     tools: [
@@ -303,7 +308,7 @@ Stacktape types `inputSchema` and `outputSchema` as `any`, so the config layer d
 
 The gateway accepts a JWT authorizer configuration with an OIDC discovery URL and optional audience, client, and scope allow-lists. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
 
-The `authorizer` property is optional. For production deployments, configure an authorizer to restrict access to authenticated callers.
+The `authorizer` property is required, because a gateway exposes every tool it lists. Use `type: 'jwt'` to accept only callers with a valid token. Use `type: 'none'` only for a gateway whose tools are safe for anyone who can reach its endpoint; the other examples on this page use it to stay short.
 
 
 Example (TypeScript):
@@ -314,11 +319,14 @@ export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'Secured tool gateway',
     authorizer: {
-      discoveryUrl:
-        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
-      allowedAudience: ['my-app-client-id'],
-      allowedClients: ['agent-client-id'],
-      allowedScopes: ['tools:read', 'tools:execute']
+      type: 'jwt',
+      properties: {
+        discoveryUrl:
+          'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
+        allowedAudience: ['my-app-client-id'],
+        allowedClients: ['agent-client-id'],
+        allowedScopes: ['tools:read', 'tools:execute']
+      }
     },
     tools: []
   });
@@ -330,7 +338,7 @@ export default defineConfig(() => {
 ```
 
 
-The `discoveryUrl` is required — it must point to the `.well-known/openid-configuration` endpoint of your identity provider. `allowedAudience`, `allowedClients`, and `allowedScopes` configure optional allow-lists for the JWT authorizer.
+Under `properties`, the `discoveryUrl` is required — it must point to the `.well-known/openid-configuration` endpoint of your identity provider. `allowedAudience`, `allowedClients`, and `allowedScopes` configure optional allow-lists for the JWT authorizer.
 
 
 > **Tip:** If you're using a [Stacktape user auth pool](/resources/security/user-auth-pool) (Amazon Cognito), construct the discovery URL from your User Pool ID: `https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/openid-configuration`.
@@ -352,6 +360,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Agent tools',
     tools: []
   });
@@ -395,6 +404,7 @@ Example (TypeScript):
 import { defineConfig, AgentCoreGateway } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Dev gateway with debug logging',
     exceptionLevel: 'DEBUG',
     tools: []
@@ -420,7 +430,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
+| `authorizer` | yes | `jwt \| none` | - |
 | `description` | no | `string` | - |
 | `exceptionLevel` | no | `string = "DEBUG"` | - |
 | `instructions` | no | `string` | - |
@@ -448,7 +458,7 @@ The gateway defines tools; the [AgentCore runtime](/resources/ai/agentcore-runti
 
 ### Which identity providers work with the JWT authorizer?
 
-Configure `authorizer.discoveryUrl` with any provider that exposes a `.well-known/openid-configuration` endpoint, and optionally restrict accepted tokens by audience, client, and scope. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
+Set `authorizer.properties.discoveryUrl` to any provider that exposes a `.well-known/openid-configuration` endpoint, and optionally restrict accepted tokens by audience, client, and scope. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
 
 ### Can a single tool expose multiple operations?
 

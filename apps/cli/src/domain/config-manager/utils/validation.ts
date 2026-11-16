@@ -278,6 +278,7 @@ export const validateConfigStructure = async ({
   validateNoLegacyRedisClusters({ config });
   validateCdnSelectors({ config });
   validateNoAuroraServerlessV1({ config });
+  validateAgentCoreGatewayAuthorizers({ config });
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
@@ -288,6 +289,40 @@ export const validateConfigStructure = async ({
       code: 'CONFIG_SCHEMA_INVALID',
       message: zodResult.errorMessage
     });
+  }
+};
+
+/**
+ * A gateway exposes every tool it lists, so its authentication is an explicit choice: `jwt`, or `none` for a gateway
+ * that is meant to be open. The schema error for a missing property does not say that.
+ */
+const validateAgentCoreGatewayAuthorizers = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    if (resource?.type !== 'agentcore-gateway') continue;
+    const authorizer = (resource as { properties?: { authorizer?: unknown } }).properties?.authorizer;
+    if (authorizer === undefined) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_AGENTCORE_GATEWAY_AUTHORIZER_MISSING',
+        message:
+          `AgentCore gateway \`${name}\` has no \`authorizer\`. The gateway exposes all of its tools, so choose who ` +
+          'can call them.',
+        hints: [
+          'To require a JSON Web Token: `authorizer: { type: jwt, properties: { discoveryUrl: <your OIDC discovery URL> } }`.',
+          'To let anyone who can reach the gateway call its tools: `authorizer: { type: none }`.'
+        ]
+      });
+    }
+    if (authorizer && typeof authorizer === 'object' && 'discoveryUrl' in authorizer) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_SCHEMA_INVALID',
+        message: `AgentCore gateway \`${name}\` sets the JWT settings directly under \`authorizer\`.`,
+        hints: [
+          'Move them under `properties` and add `type: jwt`: `authorizer: { type: jwt, properties: { discoveryUrl, ... } }`.'
+        ]
+      });
+    }
   }
 };
 

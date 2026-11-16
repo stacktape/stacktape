@@ -62,6 +62,7 @@ const provisioner = new CustomResourceDefinition({
 });
 const provisionedThing = new CustomResourceInstance({ definitionName: provisioner, resourceProperties: {} });
 const gateway = new AgentCoreGateway({
+  authorizer: { type: 'none' },
   tools: [{ name: 'lookup', description: 'Lookup', function: worker, toolSchema: [] }]
 });
 const browser = new AgentCoreBrowser({ recording: { bucketName: 'literal-aws-bucket' } });

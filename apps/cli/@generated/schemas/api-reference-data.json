@@ -292,17 +292,110 @@
     },
     "typeDeclaration": "import type { AgentCoreGatewayProps } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGateway = {\n  properties: AgentCoreGatewayProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
   },
-  "AgentCoreGatewayProps": {
-    "definitionName": "AgentCoreGatewayProps",
+  "AgentCoreGatewayJwtAuthorizer": {
+    "definitionName": "AgentCoreGatewayJwtAuthorizer",
+    "shortDescription": "<p> Require a JSON Web Token from your identity provider on every gateway call.</p>",
     "properties": [
       {
-        "name": "authorizer",
-        "required": false,
+        "name": "properties",
+        "required": true,
         "shortDescription": "",
         "longDescription": "",
         "typeInfo": {
           "kind": "reference",
           "typeName": "AgentCoreJwtAuthorizerConfig"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { AgentCoreJwtAuthorizerConfig } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayJwtAuthorizer = {\n  properties: AgentCoreJwtAuthorizerConfig;\n};\n// [!code focus-end]"
+  },
+  "AgentCoreGatewayProps": {
+    "definitionName": "AgentCoreGatewayProps",
+    "properties": [
+      {
+        "name": "authorizer",
+        "required": true,
+        "shortDescription": "<p> Who can call the gateway&#39;s tools.</p>",
+        "longDescription": "<p>Required, because the gateway exposes every configured tool to its callers.</p>\n<ul>\n<li><code>jwt</code>: callers must send a JSON Web Token issued by your identity provider.</li>\n<li><code>none</code>: anyone who can reach the gateway endpoint can call its tools. Use it only for tools that are safe to\nexpose publicly.</li>\n</ul>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": "type",
+          "branches": [
+            {
+              "label": "jwt",
+              "typeName": "AgentCoreGatewayJwtAuthorizer",
+              "shortDescription": "<p> Require a JSON Web Token from your identity provider on every gateway call.</p>",
+              "properties": [
+                {
+                  "name": "discoveryUrl",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                },
+                {
+                  "name": "allowedAudience",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "allowedClients",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "name": "allowedScopes",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "none",
+              "typeName": "AgentCoreGatewayNoAuthorizer",
+              "shortDescription": "<p> Allow unauthenticated calls to the gateway&#39;s tools.</p>",
+              "properties": []
+            }
+          ]
         }
       },
       {
@@ -398,10 +491,10 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 8
+      "requiredCount": 1,
+      "optionalCount": 7
     },
-    "typeDeclaration": "import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayProps = {\n  authorizer?: AgentCoreJwtAuthorizerConfig;\n  description?: string;\n  exceptionLevel?: \"DEBUG\";\n  instructions?: string;\n  searchType?: \"SEMANTIC\";\n  supportedVersions?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  tools?: Array<AgentCoreGatewayTool>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { AgentCoreGatewayJwtAuthorizer, AgentCoreGatewayNoAuthorizer, AgentCoreGatewayTool, CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayProps = {\n  /** Who can call the gateway's tools. */\n  authorizer: AgentCoreGatewayAuthorizer;\n  description?: string;\n  exceptionLevel?: \"DEBUG\";\n  instructions?: string;\n  searchType?: \"SEMANTIC\";\n  supportedVersions?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  tools?: Array<AgentCoreGatewayTool>;\n};\n\n/** Union choices used by the properties above. */\ntype AgentCoreGatewayAuthorizer =\n  | AgentCoreGatewayJwtAuthorizer\n  | AgentCoreGatewayNoAuthorizer;\n// [!code focus-end]"
   },
   "AgentCoreGatewayTool": {
     "definitionName": "AgentCoreGatewayTool",
@@ -608,22 +701,11 @@
         }
       },
       {
-        "name": "eventExpiryDuration",
+        "name": "eventRetentionDays",
         "required": false,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "number"
-          ]
-        }
-      },
-      {
-        "name": "expirationDays",
-        "required": false,
-        "shortDescription": "",
-        "longDescription": "",
+        "shortDescription": "<p> How many days AgentCore keeps raw memory events.</p>",
+        "longDescription": "<p>Events older than this are deleted. AWS accepts 7 to 365 days.</p>",
+        "defaultValue": "30",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -659,9 +741,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 6
+      "optionalCount": 5
     },
-    "typeDeclaration": "import type { CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreMemoryProps = {\n  description?: string;\n  encryptionKeyArn?: string;\n  eventExpiryDuration?: number;\n  expirationDays?: number;\n  memoryStrategies?: Array<unknown>;\n  tags?: Array<CloudformationTag>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreMemoryProps = {\n  description?: string;\n  encryptionKeyArn?: string;\n  /** How many days AgentCore keeps raw memory events. */\n  eventRetentionDays?: number;\n  memoryStrategies?: Array<unknown>;\n  tags?: Array<CloudformationTag>;\n};\n// [!code focus-end]"
   },
   "AgentCoreRuntime": {
     "definitionName": "AgentCoreRuntime",
@@ -752,10 +834,10 @@
     "definitionName": "AgentCoreRuntimeLifecycleConfig",
     "properties": [
       {
-        "name": "idleRuntimeSessionTimeout",
+        "name": "idleTimeoutSeconds",
         "required": false,
-        "shortDescription": "",
-        "longDescription": "",
+        "shortDescription": "<p> How long an idle runtime session stays alive, in seconds.</p>",
+        "longDescription": "<p>AWS ends a session that receives no request for this long. A shorter timeout lowers cost. When omitted, AWS uses\nits default (15 minutes).</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -764,10 +846,10 @@
         }
       },
       {
-        "name": "maxLifetime",
+        "name": "maxLifetimeSeconds",
         "required": false,
-        "shortDescription": "",
-        "longDescription": "",
+        "shortDescription": "<p> Longest time a runtime session can live, in seconds.</p>",
+        "longDescription": "<p>AWS ends the session after this time, even while it is active. When omitted, AWS uses its default (8 hours).</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -780,7 +862,7 @@
       "requiredCount": 0,
       "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreRuntimeLifecycleConfig = {\n  idleRuntimeSessionTimeout?: number;\n  maxLifetime?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype AgentCoreRuntimeLifecycleConfig = {\n  /** How long an idle runtime session stays alive, in seconds. */\n  idleTimeoutSeconds?: number;\n  /** Longest time a runtime session can live, in seconds. */\n  maxLifetimeSeconds?: number;\n};\n// [!code focus-end]"
   },
   "AgentCoreRuntimeProps": {
     "definitionName": "AgentCoreRuntimeProps",

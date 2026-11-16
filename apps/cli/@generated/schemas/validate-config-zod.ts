@@ -1070,7 +1070,7 @@ const __stacktapeSharedZod315 = z.object({
   "allowedAudience": __stacktapeSharedZod314,
   "allowedClients": __stacktapeSharedZod314,
   "allowedScopes": __stacktapeSharedZod314 }).strict()
-.optional().describe("").optional()
+
 const __stacktapeSharedZod316 = __stacktapeSharedZod29.describe("").optional()
 const __stacktapeSharedZod317 = z.object({
   "Ref": __stacktapeSharedZod0 }).strict()
@@ -2795,11 +2795,11 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
             "runtimeVersion": __stacktapeSharedZod300 }).strict()
           , __stacktapeSharedZod0])).optional().describe("Runtime endpoints. Omit this property to create one endpoint named `default`.\n\nAn explicit list must contain at least one endpoint and endpoint names must be unique. References to\n`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint\nin this list.").optional(),
         "lifecycle": z.object({
-          "maxLifetime": __stacktapeSharedZod305,
-          "idleRuntimeSessionTimeout": __stacktapeSharedZod305 }).strict()
+          "maxLifetimeSeconds": __stacktapeSharedZod28.describe("#### Longest time a runtime session can live, in seconds.\n\n---\n\nAWS ends the session after this time, even while it is active. When omitted, AWS uses its default (8 hours).").optional(),
+          "idleTimeoutSeconds": __stacktapeSharedZod28.describe("#### How long an idle runtime session stays alive, in seconds.\n\n---\n\nAWS ends a session that receives no request for this long. A shorter timeout lowers cost. When omitted, AWS uses\nits default (15 minutes).").optional() }).strict()
         .optional().describe("").optional(),
         "requestHeaders": __stacktapeSharedZod314,
-        "authorizer": __stacktapeSharedZod315,
+        "authorizer": __stacktapeSharedZod315.optional().describe("").optional(),
         "tags": __stacktapeSharedZod316,
         "connectTo": __stacktapeSharedZod205,
         "iamRoleStatements": __stacktapeSharedZod207 }).strict()
@@ -2809,8 +2809,7 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
       "type": z.literal("agentcore-memory"),
       "properties": z.object({
         "description": __stacktapeSharedZod300,
-        "expirationDays": __stacktapeSharedZod305,
-        "eventExpiryDuration": __stacktapeSharedZod305,
+        "eventRetentionDays": __stacktapeSharedZod28.describe("#### How many days AgentCore keeps raw memory events.\n\n---\n\nEvents older than this are deleted. AWS accepts 7 to 365 days.").default(30),
         "encryptionKeyArn": __stacktapeSharedZod300,
         "memoryStrategies": __stacktapeSharedZod303,
         "tags": __stacktapeSharedZod316 }).strict()
@@ -2820,7 +2819,12 @@ export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = z.objec
       "type": z.literal("agentcore-gateway"),
       "properties": z.object({
         "description": __stacktapeSharedZod300,
-        "authorizer": __stacktapeSharedZod315,
+        "authorizer": z.union([z.object({
+            "type": z.literal("jwt"),
+            "properties": __stacktapeSharedZod315 }).strict()
+          .describe("#### Require a JSON Web Token from your identity provider on every gateway call."), z.object({
+            "type": z.literal("none") }).strict()
+          .describe("#### Allow unauthenticated calls to the gateway's tools.")]).describe("#### Who can call the gateway's tools.\n\n---\n\nRequired, because the gateway exposes every configured tool to its callers.\n\n- `jwt`: callers must send a JSON Web Token issued by your identity provider.\n- `none`: anyone who can reach the gateway endpoint can call its tools. Use it only for tools that are safe to\n  expose publicly."),
         "tools": z.array(z.object({
           "name": __stacktapeSharedZod0,
           "description": __stacktapeSharedZod300,

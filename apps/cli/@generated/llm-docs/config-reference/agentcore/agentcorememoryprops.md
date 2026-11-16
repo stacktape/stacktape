@@ -8,8 +8,8 @@ import type { CloudformationTag } from 'stacktape';
 type AgentCoreMemoryProps = {
   description?: string;
   encryptionKeyArn?: string;
-  eventExpiryDuration?: number;
-  expirationDays?: number;
+  /** How many days AgentCore keeps raw memory events. */
+  eventRetentionDays?: number;
   memoryStrategies?: Array<unknown>;
   tags?: Array<CloudformationTag>;
 };
@@ -25,15 +25,15 @@ type AgentCoreMemoryProps = {
 - Required: no
 - Type: `string`
 
-## Property: `eventExpiryDuration`
+## Property: `eventRetentionDays`
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
-## Property: `expirationDays`
+How many days AgentCore keeps raw memory events.
 
-- Required: no
-- Type: `number`
+Events older than this are deleted. AWS accepts 7 to 365 days.
 
 ## Property: `memoryStrategies`
 

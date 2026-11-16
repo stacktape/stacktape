@@ -27439,7 +27439,7 @@ import {
 export default defineConfig(() => {
   const researchMemory = new AgentCoreMemory({
     description: 'Stores prior research briefs and follow-up context.',
-    expirationDays: 45
+    eventRetentionDays: 45
   });
 
   const researchBrowser = new AgentCoreBrowser({
@@ -27455,8 +27455,8 @@ export default defineConfig(() => {
     useBrowser: 'researchBrowser',
     endpoints: [{ name: 'production', description: 'Main research assistant endpoint.' }],
     lifecycle: {
-      idleRuntimeSessionTimeout: 3600,
-      maxLifetime: 28800
+      idleTimeoutSeconds: 3600,
+      maxLifetimeSeconds: 28800
     },
     environment: { AI_MODEL: 'eu.amazon.nova-micro-v1:0' }
   });
@@ -27472,7 +27472,7 @@ export default defineConfig(() => {
 ```
 
 
-`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `expirationDays` property on `AgentCoreMemory` controls how long memory entries are retained. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime: `idleRuntimeSessionTimeout` sets how long an idle session persists, and `maxLifetime` caps the total session duration. The values `45`, `3600`, and `28800` in this example are illustrative choices — the source types expose these as `number` properties without documenting specific defaults or upper bounds. Adjust them to fit your agent's session and retention requirements.
+`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `eventRetentionDays` property on `AgentCoreMemory` sets how many days raw memory events are kept. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime in seconds: `idleTimeoutSeconds` sets how long an idle session persists, and `maxLifetimeSeconds` caps the total session duration. The values `45`, `3600`, and `28800` in this example are illustrative; adjust them to your agent's session and retention requirements.
 
 ## Overrides
 
@@ -27763,7 +27763,7 @@ Use [`$ResourceParam`](/configuration/directives) to pass the ID as an environme
 Source: `apps/docs/content/resources/ai/agentcore-gateway.mdx`
 Route: `/resources/ai/agentcore-gateway`
 
-A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It defines Lambda-backed tools behind a single endpoint, each referencing a Lambda function using either `function` (Stacktape resource name) or `lambdaArn` (full ARN). An [AgentCore runtime](/resources/ai/agentcore-runtime) can reference the gateway via its `useGateway` property. Configure optional JWT authentication to restrict access.
+A Stacktape AgentCore Gateway is a managed MCP tool gateway on AWS Bedrock AgentCore. It defines Lambda-backed tools behind a single endpoint, each referencing a Lambda function using either `function` (Stacktape resource name) or `lambdaArn` (full ARN). An [AgentCore runtime](/resources/ai/agentcore-runtime) can reference the gateway via its `useGateway` property. Every gateway chooses its authentication: a JWT authorizer, or explicitly none.
 
 ## When to use
 
@@ -27805,6 +27805,7 @@ export default defineConfig(() => {
   });
 
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Tool gateway for customer support agent',
     tools: [
       {
@@ -27869,9 +27870,12 @@ export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'E-commerce agent tools',
     authorizer: {
-      discoveryUrl:
-        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
-      allowedAudience: ['my-app-client-id']
+      type: 'jwt',
+      properties: {
+        discoveryUrl:
+          'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
+        allowedAudience: ['my-app-client-id']
+      }
     },
     tools: [
       {
@@ -27974,6 +27978,7 @@ export default defineConfig(() => {
   });
 
   const supportGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Governed tool gateway for customer support operations',
     instructions: 'Use these tools only for customer support lookup and ticket workflows.',
     tools: [
@@ -28066,7 +28071,7 @@ Stacktape types `inputSchema` and `outputSchema` as `any`, so the config layer d
 
 The gateway accepts a JWT authorizer configuration with an OIDC discovery URL and optional audience, client, and scope allow-lists. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
 
-The `authorizer` property is optional. For production deployments, configure an authorizer to restrict access to authenticated callers.
+The `authorizer` property is required, because a gateway exposes every tool it lists. Use `type: 'jwt'` to accept only callers with a valid token. Use `type: 'none'` only for a gateway whose tools are safe for anyone who can reach its endpoint; the other examples on this page use it to stay short.
 
 
 Example (TypeScript):
@@ -28077,11 +28082,14 @@ export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'Secured tool gateway',
     authorizer: {
-      discoveryUrl:
-        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
-      allowedAudience: ['my-app-client-id'],
-      allowedClients: ['agent-client-id'],
-      allowedScopes: ['tools:read', 'tools:execute']
+      type: 'jwt',
+      properties: {
+        discoveryUrl:
+          'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ABC123/.well-known/openid-configuration',
+        allowedAudience: ['my-app-client-id'],
+        allowedClients: ['agent-client-id'],
+        allowedScopes: ['tools:read', 'tools:execute']
+      }
     },
     tools: []
   });
@@ -28093,7 +28101,7 @@ export default defineConfig(() => {
 ```
 
 
-The `discoveryUrl` is required — it must point to the `.well-known/openid-configuration` endpoint of your identity provider. `allowedAudience`, `allowedClients`, and `allowedScopes` configure optional allow-lists for the JWT authorizer.
+Under `properties`, the `discoveryUrl` is required — it must point to the `.well-known/openid-configuration` endpoint of your identity provider. `allowedAudience`, `allowedClients`, and `allowedScopes` configure optional allow-lists for the JWT authorizer.
 
 
 > **Tip:** If you're using a [Stacktape user auth pool](/resources/security/user-auth-pool) (Amazon Cognito), construct the discovery URL from your User Pool ID: `https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/openid-configuration`.
@@ -28115,6 +28123,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Agent tools',
     tools: []
   });
@@ -28158,6 +28167,7 @@ Example (TypeScript):
 import { defineConfig, AgentCoreGateway } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
+    authorizer: { type: 'none' },
     description: 'Dev gateway with debug logging',
     exceptionLevel: 'DEBUG',
     tools: []
@@ -28183,7 +28193,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
+| `authorizer` | yes | `jwt \| none` | - |
 | `description` | no | `string` | - |
 | `exceptionLevel` | no | `string = "DEBUG"` | - |
 | `instructions` | no | `string` | - |
@@ -28211,7 +28221,7 @@ The gateway defines tools; the [AgentCore runtime](/resources/ai/agentcore-runti
 
 ### Which identity providers work with the JWT authorizer?
 
-Configure `authorizer.discoveryUrl` with any provider that exposes a `.well-known/openid-configuration` endpoint, and optionally restrict accepted tokens by audience, client, and scope. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
+Set `authorizer.properties.discoveryUrl` to any provider that exposes a `.well-known/openid-configuration` endpoint, and optionally restrict accepted tokens by audience, client, and scope. OIDC discovery URLs are the expected shape — verify provider-specific compatibility with AWS Bedrock AgentCore.
 
 ### Can a single tool expose multiple operations?
 
@@ -28246,7 +28256,7 @@ AgentCore Memory is the right choice when your AI agents need cross-session pers
 - **Support agents** that track customer preferences, prior issues, and handoff context over time.
 - **Knowledge-accumulating agents** that build up domain understanding through ongoing interactions.
 
-AgentCore Memory supports optional expiration settings and customer-managed encryption. It also accepts configurable memory strategies whose shape is defined by the AWS Bedrock AgentCore API.
+AgentCore Memory supports an event retention period and customer-managed encryption. It also accepts configurable memory strategies whose shape is defined by the AWS Bedrock AgentCore API.
 
 ## When NOT to use
 
@@ -28297,7 +28307,7 @@ import {
 export default defineConfig(() => {
   const supportMemory = new AgentCoreMemory({
     description: 'Stores customer interaction history and preferences.',
-    expirationDays: 60
+    eventRetentionDays: 60
   });
 
   const supportAgent = new AgentCoreRuntime({
@@ -28330,9 +28340,7 @@ const memoryId = process.env.MEMORY_ID;
 
 ## Memory expiration
 
-`AgentCoreMemoryProps` exposes two optional numeric expiration-related properties: `expirationDays` and `eventExpiryDuration`. The provided Stacktape types do not document their accepted ranges, defaults, or relationship — consult the [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for how they interact and what values they accept.
-
-The example below sets `expirationDays`:
+`eventRetentionDays` sets how many days AgentCore keeps raw memory events before deleting them. It defaults to `30`; AWS accepts 7 to 365 days.
 
 
 Example (TypeScript):
@@ -28341,7 +28349,7 @@ Example (TypeScript):
 import { defineConfig, AgentCoreMemory } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 90
+    eventRetentionDays: 90
   });
 
   return {
@@ -28349,9 +28357,6 @@ export default defineConfig(() => {
   };
 });
 ```
-
-
-`eventExpiryDuration` is a separate optional numeric property also related to expiration. The precise relationship between `expirationDays` and `eventExpiryDuration` is not specified at the Stacktape config layer — consult the [AWS Bedrock AgentCore API documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/) for how they interact.
 
 
 > **Tip:** Choose a retention window that balances recall usefulness against storage growth. Shorter windows suit transient conversational context; longer windows work for agents that accumulate user preferences or project knowledge over time.
@@ -28375,7 +28380,7 @@ import { defineConfig, AgentCoreMemory } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
     encryptionKeyArn: 'arn:aws:kms:us-east-1:123456789012:key/your-key-id',
-    expirationDays: 90
+    eventRetentionDays: 90
   });
 
   return {
@@ -28400,7 +28405,7 @@ export default defineConfig(() => {
   const secureMemory = new AgentCoreMemory({
     description: 'Encrypted memory for a compliance-sensitive agent.',
     encryptionKeyArn: 'arn:aws:kms:us-east-1:123456789012:key/your-key-id',
-    expirationDays: 180,
+    eventRetentionDays: 180,
     tags: [{ name: 'compliance', value: 'hipaa' }]
   });
 
@@ -28428,7 +28433,7 @@ import {
 export default defineConfig(() => {
   const chatMemory = new AgentCoreMemory({
     description: 'Conversation history for the chat agent.',
-    expirationDays: 30
+    eventRetentionDays: 30
   });
 
   const chatAgent = new AgentCoreRuntime({
@@ -28478,8 +28483,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | --- | --- | --- | --- |
 | `description` | no | `string` | - |
 | `encryptionKeyArn` | no | `string` | - |
-| `eventExpiryDuration` | no | `number` | - |
-| `expirationDays` | no | `number` | - |
+| `eventRetentionDays` | no | `number` | `30` |
 | `memoryStrategies` | no | `Array<unknown>` | - |
 | `tags` | no | `Array<CloudformationTag>` | - |
 
@@ -28581,7 +28585,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 30
+    eventRetentionDays: 30
   });
 
   const supportAgent = new AgentCoreRuntime({
@@ -28592,8 +28596,8 @@ export default defineConfig(() => {
     useMemory: 'agentMemory',
     endpoints: ['chat'],
     lifecycle: {
-      maxLifetime: 7200,
-      idleRuntimeSessionTimeout: 300
+      maxLifetimeSeconds: 7200,
+      idleTimeoutSeconds: 300
     }
   });
 
@@ -28604,7 +28608,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource accepts an `expirationDays` number (`30` in this example); use it when you want memory retention to be bounded.
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource keeps raw events for `eventRetentionDays` days (`30` in this example, which is also the default).
 
 ### Agent with tools, authentication, and resource access
 
@@ -28626,11 +28630,12 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 60
+    eventRetentionDays: 60
   });
 
   const toolGateway = new AgentCoreGateway({
     description: 'Gateway for support operations',
+    authorizer: { type: 'none' },
     supportedVersions: ['2025-03-26']
   });
 
@@ -28664,8 +28669,8 @@ export default defineConfig(() => {
       }
     ],
     lifecycle: {
-      maxLifetime: 14400,
-      idleRuntimeSessionTimeout: 1800
+      maxLifetimeSeconds: 14400,
+      idleTimeoutSeconds: 1800
     },
     connectTo: [conversations],
     authorizer: {
@@ -28690,7 +28695,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `1800` and `maxLifetime` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
+In this example, `idleTimeoutSeconds` is set to `1800` and `maxLifetimeSeconds` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
 
 ## Protocols
 
@@ -28751,7 +28756,7 @@ AgentCore Runtime can connect to managed tools that extend your agent's capabili
 
 | Property | Resource type | What it provides |
 |----------|--------------|------------------|
-| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `expirationDays` retention |
+| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `eventRetentionDays` retention |
 | `useGateway` | [AgentCore Gateway](/resources/ai/agentcore-gateway) | MCP-style tool gateway with governed tool definitions |
 | `useBrowser` | [AgentCore Browser](/resources/ai/agentcore-browser) | Sandboxed browser for web research |
 | `useCodeInterpreter` | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Sandboxed code execution environment |
@@ -28815,8 +28820,8 @@ In the example above, `supportedVersions: ['2025-03-26']` on the gateway is an o
 
 Control how long agent runtime sessions live with the `lifecycle` property. Use these settings to manage session duration and control costs.
 
-- **`maxLifetime`** — Maximum lifetime of the runtime session. After this duration, the session is terminated regardless of activity.
-- **`idleRuntimeSessionTimeout`** — How long an idle session stays alive before being reclaimed.
+- **`maxLifetimeSeconds`** — Maximum lifetime of a runtime session, in seconds. After this time, the session ends even while it is active. AWS defaults to 8 hours.
+- **`idleTimeoutSeconds`** — How long an idle session stays alive before it ends, in seconds. AWS defaults to 15 minutes.
 
 
 Example (TypeScript):
@@ -28831,8 +28836,8 @@ export default defineConfig(() => {
     protocol: 'HTTP',
     endpoints: ['chat'],
     lifecycle: {
-      maxLifetime: 3600,
-      idleRuntimeSessionTimeout: 300
+      maxLifetimeSeconds: 3600,
+      idleTimeoutSeconds: 300
     }
   });
 
@@ -28843,7 +28848,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleRuntimeSessionTimeout` to reclaim idle sessions sooner. Use a longer `maxLifetime` for agents that maintain important in-memory state across a multi-step conversation.
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleTimeoutSeconds` to reclaim idle sessions sooner. Use a longer `maxLifetimeSeconds` for agents that maintain important in-memory state across a multi-step conversation.
 
 ## Authentication
 
@@ -29041,7 +29046,7 @@ AgentCore Runtime supports four protocols: `HTTP` (standard request/response), `
 
 ### What managed tools can I attach to an agent?
 
-Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `expirationDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
+Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `eventRetentionDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
 
 ### How do I access other AWS resources from my agent?
 
@@ -29049,7 +29054,7 @@ Use `connectTo` to grant your agent access to Stacktape resources like DynamoDB 
 
 ### When should I use AgentCore Runtime vs a Lambda function for AI?
 
-Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetime`, `idleRuntimeSessionTimeout`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
+Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetimeSeconds`, `idleTimeoutSeconds`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
 
 ### How do I secure my agent endpoints?
 
@@ -29057,11 +29062,11 @@ Use the `authorizer` property to configure JWT-based authentication. Provide you
 
 ### How is AWS Bedrock AgentCore priced?
 
-Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleRuntimeSessionTimeout` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
+Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleTimeoutSeconds` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
 
 ### How does AgentCore Runtime handle concurrency?
 
-AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, not configured directly in Stacktape. You control per-session behavior through the `lifecycle` property (`idleRuntimeSessionTimeout`, `maxLifetime`) but do not set instance counts or autoscaling policies on the runtime resource itself. For detailed concurrency limits and quotas, check the AWS Bedrock AgentCore documentation.
+AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, not configured directly in Stacktape. You control per-session behavior through the `lifecycle` property (`idleTimeoutSeconds`, `maxLifetimeSeconds`) but do not set instance counts or autoscaling policies on the runtime resource itself. For detailed concurrency limits and quotas, check the AWS Bedrock AgentCore documentation.
 
 ## API Reference
 
@@ -51925,6 +51930,30 @@ export default defineConfig(() => {
 
 ---
 
+# AgentCoreGatewayJwtAuthorizer API Reference
+
+Source: `packages/config/src/agentcore.ts`
+Route: `/config-reference/agentcore`
+
+Require a JSON Web Token from your identity provider on every gateway call.
+
+## TypeScript definition
+
+```typescript
+import type { AgentCoreJwtAuthorizerConfig } from 'stacktape';
+
+type AgentCoreGatewayJwtAuthorizer = {
+  properties: AgentCoreJwtAuthorizerConfig;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `AgentCoreJwtAuthorizerConfig`
+
+---
+
 # AgentCoreGatewayProps API Reference
 
 Source: `packages/config/src/agentcore.ts`
@@ -51933,10 +51962,11 @@ Route: `/config-reference/agentcore`
 ## TypeScript definition
 
 ```typescript
-import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';
+import type { AgentCoreGatewayJwtAuthorizer, AgentCoreGatewayNoAuthorizer, AgentCoreGatewayTool, CloudformationTag } from 'stacktape';
 
 type AgentCoreGatewayProps = {
-  authorizer?: AgentCoreJwtAuthorizerConfig;
+  /** Who can call the gateway's tools. */
+  authorizer: AgentCoreGatewayAuthorizer;
   description?: string;
   exceptionLevel?: "DEBUG";
   instructions?: string;
@@ -51945,12 +51975,29 @@ type AgentCoreGatewayProps = {
   tags?: Array<CloudformationTag>;
   tools?: Array<AgentCoreGatewayTool>;
 };
+
+/** Union choices used by the properties above. */
+type AgentCoreGatewayAuthorizer =
+  | AgentCoreGatewayJwtAuthorizer
+  | AgentCoreGatewayNoAuthorizer;
 ```
 
 ## Property: `authorizer`
 
-- Required: no
-- Type: `AgentCoreJwtAuthorizerConfig`
+- Required: yes
+- Type: `jwt | none`
+
+Who can call the gateway's tools.
+
+Required, because the gateway exposes every configured tool to its callers.
+
+`jwt`: callers must send a JSON Web Token issued by your identity provider.
+`none`: anyone who can reach the gateway endpoint can call its tools. Use it only for tools that are safe to
+expose publicly.
+
+Choices:
+- `jwt` (`AgentCoreGatewayJwtAuthorizer`) — Require a JSON Web Token from your identity provider on every gateway call.. Properties: `discoveryUrl: string`, `allowedAudience?: Array<string>`, `allowedClients?: Array<string>`, `allowedScopes?: Array<string>`.
+- `none` (`AgentCoreGatewayNoAuthorizer`) — Allow unauthenticated calls to the gateway's tools.
 
 ## Property: `description`
 
@@ -52162,8 +52209,8 @@ import type { CloudformationTag } from 'stacktape';
 type AgentCoreMemoryProps = {
   description?: string;
   encryptionKeyArn?: string;
-  eventExpiryDuration?: number;
-  expirationDays?: number;
+  /** How many days AgentCore keeps raw memory events. */
+  eventRetentionDays?: number;
   memoryStrategies?: Array<unknown>;
   tags?: Array<CloudformationTag>;
 };
@@ -52179,15 +52226,15 @@ type AgentCoreMemoryProps = {
 - Required: no
 - Type: `string`
 
-## Property: `eventExpiryDuration`
+## Property: `eventRetentionDays`
 
 - Required: no
 - Type: `number`
+- Default: `30`
 
-## Property: `expirationDays`
+How many days AgentCore keeps raw memory events.
 
-- Required: no
-- Type: `number`
+Events older than this are deleted. AWS accepts 7 to 365 days.
 
 ## Property: `memoryStrategies`
 
@@ -52318,20 +52365,31 @@ Route: `/config-reference/agentcore`
 
 ```typescript
 type AgentCoreRuntimeLifecycleConfig = {
-  idleRuntimeSessionTimeout?: number;
-  maxLifetime?: number;
+  /** How long an idle runtime session stays alive, in seconds. */
+  idleTimeoutSeconds?: number;
+  /** Longest time a runtime session can live, in seconds. */
+  maxLifetimeSeconds?: number;
 };
 ```
 
-## Property: `idleRuntimeSessionTimeout`
+## Property: `idleTimeoutSeconds`
 
 - Required: no
 - Type: `number`
 
-## Property: `maxLifetime`
+How long an idle runtime session stays alive, in seconds.
+
+AWS ends a session that receives no request for this long. A shorter timeout lowers cost. When omitted, AWS uses
+its default (15 minutes).
+
+## Property: `maxLifetimeSeconds`
 
 - Required: no
 - Type: `number`
+
+Longest time a runtime session can live, in seconds.
+
+AWS ends the session after this time, even while it is active. When omitted, AWS uses its default (8 hours).
 
 ---
 

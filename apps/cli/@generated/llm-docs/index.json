@@ -133,6 +133,27 @@
       ]
     },
     {
+      "id": "config-reference:AgentCoreGatewayJwtAuthorizer",
+      "title": "AgentCoreGatewayJwtAuthorizer API Reference",
+      "route": "/config-reference/agentcore",
+      "sourcePath": "packages/config/src/agentcore.ts",
+      "outputPath": "config-reference/agentcore/agentcoregatewayjwtauthorizer.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AgentCoreGatewayJwtAuthorizer"
+      ],
+      "tags": [
+        "config-reference",
+        "AgentCoreGatewayJwtAuthorizer",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:AgentCoreGatewayJwtAuthorizer#agentcoregatewayjwtauthorizer-api-reference",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#typescript-definition",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#property-properties"
+      ]
+    },
+    {
       "id": "config-reference:AgentCoreGatewayProps",
       "title": "AgentCoreGatewayProps API Reference",
       "route": "/config-reference/agentcore",
@@ -263,8 +284,7 @@
         "AgentCoreMemoryProps",
         "description",
         "encryptionKeyArn",
-        "eventExpiryDuration",
-        "expirationDays",
+        "eventRetentionDays",
         "memoryStrategies",
         "tags"
       ],
@@ -273,8 +293,7 @@
         "config-reference:AgentCoreMemoryProps#typescript-definition",
         "config-reference:AgentCoreMemoryProps#property-description",
         "config-reference:AgentCoreMemoryProps#property-encryptionkeyarn",
-        "config-reference:AgentCoreMemoryProps#property-eventexpiryduration",
-        "config-reference:AgentCoreMemoryProps#property-expirationdays",
+        "config-reference:AgentCoreMemoryProps#property-eventretentiondays",
         "config-reference:AgentCoreMemoryProps#property-memorystrategies",
         "config-reference:AgentCoreMemoryProps#property-tags"
       ]
@@ -342,14 +361,14 @@
       "tags": [
         "config-reference",
         "AgentCoreRuntimeLifecycleConfig",
-        "idleRuntimeSessionTimeout",
-        "maxLifetime"
+        "idleTimeoutSeconds",
+        "maxLifetimeSeconds"
       ],
       "chunks": [
         "config-reference:AgentCoreRuntimeLifecycleConfig#agentcoreruntimelifecycleconfig-api-reference",
         "config-reference:AgentCoreRuntimeLifecycleConfig#typescript-definition",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idleruntimesessiontimeout",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetime"
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idletimeoutseconds",
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetimeseconds"
       ]
     },
     {
