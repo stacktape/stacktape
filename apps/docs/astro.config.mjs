@@ -101,8 +101,6 @@ const v3PagesWithV4Equivalent = {
   '/security-resources/web-app-firewalls/': '/resources/security/web-application-firewall/',
   '/user-guides/connect-aws-account/': '/stacktape-console/connecting-your-aws-account/',
   '/user-guides/development-mode/': '/local-development/dev-mode-overview/',
-  '/user-guides/enabling-budgeting/': '/managing-costs/budgets/',
-  '/user-guides/mongo-db-atlas-credentials/': '/resources/databases/mongodb-atlas/',
   '/user-guides/vpcs/': '/configuration/connecting-resources/',
   '/user-guides/writing-config-in-typescript/': '/configuration/configuration-files/'
 };

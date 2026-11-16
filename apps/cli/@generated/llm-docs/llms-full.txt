@@ -16526,9 +16526,9 @@ npm install --save-exact stacktape@3.7.1
 
    A project that runs the CLI from its `stacktape` npm package (`npx stacktape`) stays on the version in its lockfile. Use an exact version, not a range such as `^3.7.1`.
 
-2. **Export configurations stored in the Stacktape Console.** The Console update that ships with v4 deletes every configuration template stored in the Console, and the history of configurations it generated for you. This cannot be undone, and a pinned v3 CLI does not keep them: `--templateId` stops working because the Console no longer has the templates. If you deploy with `--templateId`, or want to keep a template, save it as a file in your repository before the Console update: copy it from the template editor in the Console, or run `stacktape init --templateId <id>` with the v3 CLI, which writes it to `stacktape.yml`. Your deployed stacks are not affected.
+2. **Export configurations stored in the Stacktape Console.** The Console update that ships with v4 deletes every configuration template stored in the Console, and the history of configurations it generated for you. This cannot be undone, and a pinned v3 CLI does not keep them: `--templateId` stops working because the Console no longer has the templates. If you deploy with `--templateId`, or want to keep a template, save it as a file in your repository before the Console update: copy it from the template editor in the Console, or run `stacktape init --templateId <id>` with the v3 CLI in an empty directory. That command writes `stacktape.yml` without asking, so running it in your project would overwrite the configuration you have. Your deployed stacks are not affected.
 
-3. **Plan to upgrade the whole toolchain of a project at once.** A project's deployments must all use v4 once one has: the CLI on every developer machine, the project's `stacktape` npm package and lockfile, and the CLI version pinned in CI. A v4 CLI evaluates a TypeScript configuration with the project's installed `stacktape` package, so an old package produces a v3 configuration that v4 rejects. An older CLI that deploys a stack after v4 has deployed it can also delete images that v4's container helpers need. Deployments the Console runs for you (Git pushes and Console runners) use the CLI version the Console chooses, which is v4 after the Console update.
+3. **Plan to upgrade the whole toolchain of a project at once.** A project's deployments must all use v4 once one has: the CLI on every developer machine, the project's `stacktape` npm package and lockfile, and the CLI version pinned in CI. A v4 CLI evaluates a TypeScript configuration with the project's installed `stacktape` package, so an old package produces a v3 configuration that v4 rejects. An older CLI that deploys a stack after v4 has deployed it can also delete images that v4's container helpers need. Deployments the Console runs for you (Git pushes and Console runners) use the CLI version the Console chooses, which is v4 after the Console update, unless the project was set to a specific Stacktape version. If you are not sure, ask [support@stacktape.com](mailto:support@stacktape.com) to check your projects.
 
 4. **Choose a quiet time for the first v4 deployment of each stage.** It rebuilds and re-uploads every function, replaces running containers once, and can replace AWS Batch compute environments. See [what the first v4 deployment changes](#what-the-first-v4-deployment-changes).
 
@@ -16585,7 +16585,7 @@ curl -fsSL https://installs.stacktape.com/linux.sh | sh
 
    Validation checks the configuration and builds the CloudFormation template. It does not start your application or deploy anything.
 
-4. **Review the change plan** with [`stacktape diff`](/cli/diff), using the same flags. Look for resources that would be replaced or deleted. The first v4 deployment always updates functions, container task definitions and some helper resources; [what the first v4 deployment changes](#what-the-first-v4-deployment-changes) lists what to expect. A database, bucket or table listed as replaced means a configuration change went wrong: compare the resource names and settings with the v3 configuration before deploying. `stacktape deploy` also stops and asks for confirmation before replacing or deleting a resource that holds data.
+4. **Review the change plan** with [`stacktape diff`](/cli/diff), using the same flags. Look for resources that would be replaced or deleted. The first v4 deployment always updates functions, container task definitions and some helper resources; [what the first v4 deployment changes](#what-the-first-v4-deployment-changes) lists what to expect. A database, bucket or table listed as replaced means a configuration change went wrong: compare the resource names and settings with the v3 configuration before deploying. `stacktape deploy` also stops and asks for confirmation before replacing or deleting a Stacktape resource that holds data, but not for resources in `cloudformationResources`.
 
 5. **Deploy the non-production stage** and check that the application works: open its endpoints, run a job, read its logs with [`stacktape logs`](/cli/logs).
 
@@ -16845,11 +16845,14 @@ v3 sent `accessTokenValiditySeconds` and `idTokenValiditySeconds` to Cognito wit
 The CLI does not warn about `overrides`. If you set `AccessTokenValidity` or `IdTokenValidity` on the user pool client through `overrides`, the value is now read in seconds, so a value that meant hours fails to deploy. Set the matching unit in the same override, or replace the override with `accessTokenValiditySeconds` or `idTokenValiditySeconds`. For a pool named `auth`:
 
 ```yaml
-overrides:
-  AuthUserPoolClient:
-    AccessTokenValidity: 2
-    TokenValidityUnits:
-      AccessToken: hours
+resources:
+  auth:
+    type: user-auth-pool
+    overrides:
+      AuthUserPoolClient:
+        AccessTokenValidity: 2
+        TokenValidityUnits:
+          AccessToken: hours
 ```
 
 ### Packaging
@@ -17308,7 +17311,7 @@ Check scripts and CI jobs that set an AWS profile or AWS keys, for example for a
 
 {/* STUB (owner: the "hide credentials in all command output" change, breaking change A). Reconcile with what it merged before publishing. */}
 
-Commands that print values such as database connection strings and secrets hide them unless you pass `--show-secrets`. If a script reads such a value from a command's output, add `--show-secrets` to that command, and make sure its output does not end up in shared CI logs.
+Commands that print credentials as part of their output, such as database connection strings in stack outputs, hide them unless you pass `--show-secrets`. If a script reads such a value from a command's output, add `--show-secrets` to that command, and make sure its output does not end up in shared CI logs. `stacktape secret get` prints the value you ask for, as before.
 
 ### Scripts that read CLI output
 
@@ -17324,7 +17327,7 @@ The first deployment of a stack with v4 is an ordinary CloudFormation update, bu
 
 ### Your data is kept
 
-Databases, buckets, DynamoDB tables, Redis caches, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. This holds as long as the configuration keeps the project name, stage and resource names, and no replacement-sensitive setting changed. Stacktape checks it before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when one of them holds data.
+Databases, buckets, DynamoDB tables, Redis caches, EFS file systems, user pools, Kinesis streams and SQS queues keep their CloudFormation logical IDs and physical names, so they are neither replaced nor deleted. Default domains keep their names as well. This holds as long as the configuration keeps the project name, stage and resource names, and no replacement-sensitive setting changed. Stacktape checks it before every deployment: the change plan printed by `stacktape deploy` lists every resource it would replace or delete, and it stops for confirmation when a Stacktape resource that holds data would be replaced or deleted. Resources you define in `cloudformationResources` are not part of this check, so review them in the change plan yourself.
 
 ### Lambda functions
 
@@ -17455,7 +17458,7 @@ The Console has a new sign-in system.
 
 A login made with `stacktape login` now lasts at most 90 days, and ends after 30 days without use. With the Console update, older or unused logins end at once, and the CLI reports that the API key has expired: run `stacktape login` again. API keys created in the Console for CI are not affected.
 
-The first v4 command on a machine moves the stored login into the operating system's credential store. A v3 CLI on the same machine then asks you to log in again. See [`login`](/cli/login).
+On Linux and Windows, the first v4 command on a machine moves the stored login into the operating system's credential store, and a v3 CLI on the same machine then asks you to log in again. On macOS, the login stays in `~/.stacktape`. See [`login`](/cli/login).
 
 ### Developers and Viewers reach only their AWS accounts
 
@@ -17466,7 +17469,7 @@ CI that deploys with a person's API key stops working when that person loses acc
 ### Removed Console features
 
 - **CodeBuild runners.** Deployments from Git and from the Console run on [EC2 runners](/ci-cd-and-gitops/build-runners) in your account. Projects that used CodeBuild need an EC2 runner.
-- **Old GitLab and Bitbucket connections.** GitLab connections made with a personal or group access token and Bitbucket connections made with OAuth are removed, and projects that used them lose their Git deployments. Connect GitLab or Bitbucket again in the Console and set up the Git deployments again. GitHub connections are unchanged.
+- **Old GitLab and Bitbucket connections.** GitLab connections made with a personal or group access token and Bitbucket connections made with OAuth are removed, and projects that used them are no longer linked to a Git connection. Connect GitLab or Bitbucket again in the Console; to make such a project deploy on push again, email [support@stacktape.com](mailto:support@stacktape.com). GitHub connections are unchanged.
 - **Hosted MCP server.** Remove the hosted Stacktape MCP server from your coding agent and run `stacktape mcp add`. See [Moving from the hosted MCP server](/using-with-ai/mcp-server-setup#moving-from-the-hosted-mcp-server).
 - **Alarm rules in the Console.** Existing organization-wide alarm rules keep working as legacy rules, but the Console no longer creates or edits them. Use `stacktape alarm export` to [move them into stack configuration](/observability/alarms#migrating-legacy-console-alarm-rules).
 
