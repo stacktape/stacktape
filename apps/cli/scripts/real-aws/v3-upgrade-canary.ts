@@ -639,6 +639,8 @@ const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
       ResourceType === 'AWS::CloudWatch::Alarm' && /CardPull/.test(LogicalResourceId ?? '')
   );
   assert(alarm?.PhysicalResourceId, 'The cardPull function has no alarm.');
+  // Notifications name the alarm by its config name: the physical name without the stack prefix.
+  const alarmName = alarm.PhysicalResourceId.replace(`${stackName}-`, '');
   const sink = physicalIdOf(resources, 'AlarmSinkFunction');
   const startedAt = Date.now();
   await clients.cloudWatch.send(
@@ -654,7 +656,7 @@ const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
           logGroupName: `/aws/lambda/${sink}`,
           startTime: startedAt,
           // The forced alarm's own incident: every alarmed function notifies the same sink.
-          filterPattern: `"ALARM_NOTIFICATION" "INCIDENT_OPENED" "${alarm.LogicalResourceId}"`
+          filterPattern: `"ALARM_NOTIFICATION" "INCIDENT_OPENED" "${alarmName}"`
         })
       )
       .catch(() => ({ events: [] }));
@@ -914,22 +916,32 @@ const cleanupFixture = async (options: Options, state: State, name: FixtureName,
     );
     try {
       // Without a config: the delete then works whatever state the run stopped in, also with the v3 package installed.
-      const deletion = await runner.run({
-        args: [
-          'delete',
-          '--projectName',
-          fixture.projectName,
-          '--stage',
-          fixture.stage,
-          '--region',
-          fixture.region,
-          '--profile',
-          options.profile,
-          '--awsAccount',
-          state.awsAccountName!,
-          '--autoConfirmOperation'
-        ],
-        invocationId: `v3up-${options.owner}-${name}-delete`
+      const deleteStack = (attempt: number) =>
+        runner.run({
+          args: [
+            'delete',
+            '--projectName',
+            fixture.projectName,
+            '--stage',
+            fixture.stage,
+            '--region',
+            fixture.region,
+            '--profile',
+            options.profile,
+            '--awsAccount',
+            state.awsAccountName!,
+            '--autoConfirmOperation'
+          ],
+          invocationId: `v3up-${options.owner}-${name}-delete-${attempt}`
+        });
+      // RDS can keep a MySQL option group "in use" for minutes after its instance is gone, so CloudFormation sometimes
+      // fails to delete it (3.7.1 knew this too and tells the user to run the delete again). The run does that once and
+      // records it, so the race stays visible without failing the upgrade check.
+      const deletion = await deleteStack(1).catch(async (error: unknown) => {
+        if (!/option group/i.test(String(error))) throw error;
+        verification.deleteRetriedAfter = String(error).slice(0, 300);
+        await sleep(60_000);
+        return deleteStack(2);
       });
       verification.deleteDurationMs = deletion.durationMs;
     } finally {
@@ -1123,6 +1135,7 @@ export const runV3UpgradeCanary = async ({ cleanupOnly = false }: { cleanupOnly?
       if (!state.fixtures[name]?.secretArn && !state.fixtures[name]?.deployAttempted && !cleanupOnly) continue;
       try {
         report[`${name}Cleanup`] = await cleanupFixture(options, state, name, persist);
+        delete report[`${name}CleanupError`];
       } catch (error) {
         cleanupErrors.push(error);
         report[`${name}CleanupError`] = String(error).slice(0, 2000);
