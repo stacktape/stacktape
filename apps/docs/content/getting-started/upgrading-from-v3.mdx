@@ -833,7 +833,6 @@ Every command replaces secret values with `<<OMITTED>>` unless you pass `--show-
 
 - `deploy --agent`: `data.result.stackInfo` now holds `<<OMITTED>>` for them; v3 returned them. So does the stack-info file `deploy` writes.
 - `secret get`: prints the secret's name, ARN and creation date, and its value only with `--show-secrets`. With `--agent`, the result is `{ name, arn, created, value }` at `data.result`, where v3 printed the value in a log line.
-- `param get`: returns `<<OMITTED>>` for a secret parameter, as before.
 - `aws-profile list --agent`: returns the secret access key masked, as its table shows it, unless you pass `--show-secrets`.
 - Local scripts: their captured output and their error replace the secrets Stacktape gives them (`$Secret`, `$SsmParam` and secret `connectTo` parameters) with `[redacted]`. A script with `stdioMode: inherit` writes to your terminal unchanged.
 
