@@ -49,6 +49,8 @@ let markerEtags = new Map<string, string>();
 let etagCounter = 0;
 let refuseConsole = false;
 let failTeamsTimes = 0;
+let failWebhookTimes = 0;
+let rateLimitSlackTimes = 0;
 
 beforeAll(async () => {
   const slackModule = await import('@slack/web-api');
@@ -56,7 +58,8 @@ beforeAll(async () => {
     ...slackModule,
     WebClient: class extends slackModule.WebClient {
       constructor(token?: string, options?: ConstructorParameters<typeof slackModule.WebClient>[1]) {
-        super(token, { ...options, slackApiUrl: `${endpoint}/slack/`, retryConfig: { retries: 0 } });
+        // Only the endpoint differs: the retry and rate-limit options are the production ones.
+        super(token, { ...options, slackApiUrl: `${endpoint}/slack/` });
       }
     }
   }));
@@ -128,8 +131,17 @@ beforeAll(async () => {
       }
       const body = await request.text();
       providerRequests.push({ path, headers: request.headers, body });
+      if (path === '/slack/chat.postMessage' && rateLimitSlackTimes > 0) {
+        rateLimitSlackTimes--;
+        // Longer than the delivery claim's two-minute lease.
+        return new Response('', { status: 429, headers: { 'Retry-After': '123' } });
+      }
       if (path === '/slack/chat.postMessage') return Response.json({ ok: true, channel: 'C_ONCALL', ts: '1.1' });
       if (path === '/v2/email/outbound-emails') return Response.json({ MessageId: 'ses-message-1' });
+      if (path === WEBHOOK_PATH && failWebhookTimes > 0) {
+        failWebhookTimes--;
+        return new Response('webhook is down', { status: 503 });
+      }
       if (path === TEAMS_PATH && failTeamsTimes > 0) {
         failTeamsTimes--;
         return new Response('teams is down', { status: 503 });
@@ -161,6 +173,8 @@ beforeEach(() => {
   markerEtags = new Map();
   refuseConsole = false;
   failTeamsTimes = 0;
+  failWebhookTimes = 0;
+  rateLimitSlackTimes = 0;
 });
 
 const allChannels = () => [
@@ -192,18 +206,20 @@ const event = ({
   stateValue = 'ALARM',
   previousStateValue = stateValue === 'OK' ? 'ALARM' : 'OK',
   sourceEventId = 'eventbridge-event-1',
-  channels = allChannels()
+  channels = allChannels(),
+  time = '2026-10-13T00:00:00.000Z'
 }: {
   includeInHistory?: boolean;
   stateValue?: 'ALARM' | 'OK';
   previousStateValue?: string;
   sourceEventId?: string;
   channels?: Array<Record<string, unknown>>;
+  time?: string;
 } = {}): AlarmNotificationEventRuleInput =>
   ({
     sourceEventId,
     description: 'threshold exceeded',
-    time: '2026-10-13T00:00:00.000Z',
+    time,
     stateValue,
     previousStateValue,
     alarmAwsResourceName: 'shop-production-errors',
@@ -281,13 +297,20 @@ test('a default alarm delivers every inline channel from the account and reports
     triggerType: 'lambda-error-rate',
     details: { alarmArn: 'shop-production-errors', time: '2026-10-13T00:00:00.000Z' }
   });
-  // Only "sent" markers stay behind: no credential, one per channel of this event.
-  expect([...markers.keys()].sort()).toEqual(
-    [0, 1, 2, 3, 4].map(
+  // Only the alarm's cursor and "sent" markers stay behind: no credential, one marker per channel of this event.
+  const cursorKey = 'stp-deployment-bucket-abc123/alarm-notification-deliveries/cursors/shop-production-errors';
+  expect([...markers.keys()].sort()).toEqual([
+    cursorKey,
+    ...[0, 1, 2, 3, 4].map(
       (index) => `stp-deployment-bucket-abc123/alarm-notification-deliveries/eventbridge-event-1/${index}`
     )
-  );
-  for (const marker of markers.values()) expect(JSON.parse(marker)).toMatchObject({ status: 'sent' });
+  ]);
+  expect(JSON.parse(markers.get(cursorKey)!)).toEqual({
+    time: Date.parse('2026-10-13T00:00:00.000Z'),
+    sourceEventId: 'eventbridge-event-1'
+  });
+  for (const [key, marker] of markers)
+    if (key !== cursorKey) expect(JSON.parse(marker)).toMatchObject({ status: 'sent' });
 
   // A repeated delivery of the same event sends nothing again; the Console deduplicates its copy by event ID.
   const before = providerRequests.length;
@@ -363,4 +386,61 @@ test('duplicate invocations of one event send each notification once, and an aba
   ]);
   expect(requestsTo(TEAMS_PATH)).toHaveLength(2);
   expect(JSON.parse(markers.get(staleKey)!)).toMatchObject({ status: 'sent' });
+});
+
+test('an event older than one already seen for the alarm is not announced; a retry of the newest event still is', async () => {
+  const { default: handle } = await import('./index');
+  const channels = [allChannels()[4]!];
+  const announced = () => requestsTo(WEBHOOK_PATH).map(({ body }) => JSON.parse(body).id);
+
+  await handle(event({ channels, sourceEventId: 'firing', time: '2026-11-16T10:00:01.000Z' }));
+  await handle(event({ channels, stateValue: 'OK', sourceEventId: 'recovery', time: '2026-11-16T10:00:02.000Z' }));
+  // The alarm fires again. Its first attempt fails at the receiver, so Lambda retries it.
+  failWebhookTimes = 1;
+  const refiring = event({ channels, sourceEventId: 'refiring', time: '2026-11-16T10:00:04.000Z' });
+  await expect(handle(refiring)).rejects.toThrow('The webhook answered HTTP 503');
+  // A recovery from between the two firings arrives late. The alarm is still firing: it says nothing.
+  await handle(
+    event({ channels, stateValue: 'OK', sourceEventId: 'delayed-recovery', time: '2026-11-16T10:00:03.000Z' })
+  );
+  // So does a late copy of the first firing.
+  await handle(event({ channels, sourceEventId: 'firing', time: '2026-11-16T10:00:01.000Z' }));
+  // The retry of the newest event is delivered, once.
+  await handle(refiring);
+  await handle(refiring);
+  expect(announced()).toEqual(['firing', 'recovery', 'refiring', 'refiring']);
+  expect(requestsTo(WEBHOOK_PATH).filter(({ body }) => JSON.parse(body).id === 'refiring')).toHaveLength(2);
+  // The Console orders its own copy of every event.
+  expect(consoleReports.map((report) => report.sourceEventId)).toEqual([
+    'firing',
+    'recovery',
+    'refiring',
+    'delayed-recovery',
+    'firing',
+    'refiring',
+    'refiring'
+  ]);
+});
+
+test('a rate-limited Slack call fails at once and gives up its claim, so the retry sends it once', async () => {
+  const { default: handle } = await import('./index');
+  const input = event({
+    includeInHistory: false,
+    channels: [{ type: 'slack', properties: { accessToken: SLACK_TOKEN, conversationId: 'C_ONCALL' } }]
+  });
+  rateLimitSlackTimes = 1;
+  const started = Date.now();
+  await expect(handle(input)).rejects.toThrow('slack channel #1: slack_webapi_rate_limited_error');
+  // Slack asked for 123 seconds. Waiting them out would outlive the claim's lease and let a retry send it twice.
+  expect(Date.now() - started).toBeLessThan(10_000);
+  expect(
+    JSON.parse(markers.get('stp-deployment-bucket-abc123/alarm-notification-deliveries/eventbridge-event-1/0')!)
+  ).toMatchObject({ status: 'failed' });
+
+  await handle(input);
+  await handle(input);
+  expect(requestsTo('/slack/chat.postMessage')).toHaveLength(2);
+  expect(
+    JSON.parse(markers.get('stp-deployment-bucket-abc123/alarm-notification-deliveries/eventbridge-event-1/0')!)
+  ).toMatchObject({ status: 'sent' });
 });

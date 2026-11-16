@@ -8,7 +8,7 @@ import type {
   WebhookIntegration
 } from '@stacktape/config/user-integrations';
 import { createHmac } from 'node:crypto';
-import { deliverOnce } from './delivery-claims';
+import { deliverOnce, orderAlarmEvent } from './delivery-claims';
 import { resolveDynamicReferences } from './dynamic-references';
 import { sendAlarmEmail } from './email';
 import { sendAlarmSlackMessage } from './slack';
@@ -197,14 +197,22 @@ export const shouldNotify = (event: AlarmNotificationEventRuleInput) =>
   event.stateValue === 'ALARM' || (event.stateValue === 'OK' && event.previousStateValue === 'ALARM');
 
 /**
- * Delivers the alarm event to every inline channel from the customer's own account. Each channel is sent at most once
- * per event; a failed channel fails the invocation so Lambda retries it, without resending the others.
+ * Delivers the alarm event to every inline channel from the customer's own account. An event older than one already
+ * seen for the alarm is not sent. Each channel is sent at most once per event; a failed channel fails the invocation so
+ * Lambda retries it, without resending the others.
  */
 export const deliverInlineChannels = async (event: AlarmNotificationEventRuleInput) => {
   const inlineChannels = (event.alarmConfig?.notificationChannels || [])
     .map((channel, index) => ({ channel, index }))
     .filter((entry): entry is { channel: InlineNotificationChannel; index: number } => isInlineChannel(entry.channel));
-  if (!inlineChannels.length || !shouldNotify(event)) return;
+  if (!inlineChannels.length) return;
+  // Every state change moves the cursor, including one that sends nothing, such as a first evaluation to OK.
+  const order = await orderAlarmEvent({
+    alarmName: event.alarmAwsResourceName,
+    sourceEventId: event.sourceEventId,
+    time: event.time
+  });
+  if (order === 'superseded' || !shouldNotify(event)) return;
 
   const results = await Promise.allSettled(
     inlineChannels.map(async ({ channel, index }) => {
