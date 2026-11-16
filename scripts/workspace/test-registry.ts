@@ -1409,12 +1409,13 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts',
-      'apps/cli/tests/ministack/deploy-hooks.spec.ts'
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts',
+      'apps/cli/tests/ministack/command-output.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      "On MiniStack, a new stack's deployment bucket and image repository are created before the stack and deleted only when no stack uses them, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates.",
+      "On MiniStack, a new stack's deployment bucket and image repository are created before the stack and deleted only when no stack uses them, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates. Deploy, param get, secret get, script failures and the MCP server return a deployed secret only with --show-secrets (MCP never), and captured, inherited and pipeStdio scripts behave as configured.",
     selections: ['ministack-deploy']
   },
   {
@@ -6605,6 +6606,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
       'apps/cli/tests/ministack/deploy-hooks.spec.ts',
+      'apps/cli/tests/ministack/command-output.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',

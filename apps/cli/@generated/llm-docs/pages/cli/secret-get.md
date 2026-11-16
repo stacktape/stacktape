@@ -1,6 +1,6 @@
 # secret get
 
-Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, value, creation date, and ARN. Use this to verify secret contents before referencing them in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
+Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, creation date and ARN. It prints the value only with `--show-secrets`; otherwise the value is `<<OMITTED>>`. Use this to verify a secret before referencing it in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
 
 ## Usage
 
@@ -28,13 +28,16 @@ stacktape secret get my-api-key --region eu-west-1 --agent
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--secret-name (positional 1)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in the `--agent` result and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 
 
 ## Output
 
 In interactive mode, the command prints a formatted box containing the secret's name, creation date, ARN, and value. If the value is valid JSON, it is pretty-printed.
 
-For `secret get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
+With `--agent`, the final result event contains `name`, `arn`, `created` (an ISO 8601 timestamp) and `value` at `data.result`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
+
+Without `--show-secrets`, `value` is `<<OMITTED>>` in both modes. Pass the flag only where the output stays private: never in a shared CI log or an AI assistant's conversation. The [MCP server](/using-with-ai/mcp-server-setup) never returns the value.
 
 ## Examples
 
@@ -44,10 +47,16 @@ Retrieve a secret interactively (you'll be prompted for the name):
 stacktape secret get --region us-east-1
 ```
 
-Retrieve a specific secret by name in a CI script:
+Check that a secret exists, without printing its value:
 
 ```bash
 stacktape secret get DATABASE_PASSWORD --region eu-west-1 --agent
+```
+
+Print the value in your own terminal:
+
+```bash
+stacktape secret get DATABASE_PASSWORD --region eu-west-1 --show-secrets
 ```
 
 Use a named AWS profile:

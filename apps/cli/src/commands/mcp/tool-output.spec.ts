@@ -113,4 +113,18 @@ describe('MCP tool output', () => {
     // Without the flag the CLI returns <<OMITTED>> for a sensitive parameter and the value of a plain one.
     expect(run({ resourceName: 'db', paramName: 'host' }).data?.cli).toEqual({ result: canary });
   });
+
+  test("keeps the CLI's <<OMITTED>> placeholder readable under a masked key", () => {
+    const output = buildCliRunOutput({
+      command: 'secret:get',
+      policy: { category: 'secrets', safety: 'readOnly', sensitiveOutput: true },
+      result: {
+        ok: true,
+        code: 'OK',
+        message: 'secret get completed',
+        data: { result: { name: 'db', value: '<<OMITTED>>' } }
+      }
+    });
+    expect(output.data?.cli).toEqual({ result: { name: 'db', value: '<<OMITTED>>' } });
+  });
 });

@@ -94,7 +94,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 ### `--show-secrets`
 
-Includes sensitive values in deploy output. Handle with care.
+Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
 
 ## All flags
 
@@ -122,7 +122,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
-| `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in the `--agent` result and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 | `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
 
 

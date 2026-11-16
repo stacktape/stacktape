@@ -366,13 +366,14 @@ In agent mode, use --secret-name with either --value or --file. Use --force-upda
   },
 
   'secret:get': {
-    description: `Prints details about a specified secret to the console.
+    description: `Prints details about a specified secret. The value itself is printed only with \`--show-secrets\`.
 
 In agent mode, use --secret-name to specify the secret.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
-      secretName: secretName.optional()
+      secretName: secretName.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: ['region'] as const
   },

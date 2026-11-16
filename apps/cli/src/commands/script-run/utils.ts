@@ -161,6 +161,19 @@ const getBastionScriptExecutionFn = ({
   };
 };
 
+const getExecuteSequence = (properties: {
+  executeScript?: unknown;
+  executeScripts?: unknown[];
+  executeCommand?: unknown;
+  executeCommands?: unknown[];
+}) =>
+  [
+    properties.executeScript,
+    ...(properties.executeScripts || []),
+    properties.executeCommand,
+    ...(properties.executeCommands || [])
+  ].filter(Boolean) as string[];
+
 const getLocalScriptExecutionFn = ({
   scriptDefinition,
   hookTrigger,
@@ -185,12 +198,10 @@ const getLocalScriptExecutionFn = ({
       resolvedScriptDefinition.properties.executeCommand || resolvedScriptDefinition.properties.executeCommands
         ? 'command'
         : 'script';
-    const executeSequence = [
-      resolvedScriptDefinition.properties.executeScript,
-      ...(resolvedScriptDefinition.properties.executeScripts || []),
-      resolvedScriptDefinition.properties.executeCommand,
-      ...(resolvedScriptDefinition.properties.executeCommands || [])
-    ].filter(Boolean);
+    const executeSequence = getExecuteSequence(resolvedScriptDefinition.properties);
+    // Progress and errors name each step as it is written in the config: the resolved text can hold a `$Secret` or a
+    // sensitive `$ResourceParam` value.
+    const authoredSequence = getExecuteSequence(scriptDefinition.properties).map(String);
 
     let assumedRoleAWSEnvVars: EnvironmentVar[] = [];
 
@@ -289,11 +300,12 @@ const getLocalScriptExecutionFn = ({
           }
         : undefined;
 
-    for (const commandOrScriptToExecute of executeSequence) {
+    for (const [index, commandOrScriptToExecute] of executeSequence.entries()) {
+      const authored = authoredSequence[index] ?? commandOrScriptToExecute;
       const currentDescription =
         commandOrScript === 'script'
-          ? `script at ${join(globalStateManager.workingDir, commandOrScriptToExecute)}`
-          : `command '${commandOrScriptToExecute}'`;
+          ? `script at ${join(globalStateManager.workingDir, authored)}`
+          : `command '${authored}'`;
 
       operationReporter.updateEvent({
         eventType: 'RUN_SCRIPT',
@@ -310,6 +322,7 @@ const getLocalScriptExecutionFn = ({
           commandOrScript === 'command'
             ? executeCommandHook({
                 command: commandOrScriptToExecute,
+                safeCommandDescription: authored,
                 env,
                 cwd,
                 stdioMode,

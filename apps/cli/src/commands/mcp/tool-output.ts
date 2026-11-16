@@ -53,7 +53,11 @@ const shouldMaskValueForKey = (key: string): boolean => {
   );
 };
 
+/** The CLI's placeholder for a value it withheld; masking it again would only garble it. */
+const OMITTED_PLACEHOLDER = '<<OMITTED>>';
+
 export const maskSensitiveValues = (input: unknown, parentKey = ''): unknown => {
+  if (input === OMITTED_PLACEHOLDER) return input;
   if (typeof input === 'string') {
     // Script and CLI output keeps terminal colors; an MCP client gets them as `\u001b[33m` noise, and they split text
     // that masking must recognize.

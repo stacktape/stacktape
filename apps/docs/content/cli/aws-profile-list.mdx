@@ -15,7 +15,7 @@ The `aws-profile list` command prints every AWS profile configured on your machi
 stacktape aws-profile list
 ```
 
-The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. In the printed table, the secret access key is masked — the first 36 characters are replaced with asterisks, showing only the trailing characters.
+The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. The secret access key is masked: the first 36 characters are replaced with asterisks, showing only the last 4. The `--agent` result masks it the same way.
 
 If no profiles are configured, the command prints a warning and suggests creating one with [`aws-profile create`](/cli/aws-profile-create).
 

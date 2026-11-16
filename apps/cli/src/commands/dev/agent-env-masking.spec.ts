@@ -57,6 +57,9 @@ describe('dev agent environment masking', () => {
       environment: [
         { name: 'PAYMENT_WEBHOOK', value: '$Secret(payments.webhook)' },
         { name: 'SIGNING_HOST', value: "$Format('{}.example.com', $SsmParam('/app/host'))" },
+        { name: 'PGPASS', value: "$ResourceParam('db','password')" },
+        { name: 'CACHE', value: "$Format('{}?tls=1', $ResourceParam('cache', 'redisUrl'))" },
+        { name: 'DB_HOST', value: "$ResourceParam('db','host')" },
         { name: 'LOG_LEVEL', value: 'debug' }
       ],
       containers: [
@@ -64,7 +67,14 @@ describe('dev agent environment masking', () => {
       ]
     };
     const secretNames = getSecretSourcedEnvNames(resource);
-    expect([...secretNames].sort()).toEqual(['API', 'PAYMENT_WEBHOOK', 'SIGNING_HOST', 'WORKER_ENDPOINT']);
+    expect([...secretNames].sort()).toEqual([
+      'API',
+      'CACHE',
+      'PAYMENT_WEBHOOK',
+      'PGPASS',
+      'SIGNING_HOST',
+      'WORKER_ENDPOINT'
+    ]);
     expect(
       maskAgentEnvironment(
         { PAYMENT_WEBHOOK: 'whsec-plain', SIGNING_HOST: 'internal.example.com', LOG_LEVEL: 'debug' },

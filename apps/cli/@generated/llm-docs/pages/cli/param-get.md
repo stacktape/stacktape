@@ -36,7 +36,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in the `--agent` result and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 | `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 
 
@@ -52,6 +52,12 @@ Pass `--stage` when you want to target a specific stage explicitly. Include it u
 
 ```bash
 stacktape param get mainDatabase connectionString --region eu-west-1 --stage production
+```
+
+A parameter that holds a credential, such as a database `password` or a `connectionString` that contains one, comes back as `<<OMITTED>>` unless you pass `--show-secrets`. Use the flag only where the output stays private:
+
+```bash
+stacktape param get mainDatabase connectionString --region eu-west-1 --stage production --show-secrets
 ```
 
 For programmatic consumption in scripts or CI steps, use `--agent` or `--json` to get machine-readable JSONL output. The default interactive output includes formatting that is not suitable for shell variable capture.

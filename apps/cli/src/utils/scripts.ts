@@ -67,6 +67,7 @@ export type ScriptFn = {
 
 export const executeCommandHook = ({
   command,
+  safeCommandDescription,
   env,
   cwd,
   stdioMode,
@@ -74,6 +75,8 @@ export const executeCommandHook = ({
   timeoutMs
 }: {
   command: string;
+  /** How errors name the command when its resolved text can hold a secret. */
+  safeCommandDescription?: string;
   env: Record<string, any>;
   cwd: string;
   stdioMode: ChildStdioMode;
@@ -87,6 +90,7 @@ export const executeCommandHook = ({
   return exec(command, [], {
     cwd,
     env,
+    safeCommandDescription,
     // maybe use powershell.exe for windows? Originally cmd.exe was used so it could be a breaking change
     rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash', timeout: timeoutMs },
     stdioMode,

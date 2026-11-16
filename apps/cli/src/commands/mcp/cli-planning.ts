@@ -810,8 +810,8 @@ const buildPlanNextActions = ({
     // production behaviour is to tell the user to run it in their own terminal.
     return [
       `DO NOT call stacktape_cli action=run for ${publicCommandName(command)} just to display the value to the user. The value would be exposed in the conversation transcript and may be cached or logged.`,
-      `Instead, tell the user to run the suggested shellCommand in their OWN terminal${command === 'param:get' ? ', with --show-secrets for a sensitive parameter' : ''}. Their terminal output is private; this conversation is not.`,
-      `stacktape_cli action=run never returns a sensitive value: ${command === 'param:get' ? 'a sensitive parameter comes back as <<OMITTED>> and showSensitiveValues is refused' : 'the secret value is redacted from its output'}.`
+      `Instead, tell the user to run the suggested shellCommand in their OWN terminal with --show-secrets. Their terminal output is private; this conversation is not.`,
+      `stacktape_cli action=run never returns a sensitive value: it comes back as <<OMITTED>> and showSensitiveValues is refused.`
     ];
   }
   if (safety === 'destructive') {

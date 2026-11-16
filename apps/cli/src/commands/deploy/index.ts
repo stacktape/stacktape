@@ -615,14 +615,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await cloudfront.invalidateCaches();
   }
 
-  // we need two versions of detailed stack info (with and without sensitive values) - one for saving other for returning
+  // The stack-info file and the command result (`--agent` output, MCP) hold secret values only with --show-secrets.
   const detailedStackInfo = getDetailedStackInfoMap({
     deployedStackInfoMap: deployedStackOverview.stackInfoMap,
-    showSensitiveValues: args.showSensitiveValues
-  });
-  const detailedStackInfoSensitive = getDetailedStackInfoMap({
-    deployedStackInfoMap: deployedStackOverview.stackInfoMap,
-    showSensitiveValues: true
+    showSensitiveValues: Boolean(args.showSensitiveValues)
   });
   if (config.stackInfoDirPath) {
     await saveDetailedStackInfoMap({
@@ -730,7 +726,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await lock.release();
 
   return {
-    stackInfo: detailedStackInfoSensitive,
+    stackInfo: detailedStackInfo,
     packagedWorkloads,
     ...(changePlan ? { changePlan } : {}),
     ...(securityAssessment ? { security: securityAssessment } : {})
