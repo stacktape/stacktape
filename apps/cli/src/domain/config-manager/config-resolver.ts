@@ -336,6 +336,24 @@ export class ConfigResolver {
     }
   };
 
+  /** The directive results so far, for a pass whose results must not stay, such as deploy's confirmation preview. */
+  captureDirectiveResults = () => {
+    const copy = (cache: DirectiveResultCache): DirectiveResultCache => ({
+      results: new Map(cache.results),
+      resultsWithPath: {
+        withoutRuntime: new Map(cache.resultsWithPath.withoutRuntime),
+        withRuntime: new Map(cache.resultsWithPath.withRuntime)
+      },
+      pendingResults: new Map(cache.pendingResults)
+    });
+    return { normal: copy(this.#normalResolveCache), local: copy(this.#localResolveCache) };
+  };
+
+  restoreDirectiveResults = (state: ReturnType<ConfigResolver['captureDirectiveResults']>) => {
+    this.#normalResolveCache = state.normal;
+    this.#localResolveCache = state.local;
+  };
+
   reset = () => {
     this.registeredDirectives = {};
     this.#normalResolveCache = createDirectiveResultCache();

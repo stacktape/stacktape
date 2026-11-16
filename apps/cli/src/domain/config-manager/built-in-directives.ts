@@ -523,6 +523,8 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       requiredParams: { paramName: 'string' },
       isRuntime: true,
       resolveFunction: () => async (paramName: string) => {
+        // Only while `deploy` builds the template it asks for confirmation with, before it asks for the parameter.
+        if (configManager.isSsmParamReportedMissing(paramName)) return '1';
         let param;
         try {
           param = await awsSdkManager.parameterStore.get({ name: paramName });

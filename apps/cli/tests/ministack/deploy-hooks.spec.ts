@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
+import { DescribeSecretCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { startMiniStack } from '@stacktape/ministack/fixture';
 // oxlint-disable-next-line import/no-unassigned-import
@@ -185,8 +186,10 @@ test('a deploy that needs confirmation and cannot ask stops before its beforeDep
   const ministack = await startMiniStack({ label: 'deploy-confirm' });
   const cloudFormation = new CloudFormationClient(ministack.clientConfig());
   const ssm = new SSMClient(ministack.clientConfig());
+  const secrets = new SecretsManagerClient(ministack.clientConfig());
   try {
     const project = await createFamilyProject({ familyName: 'deploy-confirm', out, ministack });
+    const missingSecret = 'stp-deploy-confirm-not-created-yet';
     const runsPath = join(project.directory, 'hook-runs.log');
     const missingParameter = '/stp-deploy-confirm/not-created-yet';
     const hookRuns = async () => (await readFile(runsPath, 'utf8').catch(() => '')).split('\n').filter(Boolean);
@@ -202,7 +205,14 @@ test('a deploy that needs confirmation and cannot ask stops before its beforeDep
       },
       hooks: { beforeDeploy: [{ scriptName: 'migrate' }] },
       ...(referenceMissingParameter
-        ? { stackConfig: { outputs: [{ name: 'Setting', value: `$SsmParam('${missingParameter}')` }] } }
+        ? {
+            stackConfig: {
+              outputs: [
+                { name: 'Setting', value: `$SsmParam('${missingParameter}')` },
+                { name: 'Token', value: `$Secret('${missingSecret}')` }
+              ]
+            }
+          }
         : {}),
       resources: { kept: { type: 'bucket' }, ...(withData ? { data: { type: 'bucket' } } : {}) }
     });
@@ -244,7 +254,8 @@ appendFileSync(${JSON.stringify(runsPath)}, process.argv[2] + '\\n');
       await rm(runsPath, { force: true });
 
       // The update deletes the `data` bucket. Standard input is closed, so the CLI cannot ask; without --yes it must
-      // refuse before the hook runs and before it asks for the missing parameter, which it would otherwise create.
+      // refuse before the hook runs and before it asks for the missing parameter and secret. The template it checks
+      // holds placeholders for both.
       await writeProjectFiles(project, {
         'stacktape.yml': config({ withData: false, referenceMissingParameter: true })
       });
@@ -258,6 +269,7 @@ appendFileSync(${JSON.stringify(runsPath)}, process.argv[2] + '\\n');
       expect(after.StackStatus).toBe(statusBefore);
       expect(after.LastUpdatedTime).toEqual(updatedBefore);
       await expect(ssm.send(new GetParameterCommand({ Name: missingParameter }))).rejects.toThrow();
+      await expect(secrets.send(new DescribeSecretCommand({ SecretId: missingSecret }))).rejects.toThrow();
 
       // With --yes the same update runs the hook first, then deletes the bucket.
       await writeProjectFiles(project, { 'stacktape.yml': config({ withData: false }) });
@@ -279,6 +291,7 @@ appendFileSync(${JSON.stringify(runsPath)}, process.argv[2] + '\\n');
   } finally {
     cloudFormation.destroy();
     ssm.destroy();
+    secrets.destroy();
     try {
       await ministack.stop();
     } finally {

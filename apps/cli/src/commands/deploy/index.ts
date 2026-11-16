@@ -242,7 +242,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   // Where the stage's networked resources run. In the shared network, its stacks are created or upgraded while the
   // workloads build; the template is built only once they are ready.
-  const stageNetwork = await prepareStageNetwork({ stage: stackContext.stage, mode: 'deploy' });
+  const stageNetwork = await prepareStageNetwork({
+    stage: stackContext.stage,
+    mode: 'deploy',
+    answeredStageType: confirmation.answeredStageType
+  });
   application.registerCleanUpHook(stopMarkingSharedNetworkUsed);
   const inSharedNetwork = stageNetwork.decision.kind === 'shared';
 

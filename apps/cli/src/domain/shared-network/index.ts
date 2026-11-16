@@ -297,6 +297,25 @@ const askStageType = async (stage: string): Promise<StageType> => {
   return stageType;
 };
 
+const getPlacementInput = ({ stage, mode }: { stage: string; mode: 'deploy' | 'preview' }) => ({
+  stageName: stage,
+  needsVpc: configManager.allResourcesRequiringVpc.length > 0,
+  shared: configManager.stackConfig.vpc?.shared,
+  reuseVpc: Boolean(configManager.reuseVpcConfig),
+  explicitStageType: configManager.stackConfig.stageType,
+  consoleStageType: configManager.consoleStageType,
+  deployed: getDeployedPlacement(),
+  exclusions: getSharedNetworkExclusions(),
+  canAsk: mode === 'deploy' && canAsk()
+});
+
+/**
+ * Asks whether the stage is production when its network placement depends on the answer, for a deploy that asks all its
+ * questions before it changes anything. Pass the answer to `prepareStageNetwork`.
+ */
+export const askStageTypeForNetworkPlacement = async ({ stage }: { stage: string }) =>
+  decideNetworkPlacement(getPlacementInput({ stage, mode: 'deploy' })).kind === 'ask' ? askStageType(stage) : undefined;
+
 /**
  * Decides where the stage's networked resources run, prints it, and points synthesis at the shared network when the
  * stage runs there. A deploy creates the shared stacks it needs (`ensure`) and may ask whether an ambiguous stage is
@@ -307,23 +326,16 @@ const askStageType = async (stage: string): Promise<StageType> => {
  */
 export const prepareStageNetwork = async ({
   stage,
-  mode
+  mode,
+  answeredStageType
 }: {
   stage: string;
   /** `deploy` creates what is missing; `preview` (diff, synth, validate) only reads. */
   mode: 'deploy' | 'preview';
+  /** The answer `askStageTypeForNetworkPlacement` got. */
+  answeredStageType?: StageType;
 }): Promise<{ decision: NetworkPlacementDecision; ready: Promise<void> }> => {
-  const input = {
-    stageName: stage,
-    needsVpc: configManager.allResourcesRequiringVpc.length > 0,
-    shared: configManager.stackConfig.vpc?.shared,
-    reuseVpc: Boolean(configManager.reuseVpcConfig),
-    explicitStageType: configManager.stackConfig.stageType,
-    consoleStageType: configManager.consoleStageType,
-    deployed: getDeployedPlacement(),
-    exclusions: getSharedNetworkExclusions(),
-    canAsk: mode === 'deploy' && canAsk()
-  };
+  const input = { ...getPlacementInput({ stage, mode }), ...(answeredStageType ? { answeredStageType } : {}) };
   let decision = decideNetworkPlacement(input);
   if (decision.kind === 'ask') {
     decision = decideNetworkPlacement({ ...input, answeredStageType: await askStageType(stage) });

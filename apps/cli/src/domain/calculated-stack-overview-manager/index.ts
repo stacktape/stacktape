@@ -45,6 +45,12 @@ class CalculatedStackOverviewManager {
     this.#context = undefined;
   };
 
+  /**
+   * True while deploy builds the template it asks for confirmation with, before hooks and packaging. Code that reads
+   * build output treats it like `synth`, which has none either.
+   */
+  isPreviewingTemplate = false;
+
   /** The synthesis state before a pass whose result must not stay, such as deploy's confirmation preview. */
   captureSynthesisState = (): StackInfoMap => serialize(this.stackInfoMap);
 
