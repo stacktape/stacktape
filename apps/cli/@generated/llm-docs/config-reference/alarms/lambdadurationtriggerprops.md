@@ -91,7 +91,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -117,7 +117,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },

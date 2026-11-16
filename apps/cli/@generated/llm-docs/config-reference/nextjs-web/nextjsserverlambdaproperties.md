@@ -42,7 +42,7 @@ resources:
         properties:
           primaryInstance:
             instanceSize: db.t4g.micro
-          version: '16.6'
+          version: '16'
   web:
     type: nextjs-web
     properties:
@@ -65,7 +65,7 @@ export default defineConfig(() => {
       type: 'postgres',
       properties: {
         primaryInstance: { instanceSize: 'db.t4g.micro' },
-        version: '16.6'
+        version: '16'
       }
     }
   });

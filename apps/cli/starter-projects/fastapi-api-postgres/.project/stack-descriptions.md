@@ -35,7 +35,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: "18.1"
+        version: "18"
         primaryInstance:
           instanceSize: db.t3.micro
 ```

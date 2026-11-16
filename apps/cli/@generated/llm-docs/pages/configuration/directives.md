@@ -51,7 +51,7 @@ export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -272,7 +272,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')
@@ -451,7 +451,7 @@ export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       primaryInstance: { instanceSize: 'db.t4g.micro' },
-      version: '16.6'
+      version: '16'
     }),
     credentials: {
       masterUserPassword: $Secret('db-password')

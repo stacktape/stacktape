@@ -111,7 +111,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *   web:
@@ -137,7 +137,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const web = new TanStackWeb({
    *     // stp-focus

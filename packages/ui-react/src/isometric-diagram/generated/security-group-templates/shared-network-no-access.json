@@ -1,6 +1,6 @@
 {
   "description": "A shared-network stage where nothing admits the stage's group, so a function that reaches nothing runs in the network's no-access group.",
-  "config": "stackConfig:\n  nat: ec2\nresources:\n  orders:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [orders]\n  cron:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n",
+  "config": "stackConfig:\n  nat: ec2\nresources:\n  orders:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n  api:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n      connectTo: [orders]\n  cron:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n",
   "stacktapeResources": [
     {
       "name": "api",
@@ -552,7 +552,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "defdb",
         "Engine": "postgres",
-        "EngineVersion": "16.9",
+        "EngineVersion": "16",
         "EnableCloudwatchLogsExports": [
           "postgresql"
         ],

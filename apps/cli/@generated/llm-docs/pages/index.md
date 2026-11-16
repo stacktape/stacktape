@@ -285,7 +285,7 @@ export default defineConfig(({ stage }) => {
         instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
         multiAz: stage === 'production'
       },
-      version: '18.1'
+      version: '18'
     }),
     credentials: {
       masterUserName: 'master-user',

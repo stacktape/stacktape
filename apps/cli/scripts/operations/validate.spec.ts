@@ -168,7 +168,7 @@ test('validate rates a public database by the stage purpose and says what to fix
     type: 'relational-database',
     properties: {
       credentials: { masterUserPassword: 'not-a-real-password' },
-      engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+      engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
     }
   };
   const validate = async (stackConfig?: Record<string, unknown>) => {

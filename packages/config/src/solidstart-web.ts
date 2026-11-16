@@ -104,7 +104,7 @@ export interface SolidStartWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       credentials:
@@ -128,7 +128,7 @@ export interface SolidStartWebProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const database = new RelationalDatabase({
-   *     engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } },
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } },
    *     credentials: { masterUserPassword: $Secret('db-password') }
    *   });
    *   const web = new SolidStartWeb({

@@ -38,7 +38,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -60,7 +60,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -96,7 +96,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -118,7 +118,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }

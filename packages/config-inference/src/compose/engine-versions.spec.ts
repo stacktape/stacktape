@@ -12,37 +12,37 @@ const CATALOGUE = {
 } as const;
 
 describe('resolveEngineVersion', () => {
-  it('keeps a pin the deploy already accepts', () => {
+  it('writes the release line of a pinned minor version, which AWS would retire in time', () => {
     expect(resolveEngineVersion({ engine: 'postgres', pin: '16.10', catalogue: CATALOGUE })).toEqual({
-      version: '16.10',
+      version: '16',
       movedOffPin: false
     });
   });
 
-  it('resolves a major-only pin to the newest of that line, compared numerically', () => {
-    // Lexicographic order would pick 16.9 here; 16.11 is the actual newest.
-    expect(resolveEngineVersion({ engine: 'postgres', pin: '16', catalogue: CATALOGUE }).version).toBe('16.11');
+  it('keeps a pinned release line', () => {
+    expect(resolveEngineVersion({ engine: 'postgres', pin: '16', catalogue: CATALOGUE }).version).toBe('16');
   });
 
-  it('moves a stale minor to the newest of its line', () => {
-    expect(resolveEngineVersion({ engine: 'postgres', pin: '16.2', catalogue: CATALOGUE }).version).toBe('16.11');
+  it('moves a stale minor to its line', () => {
+    expect(resolveEngineVersion({ engine: 'postgres', pin: '16.2', catalogue: CATALOGUE }).version).toBe('16');
   });
 
   it('keeps mysql release trains apart', () => {
-    expect(resolveEngineVersion({ engine: 'mysql', pin: '8.0', catalogue: CATALOGUE }).version).toBe('8.0.43');
-    expect(resolveEngineVersion({ engine: 'mysql', pin: '8.4', catalogue: CATALOGUE }).version).toBe('8.4.8');
+    expect(resolveEngineVersion({ engine: 'mysql', pin: '8.0', catalogue: CATALOGUE }).version).toBe('8.0');
+    expect(resolveEngineVersion({ engine: 'mysql', pin: '8.0.99', catalogue: CATALOGUE }).version).toBe('8.0');
+    expect(resolveEngineVersion({ engine: 'mysql', pin: '8.4', catalogue: CATALOGUE }).version).toBe('8.4');
   });
 
-  it('falls back to the newest accepted version when the pinned line is gone, and says so', () => {
+  it('falls back to the newest line when the pinned line is gone, and says so', () => {
     expect(resolveEngineVersion({ engine: 'postgres', pin: '9.6', catalogue: CATALOGUE })).toEqual({
-      version: '18.1',
+      version: '18',
       movedOffPin: true
     });
   });
 
-  it('picks the newest accepted version when nothing was pinned', () => {
+  it('picks the newest line when nothing was pinned', () => {
     expect(resolveEngineVersion({ engine: 'postgres', catalogue: CATALOGUE })).toEqual({
-      version: '18.1',
+      version: '18',
       movedOffPin: false
     });
   });
@@ -53,12 +53,12 @@ describe('resolveEngineVersion', () => {
     );
   });
 
-  it('emits a full version even with no catalogue at all', () => {
-    const { version } = resolveEngineVersion({ engine: 'postgres' });
-    expect(version).toMatch(/^\d+\.\d+$/);
+  it('emits a release line even with no catalogue at all', () => {
+    expect(resolveEngineVersion({ engine: 'postgres' }).version).toBe('18');
+    expect(resolveEngineVersion({ engine: 'mysql' }).version).toBe('8.4');
   });
 
-  it('keeps an explicit pin when there is no catalogue to judge it against', () => {
-    expect(resolveEngineVersion({ engine: 'postgres', pin: '16.10' }).version).toBe('16.10');
+  it('keeps the line of an explicit pin when there is no catalogue to judge it against', () => {
+    expect(resolveEngineVersion({ engine: 'postgres', pin: '16.10' }).version).toBe('16');
   });
 });

@@ -79,7 +79,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('database.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     })
   });

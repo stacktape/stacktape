@@ -38,7 +38,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -67,7 +67,7 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('database.password') },
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' }
   });

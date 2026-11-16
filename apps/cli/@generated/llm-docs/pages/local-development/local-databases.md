@@ -60,7 +60,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -74,7 +74,7 @@ export default defineConfig(() => {
 ```
 
 
-In dev mode, this starts a PostgreSQL container using image tag `16.6`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
+In dev mode, this starts a PostgreSQL container using image tag `16`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
 
 ### MySQL and MariaDB
 
@@ -91,7 +91,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEngineMysql({
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -213,7 +213,7 @@ export default defineConfig(() => {
       masterUserPassword: "$Secret('db.password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }

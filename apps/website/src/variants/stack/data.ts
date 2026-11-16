@@ -194,7 +194,7 @@ export const ACME_CONFIG = {
     mainDatabase: {
       type: 'relational-database',
       properties: {
-        engine: { type: 'aurora-postgresql', properties: { version: '16.4', port: 5432 } },
+        engine: { type: 'aurora-postgresql', properties: { version: '16', port: 5432 } },
         accessibility: { accessibilityMode: 'vpc' }
       }
     },

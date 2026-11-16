@@ -39,7 +39,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
  * ```
@@ -60,7 +60,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.micro' }
  *       }
  *     }
@@ -94,7 +94,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           minCapacity: 0.5
  *           maxCapacity: 8
  *       # stp-end-focus
@@ -112,7 +112,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         minCapacity: 0.5,
  *         maxCapacity: 8
  *       }
@@ -149,7 +149,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
  * ```
@@ -168,7 +168,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.micro' }
  *       }
  *     }
@@ -199,7 +199,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -218,7 +218,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -251,7 +251,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -270,7 +270,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -305,7 +305,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -324,7 +324,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -363,7 +363,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -395,7 +395,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -426,7 +426,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -445,7 +445,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -481,7 +481,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -503,7 +503,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -534,7 +534,7 @@ export interface RelationalDatabaseProps {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
  * ```
@@ -553,7 +553,7 @@ export interface RelationalDatabaseProps {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.micro' }
  *       }
  *     }
@@ -568,9 +568,16 @@ export interface RelationalDatabaseProps {
 
 export interface SharedEngineProperties {
   /**
-   * #### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).
+   * #### Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`.
  *
  * ---
+ *
+ * Name the release line unless you need one exact minor version. AWS then runs a current minor version of that line
+ * and applies new ones in the maintenance window. A full version pins the minor version, and AWS retires old minor
+ * versions, after which a new database can no longer be created with it. PostgreSQL, MySQL, MariaDB and Aurora accept
+ * a release line; Oracle and SQL Server need a full version.
+ *
+ * A database that is already deployed keeps the version it has when you switch its config to the release line.
  *
  * **Example (YAML):**
  *
@@ -585,7 +592,7 @@ export interface SharedEngineProperties {
  *         type: postgres
  *         properties:
  *           # stp-focus
- *           version: '16.6'
+ *           version: '17'
  *           # stp-end-focus
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
@@ -603,7 +610,7 @@ export interface SharedEngineProperties {
  *       type: 'postgres',
  *       properties: {
  *         // stp-focus
- *         version: '16.6',
+ *         version: '17',
  *         // stp-end-focus
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
@@ -632,7 +639,7 @@ export interface SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           disableAutoMinorVersionUpgrade: true
  *           # stp-end-focus
@@ -651,7 +658,7 @@ export interface SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         disableAutoMinorVersionUpgrade: true,
  *         // stp-end-focus
@@ -760,7 +767,7 @@ export interface RdsEnginePrimaryInstance {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             # stp-focus
  *             instanceSize: db.r6g.large
@@ -778,7 +785,7 @@ export interface RdsEnginePrimaryInstance {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: {
  *           // stp-focus
  *           instanceSize: 'db.r6g.large'
@@ -812,7 +819,7 @@ export interface RdsEnginePrimaryInstance {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  *             # stp-focus
@@ -831,7 +838,7 @@ export interface RdsEnginePrimaryInstance {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: {
  *           instanceSize: 'db.t4g.medium',
  *           // stp-focus
@@ -873,7 +880,7 @@ export interface RelationalDatabaseCredentials {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
  * ```
@@ -894,7 +901,7 @@ export interface RelationalDatabaseCredentials {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.micro' }
  *       }
  *     }
@@ -928,7 +935,7 @@ export interface RelationalDatabaseCredentials {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
  * ```
@@ -949,7 +956,7 @@ export interface RelationalDatabaseCredentials {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.micro' }
  *       }
  *     }
@@ -995,7 +1002,7 @@ export interface DatabaseAccessibility {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1016,7 +1023,7 @@ export interface DatabaseAccessibility {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1052,7 +1059,7 @@ export interface DatabaseAccessibility {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1074,7 +1081,7 @@ export interface DatabaseAccessibility {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1112,7 +1119,7 @@ export interface DatabaseAccessibility {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1134,7 +1141,7 @@ export interface DatabaseAccessibility {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1168,7 +1175,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           dbName: appdb
  *           # stp-end-focus
@@ -1187,7 +1194,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         dbName: 'appdb',
  *         // stp-end-focus
@@ -1217,7 +1224,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           port: 5433
  *           # stp-end-focus
@@ -1236,7 +1243,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         port: 5433,
  *         // stp-end-focus
@@ -1266,7 +1273,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           storage:
  *             initialSize: 50
@@ -1287,7 +1294,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         storage: { initialSize: 50, maxSize: 500 },
  *         // stp-end-focus
@@ -1317,7 +1324,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           primaryInstance:
  *             instanceSize: db.r6g.large
@@ -1336,7 +1343,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         primaryInstance: {
  *           instanceSize: 'db.r6g.large',
@@ -1370,7 +1377,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.r6g.large
  *           # stp-focus
@@ -1391,7 +1398,7 @@ export interface RdsEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.r6g.large' },
  *         // stp-focus
  *         readReplicas: [
@@ -1433,7 +1440,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1454,7 +1461,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1490,7 +1497,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1512,7 +1519,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1552,7 +1559,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *       engine:
  *         type: mysql
  *         properties:
- *           version: '8.0.36'
+ *           version: '8.4'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1573,7 +1580,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     engine: {
  *       type: 'mysql',
  *       properties: {
- *         version: '8.0.36',
+ *         version: '8.4',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1608,7 +1615,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1633,7 +1640,7 @@ export interface RelationalDatabaseLogging extends LogForwardingBase {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1671,7 +1678,7 @@ export interface PostgresLoggingOptions {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1695,7 +1702,7 @@ export interface PostgresLoggingOptions {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1731,7 +1738,7 @@ export interface PostgresLoggingOptions {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1755,7 +1762,7 @@ export interface PostgresLoggingOptions {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1791,7 +1798,7 @@ export interface PostgresLoggingOptions {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1815,7 +1822,7 @@ export interface PostgresLoggingOptions {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1851,7 +1858,7 @@ export interface PostgresLoggingOptions {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1875,7 +1882,7 @@ export interface PostgresLoggingOptions {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1911,7 +1918,7 @@ export interface PostgresLoggingOptions {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -1935,7 +1942,7 @@ export interface PostgresLoggingOptions {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -1977,7 +1984,7 @@ export interface MysqlLoggingOptions {
  *       engine:
  *         type: mysql
  *         properties:
- *           version: '8.0.36'
+ *           version: '8.4'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -2001,7 +2008,7 @@ export interface MysqlLoggingOptions {
  *     engine: {
  *       type: 'mysql',
  *       properties: {
- *         version: '8.0.36',
+ *         version: '8.4',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -2037,7 +2044,7 @@ export interface MysqlLoggingOptions {
  *       engine:
  *         type: mysql
  *         properties:
- *           version: '8.0.36'
+ *           version: '8.4'
  *           primaryInstance:
  *             instanceSize: db.t4g.medium
  * ```
@@ -2061,7 +2068,7 @@ export interface MysqlLoggingOptions {
  *     engine: {
  *       type: 'mysql',
  *       properties: {
- *         version: '8.0.36',
+ *         version: '8.4',
  *         primaryInstance: { instanceSize: 'db.t4g.medium' }
  *       }
  *     }
@@ -2094,7 +2101,7 @@ export interface RdsEngineStorage {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           storage:
  *             # stp-focus
  *             initialSize: 100
@@ -2115,7 +2122,7 @@ export interface RdsEngineStorage {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         storage: {
  *           // stp-focus
  *           initialSize: 100,
@@ -2150,7 +2157,7 @@ export interface RdsEngineStorage {
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           storage:
  *             initialSize: 100
  *             # stp-focus
@@ -2171,7 +2178,7 @@ export interface RdsEngineStorage {
  *     engine: {
  *       type: 'postgres',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         storage: {
  *           initialSize: 100,
  *           // stp-focus
@@ -2480,7 +2487,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           dbName: appdb
  *           # stp-end-focus
@@ -2499,7 +2506,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         dbName: 'appdb',
  *         // stp-end-focus
@@ -2535,7 +2542,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           minCapacity: 0.5
  *           # stp-end-focus
@@ -2553,7 +2560,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         minCapacity: 0.5,
  *         // stp-end-focus
@@ -2586,7 +2593,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           minCapacity: 0.5
  *           # stp-focus
  *           maxCapacity: 16
@@ -2604,7 +2611,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         minCapacity: 0.5,
  *         // stp-focus
  *         maxCapacity: 16
@@ -2640,7 +2647,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *       engine:
  *         type: aurora-postgresql-serverless-v2
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           minCapacity: 0.5
  *           maxCapacity: 16
  *           # stp-focus
@@ -2659,7 +2666,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  *     engine: {
  *       type: 'aurora-postgresql-serverless-v2',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         minCapacity: 0.5,
  *         maxCapacity: 16,
  *         // stp-focus
@@ -2696,7 +2703,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: aurora-postgresql
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           dbName: appdb
  *           # stp-end-focus
@@ -2715,7 +2722,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         dbName: 'appdb',
  *         // stp-end-focus
@@ -2747,7 +2754,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: aurora-postgresql
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           port: 5433
  *           # stp-end-focus
@@ -2766,7 +2773,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         port: 5433,
  *         // stp-end-focus
@@ -2799,7 +2806,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *       engine:
  *         type: aurora-postgresql
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           # stp-focus
  *           instances:
  *             - instanceSize: db.r6g.large
@@ -2818,7 +2825,7 @@ export interface AuroraEngineProperties extends SharedEngineProperties {
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         // stp-focus
  *         instances: [
  *           { instanceSize: 'db.r6g.large' },
@@ -2856,7 +2863,7 @@ export interface AuroraEngineInstance {
  *       engine:
  *         type: aurora-postgresql
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           instances:
  *             # stp-focus
  *             - instanceSize: db.r6g.large
@@ -2874,7 +2881,7 @@ export interface AuroraEngineInstance {
  *     engine: {
  *       type: 'aurora-postgresql',
  *       properties: {
- *         version: '16.6',
+ *         version: '16',
  *         instances: [
  *           // stp-focus
  *           { instanceSize: 'db.r6g.large' }

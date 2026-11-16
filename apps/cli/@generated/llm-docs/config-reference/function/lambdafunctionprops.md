@@ -365,7 +365,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -381,7 +381,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -743,7 +743,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -756,7 +756,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const dbMigrator = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
@@ -984,7 +984,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '17.7'
+          version: '17'
           primaryInstance:
             instanceSize: db.t4g.micro
   api:
@@ -1040,7 +1040,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -1053,7 +1053,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const legacyDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const legacyDbWriter = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },

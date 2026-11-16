@@ -106,7 +106,7 @@ export interface RemixWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *   web:
@@ -135,7 +135,7 @@ export interface RemixWebProps extends ResourceAccessProps {
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     engine: {
    *       type: 'postgres',
-   *       properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } }
+   *       properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } }
    *     }
    *   });
    *   const web = new RemixWeb({
