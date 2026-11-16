@@ -60471,63 +60471,13 @@
         "name": "notificationChannels",
         "required": false,
         "shortDescription": "<p> Where to send notifications when the check goes down or recovers.</p>",
-        "longDescription": "<p>Accepts inline destinations (<code>slack</code>, <code>ms-teams</code>, <code>discord</code>, <code>email</code>, <code>webhook</code>) and references to\nchannels configured in the Stacktape Console (<code>console-channel</code>). State changes always appear in the\nConsole&#39;s monitoring history, even with no channels configured.</p>",
+        "longDescription": "<p>The Stacktape Console decides when a check is down and delivers its notifications, so an uptime check accepts\nonly destinations that hold no credentials: channels configured in the Console (<code>console-channel</code>), channels of\nthe Slack workspace connected through the Stacktape Slack app (<code>slack-app</code>), and <code>email</code>. To notify a Slack bot,\nMS Teams, Discord or a webhook, create the channel in the Console and reference it with <code>console-channel</code>.\nState changes always appear in the Console&#39;s monitoring history, even with no channels configured.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {
             "kind": "union",
             "discriminator": "type",
             "branches": [
-              {
-                "label": "slack",
-                "typeName": "SlackIntegration",
-                "properties": [
-                  {
-                    "name": "conversationId",
-                    "required": true,
-                    "shortDescription": "<p> The Slack channel or DM ID to send notifications to.</p>",
-                    "longDescription": "<p>To find the ID: open the channel, click its name, and look at the bottom of the <strong>About</strong> tab.</p>",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  workerFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 5\n          description: Worker error rate is too high\n          notificationChannels:\n            - type: slack\n              properties:\n                # [!code focus-start]\n                conversationId: C0123456789\n                # [!code focus-end]\n                accessToken: $Secret('slack-bot-token')"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              // [!code focus-start]\n              conversationId: 'C0123456789',\n              // [!code focus-end]\n              accessToken: $Secret('slack-bot-token')\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
-                      }
-                    ]
-                  },
-                  {
-                    "name": "accessToken",
-                    "required": true,
-                    "shortDescription": "<p> Bot User OAuth Token for your Slack app. Store as <code>$Secret()</code> for security.</p>",
-                    "longDescription": "<p>Create a Slack app, add the <code>chat:write</code> scope, install it to your workspace, then copy the Bot User OAuth Token.</p>",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  workerFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/worker.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 5\n          description: Worker error rate is too high\n          notificationChannels:\n            - type: slack\n              properties:\n                conversationId: C0123456789\n                # [!code focus-start]\n                accessToken: $Secret('slack-bot-token')\n                # [!code focus-end]"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              conversationId: 'C0123456789',\n              // [!code focus-start]\n              accessToken: $Secret('slack-bot-token')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
-                      }
-                    ]
-                  }
-                ]
-              },
               {
                 "label": "slack-app",
                 "typeName": "SlackAppIntegration",
@@ -60543,34 +60493,6 @@
                         "string"
                       ]
                     }
-                  }
-                ]
-              },
-              {
-                "label": "ms-teams",
-                "typeName": "MsTeamsIntegration",
-                "properties": [
-                  {
-                    "name": "webhookUrl",
-                    "required": true,
-                    "shortDescription": "<p> Incoming Webhook URL for the MS Teams channel. Store as <code>$Secret()</code> for security.</p>",
-                    "longDescription": "<p>Create an Incoming Webhook connector in your Teams channel settings to get this URL.</p>",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/api.ts\n      memory: 1024\n      timeout: 15\n      alarms:\n        - trigger:\n            type: lambda-duration\n            properties:\n              thresholdMilliseconds: 5000\n          description: API function is running slow\n          notificationChannels:\n            - type: ms-teams\n              properties:\n                # [!code focus-start]\n                webhookUrl: $Secret('ms-teams-webhook-url')\n                # [!code focus-end]"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/api.ts' }\n    },\n    memory: 1024,\n    timeout: 15,\n    alarms: [\n      {\n        trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 5000 } },\n        description: 'API function is running slow',\n        notificationChannels: [\n          {\n            type: 'ms-teams',\n            properties: {\n              // [!code focus-start]\n              webhookUrl: $Secret('ms-teams-webhook-url')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { apiFunction } };\n});"
-                      }
-                    ]
                   }
                 ]
               },
@@ -60619,103 +60541,6 @@
                       {
                         "lang": "typescript",
                         "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const paymentsFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/payments.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },\n        description: 'Payment processing failures detected',\n        notificationChannels: [\n          {\n            type: 'email',\n            properties: {\n              sender: 'alerts@mycompany.com',\n              // [!code focus-start]\n              recipient: 'oncall@mycompany.com'\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { paymentsFunction } };\n});"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "discord",
-                "typeName": "DiscordIntegration",
-                "properties": [
-                  {
-                    "name": "webhookUrl",
-                    "required": true,
-                    "shortDescription": "<p> Discord Webhook URL for the channel. Store as <code>$Secret()</code> for security.</p>",
-                    "longDescription": "<p>Create a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).</p>",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  ingestFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/ingest.ts\n      memory: 256\n      timeout: 60\n      alarms:\n        - trigger:\n            type: lambda-duration\n            properties:\n              thresholdMilliseconds: 30000\n          description: Ingest job is taking too long\n          notificationChannels:\n            - type: discord\n              properties:\n                # [!code focus-start]\n                webhookUrl: $Secret('discord-webhook-url')\n                # [!code focus-end]"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const ingestFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/ingest.ts' }\n    },\n    memory: 256,\n    timeout: 60,\n    alarms: [\n      {\n        trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 30000 } },\n        description: 'Ingest job is taking too long',\n        notificationChannels: [\n          {\n            type: 'discord',\n            properties: {\n              // [!code focus-start]\n              webhookUrl: $Secret('discord-webhook-url')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { ingestFunction } };\n});"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "label": "webhook",
-                "typeName": "WebhookIntegration",
-                "properties": [
-                  {
-                    "name": "url",
-                    "required": true,
-                    "shortDescription": "<p> The URL to send webhook POST requests to.</p>",
-                    "longDescription": "",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                # [!code focus-start]\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                # [!code focus-end]\n                secret: $Secret('webhook-signing-secret')"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              // [!code focus-start]\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              // [!code focus-end]\n              secret: $Secret('webhook-signing-secret')\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
-                      }
-                    ]
-                  },
-                  {
-                    "name": "secret",
-                    "required": false,
-                    "shortDescription": "<p> Optional signing secret for HMAC-SHA256 payload verification.</p>",
-                    "longDescription": "<p>If provided, each request includes an <code>X-Stacktape-Signature</code> header.</p>",
-                    "typeInfo": {
-                      "kind": "primitive",
-                      "types": [
-                        "string"
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                # [!code focus-start]\n                secret: $Secret('webhook-signing-secret')\n                # [!code focus-end]"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              // [!code focus-start]\n              secret: $Secret('webhook-signing-secret')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
-                      }
-                    ]
-                  },
-                  {
-                    "name": "headers",
-                    "required": false,
-                    "shortDescription": "<p> Optional custom headers to include in each request.</p>",
-                    "longDescription": "",
-                    "typeInfo": {
-                      "kind": "unknown"
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                secret: $Secret('webhook-signing-secret')\n                # [!code focus-start]\n                headers:\n                  X-Environment: production\n                  Authorization: $Secret('webhook-auth-header')\n                # [!code focus-end]"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'js-bundle',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              secret: $Secret('webhook-signing-secret'),\n              // [!code focus-start]\n              headers: {\n                'X-Environment': 'production',\n                Authorization: $Secret('webhook-auth-header')\n              }\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
                       }
                     ]
                   }
@@ -60839,7 +60664,7 @@
       "requiredCount": 1,
       "optionalCount": 9
     },
-    "typeDeclaration": "import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype UptimeCheckProps = {\n  /** The URL to monitor. */\n  url: string;\n  /** Conditions the response must meet for the probe to count as successful. */\n  assertions?: Array<UptimeCheckAssertions>;\n  /** Temporarily pause the check without deleting it. */\n  enabled?: boolean;\n  /** How many consecutive failed or successful evaluations flip the check between up and down. */\n  evaluation?: UptimeCheckEvaluation;\n  /** Whether the probe follows HTTP redirects (up to 5). */\n  followRedirects?: boolean;\n  /** How often each monitoring region probes the URL, in seconds. */\n  intervalSeconds?: 30 | 60;\n  /** HTTP method used for the probe. */\n  method?: \"GET\" | \"HEAD\";\n  /** Where to send notifications when the check goes down or recovers. */\n  notificationChannels?: Array<UptimeCheckNotificationChannels>;\n  /** AWS regions the URL is probed from. */\n  regions?: Array<\"af-south-1\" | \"ap-east-1\" | \"ap-northeast-1\" | \"ap-northeast-2\" | \"ap-northeast-3\" | \"ap-south-1\" | \"ap-southeast-1\" | \"ap-southeast-2\" | \"ca-central-1\" | \"eu-central-1\" | \"eu-north-1\" | \"eu-south-1\" | \"eu-west-1\" | \"eu-west-2\" | \"eu-west-3\" | \"me-south-1\" | \"sa-east-1\" | \"us-east-1\" | \"us-east-2\" | \"us-west-1\" | \"us-west-2\">;\n  /** How long to wait for a response before the probe counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype UptimeCheckAssertions =\n  | StatusCodeAssertion\n  | BodyContainsAssertion;\n\ntype UptimeCheckNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { BodyContainsAssertion, ConsoleChannelIntegration, EmailIntegration, SlackAppIntegration, StatusCodeAssertion, UptimeCheckEvaluation } from 'stacktape';\n\n// [!code focus-start]\ntype UptimeCheckProps = {\n  /** The URL to monitor. */\n  url: string;\n  /** Conditions the response must meet for the probe to count as successful. */\n  assertions?: Array<UptimeCheckAssertions>;\n  /** Temporarily pause the check without deleting it. */\n  enabled?: boolean;\n  /** How many consecutive failed or successful evaluations flip the check between up and down. */\n  evaluation?: UptimeCheckEvaluation;\n  /** Whether the probe follows HTTP redirects (up to 5). */\n  followRedirects?: boolean;\n  /** How often each monitoring region probes the URL, in seconds. */\n  intervalSeconds?: 30 | 60;\n  /** HTTP method used for the probe. */\n  method?: \"GET\" | \"HEAD\";\n  /** Where to send notifications when the check goes down or recovers. */\n  notificationChannels?: Array<UptimeCheckNotificationChannels>;\n  /** AWS regions the URL is probed from. */\n  regions?: Array<\"af-south-1\" | \"ap-east-1\" | \"ap-northeast-1\" | \"ap-northeast-2\" | \"ap-northeast-3\" | \"ap-south-1\" | \"ap-southeast-1\" | \"ap-southeast-2\" | \"ca-central-1\" | \"eu-central-1\" | \"eu-north-1\" | \"eu-south-1\" | \"eu-west-1\" | \"eu-west-2\" | \"eu-west-3\" | \"me-south-1\" | \"sa-east-1\" | \"us-east-1\" | \"us-east-2\" | \"us-west-1\" | \"us-west-2\">;\n  /** How long to wait for a response before the probe counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype UptimeCheckAssertions =\n  | StatusCodeAssertion\n  | BodyContainsAssertion;\n\ntype UptimeCheckNotificationChannels =\n  | SlackAppIntegration\n  | EmailIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "UserAuthPool": {
     "definitionName": "UserAuthPool",

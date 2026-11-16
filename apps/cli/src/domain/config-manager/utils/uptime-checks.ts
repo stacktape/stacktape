@@ -1,6 +1,6 @@
 import type { StpUptimeCheck } from '@domain-services/config-manager/resolved-types/uptime-checks';
 import type { SupportedAWSRegion } from '@stacktape/config/aws-regions';
-import type { NotificationChannel } from '@stacktape/config/notification-channels';
+import type { UptimeCheckNotificationChannel } from '@stacktape/config/uptime-checks';
 import type { SyncUptimeChecksParams } from '@stacktape/console-api/api-key';
 import { createHash } from 'node:crypto';
 import { isSupportedAwsRegion } from '@stacktape/config/aws-regions';
@@ -51,29 +51,39 @@ export const computeUptimeCheckRevision = (check: ResolvedUptimeCheck) => {
   return createHash('sha256').update(JSON.stringify(definition)).digest('hex').slice(0, 24);
 };
 
-/** Config channel vocabulary (`ms-teams`, `email`, `console-channel`) to the Console wire vocabulary. */
-const translateNotificationChannelsForConsole = (channels: NotificationChannel[] | undefined) =>
+/**
+ * Config channel vocabulary (`email`, `console-channel`, `slack-app`) to the Console wire vocabulary. Uptime checks
+ * accept only channels without credentials, because the Console stores and delivers them; each property is copied by
+ * name so nothing else in the config object reaches the Console.
+ */
+const translateNotificationChannelsForConsole = (channels: UptimeCheckNotificationChannel[] | undefined) =>
   (channels || []).map((channel) => {
     if (channel.type === 'console-channel') {
       return { name: channel.properties.channelName, type: 'console-channel' as const, properties: {} };
     }
     if (channel.type === 'slack-app') {
       // Resolved at deploy time (resolveSlackAppChannels): the wire carries the stable IDs, not the name.
+      const {
+        channel: channelReference,
+        connectionId,
+        channelId,
+        channelName
+      } = channel.properties as {
+        channel: string;
+        connectionId?: string;
+        channelId?: string;
+        channelName?: string;
+      };
       return {
-        name: `#${channel.properties.channel.replace(/^#/u, '')}`,
+        name: `#${channelReference.replace(/^#/u, '')}`,
         type: 'slack_app' as const,
-        properties: channel.properties
+        properties: { channel: channelReference, connectionId, channelId, channelName }
       };
     }
     return {
-      name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
-      type:
-        channel.type === 'ms-teams'
-          ? ('ms_teams' as const)
-          : channel.type === 'email'
-            ? ('e_mail' as const)
-            : channel.type,
-      properties: channel.properties
+      name: 'Email',
+      type: 'e_mail' as const,
+      properties: { sender: channel.properties.sender, recipient: channel.properties.recipient }
     };
   });
 
@@ -219,4 +229,30 @@ export const validateUptimeCheck = ({ check }: { check: StpUptimeCheck & { regio
       reason: `\`regions\` contains duplicate entries (${check.regions.join(', ')}).`
     });
   }
+};
+
+const CREDENTIAL_CHANNEL_TYPES = new Set(['slack', 'ms-teams', 'discord', 'webhook']);
+
+/**
+ * The validation hint for an inline channel with credentials (a bot token or webhook URL) on an uptime check. The
+ * Console delivers uptime notifications, so the check must reference a channel the Console already holds.
+ */
+export const uptimeCheckCredentialChannelHint = ({
+  config,
+  path,
+  channelType
+}: {
+  config: unknown;
+  path: PropertyKey[];
+  channelType: string;
+}): string | undefined => {
+  if (!CREDENTIAL_CHANNEL_TYPES.has(channelType)) return undefined;
+  const [section, resourceName, properties, channels] = path;
+  if (section !== 'resources' || properties !== 'properties' || channels !== 'notificationChannels') return undefined;
+  const resource = (config as { resources?: Record<string, { type?: unknown }> } | null)?.resources?.[
+    String(resourceName)
+  ];
+  if (resource?.type !== 'uptime-check') return undefined;
+  const slackAppAlternative = channelType === 'slack' ? ', or connect the Stacktape Slack app and use `slack-app`' : '';
+  return `Uptime checks send notifications through the Stacktape Console, so a channel cannot carry a bot token or webhook URL. Create the \`${channelType}\` channel on the Console's Channels page and reference it with \`type: console-channel\`${slackAppAlternative}. See https://docs.stacktape.com/observability/uptime-checks/`;
 };

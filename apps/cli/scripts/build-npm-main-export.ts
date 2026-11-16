@@ -251,6 +251,7 @@ const _PLAIN_TYPES_TO_GENERATE = [
   'UptimeCheckProps',
   'UptimeCheckAssertion',
   'UptimeCheckEvaluation',
+  'UptimeCheckNotificationChannel',
   'StatusCodeAssertionProps',
   'BodyContainsAssertionProps',
   // IAM types

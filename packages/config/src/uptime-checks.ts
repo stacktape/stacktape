@@ -1,5 +1,6 @@
 import type { SupportedAWSRegion } from './aws-regions';
-import type { NotificationChannel } from './notification-channels';
+import type { ConsoleChannelIntegration } from './notification-channels';
+import type { EmailIntegration, SlackAppIntegration } from './user-integrations';
 import type { ResourceOverrides } from './shared';
 
 export interface UptimeCheck {
@@ -415,9 +416,11 @@ export interface UptimeCheckProps {
    *
    * ---
    *
-   * Accepts inline destinations (`slack`, `ms-teams`, `discord`, `email`, `webhook`) and references to
-   * channels configured in the Stacktape Console (`console-channel`). State changes always appear in the
-   * Console's monitoring history, even with no channels configured.
+   * The Stacktape Console decides when a check is down and delivers its notifications, so an uptime check accepts
+   * only destinations that hold no credentials: channels configured in the Console (`console-channel`), channels of
+   * the Slack workspace connected through the Stacktape Slack app (`slack-app`), and `email`. To notify a Slack bot,
+   * MS Teams, Discord or a webhook, create the channel in the Console and reference it with `console-channel`.
+   * State changes always appear in the Console's monitoring history, even with no channels configured.
    *
    * **Example (YAML):**
    *
@@ -458,8 +461,18 @@ export interface UptimeCheckProps {
    * });
    * ```
    */
-  notificationChannels?: NotificationChannel[];
+  notificationChannels?: UptimeCheckNotificationChannel[];
 }
+
+/**
+ * #### Where to deliver an uptime check's notifications.
+ *
+ * ---
+ *
+ * A channel configured in the Stacktape Console (`console-channel`), a channel of the Slack workspace connected
+ * through the Stacktape Slack app (`slack-app`), or an `email` address.
+ */
+export type UptimeCheckNotificationChannel = ConsoleChannelIntegration | SlackAppIntegration | EmailIntegration;
 
 
 export interface UptimeCheckEvaluation {

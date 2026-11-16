@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import type { StpUptimeCheck } from '@domain-services/config-manager/resolved-types/uptime-checks';
 import type { SupportedAWSRegion } from '@stacktape/config/aws-regions';
-import { resolveUptimeCheckRegions, validateUptimeCheck } from './uptime-checks';
+import { syncUptimeChecksInputSchema } from '@stacktape/console-api/api-key';
+import { buildUptimeChecksSyncPayload, resolveUptimeCheckRegions, validateUptimeCheck } from './uptime-checks';
+import { validateConfigWithZod } from './zod-validator';
 
 const baseCheck = (
   overrides: Partial<StpUptimeCheck & { regions: SupportedAWSRegion[] }> = {}
@@ -104,5 +106,111 @@ describe('validateUptimeCheck', () => {
         })
       })
     ).toThrow(/at most 5 probe regions/);
+  });
+});
+
+describe('uptime check notification channels', () => {
+  const SYNTHETIC_CREDENTIAL = 'synthetic-uptime-credential';
+  const configWithChannel = (channel: unknown) => ({
+    resources: {
+      site: {
+        type: 'uptime-check',
+        properties: { url: 'https://example.invalid/health', notificationChannels: [channel] }
+      }
+    }
+  });
+
+  test.each([
+    { type: 'slack', properties: { conversationId: 'C_SYNTHETIC', accessToken: SYNTHETIC_CREDENTIAL } },
+    { type: 'slack', properties: { conversationId: 'C_SYNTHETIC', accessToken: "$Secret('review-token')" } },
+    { type: 'ms-teams', properties: { webhookUrl: "$Secret('review-webhook')" } },
+    { type: 'discord', properties: { webhookUrl: 'https://example.invalid/synthetic-webhook' } },
+    { type: 'webhook', properties: { url: 'https://example.invalid/hook', secret: SYNTHETIC_CREDENTIAL } }
+  ])('config validation rejects an inline $type channel and points to Console channels', (channel) => {
+    const result = validateConfigWithZod({ config: configWithChannel(channel), configPath: 'stacktape.yml' });
+    expect(result.valid).toBe(false);
+    if (result.valid === false) {
+      expect(result.errorMessage).toContain('notificationChannels[0]');
+      expect(result.errorMessage).toContain('type: console-channel');
+    }
+  });
+
+  test('alarms keep accepting inline channels; only uptime checks reject them', () => {
+    const result = validateConfigWithZod({
+      config: {
+        resources: {
+          api: {
+            type: 'function',
+            properties: {
+              packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
+              alarms: [
+                {
+                  trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
+                  notificationChannels: [
+                    { type: 'slack', properties: { conversationId: 'C_SYNTHETIC', accessToken: "$Secret('token')" } }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      configPath: 'stacktape.yml'
+    });
+    expect(result).toEqual({ valid: true });
+  });
+
+  test.each([
+    { type: 'console-channel', properties: { channelName: 'on-call' } },
+    { type: 'slack-app', properties: { channel: '#alerts' } },
+    { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
+  ])('config validation accepts a $type channel', (channel) => {
+    expect(validateConfigWithZod({ config: configWithChannel(channel), configPath: 'stacktape.yml' })).toEqual({
+      valid: true
+    });
+  });
+
+  test('the sync payload carries only the named properties of each channel', () => {
+    const payload = buildUptimeChecksSyncPayload({
+      projectName: 'review',
+      stage: 'production',
+      checks: [
+        {
+          ...baseCheck(),
+          notificationChannels: [
+            { type: 'console-channel', properties: { channelName: 'on-call' } },
+            {
+              type: 'slack-app',
+              properties: {
+                channel: '#alerts',
+                connectionId: 'conn-1',
+                channelId: 'C123',
+                channelName: 'alerts',
+                accessToken: SYNTHETIC_CREDENTIAL
+              } as never
+            },
+            {
+              type: 'email',
+              properties: {
+                sender: 'alerts@example.com',
+                recipient: 'oncall@example.com',
+                password: SYNTHETIC_CREDENTIAL
+              } as never
+            }
+          ]
+        }
+      ] as never
+    });
+
+    expect(payload.checks[0].notificationChannels).toEqual([
+      { name: 'on-call', type: 'console-channel', properties: {} },
+      {
+        name: '#alerts',
+        type: 'slack_app',
+        properties: { channel: '#alerts', connectionId: 'conn-1', channelId: 'C123', channelName: 'alerts' }
+      },
+      { name: 'Email', type: 'e_mail', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
+    ]);
+    expect(JSON.stringify(syncUptimeChecksInputSchema.parse(payload))).not.toContain(SYNTHETIC_CREDENTIAL);
   });
 });
