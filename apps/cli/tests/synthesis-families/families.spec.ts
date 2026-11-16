@@ -1446,6 +1446,49 @@ describe('Redis family', () => {
     expect(dollarPassword).not.toContain('$literal-1234');
   });
 
+  test('a v3 config names the v4 replacement of each packaging type and alarm property it still uses', async () => {
+    const message = await validateConfigStructure({
+      configPath: 'stacktape.yml',
+      config: {
+        resources: {
+          site: {
+            type: 'web-service',
+            properties: {
+              packaging: { type: 'custom-dockerfile', properties: { buildContextPath: './site' } },
+              resources: { cpu: 0.25, memory: 512 }
+            }
+          },
+          legacySite: {
+            type: 'web-service',
+            properties: {
+              packaging: { type: 'nixpacks', properties: { sourceDirectoryPath: './legacy' } },
+              resources: { cpu: 0.25, memory: 512 }
+            }
+          },
+          sync: {
+            type: 'function',
+            properties: {
+              packaging: { type: 'js-bundle', properties: { entryfilePath: './sync.ts' } },
+              alarms: [
+                {
+                  trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
+                  notificationTargets: [{ type: 'webhook', properties: { url: 'https://example.com/alarms' } }]
+                }
+              ]
+            }
+          }
+        }
+      } as never
+    }).then(
+      () => '',
+      (error: Error) => error.message
+    );
+    expect(message).toContain('`custom-dockerfile` is a Stacktape v3 packaging type: use `dockerfile`');
+    expect(message).toContain('`nixpacks` is a Stacktape v3 packaging type: use `buildpack`');
+    expect(message).toContain('Rename it to `notificationChannels`');
+    expect(message).toContain('https://docs.stacktape.com/getting-started/upgrading-from-v3/');
+  });
+
   test('a serverless cache keeps the deployed subnet order when the subnets are the same', async () => {
     const deployed = await synthesizeCache('redis-serverless-subnets', { type: 'valkey-serverless' });
     const deployedCache = onlyResourceOfType(deployed, 'AWS::ElastiCache::ServerlessCache');
