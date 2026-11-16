@@ -33,6 +33,26 @@ test('the named dialog contains keyboard focus, skips disabled actions, and rest
   await expect(page.getByRole('status', { name: 'Close callback count' })).toHaveText('1');
 });
 
+test('a dialog opens in its first look: its focused field does not ease its focus border in', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open example dialog' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Example dialog' });
+  await expect(dialog.getByRole('textbox', { name: 'Example name' })).toBeFocused();
+  const transitions = await page.evaluate(
+    () =>
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .filter((animation) => {
+          const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null;
+          return !!target && !!document.querySelector('dialog')?.contains(target);
+        }).length
+  );
+  expect(transitions).toBe(0);
+  // Once it has opened, its controls ease again on hover and focus.
+  await expect(dialog).not.toHaveAttribute('data-opening');
+});
+
 test('closing by control or backdrop restores the prior scroll state and focus', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {

@@ -27,6 +27,8 @@ const fieldSelector =
   'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)';
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/** How long a dialog counts as opening: its fade-in (`--stp-motion-duration-base`) and the frames its fields settle in. */
+const OPENING_MS = 350;
 
 /**
  * A modal dialog with focus containment, focus restoration, Escape handling and scroll locking.
@@ -54,6 +56,24 @@ export function Dialog({
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  // What had the focus before the dialog opened, read as it renders open: a field inside it with `autoFocus` takes the
+  // focus while it mounts, before any effect here runs, and closing would then return the focus to nothing.
+  const wasOpenRef = useRef(false);
+  if (open && !wasOpenRef.current && typeof document !== 'undefined') {
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasOpenRef.current = open;
+  // While it fades in, nothing inside eases from one look to another (`data-opening` in styles.css): the first field's
+  // focus border and a select that settles into its first state belong to the dialog's first look, not to a change.
+  const [isOpening, setIsOpening] = useState(true);
+  useEffect(() => {
+    if (!open) {
+      setIsOpening(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setIsOpening(false), OPENING_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
   const callbacksRef = useRef({ onClose, onOpenChange });
   callbacksRef.current = { onClose, onOpenChange };
   const isInnermost = useLayer(open, 'modal', () => {
@@ -83,7 +103,6 @@ export function Dialog({
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
 
@@ -153,6 +172,7 @@ export function Dialog({
         aria-labelledby={title ? titleId : undefined}
         aria-modal="true"
         className={['stp-ui-dialog', className].filter(Boolean).join(' ')}
+        data-opening={isOpening ? '' : undefined}
         open
         ref={dialogRef}
         style={style}

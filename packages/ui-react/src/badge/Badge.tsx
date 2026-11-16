@@ -50,21 +50,36 @@ export function Badge({
 }
 
 /**
+ * How loud a count is, by what it counts: `danger` for something failing now (a critical incident), `warning` for what
+ * needs a look soon (another open incident, a firing alarm, a finding to fix), `neutral` for a number that is only a
+ * number (open errors: most running apps have a few, and a red count for each teaches people to ignore red).
+ */
+export type CountBadgeTone = 'danger' | 'warning' | 'neutral';
+
+/**
  * The one count badge: how many things need attention. `dot` is its form where there is no room for a number, such as
  * the collapsed navigation rail; the surrounding control's name and tooltip carry the number.
  */
-export function CountBadge({ value, display = 'count' }: { value: number; display?: 'count' | 'dot' }) {
+export function CountBadge({
+  value,
+  display = 'count',
+  tone = 'danger'
+}: {
+  value: number;
+  display?: 'count' | 'dot';
+  tone?: CountBadgeTone;
+}) {
   if (display === 'dot') {
     return (
       <span
-        className="stp-ui-badge stp-ui-badge--danger stp-ui-badge--solid stp-ui-count-badge--dot"
+        className={`stp-ui-badge stp-ui-badge--${tone} stp-ui-badge--solid stp-ui-count-badge--dot`}
         aria-hidden
         data-count={value}
       />
     );
   }
   return (
-    <Badge className="stp-ui-count-badge" pill size="small" tone="danger" variant="solid">
+    <Badge className="stp-ui-count-badge" pill size="small" tone={tone} variant="solid">
       {value > 99 ? '99+' : value}
     </Badge>
   );

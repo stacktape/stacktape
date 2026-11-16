@@ -855,6 +855,14 @@
     letter-spacing: 0;
   }
 
+  /* A count that is only a number (open errors) is said quietly: a muted figure on a faint fill, beside red and amber
+   * counts that ask for a look. */
+  .stp-ui-count-badge.stp-ui-badge--neutral,
+  .stp-ui-count-badge--dot.stp-ui-badge--neutral {
+    --stp-badge-solid: rgb(255 255 255 / 0.1);
+    --stp-badge-solid-text: var(--stp-text-muted);
+  }
+
   /* Where a number does not fit: a dot ringed in the surface colour, so it reads as cut out of the icon it sits on. */
   .stp-ui-count-badge--dot {
     width: 8px;
@@ -1438,6 +1446,15 @@
     /* A dialog fades in as the page behind it dims. Opacity only: what measures the dialog as it opens (a list placed
        under its field, a test) sees its final size and place. */
     animation: stp-ui-fade-in var(--stp-motion-duration-base) var(--stp-motion-easing-out);
+  }
+
+  /* While the dialog fades in, its first field takes the focus and its selects settle into their first state. Those are
+   * its first look, not changes, so nothing eases into them. `!important` because some controls inside (the selects)
+   * set their transitions outside this layer. */
+  .stp-ui-dialog[data-opening] *,
+  .stp-ui-dialog[data-opening] *::before,
+  .stp-ui-dialog[data-opening] *::after {
+    transition: none !important;
   }
 
   .stp-ui-dialog__backdrop {

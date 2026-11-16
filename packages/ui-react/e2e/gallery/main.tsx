@@ -61,8 +61,14 @@ function Gallery() {
         }
       >
         <p>This dialog uses the shared component and stylesheet with synthetic content.</p>
-        <label htmlFor="example-name">Example name</label>
-        <input id="example-name" defaultValue="Example project" />
+        <TextField
+          // As several Console forms have it: the field takes the focus while it mounts, before the dialog's effects run.
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- reproduces those forms
+          autoFocus
+          defaultValue="Example project"
+          label="Example name"
+          reserveMessageSpace={false}
+        />
         <Button variant="primary" disabled onClick={() => setUnavailableCount((count) => count + 1)}>
           Unavailable action
         </Button>
