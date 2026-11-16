@@ -642,11 +642,8 @@ addRoute('POST', '/stop', async () => {
   agentState.phase = 'stopping';
   // Before the response, so a start that follows it waits for this session.
   markOwnAgentLockStopping();
-  // On Windows, process.kill(pid, 'SIGINT') doesn't emit the SIGINT event properly
-  // Use process.emit('SIGINT') instead to trigger registered handlers
-  setTimeout(() => {
-    process.emit('SIGINT');
-  }, 100);
+  // A requested stop ends the session successfully (exit code 0), unlike an interruption.
+  setTimeout(() => applicationManager.requestStop(), 100);
   return { ok: true };
 });
 

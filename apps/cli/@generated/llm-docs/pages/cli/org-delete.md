@@ -6,16 +6,16 @@ An API key acts in one organization, so the command can delete only that organiz
 
 ## Usage
 
-Run `org delete` without flags for the interactive flow, or pass `--agent` and the organization ID for non-interactive use in CI and agent workflows.
+Run `org delete` without flags for the interactive flow, or pass the organization ID, `--agent` and `--yes` for non-interactive use in CI and agent workflows.
 
 ```bash
 stacktape org delete
 ```
 
-In interactive mode, the command names the organization and asks you to confirm. In agent mode, pass the ID of your API key's organization as confirmation (`org delete <organization-id>`). Any other ID is refused.
+In interactive mode, the command names the organization and asks you to confirm. In agent mode, pass the ID of your API key's organization (`org delete <organization-id>`) and `--yes`. Any other ID is refused, and without `--yes` the command fails with `CONFIRMATION_REQUIRED` and deletes nothing.
 
 ```bash
-stacktape org delete "org_abc123" --agent
+stacktape org delete "org_abc123" --agent --yes
 ```
 
 ## Prerequisites
@@ -35,13 +35,14 @@ If any of these conditions are not met, the operation will fail.
 
 ## Flags reference
 
-The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID.
+The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID and `--yes`.
 
 
 ## CLI Options: `stacktape org delete`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
@@ -50,7 +51,7 @@ The `org delete` command accepts the following flags. None are required in inter
 
 ## Examples
 
-Check which organization your API key belongs to, then delete it. Without `--agent`, the command still asks for confirmation.
+Check which organization your API key belongs to, then delete it. In a terminal, the command asks for confirmation.
 
 ```bash
 stacktape org list
@@ -63,7 +64,7 @@ stacktape org delete
 Non-interactive deletion in CI or agent workflows:
 
 ```bash
-stacktape org delete "org_abc123" --agent
+stacktape org delete "org_abc123" --agent --yes
 ```
 
 ## Related commands

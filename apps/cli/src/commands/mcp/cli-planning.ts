@@ -326,6 +326,8 @@ export const inferPlanLocation = ({
 }): { configPath?: string; currentWorkingDirectory?: string } => {
   const configIn = (directory: string) => {
     const config = scan.configCandidates.find((candidate) => resolve(scan.cwd, candidate.directory) === directory);
+    // Several configs the CLI would find there: the CLI asks the user to choose one, and so does the plan.
+    if (config?.ambiguous) return undefined;
     return config && relative(directory, resolve(scan.cwd, config.path)).replaceAll('\\', '/');
   };
   if (location.configPath) return location.directory ? {} : { currentWorkingDirectory: scan.cwd };
@@ -422,10 +424,15 @@ export const readPlannedProjectSettings = async ({
             ok: false,
             code: 'VALIDATION_ERROR',
             message: read.error.message,
-            data: { errorCode: read.error.code, configPath: read.configPath },
-            nextActions: [
-              'Ask the user to fix the projectName/region settings in the Stacktape config, or pass both as explicit arguments.'
-            ]
+            data: { errorCode: read.error.code, configPath: read.configPath, ...read.error.data },
+            nextActions:
+              read.error.code === 'CONFIG_FILE_AMBIGUOUS'
+                ? [
+                    'Ask the user which config file this project uses, then pass it as args.configPath. Do not choose one yourself: each file can name another project, stage or region.'
+                  ]
+                : [
+                    'Ask the user to fix the projectName/region settings in the Stacktape config, or pass both as explicit arguments.'
+                  ]
           } satisfies ToolOutput
         }
       : {})

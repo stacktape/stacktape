@@ -13,7 +13,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
+import { confirmationRequiredError } from '@utils/errors';
+import { canAskForConfirmation } from './agent-mode';
 
 import { stringifyToYaml } from '@utils/yaml';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
@@ -62,8 +63,13 @@ export const potentiallyPromptBeforeOperation = async ({
     if (possiblyImpactedResourcesPart) {
       tuiManager.warn(possiblyImpactedResourcesPart);
     }
-    if (!process.stdout.isTTY) {
-      throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
+    if (!canAskForConfirmation()) {
+      throw confirmationRequiredError({
+        message: `${tuiManager.prettyCommand(globalStateManager.command)} needs confirmation, and this run cannot ask for it.${
+          possiblyImpactedResourcesPart ? `\n${possiblyImpactedResourcesPart}` : ''
+        }`,
+        hints: `Review the operation, then run it again with ${tuiManager.prettyOption('autoConfirmOperation')}. --agent and machine-readable output do not confirm an operation.`
+      });
     }
     // The active prompt is what the user's eyes are on — it must carry the
     // stakes itself, not just reference warnings that scrolled by above.
@@ -101,8 +107,8 @@ const isPromptBeforeOperationNeeded = ({
   operation: StackActionType;
 }) => {
   const args = globalStateManager.args as StacktapeCliArgs;
-  // Skip prompts if auto-confirm is set or agent mode is enabled
-  if (!args.autoConfirmOperation && !args.agent) {
+  // Only --yes confirms. Agent mode selects output and interaction; it does not approve the operation.
+  if (!args.autoConfirmOperation) {
     if (operation === 'update' && possiblyImpactedResources.length) {
       return true;
     }

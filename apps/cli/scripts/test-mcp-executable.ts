@@ -644,6 +644,31 @@ const verify = async () => {
     await mkdir(join(project, 'node_modules', 'starter'), { recursive: true });
     await writeFile(join(project, 'node_modules', 'starter', 'stacktape.ts'), 'export default {};');
     assert.equal((await call('stacktape_project', { action: 'scan' })).data?.totalConfigCandidates, 2);
+    // A stale stacktape.yml next to stacktape.ts: the CLI refuses to choose between them, so a plan does not either.
+    await writeFile(join(project, 'stacktape.yml'), 'resources: {}\n');
+    assert.deepEqual((await call('stacktape_project', { action: 'scan' })).data?.suggestedDefaults, {
+      currentWorkingDirectory: '.'
+    });
+    const ambiguousPlan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'deploy',
+      stage: 'j12',
+      region: 'eu-west-1',
+      projectName: 'docs'
+    });
+    assert.equal(ambiguousPlan.ok, false);
+    assert.equal(ambiguousPlan.data?.errorCode, 'CONFIG_FILE_AMBIGUOUS');
+    assert.match(JSON.stringify(ambiguousPlan), /args\.configPath/);
+    const chosenPlan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'deploy',
+      stage: 'j12',
+      region: 'eu-west-1',
+      projectName: 'docs',
+      args: { configPath: 'stacktape.ts' }
+    });
+    assert.equal(chosenPlan.ok, true, JSON.stringify(chosenPlan));
+    await rm(join(project, 'stacktape.yml'));
     assert.equal((await call('stacktape_cli', { action: 'describe', command: 'deploy' })).data?.safety, 'mutating');
     assert.equal(
       (await call('stacktape_cli', { action: 'run', command: 'deploy', args: { stage: 'j12', region: 'eu-west-1' } }))

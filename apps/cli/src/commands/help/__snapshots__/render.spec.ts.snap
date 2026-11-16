@@ -114,7 +114,7 @@ Options:
       --no-cache                   If true, disables the use of cached artifacts and forces a fresh build of compute resources.
       --no-remote-cache            In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to true to build without the ECR cache in CI as well.
       --auto-rollback              If true, a failed deploy rolls back instead of keeping what it created. Overrides deploymentConfig.autoRollback for this deploy.
-  -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
+  -y, --yes                        Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.
       --show-secrets               If true, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a secret get reads. Without it, each of them is <<OMITTED>> in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs.
       --full                       If true, deploys every change through CloudFormation. By default, when only the code of functions and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation.
       --skip-release-command       If true, this deploy does not run the releaseCommand of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it.
@@ -229,6 +229,7 @@ Options:
       --agent-port <number>        The port of the agent mode HTTP API. Implies --agent. By default, the first free port from 7331.
       --fresh-db                   If true, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused.
       --take-over                  Moves a stage that another stacktape dev session runs, on another machine or in another terminal, to this session. Without this flag, stacktape dev refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself.
+  -y, --yes                        Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.
 
 Global options:
   -h, --help               Show help for a command or group
@@ -295,7 +296,7 @@ exports[`help for mcp add 1`] = `
 Connects your coding agents to Stacktape: Claude Code, Codex, Cursor, VS Code (GitHub Copilot), GitHub Copilot CLI, Windsurf and OpenCode.
 
 Options:
-  -y, --yes                        If true, automatically confirms prompts during deploy or delete operations, skipping the manual confirmation step.
+  -y, --yes                        Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.
       --coding-agents <value>      The coding agents to set up (or remove), for example --coding-agents claude-code,cursor. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds.
 
 Global options:

@@ -72,7 +72,7 @@ test.skipIf(process.platform === 'win32')(
         const cursor = run.output().length;
         run.child.kill('SIGINT');
         const result = await run.finished;
-        expect(result.exitCode, stripAnsi(result.stdout)).toBe(0);
+        expect(result.exitCode, stripAnsi(result.stdout)).toBe(130);
         expect(JSON.parse(await readFile(join(fixture.directory, 'cleanup-state.json'), 'utf8'))).toEqual({
           raw: false,
           running: false

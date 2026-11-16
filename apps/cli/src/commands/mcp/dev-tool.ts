@@ -1371,6 +1371,7 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         devSessionId: _ignoredSessionId,
         waitSeconds,
         agentPort: _requestedPortArg,
+        confirm,
         ...devCliArgs
       } = toolArgs;
 
@@ -1432,6 +1433,8 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
         command: 'dev',
         args: {
           ...devCliArgs,
+          // `dev --agent` confirms nothing by itself; only an explicit confirm of this start becomes `--yes`.
+          ...(confirm === true && devCliArgs.autoConfirmOperation === undefined ? { autoConfirmOperation: true } : {}),
           // Without a requested port the CLI takes the first free one from 7331 and reports it.
           ...(requestedPort !== undefined && Number.isFinite(requestedPort) ? { agentPort: requestedPort } : {})
         },
@@ -1542,7 +1545,13 @@ export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => 
                     "Another session holds this stage. To move the stage here, call stacktape_dev with action=start, the same args and args.takeOver=true: deployed functions then reach the databases of this session, and the other session stops itself. Ask the user first if the other session may be someone else's work."
                   ]
                 }
-              : {})
+              : result.code === 'CONFIRMATION_REQUIRED'
+                ? {
+                    nextActions: [
+                      'Show the user what the message says needs confirmation. Only if they approve it, call stacktape_dev with action=start, the same args and args.confirm=true.'
+                    ]
+                  }
+                : {})
           };
           finishStartup(output);
         },

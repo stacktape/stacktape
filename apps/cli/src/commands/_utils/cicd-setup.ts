@@ -1,4 +1,5 @@
 import { stacktapeConsoleUrl } from 'src/config/params';
+import { canAskForConfirmation } from './agent-mode';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -93,8 +94,8 @@ const connectGitProvider = async ({
  * - CI/CD is not already configured for this project/stage
  */
 export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
-  // Skip if not TTY
-  if (!process.stdout.isTTY) {
+  // Only a person at a terminal can accept the offer. Agent mode and machine output would take its default answer.
+  if (!canAskForConfirmation()) {
     return;
   }
 

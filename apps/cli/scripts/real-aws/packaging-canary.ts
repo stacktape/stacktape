@@ -369,6 +369,8 @@ const commonCliArgs = (options: CanaryOptions) => [
   options.region,
   ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : []),
   ...(options.connectedAccountName ? ['--awsAccount', options.connectedAccountName] : []),
+  // Only deploy and delete use these arguments; --agent alone does not confirm either.
+  '--autoConfirmOperation',
   '--agent'
 ];
 

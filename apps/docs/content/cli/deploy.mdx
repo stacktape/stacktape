@@ -63,7 +63,7 @@ stacktape deploy --stage production --region eu-west-1 --full
 
 ### `--yes`
 
-Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
+Confirms the deploy when it needs confirmation: an update that may delete stateful resources, or a project that does not exist yet and would be created. Use `--yes` in CI/CD pipelines and other non-interactive runs. Without it, such a deploy fails with `CONFIRMATION_REQUIRED` before it changes anything. `--agent` only switches the output to JSONL; it does not confirm.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --yes

@@ -117,6 +117,12 @@ The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP
 stacktape dev --stage dev --region eu-west-1 --agent
 ```
 
+Agent mode does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --agent --yes
+```
+
 Providing `--agent-port` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agent-port` to specify a custom port for the agent HTTP server:
 
 ```bash

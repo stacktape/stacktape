@@ -129,6 +129,7 @@ test('thorough validation sends templates up to 51,200 bytes inline, larger ones
         expect((await s3.send(new ListObjectsV2Command({ Bucket: bucketName }))).KeyCount).toBe(1);
         interrupted.child.kill('SIGINT');
         const stopped = await interrupted.finished;
+        expect(stopped.exitCode).toBe(130);
         expect(parseCliJsonl(stopped.stdout, 'validate').result).toMatchObject({
           ok: false,
           code: 'USER_INTERRUPTION'

@@ -219,16 +219,45 @@ describe('reading project settings from YAML and JSON', () => {
 });
 
 describe('where settings come from and which commands take them', () => {
-  test('locates the config like the CLI: --config against --cwd, otherwise by file precedence', () => {
+  test('locates the config like the CLI: --config against --cwd, otherwise the one stacktape.* file', () => {
+    // The names Stacktape 3.7.1 discovered: a project with one of them is found as before.
+    for (const name of ['stacktape.ts', 'stacktape.yml', 'stacktape.yaml', 'stacktape.js']) {
+      const directory = project({ [name]: '', 'stacktape.json': '{}', 'stacktape.config.ts': '' });
+      expect(locateConfigFile({ cwd: directory })).toEqual({ path: join(directory, name), explicit: false });
+    }
+    expect(locateConfigFile({ cwd: project({ 'README.md': '' }) })).toEqual({ path: undefined, explicit: false });
     const directory = project({ 'stacktape.yml': 'resources: {}\n', 'stacktape.ts': '' });
-    expect(locateConfigFile({ cwd: directory })).toEqual({
-      path: join(directory, 'stacktape.ts'),
-      candidates: [join(directory, 'stacktape.ts'), join(directory, 'stacktape.yml')],
-      explicit: false
-    });
     expect(
       locateConfigFile({ cwd: '/', currentWorkingDirectory: directory, configPath: 'infra/stacktape.ts' }).path
     ).toBe(join(directory, 'infra/stacktape.ts'));
+    // `--config` picks one of several files.
+    expect(locateConfigFile({ cwd: directory, configPath: 'stacktape.yml' }).path).toBe(
+      join(directory, 'stacktape.yml')
+    );
+  });
+
+  test('several stacktape.* files are refused instead of ranked', () => {
+    const directory = project({ 'stacktape.yml': 'resources: {}\n', 'stacktape.ts': '', 'stacktape.js': '' });
+    let error: unknown;
+    try {
+      locateConfigFile({ cwd: directory });
+    } catch (thrown) {
+      error = thrown;
+    }
+    expect(error).toMatchObject({
+      code: 'CONFIG_FILE_AMBIGUOUS',
+      data: { directory, candidates: ['stacktape.js', 'stacktape.ts', 'stacktape.yml'] }
+    });
+    expect((error as Error).message).toContain('stacktape.js, stacktape.ts, stacktape.yml');
+  });
+
+  test('an ambiguous config stops only commands that load it', async () => {
+    const directory = project({ 'stacktape.yml': 'region: eu-west-1\nresources: {}\n', 'stacktape.ts': '' });
+    expect((await readCommandProjectSettings({ command: 'deploy', cwd: directory })).error?.code).toBe(
+      'CONFIG_FILE_AMBIGUOUS'
+    );
+    // A command that only takes the region from the config uses none of them; its explicit flags decide.
+    expect(await readCommandProjectSettings({ command: 'secret:set', cwd: directory })).toEqual({ settings: {} });
   });
 
   test.each([

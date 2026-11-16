@@ -16,8 +16,9 @@ You need the `projects:delete` permission on the project. Owners and Admins have
 stacktape project delete my-api
 ```
 
-In a terminal, you confirm by typing the project name. Without a terminal, for example in CI, add `--yes`. Agent mode
-(`--agent`) and the Stacktape MCP server confirm the deletion themselves, as they do for `stacktape delete`.
+In a terminal, you confirm by typing the project name. Without a terminal, for example in CI or with `--agent`, add
+`--yes`; otherwise the command fails with `CONFIRMATION_REQUIRED`. The Stacktape MCP server passes `--yes` only after
+you confirm the deletion.
 
 ## CLI reference
 
@@ -26,7 +27,7 @@ In a terminal, you confirm by typing the project name. Without a terminal, for e
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--project (positional 1)` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |

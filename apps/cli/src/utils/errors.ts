@@ -106,6 +106,13 @@ export class CliError extends Error {
   }
 }
 
+/**
+ * An operation that must be confirmed, in a run that cannot ask: CI, `--agent`, machine-readable output or no terminal.
+ * Every such refusal has the code CONFIRMATION_REQUIRED, so automation can branch on it; only `--yes` confirms.
+ */
+export const confirmationRequiredError = ({ message, hints }: { message: string; hints?: string | string[] }) =>
+  new CliError({ category: 'CONFIRMATION_REQUIRED', code: 'CONFIRMATION_REQUIRED', message, hints });
+
 const isBundledStacktapeInternalFrame = (fileName: string) => {
   const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
   const bundledInternalPrefixes = ['src/', 'scripts/', 'helper-lambdas/', '@generated/'];

@@ -11,7 +11,6 @@ import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { CliError } from '@utils/errors';
 import { deleteTempFolder } from '@utils/temp-files';
 import { markTiming, startTiming } from '@utils/timings';
-import { initAgentMode } from './commands/_utils/agent-mode';
 
 /**
  * How each command presents itself in an interactive terminal.
@@ -148,7 +147,6 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
     }
     const showsNotices = !commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl';
     await announcementsManager.init({ enabled: showsNotices });
-    initAgentMode();
     const ui = commandUi[command];
     if (ui.ui === 'progress') {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command, phases: ui.phases });
@@ -249,20 +247,12 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
       message: (err as Error)?.message?.slice(0, 200)
     });
     if (applicationManager.isInterrupted) {
-      tuiManager.emitJsonlResult({
-        ok: false,
-        code: 'USER_INTERRUPTION',
-        message: 'Operation interrupted by user'
-      });
+      tuiManager.emitJsonlResult(applicationManager.interruptionResult());
       return;
     }
     const returnableError = await applicationManager.handleError(err);
     if (applicationManager.isInterrupted || !returnableError) {
-      tuiManager.emitJsonlResult({
-        ok: false,
-        code: 'USER_INTERRUPTION',
-        message: 'Operation interrupted by user'
-      });
+      tuiManager.emitJsonlResult(applicationManager.interruptionResult());
       return;
     }
     const endReportError = startTiming('notifications:report-error');

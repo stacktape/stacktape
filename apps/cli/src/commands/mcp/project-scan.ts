@@ -1,6 +1,7 @@
 import { basename, dirname, relative, resolve } from 'node:path';
 import fg from 'fast-glob';
 import { pathExists, readFile } from 'fs-extra';
+import { VALID_CONFIG_PATHS } from '@config';
 
 type PackageJsonSummary = {
   path: string;
@@ -18,6 +19,11 @@ type ConfigCandidate = {
   usesDefineConfig: boolean;
   resourceConstructors: string[];
   likelyResourceKeys: string[];
+  /**
+   * Its directory holds another file the CLI finds on its own (`stacktape.ts`, `.yml`, `.yaml`, `.js`). The CLI refuses
+   * to choose between them, so a plan does not choose either: the user names one with `--config`.
+   */
+  ambiguous: boolean;
 };
 
 type ProjectScanResult = {
@@ -189,8 +195,17 @@ export const scanStacktapeProject = async ({
       importsStacktape: /from\s+['"]stacktape['"]|require\(['"]stacktape['"]\)/.test(content),
       usesDefineConfig: /\bdefineConfig\s*\(/.test(content),
       resourceConstructors: extractResourceConstructors(content),
-      likelyResourceKeys: extractLikelyResourceKeys(content)
+      likelyResourceKeys: extractLikelyResourceKeys(content),
+      ambiguous: false
     });
+  }
+  const discoveredIn = (directory: string) =>
+    allConfigCandidates.filter(
+      (candidate) => candidate.directory === directory && VALID_CONFIG_PATHS.includes(basename(candidate.path))
+    ).length;
+  for (const candidate of allConfigCandidates) {
+    candidate.ambiguous =
+      VALID_CONFIG_PATHS.includes(basename(candidate.path)) && discoveredIn(candidate.directory) > 1;
   }
   const sortedConfigCandidates = sortConfigCandidates(allConfigCandidates);
 
@@ -221,7 +236,7 @@ const buildProjectScanResult = (snapshot: ProjectScanSnapshot, maxFiles: number)
     packageJsonFiles: snapshot.packageJsonFiles.slice(0, limit),
     lockfiles: snapshot.lockfiles.slice(0, limit),
     suggestedDefaults: {
-      configPath: preferredConfig ? toCliConfigPath(preferredConfig) : undefined,
+      configPath: preferredConfig && !preferredConfig.ambiguous ? toCliConfigPath(preferredConfig) : undefined,
       currentWorkingDirectory: preferredConfig?.directory || '.'
     }
   };
