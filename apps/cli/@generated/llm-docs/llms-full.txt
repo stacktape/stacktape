@@ -1680,8 +1680,8 @@ it has been reviewed and added to the service's allowlist.
 The explicit secret-value reads are not on the list either, because the caller is often a coding agent whose context
 and transcript would keep the value: Secrets Manager `GetSecretValue` and the SSM Parameter Store reads `GetParameter`,
 `GetParameters`, `GetParametersByPath` and `GetParameterHistory`. Their metadata operations, such as `DescribeSecret`,
-`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get`](/cli/secret-get) in your own
-terminal.
+`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get --show-secrets`](/cli/secret-get) in your
+own terminal.
 
 Lambda function configurations, ECS task definitions and Batch job definitions come back with environment variable
 values replaced by `[redacted]`; variable names and the other settings stay. Cognito `DescribeUserPoolClient` redacts
@@ -1953,7 +1953,7 @@ The `aws-profile list` command prints every AWS profile configured on your machi
 stacktape aws-profile list
 ```
 
-The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. In the printed table, the secret access key is masked — the first 36 characters are replaced with asterisks, showing only the trailing characters.
+The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. The secret access key is masked: the first 36 characters are replaced with asterisks, showing only the last 4. The `--agent` result masks it the same way. Pass `--show-secrets` to print and return the whole key.
 
 If no profiles are configured, the command prints a warning and suggests creating one with [`aws-profile create`](/cli/aws-profile-create).
 
@@ -1967,6 +1967,7 @@ If no profiles are configured, the command prints a warning and suggests creatin
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 
 
 ## Examples
@@ -3266,7 +3267,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 ### `--show-secrets`
 
-Includes sensitive values in deploy output. Handle with care.
+Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
 
 ## All flags
 
@@ -3294,7 +3295,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
-| `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 | `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
 
 
@@ -6603,7 +6604,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--show-secrets` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `status`, `deploy`, and `param get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 | `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 
 
@@ -6619,6 +6620,12 @@ Pass `--stage` when you want to target a specific stage explicitly. Include it u
 
 ```bash
 stacktape param get mainDatabase connectionString --region eu-west-1 --stage production
+```
+
+A parameter that holds a credential, such as a database `password` or a `connectionString` that contains one, comes back as `<<OMITTED>>` unless you pass `--show-secrets`. Use the flag only where the output stays private:
+
+```bash
+stacktape param get mainDatabase connectionString --region eu-west-1 --stage production --show-secrets
 ```
 
 For programmatic consumption in scripts or CI steps, use `--agent` or `--json` to get machine-readable JSONL output. The default interactive output includes formatting that is not suitable for shell variable capture.
@@ -7953,7 +7960,7 @@ stacktape secret delete old-db-password --region eu-west-1 --profile production 
 Source: `apps/docs/content/cli/secret-get.mdx`
 Route: `/cli/secret-get`
 
-Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, value, creation date, and ARN. Use this to verify secret contents before referencing them in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
+Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, creation date and ARN. It prints the value only with `--show-secrets`; otherwise the value is `<<OMITTED>>`. Use this to verify a secret before referencing it in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
 
 ## Usage
 
@@ -7981,13 +7988,16 @@ stacktape secret get my-api-key --region eu-west-1 --agent
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 | `--secret-name (positional 1)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 
 
 ## Output
 
 In interactive mode, the command prints a formatted box containing the secret's name, creation date, ARN, and value. If the value is valid JSON, it is pretty-printed.
 
-For `secret get`, agent mode prints a JSON-formatted payload containing `name`, `value`, `created`, and `arn`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
+With `--agent`, the final result event contains `name`, `arn`, `created` (an ISO 8601 timestamp) and `value` at `data.result`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
+
+Without `--show-secrets`, `value` is `<<OMITTED>>` in both modes. Pass the flag only where the output stays private: never in a shared CI log or an AI assistant's conversation. The [MCP server](/using-with-ai/mcp-server-setup) never returns the value.
 
 ## Examples
 
@@ -7997,10 +8007,16 @@ Retrieve a secret interactively (you'll be prompted for the name):
 stacktape secret get --region us-east-1
 ```
 
-Retrieve a specific secret by name in a CI script:
+Check that a secret exists, without printing its value:
 
 ```bash
 stacktape secret get DATABASE_PASSWORD --region eu-west-1 --agent
+```
+
+Print the value in your own terminal:
+
+```bash
+stacktape secret get DATABASE_PASSWORD --region eu-west-1 --show-secrets
 ```
 
 Use a named AWS profile:
@@ -9604,7 +9620,7 @@ stacktape script run migrate --stage production --region eu-west-1
 
 The `local-script-with-bastion-tunneling` type tunnels connections through a [bastion host](/resources/security/bastion-host), giving your local machine secure access to VPC-only databases. The injected environment variables are automatically adjusted to route through the tunnel. Use `local-script` for commands that can reach their targets from the machine running Stacktape; use `local-script-with-bastion-tunneling` when the target must be reached through a bastion tunnel. Three script types support `connectTo`: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`. The example uses `executeCommand`; local scripts can also use `executeCommands`, `executeScript`, or `executeScripts`, while bastion scripts support `executeCommand` and `executeCommands`.
 
-For `local-script-with-bastion-tunneling`, `properties.bastionResource` names the [bastion host](/resources/security/bastion-host) resource used for the tunnel. For `bastion-script`, `properties.bastionResource` names the bastion server where the commands are executed. Script execution can also set `cwd` to control the working directory; local scripts can set `pipeStdio` (defaults to `true`) when terminal output or interactive prompts matter. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
+For `local-script-with-bastion-tunneling`, `properties.bastionResource` names the [bastion host](/resources/security/bastion-host) resource used for the tunnel. For `bastion-script`, `properties.bastionResource` names the bastion server where the commands are executed. Script execution can also set `cwd` to control the working directory; local scripts can set `stdioMode` (`capture` by default, `inherit` for interactive prompts, `ignore` to discard output). See [hooks and scripts](/configuration/hooks-and-scripts) for details.
 
 Scripts can also define `properties.environment` for static values, secrets, custom directives, or `$ResourceParam()` values when a tool expects a specific variable name that differs from the `STP_*` convention. Use `connectTo` when the script needs connection variables for specific targets. Use `assumeRoleOfResource` when the script should run with the same IAM permissions as a deployed workload — such as a function, batch job, web service, private service, worker service, multi-container workload, or SSR frontend.
 
@@ -10430,7 +10446,7 @@ export default defineConfig(() => {
 ```
 
 
-The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. Local scripts include a `pipeStdio` property that controls whether script output is piped to your terminal.
+The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. A local script's `stdioMode` controls its terminal: `capture` (the default) shows its output in Stacktape's progress output, `inherit` hands it the terminal, including input, for interactive programs, and `ignore` discards its output. In captured output and in a failed script's error, Stacktape replaces the secret values it injected into the script, from `$Secret`, `$SsmParam` or the secret parameters of `connectTo` resources, with `[redacted]`.
 
 ### Local script with bastion tunneling
 
@@ -12234,8 +12250,9 @@ The Secrets page in the Console lists AWS Secrets Manager secrets in the selecte
 
 ### View a secret value
 
-The CLI provides [`stacktape secret get`](/cli/secret-get) for retrieving a secret's current value. See the
-[`secret get` CLI reference](/cli/secret-get) for supported options.
+[`stacktape secret get --show-secrets`](/cli/secret-get) prints a secret's current value. Without `--show-secrets`, it
+prints the secret's name, ARN and creation date only. See the [`secret get` CLI reference](/cli/secret-get) for supported
+options.
 
 In the Stacktape Console, click the **view** action (eye icon) next to a secret to reveal its value.
 
@@ -16828,9 +16845,7 @@ v4 checks some values that v3 accepted:
 
 ### Scripts
 
-{/* STUB (owner: the "remove pipeStdio" change, breaking change C). Reconcile with what it merged before publishing. */}
-
-`pipeStdio` on `local-script` and `local-script-with-bastion-tunneling` is replaced by `stdioMode`. Replace `pipeStdio: false` with `stdioMode: ignore`, and delete `pipeStdio: true`, which is the default (`stdioMode: capture`). Use `stdioMode: inherit` for a script that needs keyboard input. See [hooks and scripts](/configuration/hooks-and-scripts).
+`pipeStdio` on `local-script` and `local-script-with-bastion-tunneling` is replaced by `stdioMode`. A configuration that still sets it fails validation with `CONFIG_SCRIPT_PIPE_STDIO_REMOVED`, which names the script. Replace `pipeStdio: false` with `stdioMode: ignore`, and delete `pipeStdio: true`, which is the default (`stdioMode: capture`). Use `stdioMode: inherit` for a script that needs keyboard input. See [hooks and scripts](/configuration/hooks-and-scripts).
 
 ### Removed resource parameters
 
@@ -17311,9 +17326,15 @@ Check scripts and CI jobs that set an AWS profile or AWS keys, for example for a
 
 ### Secrets in command output
 
-{/* STUB (owner: the "hide credentials in all command output" change, breaking change A). Reconcile with what it merged before publishing. */}
+Every command replaces secret values with `<<OMITTED>>` unless you pass `--show-secrets`. Secret values are database and Redis connection strings, Upstash passwords and tokens, AppSync API keys, user pool client secrets and Convex keys. This changes:
 
-Commands that print credentials as part of their output, such as database connection strings in stack outputs, hide them unless you pass `--show-secrets`. If a script reads such a value from a command's output, add `--show-secrets` to that command, and make sure its output does not end up in shared CI logs. `stacktape secret get` prints the value you ask for, as before.
+- `deploy --agent`: `data.result.stackInfo` now holds `<<OMITTED>>` for them; v3 returned them. So does the stack-info file `deploy` writes.
+- `secret get`: prints the secret's name, ARN and creation date, and its value only with `--show-secrets`. With `--agent`, the result is `{ name, arn, created, value }` at `data.result`, where v3 printed the value in a log line.
+- `param get`: returns `<<OMITTED>>` for a secret parameter, as before.
+- `aws-profile list --agent`: returns the secret access key masked, as its table shows it, unless you pass `--show-secrets`.
+- Local scripts: their captured output and their error replace the secrets Stacktape gives them (`$Secret`, `$SsmParam` and secret `connectTo` parameters) with `[redacted]`. A script with `stdioMode: inherit` writes to your terminal unchanged.
+
+If a script or CI job reads a secret from one of these commands, add `--show-secrets` to that command and keep its output out of shared logs. The [MCP server](/using-with-ai/mcp-server-setup) never returns secret values and refuses `--show-secrets`.
 
 ### Scripts that read CLI output
 
@@ -51405,7 +51426,7 @@ For destructive commands, the MCP server asks the user directly through their AI
 > **Warning:** Diagnostic commands run without a confirmation prompt because the MCP server accepts only read operations for them: read-only SQL statements (`SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, `EXPLAIN`), the read operations of the Redis, DynamoDB and OpenSearch query commands, and [reviewed read-only AWS SDK operations](/cli/aws-call#safety-model) for `aws call`. Anything else is refused. The data they return can still be sensitive, so think about what you let an assistant read from production.
 
 
-Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret get` or private `param get` values in chat. `param get` returns a private parameter as `<<OMITTED>>`: the server refuses `showSensitiveValues` for it and for `deploy`, so run `stacktape param get --show-secrets` in your own terminal for the value. A `secret set` plan does not repeat `secretValue`: its `shellCommand` asks for the value in your terminal. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
+Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret get` or private `param get` values in chat. Every command returns secret values as `<<OMITTED>>`, including a private `param get` parameter, a `secret get` value and the secret parameters in the `deploy` result. The server refuses `showSensitiveValues` for every command, so run the command with `--show-secrets` in your own terminal for the value. A `secret set` plan does not repeat `secretValue`: its `shellCommand` asks for the value in your terminal. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
 
 ## Authentication
 
@@ -92060,8 +92081,6 @@ type LocalScriptProps = {
   executeScript?: string;
   /** Execute Scripts */
   executeScripts?: Array<string>;
-  /** Pipe Stdio */
-  pipeStdio?: boolean;
   /** Standard I/O Mode */
   stdioMode?: "capture" | "ignore" | "inherit";
 };
@@ -92502,49 +92521,6 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `pipeStdio`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Pipe Stdio
-
-If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-Use `stdioMode: inherit` for scripts that need interactive terminal input.
-
-### Example 1 (yaml)
-
-```yaml
-scripts:
-  silentTask:
-    type: local-script
-    properties:
-      executeCommand: node ./scripts/background-task.js
-      pipeStdio: false
-resources:
-  web:
-    type: hosting-bucket
-    properties:
-      uploadDirectoryPath: ./dist
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const silentTask = new LocalScript({
-    executeCommand: 'node ./scripts/background-task.js',
-    pipeStdio: false
-  });
-  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-
-  return { scripts: { silentTask }, resources: { web } };
-});
-```
-
 ## Property: `stdioMode`
 
 - Required: no
@@ -92616,8 +92592,6 @@ type LocalScriptWithBastionTunnelingProps = {
   executeScript?: string;
   /** Execute Scripts */
   executeScripts?: Array<string>;
-  /** Pipe Stdio */
-  pipeStdio?: boolean;
   /** Standard I/O Mode */
   stdioMode?: "capture" | "ignore" | "inherit";
 };
@@ -93117,49 +93091,6 @@ export default defineConfig(() => {
   });
 
   return { scripts: { setup }, resources: { db } };
-});
-```
-
-## Property: `pipeStdio`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Pipe Stdio
-
-If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-Use `stdioMode: inherit` for scripts that need interactive terminal input.
-
-### Example 1 (yaml)
-
-```yaml
-scripts:
-  silentTask:
-    type: local-script
-    properties:
-      executeCommand: node ./scripts/background-task.js
-      pipeStdio: false
-resources:
-  web:
-    type: hosting-bucket
-    properties:
-      uploadDirectoryPath: ./dist
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const silentTask = new LocalScript({
-    executeCommand: 'node ./scripts/background-task.js',
-    pipeStdio: false
-  });
-  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-
-  return { scripts: { silentTask }, resources: { web } };
 });
 ```
 

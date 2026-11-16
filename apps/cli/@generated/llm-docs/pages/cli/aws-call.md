@@ -22,8 +22,8 @@ it has been reviewed and added to the service's allowlist.
 The explicit secret-value reads are not on the list either, because the caller is often a coding agent whose context
 and transcript would keep the value: Secrets Manager `GetSecretValue` and the SSM Parameter Store reads `GetParameter`,
 `GetParameters`, `GetParametersByPath` and `GetParameterHistory`. Their metadata operations, such as `DescribeSecret`,
-`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get`](/cli/secret-get) in your own
-terminal.
+`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret get --show-secrets`](/cli/secret-get) in your
+own terminal.
 
 Lambda function configurations, ECS task definitions and Batch job definitions come back with environment variable
 values replaced by `[redacted]`; variable names and the other settings stay. Cognito `DescribeUserPoolClient` redacts

@@ -18421,8 +18421,6 @@
         "page:/getting-started/upgrading-from-v3#scripts",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
         "page:/getting-started/upgrading-from-v3#user-auth-pool-token-lifetimes",
-        "page:/getting-started/upgrading-from-v3#secret-values-in-command-output",
-        "page:/getting-started/upgrading-from-v3#script-output-pipestdio",
         "page:/getting-started/upgrading-from-v3#packaging",
         "page:/getting-started/upgrading-from-v3#cli-changes",
         "page:/getting-started/upgrading-from-v3#command-and-flag-spelling",
