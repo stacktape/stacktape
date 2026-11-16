@@ -269,7 +269,7 @@ export interface StacktapeConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       credentials:
@@ -286,7 +286,7 @@ export interface StacktapeConfig {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -359,7 +359,7 @@ export interface StacktapeConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *       credentials:
@@ -379,7 +379,7 @@ export interface StacktapeConfig {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t4g.micro' }
    *       }
    *     },

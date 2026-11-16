@@ -372,7 +372,7 @@ test('a scoped database admits only its connected workloads on the engine port',
       engine:
         type: mysql
         properties:
-          version: '8.4.3'
+          version: '8.4'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -436,7 +436,7 @@ test('VPC functions share a security group only with functions that reach the sa
       engine:
         type: postgres
         properties:
-          version: '16.9'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -515,7 +515,7 @@ test('a deployed function keeps its own security group admitted for the deploy t
       engine:
         type: postgres
         properties:
-          version: '16.9'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -617,7 +617,7 @@ test('a function that changes its connections keeps the old ones working and giv
       engine:
         type: postgres
         properties:
-          version: '16.9'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:

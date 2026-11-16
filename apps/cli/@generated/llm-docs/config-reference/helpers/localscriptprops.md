@@ -152,7 +152,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -165,7 +165,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -440,7 +440,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -453,7 +453,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const setup = new LocalScript({
     executeScripts: ['scripts/migrate.ts', 'scripts/seed.ts'],

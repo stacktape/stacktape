@@ -44,7 +44,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
     overrides:
@@ -61,7 +61,7 @@ export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t3.micro' }
     }),
     overrides: {

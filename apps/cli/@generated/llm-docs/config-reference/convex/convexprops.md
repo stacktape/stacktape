@@ -67,7 +67,7 @@ resources:
         engine:
           type: postgres
           properties:
-            version: '16.6'
+            version: '16'
             primaryInstance:
               instanceSize: db.t4g.small
 ```
@@ -90,7 +90,7 @@ export default defineConfig(() => {
       engine: {
         type: 'postgres',
         properties: {
-          version: '16.6',
+          version: '16',
           primaryInstance: {
             instanceSize: 'db.t4g.small'
           }
@@ -354,7 +354,7 @@ resources:
         engine:
           type: aurora-postgresql-serverless-v2
           properties:
-            version: '16.6'
+            version: '16'
             minCapacity: 0.5
             maxCapacity: 4
         automatedBackupRetentionDays: 7
@@ -372,7 +372,7 @@ export default defineConfig(() => {
       engine: {
         type: 'aurora-postgresql-serverless-v2',
         properties: {
-          version: '16.6',
+          version: '16',
           minCapacity: 0.5,
           maxCapacity: 4
         }

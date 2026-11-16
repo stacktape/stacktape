@@ -1,6 +1,6 @@
 {
   "description": "A web service and a VPC function next to one Postgres database per accessibility mode; only the service connects to the scoped one.",
-  "config": "resources:\n  web:\n    type: web-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      connectTo: [scopedDb]\n  reports:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n  publicDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: internet\n  vpcDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: vpc\n  scopedDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n        whitelistedIps: [203.0.113.10]\n",
+  "config": "resources:\n  web:\n    type: web-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      connectTo: [scopedDb]\n  reports:\n    type: function\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: handler.ts\n      joinDefaultVpc: true\n  publicDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: internet\n  vpcDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: vpc\n  scopedDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n        whitelistedIps: [203.0.113.10]\n",
   "stacktapeResources": [
     {
       "name": "reports",
@@ -727,7 +727,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "defdb",
         "Engine": "postgres",
-        "EngineVersion": "16.9",
+        "EngineVersion": "16",
         "EnableCloudwatchLogsExports": [
           "postgresql"
         ],
@@ -824,7 +824,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "defdb",
         "Engine": "postgres",
-        "EngineVersion": "16.9",
+        "EngineVersion": "16",
         "EnableCloudwatchLogsExports": [
           "postgresql"
         ],
@@ -929,7 +929,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "defdb",
         "Engine": "postgres",
-        "EngineVersion": "16.9",
+        "EngineVersion": "16",
         "EnableCloudwatchLogsExports": [
           "postgresql"
         ],

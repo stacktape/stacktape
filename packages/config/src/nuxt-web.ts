@@ -106,7 +106,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *   web:
@@ -134,7 +134,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.6',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     }

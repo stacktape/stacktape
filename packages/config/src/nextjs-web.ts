@@ -346,7 +346,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *         properties:
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
-   *           version: '16.6'
+   *           version: '16'
    *   web:
    *     type: nextjs-web
    *     properties:
@@ -376,7 +376,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    *       type: 'postgres',
    *       properties: {
    *         primaryInstance: { instanceSize: 'db.t4g.micro' },
-   *         version: '16.6'
+   *         version: '16'
    *       }
    *     }
    *   });
@@ -737,7 +737,7 @@ export interface NextjsServerLambdaProperties {
    *         properties:
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
-   *           version: '16.6'
+   *           version: '16'
    *   web:
    *     type: nextjs-web
    *     properties:
@@ -762,7 +762,7 @@ export interface NextjsServerLambdaProperties {
    *       type: 'postgres',
    *       properties: {
    *         primaryInstance: { instanceSize: 'db.t4g.micro' },
-   *         version: '16.6'
+   *         version: '16'
    *       }
    *     }
    *   });

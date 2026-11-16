@@ -578,7 +578,8 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       )}. Specified engine ${prettyConfigProperty('version')} ${bold(chosenDatabaseVersion)} is not a valid available version for this engine.\n Available versions are: ${availableVersions
         .sort((v1, v2) => v2.localeCompare(v1))
         .map((version) => colorize('gray', version))
-        .join(', ')}`
+        .join(', ')}`,
+      hint: 'For PostgreSQL, MySQL, MariaDB and Aurora you can name a release line instead, such as 17 or 8.4. AWS then runs a current minor version of it, and your config never names a version that AWS retired.'
     };
   },
   e113({ providerType }: { providerType: 'Upstash' | 'Atlas Mongo' }): ReturnedError {

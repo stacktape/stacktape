@@ -213,7 +213,7 @@ export interface AlarmDefinitionBase {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -240,7 +240,7 @@ export interface AlarmDefinitionBase {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1203,7 +1203,7 @@ export interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCus
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1230,7 +1230,7 @@ export interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCus
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1282,7 +1282,7 @@ export interface RelationalDatabaseReadLatencyTriggerProps extends TriggerWithCu
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1309,7 +1309,7 @@ export interface RelationalDatabaseReadLatencyTriggerProps extends TriggerWithCu
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1362,7 +1362,7 @@ export interface RelationalDatabaseWriteLatencyTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1389,7 +1389,7 @@ export interface RelationalDatabaseWriteLatencyTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1442,7 +1442,7 @@ export interface RelationalDatabaseCPUUtilizationTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1469,7 +1469,7 @@ export interface RelationalDatabaseCPUUtilizationTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1523,7 +1523,7 @@ export interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCu
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1550,7 +1550,7 @@ export interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCu
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1603,7 +1603,7 @@ export interface RelationalDatabaseConnectionCountTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1630,7 +1630,7 @@ export interface RelationalDatabaseConnectionCountTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1739,7 +1739,7 @@ export interface TriggerWithCustomComparison {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1767,7 +1767,7 @@ export interface TriggerWithCustomComparison {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },

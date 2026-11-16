@@ -40,7 +40,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.r6g.large
 ```
@@ -56,7 +56,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large'
       }
@@ -89,7 +89,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
           multiAz: true
@@ -106,7 +106,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium',
         multiAz: true

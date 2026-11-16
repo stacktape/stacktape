@@ -21,7 +21,7 @@ export default defineConfig(() => {
       masterUserPassword: $Secret('mainDatabase.password')
     },
     engine: new RdsEngineMysql({
-      version: '8.0.40',
+      version: '8.4',
       primaryInstance: {
         instanceSize: 'db.t3.micro'
       }

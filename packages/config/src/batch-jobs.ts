@@ -678,7 +678,7 @@ export interface BatchJobContainer {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    * ```
@@ -693,7 +693,7 @@ export interface BatchJobContainer {
    *     credentials: { masterUserPassword: $Secret('dbPassword') },
    *     engine: {
    *       type: 'postgres',
-   *       properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } }
+   *       properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } }
    *     }
    *   });
    *   const worker = new BatchJob({

@@ -449,7 +449,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.r6g.large
 ```
@@ -463,7 +463,7 @@ export default defineConfig(() => {
   const prodDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     deletionProtection: true,
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.r6g.large' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.r6g.large' } })
   });
 
   return {

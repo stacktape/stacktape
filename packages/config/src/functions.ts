@@ -423,7 +423,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    * ```
@@ -436,7 +436,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const dbMigrator = new LambdaFunction({
    *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
@@ -481,7 +481,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '17.7'
+   *           version: '17'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *   api:
@@ -744,7 +744,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    * ```
@@ -757,7 +757,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const legacyDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const legacyDbWriter = new LambdaFunction({
    *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },

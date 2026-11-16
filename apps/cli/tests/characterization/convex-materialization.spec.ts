@@ -317,7 +317,7 @@ describe('Convex materialization', () => {
     expect(database.engine).toEqual({
       type: 'postgres',
       properties: {
-        version: '16.6',
+        version: '16',
         // Convex connects with a path-less URL, so Postgres falls back to the user name; naming the database `convex`
         // makes that resolve.
         dbName: 'convex',
@@ -332,7 +332,7 @@ describe('Convex materialization', () => {
   test('yields to an authored database block and deletion protection', () => {
     const engine: RdsEngine = {
       type: 'postgres',
-      properties: { version: '17.2', primaryInstance: { instanceSize: 'db.t4g.small', multiAz: true } }
+      properties: { version: '17', primaryInstance: { instanceSize: 'db.t4g.small', multiAz: true } }
     };
     const logging = { logTypes: ['postgresql'] };
     const { database } = childrenOf({

@@ -24,6 +24,10 @@ artifacts from another build. Record both Git SHAs, artifact hashes, tool versio
 record. A missing prerequisite or failed lane blocks qualification. Publication still requires the owner's
 authorization.
 
+Before building the candidate, refresh the three [upstream snapshots](generated-files.md#commands-and-ownership) (AWS
+prices, CloudFormation resource catalog, RDS engine versions) and commit the result through a normal pull request. A
+candidate built with an old RDS list refuses engine versions that AWS offers today.
+
 The local/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
 prerequisites ([packaging](../apps/cli/scripts/packaging-archives/README.md), [Console](testing/console.md),
 [corpus](project-qualification.md)). The corpus executes reviewed project code on this host. Split its full run with
