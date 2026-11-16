@@ -325,8 +325,8 @@ aws sts get-caller-identity --query Account --output text   # 977946299200
 CloudFront, the Route 53 record, and a CloudFront Function that answers the old URLs in
 [`site-redirects.ts`](../apps/docs/src/utils/site-redirects.ts) with a 301. A deploy builds the site from the checkout
 (`turbo run build --filter @stacktape/docs`, which includes CLI generation and the built-site validators), uploads
-`dist` (files missing from the build are deleted), and invalidates the CDN. The source CLI runs in dev mode, so the
-operation is recorded in the dev Console.
+`dist` (files missing from the build are deleted), and invalidates the CDN. The source CLI runs in dev mode with the dev
+Console API key in `apps/cli/.env.local`, so the operation is recorded in the dev Console.
 
 | Command                    | Stack             | URL                                  |
 | -------------------------- | ----------------- | ------------------------------------ |
@@ -348,9 +348,9 @@ Publish to the preview first and check it:
 aws s3 sync s3://docs-production-webbucket-aaa125e6 <backup directory>
 ```
 
-`DOCS_RESTORE_DIRECTORY=<backup directory> pnpm deploy:docs` uploads that copy instead of building, removes the redirect
-function (its targets are pages the old site lacks) and invalidates the CDN. Bucket versioning is off, so this copy is
-the only record of the previous site.
+`DOCS_RESTORE_DIRECTORY=<absolute backup directory> pnpm deploy:docs` uploads that copy instead of building, removes the
+redirect function (its targets are pages the old site lacks) and invalidates the CDN. Bucket versioning is off, so this
+copy is the only record of the previous site.
 
 **Search.** The Algolia DocSearch crawler (index `Docs crawler`, app `PFTWPISD3F`) is configured in the Algolia
 dashboard, not in this repository. After publishing, run a crawl so that stale URLs disappear. `/v3/` pages are
@@ -361,8 +361,9 @@ dashboard, not in this repository. After publishing, run a crawl so that stale U
 `pnpm publish:schemas` uploads the committed `packages/config/generated/config-schema.json` and
 `apps/cli/@generated/schemas/*` to `internal-services-production-schemasbucket-eb6fca19` and invalidates its CDN. They
 are served at `https://schemas.stacktape-dev.com`, which the VS Code extension uses when it finds no local Stacktape
-installation. The script runs this checkout's CLI with the environment's AWS credentials, so no Stacktape API key is
-needed. Check that the served file matches:
+installation. The script runs this checkout's CLI, not the installed one. Like the other `pnpm dev:cli` commands it
+needs the dev Console API key in `apps/cli/.env.local` (not a production key) and uploads with the environment's AWS
+credentials. Check that the served file matches:
 
 ```sh
 curl -s https://schemas.stacktape-dev.com/config-schema.json | sha256sum

@@ -9,8 +9,9 @@ import { copy } from 'fs-extra';
 
 /**
  * Publishes this checkout's committed schemas to https://schemas.stacktape-dev.com (bucket `SCHEMAS_BUCKET_NAME`).
- * Uses the source CLI with the AWS credentials of the environment, so the result does not depend on the Stacktape
- * installed on PATH or on a Stacktape API key. Run it from `apps/cli` after `build:dev-artifacts`.
+ * Uses the source CLI in dev mode, so the result does not depend on the Stacktape installed on PATH. Like the other
+ * `pnpm dev:cli` commands it signs in with the dev Console API key from `.env.local` and uploads with the AWS credentials
+ * of the environment. Run it from `apps/cli` after `build:dev-artifacts`.
  */
 export const publishSchemas = async () => {
   logInfo(`Publishing schemas to ${SCHEMAS_BUCKET_NAME}...`);

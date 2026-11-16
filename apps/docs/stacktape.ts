@@ -7,15 +7,19 @@
 // The stack was created by Stacktape 3 from an equivalent bucket config. Keep the resource name `webBucket` and its
 // `bucket` type: they decide the CloudFormation logical IDs of the bucket, the distribution and the DNS record, and a
 // change would replace them.
+import { isAbsolute } from 'node:path';
 import { $CfResourceParam, Bucket, defineConfig, LocalScript } from '@stacktape/config-authoring';
 import { buildRedirectFunctionCode } from './src/build/cdn-redirects.ts';
 import { SITE_REDIRECTS } from './src/utils/site-redirects.ts';
 
 const REDIRECT_FUNCTION = 'DocsRedirectsFunction';
 
-// Rollback: `DOCS_RESTORE_DIRECTORY=<backup of an earlier site> pnpm deploy:docs` uploads that directory instead of
-// building this checkout, without the redirects (they point at pages the earlier site does not have).
+// Rollback: `DOCS_RESTORE_DIRECTORY=<absolute path to a backup of an earlier site> pnpm deploy:docs` uploads that
+// directory instead of building this checkout, without the redirects (they point at pages the earlier site lacks).
 const restoreDirectory = process.env.DOCS_RESTORE_DIRECTORY;
+if (restoreDirectory && !isAbsolute(restoreDirectory)) {
+  throw new Error(`DOCS_RESTORE_DIRECTORY must be an absolute path; got ${restoreDirectory}.`);
+}
 
 export default defineConfig({ projectName: 'docs', region: 'eu-west-1' }, ({ stage }) => {
   const webBucket = new Bucket({
