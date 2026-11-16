@@ -81,6 +81,9 @@ import {
 import { DEPLOYMENT_REPOSITORY_LIFECYCLE_POLICY_TEXT } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/background-resources/deployment-image-repository/utils';
 import { getSourceMapManifest, selectObsoleteSourceMapKeys, sourceMapKeyForArtifact } from './source-maps';
 import { SOURCE_MAP_KEY_PREFIX } from '@stacktape/console-api/source-maps';
+import { ALARM_DELIVERY_MARKER_PREFIX } from 'src/config/constants';
+
+const ALARM_DELIVERY_MARKER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 import type { DirectoryUpload } from '@stacktape/config/buckets';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
@@ -143,6 +146,8 @@ class DeploymentArtifactManager {
   uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
   /** Source-map bundles in the deployment bucket, including those this run uploaded (`sourceMapKeyForArtifact`). */
   #storedSourceMapKeys = new Set<string>();
+  /** Alarm-delivery markers past every retry window. See `ALARM_DELIVERY_MARKER_PREFIX`. */
+  #expiredAlarmDeliveryMarkerKeys: string[] = [];
 
   getLambdasToUpload() {
     return [...configManager.allLambdasToUpload, ...configManager.uptimeProberUploadArtifacts]
@@ -830,6 +835,14 @@ class DeploymentArtifactManager {
         .map(({ s3Key }) => s3Key)
         .filter((s3Key) => !deletedKeys.has(s3Key))
     });
+    const expiredMarkerKeys = this.#expiredAlarmDeliveryMarkerKeys;
+    this.#expiredAlarmDeliveryMarkerKeys = [];
+    if (expiredMarkerKeys.length) {
+      // Bookkeeping, not an artifact: a failed delete leaves them for the next deploy.
+      await this.deleteObjectsFromDeploymentBucket(expiredMarkerKeys).catch((error) =>
+        tuiManager.debug(`Expired alarm delivery markers were not deleted: ${error}`)
+      );
+    }
     if (obsoleteImages.length || obsoleteObjects.length || obsoleteSourceMapKeys.length) {
       await operationReporter.startEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
@@ -1167,6 +1180,13 @@ class DeploymentArtifactManager {
       }
       if (s3Key.startsWith(SOURCE_MAP_KEY_PREFIX)) {
         this.#storedSourceMapKeys.add(s3Key);
+        return;
+      }
+      if (s3Key.startsWith(ALARM_DELIVERY_MARKER_PREFIX)) {
+        // Lambda stops retrying an event after six hours; a day-old marker protects nothing.
+        if (object.LastModified && Date.now() - object.LastModified.getTime() > ALARM_DELIVERY_MARKER_MAX_AGE_MS) {
+          this.#expiredAlarmDeliveryMarkerKeys.push(s3Key);
+        }
         return;
       }
       const parsed = parseBucketObjectS3Key(s3Key);

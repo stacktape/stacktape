@@ -18,6 +18,8 @@ export type AlarmNotificationEventRuleInput = {
   description: string;
   time: string;
   stateValue: string;
+  /** The state the alarm left. An OK after INSUFFICIENT_DATA is a first evaluation, not a recovery. */
+  previousStateValue?: string;
   alarmAwsResourceName: string;
   stackName: string;
   alarmConfig: ConfigAlarmDefinition;

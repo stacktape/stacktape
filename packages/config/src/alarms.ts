@@ -72,9 +72,14 @@ export interface AlarmDefinitionBase {
    */
   evaluation?: AlarmEvaluation;
   /**
-   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+   * #### Where to send notifications when the alarm fires and when it recovers.
    *
    * ---
+   *
+   * Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+   * Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+   * `$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+   * channels are delivered by the Stacktape Console, which keeps their credentials.
    *
    * **Example (YAML):**
    *
@@ -148,6 +153,10 @@ export interface AlarmDefinitionBase {
    * #### Whether alarm state changes should appear in monitoring history.
    *
    * ---
+   *
+   * When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+   * appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+   * `slack-app` channels are delivered by the Console, so they need this to stay `true`.
    *
    * **Example (YAML):**
    *

@@ -78,6 +78,9 @@ export interface ConsoleChannelIntegration {
  * Either an inline destination with its own credentials (`slack`, `ms-teams`, `discord`, `email`, `webhook`),
  * a channel of the Slack workspace connected through the Stacktape Slack app (`slack-app`),
  * or a reference to a channel configured once in the Stacktape Console (`console-channel`).
+ *
+ * For alarms and synthetic tests, inline destinations are delivered from your AWS account and their credentials are
+ * never sent to Stacktape. `slack-app` and `console-channel` are delivered by the Stacktape Console.
  */
 export type NotificationChannel =
   | MsTeamsIntegration

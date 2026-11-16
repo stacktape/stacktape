@@ -19403,6 +19403,7 @@
         "page:/observability/alarms#notification-targets",
         "page:/observability/alarms#alarm-description",
         "page:/observability/alarms#history-tracking",
+        "page:/observability/alarms#what-leaves-your-aws-account",
         "page:/observability/alarms#migrating-legacy-console-alarm-rules",
         "page:/observability/alarms#viewing-alarm-states",
         "page:/observability/alarms#cli",

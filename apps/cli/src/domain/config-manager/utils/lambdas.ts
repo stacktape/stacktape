@@ -7,6 +7,7 @@ import type { StackContext } from '@domain-services/stack-context';
 import { shouldDeployResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
+import { ALARM_DELIVERY_MARKER_PREFIX } from '../../../config/constants';
 import { sesManager } from '@domain-services/ses-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { arns } from '@stacktape/naming/arns';
@@ -500,17 +501,27 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
 };
 
 export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
-  activeConfig
+  activeConfig,
+  deploymentBucketName
 }: {
   activeConfig: ConfigManager;
+  deploymentBucketName: string;
 }): StpIamRoleStatement[] => {
   const {
     allSecretNamesUsedInAlarmNotifications,
     allParameterNamesUsedInAlarmNotifications,
-    categorizedEmailsUsedInAlertNotifications: { senders }
+    categorizedEmailsUsedInAlertNotifications: { senders },
+    hasInlineAlarmNotificationChannels
   } = activeConfig;
   const allEmailSenders = Array.from(senders);
   return [
+    // Records which notifications of an alarm event were sent, so a retried invocation sends each one once.
+    hasInlineAlarmNotificationChannels && {
+      Resource: [
+        sub(`arn:\${AWS::Partition}:s3:::${deploymentBucketName}/${ALARM_DELIVERY_MARKER_PREFIX}*`) as unknown as string
+      ],
+      Action: ['s3:GetObject', 's3:PutObject']
+    },
     allParameterNamesUsedInAlarmNotifications.length && {
       Resource: allParameterNamesUsedInAlarmNotifications
         .map((paramName) => (paramName.startsWith('/') ? paramName : `/${paramName}`))

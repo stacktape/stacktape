@@ -682,6 +682,7 @@ const runGlobalLanes = async (options: ParsedOptions): Promise<QualificationStep
       'container-fast-deploy': 'test:real-aws-container-canary',
       'release-command': 'test:real-aws-release-command-canary',
       'scoped-access': 'test:real-aws-scoped-access-canary',
+      'alarm-notifications': 'test:real-aws-alarm-notifications-canary',
       'static-site': 'test:real-aws-static-site-canary',
       'batch-job': 'test:real-aws-batch-canary'
     }[scenario.runner];

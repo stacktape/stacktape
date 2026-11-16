@@ -41,6 +41,7 @@ import type { StpWebService } from '@domain-services/config-manager/resolved-typ
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { StpWebSocketApiGateway } from '@domain-services/config-manager/resolved-types/websocket-api-gateways';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
+import type { NotificationChannel } from '@stacktape/config/notification-channels';
 import { guardrailDefinitionSchema } from '@stacktape/console-api/guardrails';
 import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
@@ -2072,17 +2073,29 @@ export class ConfigManager {
     return Array.from(resultDomains);
   }
 
+  /**
+   * The notification channels of resource alarms and synthetic tests. The stack's service Lambda delivers their inline
+   * channels itself, so it needs the secrets, parameters and email senders they name.
+   */
+  get allAlarmNotificationChannels(): NotificationChannel[] {
+    return [...this.allAlarms, ...this.syntheticTests].flatMap(
+      ({ notificationChannels }) => notificationChannels || []
+    );
+  }
+
+  get hasInlineAlarmNotificationChannels() {
+    return this.allAlarmNotificationChannels.some(({ type }) => type !== 'console-channel' && type !== 'slack-app');
+  }
+
   get categorizedEmailsUsedInAlertNotifications() {
     const senders = new Set<string>();
     const recipients = new Set<string>();
-    this.allAlarms.forEach(({ notificationChannels }) =>
-      notificationChannels?.forEach(({ type, properties }) => {
-        if (type === 'email') {
-          senders.add(properties.sender);
-          recipients.add(properties.recipient);
-        }
-      })
-    );
+    this.allAlarmNotificationChannels.forEach(({ type, properties }) => {
+      if (type === 'email') {
+        senders.add(properties.sender);
+        recipients.add(properties.recipient);
+      }
+    });
     return { senders, recipients };
   }
 
@@ -2211,7 +2224,7 @@ export class ConfigManager {
 
   get allSecretNamesUsedInAlarmNotifications() {
     const secretNames: string[] = [];
-    processAllNodesSync(this.allAlarms, (node) => {
+    processAllNodesSync(this.allAlarmNotificationChannels, (node) => {
       if (typeof node === 'string') {
         // if secret is referenced using $Secret directive, on its own or inside another directive
         if (getIsDirective(node)) {
@@ -2314,7 +2327,7 @@ export class ConfigManager {
 
   get allParameterNamesUsedInAlarmNotifications() {
     const paramNames: string[] = [];
-    processAllNodesSync(this.allAlarms, (node) => {
+    processAllNodesSync(this.allAlarmNotificationChannels, (node) => {
       if (typeof node === 'string') {
         // $SsmParam directive, on its own or inside another directive
         if (getIsDirective(node)) {
@@ -2615,7 +2628,10 @@ export class ConfigManager {
         stackContext: this.stackContext
       }),
       ...getStacktapeServiceLambdaReleaseCommandStatements({ activeConfig: this, stackContext: this.stackContext }),
-      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
+      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({
+        activeConfig: this,
+        deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash)
+      }),
       ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
         activeConfig: this,
         stackName: this.stackContext.stackName

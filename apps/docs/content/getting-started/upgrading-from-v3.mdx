@@ -225,6 +225,8 @@ export default defineConfig(() => {
 
 v4 also accepts `{ type: console-channel, properties: { channelName: <name> } }`, which sends to an [alert channel](/observability/alert-channels) set up in the Console, so the token stays out of the configuration.
 
+In v4, inline channels such as `slack` are delivered by the stack's own service Lambda from your AWS account, when the alarm fires and when it recovers. Their tokens and webhook URLs are no longer sent to the Stacktape Console. A stack still deployed with v3 keeps sending them with each alarm event until you redeploy it with v4; the Console delivers those notifications but does not store the channel settings.
+
 ### NAT
 
 `stackConfig.vpc.nat` moved to `stackConfig.nat`, and NAT is no longer created implicitly. In v3, a container with `usePrivateSubnetsWithNAT: true` gave the stack NAT Gateways. In v4, the stack needs `stackConfig.nat`; without it, validation stops with `CONFIG_NAT_REQUIRED`.
