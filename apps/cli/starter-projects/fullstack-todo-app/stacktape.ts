@@ -1,4 +1,5 @@
 import {
+  $ResourceParam,
   DynamoDbTable,
   HostingBucket,
   HttpApiGateway,
@@ -44,12 +45,9 @@ export default defineConfig(() => {
   const frontend = new HostingBucket({
     uploadDirectoryPath: './public',
     hostingContentType: 'single-page-app',
-    injectEnvironment: [
-      {
-        name: 'API_URL',
-        value: "$ResourceParam('apiGateway', 'url')"
-      }
-    ]
+    injectEnvironment: {
+      API_URL: $ResourceParam('apiGateway', 'url')
+    }
   });
 
   return {

@@ -9,7 +9,7 @@ import {
 export default defineConfig(() => {
   const researchMemory = new AgentCoreMemory({
     description: 'Stores prior research briefs, source preferences, and follow-up context.',
-    expirationDays: 45
+    eventRetentionDays: 45
   });
 
   const researchBrowser = new AgentCoreBrowser({
@@ -28,13 +28,13 @@ export default defineConfig(() => {
     useBrowser: 'researchBrowser',
     endpoints: [{ name: 'production', description: 'Main research assistant endpoint.' }],
     lifecycle: {
-      idleRuntimeSessionTimeout: 3600,
-      maxLifetime: 28800
+      idleTimeoutSeconds: 3600,
+      maxLifetimeSeconds: 28800
     },
-    environment: [
-        { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'RESEARCH_SCOPE', value: 'market-research' }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      RESEARCH_SCOPE: 'market-research'
+    }
   });
 
   return {

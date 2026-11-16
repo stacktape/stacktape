@@ -10,7 +10,7 @@ import {
 export default defineConfig(() => {
   const analysisMemory = new AgentCoreMemory({
     description: 'Stores user preferences, recurring KPI definitions, and analysis context.',
-    expirationDays: 90
+    eventRetentionDays: 90
   });
 
   const analysisCodeInterpreter = new AgentCoreCodeInterpreter({
@@ -29,13 +29,13 @@ export default defineConfig(() => {
     connectTo: [reportsBucket],
     endpoints: [{ name: 'production', description: 'Main data analyst endpoint.' }],
     lifecycle: {
-      idleRuntimeSessionTimeout: 3600,
-      maxLifetime: 28800
+      idleTimeoutSeconds: 3600,
+      maxLifetimeSeconds: 28800
     },
-    environment: [
-        { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'REPORT_PREFIX', value: 'analyst-reports/' }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      REPORT_PREFIX: 'analyst-reports/'
+    }
   });
 
   return {

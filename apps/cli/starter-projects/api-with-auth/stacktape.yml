@@ -13,7 +13,6 @@ resources:
       passwordPolicy:
         minimumLength: 8
       enableHostedUi: true
-      hostedUiDomainPrefix: $Format('{stage()}-{projectName()}-auth')
       allowedOAuthFlows:
         - code
       allowedOAuthScopes:

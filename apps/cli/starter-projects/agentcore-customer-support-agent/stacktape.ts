@@ -12,7 +12,7 @@ import {
 export default defineConfig(() => {
   const supportMemory = new AgentCoreMemory({
     description: 'Stores support preferences, prior issues, and handoff summaries.',
-    expirationDays: 60
+    eventRetentionDays: 60
   });
 
   const tickets = new DynamoDbTable({
@@ -43,6 +43,9 @@ export default defineConfig(() => {
 
   const supportGateway = new AgentCoreGateway({
     description: 'Governed tool gateway for customer support operations.',
+    // Anyone who can reach the gateway endpoint can call these tools. Use `type: 'jwt'` with your identity provider
+    // before putting real customer data behind them.
+    authorizer: { type: 'none' },
     instructions: 'Use these tools only for customer support lookup and ticket workflows.',
     supportedVersions: ['2025-03-26'],
     tools: [
@@ -99,13 +102,13 @@ export default defineConfig(() => {
     useGateway: 'supportGateway',
     endpoints: [{ name: 'production', description: 'Main customer support endpoint.' }],
     lifecycle: {
-      idleRuntimeSessionTimeout: 1800,
-      maxLifetime: 14400
+      idleTimeoutSeconds: 1800,
+      maxLifetimeSeconds: 14400
     },
-    environment: [
-        { name: 'AI_MODEL', value: 'eu.amazon.nova-micro-v1:0' },
-      { name: 'AGENT_NAME', value: 'customer-support' }
-    ]
+    environment: {
+      AI_MODEL: 'eu.amazon.nova-micro-v1:0',
+      AGENT_NAME: 'customer-support'
+    }
   });
 
   return {
