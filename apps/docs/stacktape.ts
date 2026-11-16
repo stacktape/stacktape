@@ -21,7 +21,19 @@ export default defineConfig({ projectName: 'docs', region: 'eu-west-1' }, ({ sta
   const webBucket = new Bucket({
     directoryUpload: restoreDirectory
       ? { directoryPath: restoreDirectory, headersPreset: 'static-website' }
-      : { directoryPath: 'dist', headersPreset: 'astro-static-website' },
+      : {
+          directoryPath: 'dist',
+          headersPreset: 'astro-static-website',
+          // The preset sets caching only for HTML and `_astro/`. The LLM text, sitemaps and Twoslash declarations change
+          // with every publish, so browsers revalidate them like HTML.
+          fileOptions: [
+            {
+              includePattern: '**/*',
+              excludePattern: '_astro/**/*',
+              headers: [{ key: 'cache-control', value: 'public, max-age=0, s-maxage=31536000, must-revalidate' }]
+            }
+          ]
+        },
     cdn: {
       enabled: true,
       errorDocument: '/404.html',

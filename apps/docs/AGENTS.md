@@ -51,6 +51,14 @@ can override shared component styles.
 `public` is committed app-owned static content. Generated assets go to `dist` during build; builds must not rewrite
 `public`.
 
+## Publishing
+
+`stacktape.ts` deploys the site: `pnpm deploy:docs:preview` publishes `https://preview-docs.stacktape.com`, and
+`pnpm deploy:docs` publishes production. Redirects live in `src/utils/site-redirects.ts`; Astro renders them as
+meta-refresh pages and the CDN answers them with a 301 through a CloudFront Function, whose code must stay under 10 KB
+(`tests/cdn-redirects.test.ts`). The procedure, verification and rollback are in
+[releasing](../../docs/releasing.md#documentation-site).
+
 ## Checks
 
 ```sh
