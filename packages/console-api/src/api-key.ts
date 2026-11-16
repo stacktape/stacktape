@@ -12,7 +12,7 @@ import { sourceMapManifestSchema } from './source-maps.js';
  * deployment needs; the server decides that, and it is deliberately not described here.
  */
 
-export const recordStackOperationInputSchema = z.object({
+const recordStackOperationFieldsSchema = z.object({
   invocationId: z.string(),
   command: z.string().optional().nullable(),
   stackName: z.string().optional().nullable(),
@@ -52,8 +52,17 @@ export const recordStackOperationInputSchema = z.object({
    * Which source maps in the stack's deployment bucket describe each function this operation deploys. Sent before the
    * code switches and again with each function's `activeSince` once it has.
    */
-  sourceMaps: sourceMapManifestSchema.optional().nullable()
+  sourceMaps: sourceMapManifestSchema.optional().nullable(),
+  /**
+   * @deprecated Stacktape 3 CLIs send the project name in this field. The Console reads it as `projectName`, so their
+   * deployments still belong to the project. Send `projectName`.
+   */
+  serviceName: z.string().optional().nullable()
 });
+
+export const recordStackOperationInputSchema = recordStackOperationFieldsSchema.transform(
+  ({ serviceName, ...operation }) => ({ ...operation, projectName: operation.projectName ?? serviceName })
+);
 
 export const createDeploymentTokenFromCliInputSchema = z.object({
   projectName: z.string(),

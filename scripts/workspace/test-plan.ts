@@ -39,6 +39,7 @@ const databaseSuites: [flag: string, feature: RegExp, files?: string[], publicFe
     [
       'console-access-database.test.ts',
       'error-contract-database.test.ts',
+      'v3-cli-database.test.ts',
       'console-tenancy-database.test.ts',
       'console-member-scope-database.test.ts',
       'console-aws-connection-database.test.ts',

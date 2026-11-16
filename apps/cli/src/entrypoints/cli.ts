@@ -39,7 +39,7 @@ const main = async () => {
     endReadArguments();
     return runCommand({ commands: [], args: getBootstrapOptions(process.argv.slice(2)) }, error);
   }
-  const { commands, options, additionalArgs } = input;
+  const { commands, options, additionalArgs, warnings } = input;
   endReadArguments();
   const forceTty = process.env.FORCE_TTY === '1';
   const outputMode = resolveOutputMode({
@@ -71,7 +71,8 @@ const main = async () => {
     runCommand({
       args: options,
       commands,
-      additionalArgs
+      additionalArgs,
+      warnings
     })
   );
 };

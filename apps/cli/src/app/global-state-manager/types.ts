@@ -30,4 +30,6 @@ export type RunCommandOptions = {
   args: StacktapeArgs;
   config?: StacktapeConfig;
   additionalArgs?: Record<string, string | boolean>;
+  /** Warnings about Stacktape 3 spellings in the arguments, printed once output is configured. */
+  warnings?: string[];
 };

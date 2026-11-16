@@ -131,7 +131,8 @@ const runCli = async ({
   args,
   controlPlane,
   awsEndpoint,
-  environment = {}
+  environment = {},
+  output = ['--outputFormat', 'jsonl']
 }: {
   home: string;
   cwd: string;
@@ -139,6 +140,8 @@ const runCli = async ({
   controlPlane: ControlPlaneFake;
   awsEndpoint: string;
   environment?: Record<string, string>;
+  /** How the CLI is asked to write its output; without a terminal it otherwise writes plain text. */
+  output?: string[];
 }) => {
   // These commands never invoke helper Lambdas. An empty artifact directory satisfies the startup inventory.
   await mkdir(join(cwd, '__stacktape-dist', 'dev', 'helper-lambdas'), { recursive: true });
@@ -150,8 +153,7 @@ const runCli = async ({
       join(cliRoot, 'scripts', 'network-guard-preload.ts'),
       cli.path,
       ...args,
-      '--outputFormat',
-      'jsonl'
+      ...output
     ],
     {
       cwd,
@@ -609,5 +611,86 @@ export default defineConfig({ projectName: 'cfgproj', region: 'eu-central-1' }, 
 
     expect(stackReads(aws.requests), run.output).toContainEqual({ region: 'eu-central-1', stackName: 'cfgproj-test' });
     expect(existsSync(marker), run.output).toBe(false);
+  });
+});
+
+describe('Stacktape 3.7.1 CI scripts', () => {
+  const recordedArgs = (controlPlane: ControlPlaneFake) =>
+    controlPlane.calls
+      .filter(({ procedure }) => procedure === 'recordStackOperation')
+      .map(({ input }) => (input as { commandArgs?: Record<string, unknown> }).commandArgs)
+      .find(Boolean);
+
+  for (const [mode, output] of [
+    ['--agent', ['--agent']],
+    ['plain output without a terminal', []]
+  ] as const) {
+    test(`deploy with --hotSwap, --disableAutoRollback and a separated boolean reaches the stack (${mode})`, async () => {
+      const controlPlane = await startConsole();
+      const aws = await startAwsFake();
+      const { home, project } = await createHome({ files: { 'stacktape.ts': SETTINGS_CONFIG } });
+      const run = await runCli({
+        home,
+        cwd: project,
+        args: ['deploy', '--stage', 'test', '--hotSwap', '--disableAutoRollback', '--autoConfirmOperation', 'true'],
+        controlPlane,
+        awsEndpoint: aws.endpoint,
+        output: [...output]
+      });
+
+      expect(run.output).not.toContain('CLI_ARGUMENT');
+      expect(stackReads(aws.requests), run.output).toContainEqual({
+        region: 'eu-central-1',
+        stackName: 'cfgproj-test'
+      });
+      expect(recordedArgs(controlPlane), run.output).toMatchObject({ autoRollback: false, autoConfirmOperation: true });
+      expect(recordedArgs(controlPlane)).not.toHaveProperty('hotSwap');
+      expect(run.output).toContain('`--hotSwap` is ignored');
+      expect(run.output).toContain('use `--auto-rollback=false`');
+    });
+  }
+
+  // The AWS fake refuses the stack-resource read synth makes next, so this checks that synth ran, not its template.
+  test('compile-template runs synth and says so', async () => {
+    const controlPlane = await startConsole();
+    const aws = await startAwsFake();
+    const { home, project } = await createHome({ files: { 'stacktape.ts': SETTINGS_CONFIG } });
+    const run = await runCli({
+      home,
+      cwd: project,
+      args: ['compile-template', '--stage', 'test'],
+      controlPlane,
+      awsEndpoint: aws.endpoint,
+      // v4 synth reads the account for globally unique names from local credentials.
+      environment: { AWS_ACCESS_KEY_ID: ACCESS_KEY, AWS_SECRET_ACCESS_KEY: 'fake' },
+      output: ['--agent']
+    });
+
+    expect(run.output).toContain('`compile-template` is the Stacktape 3 name of `stacktape synth`');
+    expect(run.error?.code, run.output).not.toMatch(/^CLI_/);
+    expect(
+      aws.requests.map(({ action }) => action),
+      run.output
+    ).toContain('ListStackResources');
+  });
+
+  test('codebuild:deploy and --templateId fail with what to do instead', async () => {
+    const controlPlane = await startConsole();
+    const aws = await startAwsFake();
+    const { home, project } = await createHome({ files: { 'stacktape.ts': SETTINGS_CONFIG } });
+    for (const [args, code, advice] of [
+      [['codebuild:deploy', '--stage', 'test'], 'CLI_COMMAND_REMOVED', 'stacktape deploy --runner ec2'],
+      [
+        ['deploy', '--stage', 'test', '--templateId', 'cm-template'],
+        'CLI_ARGUMENT_REMOVED',
+        'Commit your configuration'
+      ]
+    ] as const) {
+      const run = await runCli({ home, cwd: project, args: [...args], controlPlane, awsEndpoint: aws.endpoint });
+      expect(run.exitCode, run.output).toBe(1);
+      expect(run.error, run.output).toMatchObject({ code });
+      expect(run.output).toContain(advice);
+    }
+    expect(aws.requests).toEqual([]);
   });
 });

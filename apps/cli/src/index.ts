@@ -133,6 +133,7 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
     // Output must be configured before argument validation so early failures use the requested machine format.
     tuiManager.init({ logLevel: opts.args.logLevel, quiet: opts.args.quiet });
     if (bootstrapError) throw bootstrapError;
+    for (const warning of opts.warnings ?? []) tuiManager.warn(warning);
     const endDeleteTemp = startTiming('command:delete-temp-folder');
     await deleteTempFolder();
     endDeleteTemp();

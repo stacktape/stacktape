@@ -38,7 +38,7 @@ describe('public CLI compatibility table', () => {
     test(`${name} and ${id} resolve to ${id}`, () => {
       expect(publicCommandName(id)).toBe(name);
       for (const spelling of [name.split(' '), [id]])
-        expect(parseCliInput(spelling)).toEqual({ commands: [id], options: {}, additionalArgs: {} });
+        expect(parseCliInput(spelling)).toEqual({ commands: [id], options: {}, additionalArgs: {}, warnings: [] });
     });
     for (const arg of getAllowedArgs(id).filter((arg) => arg !== 'help')) {
       const aliases = argAliases[arg as keyof typeof argAliases];
@@ -108,7 +108,8 @@ test('leaves custom arguments after -- outside primary option parsing', () => {
   expect(parseCliInput(['deploy', '--json', '--', '--setting', '-prj', '--no-cache'])).toEqual({
     commands: ['deploy'],
     options: { outputFormat: 'jsonl' },
-    additionalArgs: { setting: '-prj', 'no-cache': true }
+    additionalArgs: { setting: '-prj', 'no-cache': true },
+    warnings: []
   });
 });
 

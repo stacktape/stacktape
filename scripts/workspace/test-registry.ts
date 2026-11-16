@@ -1712,6 +1712,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/error-contract-database.test.ts',
+      'apps/console/api/scripts/v3-cli-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
       'apps/console/api/scripts/audit-coverage-database.test.ts',
@@ -5428,6 +5429,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/error-contract-database.test.ts',
+      'apps/console/api/scripts/v3-cli-database.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
