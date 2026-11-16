@@ -57,6 +57,22 @@ describe('CLI argument parsing', () => {
     expect(warnings).toEqual([expect.stringContaining('--auto-rollback=false')]);
   });
 
+  test('a boolean value as the next word is a positional for commands that take one', () => {
+    expect(parseCliInput('secret', 'set', '--force-update', 'false', '--value', 'x')).toMatchObject({
+      commands: ['secret:set'],
+      options: { forceUpdate: true, secretName: 'false', secretValue: 'x' }
+    });
+  });
+
+  test('--agent false keeps agent mode off, before or after the command', () => {
+    expect(parseCliInput('deploy', '--stage', 'dev', '--agent', 'false').options.agent).toBe(false);
+    expect(parseCliInput('--agent', 'false', 'deploy', '--stage', 'dev').options.agent).toBe(false);
+    expect(parseCliInput('--agent', 'true', 'compile-template', '--stage', 'dev')).toMatchObject({
+      commands: ['synth'],
+      options: { agent: true, stage: 'dev' }
+    });
+  });
+
   test('a Stacktape 3 boolean may carry its value as the next word', () => {
     expect(
       parseCliInput('deploy', '--stage', 'dev', '--autoConfirmOperation', 'true', '--noCache', 'false')

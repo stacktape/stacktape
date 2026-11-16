@@ -73,6 +73,7 @@ export const resolveFlagName = (name: string, command?: StacktapeCommand): strin
 const parseError = (code: string, message: string, hints?: string) =>
   new CliError({ category: 'CLI', code, message, hints });
 const isOption = (token: string) => /^-/.test(token) && !/^-(?:\d|\.\d)/.test(token);
+const isBooleanWord = (token: string | undefined) => token === 'true' || token === 'false';
 
 /** Bootstrap output settings must survive a later parse error. Last output flag wins. */
 export const getBootstrapOptions = (argv: string[]): StacktapeCliArgs => {
@@ -85,13 +86,16 @@ export const getBootstrapOptions = (argv: string[]): StacktapeCliArgs => {
     if (['--output-format', '--outputFormat', '--ofmt'].includes(flag))
       options.outputFormat = (inline ??
         (tokens[i + 1] && !isOption(tokens[i + 1]) ? tokens[++i] : undefined)) as StacktapeCliArgs['outputFormat'];
-    if (['--agent', '--ag'].includes(flag)) options.agent = inline !== 'false';
+    // `--agent false` turns agent mode off; agent mode confirms operations automatically.
+    if (['--agent', '--ag'].includes(flag))
+      options.agent = (inline ?? (isBooleanWord(tokens[i + 1]) ? tokens[i + 1] : undefined)) !== 'false';
     if (flag === '--debug') options.logLevel = 'debug';
     if (['--log-level', '--logLevel', '--ll'].includes(flag))
       options.logLevel = (inline ??
         (tokens[i + 1] && !isOption(tokens[i + 1]) ? tokens[++i] : undefined)) as StacktapeCliArgs['logLevel'];
   }
-  if (tokens.includes('--quiet')) options.quiet = true;
+  const quiet = tokens.indexOf('--quiet');
+  if (quiet >= 0 && tokens[quiet + 1] !== 'false') options.quiet = true;
   return options;
 };
 
@@ -106,6 +110,8 @@ const findCommandStart = (tokens: string[]): number => {
     const schema = allCliArgsSchema.shape[arg];
     const unwrapped = schema?.unwrap();
     if (unwrapped?.type !== 'boolean' && index + 1 < tokens.length && !isOption(tokens[index + 1])) index++;
+    // A boolean's separated value (`--agent true`) is never the command.
+    else if (unwrapped?.type === 'boolean' && isBooleanWord(tokens[index + 1])) index++;
   }
   return tokens.length;
 };
@@ -228,8 +234,13 @@ export const parseCliInput = (
     if (allowedTypes.includes('boolean')) {
       if (inline !== undefined && !['true', 'false'].includes(inline))
         throw parseError('CLI_ARGUMENT_TYPE_INVALID', `--${publicFlag(arg)} expects true or false.`);
-      // Stacktape 3 scripts write a boolean's value as the next word: `--autoConfirmOperation true`.
-      const separated = inline === undefined && ['true', 'false'].includes(primary[i + 1]) ? primary[++i] : undefined;
+      // Stacktape 3 scripts write a boolean's value as the next word: `--autoConfirmOperation true`. A command with
+      // positional arguments keeps reading that word as one, as v4 always did.
+      const takesPositionals = Boolean(command && commandPositionals[command]?.length);
+      const separated =
+        inline === undefined && (i < commandStart || !takesPositionals) && isBooleanWord(primary[i + 1])
+          ? primary[++i]
+          : undefined;
       options[arg] = (inline ?? separated) !== 'false';
     } else if (allowedTypes.includes('array')) {
       const values: string[] = inline === undefined ? [] : [inline];
